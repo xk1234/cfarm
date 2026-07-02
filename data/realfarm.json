@@ -1,0 +1,339 @@
+{
+  "brand": {
+    "name": "ReelFarm",
+    "owner": "Matt",
+    "email": "matt@mattwelter.com",
+    "videosRemaining": 80,
+    "resetWindow": "Resets in 1 day",
+    "exports": 120,
+    "aiCredits": 252
+  },
+  "ugcAds": {
+    "hooks": [
+      "i was thinking you could watch this quick video for me...",
+      "believe it or not, this helped me make my first winning ad",
+      "the top brands do not make one video, they test the whole angle"
+    ],
+    "selectedHook": 0,
+    "avatars": [
+      "Maya", "Tess", "Olivia", "Rina", "Casey", "Ivy", "Nora", "Ari",
+      "Leo", "Noah", "Miles", "Sam", "Jules", "Ben", "Kai", "Dev",
+      "Zoe", "Eva", "Mina", "Lena", "Ruby", "Elle", "Sofia", "Nia"
+    ],
+    "selectedAvatar": 10,
+    "demos": [
+      "None", "Landing page", "Cart", "Checkout", "Review", "Social proof",
+      "Product shot", "Offer"
+    ]
+  },
+  "generatedAssets": {
+    "higgsfieldCharacter": {
+      "name": "Soul UGC Creator",
+      "model": "Higgsfield Soul V2",
+      "type": "image",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_37Zbt7c6rjy3Gna5PuK4MDHPTbw/hf_20260630_235611_c12a1c82-fc75-49c5-853f-70b5eb935a73.png"
+    }
+  },
+  "defaultCollections": {
+    "backgrounds": {
+      "id": "default-backgrounds",
+      "title": "Backgrounds",
+      "source": "apify",
+      "query": "vertical aesthetic backgrounds",
+      "images": [
+        {
+          "id": "5348093304716770",
+          "title": "33",
+          "description": "Pinterest background",
+          "imageUrl": "https://i.pinimg.com/originals/95/0d/14/950d14fc7bbde2fadbe3bc8f70c74878.png",
+          "sourceUrl": "https://www.pinterest.com/pin/5348093304716770/",
+          "dominantColor": "#317bae",
+          "width": 1536,
+          "height": 3072
+        },
+        {
+          "id": "4292562138980650",
+          "title": "Deep green vertical background",
+          "description": "Pinterest background",
+          "imageUrl": "https://i.pinimg.com/originals/33/75/95/3375959fa715260faa211f54203b5802.jpg",
+          "sourceUrl": "https://www.pinterest.com/pin/4292562138980650/",
+          "dominantColor": "#183523",
+          "width": 768,
+          "height": 1536
+        },
+        {
+          "id": "1055599909189598",
+          "title": "Blue vertical background",
+          "description": "Pinterest background",
+          "imageUrl": "https://i.pinimg.com/originals/fe/ca/65/feca654c61d5df237a6d35702c57e225.jpg",
+          "sourceUrl": "https://www.pinterest.com/pin/1055599909189598/",
+          "dominantColor": "#2b3e68",
+          "width": 924,
+          "height": 2048
+        },
+        {
+          "id": "2674081025840787",
+          "title": "Ocean vertical background",
+          "description": "Pinterest background",
+          "imageUrl": "https://i.pinimg.com/originals/66/ff/cd/66ffcd4ce308849ca2867a999720f513.jpg",
+          "sourceUrl": "https://www.pinterest.com/pin/2674081025840787/",
+          "dominantColor": "#1f3f59",
+          "width": 736,
+          "height": 1308
+        },
+        {
+          "id": "1900024839980391",
+          "title": "Soft vertical background",
+          "description": "Pinterest background",
+          "imageUrl": "https://i.pinimg.com/originals/cc/a5/cb/cca5cb3b9355d36a1901154cfcac8102.jpg",
+          "sourceUrl": "https://www.pinterest.com/pin/1900024839980391/",
+          "dominantColor": "#79918d",
+          "width": 736,
+          "height": 1308
+        },
+        {
+          "id": "914862422214767",
+          "title": "Dark vertical background",
+          "description": "Pinterest background",
+          "imageUrl": "https://i.pinimg.com/originals/52/f2/6d/52f26d763e07d498df22a0f99f05d0e9.jpg",
+          "sourceUrl": "https://www.pinterest.com/pin/914862422214767/",
+          "dominantColor": "#292b2a",
+          "width": 1080,
+          "height": 1920
+        },
+        {
+          "id": "54535845480542281",
+          "title": "Pink vertical background",
+          "description": "Pinterest background",
+          "imageUrl": "https://i.pinimg.com/originals/f5/2e/66/f52e6629bcd1f74c5eccb551d6f076b9.jpg",
+          "sourceUrl": "https://www.pinterest.com/pin/54535845480542281/",
+          "dominantColor": "#a4777b",
+          "width": 736,
+          "height": 1288
+        },
+        {
+          "id": "422281212501732",
+          "title": "Wallpaper",
+          "description": "Pinterest background",
+          "imageUrl": "https://i.pinimg.com/originals/f1/b9/3e/f1b93ed4a059198a0d4e0299e4b520b3.jpg",
+          "sourceUrl": "https://www.pinterest.com/pin/422281212501732/",
+          "dominantColor": "#1d2629",
+          "width": 896,
+          "height": 1344
+        },
+        {
+          "id": "344243965290536124",
+          "title": "Green vertical background",
+          "description": "Pinterest background",
+          "imageUrl": "https://i.pinimg.com/originals/44/0d/5a/440d5ab4c17d14337bef7bc4b0a44d59.jpg",
+          "sourceUrl": "https://www.pinterest.com/pin/344243965290536124/",
+          "dominantColor": "#657d68",
+          "width": 1080,
+          "height": 2400
+        },
+        {
+          "id": "3799980931535008",
+          "title": "Light vertical background",
+          "description": "Pinterest background",
+          "imageUrl": "https://i.pinimg.com/originals/98/1f/06/981f06100bbd3462be4371de3004305c.jpg",
+          "sourceUrl": "https://www.pinterest.com/pin/3799980931535008/",
+          "dominantColor": "#e8e0cf",
+          "width": 702,
+          "height": 1200
+        }
+      ]
+    }
+  },
+  "projects": [
+    {
+      "id": "draft-001",
+      "title": "New Slideshow",
+      "status": "draft",
+      "age": "7 days ago",
+      "slides": ["avatar-intro", "chess-demo", "blank-card"]
+    },
+    {
+      "id": "draft-002",
+      "title": "New Slideshow",
+      "status": "draft",
+      "age": "7 days ago",
+      "slides": ["portrait-hook", "receipt-proof"]
+    }
+  ],
+  "videos": [
+    {
+      "id": "vid-001",
+      "title": "Quick video hook",
+      "caption": "i was thinking you could watch this quick video for me...",
+      "tone": "warm"
+    },
+    {
+      "id": "vid-002",
+      "title": "Founder demo",
+      "caption": "believe it or not, this one demo changed the campaign",
+      "tone": "neutral"
+    },
+    {
+      "id": "vid-003",
+      "title": "Dark proof",
+      "caption": "if you are still guessing, this ad format fixes that",
+      "tone": "dark"
+    },
+    {
+      "id": "vid-004",
+      "title": "Offer frame",
+      "caption": "these captions turn raw product clips into a story",
+      "tone": "blue"
+    },
+    {
+      "id": "vid-005",
+      "title": "UGC close",
+      "caption": "try this script before you make another product video",
+      "tone": "soft"
+    }
+  ],
+  "imageCollections": [
+    {
+      "id": "all",
+      "title": "All Images",
+      "imageCount": 1210,
+      "withoutCaptions": 0,
+      "theme": "library"
+    },
+    {
+      "id": "soccer-body",
+      "title": "Soccer Body",
+      "imageCount": 11,
+      "withoutCaptions": 11,
+      "theme": "soccer"
+    },
+    {
+      "id": "soccer-hooks",
+      "title": "Soccer Hooks",
+      "imageCount": 19,
+      "withoutCaptions": 19,
+      "theme": "soccer-action"
+    },
+    {
+      "id": "wolf",
+      "title": "Pinterest - the wolf of wall street screencaps",
+      "imageCount": 3,
+      "withoutCaptions": 3,
+      "theme": "cinema"
+    },
+    {
+      "id": "nature",
+      "title": "Pinterest - nature textures",
+      "imageCount": 40,
+      "withoutCaptions": 40,
+      "theme": "nature"
+    },
+    {
+      "id": "space",
+      "title": "Pinterest - space",
+      "imageCount": 13,
+      "withoutCaptions": 13,
+      "theme": "space"
+    }
+  ],
+  "automations": [
+    {
+      "id": "auto-001",
+      "name": "Horizontal Girl",
+      "status": "Live",
+      "account": "@audrey.kins",
+      "handle": "audrey",
+      "times": ["8:13 AM", "1:51 PM", "10:04 PM"],
+      "favorite": true,
+      "theme": "ugc"
+    },
+    {
+      "id": "auto-002",
+      "name": "Be A Winner Horizontal",
+      "status": "Live",
+      "account": "@reelfarm",
+      "handle": "reelfarm",
+      "times": ["8:04 AM"],
+      "favorite": false,
+      "theme": "cinema"
+    },
+    {
+      "id": "auto-003",
+      "name": "Tutorial Video Automation",
+      "status": "Live",
+      "account": "No TikTok account",
+      "handle": "Click to add account",
+      "times": ["8:41 PM"],
+      "favorite": false,
+      "theme": "nature"
+    },
+    {
+      "id": "auto-004",
+      "name": "Soccer Motivational",
+      "status": "Live",
+      "account": "No TikTok account",
+      "handle": "Click to add account",
+      "times": ["8:11 PM"],
+      "favorite": false,
+      "theme": "soccer"
+    },
+    {
+      "id": "auto-005",
+      "name": "Substacks I Read This Week",
+      "status": "Live",
+      "account": "No TikTok account",
+      "handle": "Click to add account",
+      "times": ["8:14 AM", "1:52 PM", "6:40 PM"],
+      "favorite": false,
+      "theme": "books"
+    },
+    {
+      "id": "auto-006",
+      "name": "Natalie Portman",
+      "status": "Live",
+      "account": "@bella.grow",
+      "handle": "bella.growth",
+      "times": ["8:14 AM", "1:51 PM"],
+      "favorite": false,
+      "theme": "cinema"
+    }
+  ],
+  "editor": {
+    "title": "New Slideshow",
+    "slides": [
+      {
+        "id": "slide-001",
+        "kind": "avatar",
+        "text": "the top 4 foods to help with digestive health from a chronological doctor of 13 years",
+        "duration": "4s",
+        "aspectRatio": "4:5"
+      },
+      {
+        "id": "slide-002",
+        "kind": "brand",
+        "text": "Chess.com",
+        "duration": "4s",
+        "aspectRatio": "4:5"
+      },
+      {
+        "id": "slide-003",
+        "kind": "portrait",
+        "text": "this simple demo converts the hesitation into a story",
+        "duration": "4s",
+        "aspectRatio": "4:5"
+      }
+    ],
+    "captionRanges": [
+      "1-2 words",
+      "2-3 words",
+      "3-5 words",
+      "5-7 words",
+      "5-10 words",
+      "10-15 words",
+      "15-20 words",
+      "20-25 words",
+      "25-30 words",
+      "30-40 words"
+    ]
+  }
+}

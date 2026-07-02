@@ -19,6 +19,13 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
+        action: "bg-app-action text-white hover:bg-app-action-hover",
+        blueAction: "bg-app-blue-action text-white hover:bg-app-blue-action-hover",
+        indigoAction: "bg-app-indigo-action text-white hover:bg-app-indigo-action-hover",
+        softControl:
+          "border-app-panel-border bg-app-control-bg text-foreground shadow-sm hover:bg-app-control-hover",
+        iconControl:
+          "border-transparent bg-app-control-bg text-app-muted-text hover:bg-app-control-hover",
       },
       size: {
         default:
@@ -32,6 +39,13 @@ const buttonVariants = cva(
         "icon-sm":
           "size-8 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-md",
         "icon-lg": "size-10",
+        compact: "h-8 gap-1 rounded-md px-3 text-xs",
+        appDefault: "h-9 gap-1.5 rounded-lg px-4 text-sm",
+        largeAction: "h-12 gap-2 rounded-full px-8 text-base font-semibold",
+        dialogAction: "h-14 gap-2 rounded-xl px-8 text-lg font-semibold",
+        "icon-control": "size-8 rounded-full",
+        "icon-control-sm": "size-7 rounded-md",
+        "icon-control-lg": "size-10 rounded-full",
       },
     },
     defaultVariants: {

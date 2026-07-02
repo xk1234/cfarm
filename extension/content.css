@@ -1,0 +1,74 @@
+.cfarm-swipe-button {
+  align-items: center;
+  background: linear-gradient(180deg, #7568ff 0%, #2631d7 100%);
+  border: 0;
+  border-radius: 6px;
+  box-shadow: 0 8px 18px rgba(38, 49, 215, 0.22);
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  font: 700 13px/1.1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  gap: 7px;
+  justify-content: center;
+  letter-spacing: 0;
+  min-height: 36px;
+  padding: 0 18px;
+  transition: transform 140ms ease, opacity 140ms ease, box-shadow 140ms ease;
+  z-index: 2147483647;
+}
+
+.cfarm-swipe-button:hover {
+  box-shadow: 0 10px 22px rgba(38, 49, 215, 0.3);
+  transform: translateY(-1px);
+}
+
+.cfarm-swipe-button:disabled {
+  cursor: default;
+  opacity: 0.74;
+  transform: none;
+}
+
+.cfarm-swipe-button[data-state="saved"] {
+  background: linear-gradient(180deg, #1ca275 0%, #08755a 100%);
+}
+
+.cfarm-swipe-button[data-state="error"] {
+  background: linear-gradient(180deg, #ef5350 0%, #bf3131 100%);
+}
+
+.cfarm-swipe-card-button {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+}
+
+.cfarm-swipe-meta-button {
+  margin: 8px 0 10px;
+  min-height: 34px;
+  position: static;
+  width: 100%;
+}
+
+.cfarm-swipe-tiktok-grid-button {
+  margin: 8px 0 14px;
+  min-height: 34px;
+  position: static;
+  width: 100%;
+}
+
+.cfarm-swipe-fixed {
+  bottom: 24px;
+  left: 50%;
+  min-width: 360px;
+  position: fixed;
+  transform: translateX(-50%);
+}
+
+.cfarm-swipe-fixed:hover {
+  transform: translateX(-50%) translateY(-1px);
+}
+
+.cfarm-swipe-dock {
+  margin: 12px 0;
+  width: 100%;
+}

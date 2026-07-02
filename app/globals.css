@@ -37,6 +37,16 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+    --app-action: #ff5626;
+    --app-action-hover: #ed4d22;
+    --app-blue-action: #2868f0;
+    --app-blue-action-hover: #235ad0;
+    --app-indigo-action: #2f36d9;
+    --app-indigo-action-hover: #252bbd;
+    --app-control-bg: #ffffff;
+    --app-control-hover: #f4f4f2;
+    --app-panel-border: #e5e4dc;
+    --app-muted-text: #77766f;
 }
 
 .dark {
@@ -71,11 +81,24 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+    --app-action: #ff5626;
+    --app-action-hover: #ed4d22;
+    --app-blue-action: #3b8cff;
+    --app-blue-action-hover: #2f7be3;
+    --app-indigo-action: #4c55ff;
+    --app-indigo-action-hover: #3d45d9;
+    --app-control-bg: #242421;
+    --app-control-hover: #33332f;
+    --app-panel-border: oklch(1 0 0 / 14%);
+    --app-muted-text: #a9a8a1;
 }
 
 @theme inline {
-    --font-serif: var(--font-serif);
-    --font-heading: var(--font-heading);
+    --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+    --font-serif: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+    --font-heading: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+    --font-tiktok: "TikTok Sans", "TikTok Display", Arial, ui-sans-serif, system-ui, sans-serif;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -84,6 +107,16 @@
     --color-sidebar-primary: var(--sidebar-primary);
     --color-sidebar-foreground: var(--sidebar-foreground);
     --color-sidebar: var(--sidebar);
+    --color-app-action: var(--app-action);
+    --color-app-action-hover: var(--app-action-hover);
+    --color-app-blue-action: var(--app-blue-action);
+    --color-app-blue-action-hover: var(--app-blue-action-hover);
+    --color-app-indigo-action: var(--app-indigo-action);
+    --color-app-indigo-action-hover: var(--app-indigo-action-hover);
+    --color-app-control-bg: var(--app-control-bg);
+    --color-app-control-hover: var(--app-control-hover);
+    --color-app-panel-border: var(--app-panel-border);
+    --color-app-muted-text: var(--app-muted-text);
     --color-chart-5: var(--chart-5);
     --color-chart-4: var(--chart-4);
     --color-chart-3: var(--chart-3);
@@ -121,9 +154,13 @@
     @apply border-border outline-ring/50;
     }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background font-sans text-foreground;
     }
   html {
-    @apply font-serif;
+    @apply font-sans;
     }
+}
+
+.font-tiktok {
+  font-family: var(--font-tiktok);
 }

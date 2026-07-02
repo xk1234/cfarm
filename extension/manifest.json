@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "CFarm Swipe Saver",
+  "description": "Adds Swipe buttons to ad platforms and saves swipes to the local CFarm swipe file.",
+  "version": "0.1.0",
+  "permissions": ["activeTab", "tabs", "scripting"],
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "https://www.facebook.com/ads/library/*",
+    "https://ads.tiktok.com/business/creativecenter/*",
+    "https://seller-sg.tiktok.com/*",
+    "https://www.tiktok.com/*",
+    "https://adstransparency.google.com/*",
+    "https://ads.google.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.facebook.com/ads/library/*",
+        "https://ads.tiktok.com/business/creativecenter/*",
+        "https://seller-sg.tiktok.com/*",
+        "https://www.tiktok.com/*",
+        "https://adstransparency.google.com/*",
+        "https://ads.google.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

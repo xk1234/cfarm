@@ -1,0 +1,50 @@
+{
+  "collections": [
+    {
+      "name": "Pinterest - backgrounds",
+      "created_at": "2026-07-02T00:00:00.000Z",
+      "images": [
+        {
+          "image_link": "https://i.pinimg.com/originals/95/0d/14/950d14fc7bbde2fadbe3bc8f70c74878.png",
+          "caption": "Pinterest background"
+        },
+        {
+          "image_link": "https://i.pinimg.com/originals/33/75/95/3375959fa715260faa211f54203b5802.jpg",
+          "caption": "Pinterest background"
+        },
+        {
+          "image_link": "https://i.pinimg.com/originals/fe/ca/65/feca654c61d5df237a6d35702c57e225.jpg",
+          "caption": "Pinterest background"
+        },
+        {
+          "image_link": "https://i.pinimg.com/originals/66/ff/cd/66ffcd4ce308849ca2867a999720f513.jpg",
+          "caption": "Pinterest background"
+        },
+        {
+          "image_link": "https://i.pinimg.com/originals/cc/a5/cb/cca5cb3b9355d36a1901154cfcac8102.jpg",
+          "caption": "Pinterest background"
+        },
+        {
+          "image_link": "https://i.pinimg.com/originals/52/f2/6d/52f26d763e07d498df22a0f99f05d0e9.jpg",
+          "caption": "Pinterest background"
+        },
+        {
+          "image_link": "https://i.pinimg.com/originals/f5/2e/66/f52e6629bcd1f74c5eccb551d6f076b9.jpg",
+          "caption": "Pinterest background"
+        },
+        {
+          "image_link": "https://i.pinimg.com/originals/f1/b9/3e/f1b93ed4a059198a0d4e0299e4b520b3.jpg",
+          "caption": "Pinterest background"
+        },
+        {
+          "image_link": "https://i.pinimg.com/originals/44/0d/5a/440d5ab4c17d14337bef7bc4b0a44d59.jpg",
+          "caption": "Pinterest background"
+        },
+        {
+          "image_link": "https://i.pinimg.com/originals/98/1f/06/981f06100bbd3462be4371de3004305c.jpg",
+          "caption": "Pinterest background"
+        }
+      ]
+    }
+  ]
+}
