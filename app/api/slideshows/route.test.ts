@@ -59,4 +59,33 @@ describe("/api/slideshows", () => {
       textItems: [{ text: "focus wins", textPosition: { x: 50, y: 20 } }],
     })
   })
+
+  it("counts exported slideshow videos from video render settings", async () => {
+    const { POST, GET } = await import("./route")
+    await POST(new Request("http://localhost/api/slideshows", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Video render",
+        settings: {
+          duration: 3,
+          transition_style: "fade",
+          export_as_video: true,
+          sound_id: "sound-1",
+          sound_name: "Selected sound",
+          sound_url: "/api/local-assets/music/files/selected.mp3",
+        },
+        images: [{ image_url: "/api/local-assets/image-collections/files/a.jpg" }],
+      }),
+    }))
+
+    const listResponse = await GET(new Request("http://localhost/api/slideshows"))
+    const listPayload = await listResponse.json()
+
+    expect(listPayload.videosCount).toBe(1)
+    expect(listPayload.slideshows[0].settings).toMatchObject({
+      export_as_video: true,
+      transition_style: "fade",
+      sound_id: "sound-1",
+    })
+  })
 })

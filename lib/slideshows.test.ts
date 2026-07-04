@@ -103,4 +103,34 @@ describe("slideshow persistence", () => {
     expect(deleted?.id).toBe(record.id)
     expect(records).toEqual([])
   })
+
+  it("persists video export settings with selected TikTok sound metadata", async () => {
+    const record = await createSlideshowRecord({
+      rootDir,
+      title: "Video slideshow",
+      settings: {
+        duration: 3,
+        transition_style: "fade",
+        export_as_video: true,
+        sound_id: "sound-123",
+        sound_name: "TikTok trend sound",
+        sound_url: "/api/local-assets/music/files/trend.mp3",
+      },
+      images: [
+        {
+          image_url: "/api/local-assets/image-collections/files/slide.jpg",
+        },
+      ],
+    })
+
+    expect(record.settings).toMatchObject({
+      duration: 3,
+      transition_style: "fade",
+      export_as_video: true,
+      sound_id: "sound-123",
+      sound_name: "TikTok trend sound",
+      sound_url: "/api/local-assets/music/files/trend.mp3",
+    })
+    expect(record.images[0].time_length_ms).toBe(3000)
+  })
 })
