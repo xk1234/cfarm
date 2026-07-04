@@ -60,6 +60,77 @@ export type LocalAsset = {
 
 `LocalAsset` is not stored as a database table. `loadRealFarmData()` scans files and creates stable-ish IDs by slugifying each relative path. Text CTA assets also get `text`.
 
+## AssetRecord
+
+Type source: `lib/assets.ts`
+
+Backing file: `data/assets/assets.json`
+
+File storage: `data/assets/files`
+
+Demo video storage: `data/assets/demos`
+
+Used by the AI UGC Avatars asset panel for uploaded or generated reusable assets.
+
+```ts
+type AssetRecord = {
+  id: string
+  kind: "image" | "video" | "audio" | "text"
+  source: "upload" | "ai_generated"
+  status: "processing" | "ready" | "failed"
+  scope: "ugc_avatar" | "ugc_ad" | "ugc_demo" | "greenscreen" | "global"
+  category?: "outfit" | "accessory" | "background" | "product" | "reference" | "sound" | "other"
+  name: string
+  caption: string
+  prompt?: string
+  model?: string
+  mimeType?: string
+  fileName?: string
+  fileUrl?: string
+  thumbnailUrl?: string
+  createdAt: string
+  updatedAt: string
+  metadata?: Record<string, unknown>
+  error?: string
+}
+```
+
+API routes:
+
+- `GET /api/assets?scope=&category=&kind=`
+- `POST /api/assets/upload`
+- `POST /api/assets/generate`
+- `POST /api/assets/caption`
+
+Binary files under `data/assets/files` and `data/assets/demos` are ignored by git. The JSON metadata remains trackable and is the local stand-in for a future Supabase table plus Storage bucket.
+
+## GeneratedVideoExport
+
+Type source: `lib/generated-videos.ts`
+
+Backing file: `data/generated-videos/exports.json`
+
+Used by AI UGC Ads and Greenscreen Memes export queues.
+
+```ts
+type GeneratedVideoExport = {
+  id: string
+  type: "greenscreen" | "ugc_ad"
+  status: "queued" | "processing" | "ready" | "failed"
+  queuePosition?: number
+  createdAt: string
+  updatedAt: string
+  title: string
+  caption: string
+  sourceConfig: Record<string, unknown>
+  previewUrl?: string
+  videoUrl?: string
+  error?: string
+}
+```
+
+New exports are inserted as `queued` and receive a stable `queuePosition` based on unfinished exports. Ready or failed exports clear their queue position.
+
 ## Project
 
 Type source: `RealFarmData["projects"][number]`
@@ -224,7 +295,41 @@ type Automation = {
 }
 ```
 
-Built-in automations are used as cards/templates. Locally created automations are held in React state only and are not written to disk.
+Built-in automations are fallback/demo cards. Persisted imported automations are represented by `AutomationRecord`.
+
+## AutomationRecord
+
+Type source: `lib/automations.ts`
+
+Backing file: `data/automations/automations.json`
+
+API routes:
+
+- `GET /api/automations`
+- `POST /api/automations`
+- `PATCH /api/automations`
+
+```ts
+type AutomationRecord = {
+  id: string
+  source: "reelfarm_import" | "local"
+  sourceAutomationId?: string
+  sourceUrl?: string
+  name: string
+  status: "live" | "paused" | "draft" | "unknown"
+  account: string
+  handle: string
+  times: string[]
+  favorite: boolean
+  theme: string
+  importedAt?: string
+  updatedAt: string
+  schema: AutomationSchema
+  raw?: Record<string, unknown>
+}
+```
+
+`normalizeReelfarmAutomation()` accepts structured Reelfarm automation exports or network response objects and maps them into this local DB shape.
 
 ## AutomationSchema
 
@@ -242,19 +347,90 @@ export type AutomationSchema = {
   tiktok_account_id: string | null
   prompt_formatting: PromptFormatting
   image_collection_ids: ImageCollectionConfig
-  format: {
-    hook: AutomationFormatSection
-    content: AutomationContentFormat
-    cta: AutomationCTAFormat
-    tone?: ToneFormat
-  }
-  hooks: string[]
+  formatting: (
+    | AutomationFormatSection // id: "hook" | "body" | "cta"
+    | AutomationToneSection // id: "_tone"
+  )[]
   tiktok_post_settings: { ... }
   schedule: { ... }
 }
 ```
 
-This schema currently lives only in component state. There is no persisted automation settings file.
+The shape intentionally mirrors Reelfarm automation exports: `prompt_formatting`, `formatting[]`, and `tiktok_post_settings` are stored directly, without the old local `template.format.*` wrapper.
+
+`image_collection_ids` also mirrors Reelfarm's nested collection config. It is normalized from Reelfarm's JSON-encoded string into an object:
+
+```ts
+type ImageCollectionConfig = {
+  first_slide: {
+    collection: string
+    mode: "collection" | "single_image"
+    single_image: string | null
+  }
+  all_slides: string
+  aspect_ratio?: string
+  is_bg_overlay_on?: boolean
+  cta_slide: {
+    check: boolean
+    cta_collection_check: boolean
+    cta_collection_id: string
+    image_id: string | null
+    cta_location: string
+  }
+  keepOriginalAspectRatio?: boolean
+  background_opacity?: number
+  is_bg_overlay_on_hook_image?: boolean
+  textOnFirstSlideOnly?: boolean
+  noTextOnSlides?: boolean
+  autoPullImagesNotCollections?: boolean
+  autoImagesNoTextOnImages?: boolean
+  disableAutoImageForFirstSlide?: boolean
+  language?: string
+}
+```
+
+For imported automations, `AutomationSchema` is persisted inside `AutomationRecord.schema`.
+
+## PostizPostRecord
+
+Type source: `lib/postiz-posts.ts`
+
+Backing file: `data/postiz-posts.json`
+
+API routes:
+
+- `GET /api/postiz/integrations`
+- `GET /api/postiz/connect-url?provider=`
+- `GET /api/postiz/find-slot?integrationId=`
+- `POST /api/postiz/upload`
+- `GET /api/postiz/posts?startDate=&endDate=`
+- `POST /api/postiz/posts`
+- `GET /api/postiz/analytics/platform?integrationId=&days=`
+- `GET /api/postiz/analytics/post?postId=&days=`
+
+```ts
+type PostizPostRecord = {
+  id: string
+  sourceType: "automation" | "generated_video" | "asset" | "greenscreen" | "ugc_ad" | "image" | "swipe" | "manual"
+  sourceId: string
+  postizPostId?: string
+  integrationId: string
+  provider: string
+  status: "draft" | "scheduled" | "published" | "failed"
+  scheduledAt?: string
+  releaseUrl?: string
+  content: string
+  media: { id: string; path: string }[]
+  createdAt: string
+  updatedAt: string
+  lastSyncedAt?: string
+  lastAnalyticsSyncedAt?: string
+  analytics?: PostizAnalyticsMetric[]
+  error?: string
+}
+```
+
+Generated export cards can upload ready media to Postiz and create draft posts. Schedule and analytics tabs read Postiz data when `POSTIZ_API_KEY` is configured.
 
 ## EditorSlide
 
@@ -419,5 +595,4 @@ The following are intentionally hardcoded or currently demo-only:
 - Built-in `data/realfarm.json` seed objects.
 - Default automation expansion in `lib/realfarm-automation.ts`.
 - Several editor hook lists, model labels, filter labels, visual options, and placeholder messages inside `components/realfarm-workspace.tsx`.
-- Schedule and analytics tabs use generated/demo data rather than persisted records.
-- Created automations, generated slideshows, selected sounds, and character generations are mostly React state, not persisted.
+- Created slideshows, selected sounds, and some character generations are mostly React state, not persisted.

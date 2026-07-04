@@ -1,0 +1,40 @@
+{
+  "generations": [
+    {
+      "id": "recovered-1783000155531-dbc02a9c6dde97972c9e0506edec743a",
+      "characterId": 1782997043443,
+      "prompt": "Recovered generated character image",
+      "model": "Unknown model",
+      "createdAt": "2026-07-02T13:49:15.531Z",
+      "attachments": [],
+      "aspectRatio": "9:16",
+      "status": "ready",
+      "imageUrl": "/api/local-assets/characters/images/1783000155531-dbc02a9c6dde97972c9e0506edec743a.png",
+      "progress": 100
+    },
+    {
+      "id": "recovered-1783045993707-57fdcc55cb345c362934dd20675dbf37",
+      "characterId": 1782997043443,
+      "prompt": "Recovered generated character image",
+      "model": "Unknown model",
+      "createdAt": "2026-07-03T02:33:13.707Z",
+      "attachments": [],
+      "aspectRatio": "9:16",
+      "status": "ready",
+      "imageUrl": "/api/local-assets/characters/images/1783045993707-57fdcc55cb345c362934dd20675dbf37.png",
+      "progress": 100
+    },
+    {
+      "id": "recovered-1783046042142-3f77610b2f7756c61ff9f83bd3d73b4c",
+      "characterId": 1782997043443,
+      "prompt": "Recovered generated character image",
+      "model": "Unknown model",
+      "createdAt": "2026-07-03T02:34:02.142Z",
+      "attachments": [],
+      "aspectRatio": "9:16",
+      "status": "ready",
+      "imageUrl": "/api/local-assets/characters/images/1783046042142-3f77610b2f7756c61ff9f83bd3d73b4c.png",
+      "progress": 100
+    }
+  ]
+}

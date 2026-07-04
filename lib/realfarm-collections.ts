@@ -6,7 +6,7 @@ export type CreatedImageCollection = {
   title: string
   images: PinterestSearchResult[]
   createdAt: string
-  source: "pinterest" | "upload" | "virtual" | "fallback" | "empty"
+  source: "pinterest" | "pexels" | "upload" | "virtual" | "fallback" | "pexels-fallback" | "empty"
   virtual?: boolean
   payload?: PinterestCollectionCreatePayload
 }
@@ -92,10 +92,39 @@ export function storedToCollection(collection: StoredImageCollection): CreatedIm
   }
 }
 
+export function collectionAliases(collection: CreatedImageCollection): string[] {
+  const aliases = new Set([collection.id, collection.title])
+
+  for (const image of collection.images) {
+    for (const value of [image.imageUrl, image.sourceUrl]) {
+      const alias = communityCollectionAliasFromPath(value)
+      if (alias) {
+        aliases.add(alias)
+      }
+    }
+  }
+
+  return [...aliases].filter(Boolean)
+}
+
+export function collectionMatchesId(collection: CreatedImageCollection, collectionId: string) {
+  const normalizedId = collectionId.trim()
+  return Boolean(normalizedId) && collectionAliases(collection).includes(normalizedId)
+}
+
+export function findCollectionByIdOrAlias(collections: CreatedImageCollection[], collectionId: string) {
+  return collections.find((collection) => collectionMatchesId(collection, collectionId))
+}
+
 function normalizedCollectionDate(value: string) {
   return Number.isFinite(Date.parse(value)) ? value : new Date().toISOString()
 }
 
 export function slugify(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+}
+
+function communityCollectionAliasFromPath(value: string | undefined) {
+  const match = value?.match(/-(\d{4,})-\d{4}-/)
+  return match?.[1] ? `community_collection_${match[1]}` : null
 }

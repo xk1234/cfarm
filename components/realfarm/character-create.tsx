@@ -1,14 +1,18 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import type * as React from "react"
 import { IconChevronLeft, IconChevronRight, IconMovie, IconPhoto, IconRefresh, IconUpload, IconVolume, IconX } from "@tabler/icons-react"
 import { Copy, ImagePlus } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { SwitchPillButton } from "@/components/ui/form-controls"
+import { SelectControl } from "@/components/ui/form-controls"
+import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
+import { UploadDropzone } from "@/components/ui/upload-dropzone"
 import { defaultCharacterAttributes, normalizeCharacterAttributes } from "@/lib/character-model"
 import type { CharacterPayload, CharacterRecord } from "@/lib/characters"
+import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import {
   characterAttributeOptions,
   characterEditorFields,
@@ -142,7 +146,6 @@ export function NewCharacterModal({
                 />
                 <Button
                   variant="action"
-                  className="h-11 rounded-[11px] px-5 text-[17px] font-bold disabled:bg-[#ff9b82]"
                   disabled={saving}
                   onClick={submitCharacter}
                 >
@@ -163,8 +166,22 @@ export function NewCharacterModal({
       </section>
   )
 
+  if (fullPage) {
+    return (
+      <div className="bg-[#f8f8f4]">
+        {editor}
+        {importOpen && (
+          <ImportPromptModal
+            onCancel={() => setImportOpen(false)}
+            onImport={importCharacter}
+          />
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div className={fullPage ? "bg-[#f8f8f4]" : "fixed inset-0 z-50 grid place-items-center bg-[#24251f]/45 p-4"}>
+    <AppModal onClose={onCancel}>
       {editor}
       {importOpen && (
         <ImportPromptModal
@@ -172,7 +189,7 @@ export function NewCharacterModal({
           onImport={importCharacter}
         />
       )}
-    </div>
+    </AppModal>
   )
 }
 
@@ -196,7 +213,7 @@ function CharacterOverview({ attributes }: { attributes: CharacterAttributes }) 
 function CharacterEditorTabContent({
   activeTab,
   attributes,
-  onChange: _onChange,
+  onChange,
 }: {
   activeTab: CharacterEditorTab
   attributes: CharacterAttributes
@@ -207,7 +224,7 @@ function CharacterEditorTabContent({
   }
 
   if (activeTab === "Voice") {
-    return <CharacterGeneratedAssetState title="No voice samples yet" description="Generated voice assets will appear here." icon="voice" />
+    return <CharacterAttributeTabForm group="Voice" attributes={attributes} onChange={onChange} />
   }
 
   if (activeTab === "Images") {
@@ -340,65 +357,125 @@ export function CharacterCreateModal({
   const [attributes, setAttributes] = useState<CharacterAttributes>(() => normalizeCharacterAttributes(defaultCharacterAttributes))
   const [previewUrl, setPreviewUrl] = useState(defaultCharacterPreviewUrl)
   const [headshotReady, setHeadshotReady] = useState(true)
+  const [headshotError, setHeadshotError] = useState("")
+  const [attributesLoading, setAttributesLoading] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const headshotRequestRef = useRef(0)
-  const initialHeadshotGeneratedRef = useRef(false)
 
-  useEffect(() => {
-    if (initialHeadshotGeneratedRef.current) {
-      return
-    }
-    initialHeadshotGeneratedRef.current = true
-    void generateHeadshot("UU's character 1", normalizeCharacterAttributes(defaultCharacterAttributes), defaultCharacterHeadshotPrompt)
-    // Generate the default character preview once when this modal opens.
-  }, [])
+  async function extractAttributesFromImage(nextName: string, sourceImageDataUrl: string) {
+    return fetchJsonWithTimeout<{ name?: string; attributes?: CharacterAttributes }>("/api/characters/attributes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      timeoutMs: 90_000,
+      toastOnError: false,
+      body: JSON.stringify({
+        name: nextName,
+        currentAttributes: normalizeCharacterAttributes({ ...attributes, name: nextName }),
+        sourceImageDataUrl,
+      }),
+    })
+  }
 
-  async function generateHeadshot(nextName: string, nextAttributes: CharacterAttributes, prompt: string) {
+  async function generateHeadshot(nextName: string, nextAttributes: CharacterAttributes, prompt: string, sourceImageDataUrl?: string) {
     const requestId = headshotRequestRef.current + 1
     headshotRequestRef.current = requestId
+    setHeadshotReady(false)
+    setHeadshotError("")
+    const toastId = toast.loading("Generating character headshot...")
 
     try {
-      const response = await fetch("/api/characters/headshot", {
+      const result = await fetchJsonWithTimeout<{ preview_url?: string; error?: string; attributes?: CharacterAttributes }>("/api/characters/headshot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        timeoutMs: 240_000,
+        toastOnError: false,
         body: JSON.stringify({
           name: nextName,
           attributes: normalizeCharacterAttributes({ ...nextAttributes, name: nextName }),
           customPrompt: prompt,
+          sourceImageDataUrl,
         }),
       })
-      const result = (await response.json().catch(() => ({}))) as { preview_url?: string; error?: string }
-      if (!response.ok || !result.preview_url) {
+      if (!result.preview_url) {
         throw new Error(result.error || "Headshot generation failed")
       }
       if (headshotRequestRef.current !== requestId) {
+        toast.dismiss(toastId)
         return
+      }
+      if (result.attributes) {
+        setAttributes(normalizeCharacterAttributes({ ...result.attributes, name: nextName }))
       }
       setPreviewUrl(result.preview_url)
       setHeadshotReady(true)
-    } catch {
+      toast.success("Character headshot ready", { id: toastId })
+    } catch (error) {
       if (headshotRequestRef.current === requestId) {
-        setPreviewUrl(defaultCharacterPreviewUrl)
+        const message = getApiErrorMessage(error, "Headshot generation failed")
+        setHeadshotError(message)
         setHeadshotReady(true)
+        toast.error(message, { id: toastId })
+      } else {
+        toast.dismiss(toastId)
       }
     }
   }
 
+  function updateCreateAttribute(key: string, value: string) {
+    setAttributes((current) => setCharacterFieldValue(current, key, key === "age" ? Number(value) : value))
+    setHeadshotError("")
+  }
+
+  async function regenerateFace() {
+    const cleanName = name.trim() || "UU's character 1"
+    await generateHeadshot(cleanName, normalizeCharacterAttributes({ ...attributes, name: cleanName }), defaultCharacterHeadshotPrompt)
+  }
+
   async function applyImport(payload: ImportedCharacterPayload) {
-    const nextName = payload.name?.trim()
-    const nextAttributes = normalizeCharacterAttributes({
+    let nextName = payload.name?.trim() || name
+    let nextAttributes = normalizeCharacterAttributes({
       ...attributes,
       ...payload.attributes,
-      name: nextName || name,
+      name: nextName,
     })
 
-    if (nextName) {
-      setName(nextName)
-    }
-    setAttributes(nextAttributes)
+    const requestId = headshotRequestRef.current + 1
+    headshotRequestRef.current = requestId
     setUploadOpen(false)
-    await generateHeadshot(nextName || name, nextAttributes, defaultCharacterHeadshotPrompt)
+    setAttributesLoading(true)
+    setHeadshotReady(false)
+    setHeadshotError("")
+    let startedHeadshot = false
+    try {
+      if (payload.sourceImageDataUrl) {
+        const extracted = await extractAttributesFromImage(nextName, payload.sourceImageDataUrl)
+        if (headshotRequestRef.current !== requestId) {
+          return
+        }
+        nextName = extracted.name?.trim() || nextName
+        nextAttributes = normalizeCharacterAttributes({
+          ...(extracted.attributes ?? nextAttributes),
+          name: nextName,
+        })
+      }
+
+      setName(nextName)
+      setAttributes(nextAttributes)
+      startedHeadshot = true
+      await generateHeadshot(nextName, nextAttributes, defaultCharacterHeadshotPrompt, payload.sourceImageDataUrl)
+    } catch (error) {
+      if (headshotRequestRef.current === requestId) {
+        const message = getApiErrorMessage(error, "Character attribute extraction failed")
+        setHeadshotError(message)
+        setHeadshotReady(true)
+        toast.error(message)
+      }
+    } finally {
+      if (startedHeadshot || headshotRequestRef.current === requestId) {
+        setAttributesLoading(false)
+      }
+    }
   }
 
   async function submitCharacter() {
@@ -416,8 +493,8 @@ export function CharacterCreateModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-[#24251f]/45 p-4">
-      <section className="relative w-full max-w-[720px] overflow-hidden rounded-[16px] bg-white shadow-2xl">
+    <AppModal onClose={onCancel}>
+      <AppModalPanel className="relative max-h-[92vh] max-w-[880px] overflow-y-auto rounded-[16px]">
         <div className="flex items-center justify-between border-b border-[#eceff3] px-5 py-4">
           <h2 className="text-[22px] font-bold text-[#111827]">New Character</h2>
           <button className="grid size-9 place-items-center rounded-[8px] text-[#667085] hover:bg-[#f4f4f2]" onClick={onCancel} aria-label="Close new character">
@@ -428,18 +505,41 @@ export function CharacterCreateModal({
         <div className="grid gap-5 p-5 md:grid-cols-[230px_1fr]">
           <div>
             <div className="relative w-fit">
-              {headshotReady ? (
+              {previewUrl ? (
                 <CharacterPortrait previewUrl={previewUrl} />
               ) : (
                 <CharacterBlankPortrait />
               )}
+              {!headshotReady && (
+                <div className="absolute inset-0 grid place-items-center rounded-[18px] bg-white/80 px-5 text-center backdrop-blur-sm">
+                  <div>
+                    <div className="mx-auto mb-3 size-8 animate-spin rounded-full border-2 border-[#d7dce5] border-t-app-action" />
+                    <div className="text-[13px] font-bold text-[#555]">Generating headshot...</div>
+                  </div>
+                </div>
+              )}
             </div>
+            {headshotError && (
+              <div className="mt-3 rounded-[10px] bg-[#fff0f0] px-3 py-2 text-[13px] font-semibold text-[#c63d4a]">
+                {headshotError}
+              </div>
+            )}
             <button
               className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-[11px] border border-[#d8dce5] bg-white text-[14px] font-bold text-[#333] shadow-sm hover:bg-[#f8f8f4]"
               onClick={() => setUploadOpen(true)}
+              type="button"
             >
               <IconUpload className="size-4" />
               Upload JSON or image
+            </button>
+            <button
+              className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-[11px] border border-[#d8dce5] bg-white text-[14px] font-bold text-[#333] shadow-sm hover:bg-[#f8f8f4] disabled:cursor-not-allowed disabled:opacity-55"
+              onClick={regenerateFace}
+              disabled={!headshotReady || attributesLoading}
+              type="button"
+            >
+              <IconRefresh className="size-4" />
+              Regenerate face
             </button>
           </div>
 
@@ -453,21 +553,36 @@ export function CharacterCreateModal({
 
             <div className="mt-5 rounded-[12px] border border-[#eceff3] bg-[#fafaf7] p-4">
               <div className="mb-3 text-[14px] font-bold text-[#333]">Character attributes</div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {characterSummaryFields.map(([label, key]) => (
-                  <div key={`${label}-${key}`} className="rounded-[8px] bg-white px-3 py-2">
-                    <div className="text-[10px] font-bold uppercase tracking-wide text-[#a3acba]">{label}</div>
-                    <div className="mt-1 truncate text-[13px] font-semibold text-[#202938]">{formatCharacterValue(getCharacterFieldValue(attributes, key))}</div>
-                  </div>
-                ))}
-              </div>
+              {attributesLoading ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {characterSummaryFields.map(([label, key]) => (
+                    <div key={`${label}-${key}`} className="rounded-[8px] bg-white px-3 py-2">
+                      <div className="text-[10px] font-bold uppercase tracking-wide text-[#a3acba]">{label}</div>
+                      <div className="mt-2 h-4 animate-pulse rounded-md bg-[#e5e7eb]" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {characterSummaryFields.map(([label, key]) => (
+                    <CharacterAttributeCardControl
+                      key={`${label}-${key}`}
+                      label={label}
+                      field={key}
+                      attributes={attributes}
+                      disabled={!headshotReady}
+                      onChange={updateCreateAttribute}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="mt-5 flex justify-end gap-3">
-              <Button variant="outline" className="h-11 rounded-[11px] border-0 bg-[#f2f1ef] px-5 text-[15px] font-bold text-[#333] hover:bg-[#e8e7e4]" onClick={onCancel}>
+              <Button variant="outline" onClick={onCancel}>
                 Cancel
               </Button>
-              <Button variant="action" className="h-11 rounded-[11px] px-5 text-[15px] font-bold" disabled={saving || !previewUrl} onClick={submitCharacter}>
+              <Button variant="action" disabled={saving || !previewUrl} onClick={submitCharacter}>
                 Save Character
               </Button>
             </div>
@@ -482,7 +597,53 @@ export function CharacterCreateModal({
             onImport={applyImport}
           />
         )}
-      </section>
+      </AppModalPanel>
+    </AppModal>
+  )
+}
+
+function CharacterAttributeCardControl({
+  label,
+  field,
+  attributes,
+  disabled,
+  onChange,
+}: {
+  label: string
+  field: string
+  attributes: CharacterAttributes
+  disabled: boolean
+  onChange: (key: string, value: string) => void
+}) {
+  const value = getCharacterFieldValue(attributes, field)
+  const hasOptions = Boolean(characterAttributeOptions[field]?.length)
+  const options = characterAttributeOptions[field] ?? []
+  const selectedValue = Array.isArray(value) ? value[0] ?? "none" : String(value ?? "")
+  const currentValueIsKnown = options.includes(selectedValue)
+  const visibleOptions = hasOptions && selectedValue && !currentValueIsKnown
+    ? [selectedValue, ...options]
+    : options
+
+  return (
+    <div className="rounded-[8px] bg-white px-3 py-2">
+      <label className="text-[10px] font-bold uppercase tracking-wide text-[#a3acba]" htmlFor={`character-attribute-${field.replace(/\./g, "-")}`}>{label}</label>
+      {hasOptions ? (
+        <SelectControl
+          id={`character-attribute-${field.replace(/\./g, "-")}`}
+          className="mt-2 w-full"
+          value={selectedValue}
+          disabled={disabled}
+          onChange={(event) => onChange(field, event.target.value)}
+        >
+          {visibleOptions.map((option) => (
+            <option key={option} value={option}>
+              {formatCharacterValue(option)}
+            </option>
+          ))}
+        </SelectControl>
+      ) : (
+        <div className="mt-1 truncate text-[13px] font-semibold text-[#202938]">{formatCharacterValue(value)}</div>
+      )}
     </div>
   )
 }
@@ -544,6 +705,7 @@ function CharacterCreateUploadModal({
       void Promise.resolve(onImport({
         name: currentName,
         attributes: currentAttributes,
+        sourceImageDataUrl: imagePreview,
       })).finally(() => setImporting(false))
       return
     }
@@ -552,29 +714,16 @@ function CharacterCreateUploadModal({
   }
 
   return (
-    <div className="absolute inset-0 z-10 grid place-items-center bg-[#24251f]/45 p-4">
-      <section className="w-full max-w-[560px] overflow-hidden rounded-[14px] bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-[#eceff3] px-5 py-4">
-          <div>
-            <h3 className="text-[22px] font-bold text-[#333]">Upload character source</h3>
-            <p className="mt-1 text-[13px] font-semibold text-[#85857f]">Upload JSON attributes or a character image.</p>
-          </div>
-          <button className="grid size-9 place-items-center rounded-[8px] text-[#667085] hover:bg-[#f4f4f2]" onClick={onCancel} aria-label="Close upload modal">
-            <IconX className="size-5" />
-          </button>
-        </div>
+    <AppModal layer="absolute" className="z-10" onClose={onCancel}>
+      <AppModalPanel className="max-w-[560px]">
+        <AppModalHeader
+          title="Upload character source"
+          description="Upload JSON attributes or a character image."
+          closeLabel="Close upload modal"
+          onClose={onCancel}
+        />
 
         <div className="space-y-4 p-5">
-          <input
-            ref={imageInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(event) => {
-              void handleImageFile(event.target.files?.[0])
-              event.target.value = ""
-            }}
-          />
           <div className="grid rounded-[10px] bg-[#f2f1ef] p-1 sm:grid-cols-2">
             <button
               className={cn(
@@ -597,6 +746,7 @@ function CharacterCreateUploadModal({
               onClick={() => {
                 setActiveTab("image")
                 setError("")
+                setTimeout(() => imageInputRef.current?.focus(), 0)
               }}
             >
               <ImagePlus className="size-5" />
@@ -615,53 +765,45 @@ function CharacterCreateUploadModal({
               }}
             />
           ) : (
-            <div
-              className="grid min-h-52 place-items-center rounded-[14px] border-2 border-dashed border-[#d8dce5] bg-[#fafaf7] p-5 text-center"
-              onDragOver={(event) => {
-                event.preventDefault()
-              }}
-              onDrop={(event) => {
-                event.preventDefault()
-                void handleImageFile(event.dataTransfer.files?.[0])
-              }}
+            <UploadDropzone
+              inputRef={imageInputRef}
+              accept="image/*"
+              className="min-h-52"
+              onFiles={(files) => void handleImageFile(files?.[0])}
             >
               {imagePreview ? (
                 <div className="flex flex-col items-center gap-3">
                   {/* eslint-disable-next-line @next/next/no-img-element -- User-selected local image preview. */}
                   <img src={imagePreview} alt="Uploaded character source" className="h-28 w-28 rounded-[12px] object-cover shadow-sm" />
-                  <button className="h-10 rounded-[10px] border border-[#d8dce5] bg-white px-4 text-[14px] font-bold text-[#333] hover:bg-[#f8f8f4]" onClick={() => imageInputRef.current?.click()}>
-                    Replace image
-                  </button>
+                  <span className="text-[13px] font-bold text-[#333]">Replace image</span>
                 </div>
               ) : (
                 <div>
                   <IconUpload className="mx-auto mb-3 size-8 text-[#9ca3af]" />
                   <div className="text-[15px] font-bold text-[#333]">Drag and drop an image</div>
                   <div className="mt-1 text-[13px] font-semibold text-[#85857f]">or choose a file from your computer</div>
-                  <button className="mt-4 h-10 rounded-[10px] bg-[#ff4f28] px-4 text-[14px] font-bold text-white hover:bg-[#ed4d22]" onClick={() => imageInputRef.current?.click()}>
-                    Upload image
-                  </button>
+                  <span className="mt-4 inline-block text-[13px] font-bold text-app-action">Upload image</span>
                 </div>
               )}
-            </div>
+            </UploadDropzone>
           )}
           {error && <div className="text-[13px] font-semibold text-[#d8505f]">{error}</div>}
         </div>
 
         <div className="flex justify-end gap-3 border-t border-[#eceff3] px-5 py-4">
-          <Button variant="outline" className="h-10 rounded-[10px] border-0 bg-[#f2f1ef] px-5 text-[14px] font-bold text-[#333] hover:bg-[#e8e7e4]" onClick={onCancel}>
+          <Button variant="outline" onClick={onCancel}>
             Cancel
           </Button>
           <Button
-            className="h-10 rounded-[10px] bg-[#ff4f28] px-5 text-[14px] font-bold text-white hover:bg-[#ed4d22]"
+            variant="action"
             disabled={importing || (activeTab === "json" ? !text.trim() : !imagePreview)}
             onClick={submitImport}
           >
             {importing ? "Generating..." : "Generate headshot"}
           </Button>
         </div>
-      </section>
-    </div>
+      </AppModalPanel>
+    </AppModal>
   )
 }
 
@@ -695,8 +837,8 @@ function ImportPromptModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] grid place-items-center bg-[#24251f]/45 p-4">
-      <section className="w-full max-w-[720px] overflow-hidden rounded-[14px] bg-white shadow-2xl">
+    <AppModal className="z-[60]" onClose={onCancel}>
+      <AppModalPanel className="max-w-[720px] rounded-[14px]">
         <div className="border-b border-[#eceff3] px-6 py-6">
           <h2 className="text-[30px] font-bold text-[#333]">Paste your JSON prompt</h2>
           <p className="mt-4 max-w-[640px] text-[26px] font-medium leading-9 text-[#777]">
@@ -717,19 +859,19 @@ function ImportPromptModal({
           {error && <div className="mt-3 text-[13px] font-semibold text-[#d8505f]">{error}</div>}
         </div>
         <div className="flex justify-end gap-4 border-t border-[#eceff3] px-6 py-5">
-          <Button variant="outline" className="h-14 rounded-[18px] border-0 bg-[#f2f1ef] px-8 text-[22px] font-bold text-[#333] hover:bg-[#e8e7e4]" onClick={onCancel}>
+          <Button variant="outline" onClick={onCancel}>
             Cancel
           </Button>
           <Button
-            className="h-14 rounded-[18px] bg-[#ffb2a3] px-8 text-[22px] font-bold text-white hover:bg-[#ff9d8a] disabled:bg-[#ffb2a3]/70"
+
             disabled={!prompt.trim()}
             onClick={submitImport}
           >
             Import
           </Button>
         </div>
-      </section>
-    </div>
+      </AppModalPanel>
+    </AppModal>
   )
 }
 

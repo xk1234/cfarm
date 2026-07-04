@@ -23,7 +23,7 @@ export function EditorPopupOption({
 }) {
   return (
     <button
-      className={cn("block w-full rounded-[5px] px-3 py-2 text-left hover:bg-app-control-hover", active && "bg-[#eaf2ff] text-app-blue-action")}
+      className={cn("block w-full rounded-[5px] px-3 py-2 text-left hover:bg-app-control-hover", active && "bg-app-action/10 text-app-action")}
       onClick={onClick}
     >
       {children}

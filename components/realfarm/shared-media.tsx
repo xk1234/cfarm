@@ -145,7 +145,7 @@ export function ControlToggle({ label, enabled, onClick }: { label: string; enab
   return (
     <button className="mb-3 flex w-full items-center justify-between px-1 text-[12px]" onClick={onClick}>
       <span className="font-semibold text-[#66655f]">{label}</span>
-      <span className={cn("h-5 w-8 rounded-full p-0.5 transition", enabled ? "bg-[#4aa0ff]" : "bg-[#edede8]")}>
+      <span className={cn("h-5 w-8 rounded-full p-0.5 transition", enabled ? "bg-app-action" : "bg-[#edede8]")}>
         <span className={cn("block size-4 rounded-full bg-white transition", enabled && "translate-x-3")} />
       </span>
     </button>
@@ -164,7 +164,7 @@ export function AutomationThumb({ theme, index }: { theme: string; index: number
   return (
     <div className={cn("relative h-24 overflow-hidden", thumbTone(theme, index))}>
       <div className="absolute inset-x-2 top-5 text-[9px] font-bold leading-tight text-white drop-shadow">
-        {index % 2 === 0 ? "5 Ways To Lower Cortisol" : "Not published"}
+        {index % 2 === 0 ? "5 Ways To Lower Cortisol" : "Template preview"}
       </div>
       <div className="absolute bottom-2 left-2 right-2 h-1 rounded-full bg-white/40" />
     </div>

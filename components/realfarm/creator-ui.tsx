@@ -4,6 +4,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 import { IconPlayerPlay, IconUpload, IconVolume, IconX } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
+import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
+import { UploadDropzone } from "@/components/ui/upload-dropzone"
+import { fetchJsonWithTimeout } from "@/lib/client-api"
 import type { LocalAsset } from "@/lib/realfarm-data"
 import { cn } from "@/lib/utils"
 
@@ -80,7 +83,6 @@ export function SoundSelector({
   selectedSound,
   music,
   onSelect,
-  compact = false,
   variant = "default",
 }: {
   selectedSound: LocalAsset | null
@@ -142,13 +144,12 @@ export function SoundSelector({
     try {
       const formData = new FormData()
       formData.set("file", file)
-      const response = await fetch("/api/local-assets/upload", {
+      const payload = await fetchJsonWithTimeout<{ asset?: LocalAsset }>("/api/local-assets/upload", {
         method: "POST",
         body: formData,
       })
-      const payload = (await response.json()) as { asset?: LocalAsset; error?: string }
-      if (!response.ok || !payload.asset) {
-        throw new Error(payload.error ?? "Upload failed")
+      if (!payload.asset) {
+        throw new Error("Upload failed")
       }
       setUploadedSounds((current) => [payload.asset!, ...current])
       setLocalSelectedSound(payload.asset)
@@ -164,18 +165,21 @@ export function SoundSelector({
       {variant === "ugc" ? (
         <Button
           variant="softControl"
-          className="h-11 w-[130px] justify-start gap-2 rounded-[9px] px-3 text-[14px] font-bold text-[#111] hover:bg-app-control-bg"
+          className="w-[130px] justify-start gap-2"
           onClick={() => setOpen(true)}
         >
-          <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-[5px] bg-[#ddd]">
-            {selectedSound ? <IconPlayerPlay className="size-4" /> : <IconVolume className="size-4" />}
+          <span className={cn(
+            "grid size-7 shrink-0 place-items-center overflow-hidden rounded-[5px] text-white",
+            currentSound ? musicThumbTone(music.findIndex((s) => s.id === currentSound.id)) : "bg-[#ddd] text-[#77766f]"
+          )}>
+            {currentSound ? <IconPlayerPlay className="size-4" /> : <IconVolume className="size-4" />}
           </span>
-          Sound
+          {currentSound ? (currentSound.name.length > 8 ? currentSound.name.slice(0, 8) + "..." : currentSound.name) : "No Sound"}
         </Button>
       ) : variant === "sound" ? (
         <Button
           variant="softControl"
-          className="h-12 min-w-[116px] justify-center gap-2 rounded-[10px] px-4 text-[18px] font-semibold text-[#111] hover:bg-app-control-bg"
+          className="min-w-[116px] justify-center gap-2"
           onClick={() => setOpen(true)}
         >
           <IconX className="size-4" />
@@ -184,7 +188,7 @@ export function SoundSelector({
       ) : (
         <Button
           variant="softControl"
-          className={cn("w-full max-w-[240px] justify-start rounded-[9px] px-3 text-[13px] font-semibold", compact ? "h-10" : "h-11")}
+          className="w-full max-w-[240px] justify-start"
           onClick={() => setOpen(true)}
         >
           <IconVolume className="size-4" />
@@ -192,18 +196,9 @@ export function SoundSelector({
         </Button>
       )}
       {open && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-[#24251f]/35 p-4">
-          <section className="w-full max-w-[760px] overflow-hidden rounded-[6px] bg-white p-3 shadow-2xl">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-[19px] font-semibold">Choose background music</h2>
-              <button
-                className="grid size-8 place-items-center rounded-full text-[#55544f] hover:bg-[#f1f0eb]"
-                onClick={closeModal}
-                aria-label="Close background music picker"
-              >
-                <IconX className="size-6" />
-              </button>
-            </div>
+        <AppModal className="bg-[#24251f]/35" onClose={closeModal}>
+          <AppModalPanel className="max-w-[760px] p-3">
+            <AppModalHeader title="Choose background music" closeLabel="Close background music picker" onClose={closeModal} />
             <div className="mb-3 grid grid-cols-2 rounded-[7px] bg-[#f1f1f1] p-1">
               <button
                 className={cn("h-8 rounded-[6px] text-[14px] font-semibold", tab === "templates" ? "border border-[#dfdfdf] bg-white shadow-sm" : "text-[#6d6c67]")}
@@ -249,26 +244,15 @@ export function SoundSelector({
               </div>
             ) : (
               <div className="bg-[#f8f8f8] px-4 py-4">
-                <input
-                  ref={uploadInputRef}
-                  className="hidden"
-                  type="file"
+                <UploadDropzone
+                  inputRef={uploadInputRef}
                   accept="audio/mpeg,audio/wav,.mp3,.wav"
-                  onChange={(event) => {
-                    void uploadAudio(event.currentTarget.files)
-                    event.currentTarget.value = ""
-                  }}
-                />
-                <Button
-                  variant="blueAction"
-                  size="appDefault"
-                  className="rounded-[6px] px-4 text-[14px] font-semibold"
-                  onClick={() => uploadInputRef.current?.click()}
-                  disabled={uploading}
+                  className="min-h-20"
+                  onFiles={(files) => void uploadAudio(files)}
                 >
                   <IconUpload className="size-4" />
-                  {uploading ? "Uploading..." : "Upload audio"}
-                </Button>
+                  <span className="text-[15px] font-bold text-[#333]">{uploading ? "Uploading..." : "Upload audio"}</span>
+                </UploadDropzone>
                 {uploadedSounds.length === 0 ? (
                   <div className="grid h-28 place-items-center text-[18px] font-medium text-[#667085]">
                     No uploaded sounds yet
@@ -294,8 +278,8 @@ export function SoundSelector({
                 )}
               </div>
             )}
-          </section>
-        </div>
+          </AppModalPanel>
+        </AppModal>
       )}
     </>
   )

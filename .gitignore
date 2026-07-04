@@ -41,6 +41,7 @@
 /data/**/*.wav
 /data/**/*.webm
 /data/**/*.webp
+/data/assets/files/**
 
 # debug
 npm-debug.log*

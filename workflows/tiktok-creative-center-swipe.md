@@ -2,11 +2,14 @@
 
 ## Goal
 
-Verify TikTok Creative Center Top Ads cards expose swipe buttons and save normalized swipe records with Creative Center metadata.
+Verify TikTok Creative Center Top Ads and trends video cards expose swipe buttons and save normalized swipe records with Creative Center metadata.
 
 ## Test Page
 
-Open `https://ads.tiktok.com/business/creativecenter/` and navigate to a Top Ads listing or another Creative Center listing that renders multiple ad cards.
+Open:
+
+- `https://ads.tiktok.com/business/creativecenter/` and navigate to a Top Ads listing.
+- `https://ads.tiktok.com/creative/creativeCenter/trends/video?locale=en&deviceType=pc&region=US&period=7`.
 
 ## Steps
 
@@ -18,6 +21,13 @@ Open `https://ads.tiktok.com/business/creativecenter/` and navigate to a Top Ads
 6. Include cards with visible performance labels or analytics links when available.
 7. Confirm each button enters a saving state and then reports success.
 8. Open the app Swipes view or `data/swipes/swipes.json` and confirm one new record per click.
+9. Confirm the record appears immediately with `processing...` when transcription/analysis is still running.
+10. Confirm processing later updates to `complete` or `failed` on the same record.
+11. Open Inspect Swipe and confirm it renders as a page, not a modal.
+12. Confirm the captured mp4 plays with native video controls.
+13. If a destination URL was captured, confirm mobile and desktop landing-page screenshot buttons reveal saved screenshots.
+14. On the trends video page, confirm each visible video card has a `✣ Swipe` button immediately under the video/thumbnail block.
+15. Click `✣ Swipe` on at least three trends video cards and confirm each creates a `tiktok-creative` swipe with creator, caption, follower count, and video views when visible.
 
 ## Expected Swipe Record
 
@@ -32,6 +42,9 @@ Each saved record should have:
 - `caption`: the card title, headline, or visible ad text
 - `metadata.Region`, `metadata.Period`, `metadata.Objective`, or `metadata.Industry` when visible
 - visible card stats such as likes, comments, shares, CTR, CVR, or impressions when present
+- for trends video cards, visible creator, thumbnail caption, follower count, and video views
+- `processingStatus`: `processing`, `complete`, or `failed`
+- `landingPageMobileScreenshotPath` / `landingPageDesktopScreenshotPath` when destination capture succeeds
 
 ## Detail Enrichment Check
 

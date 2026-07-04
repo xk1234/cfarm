@@ -16,14 +16,24 @@
     ],
     "selectedHook": 0,
     "avatars": [
-      "Maya", "Tess", "Olivia", "Rina", "Casey", "Ivy", "Nora", "Ari",
-      "Leo", "Noah", "Miles", "Sam", "Jules", "Ben", "Kai", "Dev",
-      "Zoe", "Eva", "Mina", "Lena", "Ruby", "Elle", "Sofia", "Nia"
+      "/api/local-assets/ugc_avatar_videos/323e6dbd-d758-47cb-90a0-a0882c24edf8.mp4",
+      "/api/local-assets/ugc_avatar_videos/a7f9bb9b-0930-47ea-81c5-11f564a4186c.mp4",
+      "/api/local-assets/ugc_avatar_videos/eefa44a6-06dd-46f6-ab15-5752c0e0a438.mp4",
+      "/api/local-assets/ugc_avatar_videos/d4b06027-bafa-4ad6-ab2d-3150f611b523.mp4",
+      "/api/local-assets/ugc_avatar_videos/1db061c7-b74b-46f7-836d-fbd55d2a10ae.mp4",
+      "/api/local-assets/ugc_avatar_videos/64433b36-889f-44fe-857f-f78d95aee723.mp4",
+      "/api/local-assets/ugc_avatar_videos/3e0d22c7-fc76-4943-b436-a57f54a927ce.mp4"
     ],
-    "selectedAvatar": 10,
+    "selectedAvatar": 0,
     "demos": [
-      "None", "Landing page", "Cart", "Checkout", "Review", "Social proof",
-      "Product shot", "Offer"
+      "None",
+      "Landing page",
+      "Cart",
+      "Checkout",
+      "Review",
+      "Social proof",
+      "Product shot",
+      "Offer"
     ]
   },
   "generatedAssets": {
@@ -31,7 +41,7 @@
       "name": "Soul UGC Creator",
       "model": "Higgsfield Soul V2",
       "type": "image",
-      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_37Zbt7c6rjy3Gna5PuK4MDHPTbw/hf_20260630_235611_c12a1c82-fc75-49c5-853f-70b5eb935a73.png"
+      "url": "/api/local-assets/characters/headshots/jade-homeysg-preview.png"
     }
   },
   "defaultCollections": {
@@ -42,124 +52,109 @@
       "query": "vertical aesthetic backgrounds",
       "images": [
         {
-          "id": "5348093304716770",
-          "title": "33",
-          "description": "Pinterest background",
-          "imageUrl": "https://i.pinimg.com/originals/95/0d/14/950d14fc7bbde2fadbe3bc8f70c74878.png",
-          "sourceUrl": "https://www.pinterest.com/pin/5348093304716770/",
-          "dominantColor": "#317bae",
-          "width": 1536,
-          "height": 3072
-        },
-        {
-          "id": "4292562138980650",
-          "title": "Deep green vertical background",
-          "description": "Pinterest background",
-          "imageUrl": "https://i.pinimg.com/originals/33/75/95/3375959fa715260faa211f54203b5802.jpg",
-          "sourceUrl": "https://www.pinterest.com/pin/4292562138980650/",
-          "dominantColor": "#183523",
-          "width": 768,
-          "height": 1536
-        },
-        {
-          "id": "1055599909189598",
-          "title": "Blue vertical background",
-          "description": "Pinterest background",
-          "imageUrl": "https://i.pinimg.com/originals/fe/ca/65/feca654c61d5df237a6d35702c57e225.jpg",
-          "sourceUrl": "https://www.pinterest.com/pin/1055599909189598/",
-          "dominantColor": "#2b3e68",
-          "width": 924,
-          "height": 2048
-        },
-        {
-          "id": "2674081025840787",
-          "title": "Ocean vertical background",
-          "description": "Pinterest background",
-          "imageUrl": "https://i.pinimg.com/originals/66/ff/cd/66ffcd4ce308849ca2867a999720f513.jpg",
-          "sourceUrl": "https://www.pinterest.com/pin/2674081025840787/",
-          "dominantColor": "#1f3f59",
-          "width": 736,
-          "height": 1308
-        },
-        {
-          "id": "1900024839980391",
-          "title": "Soft vertical background",
-          "description": "Pinterest background",
-          "imageUrl": "https://i.pinimg.com/originals/cc/a5/cb/cca5cb3b9355d36a1901154cfcac8102.jpg",
-          "sourceUrl": "https://www.pinterest.com/pin/1900024839980391/",
-          "dominantColor": "#79918d",
-          "width": 736,
-          "height": 1308
-        },
-        {
-          "id": "914862422214767",
-          "title": "Dark vertical background",
-          "description": "Pinterest background",
-          "imageUrl": "https://i.pinimg.com/originals/52/f2/6d/52f26d763e07d498df22a0f99f05d0e9.jpg",
-          "sourceUrl": "https://www.pinterest.com/pin/914862422214767/",
-          "dominantColor": "#292b2a",
+          "id": "local-reddit-travel-01",
+          "title": "Local travel background 1",
+          "description": "Local travel background",
+          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-01-1uirqjm-njalcurky7ah1.jpg",
+          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-01-1uirqjm-njalcurky7ah1.jpg",
+          "dominantColor": "#d9d8d0",
           "width": 1080,
-          "height": 1920
+          "height": 1350
         },
         {
-          "id": "54535845480542281",
-          "title": "Pink vertical background",
-          "description": "Pinterest background",
-          "imageUrl": "https://i.pinimg.com/originals/f5/2e/66/f52e6629bcd1f74c5eccb551d6f076b9.jpg",
-          "sourceUrl": "https://www.pinterest.com/pin/54535845480542281/",
-          "dominantColor": "#a4777b",
-          "width": 736,
-          "height": 1288
-        },
-        {
-          "id": "422281212501732",
-          "title": "Wallpaper",
-          "description": "Pinterest background",
-          "imageUrl": "https://i.pinimg.com/originals/f1/b9/3e/f1b93ed4a059198a0d4e0299e4b520b3.jpg",
-          "sourceUrl": "https://www.pinterest.com/pin/422281212501732/",
-          "dominantColor": "#1d2629",
-          "width": 896,
-          "height": 1344
-        },
-        {
-          "id": "344243965290536124",
-          "title": "Green vertical background",
-          "description": "Pinterest background",
-          "imageUrl": "https://i.pinimg.com/originals/44/0d/5a/440d5ab4c17d14337bef7bc4b0a44d59.jpg",
-          "sourceUrl": "https://www.pinterest.com/pin/344243965290536124/",
-          "dominantColor": "#657d68",
+          "id": "local-reddit-travel-02",
+          "title": "Local travel background 2",
+          "description": "Local travel background",
+          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-02-1oa1mkc-3z2iwppnmwvf1.jpg",
+          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-02-1oa1mkc-3z2iwppnmwvf1.jpg",
+          "dominantColor": "#d9d8d0",
           "width": 1080,
-          "height": 2400
+          "height": 1350
         },
         {
-          "id": "3799980931535008",
-          "title": "Light vertical background",
-          "description": "Pinterest background",
-          "imageUrl": "https://i.pinimg.com/originals/98/1f/06/981f06100bbd3462be4371de3004305c.jpg",
-          "sourceUrl": "https://www.pinterest.com/pin/3799980931535008/",
-          "dominantColor": "#e8e0cf",
-          "width": 702,
-          "height": 1200
+          "id": "local-reddit-travel-03",
+          "title": "Local travel background 3",
+          "description": "Local travel background",
+          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-03-1q4tit1-b4iej305ikbg1.jpg",
+          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-03-1q4tit1-b4iej305ikbg1.jpg",
+          "dominantColor": "#d9d8d0",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "id": "local-reddit-travel-04",
+          "title": "Local travel background 4",
+          "description": "Local travel background",
+          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-04-1ng3bld-ggjxhs6avyof1.jpg",
+          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-04-1ng3bld-ggjxhs6avyof1.jpg",
+          "dominantColor": "#d9d8d0",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "id": "local-reddit-travel-05",
+          "title": "Local travel background 5",
+          "description": "Local travel background",
+          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-05-1ufd2nj-vkompyeu4g9h1.jpg",
+          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-05-1ufd2nj-vkompyeu4g9h1.jpg",
+          "dominantColor": "#d9d8d0",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "id": "local-reddit-travel-06",
+          "title": "Local travel background 6",
+          "description": "Local travel background",
+          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-06-1o0q5q2-iaf4yr1y0rtf1.jpg",
+          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-06-1o0q5q2-iaf4yr1y0rtf1.jpg",
+          "dominantColor": "#d9d8d0",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "id": "local-reddit-travel-07",
+          "title": "Local travel background 7",
+          "description": "Local travel background",
+          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-07-1pbm4em-yccsz5488n4g1.jpg",
+          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-07-1pbm4em-yccsz5488n4g1.jpg",
+          "dominantColor": "#d9d8d0",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "id": "local-reddit-travel-08",
+          "title": "Local travel background 8",
+          "description": "Local travel background",
+          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-08-1u3k4y9-jz8zng80vr6h1.jpg",
+          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-08-1u3k4y9-jz8zng80vr6h1.jpg",
+          "dominantColor": "#d9d8d0",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "id": "local-reddit-travel-09",
+          "title": "Local travel background 9",
+          "description": "Local travel background",
+          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-09-1rflb38-f3z4z8fkewlg1.jpg",
+          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-09-1rflb38-f3z4z8fkewlg1.jpg",
+          "dominantColor": "#d9d8d0",
+          "width": 1080,
+          "height": 1350
+        },
+        {
+          "id": "local-reddit-travel-10",
+          "title": "Local travel background 10",
+          "description": "Local travel background",
+          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-10-1rp1gxw-wq6jf25031og1.jpg",
+          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-10-1rp1gxw-wq6jf25031og1.jpg",
+          "dominantColor": "#d9d8d0",
+          "width": 1080,
+          "height": 1350
         }
       ]
     }
   },
-  "projects": [
-    {
-      "id": "draft-001",
-      "title": "New Slideshow",
-      "status": "draft",
-      "age": "7 days ago",
-      "slides": ["avatar-intro", "chess-demo", "blank-card"]
-    },
-    {
-      "id": "draft-002",
-      "title": "New Slideshow",
-      "status": "draft",
-      "age": "7 days ago",
-      "slides": ["portrait-hook", "receipt-proof"]
-    }
-  ],
+  "projects": [],
   "videos": [
     {
       "id": "vid-001",
@@ -236,93 +231,10 @@
       "theme": "space"
     }
   ],
-  "automations": [
-    {
-      "id": "auto-001",
-      "name": "Horizontal Girl",
-      "status": "Live",
-      "account": "@audrey.kins",
-      "handle": "audrey",
-      "times": ["8:13 AM", "1:51 PM", "10:04 PM"],
-      "favorite": true,
-      "theme": "ugc"
-    },
-    {
-      "id": "auto-002",
-      "name": "Be A Winner Horizontal",
-      "status": "Live",
-      "account": "@reelfarm",
-      "handle": "reelfarm",
-      "times": ["8:04 AM"],
-      "favorite": false,
-      "theme": "cinema"
-    },
-    {
-      "id": "auto-003",
-      "name": "Tutorial Video Automation",
-      "status": "Live",
-      "account": "No TikTok account",
-      "handle": "Click to add account",
-      "times": ["8:41 PM"],
-      "favorite": false,
-      "theme": "nature"
-    },
-    {
-      "id": "auto-004",
-      "name": "Soccer Motivational",
-      "status": "Live",
-      "account": "No TikTok account",
-      "handle": "Click to add account",
-      "times": ["8:11 PM"],
-      "favorite": false,
-      "theme": "soccer"
-    },
-    {
-      "id": "auto-005",
-      "name": "Substacks I Read This Week",
-      "status": "Live",
-      "account": "No TikTok account",
-      "handle": "Click to add account",
-      "times": ["8:14 AM", "1:52 PM", "6:40 PM"],
-      "favorite": false,
-      "theme": "books"
-    },
-    {
-      "id": "auto-006",
-      "name": "Natalie Portman",
-      "status": "Live",
-      "account": "@bella.grow",
-      "handle": "bella.growth",
-      "times": ["8:14 AM", "1:51 PM"],
-      "favorite": false,
-      "theme": "cinema"
-    }
-  ],
+  "automations": [],
   "editor": {
     "title": "New Slideshow",
-    "slides": [
-      {
-        "id": "slide-001",
-        "kind": "avatar",
-        "text": "the top 4 foods to help with digestive health from a chronological doctor of 13 years",
-        "duration": "4s",
-        "aspectRatio": "4:5"
-      },
-      {
-        "id": "slide-002",
-        "kind": "brand",
-        "text": "Chess.com",
-        "duration": "4s",
-        "aspectRatio": "4:5"
-      },
-      {
-        "id": "slide-003",
-        "kind": "portrait",
-        "text": "this simple demo converts the hesitation into a story",
-        "duration": "4s",
-        "aspectRatio": "4:5"
-      }
-    ],
+    "slides": [],
     "captionRanges": [
       "1-2 words",
       "2-3 words",

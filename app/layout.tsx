@@ -2,6 +2,7 @@ import { Geist, Geist_Mono, Playfair_Display } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { AppToaster } from "@/components/ui/app-toaster"
 import { cn } from "@/lib/utils";
 
 const geistHeading = Geist({subsets:['latin'],variable:'--font-heading'});
@@ -32,6 +33,7 @@ export default function RootLayout({
       <body>
         <ThemeProvider defaultTheme="light" enableSystem={false}>
           {children}
+          <AppToaster />
         </ThemeProvider>
       </body>
     </html>

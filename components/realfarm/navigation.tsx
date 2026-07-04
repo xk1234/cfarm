@@ -8,7 +8,6 @@ import {
   IconPhoto,
   IconPlus,
   IconSparkles,
-  IconUser,
   IconWand,
 } from "@tabler/icons-react"
 
@@ -19,7 +18,6 @@ import { cn } from "@/lib/utils"
 export type ViewKey =
   | "home"
   | "swipes"
-  | "creators"
   | "avatars"
   | "ugcads"
   | "greenscreen"
@@ -38,8 +36,7 @@ type NavItem = {
 const topNav: NavItem[] = [
   { key: "home", label: "Home", icon: IconHome },
   { key: "swipes", label: "Swipes", icon: IconPhoto },
-  { key: "creators", label: "Creators", icon: IconUser },
-  { key: "avatars", label: "AI UGC avatars", icon: IconUser },
+  { key: "avatars", label: "AI UGC avatars", icon: IconPhoto },
   { key: "ugcads", label: "AI UGC ads", icon: IconMovie },
   { key: "greenscreen", label: "Greenscreen Memes", icon: IconSparkles },
   { key: "schedule", label: "Schedule", icon: IconCalendar },
@@ -64,7 +61,7 @@ export function Sidebar({
   onNewAutomation: () => void
 }) {
   return (
-    <aside className="hidden w-[214px] shrink-0 border-r border-[#e5e4dc] bg-[#fbfbf7] px-2 py-4 md:flex md:flex-col">
+    <aside className="hidden h-svh w-[214px] shrink-0 overflow-y-auto border-r border-[#e5e4dc] bg-[#fbfbf7] px-2 py-4 md:flex md:flex-col">
       <button className="mb-5 flex items-center gap-2 px-2 text-left text-[15px] font-semibold">
         <span className="flex size-6 items-center justify-center rounded-[5px] bg-[#111] text-white">
           <IconSparkles className="size-4" />
@@ -74,7 +71,7 @@ export function Sidebar({
       <Button
         variant="action"
         size="appDefault"
-        className="mb-4 justify-start px-3 text-[13px]"
+        className="mb-4 justify-start"
         onClick={onNewAutomation}
       >
         <IconPlus className="size-4" />
@@ -88,7 +85,6 @@ export function Sidebar({
             active={
               (view === "home" && item.label === "Home") ||
               (view === "swipes" && item.label === "Swipes") ||
-              (view === "creators" && item.label === "Creators") ||
               (view === "avatars" && item.label === "AI UGC avatars") ||
               (view === "ugcads" && item.label === "AI UGC ads") ||
               (view === "greenscreen" && item.label === "Greenscreen Memes") ||
@@ -129,7 +125,7 @@ function SidebarButton({
     <button
       className={cn(
         "flex h-8 w-full items-center gap-2 rounded-[6px] px-3 text-left text-[12px] font-medium text-[#4d4c47] transition",
-        active ? "bg-[#3594ff] text-white shadow-sm" : "hover:bg-[#efeee8]"
+        active ? "bg-app-action text-white shadow-sm" : "hover:bg-[#efeee8]"
       )}
       onClick={onClick}
     >

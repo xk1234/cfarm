@@ -11,7 +11,7 @@
     "cta": "See analytics",
     "landingPageUrl": "https://ads.tiktok.com/business/creativecenter/topads/7638975268380327937",
     "mediaUrl": "/api/swipes/assets/swipe-1782970828138-23oyve-media.mp4",
-    "source_video_url": "https://v16m-default.tiktokcdn.com/bee8951ad2aea320939e0825fe336d41/6a464e3d/video/tos/alisg/tos-alisg-pve-0037c001/oUgB4IjEGnWsiCFeAIeaAAQcALpeBUDID6ZjtD/?a=0&bti=NTU4QDM1NGA%3D&&bt=560&ft=cApXJCz7ThWH.~TTLGZmo0P&mime_type=video_mp4&rc=aTdoNjplNjo1NzY0OWVmZ0BpanhoOng5cjdrOzMzODczNEAtXy1gNTVeNi0xNDAuM19iYSNgLW5pMmRjXy5hLS1kMWBzcw%3D%3D&vvpl=1&l=021782970824001fe800000000000009cebbefffeee06f9ba4586&btag=e000b8000",
+    "source_video_url": "/api/swipes/assets/swipe-1782970828138-23oyve-media.mp4",
     "time": 9,
     "likes": 67,
     "comments": 2,
@@ -89,12 +89,10 @@
     "swipedAt": "2026-07-02T05:40:28.138Z",
     "metadata": {
       "Source": "TikTok Creative Center",
-      "URL": "https://ads.tiktok.com/business/creativecenter/inspiration/topads/pc/en?period=30&region=SG",
       "Region": "SG",
       "Period": "30",
       "Objective": "Traffic",
-      "Industry": "Online Shopping",
-      "Analytics URL": "https://ads.tiktok.com/business/creativecenter/topads/7638975268380327937"
+      "Industry": "Online Shopping"
     },
     "stats": {
       "Likes": "67",
@@ -124,7 +122,7 @@
     "cta": "See analytics",
     "landingPageUrl": "https://ads.tiktok.com/business/creativecenter/topads/7643463701241970695",
     "mediaUrl": "/api/swipes/assets/swipe-1782970762463-dyjvnn-media.mp4",
-    "source_video_url": "https://v16m-default.tiktokcdn.com/7d13ae703bc7e4d966efcf689adb0991/6a464df7/video/tos/alisg/tos-alisg-pve-0037/oIiCY8aiCahYJwaAIU1YjivY78EBQMATGLlXA/?a=0&bti=NTU4QDM1NGA%3D&&bt=1169&ft=cApXJCz7ThWHJLTTLGZmo0P&mime_type=video_mp4&rc=O2YzOGVnaTM5aWczOGY0aUBpanJnOHU5cjZqOzMzODgzNEAvYjIyMl42Xl8xNV42MTZhYSNuZG1hMmRrZzZhLS1kLy1zcw%3D%3D&vvpl=1&l=021782970755707fe800000000000009cebbefffeee06f96c2a53&btag=e00078000",
+    "source_video_url": "/api/swipes/assets/swipe-1782970762463-dyjvnn-media.mp4",
     "time": 8,
     "likes": 253,
     "comments": 0,
@@ -219,12 +217,10 @@
     "swipedAt": "2026-07-02T05:39:22.463Z",
     "metadata": {
       "Source": "TikTok Creative Center",
-      "URL": "https://ads.tiktok.com/business/creativecenter/inspiration/topads/pc/en?period=30&region=SG",
       "Region": "SG",
       "Period": "30",
       "Objective": "Product sales",
-      "Industry": "Clothing Accessories",
-      "Analytics URL": "https://ads.tiktok.com/business/creativecenter/topads/7643463701241970695"
+      "Industry": "Clothing Accessories"
     },
     "stats": {
       "Likes": "253",
@@ -254,7 +250,7 @@
     "cta": "See analytics",
     "landingPageUrl": "https://ads.tiktok.com/business/creativecenter/topads/7651452034449801232",
     "mediaUrl": "/api/swipes/assets/swipe-1782970725125-adhlgw-media.mp4",
-    "source_video_url": "https://v16m-default.tiktokcdn.com/7bcfd090b44a4c668b891b3234de5fb8/6a464ddc/video/tos/alisg/tos-alisg-pve-0037/oYwzeA4GUCHC1BvLIIfxrAg3EDxXeVtARrROpJ/?a=0&bti=NTU4QDM1NGA%3D&&bt=676&ft=cApXJCz7ThWHSZTTLGZmo0P&mime_type=video_mp4&rc=ZjMzOGg0NzppZjk4ZWk4O0BpM3drd2o5cnNyOzMzODgzNEBeXmMzMi8vNjYxMmBeMzMtYSNiazBqMmQ0cGlhLS1kL2Bzcw%3D%3D&vvpl=1&l=021782970721029fe80000000000000c8e265fffe3c290497c7f3&btag=e000b8000",
+    "source_video_url": "/api/swipes/assets/swipe-1782970725125-adhlgw-media.mp4",
     "time": 0,
     "likes": 5,
     "comments": 0,
@@ -341,12 +337,10 @@
     "swipedAt": "2026-07-02T05:38:45.125Z",
     "metadata": {
       "Source": "TikTok Creative Center",
-      "URL": "https://ads.tiktok.com/business/creativecenter/inspiration/topads/pc/en?period=30&region=SG",
       "Region": "SG",
       "Period": "30",
       "Objective": "Product sales",
-      "Industry": "Bags",
-      "Analytics URL": "https://ads.tiktok.com/business/creativecenter/topads/7651452034449801232"
+      "Industry": "Bags"
     },
     "stats": {
       "Likes": "5",
@@ -376,7 +370,7 @@
     "cta": "Inspect Swipe",
     "landingPageUrl": "",
     "mediaUrl": "/api/swipes/assets/swipe-1782970446401-k6hwzq-media.jpg",
-    "source_video_url": "https://scontent.fsin15-2.fna.fbcdn.net/v/t39.35426-6/654443227_972251608460754_4278374614935464096_n.jpg?stp=dst-jpg_s600x600_tt6&_nc_cat=107&ccb=1-7&_nc_sid=c53f8f&_nc_ohc=iRMzffsJYwcQ7kNvwEHuHyz&_nc_oc=AdrTSw9W03gjA7HBvl5EAbqbu5JnrM5vi8KQb-9BMIHumwMkxTgCkUWsqKUGrOHU_pc&_nc_zt=14&_nc_ht=scontent.fsin15-2.fna&_nc_gid=ERIgHAn6i7TJNSYXSJETAA&_nc_ss=7b2a8&oh=00_AQAUpoj8cr9-lJNi5SFTRJhpImLkLCpxe9XHxhPmfg2AmQ&oe=6A4BB283",
+    "source_video_url": "/api/swipes/assets/swipe-1782970446401-k6hwzq-media.jpg",
     "full_script_transcription": {
       "speakers": [
         {
@@ -435,8 +429,7 @@
     },
     "swipedAt": "2026-07-02T05:34:06.401Z",
     "metadata": {
-      "Source": "facebook",
-      "URL": "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=US&is_targeted_country=false&media_type=all&q=nike&search_type=keyword_unordered&sort_data[mode]=total_impressions&sort_data[direction]=desc"
+      "Source": "facebook"
     },
     "stats": {
       "Started": "17 Mar 2026Platforms This ad has multiple versions Open Drop-down See ad detailsNikeSponsoredCelebra tu cumpleaños con Nike y obtén acceso a productos exclusivos, MSI, envío y devoluciones gratis el resto del año.ITUNES.APPLE.COMNikeDownload Nike: Shoes, Apparel, Stories by Nike, Inc on the App Store. See screenshots, ratings and reviews, user tips, and more apps like Nike: Shoes, Apparel,…Install Now"
@@ -455,7 +448,7 @@
     "cta": "Inspect Swipe",
     "landingPageUrl": "",
     "mediaUrl": "/api/swipes/assets/swipe-1782970351412-26vpnk-media.jpg",
-    "source_video_url": "https://scontent.fsin15-2.fna.fbcdn.net/v/t39.35426-6/654612198_1606660007233081_4547846676678354342_n.jpg?stp=dst-jpg_s600x600_tt6&_nc_cat=105&ccb=1-7&_nc_sid=c53f8f&_nc_ohc=Q96eWhUJF6oQ7kNvwF-hsVn&_nc_oc=AdoDPiANcSX2bEG8f1KxyPsKti6lPMzx40Txx8QGiqx4ExZq3sdFIBFvbd6ab2NfCDc&_nc_zt=14&_nc_ht=scontent.fsin15-2.fna&_nc_gid=ji-yIUqjOtzP9F_Zb5dWKQ&_nc_ss=7b2a8&oh=00_AQCm1K2Op0fepsQGTL6xuvsfMrf_enyPJNYLfFL0I5vKbA&oe=6A4BB9BC",
+    "source_video_url": "/api/swipes/assets/swipe-1782970351412-26vpnk-media.jpg",
     "full_script_transcription": {
       "speakers": [
         {
@@ -514,8 +507,7 @@
     },
     "swipedAt": "2026-07-02T05:32:31.412Z",
     "metadata": {
-      "Source": "facebook",
-      "URL": "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=US&is_targeted_country=false&media_type=all&q=nike&search_type=keyword_unordered&sort_data[mode]=total_impressions&sort_data[direction]=desc"
+      "Source": "facebook"
     },
     "stats": {
       "Started": "17 Mar 2026Platforms​​​​This ad has multiple versions​Open Drop-down​See ad detailsNikeSponsoredCelebra tu cumpleaños con Nike y obtén acceso a productos exclusivos, MSI, envío y devoluciones gratis el resto del año.ITUNES.APPLE.COMNikeDownload Nike: Shoes, Apparel, Stories by Nike, Inc on the App Store. See screenshots, ratings and reviews, user tips, and more apps like Nike: Shoes, Apparel,…Install Now"
@@ -534,7 +526,7 @@
     "cta": "Shop now",
     "landingPageUrl": "",
     "mediaUrl": "/api/swipes/assets/swipe-1782970117229-r1dejx-media.jpg",
-    "source_video_url": "https://scontent.fsin15-1.fna.fbcdn.net/v/t39.35426-6/653801683_1340354351422541_6394726666633339807_n.jpg?stp=dst-jpg_s600x600_tt6&_nc_cat=101&ccb=1-7&_nc_sid=c53f8f&_nc_ohc=cFVPNq0LnjUQ7kNvwGAdsyZ&_nc_oc=Ado9EaCiXGd2nWTbksxOz6_pSiwKzjIFXnVRyTrkmLMoTzNdI3-iVLQBFYqLUyR2kBE&_nc_zt=14&_nc_ht=scontent.fsin15-1.fna&_nc_gid=x-sMeRWUf1U47Use6qJ59w&_nc_ss=7b2a8&oh=00_AQCIQS5FAPzxKYA2dm9nhqpqBseSH8u1T-NEAK2MxyqC1A&oe=6A4BCA75",
+    "source_video_url": "/api/swipes/assets/swipe-1782970117229-r1dejx-media.jpg",
     "full_script_transcription": {
       "speakers": [
         {
@@ -593,8 +585,7 @@
     },
     "swipedAt": "2026-07-02T05:28:37.229Z",
     "metadata": {
-      "Source": "facebook",
-      "URL": "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=US&is_targeted_country=false&media_type=all&q=nike&search_type=keyword_unordered&sort_data[mode]=total_impressions&sort_data[direction]=desc"
+      "Source": "facebook"
     },
     "stats": {
       "Started": "17 Mar 2026 Platforms"

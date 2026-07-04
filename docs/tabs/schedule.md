@@ -6,30 +6,30 @@ Component: `ContentCalendarView` in `components/realfarm-workspace.tsx`
 
 ## Functionality
 
-Schedule renders a monthly content calendar shell with filters and month navigation. At the moment it always shows an empty-state overlay and links users back to the Slideshow Editor/library.
+Schedule renders a monthly content calendar with month navigation. It asks Postiz for posts in the visible month and renders returned publish dates on the calendar when `POSTIZ_API_KEY` is configured.
 
 Main actions:
 
 - Move between months.
-- Toggle filter checkboxes.
+- Toggle scheduled-post visibility.
 - Select a calendar day.
 - Click "Go to library" to navigate to the editor.
+- Sync posts from `GET /api/postiz/posts?startDate=&endDate=`.
 
 ## Objects Used
 
 | Object | Source | Usage |
 | --- | --- | --- |
 | `DateTime` | `luxon` | Calendar month/week/day calculation. |
-| `scheduledPosts` | Component constant | Demo post data, currently gated off. |
+| `PostizListedPost[]` | `/api/postiz/posts` | Real scheduled/published posts for the visible month. |
+| `PostizPostRecord[]` | `data/postiz-posts.json` | Local mapping/cache records for posts created through the explicit Postiz scheduling flow. Not used to populate the calendar. |
 
 ## Persistence
 
-No persisted schedule records and no API calls.
+Postiz post mappings are persisted in `data/postiz-posts.json`. Calendar schedule data comes from Postiz on each month load; local mapping records do not appear unless Postiz itself returns the post.
 
 ## Hardcoded / Demo Behavior
 
-- `scheduledPosts` is hardcoded in the component.
-- `hasContent` is hardcoded to `false`, so scheduled posts never render.
-- Filter labels and states are local only.
+- Scheduled-post filter state is local only.
 - Calendar starts from the current month using `DateTime.now()`.
-- Empty state text is hardcoded.
+- If `POSTIZ_API_KEY` is missing, the tab shows a setup empty state instead of demo posts.

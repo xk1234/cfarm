@@ -1,5 +1,5 @@
-export const PINTEREST_ACTOR_ID = "fatihtahta/pinterest-scraper"
-const PINTEREST_ACTOR_PATH = "fatihtahta~pinterest-scraper"
+export const PINTEREST_ACTOR_ID = "fatihtahta/pinterest-scraper-search"
+const PINTEREST_ACTOR_PATH = "fatihtahta~pinterest-scraper-search"
 
 export type PinterestSearchResult = {
   id: string

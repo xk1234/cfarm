@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CFarm Images</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="popup">
+      <header class="header">
+        <div>
+          <h1>Captured Images</h1>
+          <p id="pageLabel">Current tab</p>
+        </div>
+        <button id="refreshButton" class="icon-button" type="button" title="Refresh">↻</button>
+      </header>
+
+      <section class="controls">
+        <label class="field">
+          <span>Collection</span>
+          <select id="collectionSelect"></select>
+        </label>
+        <label class="field" id="newCollectionField">
+          <span>New collection</span>
+          <input id="collectionNameInput" type="text" value="Tumblr import">
+        </label>
+        <div class="actions">
+          <button id="selectAllButton" type="button">Select all</button>
+          <button id="clearButton" type="button">Clear</button>
+        </div>
+      </section>
+
+      <section id="status" class="status">Loading captured image requests...</section>
+      <section id="grid" class="grid" aria-label="Captured image requests"></section>
+
+      <footer class="footer">
+        <span id="selectionCount">0 selected</span>
+        <button id="importButton" type="button">Import</button>
+      </footer>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

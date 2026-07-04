@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "ag-grid-community/styles/ag-grid.css";
+@import "ag-grid-community/styles/ag-theme-quartz-no-font.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -39,10 +41,6 @@
     --sidebar-ring: oklch(0.708 0 0);
     --app-action: #ff5626;
     --app-action-hover: #ed4d22;
-    --app-blue-action: #2868f0;
-    --app-blue-action-hover: #235ad0;
-    --app-indigo-action: #2f36d9;
-    --app-indigo-action-hover: #252bbd;
     --app-control-bg: #ffffff;
     --app-control-hover: #f4f4f2;
     --app-panel-border: #e5e4dc;
@@ -83,10 +81,6 @@
     --sidebar-ring: oklch(0.556 0 0);
     --app-action: #ff5626;
     --app-action-hover: #ed4d22;
-    --app-blue-action: #3b8cff;
-    --app-blue-action-hover: #2f7be3;
-    --app-indigo-action: #4c55ff;
-    --app-indigo-action-hover: #3d45d9;
     --app-control-bg: #242421;
     --app-control-hover: #33332f;
     --app-panel-border: oklch(1 0 0 / 14%);
@@ -109,10 +103,6 @@
     --color-sidebar: var(--sidebar);
     --color-app-action: var(--app-action);
     --color-app-action-hover: var(--app-action-hover);
-    --color-app-blue-action: var(--app-blue-action);
-    --color-app-blue-action-hover: var(--app-blue-action-hover);
-    --color-app-indigo-action: var(--app-indigo-action);
-    --color-app-indigo-action-hover: var(--app-indigo-action-hover);
     --color-app-control-bg: var(--app-control-bg);
     --color-app-control-hover: var(--app-control-hover);
     --color-app-panel-border: var(--app-panel-border);
@@ -163,4 +153,24 @@
 
 .font-tiktok {
   font-family: var(--font-tiktok);
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+
+.realfarm-analytics-grid.ag-theme-quartz {
+  --ag-font-family: var(--font-sans);
+  --ag-background-color: #ffffff;
+  --ag-foreground-color: #242421;
+  --ag-border-color: #e1e0d8;
+  --ag-header-background-color: #fbfbf7;
+  --ag-header-foreground-color: #242421;
+  --ag-row-hover-color: #fbfbf7;
+  --ag-odd-row-background-color: #ffffff;
+  --ag-selected-row-background-color: color-mix(in srgb, var(--app-action) 9%, white);
+  --ag-wrapper-border-radius: 10px;
+  --ag-cell-horizontal-padding: 16px;
+  --ag-header-column-resize-handle-color: #d7d6cf;
 }

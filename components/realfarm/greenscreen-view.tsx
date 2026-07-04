@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -13,32 +13,57 @@ import {
   CreatorBuilderPanel,
   CreatorPageShell,
 } from "@/components/realfarm/creator-ui"
-import { VideoGrid } from "@/components/realfarm/shared-media"
+import { CollectionSelector } from "@/components/realfarm/collection-selector"
+import { GeneratedVideoExports } from "@/components/realfarm/generated-video-exports"
+import { renderAndUploadGreenscreenVideo } from "@/components/realfarm/generated-video-renderer"
+import {
+  createGeneratedVideoExportRecord,
+  updateGeneratedVideoExportRecord,
+  useGeneratedVideoExports,
+} from "@/components/realfarm/generated-video-workflow"
 import { Button } from "@/components/ui/button"
+import { getApiErrorMessage } from "@/lib/client-api"
+import type { GeneratedVideoExport } from "@/lib/generated-video-types"
+import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { RealFarmData } from "@/lib/realfarm-data"
-import type { PinterestSearchResult } from "@/lib/pinterest-search"
 import { cn } from "@/lib/utils"
 
 export function GreenscreenMemesView({
   data,
-  backgrounds,
+  collections,
   onCreate,
+  onCreateCollection,
 }: {
   data: RealFarmData
-  backgrounds: PinterestSearchResult[]
-  onCreate: () => void
+  collections: CreatedImageCollection[]
+  onCreate?: () => void
+  onCreateCollection: (collection: CreatedImageCollection) => void
 }) {
   const [caption, setCaption] = useState("oh man cutting those podcast clips later is gonna be a pain")
   const [selectedMeme, setSelectedMeme] = useState(3)
+  const backgroundCollections = useMemo(
+    () => collections.filter((collection) => !collection.virtual && collection.images.length > 0),
+    [collections]
+  )
+  const [selectedBackgroundCollectionId, setSelectedBackgroundCollectionId] = useState(() => backgroundCollections[0]?.id ?? "")
   const [selectedBackground, setSelectedBackground] = useState(2)
   const [textPlacement, setTextPlacement] = useState<"top" | "middle" | "bottom">("top")
+  const [exports, setExports] = useGeneratedVideoExports("greenscreen", "Failed to load Greenscreen exports")
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState("")
   const memes = data.assets.greenscreenMemes
   const activeMeme = memes[selectedMeme] ?? memes[0] ?? null
-  const activeBackground = backgrounds[selectedBackground] ?? backgrounds[0] ?? null
+  const activeBackgroundCollection =
+    backgroundCollections.find((collection) => collection.id === selectedBackgroundCollectionId) ??
+    backgroundCollections[0] ??
+    null
+  const backgrounds = activeBackgroundCollection?.images ?? []
+  const activeBackgroundIndex = backgrounds.length > 0 ? Math.min(selectedBackground, backgrounds.length - 1) : 0
+  const activeBackground = backgrounds[activeBackgroundIndex] ?? null
   const memePageSize = 32
   const backgroundPageSize = 10
   const memePage = Math.floor(selectedMeme / memePageSize)
-  const backgroundPage = Math.floor(selectedBackground / backgroundPageSize)
+  const backgroundPage = Math.floor(activeBackgroundIndex / backgroundPageSize)
   const memePageCount = Math.max(1, Math.ceil(memes.length / memePageSize))
   const backgroundPageCount = Math.max(1, Math.ceil(backgrounds.length / backgroundPageSize))
   const visibleMemes = memes.slice(memePage * memePageSize, memePage * memePageSize + memePageSize)
@@ -58,6 +83,11 @@ export function GreenscreenMemesView({
     setSelectedBackground(Math.floor(Math.random() * backgrounds.length))
   }
 
+  function selectBackgroundCollection(collectionId: string) {
+    setSelectedBackgroundCollectionId(collectionId)
+    setSelectedBackground(0)
+  }
+
   function moveMemePage(direction: -1 | 1) {
     const nextPage = clampPage(memePage + direction, memePageCount)
     setSelectedMeme(Math.min(nextPage * memePageSize, Math.max(0, memes.length - 1)))
@@ -66,6 +96,69 @@ export function GreenscreenMemesView({
   function moveBackgroundPage(direction: -1 | 1) {
     const nextPage = clampPage(backgroundPage + direction, backgroundPageCount)
     setSelectedBackground(Math.min(nextPage * backgroundPageSize, Math.max(0, backgrounds.length - 1)))
+  }
+
+  async function createGreenscreenExport() {
+    if (!activeMeme) {
+      setError("Select a greenscreen meme before creating an export")
+      return
+    }
+
+    setCreating(true)
+    setError("")
+    let exportRecord: GeneratedVideoExport | null = null
+
+    try {
+      exportRecord = await createGeneratedVideoExportRecord({
+        type: "greenscreen",
+        status: "processing",
+        title: caption || "Greenscreen meme",
+        caption,
+        sourceConfig: {
+          caption,
+          meme: activeMeme,
+          selectedMeme,
+          background: activeBackground,
+          backgroundCollectionId: activeBackgroundCollection?.id,
+          backgroundCollectionTitle: activeBackgroundCollection?.title,
+          selectedBackground: activeBackgroundIndex,
+          textPlacement,
+        },
+        previewUrl: activeBackground?.imageUrl,
+      }, "Failed to create Greenscreen export")
+      setExports((current) => [exportRecord!, ...current.filter((item) => item.id !== exportRecord!.id)])
+
+      const renderedVideo = await renderAndUploadGreenscreenVideo({
+        caption,
+        memeUrl: activeMeme.url,
+        backgroundImageUrl: activeBackground?.imageUrl,
+        backgroundColor: activeBackground?.dominantColor,
+        textPlacement,
+      })
+      const payload = await updateGeneratedVideoExportRecord(exportRecord.id, {
+        status: "ready",
+        previewUrl: renderedVideo.thumbnailUrl,
+        videoUrl: renderedVideo.videoUrl,
+      }, "Failed to update Greenscreen export")
+
+      setExports((current) => current.map((item) => item.id === payload.id ? payload : item))
+      onCreate?.()
+    } catch (caught) {
+      const message = getApiErrorMessage(caught, "Failed to create Greenscreen export")
+      setError(message)
+      if (exportRecord) {
+        const failedExport = await updateGeneratedVideoExportRecord(exportRecord.id, {
+          status: "failed",
+          error: message,
+        }, "Failed to update Greenscreen export").catch(() => null)
+
+        if (failedExport) {
+          setExports((current) => current.map((item) => item.id === failedExport.id ? failedExport : item))
+        }
+      }
+    } finally {
+      setCreating(false)
+    }
   }
 
   return (
@@ -79,7 +172,7 @@ export function GreenscreenMemesView({
                 value={caption}
                 onChange={(event) => setCaption(event.target.value)}
               />
-              <Button variant="blueAction" size="appDefault" className="mt-2 w-full text-[12px] font-semibold">
+              <Button variant="action" size="appDefault" className="mt-2 w-full">
                 Generate a text caption
               </Button>
             </div>
@@ -110,7 +203,7 @@ export function GreenscreenMemesView({
                     key={meme.id}
                     className={cn(
                       "aspect-[4/5] h-12 overflow-hidden rounded-[6px] border-2 bg-[#95f58a] p-0.5 transition",
-                      selectedMeme === absoluteIndex ? "border-[#2f7df1]" : "border-transparent"
+                      selectedMeme === absoluteIndex ? "border-app-action" : "border-transparent"
                     )}
                     onClick={() => setSelectedMeme(absoluteIndex)}
                     aria-label={`Select greenscreen meme ${absoluteIndex + 1}`}
@@ -139,26 +232,41 @@ export function GreenscreenMemesView({
               </>
             }
           >
-            <div className="flex w-full max-w-[430px] gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {visibleBackgrounds.map((background, index) => {
-                const absoluteIndex = backgroundPage * backgroundPageSize + index
-                return (
-                  <button
-                    key={background.id}
-                    className={cn(
-                      "h-24 w-16 shrink-0 overflow-hidden rounded-[7px] border-2 bg-white transition",
-                      selectedBackground === absoluteIndex ? "border-[#2f7df1]" : "border-transparent"
-                    )}
-                    onClick={() => setSelectedBackground(absoluteIndex)}
-                    aria-label={`Select background ${absoluteIndex + 1}`}
-                  >
-                    <span
-                      className="block h-full w-full rounded-[5px] bg-cover bg-center"
-                      style={{ backgroundColor: background.dominantColor, backgroundImage: `url(${background.imageUrl})` }}
-                    />
-                  </button>
-                )
-              })}
+            <div className="w-full max-w-[430px]">
+              <CollectionSelector
+                label="Collection"
+                collection={activeBackgroundCollection ?? undefined}
+                collections={collections}
+                onChange={selectBackgroundCollection}
+                onCreateCollection={onCreateCollection}
+              />
+              {visibleBackgrounds.length > 0 ? (
+                <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {visibleBackgrounds.map((background, index) => {
+                    const absoluteIndex = backgroundPage * backgroundPageSize + index
+                    return (
+                      <button
+                        key={background.id}
+                        className={cn(
+                          "h-24 w-16 shrink-0 overflow-hidden rounded-[7px] border-2 bg-white transition",
+                          activeBackgroundIndex === absoluteIndex ? "border-app-action" : "border-transparent"
+                        )}
+                        onClick={() => setSelectedBackground(absoluteIndex)}
+                        aria-label={`Select background ${absoluteIndex + 1}`}
+                      >
+                        <span
+                          className="block h-full w-full rounded-[5px] bg-cover bg-center"
+                          style={{ backgroundColor: background.dominantColor, backgroundImage: `url(${background.imageUrl})` }}
+                        />
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-[8px] bg-white px-4 py-5 text-center text-[13px] font-semibold text-[#77766f] shadow-sm">
+                  No images in this collection.
+                </div>
+              )}
             </div>
           </BuilderStep>
         </div>
@@ -177,18 +285,19 @@ export function GreenscreenMemesView({
               </div>
               {activeMeme ? (
                 <ChromaKeyGreenscreenVideo
-                  className="absolute bottom-14 left-1/2 aspect-[4/5] w-1/2 -translate-x-1/2"
+                  className="absolute bottom-14 left-1/2 aspect-[4/5] w-[65%] -translate-x-1/2"
                   src={activeMeme.url}
                 />
               ) : (
-                <GreenMemeFigure index={selectedMeme} className="absolute bottom-12 left-1/2 h-48 w-36 -translate-x-1/2" large />
+                <GreenMemeFigure index={selectedMeme} className="absolute bottom-12 left-1/2 h-64 w-48 -translate-x-1/2" large />
               )}
               <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2">
                 {(["top", "middle", "bottom"] as const).map((placement) => (
                   <button
                     key={placement}
+                    type="button"
                     className={cn(
-                      "grid size-8 place-items-center rounded-[5px] text-[#242421] shadow-sm",
+                      "flex size-8 items-center justify-center rounded-[5px] text-[#242421] shadow-sm",
                       textPlacement === placement ? "bg-white" : "bg-white/55"
                     )}
                     onClick={() => setTextPlacement(placement)}
@@ -200,15 +309,18 @@ export function GreenscreenMemesView({
               </div>
             </div>
           </div>
-          <Button variant="action" size="appDefault" className="mt-4 h-11 w-full text-[14px]" onClick={onCreate}>
-            Create
+          <Button variant="action" size="appDefault" className="mt-4 w-full" onClick={createGreenscreenExport} disabled={creating}>
+            {creating ? "Creating..." : "Create"}
           </Button>
+          {error && <p className="mt-2 text-[12px] font-semibold text-[#d94444]">{error}</p>}
         </div>
       </CreatorBuilderPanel>
-      <section className="mt-6">
-        <h2 className="mb-3 text-[22px] font-semibold">My Videos <span className="text-[#a9a8a1]">(99)</span></h2>
-        <VideoGrid videos={data.videos} avatarUrl={data.generatedAssets.higgsfieldCharacter.url} />
-      </section>
+      <GeneratedVideoExports
+        title="My Videos"
+        exports={exports}
+        emptyMessage="No Greenscreen meme exports yet."
+        onDeleted={(id) => setExports((current) => current.filter((item) => item.id !== id))}
+      />
     </CreatorPageShell>
   )
 }
@@ -273,13 +385,15 @@ function ChromaKeyGreenscreenVideo({ src, className }: { src: string; className?
 
     sizeCanvas()
     video.currentTime = 0
-    void video.play()
+    void video.play().catch(() => undefined)
     frame = requestAnimationFrame(drawFrame)
 
     return () => {
       stopped = true
       cancelAnimationFrame(frame)
-      video.pause()
+      if (!video.paused) {
+        video.pause()
+      }
     }
   }, [src])
 

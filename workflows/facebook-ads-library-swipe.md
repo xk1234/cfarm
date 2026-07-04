@@ -32,6 +32,10 @@ Use these steps before running this workflow if `CFarm Swipe Saver` is not alrea
    - one carousel or multi-creative ad if available.
 6. After each click, confirm the button enters a saving state and then reports success.
 7. Open the app Swipes view or `data/swipes/swipes.json` and confirm one new record per click.
+8. If the swipe is a video, confirm the card can appear with `processing...` and later updates to `complete` or `failed`.
+9. Open Inspect Swipe and confirm it renders as a page, not a modal.
+10. Confirm Facebook metadata and stats are readable structured fields, not a single wall of concatenated text.
+11. If a destination URL was captured, confirm mobile and desktop landing-page screenshot buttons reveal saved screenshots.
 
 ## Expected Swipe Record
 
@@ -44,10 +48,12 @@ Each saved record should have:
 - `format`: inferred from the visible creative, such as `image`, `video`, or `carousel`
 - `media` or screenshot fields populated when capture succeeds
 - `stats.Started` or similar Meta ad metadata when visible on the card
+- `processingStatus`: `processing`, `complete`, or `failed`
+- `landingPageMobileScreenshotPath` / `landingPageDesktopScreenshotPath` when destination capture succeeds
 
 ## Pass Criteria
 
-The workflow passes when every visible ad card with `See ad details` has its own button directly beneath it, lazy-loaded cards are handled, and every clicked button creates a Facebook swipe record.
+The workflow passes when every visible ad card with `See ad details` has its own button directly beneath it, lazy-loaded cards are handled, every clicked button creates a Facebook swipe record, Inspect Swipe is page-based, and Facebook data is displayed as structured fields.
 
 ## Failure Notes
 

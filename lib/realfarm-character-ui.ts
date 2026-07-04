@@ -1,4 +1,7 @@
 import { defaultCharacterAttributes, normalizeCharacterAttributes, type Character } from "@/lib/character-model"
+import type { AssetRecord } from "@/lib/assets"
+import type { CharacterRecord } from "@/lib/characters"
+import genviralPresetsData from "../data/genviral-presets.json"
 
 export type CharacterAttributes = Character
 
@@ -87,11 +90,13 @@ export const defaultCharacterPreviewUrl = "/api/local-assets/characters/headshot
 export const defaultCharacterHeadshotPrompt = "professional front-facing headshot, clean white background"
 
 export const imageGenerationModels = [
+  { label: "Flux 2", url: "https://kie.ai/flux-2" },
   { label: "GPT Image 2", url: "https://kie.ai/gpt-image-2" },
   { label: "Nano Banana Pro", url: "https://kie.ai/nano-banana-pro" },
-  { label: "Flux 2", url: "https://kie.ai/flux-2" },
   { label: "Z-Image", url: "https://kie.ai/z-image" },
 ]
+
+export const defaultImageGenerationModel = "Flux 2"
 
 export const imageEditModels = [
   { label: "Flux.1 Kontext", url: "https://kie.ai/features/flux1-kontext" },
@@ -103,18 +108,152 @@ export const videoGenerationModels = [
   { label: "Kling 3.0", url: "https://kie.ai/kling-3-0" },
 ]
 
+export const characterImageToVideoModels = [
+  { label: "Kling 2.6 Image to Video", model: "kling-2.6/image-to-video", provider: "kie" },
+  { label: "Kling 3.0 Video", model: "kling-3.0/video", provider: "kie" },
+  { label: "Seedance 2.0", model: "bytedance/seedance-2", provider: "kie" },
+] as const
+
+export const defaultImageToVideoModel = characterImageToVideoModels[0].label
+
 export const upscaleModels = [
   { label: "Topaz Image Upscale", url: "https://kie.ai/topaz-image-upscale" },
   { label: "Topaz Video Upscaler", url: "https://kie.ai/topaz-video-upscaler" },
 ]
 
 export const characterGenerationModels = imageGenerationModels.map((model) => model.label)
+export const characterImageAspectRatios = ["9:16", "4:5", "1:1", "16:9", "3:4", "4:3"] as const
 
+type GenviralPromptPreset = {
+  name: string
+  prompt: string
+  category?: string
+  aspectRatio?: string
+  modelDisplayName?: string
+  thumbnailUrl?: string
+}
+
+export const ugcImagePromptPresets: GenviralPromptPreset[] = genviralPresetsData.presets
+  .filter((preset) => preset.type === "image" && typeof preset.prompt === "string" && preset.prompt.trim())
+  .map((preset) => {
+    const presetRecord = preset as Record<string, unknown>
+    return {
+      name: preset.name,
+      prompt: preset.prompt,
+      category: preset.category,
+      aspectRatio: preset.aspectRatio,
+      modelDisplayName: preset.modelDisplayName,
+      thumbnailUrl: readOptionalString(
+        presetRecord.thumbnailUrl ?? presetRecord.imageUrl ?? presetRecord.previewUrl ?? presetRecord.photoUrl
+      ),
+    }
+  })
+
+function readOptionalString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined
+}
 
 export type ImportedCharacterPayload = {
   name?: string
   attributes: CharacterAttributes
   previewUrl?: string
+  sourceImageDataUrl?: string
+}
+
+export type CharacterPromptAttachment = {
+  label: string
+  url: string
+  kind: "character_headshot" | "asset"
+}
+
+export type CharacterImageGenerationRecord = {
+  id: string
+  prompt: string
+  model: string
+  createdAt: string
+  attachments: CharacterPromptAttachment[]
+  aspectRatio: string
+  status: "processing" | "ready" | "failed"
+  imageUrl?: string
+  error?: string
+  progress?: number
+  videoUrl?: string
+  videoModel?: string
+  videoStatus?: "idle" | "processing" | "ready" | "failed"
+  videoError?: string
+  videoProgress?: number
+}
+
+export function createCharacterImageGenerationRecord(input: {
+  prompt: string
+  attachments: CharacterPromptAttachment[]
+  model?: string
+  id?: string
+  createdAt?: string
+  aspectRatio?: string
+  status?: CharacterImageGenerationRecord["status"]
+  imageUrl?: string
+  error?: string
+  progress?: number
+  videoUrl?: string
+  videoModel?: string
+  videoStatus?: CharacterImageGenerationRecord["videoStatus"]
+  videoError?: string
+  videoProgress?: number
+}): CharacterImageGenerationRecord {
+  return {
+    id: input.id ?? `${Date.now()}`,
+    prompt: input.prompt,
+    model: input.model?.trim() || defaultImageGenerationModel,
+    createdAt: input.createdAt ?? new Date().toISOString(),
+    attachments: input.attachments,
+    aspectRatio: input.aspectRatio?.trim() || characterImageAspectRatios[0],
+    status: input.status ?? "ready",
+    imageUrl: input.imageUrl,
+    error: input.error,
+    progress: input.progress,
+    videoUrl: input.videoUrl,
+    videoModel: input.videoModel,
+    videoStatus: input.videoStatus,
+    videoError: input.videoError,
+    videoProgress: input.videoProgress,
+  }
+}
+
+export function buildCharacterPromptPackage(input: {
+  userPrompt: string
+  character: Pick<CharacterRecord, "name" | "preview_url" | "attributes">
+  assets?: Pick<AssetRecord, "name" | "fileUrl">[]
+}) {
+  const character = input.character
+  const attributes = normalizeCharacterAttributes({ ...character.attributes, name: character.name })
+  const attachments: CharacterPromptAttachment[] = []
+  const headshotUrl = clean(character.preview_url) || defaultCharacterPreviewUrl
+
+  if (headshotUrl) {
+    attachments.push({
+      label: `${character.name} profile picture`,
+      url: headshotUrl,
+      kind: "character_headshot",
+    })
+  }
+
+  for (const asset of input.assets ?? []) {
+    if (!asset.fileUrl) {
+      continue
+    }
+    attachments.push({
+      label: asset.name,
+      url: asset.fileUrl,
+      kind: "asset",
+    })
+  }
+
+  const userPrompt = clean(input.userPrompt) || "Generate an authentic UGC image featuring this character."
+  return {
+    prompt: `character:\n${JSON.stringify(attributes, null, 2)}\n\n${userPrompt}`,
+    attachments,
+  }
 }
 
 export function parseImportedCharacter(input: string): ImportedCharacterPayload | null {
@@ -189,6 +328,10 @@ function inferAttributesFromPlainText(text: string): ImportedCharacterPayload | 
   return matched ? { attributes } : null
 }
 
+function clean(value: unknown) {
+  return typeof value === "string" ? value.trim() : ""
+}
+
 export function getCharacterFieldValue(attributes: CharacterAttributes, path: string): string | number | string[] | undefined {
   return path.split(".").reduce<unknown>((current, key) => {
     if (!current || typeof current !== "object") {
@@ -244,4 +387,3 @@ export function formatCharacterFieldName(value: string) {
     .replace(/([A-Z])/g, " $1")
     .replace(/^./, (letter) => letter.toUpperCase())
 }
-

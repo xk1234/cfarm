@@ -15,7 +15,7 @@ Related drawer/components:
 
 ## Functionality
 
-Automations lists slideshow automation cards and opens a settings drawer for editing automation configuration. It supports local renaming and favorite toggles.
+Automations lists slideshow automation cards and opens a settings drawer for editing automation configuration. It now loads persisted imported/local automation records from this app's automation DB when available, falling back to seed data only when the DB is empty.
 
 Main actions:
 
@@ -24,27 +24,40 @@ Main actions:
 - Toggle favorite state.
 - Open the template/new automation modal.
 - Open the edit drawer.
-- Edit generated `AutomationSchema` settings in memory.
+- Edit generated or imported `AutomationSchema` settings.
+- Persist imported automation renames, favorites, and settings through `/api/automations`.
 
 ## Objects Used
 
 | Object | Source | Usage |
 | --- | --- | --- |
-| `Automation[]` | `data.automations` plus local `createdAutomations` | Cards and template entries. |
-| `AutomationSchema` | `defaultAutomationSchema()` / `mergeAutomationSchema()` | Edit drawer settings. |
+| `AutomationRecord[]` | `data/automations/automations.json` via `/api/automations` | Imported/local persisted automation source of truth. |
+| `Automation[]` | Persisted automation summaries, falling back to `data.automations` plus local `createdAutomations` | Cards and template entries. |
+| `AutomationSchema` | Imported schema or `defaultAutomationSchema()` / `mergeAutomationSchema()` | Edit drawer settings. |
 | `ImageCollectionConfig` | `AutomationSchema.image_collection_ids` | Format/settings collection references. |
-| `AutomationTextItem` | `AutomationSchema.format.*.text_items` | Text controls in format editor. |
+| `AutomationTextItem` | `AutomationSchema.formatting[].textItems` | Reelfarm-shaped text controls in format editor. |
 
 ## Persistence
 
-No automation persistence exists in the current repo. Renames, favorite toggles, created automations, and drawer config edits are React state only.
+Persisted imported automations live in `data/automations/automations.json`. The API supports:
+
+- `GET /api/automations`
+- `POST /api/automations`
+- `PATCH /api/automations`
+
+There is also a helper script:
+
+```bash
+node scripts/import-reelfarm-automations.mjs <reelfarm-automations.json>
+```
+
+Chrome extraction status: the app-side DB/import path exists, but direct structured extraction from the logged-in Chrome Reelfarm tab was blocked because Chrome has JavaScript execution from Apple Events disabled and the available accessibility tree did not expose page content.
 
 ## Hardcoded / Demo Behavior
 
-- Built-in automations come from `data/realfarm.json`.
-- Locally created automations get IDs like `auto-local-${Date.now()}` or `auto-template-${Date.now()}`.
-- `defaultAutomationSchema()` hardcodes default hooks, TikTok settings, collection IDs, prompt text, schedule day sets, and format defaults.
+- Built-in automations from `data/realfarm.json` are fallback/demo data when the local automation DB is empty.
+- Locally created automations may still get IDs like `auto-local-${Date.now()}` or `auto-template-${Date.now()}` when created from flows that have not been fully migrated.
+- `defaultAutomationSchema()` hardcodes default Reelfarm-shaped `prompt_formatting`, `formatting[]`, TikTok settings, collection IDs, prompt text, schedule day sets, and format defaults.
 - Pause button is visual only.
 - Filter button is visual only.
-- Edit drawer saves to local state only.
 - Preview cards use generated thumbnails and placeholder text.

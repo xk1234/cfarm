@@ -6,29 +6,31 @@ Component: `AnalyticsView` in `components/realfarm-workspace.tsx`
 
 ## Functionality
 
-Analytics renders a dashboard shell with a daily views chart and an empty table state.
+Analytics renders a dashboard that can sync platform analytics from Postiz for a selected connected channel.
 
 Main actions:
 
 - Switch time range between 7, 30, 60, and 90 days.
-- Render a zero-value area chart for the selected range.
+- Fetch connected Postiz integrations from `/api/postiz/integrations`.
+- Fetch platform analytics from `/api/postiz/analytics/platform`.
+- Render the first views/impressions-style metric in the area chart.
 - Show table/grid controls visually.
 
 ## Objects Used
 
 | Object | Source | Usage |
 | --- | --- | --- |
-| Generated chart rows | `DateTime.now()` and selected range | Chart dates and `views: 0`. |
+| `PostizIntegration[]` | `/api/postiz/integrations` | Channel selector. |
+| `PostizMetric[]` | `/api/postiz/analytics/platform` | Chart and table metric rows. |
 | Recharts data object | Local `chartData` | Area chart input. |
 
 ## Persistence
 
-No analytics API calls and no persisted metrics.
+Platform analytics is fetched from Postiz. Post-level analytics fetched through `/api/postiz/analytics/post` can be cached on `PostizPostRecord.analytics` in `data/postiz-posts.json`.
 
 ## Hardcoded / Demo Behavior
 
-- Views are always `0`.
 - Table/grid toggle is visual only.
 - Refresh button has no handler.
-- Empty-state copy says no TikToks have been published from ReelFarm.
 - Table headers are hardcoded.
+- If Postiz is not configured or no channel is connected, the tab renders an actionable empty state.

@@ -14,24 +14,60 @@ export type LocalAsset = {
   text?: string
 }
 
-export type RealFarmData = typeof realfarmData & {
+export type Project = {
+  id: string
+  title: string
+  status: string
+  age: string
+  slides: string[]
+}
+
+export type Automation = {
+  id: string
+  name: string
+  status: string
+  account: string
+  handle: string
+  times: string[]
+  favorite: boolean
+  theme: string
+}
+
+export type EditorSlide = {
+  id: string
+  kind: string
+  text: string
+  duration: string
+  aspectRatio: string
+}
+
+type RealFarmJson = Omit<typeof realfarmData, "projects" | "automations" | "editor"> & {
+  projects: Project[]
+  automations: Automation[]
+  editor: Omit<typeof realfarmData.editor, "slides"> & {
+    slides: EditorSlide[]
+  }
+}
+
+export type RealFarmData = RealFarmJson & {
   assets: {
     music: LocalAsset[]
+    ugcAvatarVideos: LocalAsset[]
     greenscreenMemes: LocalAsset[]
     ctas: LocalAsset[]
   }
 }
-export type Project = RealFarmData["projects"][number]
 export type Video = RealFarmData["videos"][number]
 export type ImageCollection = RealFarmData["imageCollections"][number]
-export type Automation = RealFarmData["automations"][number]
-export type EditorSlide = RealFarmData["editor"]["slides"][number]
 
 export function loadRealFarmData(): RealFarmData {
+  const data = realfarmData as RealFarmJson
+
   return {
-    ...realfarmData,
+    ...data,
     assets: {
       music: listLocalAssets("music", ["mp3", "wav"], "audio"),
+      ugcAvatarVideos: listLocalAssets("ugc_avatar_videos", ["mp4", "webm", "mov"], "video"),
       greenscreenMemes: listLocalAssets("greenscreen_memes", ["mp4", "webm", "mov"], "video"),
       ctas: listLocalAssets("ctas", ["txt"], "text"),
     },

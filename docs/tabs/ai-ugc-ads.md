@@ -11,11 +11,11 @@ AI UGC Ads is a builder-style tab for composing a UGC ad from a hook, avatar, de
 Main actions:
 
 - Cycle/edit hook text.
-- Select an AI avatar if available.
-- Select demo mode.
+- Select an AI avatar from `data/realfarm.json`.
+- Select no demo or a project demo video from `GET /api/assets?scope=ugc_demo&kind=video`.
 - Change text placement in the phone preview.
 - Select background music.
-- Trigger `onCreate`, which adds a local draft/export count through workspace state.
+- Create a queued generated-video export in `/api/generated-videos`.
 
 ## Objects Used
 
@@ -23,17 +23,19 @@ Main actions:
 | --- | --- | --- |
 | `RealFarmData.ugcAds.hooks` | `data/realfarm.json` | Initial hook list. |
 | `RealFarmData.ugcAds.selectedHook` | `data/realfarm.json` | Initial selected hook index. |
+| `RealFarmData.ugcAds.avatars` | `data/realfarm.json` | Data-backed test avatar image URLs. |
+| `RealFarmData.ugcAds.demos` | `data/realfarm.json` | Demo selectors. |
+| `AssetRecord[]` | `GET /api/assets?scope=ugc_demo&kind=video` | Uploaded project demo videos. |
+| `GeneratedVideoExport[]` | `GET /api/generated-videos?type=ugc_ad` | Queued/generated UGC ad export cards. |
 | `LocalAsset[]` | `data.assets.music` | Sound selector options. |
 | `LocalAsset` | Selected sound state | Current background sound. |
 
 ## Persistence
 
-No API persistence for ad drafts from this tab. Sound selection and draft creation are workspace React state.
+Generated-video exports are persisted through `/api/generated-videos` into `data/generated-videos/exports.json`. New exports start as `queued` and include a queue position. Uploaded project demo videos are stored as `ugc_demo` assets under `data/assets/demos`. Sound selection remains workspace React state.
 
 ## Hardcoded / Demo Behavior
 
-- `avatars` is currently an empty array in the component, so it shows "No AI avatars yet" even though `data.ugcAds.avatars` exists.
-- `demos` is hardcoded to `["None", "Add"]`, not `data.ugcAds.demos`.
 - The preview is a styled placeholder, not rendered video output.
 - Fallback hook copy is hardcoded if no hooks exist.
 - Text placement options are hardcoded to top/middle/bottom.

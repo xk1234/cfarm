@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef, useState } from "react"
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -7,10 +8,20 @@ import {
   IconPlus,
 } from "@tabler/icons-react"
 
-import { AvatarDot, PinterestPreviewTile, SlideThumb } from "@/components/realfarm/shared-media"
+import {
+  TemplateGeneratedPreview,
+  generatedExampleSlides,
+  type GeneratedShowcaseRun,
+} from "@/components/realfarm/template-showcase-preview"
+import { ExampleSlideshowModal } from "@/components/realfarm/example-slideshow-modal"
 import { Button } from "@/components/ui/button"
+import { fetchJsonWithTimeout } from "@/lib/client-api"
+import type { GeneratedVideoExport } from "@/lib/generated-video-types"
 import type { Automation, RealFarmData } from "@/lib/realfarm-data"
-import type { PinterestSearchResult } from "@/lib/pinterest-search"
+import { cn } from "@/lib/utils"
+
+const ITEMS_PER_PAGE = 5
+const QUICK_START_ITEMS_PER_PAGE = 6
 
 export function CreatorsView() {
   return (
@@ -21,125 +32,343 @@ export function CreatorsView() {
 }
 
 export function HomeView({
-  data,
+  templates,
+  recentRunsByAutomationId,
   onCreate,
+  onUseTemplate,
   onAutomations,
 }: {
   data: RealFarmData
+  templates: Automation[]
+  recentRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
   onCreate: () => void
+  onUseTemplate: (automation: Automation) => void
   onAutomations: () => void
 }) {
-  const quickStartAutomations = data.automations.slice(0, 6)
+  const [activeTab, setActiveTab] = useState<"slideshows" | "videos">(
+    "slideshows"
+  )
+  const [videos, setVideos] = useState<GeneratedVideoExport[]>([])
+  const [page, setPage] = useState(1)
+  const [quickStartPage, setQuickStartPage] = useState(1)
+  const [selectedExampleTemplate, setSelectedExampleTemplate] =
+    useState<Automation | null>(null)
+  const quickStartTemplates = templates
+
+  const totalItems = activeTab === "slideshows" ? 0 : videos.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE))
+  const safePage = Math.min(page, totalPages)
+  const pagedItems = (activeTab === "slideshows" ? [] : videos).slice(
+    (safePage - 1) * ITEMS_PER_PAGE,
+    safePage * ITEMS_PER_PAGE
+  )
+  const quickStartTotalPages = Math.max(
+    1,
+    Math.ceil(quickStartTemplates.length / QUICK_START_ITEMS_PER_PAGE)
+  )
+  const safeQuickStartPage = Math.min(quickStartPage, quickStartTotalPages)
+  const quickStartOffset = (safeQuickStartPage - 1) * QUICK_START_ITEMS_PER_PAGE
+  const pagedQuickStartTemplates = quickStartTemplates.slice(
+    quickStartOffset,
+    quickStartOffset + QUICK_START_ITEMS_PER_PAGE
+  )
+
+  useEffect(() => {
+    let active = true
+
+    async function loadGeneratedVideos() {
+      try {
+        const payload = await fetchJsonWithTimeout<{
+          exports?: GeneratedVideoExport[]
+        }>("/api/generated-videos", {
+          timeoutMs: 12_000,
+          toastOnError: false,
+        })
+        if (active) {
+          setVideos(payload?.exports ?? [])
+        }
+      } catch {
+        if (active) {
+          setVideos([])
+        }
+      }
+    }
+
+    void loadGeneratedVideos()
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  function switchTab(tab: "slideshows" | "videos") {
+    setActiveTab(tab)
+    setPage(1)
+  }
 
   return (
     <div className="mx-auto max-w-[1260px] pb-12">
-      <section className="pt-14 text-center">
-        <h1 className="text-[42px] font-bold tracking-normal text-[#30302e]">Welcome, UU odi</h1>
-        <p className="mt-3 text-[20px] font-semibold text-[#888883]">use AI to generate TikTok videos that don&apos;t feel like AI</p>
-        <div className="mt-7 flex justify-center gap-3">
-          <Button variant="action" size="largeAction" onClick={onCreate}>
+      <section className="py-16 text-center">
+        <h1 className="text-[24px] font-semibold tracking-normal text-[#30302e]">
+          Welcome, UU odi
+        </h1>
+        <p className="mt-2 text-[14px] leading-5 font-medium text-[#888883]">
+          use AI to generate TikTok videos that don&apos;t feel like AI
+        </p>
+        <div className="mt-5 flex justify-center gap-3">
+          <Button variant="action" size="appDefault" onClick={onCreate}>
             <IconPlus className="size-5" />
             New Automation
           </Button>
-          <Button variant="softControl" size="largeAction" onClick={onAutomations}>
+          <Button
+            variant="softControl"
+            size="appDefault"
+            onClick={onAutomations}
+          >
             <IconPlayerPlay className="size-5" />
             Automations
           </Button>
         </div>
       </section>
 
-      <section className="mx-auto mt-20 max-w-[900px]">
-        <div className="mb-16 flex items-center justify-between">
-          <h2 className="text-[24px] font-bold text-[#30302e]">Slideshows (0)</h2>
+      <section className="mx-auto mt-20 max-w-[1210px]">
+        <div className="mb-5 flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <button
+              className={cn(
+                "rounded-[7px] px-4 py-2 text-[14px] font-semibold transition",
+                activeTab === "slideshows"
+                  ? "bg-[#242421] text-white"
+                  : "text-[#6f7888] hover:bg-[#ecebe4]"
+              )}
+              onClick={() => switchTab("slideshows")}
+            >
+              Slideshows (0)
+            </button>
+            <button
+              className={cn(
+                "rounded-[7px] px-4 py-2 text-[14px] font-semibold transition",
+                activeTab === "videos"
+                  ? "bg-[#242421] text-white"
+                  : "text-[#6f7888] hover:bg-[#ecebe4]"
+              )}
+              onClick={() => switchTab("videos")}
+            >
+              Videos ({videos.length})
+            </button>
+          </div>
           <div className="flex items-center gap-3 text-[14px] font-semibold text-[#6f7888]">
-            <Button variant="iconControl" size="icon-control" aria-label="Previous slideshow page">
+            <Button
+              variant="iconControl"
+              size="icon-control"
+              aria-label="Previous page"
+              disabled={safePage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
               <IconChevronLeft className="size-4" />
             </Button>
-            Page 1 of 1
-            <Button variant="iconControl" size="icon-control" aria-label="Next slideshow page">
+            Page {safePage} of {totalPages}
+            <Button
+              variant="iconControl"
+              size="icon-control"
+              aria-label="Next page"
+              disabled={safePage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
               <IconChevronRight className="size-4" />
             </Button>
           </div>
         </div>
-        <div className="grid min-h-[86px] place-items-center text-[16px] font-medium text-[#667085]">
-          You have no videos yet. Create your first video to get started!
-        </div>
+
+        {activeTab === "slideshows" ? (
+          <div className="grid min-h-[86px] place-items-center text-[16px] font-medium text-[#667085]">
+            You have no videos yet. Create your first video to get started!
+          </div>
+        ) : pagedItems.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+            {pagedItems.map((item) => (
+              <VideoCard key={item.id} item={item} />
+            ))}
+          </div>
+        ) : (
+          <div className="grid min-h-[86px] place-items-center text-[16px] font-medium text-[#667085]">
+            No videos yet. Generate a video from the Greenscreen or UGC Ads
+            editors.
+          </div>
+        )}
       </section>
 
       <section className="mx-auto mt-24 max-w-[1210px]">
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-[19px] font-bold text-[#30302e]">Quick start. <span className="text-[#888883]">Use our formats.</span></h2>
-          <div className="flex gap-3">
-            <Button variant="iconControl" size="icon-control" aria-label="Previous format">
+          <h2 className="text-[19px] font-bold text-[#30302e]">Quick start</h2>
+          <div className="flex items-center gap-3 text-[14px] font-semibold text-[#6f7888]">
+            <Button
+              variant="iconControl"
+              size="icon-control"
+              aria-label="Previous quick start page"
+              disabled={safeQuickStartPage <= 1}
+              onClick={() => setQuickStartPage((p) => Math.max(1, p - 1))}
+            >
               <IconChevronLeft className="size-4" />
             </Button>
-            <Button variant="iconControl" size="icon-control" aria-label="Next format">
+            Page {safeQuickStartPage} of {quickStartTotalPages}
+            <Button
+              variant="iconControl"
+              size="icon-control"
+              aria-label="Next quick start page"
+              disabled={safeQuickStartPage >= quickStartTotalPages}
+              onClick={() =>
+                setQuickStartPage((p) => Math.min(quickStartTotalPages, p + 1))
+              }
+            >
               <IconChevronRight className="size-4" />
             </Button>
           </div>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {quickStartAutomations.map((automation, index) => (
-            <QuickStartFormatCard
-              key={automation.id}
-              automation={automation}
-              images={data.defaultCollections.backgrounds.images.slice(index, index + 4)}
-              hooks={data.editor.slides.map((slide) => slide.text)}
-              index={index}
-              onAutomate={onCreate}
-            />
-          ))}
-        </div>
+        {quickStartTemplates.length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {pagedQuickStartTemplates.map((automation, index) => (
+              <QuickStartTemplateCard
+                key={automation.id}
+                automation={automation}
+                index={quickStartOffset + index}
+                exampleSlides={generatedExampleSlides(
+                  recentRunsByAutomationId[automation.id],
+                  3
+                )}
+                onOpenExamples={() => setSelectedExampleTemplate(automation)}
+                onUse={() => onUseTemplate(automation)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="grid min-h-[120px] place-items-center rounded-[7px] border border-dashed border-[#d7d6cf] bg-white/55 px-6 text-center text-[16px] font-medium text-[#667085]">
+            No templates available.
+          </div>
+        )}
       </section>
+      {selectedExampleTemplate ? (
+        <ExampleSlideshowModal
+          title={selectedExampleTemplate.name}
+          runs={recentRunsByAutomationId[selectedExampleTemplate.id]}
+          onClose={() => setSelectedExampleTemplate(null)}
+        />
+      ) : null}
     </div>
   )
 }
 
-function QuickStartFormatCard({
+function QuickStartTemplateCard({
   automation,
-  images,
-  hooks,
+  exampleSlides,
   index,
-  onAutomate,
+  onOpenExamples,
+  onUse,
 }: {
   automation: Automation
-  images: PinterestSearchResult[]
-  hooks: string[]
+  exampleSlides: ReturnType<typeof generatedExampleSlides>
   index: number
-  onAutomate: () => void
+  onOpenExamples: () => void
+  onUse: () => void
 }) {
-  const tiles = images.length > 0 ? images : []
+  return (
+    <article className="overflow-hidden rounded-[7px] border border-[#deddd5] bg-white shadow-sm">
+      <button
+        type="button"
+        className="block h-[128px] w-full text-left"
+        onClick={onOpenExamples}
+        aria-label={`View ${automation.name} example slideshow`}
+      >
+        <TemplateGeneratedPreview
+          exampleSlides={exampleSlides}
+          className="h-full"
+          index={index}
+        />
+      </button>
+      <div className="flex items-center justify-between gap-3 px-3 py-3">
+        <div className="min-w-0">
+          <div className="truncate text-[15px] font-bold text-[#30302e]">
+            {automation.name}
+          </div>
+          <div className="mt-0.5 text-[12px] font-semibold text-[#8a8a83]">
+            Automation template
+          </div>
+        </div>
+        <Button variant="softControl" size="sm" onClick={onUse}>
+          Use
+        </Button>
+      </div>
+    </article>
+  )
+}
+
+function VideoCard({ item }: { item: GeneratedVideoExport }) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [playing, setPlaying] = useState(false)
+  const isPending =
+    !item.videoUrl && (item.status === "queued" || item.status === "processing")
+
+  function togglePlay() {
+    const video = videoRef.current
+    if (!video) return
+    if (video.paused) {
+      video.play()
+      setPlaying(true)
+    } else {
+      video.pause()
+      setPlaying(false)
+    }
+  }
+
+  if (isPending) {
+    return (
+      <article className="overflow-hidden rounded-[7px] border border-[#deddd5] bg-white shadow-sm">
+        <div className="relative flex aspect-[9/16] flex-col items-center justify-center gap-4 bg-white p-6 text-center">
+          <div className="text-[13px] font-semibold text-[#667085]">
+            Creating hook video...
+          </div>
+          <div className="h-1.5 w-full max-w-[140px] overflow-hidden rounded-full bg-[#ecebe4]">
+            <div className="h-full w-2/5 animate-[shimmer_1.5s_ease-in-out_infinite] rounded-full bg-[#242421]" />
+          </div>
+        </div>
+      </article>
+    )
+  }
 
   return (
-    <article className="overflow-hidden rounded-[9px] border border-[#dddddc] bg-white shadow-sm">
-      <div className="grid h-[170px] grid-cols-3 overflow-hidden bg-[#ddd]">
-        {[0, 1, 2].map((tileIndex) => {
-          const image = tiles[tileIndex % Math.max(tiles.length, 1)]
-          return (
-            <div key={tileIndex} className="relative overflow-hidden">
-              {image ? (
-                <PinterestPreviewTile image={image} index={index + tileIndex} className="h-full rounded-none" />
-              ) : (
-                <SlideThumb index={index + tileIndex} className="h-full rounded-none" />
+    <article className="overflow-hidden rounded-[7px] border border-[#deddd5] bg-white shadow-sm">
+      <div className="relative aspect-[9/16] bg-[#d8d6ce]">
+        {item.videoUrl ? (
+          <>
+            <video
+              ref={videoRef}
+              className="absolute inset-0 h-full w-full object-cover"
+              src={item.videoUrl}
+              muted
+              playsInline
+              preload="metadata"
+              onEnded={() => setPlaying(false)}
+            />
+            <button
+              className="absolute inset-0 z-10 flex items-center justify-center"
+              onClick={togglePlay}
+              aria-label={playing ? "Pause video" : "Play video"}
+            >
+              {!playing && (
+                <div className="grid size-14 place-items-center rounded-full bg-black/50 backdrop-blur-sm transition hover:bg-black/60">
+                  <IconPlayerPlay className="size-7 text-white" fill="white" />
+                </div>
               )}
-              <div className="absolute inset-0 bg-black/12" />
-              <div className="font-tiktok absolute inset-x-4 top-[36%] text-center text-[10px] font-bold leading-tight text-white drop-shadow">
-                {hooks.length > 0 ? hooks[(index + tileIndex) % hooks.length] : automation.name}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-      <div className="flex items-center gap-3 px-4 py-3">
-        <AvatarDot name={automation.name} index={index} className="size-9" />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[16px] font-bold leading-5 text-[#30302e]">{automation.name}</div>
-          <div className="truncate text-[13px] font-medium text-[#7f7e78]">Start automating this format</div>
-        </div>
-        <Button variant="blueAction" size="appDefault" className="font-semibold" onClick={onAutomate}>
-          <IconPlus className="size-4" />
-          Automate
-        </Button>
+            </button>
+          </>
+        ) : item.previewUrl ? (
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${item.previewUrl})` }}
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-[#dfd2c4] via-[#a37b68] to-[#3c3532]" />
+        )}
       </div>
     </article>
   )

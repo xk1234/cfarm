@@ -13,6 +13,9 @@ Main actions:
 - Load saved swipe records from the local API.
 - Display captured media and swipe metadata.
 - Filter/search records in UI state.
+- Open a page-style Inspect Swipe detail view from a saved card.
+- Play captured video assets with native video controls.
+- View captured mobile and desktop landing-page screenshots when present.
 
 ## Objects Used
 
@@ -22,6 +25,8 @@ Main actions:
 | `SwipePlatform` | `lib/swipes.ts` | Platform filter/classification. |
 | `SwipeFormat` | `lib/swipes.ts` | Media format classification. |
 | `metadata` / `stats` | `SwipeRecord` | Supplementary display fields. |
+| `processingStatus` | `SwipeRecord` | Shows `processing...`, `complete`, or `failed` states while async analysis runs. |
+| `landingPageMobileScreenshotPath` / `landingPageDesktopScreenshotPath` | `SwipeRecord` | Landing-page screenshots shown on the Inspect Swipe page. |
 
 ## Persistence
 
@@ -42,4 +47,6 @@ API:
 - Empty-state and error copy are hardcoded.
 - The swipe extension/source may send partial data; the UI depends on whatever fields are present.
 - Saved media is capped and downloaded locally by `lib/swipes.ts`.
-- Some analysis fields are optional and only present if analysis ran during swipe creation.
+- Video analysis can complete after the initial swipe record is inserted.
+- Some analysis fields are optional and only present after processing completes.
+- Facebook records may include noisy raw card text; the Swipes UI normalizes that into readable display fields before rendering.

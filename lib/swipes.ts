@@ -1,10 +1,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 
-export type SwipePlatform = "facebook" | "tiktok" | "tiktok-creative" | "tiktok-seller" | "google" | "unknown"
+export type SwipePlatform = "facebook" | "tiktok" | "tiktok-creative" | "tiktok-seller" | "google" | "twitter" | "unknown"
 export type SwipeFormat = "image" | "video" | "carousel" | "unknown"
 export type BudgetLevel = "low" | "medium" | "high" | "unknown"
 export type ConfidenceLevel = "low" | "medium" | "high"
+export type SwipeProcessingStatus = "processing" | "complete" | "failed"
 
 export type SpeakerTranscript = {
   speaker: string
@@ -110,6 +111,14 @@ export type SwipeRecord = {
   full_script_transcription?: FullScriptTranscription
   core_ugc_aesthetic_analysis?: CoreUgcAestheticAnalysis
   screenshotPath?: string
+  landingPageMobileScreenshotPath?: string
+  landingPageDesktopScreenshotPath?: string
+  landingPageCapturedAt?: string
+  landingPageCaptureError?: string
+  processingStatus?: SwipeProcessingStatus
+  processingStartedAt?: string
+  processingCompletedAt?: string
+  processingError?: string
   swipedAt: string
   metadata: Record<string, string>
   stats: Record<string, string>
@@ -119,6 +128,8 @@ export type SwipeRecord = {
 export type SwipePayload = Partial<Omit<SwipeRecord, "id" | "swipedAt" | "screenshotPath">> & {
   analyticsText?: string
   screenshotDataUrl?: string
+  landingPageMobileScreenshotDataUrl?: string
+  landingPageDesktopScreenshotDataUrl?: string
 }
 
 export type SavedSwipeMedia = {
@@ -146,11 +157,21 @@ export async function createSwipe(payload: SwipePayload): Promise<SwipeRecord> {
   const screenshotPath = payload.screenshotDataUrl
     ? await saveScreenshot(id, payload.screenshotDataUrl)
     : undefined
-  const remoteMediaUrl = clean(payload.mediaUrl)
-  const savedMedia = remoteMediaUrl ? await saveRemoteMedia(id, remoteMediaUrl) : undefined
+  const landingPageMobileScreenshotPath = payload.landingPageMobileScreenshotDataUrl
+    ? await saveScreenshot(`${id}-landing-mobile`, payload.landingPageMobileScreenshotDataUrl)
+    : undefined
+  const landingPageDesktopScreenshotPath = payload.landingPageDesktopScreenshotDataUrl
+    ? await saveScreenshot(`${id}-landing-desktop`, payload.landingPageDesktopScreenshotDataUrl)
+    : undefined
+  const inputMediaUrl = clean(payload.mediaUrl)
+  const savedMedia = isRemoteUrl(inputMediaUrl) ? await saveRemoteMedia(id, inputMediaUrl) : undefined
   const localMediaUrl = savedMedia?.publicUrl ?? ""
-  const sourceVideoUrl = clean(payload.source_video_url) || (/^https?:/.test(remoteMediaUrl) ? remoteMediaUrl : "")
-  const analysis = await enrichSwipeAnalysis(payload, { sourceVideoUrl, media: savedMedia })
+  const mediaUrl = localMediaUrl || localAppUrl(inputMediaUrl) || undefined
+  const sourceVideoUrl = localMediaUrl || localAppUrl(payload.source_video_url)
+  const shouldProcess = payload.format === "video"
+  const fallback = fallbackAnalysis(payload)
+  const processingStatus: SwipeProcessingStatus = shouldProcess ? "processing" : "complete"
+  const landingPageCapturedAt = landingPageMobileScreenshotPath || landingPageDesktopScreenshotPath ? now.toISOString() : undefined
 
   const next: SwipeRecord = {
     id,
@@ -163,7 +184,7 @@ export async function createSwipe(payload: SwipePayload): Promise<SwipeRecord> {
     format: payload.format ?? "unknown",
     cta: clean(payload.cta),
     landingPageUrl: clean(payload.landingPageUrl),
-    mediaUrl: localMediaUrl || remoteMediaUrl,
+    mediaUrl,
     source_video_url: sourceVideoUrl || undefined,
     uploaded_at: clean(payload.uploaded_at) || undefined,
     time: toNumber(payload.time),
@@ -177,23 +198,77 @@ export async function createSwipe(payload: SwipePayload): Promise<SwipeRecord> {
     remain_rank: clean(payload.remain_rank) || undefined,
     budget_level: normalizeBudgetLevel(payload.budget_level),
     industry_benchmark: normalizeIndustryBenchmark(payload.industry_benchmark),
-    full_script_transcription: analysis.full_script_transcription,
-    core_ugc_aesthetic_analysis: analysis.core_ugc_aesthetic_analysis,
+    full_script_transcription: shouldProcess ? undefined : fallback.full_script_transcription,
+    core_ugc_aesthetic_analysis: shouldProcess ? undefined : fallback.core_ugc_aesthetic_analysis,
     screenshotPath,
+    landingPageMobileScreenshotPath,
+    landingPageDesktopScreenshotPath,
+    landingPageCapturedAt,
+    landingPageCaptureError: clean(payload.landingPageCaptureError) || undefined,
+    processingStatus,
+    processingStartedAt: shouldProcess ? now.toISOString() : undefined,
+    processingCompletedAt: shouldProcess ? undefined : now.toISOString(),
     swipedAt: now.toISOString(),
-    metadata: payload.metadata ?? {},
+    metadata: sanitizeSwipeMetadata(payload.metadata),
     stats: payload.stats ?? {},
     folder: clean(payload.folder) || "No Folder",
   }
 
   await writeFile(swipeDbPath, `${JSON.stringify([next, ...current], null, 2)}\n`, "utf8")
+  if (shouldProcess) {
+    void completeSwipeProcessing(id, payload, { sourceVideoUrl, media: savedMedia })
+  }
   return next
+}
+
+export async function updateSwipe(id: string, patch: Partial<SwipeRecord>): Promise<SwipeRecord | undefined> {
+  const current = await readAllSwipes()
+  let updated: SwipeRecord | undefined
+  const next = current.map((swipe) => {
+    if (swipe.id !== id) {
+      return swipe
+    }
+    updated = { ...swipe, ...patch, metadata: patch.metadata ? sanitizeSwipeMetadata(patch.metadata) : swipe.metadata }
+    return updated
+  })
+
+  if (!updated) {
+    return undefined
+  }
+
+  await writeFile(swipeDbPath, `${JSON.stringify(next, null, 2)}\n`, "utf8")
+  return updated
+}
+
+async function completeSwipeProcessing(id: string, payload: SwipePayload, input: {
+  sourceVideoUrl: string
+  media?: SavedSwipeMedia
+}) {
+  try {
+    const analysis = await enrichSwipeAnalysis(payload, input)
+    await updateSwipe(id, {
+      full_script_transcription: analysis.full_script_transcription,
+      core_ugc_aesthetic_analysis: analysis.core_ugc_aesthetic_analysis,
+      processingStatus: "complete",
+      processingCompletedAt: new Date().toISOString(),
+      processingError: undefined,
+    })
+  } catch (error) {
+    await updateSwipe(id, {
+      processingStatus: "failed",
+      processingCompletedAt: new Date().toISOString(),
+      processingError: error instanceof Error ? error.message : "Swipe processing failed",
+    })
+  }
 }
 
 async function readAllSwipes(): Promise<SwipeRecord[]> {
   await ensureSwipeStore()
   const file = await readFile(swipeDbPath, "utf8")
-  return JSON.parse(file) as SwipeRecord[]
+  return (JSON.parse(file) as SwipeRecord[]).map((swipe) => ({
+    ...swipe,
+    metadata: sanitizeSwipeMetadata(swipe.metadata),
+  }))
 }
 
 async function ensureSwipeStore() {
@@ -285,6 +360,36 @@ function extensionFromContentType(contentType: string) {
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : ""
+}
+
+function sanitizeSwipeMetadata(metadata: unknown): Record<string, string> {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return {}
+  }
+
+  const next: Record<string, string> = {}
+  for (const [key, value] of Object.entries(metadata)) {
+    const label = clean(key)
+    const text = clean(value)
+    if (!label || !text || isRemoteUrl(text) || isUrlMetadataLabel(label)) {
+      continue
+    }
+    next[label] = text
+  }
+  return next
+}
+
+function isRemoteUrl(value: string) {
+  return /^https?:\/\//i.test(value)
+}
+
+function localAppUrl(value: unknown) {
+  const url = clean(value)
+  return url.startsWith("/") && !url.startsWith("//") ? url : ""
+}
+
+function isUrlMetadataLabel(label: string) {
+  return /\burl\b/i.test(label)
 }
 
 function toNumber(value: unknown) {
@@ -534,20 +639,6 @@ function fallbackAnalysis(payload: SwipePayload): {
   }
 }
 
-function normalizeTranscript(value: unknown, fallback: FullScriptTranscription): FullScriptTranscription {
-  if (!value || typeof value !== "object") {
-    return fallback
-  }
-
-  const transcript = value as Partial<FullScriptTranscription>
-  return {
-    speakers: Array.isArray(transcript.speakers) ? transcript.speakers.filter(isSpeakerTranscript) : fallback.speakers,
-    full_text: clean(transcript.full_text) || fallback.full_text,
-    pause_notes: Array.isArray(transcript.pause_notes) ? transcript.pause_notes.filter(isNote) : fallback.pause_notes,
-    emotional_tone_notes: Array.isArray(transcript.emotional_tone_notes) ? transcript.emotional_tone_notes.filter(isNote) : fallback.emotional_tone_notes,
-  }
-}
-
 function normalizeAestheticAnalysis(value: unknown, fallback: CoreUgcAestheticAnalysis): CoreUgcAestheticAnalysis {
   if (!value || typeof value !== "object") {
     return fallback
@@ -555,16 +646,8 @@ function normalizeAestheticAnalysis(value: unknown, fallback: CoreUgcAestheticAn
   return value as CoreUgcAestheticAnalysis
 }
 
-function isSpeakerTranscript(value: unknown): value is SpeakerTranscript {
-  return Boolean(value && typeof value === "object" && clean((value as SpeakerTranscript).speaker) && clean((value as SpeakerTranscript).text))
-}
-
-function isNote(value: unknown): value is PauseNote {
-  return Boolean(value && typeof value === "object" && clean((value as PauseNote).note))
-}
-
 function hasCapturedSwipeMedia(swipe: SwipeRecord) {
-  return Boolean(clean(swipe.screenshotPath) || clean(swipe.mediaUrl))
+  return Boolean(swipe.processingStatus === "processing" || clean(swipe.screenshotPath) || clean(swipe.mediaUrl))
 }
 
 function platformLabel(platform?: SwipePlatform) {

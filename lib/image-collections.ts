@@ -1,5 +1,8 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { randomUUID } from "node:crypto"
+import { mkdir, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
+
+import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
 export type StoredImageCollection = {
   name: string
@@ -10,7 +13,13 @@ export type StoredImageCollection = {
   }[]
 }
 
+export type ImageCollectionDeleteInput = Pick<StoredImageCollection, "name" | "created_at">
+
 const IMAGE_COLLECTIONS_DB_PATH = path.join(process.cwd(), "data", "image-collections.json")
+const IMAGE_COLLECTION_FILES_DIR = path.join(process.cwd(), "data", "image-collections", "files")
+const IMAGE_COLLECTION_PUBLIC_PREFIX = "/api/local-assets/image-collections/files"
+const MAX_IMPORT_IMAGES = 80
+const MAX_IMPORT_IMAGE_BYTES = 16 * 1024 * 1024
 
 export async function listImageCollections() {
   return readImageCollectionsFile()
@@ -19,12 +28,16 @@ export async function listImageCollections() {
 export async function upsertImageCollection(collection: StoredImageCollection) {
   const current = await readImageCollectionsFile()
   const nextCollection = normalizeCollection(collection)
-  const existingIndex = current.findIndex((item) => collectionKey(item) === collectionKey(nextCollection))
-  const next = existingIndex >= 0
-    ? current.map((item, index) => index === existingIndex ? nextCollection : item)
-    : [nextCollection, ...current]
+  const existingIndex = current.findIndex((item) => collectionNameKey(item) === collectionNameKey(nextCollection))
+  const next = [
+    nextCollection,
+    ...current.filter((item) => collectionNameKey(item) !== collectionNameKey(nextCollection)),
+  ]
 
   await writeImageCollectionsFile(next)
+  if (existingIndex >= 0) {
+    await deleteUnusedLocalCollectionFiles([current[existingIndex]], next)
+  }
   return nextCollection
 }
 
@@ -32,8 +45,95 @@ export async function updateImageCollectionCaptions(collection: StoredImageColle
   return upsertImageCollection(collection)
 }
 
+export async function deleteImageCollections(collections: ImageCollectionDeleteInput[]) {
+  const requestedKeys = new Set(
+    collections
+      .map((collection) => collectionKey({
+        name: clean(collection.name),
+        created_at: clean(collection.created_at),
+        images: [],
+      }))
+      .filter((key) => key !== "::")
+  )
+  if (requestedKeys.size === 0) {
+    throw new Error("No image collections selected")
+  }
+
+  const current = await readImageCollectionsFile()
+  const deleted = current.filter((collection) => requestedKeys.has(collectionKey(collection)))
+  const next = current.filter((collection) => !requestedKeys.has(collectionKey(collection)))
+
+  await writeImageCollectionsFile(next)
+  const deletedFiles = await deleteUnusedLocalCollectionFiles(deleted, next)
+
+  return {
+    deleted: deleted.length,
+    deletedFiles,
+  }
+}
+
+export async function importRemoteImagesToCollection(input: {
+  collectionName?: string
+  collectionCreatedAt?: string
+  images?: { url?: string; caption?: string; sourceUrl?: string }[]
+  fetchImpl?: typeof fetch
+}) {
+  const imageInputs = Array.isArray(input.images) ? input.images : []
+  const uniqueImages = dedupeImportImages(imageInputs).slice(0, MAX_IMPORT_IMAGES)
+  if (uniqueImages.length === 0) {
+    throw new Error("No images to import")
+  }
+
+  const current = await readImageCollectionsFile()
+  const requestedName = clean(input.collectionName) || "Tumblr import"
+  const requestedCreatedAt = clean(input.collectionCreatedAt)
+  const existing = current.find((collection) => collectionNameKey(collection) === collectionNameKey({ name: requestedName })) ?? null
+  const baseCollection: StoredImageCollection = existing ?? {
+    name: requestedName,
+    created_at: requestedCreatedAt || new Date().toISOString(),
+    images: [],
+  }
+
+  const importedImages = []
+  for (const [index, image] of uniqueImages.entries()) {
+    const saved = await downloadImageToCollectionFile({
+      url: image.url,
+      sourceUrl: image.sourceUrl,
+      index,
+      fetchImpl: input.fetchImpl,
+    })
+    importedImages.push({
+      image_link: saved.publicUrl,
+      caption: clean(image.caption),
+    })
+  }
+
+  const existingLinks = new Set(baseCollection.images.map((image) => image.image_link))
+  const nextCollection = normalizeCollection({
+    ...baseCollection,
+    images: [
+      ...importedImages.filter((image) => !existingLinks.has(image.image_link)),
+      ...baseCollection.images,
+    ],
+  })
+  const next = [
+    nextCollection,
+    ...current.filter((collection) => collectionNameKey(collection) !== collectionNameKey(nextCollection)),
+  ]
+
+  await writeImageCollectionsFile(next)
+  return {
+    collection: nextCollection,
+    imported: importedImages.length,
+  }
+}
+
 function collectionKey(collection: StoredImageCollection) {
   return `${collection.name}::${collection.created_at}`
+}
+
+function collectionNameKey(collection: Pick<StoredImageCollection, "name">) {
+  return clean(collection.name).toLowerCase()
 }
 
 function normalizeCollection(collection: StoredImageCollection): StoredImageCollection {
@@ -52,19 +152,166 @@ function normalizeCollection(collection: StoredImageCollection): StoredImageColl
   }
 }
 
-async function readImageCollectionsFile(): Promise<StoredImageCollection[]> {
-  try {
-    const contents = await readFile(IMAGE_COLLECTIONS_DB_PATH, "utf8")
-    const parsed = JSON.parse(contents) as { collections?: StoredImageCollection[] }
-    return (parsed.collections ?? []).map(normalizeCollection)
-  } catch {
-    return []
+async function deleteUnusedLocalCollectionFiles(
+  deletedCollections: StoredImageCollection[],
+  remainingCollections: StoredImageCollection[]
+) {
+  const remainingLocalLinks = new Set(
+    remainingCollections.flatMap((collection) =>
+      collection.images
+        .map((image) => clean(image.image_link))
+        .filter((imageLink) => localCollectionFilePath(imageLink))
+    )
+  )
+  const filesToDelete = new Map<string, string>()
+
+  for (const collection of deletedCollections) {
+    for (const image of collection.images) {
+      const imageLink = clean(image.image_link)
+      if (remainingLocalLinks.has(imageLink)) {
+        continue
+      }
+      const filePath = localCollectionFilePath(imageLink)
+      if (filePath) {
+        filesToDelete.set(filePath, imageLink)
+      }
+    }
   }
+
+  for (const filePath of filesToDelete.keys()) {
+    await rm(filePath, { force: true })
+  }
+
+  return filesToDelete.size
+}
+
+function localCollectionFilePath(imageLink: string) {
+  if (!imageLink.startsWith(`${IMAGE_COLLECTION_PUBLIC_PREFIX}/`)) {
+    return null
+  }
+
+  const encodedFileName = imageLink.slice(`${IMAGE_COLLECTION_PUBLIC_PREFIX}/`.length).split(/[?#]/)[0]
+  let fileName = ""
+  try {
+    fileName = decodeURIComponent(encodedFileName)
+  } catch {
+    return null
+  }
+
+  if (!fileName || fileName.includes("/") || fileName.includes("\\")) {
+    return null
+  }
+
+  const root = path.resolve(IMAGE_COLLECTION_FILES_DIR)
+  const filePath = path.resolve(root, fileName)
+  return filePath.startsWith(`${root}${path.sep}`) ? filePath : null
+}
+
+async function readImageCollectionsFile(): Promise<StoredImageCollection[]> {
+  return readJsonArrayStore({
+    rootDir: path.dirname(IMAGE_COLLECTIONS_DB_PATH),
+    fileName: path.basename(IMAGE_COLLECTIONS_DB_PATH),
+    key: "collections",
+    normalize: normalizeCollection,
+  })
 }
 
 async function writeImageCollectionsFile(collections: StoredImageCollection[]) {
-  await mkdir(path.dirname(IMAGE_COLLECTIONS_DB_PATH), { recursive: true })
-  await writeFile(IMAGE_COLLECTIONS_DB_PATH, `${JSON.stringify({ collections }, null, 2)}\n`)
+  await writeJsonArrayStore({
+    rootDir: path.dirname(IMAGE_COLLECTIONS_DB_PATH),
+    fileName: path.basename(IMAGE_COLLECTIONS_DB_PATH),
+    key: "collections",
+    records: collections,
+  })
+}
+
+function dedupeImportImages(images: { url?: string; caption?: string; sourceUrl?: string }[]) {
+  const seen = new Set<string>()
+  const next = []
+  for (const image of images) {
+    const url = clean(image.url)
+    if (!safeHttpUrl(url) || seen.has(url)) {
+      continue
+    }
+    seen.add(url)
+    next.push({
+      url,
+      caption: clean(image.caption),
+      sourceUrl: clean(image.sourceUrl),
+    })
+  }
+  return next
+}
+
+async function downloadImageToCollectionFile(input: {
+  url: string
+  sourceUrl?: string
+  index: number
+  fetchImpl?: typeof fetch
+}) {
+  const response = await (input.fetchImpl ?? fetch)(input.url, {
+    headers: {
+      Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+      Referer: safeHttpUrl(input.sourceUrl || "") || "https://www.tumblr.com/",
+      "User-Agent": "Mozilla/5.0 (compatible; cfarm-image-collection-import/1.0)",
+    },
+  })
+  if (!response.ok) {
+    throw new Error(`Failed to download image ${input.index + 1}`)
+  }
+
+  const contentType = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() || ""
+  if (!contentType.startsWith("image/")) {
+    throw new Error(`Imported URL ${input.index + 1} was not an image`)
+  }
+
+  const bytes = Buffer.from(await response.arrayBuffer())
+  if (bytes.byteLength > MAX_IMPORT_IMAGE_BYTES) {
+    throw new Error(`Image ${input.index + 1} is too large to import`)
+  }
+
+  const extension = extensionForImage(input.url, contentType)
+  const fileName = `${Date.now()}-${randomUUID()}${extension}`
+  await mkdir(IMAGE_COLLECTION_FILES_DIR, { recursive: true })
+  await writeFile(path.join(IMAGE_COLLECTION_FILES_DIR, fileName), bytes)
+
+  return {
+    fileName,
+    publicUrl: `${IMAGE_COLLECTION_PUBLIC_PREFIX}/${encodeURIComponent(fileName)}`,
+  }
+}
+
+function extensionForImage(url: string, contentType: string) {
+  const byType: Record<string, string> = {
+    "image/avif": ".avif",
+    "image/gif": ".gif",
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/svg+xml": ".svg",
+    "image/webp": ".webp",
+  }
+  if (byType[contentType]) {
+    return byType[contentType]
+  }
+
+  try {
+    const extension = path.extname(new URL(url).pathname).toLowerCase()
+    return [".avif", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"].includes(extension) ? extension : ".jpg"
+  } catch {
+    return ".jpg"
+  }
+}
+
+function safeHttpUrl(rawUrl: string) {
+  try {
+    const url = new URL(rawUrl)
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return ""
+    }
+    return url.toString()
+  } catch {
+    return ""
+  }
 }
 
 function clean(value: unknown) {

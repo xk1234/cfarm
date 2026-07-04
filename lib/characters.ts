@@ -1,5 +1,7 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { rm } from "node:fs/promises"
 import path from "node:path"
+
+import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
 export type Character = {
   name: string
@@ -196,30 +198,80 @@ export async function saveCharacter(payload: CharacterPayload): Promise<Characte
 
 export async function deleteCharacter(id: number) {
   const current = await readCharactersFile()
+  const deleted = current.find((character) => character.id === id) ?? null
   const next = current.filter((character) => character.id !== id)
   await writeCharactersFile(next)
-  return { deleted: current.length !== next.length }
+  const deletedFiles = deleted ? await deleteUnusedCharacterFiles([deleted], next) : 0
+  return { deleted: current.length !== next.length, deletedFiles }
 }
 
 async function readCharactersFile() {
-  try {
-    const contents = await readFile(CHARACTERS_DB_PATH, "utf8")
-    const parsed = JSON.parse(contents) as { characters?: CharacterRecord[] }
-    return (parsed.characters ?? []).map((character) => ({
+  return readJsonArrayStore({
+    rootDir: path.dirname(CHARACTERS_DB_PATH),
+    fileName: path.basename(CHARACTERS_DB_PATH),
+    key: "characters",
+    normalize: (character: CharacterRecord) => ({
       ...character,
       attributes: normalizeCharacterAttributes({
         ...character.attributes,
         name: character.name,
       }),
-    }))
-  } catch {
-    return []
-  }
+    }),
+  })
 }
 
 async function writeCharactersFile(characters: CharacterRecord[]) {
-  await mkdir(path.dirname(CHARACTERS_DB_PATH), { recursive: true })
-  await writeFile(CHARACTERS_DB_PATH, `${JSON.stringify({ characters }, null, 2)}\n`)
+  await writeJsonArrayStore({
+    rootDir: path.dirname(CHARACTERS_DB_PATH),
+    fileName: path.basename(CHARACTERS_DB_PATH),
+    key: "characters",
+    records: characters,
+  })
+}
+
+async function deleteUnusedCharacterFiles(deletedCharacters: CharacterRecord[], remainingCharacters: CharacterRecord[]) {
+  const remainingUrls = new Set(remainingCharacters.map((character) => clean(character.preview_url)).filter(Boolean))
+  const filePaths = new Map<string, string>()
+
+  for (const character of deletedCharacters) {
+    const previewUrl = clean(character.preview_url)
+    if (remainingUrls.has(previewUrl)) {
+      continue
+    }
+    const filePath = localCharacterFilePath(previewUrl)
+    if (filePath) {
+      filePaths.set(filePath, previewUrl)
+    }
+  }
+
+  for (const filePath of filePaths.keys()) {
+    await rm(filePath, { force: true })
+  }
+
+  return filePaths.size
+}
+
+function localCharacterFilePath(assetUrl: string) {
+  const prefix = "/api/local-assets/characters/"
+  if (!assetUrl.startsWith(prefix)) {
+    return null
+  }
+
+  const encodedRelativePath = assetUrl.slice("/api/local-assets/".length).split(/[?#]/)[0]
+  let relativePath = ""
+  try {
+    relativePath = encodedRelativePath.split("/").map((part) => decodeURIComponent(part)).join(path.sep)
+  } catch {
+    return null
+  }
+
+  if (!relativePath || path.isAbsolute(relativePath)) {
+    return null
+  }
+
+  const dataRoot = path.resolve(process.cwd(), "data")
+  const filePath = path.resolve(dataRoot, relativePath)
+  return filePath.startsWith(`${dataRoot}${path.sep}`) ? filePath : null
 }
 
 export function normalizeCharacterAttributes(input: unknown): Character {
@@ -356,4 +408,8 @@ function stringRecord(record: Record<string, unknown>) {
       .filter(([, value]) => typeof value === "string" || typeof value === "number")
       .map(([key, value]) => [key, String(value)])
   )
+}
+
+function clean(value: unknown) {
+  return typeof value === "string" ? value.trim() : ""
 }

@@ -1,16 +1,21 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { IconPlayerPlay, IconSearch, IconX } from "@tabler/icons-react"
+import { useEffect, useMemo, useState } from "react"
+import { IconSearch } from "@tabler/icons-react"
+import { toast } from "sonner"
 
+import { SwipeDetailPage } from "@/components/realfarm/swipe-detail-page"
+import { toSwipeDisplayModel, type SwipeDisplayModel } from "@/components/realfarm/swipe-display-model"
+import { SwipeMedia } from "@/components/realfarm/swipe-media"
 import { Button } from "@/components/ui/button"
 import { SelectLike } from "@/components/ui/form-controls"
+import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import type { SwipeRecord } from "@/lib/swipes"
 import { cn } from "@/lib/utils"
 
 export function SwipesView() {
   const [swipes, setSwipes] = useState<SwipeRecord[]>([])
-  const [selectedSwipe, setSelectedSwipe] = useState<SwipeRecord | null>(null)
+  const [selectedSwipeId, setSelectedSwipeId] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [platform, setPlatform] = useState("All")
   const [format, setFormat] = useState("All")
@@ -22,15 +27,19 @@ export function SwipesView() {
 
     async function loadSwipes() {
       try {
-        const response = await fetch("/api/swipes", { cache: "no-store" })
-        const payload = (await response.json()) as { swipes?: SwipeRecord[] }
+        const payload = await fetchJsonWithTimeout<{ swipes?: SwipeRecord[] }>("/api/swipes", {
+          cache: "no-store",
+          timeoutMs: 12_000,
+          toastOnError: false,
+        })
         if (!cancelled) {
           setSwipes(payload.swipes ?? [])
           setStatus("ready")
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
           setStatus("error")
+          toast.error(getApiErrorMessage(error, "Failed to load swipes"))
         }
       }
     }
@@ -41,19 +50,49 @@ export function SwipesView() {
     }
   }, [])
 
-  const filteredSwipes = swipes
-    .filter((swipe) => {
-      const haystack = `${swipe.advertiser} ${swipe.title} ${swipe.caption} ${swipe.platform}`.toLowerCase()
+  useEffect(() => {
+    function syncFromHash() {
+      const match = window.location.hash.match(/^#swipe=(.+)$/)
+      setSelectedSwipeId(match?.[1] ? decodeURIComponent(match[1]) : null)
+    }
+
+    syncFromHash()
+    window.addEventListener("hashchange", syncFromHash)
+    return () => window.removeEventListener("hashchange", syncFromHash)
+  }, [])
+
+  const displaySwipes = useMemo(() => swipes.map((swipe) => ({ swipe, model: toSwipeDisplayModel(swipe) })), [swipes])
+  const selectedSwipe = selectedSwipeId ? swipes.find((swipe) => swipe.id === selectedSwipeId) : undefined
+
+  const filteredSwipes = displaySwipes
+    .filter(({ model }) => {
+      const haystack = `${model.advertiser} ${model.title} ${model.caption} ${model.platform}`.toLowerCase()
       return haystack.includes(search.trim().toLowerCase())
     })
-    .filter((swipe) => platform === "All" || platform === swipe.platform)
-    .filter((swipe) => format === "All" || format === swipe.format)
+    .filter(({ model }) => platform === "All" || platform === model.platform)
+    .filter(({ model }) => format === "All" || format === model.format)
     .toSorted((a, b) => {
       if (sort === "Oldest") {
-        return Date.parse(a.swipedAt) - Date.parse(b.swipedAt)
+        return Date.parse(a.model.swipedAt) - Date.parse(b.model.swipedAt)
       }
-      return Date.parse(b.swipedAt) - Date.parse(a.swipedAt)
+      return Date.parse(b.model.swipedAt) - Date.parse(a.model.swipedAt)
     })
+
+  function inspectSwipe(id: string) {
+    history.pushState({}, document.title, `${window.location.pathname}${window.location.search}#swipe=${encodeURIComponent(id)}`)
+    setSelectedSwipeId(id)
+  }
+
+  function backToList() {
+    if (window.location.hash.startsWith("#swipe=")) {
+      history.pushState({}, document.title, window.location.pathname + window.location.search)
+    }
+    setSelectedSwipeId(null)
+  }
+
+  if (selectedSwipe) {
+    return <SwipeDetailPage swipe={selectedSwipe} onBack={backToList} />
+  }
 
   return (
     <div className="mx-auto max-w-[1540px]">
@@ -74,7 +113,7 @@ export function SwipesView() {
         <div className="flex flex-wrap items-center gap-3">
           <SelectLike
             value={`Platform: ${platform}`}
-            options={["Platform: All", "Platform: facebook", "Platform: tiktok", "Platform: tiktok-creative", "Platform: tiktok-seller", "Platform: google"]}
+            options={["Platform: All", "Platform: facebook", "Platform: tiktok", "Platform: tiktok-creative", "Platform: tiktok-seller", "Platform: google", "Platform: twitter"]}
             onChange={(value) => setPlatform(value.replace("Platform: ", ""))}
             placement="bottom"
           />
@@ -114,18 +153,16 @@ export function SwipesView() {
         </div>
       ) : (
         <div className="columns-1 gap-5 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5">
-          {filteredSwipes.map((swipe, index) => (
-            <SwipeCard key={swipe.id} swipe={swipe} index={index} onInspect={() => setSelectedSwipe(swipe)} />
+          {filteredSwipes.map(({ model }, index) => (
+            <SwipeCard key={model.id} swipe={model} index={index} onInspect={() => inspectSwipe(model.id)} />
           ))}
         </div>
       )}
-
-      {selectedSwipe && <SwipeDetailModal swipe={selectedSwipe} onClose={() => setSelectedSwipe(null)} />}
     </div>
   )
 }
 
-function SwipeCard({ swipe, index, onInspect }: { swipe: SwipeRecord; index: number; onInspect: () => void }) {
+function SwipeCard({ swipe, index, onInspect }: { swipe: SwipeDisplayModel; index: number; onInspect: () => void }) {
   return (
     <article className="mb-5 break-inside-avoid overflow-hidden rounded-[6px] border border-[#e6e4f7] bg-white shadow-[0_4px_16px_rgba(40,37,93,0.08)]">
       <div className="flex items-start gap-3 p-4 pb-3">
@@ -138,190 +175,26 @@ function SwipeCard({ swipe, index, onInspect }: { swipe: SwipeRecord; index: num
       </div>
       <SwipeMedia swipe={swipe} className={cn(index % 5 === 1 ? "h-72" : index % 5 === 2 ? "h-56" : "h-64")} />
       <div className="p-4 pt-3">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          {swipe.processingStatus === "processing" && (
+            <span className="rounded-full bg-[#fff5d6] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.06em] text-[#8a6400]">processing...</span>
+          )}
+          {swipe.processingStatus === "failed" && (
+            <span className="rounded-full bg-[#fff0ed] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.06em] text-[#b44d38]">failed</span>
+          )}
+        </div>
         <h2 className="line-clamp-2 text-[14px] font-semibold leading-5 text-[#28255d]">{swipe.title}</h2>
-        <p className="mt-2 line-clamp-3 text-[12px] font-medium leading-5 text-[#5f5d80]">{swipe.caption || "No caption captured yet."}</p>
+        <p className="mt-2 line-clamp-3 text-[12px] font-medium leading-5 text-[#5f5d80]">{swipe.caption}</p>
         <div className="mt-4 grid grid-cols-2 gap-2 text-[11px] font-semibold text-[#7d7aa6]">
           <span>Swiped: {formatSwipeDate(swipe.swipedAt)}</span>
           <span>Format: {swipe.format}</span>
           <span className="col-span-2">{swipe.folder}</span>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <Button variant="softControl" size="appDefault" className="min-w-0 rounded px-2 text-[11px] text-[#343197]">
-            + Generate Script
-          </Button>
-          <Button variant="indigoAction" size="appDefault" className="min-w-0 rounded px-2 text-[11px]" onClick={onInspect}>
-            Inspect Swipe
-          </Button>
-        </div>
+        <Button type="button" variant="action" size="appDefault" className="mt-4 w-full min-w-0" onClick={onInspect}>
+          Inspect Swipe
+        </Button>
       </div>
     </article>
-  )
-}
-
-function SwipeDetailModal({ swipe, onClose }: { swipe: SwipeRecord; onClose: () => void }) {
-  const metadata = Object.entries(swipe.metadata ?? {})
-  const structuredStats = swipeStructuredStats(swipe)
-  const stats = [...structuredStats, ...Object.entries(swipe.stats ?? {}).filter(([label]) => !structuredStats.some(([existing]) => existing === label))]
-  const transcriptText = swipe.full_script_transcription?.full_text?.trim()
-  const ugcSummary = swipeUgcSummary(swipe)
-
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-[#26218e]/95 p-6">
-      <button className="fixed right-6 top-6 z-10 grid size-10 place-items-center rounded-full bg-white/12 text-white hover:bg-white/20" onClick={onClose} aria-label="Close swipe data">
-        <IconX className="size-6" />
-      </button>
-      <div className="mx-auto grid min-h-[calc(100svh-48px)] max-w-[1480px] items-center gap-6 lg:grid-cols-[430px_1fr]">
-        <section className="rounded-[12px] bg-white p-5">
-          <div className="mb-4 text-center text-[20px] font-bold text-[#128363]">✓ Swiped</div>
-          <SwipeCard swipe={swipe} index={2} onInspect={() => undefined} />
-        </section>
-        <section className="overflow-hidden rounded-[12px] bg-white shadow-2xl">
-          <h2 className="border-b border-[#ecebfd] px-7 py-5 text-[16px] font-semibold text-[#343197]">Swipe Data</h2>
-          <div className="grid bg-[#f4f6ff] p-6 lg:grid-cols-[470px_1fr]">
-            <div className="rounded-[7px] bg-white p-5 shadow-sm">
-              <div className="mb-4 flex items-center gap-3">
-                <SwipeAvatar name={swipe.advertiser} index={4} />
-                <div>
-                  <div className="text-[16px] font-semibold text-[#343197]">{swipe.advertiser}</div>
-                  <div className="text-[12px] lowercase text-[#7d7aa6]">{swipe.platform}</div>
-                </div>
-              </div>
-              <p className="mb-4 text-[14px] font-medium leading-6 text-[#34325c]">{swipe.caption}</p>
-              <SwipeMedia swipe={swipe} className="h-[420px] rounded-[4px]" />
-              <div className="mt-4 flex items-end justify-between gap-3">
-                <div>
-                  <div className="text-[11px] font-bold uppercase text-[#343197]">{domainFromUrl(swipe.landingPageUrl || swipe.sourceUrl)}</div>
-                  <div className="text-[13px] font-semibold text-[#34325c]">{swipe.title}</div>
-                </div>
-                {swipe.cta && (
-                  <Button variant="softControl" size="lg" className="rounded-[5px] px-5 text-[#343197]">
-                    {swipe.cta}
-                  </Button>
-                )}
-              </div>
-            </div>
-            <div className="space-y-4 lg:pl-6">
-              <SwipeInfoPanel title="Landing Page Screenshots">
-                <div className="flex flex-wrap gap-3">
-                  <Button variant="softControl" size="lg" className="rounded text-[13px] text-[#343197]">View Mobile Landing Page</Button>
-                  <Button variant="softControl" size="lg" className="rounded text-[13px] text-[#343197]">View Desktop Landing Page</Button>
-                </div>
-              </SwipeInfoPanel>
-              <SwipeInfoPanel title="Metadata">
-                <InfoGrid entries={metadata.length > 0 ? metadata : [["Source", swipe.source], ["Format", swipe.format], ["CTA", swipe.cta ?? "N/A"]]} />
-              </SwipeInfoPanel>
-              <SwipeInfoPanel title="Stats">
-                {stats.length > 0 ? <InfoGrid entries={stats} /> : <div className="text-[13px] font-semibold text-[#9b99bd]">Not Available</div>}
-              </SwipeInfoPanel>
-              {(transcriptText || ugcSummary.length > 0) && (
-                <SwipeInfoPanel title="UGC Analysis">
-                  <div className="space-y-3">
-                    {transcriptText && (
-                      <div>
-                        <div className="text-[11px] font-bold text-[#aaa8c8]">Transcript</div>
-                        <p className="mt-1 max-h-32 overflow-y-auto text-[13px] font-medium leading-5 text-[#34325c]">{transcriptText}</p>
-                      </div>
-                    )}
-                    {ugcSummary.length > 0 && <InfoGrid entries={ugcSummary} />}
-                  </div>
-                </SwipeInfoPanel>
-              )}
-              <SwipeInfoPanel title="Folders">
-                <span className="inline-flex rounded-[3px] bg-[#eef0ff] px-6 py-2 text-[13px] font-semibold text-[#343197]">{swipe.folder}</span>
-              </SwipeInfoPanel>
-            </div>
-          </div>
-        </section>
-      </div>
-    </div>
-  )
-}
-
-function SwipeInfoPanel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-[5px] bg-white p-5 shadow-sm">
-      <h3 className="mb-4 text-[17px] font-semibold text-[#343197]">{title}</h3>
-      {children}
-    </section>
-  )
-}
-
-function InfoGrid({ entries }: { entries: [string, string][] }) {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {entries.map(([label, value]) => (
-        <div key={`${label}-${value}`}>
-          <div className="text-[11px] font-bold text-[#aaa8c8]">{label}</div>
-          <div className="mt-1 break-words text-[13px] font-semibold text-[#343197]">{value}</div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function swipeStructuredStats(swipe: SwipeRecord): [string, string][] {
-  const entries: Array<[string, string | number | undefined]> = [
-    ["Uploaded", swipe.uploaded_at],
-    ["Length", typeof swipe.time === "number" ? `${swipe.time}s` : undefined],
-    ["Likes", swipe.likes],
-    ["Comments", swipe.comments],
-    ["Shares", swipe.shares],
-    ["CTR rank", swipe.ctr_rank],
-    ["CVR rank", swipe.cvr_rank],
-    ["Clicks rank", swipe.clicks_rank],
-    ["Conversion rank", swipe.conversion_rank],
-    ["Remain rank", swipe.remain_rank],
-    ["Budget level", swipe.budget_level],
-    ["Benchmark", swipe.industry_benchmark ? `${swipe.industry_benchmark.metric}: ${swipe.industry_benchmark.rank} ${swipe.industry_benchmark.comparison}` : undefined],
-  ]
-
-  return entries
-    .filter((entry): entry is [string, string | number] => entry[1] !== undefined && entry[1] !== "")
-    .map(([label, value]) => [label, String(value)])
-}
-
-function swipeUgcSummary(swipe: SwipeRecord): [string, string][] {
-  const analysis = swipe.core_ugc_aesthetic_analysis
-  if (!analysis) {
-    return []
-  }
-
-  return [
-    ["Device", analysis.implied_device_and_capture.inferred_device],
-    ["Scenario", analysis.social_context_and_scenario.scenario],
-    ["Setting", analysis.social_context_and_scenario.setting],
-    ["Speaking style", analysis.subject_and_performance.delivery_and_kinesics.speaking_style],
-    ["Tone", analysis.subject_and_performance.delivery_and_kinesics.tone],
-  ].filter((entry): entry is [string, string] => Boolean(entry[1]) && entry[1] !== "unknown")
-}
-
-function SwipeMedia({ swipe, className }: { swipe: SwipeRecord; className?: string }) {
-  const mediaIsVideo = Boolean(swipe.mediaUrl && /\.(mp4|webm|mov)(\?|#|$)/i.test(swipe.mediaUrl))
-  const image = mediaIsVideo ? swipe.mediaUrl : swipe.screenshotPath || swipe.mediaUrl
-  const isVideo = Boolean(image && /\.(mp4|webm|mov)(\?|#|$)/i.test(image))
-
-  return (
-    <div
-      className={cn("relative overflow-hidden bg-[#eef0ff]", !image && "bg-white", className)}
-      style={
-        image && !isVideo
-          ? {
-              backgroundImage: `url(${image})`,
-              backgroundPosition: "center",
-              backgroundSize: "cover",
-            }
-          : undefined
-      }
-    >
-      {image && isVideo && (
-        <video className="h-full w-full object-cover" src={image} muted playsInline preload="metadata" />
-      )}
-      {swipe.format === "video" && (
-        <span className="absolute left-1/2 top-1/2 grid size-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white">
-          <IconPlayerPlay className="size-8 fill-current" />
-        </span>
-      )}
-    </div>
   )
 }
 
@@ -339,14 +212,6 @@ function formatSwipeDate(value: string) {
     return "N/A"
   }
   return date.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" })
-}
-
-function domainFromUrl(value: string) {
-  try {
-    return new URL(value).hostname.replace(/^www\./, "").toUpperCase()
-  } catch {
-    return "N/A"
-  }
 }
 
 function swipeAvatarTone(index: number) {

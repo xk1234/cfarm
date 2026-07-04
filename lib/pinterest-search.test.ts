@@ -9,7 +9,7 @@ import {
 
 describe("pinterest search helpers", () => {
   it("uses the API-resolvable all-in-one Pinterest scraper actor", () => {
-    expect(PINTEREST_ACTOR_ID).toBe("fatihtahta/pinterest-scraper")
+    expect(PINTEREST_ACTOR_ID).toBe("fatihtahta/pinterest-scraper-search")
   })
 
   it("builds a bounded actor input for keyword pin search", () => {

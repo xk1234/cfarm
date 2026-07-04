@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server"
 
-import { listImageCollections, upsertImageCollection, type StoredImageCollection } from "@/lib/image-collections"
+import {
+  deleteImageCollections,
+  listImageCollections,
+  upsertImageCollection,
+  type ImageCollectionDeleteInput,
+  type StoredImageCollection,
+} from "@/lib/image-collections"
 
 export const dynamic = "force-dynamic"
 
@@ -16,6 +22,19 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to save image collection" },
+      { status: 400 }
+    )
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const payload = await request.json() as { collections?: ImageCollectionDeleteInput[] }
+    const result = await deleteImageCollections(Array.isArray(payload.collections) ? payload.collections : [])
+    return NextResponse.json(result)
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to delete image collections" },
       { status: 400 }
     )
   }

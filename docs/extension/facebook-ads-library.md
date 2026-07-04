@@ -53,6 +53,7 @@ It tries to infer:
 | `caption` | Trimmed text from the card. |
 | `format` | `video`, `carousel`, `image`, or `unknown` based on media nodes. |
 | `cta` | `Shop now`, `Learn more`, or `Inspect Swipe` based on caption text. |
+| `landingPageUrl` | Best external destination link found in the ad card, including decoded `l.facebook.com/l.php` redirects when available. |
 | `mediaUrl` | First video URL/poster or the largest image/background image found. |
 | `metadata.Source` | `facebook`. |
 | `metadata.URL` | Current page URL. |
@@ -60,7 +61,9 @@ It tries to infer:
 
 ## Save Flow
 
-The background worker captures the visible tab as a PNG screenshot and posts the payload plus `screenshotDataUrl` to:
+The background worker captures the visible tab as a PNG screenshot. If `landingPageUrl` is present, it also attempts mobile and desktop landing-page screenshots in temporary windows.
+
+It posts the payload plus screenshot fields to:
 
 ```txt
 http://localhost:3000/api/swipes
@@ -73,5 +76,6 @@ The local app then writes records through `lib/swipes.ts`.
 - Card detection is heuristic and depends on Facebook's current DOM.
 - The extension does not use a Facebook-specific parser beyond platform detection.
 - CTA detection only checks for `shop now` and `learn more`.
-- Landing page URLs are not extracted for Facebook; `landingPageUrl` is sent as an empty string.
+- Landing page extraction is heuristic and depends on links exposed in the current card DOM.
+- Landing page screenshots are best-effort and can fail without blocking swipe creation.
 - The extension needs the local app running on port `3000`.

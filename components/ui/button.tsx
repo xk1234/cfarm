@@ -20,8 +20,6 @@ const buttonVariants = cva(
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
         action: "bg-app-action text-white hover:bg-app-action-hover",
-        blueAction: "bg-app-blue-action text-white hover:bg-app-blue-action-hover",
-        indigoAction: "bg-app-indigo-action text-white hover:bg-app-indigo-action-hover",
         softControl:
           "border-app-panel-border bg-app-control-bg text-foreground shadow-sm hover:bg-app-control-hover",
         iconControl:
