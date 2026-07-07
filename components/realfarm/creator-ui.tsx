@@ -1,7 +1,13 @@
 "use client"
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { IconPlayerPlay, IconUpload, IconVolume, IconX } from "@tabler/icons-react"
+import {
+  IconChevronRight,
+  IconPlayerPlay,
+  IconUpload,
+  IconVolume,
+  IconX,
+} from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
@@ -84,12 +90,14 @@ export function SoundSelector({
   music,
   onSelect,
   variant = "default",
+  emptyLabel = "No Sound",
 }: {
   selectedSound: LocalAsset | null
   music: LocalAsset[]
-  onSelect: (id: string) => void
+  onSelect: (id: string, sound?: LocalAsset | null) => void
   compact?: boolean
-  variant?: "default" | "ugc" | "sound"
+  variant?: "default" | "ugc" | "sound" | "settingsSound"
+  emptyLabel?: string
 }) {
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<"templates" | "uploaded">("templates")
@@ -100,7 +108,7 @@ export function SoundSelector({
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
   const currentSound = selectedSound ?? localSelectedSound
-  const currentLabel = currentSound?.name ?? "No Sound"
+  const currentLabel = currentSound?.name ?? emptyLabel
   const templateSounds = music.slice(0, 72)
 
   useEffect(() => {
@@ -153,7 +161,7 @@ export function SoundSelector({
       }
       setUploadedSounds((current) => [payload.asset!, ...current])
       setLocalSelectedSound(payload.asset)
-      onSelect(payload.asset.id)
+      onSelect(payload.asset.id, payload.asset)
       setTab("uploaded")
     } finally {
       setUploading(false)
@@ -174,7 +182,31 @@ export function SoundSelector({
           )}>
             {currentSound ? <IconPlayerPlay className="size-4" /> : <IconVolume className="size-4" />}
           </span>
-          {currentSound ? (currentSound.name.length > 8 ? currentSound.name.slice(0, 8) + "..." : currentSound.name) : "No Sound"}
+          {currentSound ? (currentSound.name.length > 8 ? currentSound.name.slice(0, 8) + "..." : currentSound.name) : emptyLabel}
+        </Button>
+      ) : variant === "settingsSound" ? (
+        <Button
+          type="button"
+          variant="softControl"
+          size="settingsRow"
+          className="justify-between"
+          onClick={() => setOpen(true)}
+        >
+          <span className="flex min-w-0 items-center gap-4">
+            <span className="grid size-14 shrink-0 place-items-center rounded-lg bg-app-action/65 text-white">
+              <IconVolume className="size-8" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[16px] font-semibold text-app-muted-text">
+                TikTok Sounds
+              </span>
+              <span className="mt-1 block truncate text-[14px] font-medium text-[#aaa9a2]">
+                {currentSound?.name ||
+                  "All sounds - a random song will be selected"}
+              </span>
+            </span>
+          </span>
+          <IconChevronRight className="size-5 shrink-0 text-[#b0afa8]" />
         </Button>
       ) : variant === "sound" ? (
         <Button
@@ -221,8 +253,9 @@ export function SoundSelector({
                     sound={null}
                     selected={!currentSound}
                     index={0}
+                    emptyLabel={emptyLabel}
                     onSelect={() => {
-                      onSelect("")
+                      onSelect("", null)
                       closeModal()
                     }}
                   />
@@ -235,7 +268,7 @@ export function SoundSelector({
                       index={index + 1}
                       onPreview={() => void previewSound(sound)}
                       onSelect={() => {
-                        onSelect(sound.id)
+                        onSelect(sound.id, sound)
                         closeModal()
                       }}
                     />
@@ -269,7 +302,7 @@ export function SoundSelector({
                         onPreview={() => void previewSound(sound)}
                         onSelect={() => {
                           setLocalSelectedSound(sound)
-                          onSelect(sound.id)
+                          onSelect(sound.id, sound)
                           closeModal()
                         }}
                       />
@@ -290,6 +323,7 @@ function MusicOption({
   selected,
   playing = false,
   index,
+  emptyLabel = "No Sound",
   onPreview,
   onSelect,
 }: {
@@ -297,6 +331,7 @@ function MusicOption({
   selected: boolean
   playing?: boolean
   index: number
+  emptyLabel?: string
   onPreview?: () => void
   onSelect: () => void
 }) {
@@ -336,7 +371,7 @@ function MusicOption({
         )}
       </button>
       <span className={cn("line-clamp-2 text-[15px] font-bold leading-[19px]", selected ? "text-white" : "text-[#111]")}>
-        {sound?.name ?? "No Sound"}
+        {sound?.name ?? emptyLabel}
       </span>
     </div>
   )

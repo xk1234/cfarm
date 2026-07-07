@@ -9,8 +9,9 @@ import {
   type TempSlideStructuredOutput,
   type TempSlideTestingAutomation,
 } from "@/lib/temp-slide-testing"
+import { defaultSlideshowTextModel } from "@/lib/realfarm-generation-model-registry"
 
-export const defaultSlideshowTextModel = "google/gemini-3.1-flash-lite"
+export { defaultSlideshowTextModel }
 
 type OpenRouterResponse = {
   choices?: {
@@ -28,6 +29,7 @@ export type SlideshowTextGenerationResult = {
   selectedHook: string
   result: TempSlideStructuredOutput
   skippedOpenRouter: boolean
+  promptPayload?: ReturnType<typeof slideshowTextGenerationPayload>
 }
 
 export async function generateSlideshowText(input: {
@@ -40,17 +42,9 @@ export async function generateSlideshowText(input: {
   fetchImpl?: typeof fetch
 }): Promise<SlideshowTextGenerationResult> {
   const model = clean(input.model) || defaultSlideshowTextModel
-  const selectedHook = clean(input.selectedHook) || promptPreviewHook(input.automation)
+  const selectedHook =
+    clean(input.selectedHook) || promptPreviewHook(input.automation)
   const placeholders = getTempSlidePromptPlaceholders(input.automation)
-
-  if (placeholders.length === 0) {
-    return {
-      model,
-      selectedHook,
-      result: { text: {} },
-      skippedOpenRouter: true,
-    }
-  }
 
   const apiKey = clean(input.apiKey)
   if (!apiKey) {
@@ -58,6 +52,13 @@ export async function generateSlideshowText(input: {
   }
 
   const fetchImpl = input.fetchImpl ?? fetch
+  const promptPayload = slideshowTextGenerationPayload({
+    automation: input.automation,
+    model,
+    selectedHook,
+    systemPrompt: input.systemPrompt,
+    promptInstructions: input.promptInstructions,
+  })
   const response = await fetchImpl(
     "https://openrouter.ai/api/v1/chat/completions",
     {
@@ -66,13 +67,7 @@ export async function generateSlideshowText(input: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(slideshowTextGenerationPayload({
-        automation: input.automation,
-        model,
-        selectedHook,
-        systemPrompt: input.systemPrompt,
-        promptInstructions: input.promptInstructions,
-      })),
+      body: JSON.stringify(promptPayload),
     }
   )
 
@@ -87,6 +82,7 @@ export async function generateSlideshowText(input: {
     selectedHook,
     result: normalizeTempSlideStructuredOutput(output, placeholders),
     skippedOpenRouter: false,
+    promptPayload,
   }
 }
 
@@ -98,10 +94,12 @@ export function slideshowTextGenerationPayload(input: {
   promptInstructions?: string
 }) {
   const model = clean(input.model) || defaultSlideshowTextModel
-  const selectedHook = clean(input.selectedHook) || promptPreviewHook(input.automation)
+  const selectedHook =
+    clean(input.selectedHook) || promptPreviewHook(input.automation)
   const placeholders = getTempSlidePromptPlaceholders(input.automation)
   const systemPrompt = clean(input.systemPrompt) || defaultTempSlideSystemPrompt
-  const promptInstructions = clean(input.promptInstructions) || defaultTempSlideUserInstructions
+  const promptInstructions =
+    clean(input.promptInstructions) || defaultTempSlideUserInstructions
 
   return {
     model,

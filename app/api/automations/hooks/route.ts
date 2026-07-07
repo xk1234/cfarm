@@ -6,10 +6,10 @@ import {
   patchAutomationRecord,
 } from "@/lib/automations"
 import {
-  automationStoredHooks,
+  automationHooks,
   schemaWithAutomationHooks,
 } from "@/lib/realfarm-automation"
-import { defaultSlideshowTextModel } from "@/lib/slideshow-text-generation"
+import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-registry"
 
 export const dynamic = "force-dynamic"
 
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Automation not found" }, { status: 404 })
   }
 
-  const currentHooks = uniqueHooks(automationStoredHooks(record.schema))
+  const currentHooks = uniqueHooks(automationHooks(record.schema))
   if (currentHooks.length === 0) {
     return NextResponse.json(
       { error: "Add at least one hook before generating more" },
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: defaultSlideshowTextModel,
+        model: openRouterModelForUseCase("automationHooks"),
         messages: [
           {
             role: "system",

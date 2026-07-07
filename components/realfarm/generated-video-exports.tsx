@@ -1,29 +1,45 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { IconCalendar, IconDownload, IconPlayerPlay, IconTrash } from "@tabler/icons-react"
+import {
+  IconBrandBluesky,
+  IconBrandFacebookFilled,
+  IconBrandInstagram,
+  IconBrandLinkedin,
+  IconBrandPinterest,
+  IconBrandTelegram,
+  IconBrandThreads,
+  IconBrandTiktok,
+  IconBrandX,
+  IconBrandYoutubeFilled,
+  IconCalendar,
+  IconCheck,
+  IconDownload,
+  IconPlus,
+  IconPlayerPlay,
+  IconTrash,
+} from "@tabler/icons-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { SelectControl } from "@/components/ui/form-controls"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
+import {
+  MediaCardShell,
+  MediaErrorState,
+  MediaFrame,
+  MediaPendingState,
+} from "@/components/realfarm/shared-media"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { generatedVideoTypeConfig, type GeneratedVideoExport } from "@/lib/generated-video-types"
-
-type PostizIntegration = {
-  id: string
-  name?: string
-  identifier?: string
-  provider?: string
-  providerIdentifier?: string
-  profile?: string
-  picture?: string
-}
-
-type PostizMedia = {
-  id: string
-  path: string
-}
+import {
+  normalizePostFastIntegration,
+  type PostFastCreatePostType,
+  type PostFastMedia,
+  type PostFastSocialIntegration,
+  type PostFastSocialProvider,
+} from "@/lib/postfast-client"
+import { cn } from "@/lib/utils"
 
 export function GeneratedVideoExports({
   title,
@@ -41,7 +57,7 @@ export function GeneratedVideoExports({
   return (
     <section className="mt-6">
       <h2 className="mb-3 text-[22px] font-semibold">
-        {title} <span className="text-[#a9a8a1]">({exports.length})</span>
+        {title} <span className="text-app-text-faint">({exports.length})</span>
       </h2>
       {exports.length > 0 ? (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
@@ -55,7 +71,7 @@ export function GeneratedVideoExports({
           ))}
         </div>
       ) : (
-        <div className="grid min-h-32 place-items-center rounded-[8px] border border-dashed border-[#d6d5ce] bg-[#f8f8f4] px-6 text-center text-[14px] font-semibold text-[#77766f]">
+        <div className="app-empty-state grid min-h-32 place-items-center px-6 text-center text-[14px] font-semibold">
           {emptyMessage}
         </div>
       )}
@@ -142,39 +158,34 @@ function GeneratedVideoCard({
 
   if (isPending) {
     return (
-      <article className="overflow-hidden rounded-[7px] border border-[#deddd5] bg-white shadow-sm">
-        <div className="relative flex aspect-[9/16] flex-col items-center justify-center gap-4 bg-white p-6 text-center">
-          <div className="text-[13px] font-semibold text-[#667085]">{generatedVideoTypeConfig[item.type].pendingLabel}</div>
-          <div className="h-1.5 w-full max-w-[140px] overflow-hidden rounded-full bg-[#ecebe4]">
-            <div className="h-full w-2/5 animate-[shimmer_1.5s_ease-in-out_infinite] rounded-full bg-[#242421]" />
-          </div>
-        </div>
-      </article>
+      <MediaCardShell>
+        <MediaPendingState label={generatedVideoTypeConfig[item.type].pendingLabel} />
+      </MediaCardShell>
     )
   }
 
   if (isFailed) {
     return (
-      <article className="overflow-hidden rounded-[7px] border border-[#f1c7c7] bg-white shadow-sm">
-        <div className="relative flex aspect-[9/16] flex-col items-center justify-center gap-3 bg-[#fff7f7] p-6 text-center">
-          <div className="text-[13px] font-bold text-[#ad3434]">Generation failed</div>
-          <div className="line-clamp-4 text-[12px] font-semibold leading-5 text-[#8d5c5c]">
-            {item.error || "This video could not be rendered."}
-          </div>
-          <Button
-            type="button"
-            variant="iconControl"
-            size="icon-control-sm"
-            className="absolute right-2 top-2 bg-white/90 text-[#ad3434] shadow-sm hover:bg-white"
-            onClick={deleteOutput}
-            disabled={deleting}
-            aria-label="Delete output"
-            title="Delete output"
-          >
-            <IconTrash className="size-4" />
-          </Button>
-        </div>
-      </article>
+      <MediaCardShell danger>
+        <MediaErrorState
+          title="Generation failed"
+          message={item.error || "This video could not be rendered."}
+          action={
+            <Button
+              type="button"
+              variant="iconControl"
+              size="icon-control-sm"
+              className="absolute right-2 top-2 bg-white/90 text-app-danger-muted shadow-sm hover:bg-white"
+              onClick={deleteOutput}
+              disabled={deleting}
+              aria-label="Delete output"
+              title="Delete output"
+            >
+              <IconTrash className="size-4" />
+            </Button>
+          }
+        />
+      </MediaCardShell>
     )
   }
 
@@ -204,8 +215,8 @@ function GeneratedVideoCard({
   }
 
   return (
-    <article className="overflow-hidden rounded-[7px] border border-[#deddd5] bg-white shadow-sm">
-      <div className="relative aspect-[9/16] bg-[#d8d6ce]">
+    <MediaCardShell>
+      <MediaFrame>
         {item.videoUrl ? (
           <>
             <video
@@ -238,14 +249,14 @@ function GeneratedVideoCard({
             style={{ backgroundImage: `url(${item.previewUrl})` }}
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-[#dfd2c4] via-[#a37b68] to-[#3c3532]" />
+          <div className="app-media-poster-fallback absolute inset-0" />
         )}
         <div className="absolute right-2 top-2 z-20 flex gap-1">
           <Button
             type="button"
             variant="iconControl"
             size="icon-control-sm"
-            className="bg-white/90 text-[#333] shadow-sm hover:bg-white"
+            className="bg-white/90 text-app-text shadow-sm hover:bg-white"
             onClick={saveVideo}
             disabled={!item.videoUrl}
             aria-label="Save video"
@@ -257,7 +268,7 @@ function GeneratedVideoCard({
             type="button"
             variant="iconControl"
             size="icon-control-sm"
-            className="bg-white/90 text-[#333] shadow-sm hover:bg-white"
+            className="bg-white/90 text-app-text shadow-sm hover:bg-white"
             onClick={onSchedule}
             disabled={!item.videoUrl}
             aria-label="Schedule post"
@@ -269,7 +280,7 @@ function GeneratedVideoCard({
             type="button"
             variant="iconControl"
             size="icon-control-sm"
-            className="bg-white/90 text-[#ad3434] shadow-sm hover:bg-white"
+            className="bg-white/90 text-app-danger-muted shadow-sm hover:bg-white"
             onClick={deleteOutput}
             disabled={deleting}
             aria-label="Delete output"
@@ -278,8 +289,8 @@ function GeneratedVideoCard({
             <IconTrash className="size-4" />
           </Button>
         </div>
-      </div>
-    </article>
+      </MediaFrame>
+    </MediaCardShell>
   )
 }
 
@@ -310,9 +321,9 @@ function ScheduleGeneratedVideoModal({
   item: GeneratedVideoExport
   onClose: () => void
 }) {
-  const [integrations, setIntegrations] = useState<PostizIntegration[]>([])
-  const [selectedIntegrationId, setSelectedIntegrationId] = useState("")
-  const [caption, setCaption] = useState(() => item.caption || item.title)
+  const [integrations, setIntegrations] = useState<PostFastSocialIntegration[]>([])
+  const [selectedIntegrationIds, setSelectedIntegrationIds] = useState<string[]>([])
+  const [postType, setPostType] = useState<PostFastCreatePostType>("draft")
   const [scheduledAt, setScheduledAt] = useState(defaultScheduleDateTime)
   const [loadingIntegrations, setLoadingIntegrations] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -321,22 +332,23 @@ function ScheduleGeneratedVideoModal({
   useEffect(() => {
     let active = true
 
-    void fetchJsonWithTimeout<{ integrations?: PostizIntegration[] }>("/api/postiz/integrations", {
+    void fetchJsonWithTimeout<{ integrations?: unknown[] }>("/api/postfast/integrations", {
       toastOnError: false,
     })
       .then((payload) => {
         if (!active) {
           return
         }
-        const allIntegrations = payload.integrations ?? []
-        const tikTokIntegrations = allIntegrations.filter(isTikTokIntegration)
-        const nextIntegrations = tikTokIntegrations.length > 0 ? tikTokIntegrations : allIntegrations
+        const nextIntegrations = (payload.integrations ?? []).flatMap((integration) => {
+          const normalized = normalizePostFastIntegration(integration)
+          return normalized && !normalized.disabled ? [normalized] : []
+        })
         setIntegrations(nextIntegrations)
-        setSelectedIntegrationId(nextIntegrations[0]?.id ?? "")
+        setSelectedIntegrationIds(nextIntegrations.map(integrationKey))
       })
       .catch((integrationsError) => {
         if (active) {
-          setError(getApiErrorMessage(integrationsError, "Failed to load TikTok accounts"))
+          setError(getApiErrorMessage(integrationsError, "Failed to load social accounts"))
         }
       })
       .finally(() => {
@@ -350,27 +362,32 @@ function ScheduleGeneratedVideoModal({
     }
   }, [])
 
-  async function schedulePost() {
-    const selectedIntegration = integrations.find((integration) => integration.id === selectedIntegrationId)
-    const cleanCaption = caption.trim()
+  function toggleIntegration(integration: PostFastSocialIntegration) {
+    const key = integrationKey(integration)
+    setSelectedIntegrationIds((current) =>
+      current.includes(key)
+        ? current.filter((id) => id !== key)
+        : [...current, key]
+    )
+  }
 
+  async function submitPost() {
+    const selectedIntegrations = integrations.filter((integration) =>
+      selectedIntegrationIds.includes(integrationKey(integration))
+    )
     if (!item.videoUrl) {
       setError("This output does not have a rendered video yet.")
       return
     }
-    if (!selectedIntegration) {
-      setError("Select a TikTok account.")
+    if (selectedIntegrations.length === 0) {
+      setError("Select at least one social account.")
       return
     }
-    if (!cleanCaption) {
-      setError("Write a caption.")
-      return
-    }
-    if (!scheduledAt) {
+    if (postType === "schedule" && !scheduledAt) {
       setError("Select a date and time.")
       return
     }
-    if (Number.isNaN(new Date(scheduledAt).getTime())) {
+    if (postType === "schedule" && Number.isNaN(new Date(scheduledAt).getTime())) {
       setError("Select a valid date and time.")
       return
     }
@@ -379,14 +396,19 @@ function ScheduleGeneratedVideoModal({
     setError("")
 
     try {
-      await toast.promise(createScheduledPost(item, selectedIntegration, cleanCaption, scheduledAt), {
-        loading: "Adding post to schedule...",
-        success: "Post added to schedule",
-        error: (submitError) => getApiErrorMessage(submitError, "Failed to schedule post"),
+      await toast.promise(createPostsForIntegrations({
+        item,
+        integrations: selectedIntegrations,
+        type: postType,
+        scheduledAt: postType === "schedule" ? scheduledAt : undefined,
+      }), {
+        loading: postSubmitLoadingLabel(postType, selectedIntegrations.length),
+        success: postSubmitSuccessLabel(postType, selectedIntegrations.length),
+        error: (submitError) => getApiErrorMessage(submitError, postSubmitErrorLabel(postType)),
       })
       onClose()
     } catch (submitError) {
-      setError(getApiErrorMessage(submitError, "Failed to schedule post"))
+      setError(getApiErrorMessage(submitError, postSubmitErrorLabel(postType)))
     } finally {
       setSubmitting(false)
     }
@@ -394,102 +416,155 @@ function ScheduleGeneratedVideoModal({
 
   return (
     <AppModal className="z-[80] bg-[#24251f]/35" onClose={onClose}>
-      <AppModalPanel className="max-w-[520px]">
+      <AppModalPanel className="max-w-[760px]">
         <AppModalHeader
-          title="Schedule post"
-          description="Send this output to a TikTok account through Postiz."
-          closeLabel="Close schedule modal"
+          title="Post to social"
+          description="Choose connected accounts and send this output through PostFast."
+          closeLabel="Close post modal"
           onClose={onClose}
         />
-        <div className="space-y-4 p-5">
+        <div className="space-y-5 p-5">
+          {error && (
+            <div className="rounded-lg border border-[#f0d8d8] bg-[#fff8f8] px-3 py-2 text-sm font-semibold text-[#a8464f]">
+              {error}
+            </div>
+          )}
+          <section>
+            <div className="mb-2 flex items-end justify-between gap-3">
+              <div>
+                <h3 className="text-[14px] font-semibold text-[#242421]">
+                  Social accounts
+                </h3>
+                <p className="text-[12px] font-medium text-app-muted-text">
+                  Click accounts to select where this video will be sent.
+                </p>
+              </div>
+              <span className="text-[12px] font-semibold text-app-muted-text">
+                {selectedIntegrationIds.length} selected
+              </span>
+            </div>
+            {loadingIntegrations ? (
+              <div className="grid min-h-[172px] place-items-center rounded-[8px] border border-app-panel-border bg-white text-sm font-semibold text-app-muted-text">
+                Loading accounts...
+              </div>
+            ) : integrations.length > 0 ? (
+              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
+                {integrations.map((integration) => (
+                  <GeneratedVideoAccountTile
+                    key={integrationKey(integration)}
+                    integration={integration}
+                    selected={selectedIntegrationIds.includes(integrationKey(integration))}
+                    onClick={() => toggleIntegration(integration)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="grid min-h-[172px] place-items-center rounded-[8px] border border-dashed border-app-panel-border bg-white px-6 text-center text-sm font-semibold text-app-muted-text">
+                No connected social accounts found.
+              </div>
+            )}
+          </section>
           <label className="block">
-            <span className="mb-1 block text-[12px] font-bold uppercase tracking-[0.08em] text-[#77766f]">TikTok account</span>
+            <span className="mb-1 block text-[12px] font-bold uppercase tracking-[0.08em] text-[#77766f]">Action</span>
             <SelectControl
               className="h-10 w-full rounded-[7px] bg-white px-3 text-[14px] font-semibold text-[#333] focus:border-[#9f9e96]"
-              value={selectedIntegrationId}
-              onChange={(event) => setSelectedIntegrationId(event.target.value)}
-              disabled={loadingIntegrations || integrations.length === 0}
+              value={postType}
+              onChange={(event) => setPostType(postTypeValue(event.target.value))}
             >
-              {loadingIntegrations ? (
-                <option>Loading accounts...</option>
-              ) : integrations.length > 0 ? (
-                integrations.map((integration) => (
-                  <option key={integration.id} value={integration.id}>
-                    {integrationLabel(integration)}
-                  </option>
-                ))
-              ) : (
-                <option>No TikTok accounts found</option>
-              )}
+              <option value="draft">Draft</option>
+              <option value="now">Publish now</option>
+              <option value="schedule">Schedule</option>
             </SelectControl>
           </label>
-          <label className="block">
-            <span className="mb-1 block text-[12px] font-bold uppercase tracking-[0.08em] text-[#77766f]">Caption</span>
-            <textarea
-              className="min-h-28 w-full resize-y rounded-[7px] border border-[#d6d5ce] bg-white px-3 py-2 text-[14px] font-semibold text-[#333] outline-none focus:border-[#9f9e96]"
-              value={caption}
-              onChange={(event) => setCaption(event.target.value)}
-              placeholder="Write a TikTok caption"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-[12px] font-bold uppercase tracking-[0.08em] text-[#77766f]">Date and time</span>
-            <input
-              className="h-10 w-full rounded-[7px] border border-[#d6d5ce] bg-white px-3 text-[14px] font-semibold text-[#333] outline-none focus:border-[#9f9e96]"
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(event) => setScheduledAt(event.target.value)}
-            />
-          </label>
-          {error && <p className="text-[12px] font-semibold text-[#d94444]">{error}</p>}
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="softControl" size="appDefault" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="action"
-              size="appDefault"
-              onClick={schedulePost}
-              disabled={submitting || loadingIntegrations || integrations.length === 0}
-            >
-              {submitting ? "Scheduling..." : "Add to schedule"}
-            </Button>
-          </div>
+          {postType === "schedule" && (
+            <label className="block">
+              <span className="mb-1 block text-[12px] font-bold uppercase tracking-[0.08em] text-[#77766f]">Date and time</span>
+              <input
+                className="h-10 w-full rounded-[7px] border border-[#d6d5ce] bg-white px-3 text-[14px] font-semibold text-[#333] outline-none focus:border-[#9f9e96]"
+                type="datetime-local"
+                value={scheduledAt}
+                onChange={(event) => setScheduledAt(event.target.value)}
+              />
+            </label>
+          )}
+          <Button
+            type="button"
+            variant="action"
+            size="appDefault"
+            className="w-full justify-center"
+            onClick={submitPost}
+            disabled={submitting || loadingIntegrations || integrations.length === 0 || selectedIntegrationIds.length === 0}
+          >
+            {submitting ? postSubmittingLabel(postType) : postCtaLabel(postType, selectedIntegrationIds.length)}
+          </Button>
         </div>
       </AppModalPanel>
     </AppModal>
   )
 }
 
-async function createScheduledPost(
+async function createPostsForIntegrations({
+  item,
+  integrations,
+  type,
+  scheduledAt,
+}: {
   item: GeneratedVideoExport,
-  integration: PostizIntegration,
-  caption: string,
-  scheduledAt: string,
-) {
-  const uploadPayload = await fetchJsonWithTimeout<{ upload?: unknown }>("/api/postiz/upload", {
+  integrations: PostFastSocialIntegration[],
+  type: PostFastCreatePostType,
+  scheduledAt?: string,
+}) {
+  const media = await uploadGeneratedVideoToPostFast(item)
+  for (const integration of integrations) {
+    await createPostFastPost({
+      item,
+      integration,
+      media,
+      type,
+      scheduledAt,
+    })
+  }
+}
+
+async function uploadGeneratedVideoToPostFast(item: GeneratedVideoExport) {
+  const uploadPayload = await fetchJsonWithTimeout<{ upload?: unknown }>("/api/postfast/upload", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url: item.videoUrl }),
     timeoutMs: 60_000,
     toastOnError: false,
   })
-  const media = postizMediaFromUpload(uploadPayload.upload)
+  const media = postfastMediaFromUpload(uploadPayload.upload)
 
   if (!media) {
-    throw new Error("Postiz did not return uploaded video media.")
+    throw new Error("PostFast did not return uploaded video media.")
   }
 
-  await fetchJsonWithTimeout("/api/postiz/posts", {
+  return media
+}
+
+async function createPostFastPost({
+  item,
+  integration,
+  media,
+  type,
+  scheduledAt,
+}: {
+  item: GeneratedVideoExport
+  integration: PostFastSocialIntegration
+  media: PostFastMedia
+  type: PostFastCreatePostType
+  scheduledAt?: string
+}) {
+  await fetchJsonWithTimeout("/api/postfast/posts", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      type: "schedule",
-      date: new Date(scheduledAt).toISOString(),
-      integrationId: integration.id,
-      provider: providerForIntegration(integration),
-      content: caption,
+      type,
+      date: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
+      integrationId: integration.integration_id,
+      provider: integration.provider,
+      content: postContent(item),
       media: [media],
       sourceType: item.type,
       sourceId: item.id,
@@ -499,10 +574,10 @@ async function createScheduledPost(
   })
 }
 
-function postizMediaFromUpload(upload: unknown): PostizMedia | null {
+function postfastMediaFromUpload(upload: unknown): PostFastMedia | null {
   if (Array.isArray(upload)) {
     for (const item of upload) {
-      const media = postizMediaFromUpload(item)
+      const media = postfastMediaFromUpload(item)
       if (media) {
         return media
       }
@@ -515,15 +590,16 @@ function postizMediaFromUpload(upload: unknown): PostizMedia | null {
   }
 
   const record = upload as Record<string, unknown>
-  const id = stringValue(record.id)
-  const mediaPath = stringValue(record.path)
+  const key = stringValue(record.key)
+  const type = mediaTypeValue(record.type)
+  const sortOrder = typeof record.sortOrder === "number" ? record.sortOrder : undefined
 
-  if (id && mediaPath) {
-    return { id, path: mediaPath }
+  if (key && type) {
+    return { key, type, sortOrder }
   }
 
   for (const key of ["upload", "media", "file", "files", "data"]) {
-    const media = postizMediaFromUpload(record[key])
+    const media = postfastMediaFromUpload(record[key])
     if (media) {
       return media
     }
@@ -532,30 +608,204 @@ function postizMediaFromUpload(upload: unknown): PostizMedia | null {
   return null
 }
 
-function integrationLabel(integration: PostizIntegration) {
-  return integration.name || integration.profile || integration.identifier || integration.id
+function GeneratedVideoAccountTile({
+  integration,
+  selected,
+  onClick,
+}: {
+  integration: PostFastSocialIntegration
+  selected: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "group relative flex min-w-0 flex-col items-center rounded-[8px] border bg-white px-2 py-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-[#242421] hover:shadow-md",
+        selected
+          ? "border-[#242421] ring-2 ring-app-action/25"
+          : "border-app-panel-border"
+      )}
+      onClick={onClick}
+      aria-pressed={selected}
+    >
+      <span className="relative grid size-14 place-items-center rounded-full bg-[#111] text-white shadow-sm">
+        <PlatformIcon provider={integration.provider} className="size-8" />
+        <span
+          className={cn(
+            "absolute -top-1 -right-1 grid size-5 place-items-center rounded-full border border-white text-white shadow-sm",
+            selected ? "bg-app-action" : "bg-[#8d8c85]"
+          )}
+        >
+          {selected ? (
+            <IconCheck className="size-3.5" />
+          ) : (
+            <IconPlus className="size-3.5" />
+          )}
+        </span>
+      </span>
+      <span className="mt-2 w-full truncate text-[12px] leading-4 font-semibold text-[#242421]">
+        {accountShortName(integration)}
+      </span>
+      <span className="mt-0.5 w-full truncate text-[11px] leading-4 font-medium text-app-muted-text">
+        {providerLabel(integration.provider)}
+      </span>
+    </button>
+  )
 }
 
-function isTikTokIntegration(integration: PostizIntegration) {
-  return integrationSearchText(integration).includes("tiktok")
+function PlatformIcon({
+  provider,
+  className,
+}: {
+  provider: PostFastSocialProvider
+  className?: string
+}) {
+  switch (provider) {
+    case "instagram":
+      return <IconBrandInstagram className={className} stroke={2.4} />
+    case "youtube":
+      return <IconBrandYoutubeFilled className={className} stroke={2.4} />
+    case "tiktok":
+    case "tiktok-creative":
+    case "tiktok-seller":
+      return <IconBrandTiktok className={className} stroke={2.4} />
+    case "facebook":
+      return <IconBrandFacebookFilled className={className} stroke={2.4} />
+    case "x":
+    case "twitter":
+      return <IconBrandX className={className} stroke={2.4} />
+    case "linkedin":
+      return <IconBrandLinkedin className={className} stroke={2.4} />
+    case "threads":
+      return <IconBrandThreads className={className} stroke={2.4} />
+    case "pinterest":
+      return <IconBrandPinterest className={className} stroke={2.4} />
+    case "bluesky":
+      return <IconBrandBluesky className={className} stroke={2.4} />
+    case "telegram":
+      return <IconBrandTelegram className={className} stroke={2.4} />
+    default:
+      return <IconBrandTiktok className={className} stroke={2.4} />
+  }
 }
 
-function providerForIntegration(integration: PostizIntegration) {
-  const provider = integration.providerIdentifier || integration.provider || integration.identifier
-  return provider?.toLowerCase().includes("tiktok") ? provider : "tiktok"
+function integrationKey(integration: PostFastSocialIntegration) {
+  return `${integration.provider}:${integration.integration_id}`
 }
 
-function integrationSearchText(integration: PostizIntegration) {
-  return [
-    integration.name,
-    integration.identifier,
-    integration.provider,
-    integration.providerIdentifier,
-    integration.profile,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase()
+function accountShortName(integration: PostFastSocialIntegration) {
+  return (
+    integration.profile?.replace(/^@/, "") ||
+    integration.name ||
+    providerLabel(integration.provider)
+  )
+}
+
+function providerLabel(provider: PostFastSocialProvider) {
+  switch (provider) {
+    case "youtube":
+      return "YouTube"
+    case "instagram":
+      return "Instagram"
+    case "tiktok":
+      return "TikTok"
+    case "tiktok-creative":
+      return "TikTok Creative"
+    case "tiktok-seller":
+      return "TikTok Seller"
+    case "facebook":
+      return "Facebook"
+    case "x":
+      return "X"
+    case "twitter":
+      return "Twitter"
+    case "linkedin":
+      return "LinkedIn"
+    case "threads":
+      return "Threads"
+    case "pinterest":
+      return "Pinterest"
+    case "bluesky":
+      return "Bluesky"
+    case "telegram":
+      return "Telegram"
+    case "google":
+      return "Google"
+    case "google-business-profile":
+      return "Google Business Profile"
+    default:
+      return provider
+  }
+}
+
+function postTypeValue(value: string): PostFastCreatePostType {
+  return value === "draft" || value === "now" || value === "schedule" ? value : "draft"
+}
+
+function postContent(item: GeneratedVideoExport) {
+  return item.caption || item.title || generatedVideoTypeConfig[item.type].title
+}
+
+function postCtaLabel(type: PostFastCreatePostType, count: number) {
+  const suffix = count > 0 ? ` (${count})` : ""
+  switch (type) {
+    case "now":
+      return `Publish now${suffix}`
+    case "schedule":
+      return `Schedule${suffix}`
+    case "draft":
+    default:
+      return `Create draft${suffix}`
+  }
+}
+
+function postSubmittingLabel(type: PostFastCreatePostType) {
+  switch (type) {
+    case "now":
+      return "Publishing..."
+    case "schedule":
+      return "Scheduling..."
+    case "draft":
+    default:
+      return "Creating draft..."
+  }
+}
+
+function postSubmitLoadingLabel(type: PostFastCreatePostType, count: number) {
+  switch (type) {
+    case "now":
+      return `Publishing to ${count} account${count === 1 ? "" : "s"}...`
+    case "schedule":
+      return `Scheduling ${count} post${count === 1 ? "" : "s"}...`
+    case "draft":
+    default:
+      return `Creating ${count} draft${count === 1 ? "" : "s"}...`
+  }
+}
+
+function postSubmitSuccessLabel(type: PostFastCreatePostType, count: number) {
+  switch (type) {
+    case "now":
+      return `Published to ${count} account${count === 1 ? "" : "s"}`
+    case "schedule":
+      return `Scheduled ${count} post${count === 1 ? "" : "s"}`
+    case "draft":
+    default:
+      return `Created ${count} draft${count === 1 ? "" : "s"}`
+  }
+}
+
+function postSubmitErrorLabel(type: PostFastCreatePostType) {
+  switch (type) {
+    case "now":
+      return "Failed to publish post"
+    case "schedule":
+      return "Failed to schedule post"
+    case "draft":
+    default:
+      return "Failed to create draft"
+  }
 }
 
 function defaultScheduleDateTime() {
@@ -581,4 +831,8 @@ function slugify(value: string) {
 
 function stringValue(value: unknown) {
   return typeof value === "string" ? value.trim() : ""
+}
+
+function mediaTypeValue(value: unknown) {
+  return value === "IMAGE" || value === "VIDEO" ? value : undefined
 }

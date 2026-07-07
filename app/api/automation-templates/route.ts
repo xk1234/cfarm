@@ -22,9 +22,13 @@ export async function GET() {
     records,
     templates,
     exampleRuns,
-    exampleRunsByTemplateId: groupAutomationTemplateExampleRunsByTemplateId(exampleRuns),
+    exampleRunsByTemplateId:
+      groupAutomationTemplateExampleRunsByTemplateId(exampleRuns),
     schemas: Object.fromEntries(
-      records.map((record) => [record.id, automationTemplateRecordToSchema(record)])
+      records.map((record) => [
+        record.id,
+        automationTemplateRecordToSchema(record),
+      ])
     ),
   })
 }
@@ -40,7 +44,10 @@ export async function POST(request: Request) {
         : []
 
   if (rawTemplates.length === 0) {
-    return NextResponse.json({ error: "A templates array is required" }, { status: 400 })
+    return NextResponse.json(
+      { error: "A templates array is required" },
+      { status: 400 }
+    )
   }
 
   const records = rawTemplates.filter(Boolean).map((raw) => {
@@ -62,26 +69,68 @@ export async function POST(request: Request) {
   })
   const next = await upsertAutomationTemplateRecords({ records })
 
-  return NextResponse.json({
-    records: next,
-    imported: records.length,
-    templates: next.map(automationTemplateRecordToSummary),
-    schemas: Object.fromEntries(
-      next.map((record) => [record.id, automationTemplateRecordToSchema(record)])
-    ),
-  }, { status: 201 })
+  return NextResponse.json(
+    {
+      records: next,
+      imported: records.length,
+      templates: next.map(automationTemplateRecordToSummary),
+      schemas: Object.fromEntries(
+        next.map((record) => [
+          record.id,
+          automationTemplateRecordToSchema(record),
+        ])
+      ),
+    },
+    { status: 201 }
+  )
 }
 
-function sourceTemplateName(name: string, raw: Record<string, unknown> | undefined) {
-  const reelfarmTitle = typeof raw?.reelfarmTitle === "string" ? raw.reelfarmTitle.trim() : ""
-  return reelfarmTitle || name.replace(/\s*\(template\s+\d+\)\s*$/i, "").trim()
+function sourceTemplateName(
+  name: string,
+  raw: Record<string, unknown> | undefined
+) {
+  const reelfarmTitle =
+    typeof raw?.reelfarmTitle === "string" ? raw.reelfarmTitle.trim() : ""
+  const title = typeof raw?.title === "string" ? raw.title.trim() : ""
+  return (
+    reelfarmTitle ||
+    title ||
+    name.replace(/\s*\(template\s+\d+\)\s*$/i, "").trim()
+  )
 }
 
 function sourceTemplateHooks(raw: Record<string, unknown> | undefined) {
-  const hooks = raw?.reelfarmSlideshowHooks
-  return Array.isArray(hooks) ? hooks.map((hook) => typeof hook === "string" ? hook.trim() : "").filter(Boolean) : []
+  const hooks =
+    raw?.reelfarmSlideshowHooks ?? raw?.slideshow_hooks ?? raw?.hooks
+  const values = Array.isArray(hooks)
+    ? hooks
+    : typeof hooks === "string"
+      ? [hooks]
+      : []
+  const seen = new Set<string>()
+
+  return values.flatMap(splitHookText).filter((hook) => {
+    const normalized = hook.toLowerCase()
+    if (seen.has(normalized)) {
+      return false
+    }
+    seen.add(normalized)
+    return true
+  })
 }
 
 function slugify(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+}
+
+function splitHookText(value: unknown) {
+  return typeof value === "string"
+    ? value
+        .split(/\r?\n/)
+        .map((line) => line.trim().replace(/^\d+[.)]\s*/, ""))
+        .filter(Boolean)
+    : []
 }

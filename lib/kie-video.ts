@@ -2,9 +2,19 @@ import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 
 import { prepareKieInputImageUrl, readKieTaskId } from "@/lib/kie-image"
+import {
+  kieModelForCharacterImageToVideo,
+  kling30CharacterImageToVideoProviderModel,
+  seedanceCharacterImageToVideoProviderModel,
+} from "@/lib/realfarm-generation-model-registry"
 
 const KIE_API_BASE_URL = "https://api.kie.ai"
-const CHARACTER_VIDEOS_FOLDER = path.join(process.cwd(), "data", "characters", "videos")
+const CHARACTER_VIDEOS_FOLDER = path.join(
+  process.cwd(),
+  "data",
+  "characters",
+  "videos"
+)
 const VIDEO_RESULT_POLL_LIMIT = 120
 const VIDEO_RESULT_POLL_DELAY_MS = 5000
 
@@ -21,7 +31,7 @@ export function buildKieImageToVideoPayload(input: {
   const imageUrl = clean(input.imageUrl)
   const duration = clean(input.duration) || "5"
 
-  if (model === "bytedance/seedance-2") {
+  if (model === seedanceCharacterImageToVideoProviderModel) {
     return {
       model,
       input: {
@@ -44,11 +54,13 @@ export function buildKieImageToVideoPayload(input: {
       image_urls: [imageUrl],
       sound: input.sound === true,
       duration,
-      ...(model === "kling-3.0/video" ? {
-        aspect_ratio: normalizeKlingAspectRatio(input.aspectRatio),
-        mode: "pro",
-        multi_shots: false,
-      } : {}),
+      ...(model === kling30CharacterImageToVideoProviderModel
+        ? {
+            aspect_ratio: normalizeKlingAspectRatio(input.aspectRatio),
+            mode: "pro",
+            multi_shots: false,
+          }
+        : {}),
     },
   }
 }
@@ -99,10 +111,13 @@ export async function generateCharacterVideoFromImage(input: {
     imageUrl: input.imageUrl,
     apiKey: input.apiKey,
   })
-  const taskId = await createKieVideoTask(input.apiKey, buildKieImageToVideoPayload({
-    ...input,
-    imageUrl,
-  }))
+  const taskId = await createKieVideoTask(
+    input.apiKey,
+    buildKieImageToVideoPayload({
+      ...input,
+      imageUrl,
+    })
+  )
   const remoteVideoUrl = await pollKieVideoResult(input.apiKey, taskId)
   const videoUrl = await downloadCharacterVideo(taskId, remoteVideoUrl)
 
@@ -124,25 +139,33 @@ async function createKieVideoTask(apiKey: string, body: unknown) {
   const payload = await response.json().catch(() => ({}))
   const taskId = readKieTaskId(payload)
   if (!response.ok || !taskId) {
-    throw new Error(readKieError(payload) || `Kie video task failed with ${response.status}`)
+    throw new Error(
+      readKieError(payload) || `Kie video task failed with ${response.status}`
+    )
   }
   return taskId
 }
 
 async function pollKieVideoResult(apiKey: string, taskId: string) {
   for (let attempt = 0; attempt < VIDEO_RESULT_POLL_LIMIT; attempt += 1) {
-    const response = await fetch(`${KIE_API_BASE_URL}/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}`, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-    })
+    const response = await fetch(
+      `${KIE_API_BASE_URL}/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+      }
+    )
     const payload = await response.json().catch(() => ({}))
     const videoUrl = readKieVideoResultUrl(payload)
     if (videoUrl) {
       return videoUrl
     }
     if (!response.ok || isFailedKieVideoResult(payload)) {
-      throw new Error(readKieError(payload) || `Kie video result failed with ${response.status}`)
+      throw new Error(
+        readKieError(payload) ||
+          `Kie video result failed with ${response.status}`
+      )
     }
     await sleep(VIDEO_RESULT_POLL_DELAY_MS)
   }
@@ -173,9 +196,11 @@ async function downloadCharacterVideo(taskId: string, videoUrl: string) {
 
 function kieVideoModelSlug(value: string) {
   const model = clean(value).toLowerCase()
-  if (model.includes("seedance")) return "bytedance/seedance-2"
-  if (model.includes("3.0") || model.includes("kling 3")) return "kling-3.0/video"
-  return "kling-2.6/image-to-video"
+  if (model.includes("seedance"))
+    return kieModelForCharacterImageToVideo("Seedance 2.0")
+  if (model.includes("3.0") || model.includes("kling 3"))
+    return kieModelForCharacterImageToVideo("Kling 3.0 Video")
+  return kieModelForCharacterImageToVideo(value)
 }
 
 function normalizeVideoAspectRatio(value: unknown) {
@@ -196,7 +221,11 @@ function isFailedKieVideoResult(payload: unknown) {
 function readKieError(payload: unknown) {
   const record = readRecord(payload)
   const data = readRecord(record?.data)
-  return readString(record?.msg) || readString(data?.errorMessage) || readString(data?.failMsg)
+  return (
+    readString(record?.msg) ||
+    readString(data?.errorMessage) ||
+    readString(data?.failMsg)
+  )
 }
 
 function sleep(ms: number) {
@@ -216,5 +245,7 @@ function readString(value: unknown) {
 }
 
 function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined
 }

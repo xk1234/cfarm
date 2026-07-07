@@ -1,6 +1,3 @@
-import { readFileSync } from "node:fs"
-import path from "node:path"
-
 import { describe, expect, it } from "vitest"
 
 import {
@@ -9,98 +6,6 @@ import {
 } from "@/components/realfarm/template-showcase-preview"
 
 describe("template showcase generated previews", () => {
-  it("passes recent automation runs into template showcase surfaces", () => {
-    const workspaceSource = readFileSync(
-      path.join(process.cwd(), "components", "realfarm-workspace.tsx"),
-      "utf8"
-    )
-    const editorSource = readFileSync(
-      path.join(
-        process.cwd(),
-        "components",
-        "realfarm",
-        "slideshow-editor.tsx"
-      ),
-      "utf8"
-    )
-
-    expect(workspaceSource).toContain("exampleRunsByTemplateId")
-    expect(workspaceSource).toContain("showcaseRunsByAutomationId")
-    expect(workspaceSource).toContain(
-      "recentRunsByAutomationId={showcaseRunsByAutomationId}"
-    )
-    expect(workspaceSource).toContain(
-      "recentRunsByAutomationId={recentRunsByAutomationId}"
-    )
-    expect(editorSource).toContain("recentRunsByAutomationId")
-    expect(editorSource).toContain(
-      "recentRunsByAutomationId={recentRunsByAutomationId}"
-    )
-  })
-
-  it("renders template cards from generated example slides or placeholders", () => {
-    const homeSource = readFileSync(
-      path.join(process.cwd(), "components", "realfarm", "home-view.tsx"),
-      "utf8"
-    )
-    const templatesSource = readFileSync(
-      path.join(process.cwd(), "components", "realfarm", "templates.tsx"),
-      "utf8"
-    )
-    const formatModalSource = readFileSync(
-      path.join(
-        process.cwd(),
-        "components",
-        "realfarm",
-        "slideshow-format-modal.tsx"
-      ),
-      "utf8"
-    )
-    const exampleModalSource = readFileSync(
-      path.join(
-        process.cwd(),
-        "components",
-        "realfarm",
-        "example-slideshow-modal.tsx"
-      ),
-      "utf8"
-    )
-    const previewSource = readFileSync(
-      path.join(
-        process.cwd(),
-        "components",
-        "realfarm",
-        "template-showcase-preview.tsx"
-      ),
-      "utf8"
-    )
-
-    expect(homeSource).toContain("ExampleSlideshowModal")
-    expect(homeSource).toContain("onOpenExamples")
-    expect(templatesSource).toContain("TemplateGeneratedPreview")
-    expect(templatesSource).toContain("exampleSlides={generatedExampleSlides")
-    expect(templatesSource).toContain("ExampleSlideshowModal")
-    expect(templatesSource).toContain(
-      "View ${automation.name} example slideshow"
-    )
-    expect(exampleModalSource).toContain("generatedExampleSlideshows")
-    expect(exampleModalSource).toContain(
-      "const visibleSlots = [activeSlide - 1, activeSlide, activeSlide + 1]"
-    )
-    expect(exampleModalSource).toContain("`Slideshow ${activeSlide + 1}`")
-    expect(exampleModalSource).toContain("setActiveSlide(nextIndex)")
-    expect(exampleModalSource).toContain('aria-hidden="true"')
-    expect(formatModalSource).toContain("TemplateGeneratedPreview")
-    expect(formatModalSource).toContain("exampleSlides={generatedExampleSlides")
-    expect(previewSource).toContain("No example slideshow yet")
-    expect(previewSource).toContain("slide.text")
-    expect(previewSource).toContain('slide.section !== "hook"')
-    expect(previewSource).toContain("slide.imageUrl")
-    expect(exampleModalSource).toContain('slide.section !== "hook"')
-    expect(templatesSource).not.toContain("templateImages(automation")
-    expect(formatModalSource).not.toContain("templatePreviewImages")
-  })
-
   it("keeps example slideshow runs grouped for the modal selector", () => {
     const slideshows = generatedExampleSlideshows([
       {
@@ -131,10 +36,14 @@ describe("template showcase generated previews", () => {
       },
     ])
 
-    expect(slideshows).toEqual([
+    expect(slideshows).toMatchObject([
       {
         id: "run-1",
         label: "Slideshow 1",
+        title: "Slideshow 1",
+        status: "succeeded",
+        caption: "First",
+        durationSeconds: 8,
         slides: [
           {
             id: "run-1-a",
@@ -153,6 +62,10 @@ describe("template showcase generated previews", () => {
       {
         id: "run-2",
         label: "Slideshow 2",
+        title: "Slideshow 2",
+        status: "succeeded",
+        caption: "Third",
+        durationSeconds: 4,
         slides: [
           {
             id: "run-2-c",

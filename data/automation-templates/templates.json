@@ -1,15 +1,15 @@
 {
   "templates": [
     {
-      "id": "template-reelfarm-15527",
-      "sourceAutomationId": "15527",
+      "id": "template-reelfarm-33",
+      "sourceAutomationId": "33",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Study Tips",
       "theme": "study-tips",
-      "createdAt": "2026-07-03T10:58:55.620Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2025-08-28T23:02:33.367407+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:58:55.620Z",
+        "created_at": "2025-08-28T23:02:33.367407+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-ugc-laptop-study-2026-07-03t00-01-04-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-ugc-laptop-study-2026-07-03t00-01-04-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-ugc-laptop-study-2026-07-03t00-01-04-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -38,6 +38,8 @@
           "content": {
             "aspect_ratio": "9:16",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 5,
             "overlay": false,
             "display_text": true,
             "text_items": [
@@ -71,12 +73,10 @@
                 "text_align": "center",
                 "text_anchor": "padded"
               }
-            ],
-            "slide_count_mode": "static",
-            "slide_count": 5
+            ]
           },
           "cta": {
-            "enabled": true,
+            "enabled": false,
             "image_mode": "collection",
             "aspect_ratio": "9:16",
             "image_grid": "none",
@@ -100,43 +100,43 @@
               }
             ]
           },
-          "tone": "Calm & Reflective",
-          "custom_tone": ""
+          "tone": "Custom",
+          "custom_tone": "Write in a calm, authoritative yet persuasive tone using second person \"you\" with occasional first person \"we\" to create connection. Write at a 4th grade reading level. Use all lowercase text.\n\nContent should be HIGHLY SPECIFIC about academic excellence, study strategies, and achieving top grades for high school students with practical, actionable advice for becoming a successful student. Avoid being too broad — focus on concrete, specific details."
         },
         "hooks": [
-          "5 Study Habits of Straight-A Students",
-          "7 Morning Routines Top Students Swear By",
-          "4 Note-Taking Methods That Boost Grades",
-          "5 Ways to Master Any Subject Material",
-          "6 Signs Your Study Strategy Needs Work",
-          "3 Time Management Secrets of Top Students",
-          "5 Homework Habits That Guarantee Success",
-          "4 Test Preparation Techniques That Work",
-          "7 Habits of Students Who Never Miss As",
-          "5 Ways to Track Academic Progress",
-          "6 Focus Tricks High Achievers Use Daily",
-          "4 Study Environment Changes That Transform Grades",
-          "5 Learning Practices Average Students Ignore",
-          "3 Ways to Stay Motivated During Finals",
-          "7 Signs You're Becoming a Better Student",
-          "4 Study Truths Teachers Don't Tell You",
-          "5 Ways to Overcome Academic Challenges",
-          "6 Daily Habits That Build Academic Excellence",
-          "3 Mindset Shifts That Make Learning Easier",
-          "5 Ways Top Students Structure Their Study Time"
+          "5 study habits of straight-a students",
+          "7 morning routines top students swear by",
+          "4 note-taking methods that boost grades",
+          "5 ways to master any subject material",
+          "6 signs your study strategy needs work",
+          "3 time management secrets of top students",
+          "5 homework habits that guarantee success",
+          "4 test preparation techniques that work",
+          "7 habits of students who never miss as",
+          "5 ways to track academic progress",
+          "6 focus tricks high achievers use daily",
+          "4 study environment changes that transform grades",
+          "5 learning practices average students ignore",
+          "3 ways to stay motivated during finals",
+          "7 signs you're becoming a better student",
+          "4 study truths teachers don't tell you",
+          "5 ways to overcome academic challenges",
+          "6 daily habits that build academic excellence",
+          "3 mindset shifts that make learning easier",
+          "5 ways top students structure their study time"
         ]
       }
     },
     {
-      "id": "template-reelfarm-15526",
-      "sourceAutomationId": "15526",
+      "id": "template-reelfarm-44",
+      "sourceAutomationId": "44",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Mindset Shifts",
       "theme": "mindset-shifts",
-      "createdAt": "2026-07-03T10:58:40.205Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2025-09-09T16:41:47.864776+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:58:40.205Z",
+        "created_at": "2025-09-09T16:41:47.864776+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-ugc-entrepreneur-2026-07-03t00-01-02-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-tumblr-1stclassdon-2026-07-03t00-01-08-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-tumblr-1stclassdon-2026-07-03t00-01-08-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -165,6 +165,8 @@
           "content": {
             "aspect_ratio": "9:16",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 5,
             "overlay": false,
             "display_text": true,
             "text_items": [
@@ -198,12 +200,10 @@
                 "text_align": "center",
                 "text_anchor": "padded"
               }
-            ],
-            "slide_count_mode": "static",
-            "slide_count": 5
+            ]
           },
           "cta": {
-            "enabled": true,
+            "enabled": false,
             "image_mode": "collection",
             "aspect_ratio": "9:16",
             "image_grid": "none",
@@ -227,43 +227,43 @@
               }
             ]
           },
-          "tone": "Motivational & Empowering",
-          "custom_tone": ""
+          "tone": "Custom",
+          "custom_tone": "Write in a motivational yet conversational tone using second person \"you\" with occasional first person \"I\" perspective when sharing personal experiences. Write at a 7th grade reading level in a style that sounds like a supportive coach who's been through their own transformation journey. Position yourself as someone who understands struggles but has found success. Use short, punchy sentences mixed with medium-length explanations, and employ periods for emphasis with occasional question marks to engage readers. Include phrases like \"honestly\" and \"trust me\" to build credibility, and use accessible but specific vocabulary related to personal development, wealth-building, discipline, success mindset, and high-performance habits. The writing should feel encouraging but realistic, with a confident yet approachable energy that acknowledges challenges while providing clear, actionable solutions. Write all lowercase for introductory text. Create content specifically for men focused on practical, actionable advice for building wealth, discipline, and achieving goals."
         },
         "hooks": [
-          "5 Morning Habits of High-Performing Men",
-          "7 Wealth-Building Rules Successful Men Follow",
-          "4 Uncomfortable Truths About Building Discipline",
-          "5 Ways to Develop Unshakeable Focus",
-          "6 Signs You're Sabotaging Your Success",
-          "3 Money Habits That Build Long-Term Wealth",
-          "5 Productivity Habits of Self-Made Millionaires",
-          "4 Reasons Your Goals Aren't Materializing",
-          "7 Success Principles Top Performers Never Share",
-          "5 Ways to Track Business Growth Progress",
-          "6 Mindset Shifts That Create Financial Freedom",
-          "4 High-Performance Habits That Transform Your Life",
-          "5 Wealth-Building Practices Most Men Ignore",
-          "3 Ways to Stay Focused When Markets Test You",
-          "7 Signs You're Growing Into Your Purpose",
-          "4 Success Principles Nobody Tells Men",
-          "5 Ways to Break Through Income Plateaus",
-          "6 Daily Habits That Build Mental Toughness",
-          "3 Mindset Shifts That Make Wealth-Building Automatic",
-          "5 Ways Successful Men Structure Their Time"
+          "5 morning habits of high-performing men",
+          "7 wealth-building rules successful men follow",
+          "4 uncomfortable truths about building discipline",
+          "5 ways to develop unshakeable focus",
+          "6 signs you're sabotaging your success",
+          "3 money habits that build long-term wealth",
+          "5 productivity habits of self-made millionaires",
+          "4 reasons your goals aren't materializing",
+          "7 success principles top performers never share",
+          "5 ways to track business growth progress",
+          "6 mindset shifts that create financial freedom",
+          "4 high-performance habits that transform your life",
+          "5 wealth-building practices most men ignore",
+          "3 ways to stay focused when markets test you",
+          "7 signs you're growing into your purpose",
+          "4 success principles nobody tells men",
+          "5 ways to break through income plateaus",
+          "6 daily habits that build mental toughness",
+          "3 mindset shifts that make wealth-building automatic",
+          "5 ways successful men structure their time"
         ]
       }
     },
     {
-      "id": "template-reelfarm-15525",
-      "sourceAutomationId": "15525",
+      "id": "template-reelfarm-50",
+      "sourceAutomationId": "50",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "INFJ Lists",
       "theme": "infj-lists",
-      "createdAt": "2026-07-03T10:58:36.448Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2025-09-11T15:46:36.826944+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:58:36.448Z",
+        "created_at": "2025-09-11T15:46:36.826944+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-tumblr-oldpaintings-2026-07-03t00-01-18-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-tumblr-oldpaintings-2026-07-03t00-01-18-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-tumblr-oldpaintings-2026-07-03t00-01-18-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -292,6 +292,8 @@
           "content": {
             "aspect_ratio": "9:16",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 4,
             "overlay": false,
             "display_text": true,
             "text_items": [
@@ -325,12 +327,10 @@
                 "text_align": "center",
                 "text_anchor": "padded"
               }
-            ],
-            "slide_count_mode": "static",
-            "slide_count": 4
+            ]
           },
           "cta": {
-            "enabled": true,
+            "enabled": false,
             "image_mode": "collection",
             "aspect_ratio": "9:16",
             "image_grid": "none",
@@ -354,43 +354,43 @@
               }
             ]
           },
-          "tone": "Educational & Informative",
-          "custom_tone": ""
+          "tone": "Custom",
+          "custom_tone": "All text should be written like authentic run-on sentences, as if texting a friend, at a 6-8th grade reading level, in first person perspective, all lowercase. Keep sentences relatively short, about 15-20 words, with real educational information about INFJs.\n\nThe hook sentence should be short, concise, and emotionally charged — use a power word in all caps on the 2nd, 3rd, 4th, or 5th word to get someone excited, hooked, or fired up about learning about themselves. Use identity and evolution-based framing. Focus on strengths, intuition, attraction, success, and growth. Avoid topics like self-care, alone time, processing emotions, and sensitivity.\n\nDo not use the word \"we\". Write in first person perspective. Do not repeat any information from past posts. Prioritize power words, identity framing, and aspirational outcomes.\n\nContext: Content is about INFJ personality type, covering strengths, weaknesses, leadership habits, intuition, boundaries, success traits, communication, personal growth, vision, and meaningful connections.38"
         },
         "hooks": [
-          "8 Signs You Are An Evolved INFJ",
-          "7 Signs Your INFJ Intuition Is SCREAMING At You",
-          "6 INFJ Strengths Most People Will Never Understand",
-          "7 INFJ Habits That MAGNETIZE High-Quality People",
-          "6 Hidden INFJ Traits That DRIVE Unstoppable Success",
-          "5 INFJ Boundaries That COMMAND Respect",
-          "8 Signs You Are FINALLY Becoming Your True INFJ Self",
-          "7 Ways INFJs ATTRACT The Right People Effortlessly",
-          "6 Reasons Your INFJ Intuition Is Your GREATEST Superpower",
-          "8 INFJ Traits That Make You Incredibly Rare",
-          "7 Signs You Are A High-Empathy INFJ",
-          "6 Reasons INFJs REPEL Toxic People Naturally",
-          "5 Ways INFJs DOMINATE Without Even Trying",
-          "8 Hidden INFJ Powers Most People Never Unlock",
-          "7 INFJ Habits That BUILD An Extraordinary Life",
-          "6 Signs Your INFJ Energy Is SHIFTING To The Next Level",
-          "7 Reasons INFJs Are The Most POWERFUL Personality Type",
-          "5 Things That Happen When An INFJ Finally HEALS",
-          "8 Ways INFJs LEAD Without Saying A Word",
-          "6 INFJ Strengths That Make You MAGNETIC To The Right People"
+          "8 signs you are an evolved infj",
+          "7 signs your infj intuition is screaming at you",
+          "6 infj strengths most people will never understand",
+          "7 infj habits that magnetize high-quality people",
+          "6 hidden infj traits that drive unstoppable success",
+          "5 infj boundaries that command respect",
+          "8 signs you are finally becoming your true infj self",
+          "7 ways infjs attract the right people effortlessly",
+          "6 reasons your infj intuition is your greatest superpower",
+          "8 infj traits that make you incredibly rare",
+          "7 signs you are a high-empathy infj",
+          "6 reasons infjs repel toxic people naturally",
+          "5 ways infjs dominate without even trying",
+          "8 hidden infj powers most people never unlock",
+          "7 infj habits that build an extraordinary life",
+          "6 signs your infj energy is shifting to the next level",
+          "7 reasons infjs are the most powerful personality type",
+          "5 things that happen when an infj finally heals",
+          "8 ways infjs lead without saying a word",
+          "6 infj strengths that make you magnetic to the right people"
         ]
       }
     },
     {
-      "id": "template-reelfarm-15524",
-      "sourceAutomationId": "15524",
+      "id": "template-reelfarm-57",
+      "sourceAutomationId": "57",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Workout",
       "theme": "workout",
-      "createdAt": "2026-07-03T10:58:30.881Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2025-09-11T21:15:22.298424+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:58:30.881Z",
+        "created_at": "2025-09-11T21:15:22.298424+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-gym-2026-07-03t00-01-16-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-gym-2026-07-03t00-01-16-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-gym-2026-07-03t00-01-16-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -419,6 +419,8 @@
           "content": {
             "aspect_ratio": "9:16",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 5,
             "overlay": false,
             "display_text": true,
             "text_items": [
@@ -467,12 +469,10 @@
                 "text_align": "center",
                 "text_anchor": "padded"
               }
-            ],
-            "slide_count_mode": "static",
-            "slide_count": 5
+            ]
           },
           "cta": {
-            "enabled": true,
+            "enabled": false,
             "image_mode": "collection",
             "aspect_ratio": "9:16",
             "image_grid": "none",
@@ -500,39 +500,39 @@
           "custom_tone": "Write in a gentle, empathetic tone using simple language at a 4th grade reading level, like an understanding older sibling giving advice. Use supportive phrases like \"I know it's hard\" and \"I understand how you feel\" while maintaining a soft, encouraging voice. Keep sentences short and clear, focusing on emotional connection and motivation. Use fitness vocabulary that's simple and accessible, avoiding technical terms when possible. The writing should feel warm and nurturing while providing gentle encouragement and support.\n\nContext: Content focuses on emotional support and compassionate motivation for fitness journeys, understanding struggles, and providing gentle encouragement through themes like believing in yourself, dealing with doubt, self-compassion, celebrating small wins, finding joy in movement, and building sustainable healthy relationships with exercise."
         },
         "hooks": [
-          "Messages for when you feel like giving up",
-          "Gentle reminders to believe in yourself",
-          "Understanding words for tough fitness days",
-          "Encouragement for showing up anyway",
-          "Support for when progress feels slow",
-          "Comfort for workout anxiety",
-          "Morning motivation messages",
-          "Reminders of your strength",
-          "Words of patience and persistence",
-          "Self-compassion in fitness",
-          "Dealing with doubt",
-          "Building confidence gently",
-          "Finding joy in movement",
-          "Staying kind to yourself",
-          "Celebrating small wins",
-          "Overcoming fear",
-          "Finding your own pace",
-          "Building healthy relationships with exercise",
-          "Growing stronger mentally",
-          "Creating sustainable joy in fitness"
+          "messages for when you feel like giving up",
+          "gentle reminders to believe in yourself",
+          "understanding words for tough fitness days",
+          "encouragement for showing up anyway",
+          "support for when progress feels slow",
+          "comfort for workout anxiety",
+          "morning motivation messages",
+          "reminders of your strength",
+          "words of patience and persistence",
+          "self-compassion in fitness",
+          "dealing with doubt",
+          "building confidence gently",
+          "finding joy in movement",
+          "staying kind to yourself",
+          "celebrating small wins",
+          "overcoming fear",
+          "finding your own pace",
+          "building healthy relationships with exercise",
+          "growing stronger mentally",
+          "creating sustainable joy in fitness"
         ]
       }
     },
     {
-      "id": "template-reelfarm-15523",
-      "sourceAutomationId": "15523",
+      "id": "template-reelfarm-58",
+      "sourceAutomationId": "58",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Hustle Core",
       "theme": "hustle-core",
-      "createdAt": "2026-07-03T10:58:27.178Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2025-09-12T16:13:39.504991+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:58:27.178Z",
+        "created_at": "2025-09-12T16:13:39.504991+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-faceless-selfies-2026-07-03t00-01-10-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-tumblr-nar-r-2026-07-03t00-01-21-000z\",\"aspect_ratio\":\"4:5\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-tumblr-nar-r-2026-07-03t00-01-21-000z\",\"image_id\":\"77807\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -561,6 +561,8 @@
           "content": {
             "aspect_ratio": "4:5",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 5,
             "overlay": false,
             "display_text": true,
             "text_items": [
@@ -594,12 +596,10 @@
                 "text_align": "center",
                 "text_anchor": "padded"
               }
-            ],
-            "slide_count_mode": "static",
-            "slide_count": 5
+            ]
           },
           "cta": {
-            "enabled": true,
+            "enabled": false,
             "image_mode": "collection",
             "aspect_ratio": "4:5",
             "image_grid": "none",
@@ -627,39 +627,39 @@
           "custom_tone": "Write in a natural, down-to-earth tone using first person \"I\" perspective, like you're talking to a friend over coffee. Share real experiences and insights while addressing the reader as \"you\". Write at a 7th grade reading level in a style that sounds like someone chatting about their genuine life lessons. Use casual phrases like \"look\" and \"here's the thing\" to keep it conversational. Mix short, punchy sentences with relatable examples. Include authentic phrases like \"I've been there\" and \"let me be real with you\" to build trust. The writing should feel like advice from a knowledgeable friend - honest, practical, and grounded in real experience.\n\nContent should focus on masculine personal growth, discipline, and self-improvement, with an emphasis on relatable experiences and authentic advice. Focus on universal topics that resonate with people trying to better themselves. Draw from authentic personal growth stories and relatable experiences.\n\nUse all lowercase text. Introduce concepts as numbered lists. Each point should be explained with supporting details that provide practical context."
         },
         "hooks": [
-          "5 Daily Habits That Actually Changed My Life",
-          "7 Mindset Shifts That Helped Me Stop Self-Sabotaging",
-          "4 Ways I Finally Learned to Trust My Journey",
-          "6 Red Flags I Ignored Before My Business Failed",
-          "5 Morning Routines That Transformed My Mental Health",
-          "4 Hard Truths About Building Real Discipline",
-          "6 Small Habits That Rebuilt My Self-Worth",
-          "5 Daily Practices That Keep Me Grounded",
-          "4 Mindset Changes That Fixed My Relationship With Myself",
-          "7 Simple Ways I Maintain Inner Peace",
-          "5 Reality Checks That Changed How I See Progress",
-          "6 Habits That Helped Me Find My Purpose",
-          "4 Ways I Learned to Actually Love Myself",
-          "5 Daily Rituals That Keep Me Disciplined",
-          "7 Lessons About True Self-Growth",
-          "4 Mindset Shifts That Changed Everything",
-          "5 Ways I Stay Consistent With My Goals",
-          "6 Habits That Help Me Stay True to Myself",
-          "4 Truths About Building Real Confidence",
-          "5 Practices That Keep Me Mentally Strong"
+          "5 daily habits that actually changed my life",
+          "7 mindset shifts that helped me stop self-sabotaging",
+          "4 ways i finally learned to trust my journey",
+          "6 red flags i ignored before my business failed",
+          "5 morning routines that transformed my mental health",
+          "4 hard truths about building real discipline",
+          "6 small habits that rebuilt my self-worth",
+          "5 daily practices that keep me grounded",
+          "4 mindset changes that fixed my relationship with myself",
+          "7 simple ways i maintain inner peace",
+          "5 reality checks that changed how i see progress",
+          "6 habits that helped me find my purpose",
+          "4 ways i learned to actually love myself",
+          "5 daily rituals that keep me disciplined",
+          "7 lessons about true self-growth",
+          "4 mindset shifts that changed everything",
+          "5 ways i stay consistent with my goals",
+          "6 habits that help me stay true to myself",
+          "4 truths about building real confidence",
+          "5 practices that keep me mentally strong"
         ]
       }
     },
     {
-      "id": "template-reelfarm-15522",
-      "sourceAutomationId": "15522",
+      "id": "template-reelfarm-440",
+      "sourceAutomationId": "440",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Urban Legends",
       "theme": "urban-legends",
-      "createdAt": "2026-07-03T10:58:22.733Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2025-09-25T03:09:26.88254+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:58:22.733Z",
+        "created_at": "2025-09-25T03:09:26.88254+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-fall-evening-2026-07-03t00-01-12-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-fall-evening-2026-07-03t00-01-12-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":\"collection-pinterest-love-texts-imessage-2026-07-03t00-00-52-000z\",\"image_id\":\"167389\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"background_opacity\":35,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -688,6 +688,8 @@
           "content": {
             "aspect_ratio": "9:16",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 5,
             "overlay": true,
             "display_text": true,
             "text_items": [
@@ -721,9 +723,7 @@
                 "text_align": "center",
                 "text_anchor": "padded"
               }
-            ],
-            "slide_count_mode": "static",
-            "slide_count": 5
+            ]
           },
           "cta": {
             "enabled": false,
@@ -771,22 +771,22 @@
           "4 declassified government supernatural incidents stranger than fiction",
           "5 tourist destinations transformed by their horrifying paranormal pasts",
           "3 ways to research the truth behind supernatural urban legends",
-          "7 real-life horrors that Hollywood turned into supernatural films",
+          "7 real-life horrors that hollywood turned into supernatural films",
           "4 strategies paranormal investigators use to solve famous mysteries",
-          "5 techniques to tell a spine-chilling supernatural story on Halloween night"
+          "5 techniques to tell a spine-chilling supernatural story on halloween night"
         ]
       }
     },
     {
-      "id": "template-reelfarm-15521",
-      "sourceAutomationId": "15521",
+      "id": "template-reelfarm-2024",
+      "sourceAutomationId": "2024",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Movies",
       "theme": "movies",
-      "createdAt": "2026-07-03T10:58:09.558Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2025-12-18T20:24:50.842017+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:58:09.558Z",
+        "created_at": "2025-12-18T20:24:50.842017+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-movie-watching-aesthetic-2026-07-03t00-01-01-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-movie-watching-aesthetic-2026-07-03t00-01-01-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":false,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_8900\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -815,6 +815,8 @@
           "content": {
             "aspect_ratio": "9:16",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 5,
             "overlay": true,
             "display_text": true,
             "text_items": [
@@ -833,9 +835,7 @@
                 "text_align": "center",
                 "text_anchor": "padded"
               }
-            ],
-            "slide_count_mode": "static",
-            "slide_count": 5
+            ]
           },
           "cta": {
             "enabled": false,
@@ -890,15 +890,15 @@
       }
     },
     {
-      "id": "template-reelfarm-15520",
-      "sourceAutomationId": "15520",
+      "id": "template-reelfarm-2035",
+      "sourceAutomationId": "2035",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Baseball",
       "theme": "baseball",
-      "createdAt": "2026-07-03T10:56:20.792Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2025-12-19T17:27:23.200067+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:56:20.792Z",
+        "created_at": "2025-12-19T17:27:23.200067+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-baseball-black-and-white-aesthetic-film-photos-2026-07-03t00-01-00-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -911,14 +911,14 @@
           "content": {
             "aspect_ratio": "9:16",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 1,
             "overlay": false,
             "display_text": true,
-            "text_items": [],
-            "slide_count_mode": "static",
-            "slide_count": 1
+            "text_items": []
           },
           "cta": {
-            "enabled": true,
+            "enabled": false,
             "image_mode": "collection",
             "aspect_ratio": "9:16",
             "image_grid": "none",
@@ -927,45 +927,45 @@
             "text_items": []
           },
           "tone": "Custom",
-          "custom_tone": "Write in a confident, authoritative tone using second person \"you\" with clear, direct statements. Write at a 5th grade reading level in a style that sounds like a knowledgeable MLB enthusiast sharing informational stats about MLB teams and players with friends. the text must sound personable, first person perspective, authentic, conversational\n\nFirst slide must contains the title/hook in MEDIUM font (5-10 words) centered on the slide (MUST be numbered, like \"5 MLB teams...\" or \"6 Players Who...\"). ALL OTHER SLIDES should present 2 text elements: first text item is the MLB player name or team name, and the second text item is the stats for that MLB player or team\n\nTHAT IS IT. DO NOT ADD ANY OTHER SLIDES, I ONLY WANT THE MOVIE SLIDES RECOMMENDED. THE LAST SLIDE SHOULD BE THE LAST MOVIE RECOMMENDED"
+          "custom_tone": ""
         },
         "hooks": [
-          "Top 7 MLB players with the most home runs in history",
-          "5 Underrated MLB Players To Watch For In The 2026 Season",
-          "6 MLB teams with the highest batting averages this season",
-          "8 MLB pitchers with record-breaking strikeouts",
-          "3 MLB teams dominating defensive stats this year",
-          "5 MLB players leading in RBIs this season",
-          "4 MLB teams with the most World Series appearances",
-          "7 MLB players breaking stolen base records",
-          "5 MLB teams with remarkable pitching rotations",
-          "6 MLB players with the highest career batting averages",
-          "3 MLB teams setting attendance records this season",
-          "8 MLB players dominating WAR statistics",
-          "4 MLB teams with impressive defensive shifts",
-          "5 MLB players with the most Gold Glove awards",
-          "7 MLB teams with the strongest bullpens",
-          "6 MLB players approaching milestone achievements",
-          "3 MLB teams with the best farm systems",
-          "5 MLB players leading in OPS this season",
-          "8 MLB teams with historical win streaks",
-          "4 MLB players with the most Silver Slugger awards",
-          "6 MLB teams with the highest run differentials",
-          "7 MLB players setting new exit velocity records",
-          "5 MLB teams with impressive comeback win percentages"
+          "top 7 mlb players with the most home runs in history",
+          "5 underrated mlb players to watch for in the 2026 season",
+          "6 mlb teams with the highest batting averages this season",
+          "8 mlb pitchers with record-breaking strikeouts",
+          "3 mlb teams dominating defensive stats this year",
+          "5 mlb players leading in rbis this season",
+          "4 mlb teams with the most world series appearances",
+          "7 mlb players breaking stolen base records",
+          "5 mlb teams with remarkable pitching rotations",
+          "6 mlb players with the highest career batting averages",
+          "3 mlb teams setting attendance records this season",
+          "8 mlb players dominating war statistics",
+          "4 mlb teams with impressive defensive shifts",
+          "5 mlb players with the most gold glove awards",
+          "7 mlb teams with the strongest bullpens",
+          "6 mlb players approaching milestone achievements",
+          "3 mlb teams with the best farm systems",
+          "5 mlb players leading in ops this season",
+          "8 mlb teams with historical win streaks",
+          "4 mlb players with the most silver slugger awards",
+          "6 mlb teams with the highest run differentials",
+          "7 mlb players setting new exit velocity records",
+          "5 mlb teams with impressive comeback win percentages"
         ]
       }
     },
     {
-      "id": "template-reelfarm-15519",
-      "sourceAutomationId": "15519",
+      "id": "template-reelfarm-2049",
+      "sourceAutomationId": "2049",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Stock Investors",
       "theme": "stock-investors",
-      "createdAt": "2026-07-03T10:56:17.647Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2025-12-20T02:38:22.029813+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:56:17.647Z",
+        "created_at": "2025-12-20T02:38:22.029813+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-wolf-of-wall-street-aesthetic-2026-07-03t00-00-58-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -978,14 +978,14 @@
           "content": {
             "aspect_ratio": "9:16",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 1,
             "overlay": false,
             "display_text": true,
-            "text_items": [],
-            "slide_count_mode": "static",
-            "slide_count": 1
+            "text_items": []
           },
           "cta": {
-            "enabled": true,
+            "enabled": false,
             "image_mode": "collection",
             "aspect_ratio": "9:16",
             "image_grid": "none",
@@ -994,7 +994,7 @@
             "text_items": []
           },
           "tone": "Custom",
-          "custom_tone": "Write in a confident, authoritative tone using second person \"you\" with clear, direct statements. Write at a 5th grade reading level in a style that sounds like a knowledgeable film enthusiast sharing insider recommendations with friends. the text must sound personable, first person perspective, authentic, conversational, and in ALL LOWERCASE\n\nFirst slide must contains the title/hook in MEDIUM font (5-10 words) centered on the slide (MUST be numbered, like \"5 Companies...\" or \"6 Investments That...\"). ALL OTHER SLIDES should present 2 text elements: first text item is the title (4-8 words), and the second text item is a summary (10-25 words).\n\nTHAT IS IT. DO NOT ADD ANY OTHER SLIDES, I ONLY WANT THE FIRST SLIDE AND THE CONTENT SLIDES. THE LAST SLIDE SHOULD BE THE LAST ITEM IN THE LIST. NO OUTRO OR CONCLUSION SLIDES."
+          "custom_tone": ""
         },
         "hooks": [
           "5 stocks that crashed and actually came back stronger",
@@ -1021,15 +1021,15 @@
       }
     },
     {
-      "id": "template-reelfarm-15518",
-      "sourceAutomationId": "15518",
+      "id": "template-reelfarm-2182",
+      "sourceAutomationId": "2182",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Best Scriptures",
       "theme": "best-scriptures",
-      "createdAt": "2026-07-03T10:56:05.995Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2026-01-02T21:12:18.780593+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:56:05.995Z",
+        "created_at": "2026-01-02T21:12:18.780593+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-sunsets-iphone-photos-2026-07-03t00-00-57-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-sunsets-iphone-photos-2026-07-03t00-00-57-000z\",\"aspect_ratio\":\"1:1\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-sunsets-iphone-photos-2026-07-03t00-00-57-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":35,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -1058,6 +1058,8 @@
           "content": {
             "aspect_ratio": "1:1",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 5,
             "overlay": false,
             "display_text": true,
             "text_items": [
@@ -1076,12 +1078,10 @@
                 "text_align": "center",
                 "text_anchor": "padded"
               }
-            ],
-            "slide_count_mode": "static",
-            "slide_count": 5
+            ]
           },
           "cta": {
-            "enabled": true,
+            "enabled": false,
             "image_mode": "collection",
             "aspect_ratio": "1:1",
             "image_grid": "none",
@@ -1109,31 +1109,31 @@
           "custom_tone": "Content about Bible scriptures that are particularly relevant or meaningful for specific zodiac signs.\n\nAll text in lowercase. Hook format: \"best scriptures for [astrology sign]\". Scripture passages in lowercase with reference (like \"Philippians 4:13\" or \"Psalm 118:24\" or \"John 4:19\") included in the same text item."
         },
         "hooks": [
-          "best scriptures for Pisces",
-          "best scriptures for Scorpios",
-          "best scriptures for Leos",
-          "best scriptures for Cancers",
-          "best scriptures for Aries",
-          "best scriptures for Taurus",
-          "best scriptures for Gemini",
-          "best scriptures for Virgo",
-          "best scriptures for Libra",
-          "best scriptures for Sagittarius",
-          "best scriptures for Capricorn",
-          "best scriptures for Aquarius"
+          "best scriptures for pisces",
+          "best scriptures for scorpios",
+          "best scriptures for leos",
+          "best scriptures for cancers",
+          "best scriptures for aries",
+          "best scriptures for taurus",
+          "best scriptures for gemini",
+          "best scriptures for virgo",
+          "best scriptures for libra",
+          "best scriptures for sagittarius",
+          "best scriptures for capricorn",
+          "best scriptures for aquarius"
         ]
       }
     },
     {
-      "id": "template-reelfarm-15517",
-      "sourceAutomationId": "15517",
+      "id": "template-reelfarm-2184",
+      "sourceAutomationId": "2184",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Nail Designs",
       "theme": "nail-designs",
-      "createdAt": "2026-07-03T10:56:02.833Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2026-01-02T21:16:51.265005+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:56:02.833Z",
+        "created_at": "2026-01-02T21:16:51.265005+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-nail-design-inspo-2026-07-03t00-00-56-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nail-design-inspo-2026-07-03t00-00-56-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":false,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nail-design-inspo-2026-07-03t00-00-56-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":35,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":true,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -1146,11 +1146,11 @@
           "content": {
             "aspect_ratio": "9:16",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 1,
             "overlay": false,
             "display_text": true,
-            "text_items": [],
-            "slide_count_mode": "static",
-            "slide_count": 1
+            "text_items": []
           },
           "cta": {
             "enabled": false,
@@ -1162,25 +1162,24 @@
             "text_items": []
           },
           "tone": "Custom",
-          "custom_tone": "Each slideshow should contain EXACTLY 7 slides. The first slide should have 1 text item SMALL font size in 60% WIDTH and in lowercase that says the hook (the hook/narrative will ALWAYS be in this exact format: \"cute nail designs i found on pinterest\"). Subsequent slides should each have NO TEXT ITEMS (0)\n\nALL TEXT ITEMS MUST BE IN WHITE BACKGROUND TEXT STYLE"
+          "custom_tone": ""
         },
         "hooks": [
-          "cute nail designs i found on pinterest",
           "cute nail designs i found on pinterest",
           "11/10 cute nail designs i found on pinterest"
         ]
       }
     },
     {
-      "id": "template-reelfarm-15516",
-      "sourceAutomationId": "15516",
+      "id": "template-reelfarm-2196",
+      "sourceAutomationId": "2196",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Meal Cheat Sheets",
       "theme": "meal-cheat-sheets",
-      "createdAt": "2026-07-03T10:55:59.168Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2026-01-03T23:51:11.190944+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:55:59.168Z",
+        "created_at": "2026-01-03T23:51:11.190944+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-healthy-meal-inspo-2026-07-03t00-00-53-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-high-protein-meal-cheat-sheet-2026-07-03t00-00-54-000z\",\"aspect_ratio\":\"4:5\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":false,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-high-protein-meal-cheat-sheet-2026-07-03t00-00-54-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":35,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":true,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -1193,11 +1192,11 @@
           "content": {
             "aspect_ratio": "9:16",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 1,
             "overlay": false,
             "display_text": true,
-            "text_items": [],
-            "slide_count_mode": "static",
-            "slide_count": 1
+            "text_items": []
           },
           "cta": {
             "enabled": false,
@@ -1209,23 +1208,21 @@
             "text_items": []
           },
           "tone": "Custom",
-          "custom_tone": "Each slideshow should contain EXACTLY 2 slides. The first slide should have 1 text item LARGE font size and in lowercase that says the hook (the hook/narrative will ALWAYS be in this exact format: \"literally the best high protein meal cheat sheet >>>\"). Subsequent slides should each have NO TEXT ITEMS (0)\n\nthe text MUST be in \"white background\" text style"
+          "custom_tone": ""
         },
-        "hooks": [
-          "literally the best high protein meal cheat sheet >>>"
-        ]
+        "hooks": ["literally the best high protein meal cheat sheet"]
       }
     },
     {
-      "id": "template-reelfarm-15515",
-      "sourceAutomationId": "15515",
+      "id": "template-reelfarm-2222",
+      "sourceAutomationId": "2222",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Love Texts",
       "theme": "love-texts",
-      "createdAt": "2026-07-03T10:55:56.098Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2026-01-05T21:35:21.843436+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:55:56.098Z",
+        "created_at": "2026-01-05T21:35:21.843436+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-blurry-night-love-photos-2026-07-03t00-00-51-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-love-texts-imessage-2026-07-03t00-00-52-000z\",\"aspect_ratio\":\"4:5\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-love-texts-imessage-2026-07-03t00-00-52-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":35,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":true,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -1241,8 +1238,8 @@
                 "text_style": "outline",
                 "text_position": "center",
                 "text_item_width": "80%",
-                "word_length_min": 5,
-                "word_length_max": 10,
+                "word_length_min": 0,
+                "word_length_max": 0,
                 "content_direction": "",
                 "text_mode": "static",
                 "static_text": "when he texts u like this >>",
@@ -1254,6 +1251,8 @@
           "content": {
             "aspect_ratio": "fit",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 1,
             "overlay": false,
             "display_text": true,
             "text_items": [
@@ -1272,12 +1271,10 @@
                 "text_align": "center",
                 "text_anchor": "padded"
               }
-            ],
-            "slide_count_mode": "static",
-            "slide_count": 1
+            ]
           },
           "cta": {
-            "enabled": true,
+            "enabled": false,
             "image_mode": "collection",
             "aspect_ratio": "fit",
             "image_grid": "none",
@@ -1305,27 +1302,27 @@
           "custom_tone": "all lowercase\n\nconversational, intimate tone with abbreviations (u instead of you, ur instead of your, bf instead of boyfriend)\n\ncasual social media voice with emotional vulnerability\n\nuse only the exact hook phrases provided - no variations or alternatives allowed\n\nformat hooks with \">>\" at the end when specified\n\nperspective: direct address to reader (when he texts u, when ur bf sends u)\n\ncasual internet speak style with shortened words and phrases"
         },
         "hooks": [
-          "getting texts like these >>>",
-          "when he texts u like this >>",
-          "the best text to receive >>>",
-          "nothing beats this feeling >>",
-          "literally the best feeling >>>",
-          "when he texts u this >>>",
+          "getting texts like these",
+          "when he texts u like this",
+          "the best text to receive",
+          "nothing beats this feeling",
+          "literally the best feeling",
+          "when he texts u this",
           "i think im in love",
-          "when ur bf sends u texts like this >>"
+          "when ur bf sends u texts like this"
         ]
       }
     },
     {
-      "id": "template-reelfarm-15514",
-      "sourceAutomationId": "15514",
+      "id": "template-reelfarm-2529",
+      "sourceAutomationId": "2529",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Movies 2",
       "theme": "movies-2",
-      "createdAt": "2026-07-03T10:55:52.989Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2026-01-24T18:12:06.858879+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:55:52.989Z",
+        "created_at": "2026-01-24T18:12:06.858879+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-movie-watching-aesthetic-2026-07-03t00-01-01-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -1354,6 +1351,8 @@
           "content": {
             "aspect_ratio": "9:16",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 4,
             "overlay": true,
             "display_text": true,
             "text_items": [
@@ -1387,12 +1386,10 @@
                 "text_align": "center",
                 "text_anchor": "padded"
               }
-            ],
-            "slide_count_mode": "static",
-            "slide_count": 4
+            ]
           },
           "cta": {
-            "enabled": true,
+            "enabled": false,
             "image_mode": "collection",
             "aspect_ratio": "9:16",
             "image_grid": "none",
@@ -1420,40 +1417,40 @@
           "custom_tone": "write in a confident, authoritative tone using second person \"you\" with clear, direct statements. write at a 5th grade reading level in a style that sounds like a knowledgeable film enthusiast sharing insider recommendations with friends. the text must sound personable, first person perspective, authentic, conversational, and in all lowercase. \n\ncontext: content about how much money certain movies, actors, or actresses have made — covering topics like highest grossing films, highest paid performers, box office losses, award winners, and financial milestones in the entertainment industry."
         },
         "hooks": [
-          "Highest grossing movies of 2025",
-          "Highest paid actors of 2025",
-          "9 actors who made over $10M last year (2025)",
-          "Movies that lost money at the box office",
-          "Highest paid actors of ALL TIME",
+          "highest grossing movies of 2025",
+          "highest paid actors of 2025",
+          "9 actors who made over $10m last year (2025)",
+          "movies that lost money at the box office",
+          "highest paid actors of all time",
           "9 actors you didn't know were millionaires",
-          "Top highest grossing movies from 2003",
-          "Top highest grossing movies from 2004",
-          "Top highest grossing movies from 2005",
-          "Top highest grossing movies from 2006",
-          "Top highest grossing movies from 2007",
-          "Top highest grossing movies from 2008",
-          "Top highest grossing movies from 2009",
-          "Top highest grossing movies from 2010",
-          "Top highest grossing movies from 2011",
-          "Top highest paid actresses of all time",
-          "9 actors who made over $20M last year (2024)",
-          "Top 9 highest grossing animated movies of all time",
-          "Top 9 highest grossing horror movies of all time",
-          "Top 9 actors with the most EMMYS (as of 2025)",
-          "Top 9 actors with the most OSCARS (as of 2025)"
+          "top highest grossing movies from 2003",
+          "top highest grossing movies from 2004",
+          "top highest grossing movies from 2005",
+          "top highest grossing movies from 2006",
+          "top highest grossing movies from 2007",
+          "top highest grossing movies from 2008",
+          "top highest grossing movies from 2009",
+          "top highest grossing movies from 2010",
+          "top highest grossing movies from 2011",
+          "top highest paid actresses of all time",
+          "9 actors who made over $20m last year (2024)",
+          "top 9 highest grossing animated movies of all time",
+          "top 9 highest grossing horror movies of all time",
+          "top 9 actors with the most emmys (as of 2025)",
+          "top 9 actors with the most oscars (as of 2025)"
         ]
       }
     },
     {
-      "id": "template-reelfarm-15513",
-      "sourceAutomationId": "15513",
+      "id": "template-reelfarm-2530",
+      "sourceAutomationId": "2530",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Actresses",
       "theme": "actresses",
-      "createdAt": "2026-07-03T10:55:49.954Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2026-01-24T18:37:50.092519+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:55:49.954Z",
+        "created_at": "2026-01-24T18:37:50.092519+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-feminine-hollywood-aesthetic-2026-07-03t00-00-47-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -1482,6 +1479,8 @@
           "content": {
             "aspect_ratio": "9:16",
             "image_grid": "2x2",
+            "slide_count_mode": "static",
+            "slide_count": 4,
             "overlay": true,
             "display_text": true,
             "text_items": [
@@ -1515,12 +1514,10 @@
                 "text_align": "center",
                 "text_anchor": "padded"
               }
-            ],
-            "slide_count_mode": "static",
-            "slide_count": 4
+            ]
           },
           "cta": {
-            "enabled": true,
+            "enabled": false,
             "image_mode": "collection",
             "aspect_ratio": "9:16",
             "image_grid": "none",
@@ -1548,27 +1545,27 @@
           "custom_tone": "write in a confident, authoritative tone using second person \"you\" with clear, direct statements. write at a 5th grade reading level in a style that sounds like a knowledgeable film enthusiast sharing insider recommendations with friends. the text must sound personable, first person perspective, authentic, conversational, and in all lowercase. \n\ncontext: content is about how much money certain movies, actors, or actresses have made, including highest paid performers, award winners, and surprising millionaires in the entertainment industry."
         },
         "hooks": [
-          "Highest paid actresses of 2025",
-          "5 actresses who made over $10M last year (2025)",
-          "Highest paid actresses of ALL TIME",
+          "highest paid actresses of 2025",
+          "5 actresses who made over $10m last year (2025)",
+          "highest paid actresses of all time",
           "5 actresses you didn't know were millionaires",
-          "Top 5 highest paid actresses of all time",
-          "5 actresses who made over $20M last year (2024)",
-          "Top 5 actresses with the most EMMYS (as of 2025)",
-          "Top 5 actresses with the most OSCARS (as of 2025)"
+          "top 5 highest paid actresses of all time",
+          "5 actresses who made over $20m last year (2024)",
+          "top 5 actresses with the most emmys (as of 2025)",
+          "top 5 actresses with the most oscars (as of 2025)"
         ]
       }
     },
     {
-      "id": "template-reelfarm-15512",
-      "sourceAutomationId": "15512",
+      "id": "template-reelfarm-2610",
+      "sourceAutomationId": "2610",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Woman Motivate",
       "theme": "woman-motivate",
-      "createdAt": "2026-07-03T10:55:44.742Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2026-01-29T00:19:11.841034+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:55:44.742Z",
+        "created_at": "2026-01-29T00:19:11.841034+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-high-class-women-faceless-aesthetic-2026-07-03t00-00-45-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-classy-dark-nyc-pov-aesthetic-2026-07-03t00-00-44-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-classy-dark-nyc-pov-aesthetic-2026-07-03t00-00-44-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -1597,6 +1594,8 @@
           "content": {
             "aspect_ratio": "9:16",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 5,
             "overlay": true,
             "display_text": true,
             "text_items": [
@@ -1645,12 +1644,10 @@
                 "text_align": "center",
                 "text_anchor": "padded"
               }
-            ],
-            "slide_count_mode": "static",
-            "slide_count": 5
+            ]
           },
           "cta": {
-            "enabled": true,
+            "enabled": false,
             "image_mode": "collection",
             "aspect_ratio": "9:16",
             "image_grid": "none",
@@ -1674,36 +1671,36 @@
               }
             ]
           },
-          "tone": "Motivational & Empowering",
-          "custom_tone": ""
+          "tone": "Custom",
+          "custom_tone": "Write in a motivational yet conversational tone using FIRST person \"I\" perspective when sharing personal experiences. Write at a 7th grade reading level in a style that sounds like a supportive friend who's been through their own journey. You can also ask rhetorical questions. Position yourself as someone who understands the struggle of prioritizing yourself and has found success in personal development, detaching from past relationships, growing, and learning to fix relationships.\n\nUse short, punchy sentences. Include phrases like \"honestly\" and \"trust me\" to build credibility. The writing should feel authentic, conversational, like you're talking with a good friend you love and trust.\n\nALL TEXT SHOULD BE LOWERCASE.\n\nContent structure: Start with an introductory hook that introduces a numbered list concept. Then for each numbered point, write a title (5-7 words on the general issue), followed by supporting text that reaffirms the problem, followed by a quick solution or tip on how to fix that problem."
         },
         "hooks": [
-          "5 ways i finally became detached for good:",
-          "5 ways i stopped spiraling over men:",
+          "5 ways i finally became detached for good",
+          "5 ways i stopped spiraling over men",
           "5 ways i stayed detached during no contact",
-          "5 micro-habits that helped me go from insecure to confident:",
-          "5 ways i stopped being a pick me:",
-          "5 ways i stopped entertaining situationships for good:",
-          "5 ways i ended my situationship era:",
-          "5 boundaries that started my princess treatment era:",
-          "5 shifts i made to become detached in dating for good:",
-          "5 shifts i made to detach from unavailable men:",
-          "5 shifts i made to fully detach from unavailable men:",
-          "5 shifts that made me get over him (fast):",
-          "5 ways i regained my power during no contact:"
+          "5 micro-habits that helped me go from insecure to confident",
+          "5 ways i stopped being a pick me",
+          "5 ways i stopped entertaining situationships for good",
+          "5 ways i ended my situationship era",
+          "5 boundaries that started my princess treatment era",
+          "5 shifts i made to become detached in dating for good",
+          "5 shifts i made to detach from unavailable men",
+          "5 shifts i made to fully detach from unavailable men",
+          "5 shifts that made me get over him (fast)",
+          "5 ways i regained my power during no contact"
         ]
       }
     },
     {
-      "id": "template-reelfarm-15511",
-      "sourceAutomationId": "15511",
+      "id": "template-reelfarm-4860",
+      "sourceAutomationId": "4860",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Horizontal Girl",
       "theme": "horizontal-girl",
-      "createdAt": "2026-07-03T10:55:42.096Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2026-03-10T04:24:18.533889+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:55:42.096Z",
+        "created_at": "2026-03-10T04:24:18.533889+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-horizontal-hooks-2026-07-03t00-00-37-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":20,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -1732,6 +1729,8 @@
           "content": {
             "aspect_ratio": "fit",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 5,
             "overlay": true,
             "display_text": true,
             "text_items": [
@@ -1765,12 +1764,10 @@
                 "text_align": "center",
                 "text_anchor": "padded"
               }
-            ],
-            "slide_count_mode": "static",
-            "slide_count": 5
+            ]
           },
           "cta": {
-            "enabled": true,
+            "enabled": false,
             "image_mode": "collection",
             "aspect_ratio": "fit",
             "image_grid": "none",
@@ -1794,8 +1791,8 @@
               }
             ]
           },
-          "tone": "Motivational & Empowering",
-          "custom_tone": ""
+          "tone": "Custom",
+          "custom_tone": "Written in a motivational yet conversational tone using FIRST person \"I\" perspective when sharing personal experiences. Write at a 7th grade reading level in a style that sounds like a supportive friend who's been through their own journey. You can also ask rhetorical questions. Position yourself as someone who understands the struggle of prioritizing yourself and has found success. Use short, punchy sentences. The writing should feel authentic, conversational, like you're talking with a good friend you love and trust. DO NOT ADD ANY DISCOURSE MARKERS IN THE TEXT like \"honestly,\" \"trust me,\" \"frankly,\" \"to tell you the truth,\" or \"believe me\". REMOVE THESE so called truth parentheticals or sincerity markers. All text should be lowercase. Content should feel personal and relatable about wellness topics: managing stress, finding calm, improving focus naturally, building energy without caffeine, and creating healthy routines. The progression should move from recognizing self-deception to embracing personal truth, revealing specific lies people tell themselves about their wellness journey."
         },
         "hooks": [
           "how i stopped feeling like i was wasting my life every day",
@@ -1862,15 +1859,15 @@
       }
     },
     {
-      "id": "template-reelfarm-15510",
-      "sourceAutomationId": "15510",
+      "id": "template-reelfarm-6178",
+      "sourceAutomationId": "6178",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Grid Girl",
       "theme": "grid-girl",
-      "createdAt": "2026-07-03T10:55:39.136Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2026-03-19T20:51:17.15656+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:55:39.136Z",
+        "created_at": "2026-03-19T20:51:17.15656+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-horizontal-hooks-2026-07-03t00-00-37-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"background_opacity\":20,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -1899,6 +1896,8 @@
           "content": {
             "aspect_ratio": "9:16",
             "image_grid": "1x3",
+            "slide_count_mode": "static",
+            "slide_count": 5,
             "overlay": true,
             "display_text": true,
             "text_items": [
@@ -1932,12 +1931,10 @@
                 "text_align": "center",
                 "text_anchor": "padded"
               }
-            ],
-            "slide_count_mode": "static",
-            "slide_count": 5
+            ]
           },
           "cta": {
-            "enabled": true,
+            "enabled": false,
             "image_mode": "collection",
             "aspect_ratio": "9:16",
             "image_grid": "none",
@@ -1961,8 +1958,8 @@
               }
             ]
           },
-          "tone": "Motivational & Empowering",
-          "custom_tone": ""
+          "tone": "Custom",
+          "custom_tone": "all lowercase. written in a motivational yet conversational tone using first person \"i\" perspective when sharing personal experiences about wellness, managing stress, improving focus, and building sustainable energy through natural mindfulness practices. write at a 7th grade reading level in a style that sounds like a supportive friend who's been through their own journey. you can also ask rhetorical questions. position yourself as someone who understands the struggle of prioritizing yourself and has found success. use short, punchy sentences. the writing should feel authentic, conversational, like you're talking with a good friend you love and trust. do not add any discourse markers in the text like \"honestly,\" \"trust me,\" \"frankly,\" \"to tell you the truth,\" or \"believe me\". remove these so called truth parentheticals or sincerity markers. content should feel personal and relatable, creating a progression from recognizing self-deception to embracing personal truth around natural wellness practices."
         },
         "hooks": [
           "6 small lies i stopped telling myself that changed everything",
@@ -1972,7 +1969,7 @@
           "things i stopped consuming that made me unrecognizable in 6 months",
           "hobbies that will make you dangerously intelligent",
           "5 ways to unrot your brain and truly feel fulfilled in life",
-          "5 ways i regained my focus without stimulants:",
+          "5 ways i regained my focus without stimulants",
           "things i quit doing that made me way smarter than my peers",
           "how i actually started enjoying my own company without feeling lonely",
           "small daily habits that rewired my brain in 3 months",
@@ -2047,15 +2044,15 @@
       }
     },
     {
-      "id": "template-reelfarm-15509",
-      "sourceAutomationId": "15509",
+      "id": "template-reelfarm-12017",
+      "sourceAutomationId": "12017",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Emotional Intelligence (petalsofemily)",
       "theme": "emotional-intelligence-petalsofemily",
-      "createdAt": "2026-07-03T10:55:33.981Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2026-05-19T00:42:18.014195+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:55:33.981Z",
+        "created_at": "2026-05-19T00:42:18.014195+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -2099,6 +2096,8 @@
           "content": {
             "aspect_ratio": "4:5",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 5,
             "overlay": true,
             "display_text": true,
             "text_items": [
@@ -2132,12 +2131,10 @@
                 "text_align": "left",
                 "text_anchor": "flush"
               }
-            ],
-            "slide_count_mode": "static",
-            "slide_count": 5
+            ]
           },
           "cta": {
-            "enabled": true,
+            "enabled": false,
             "image_mode": "collection",
             "aspect_ratio": "fit",
             "image_grid": "none",
@@ -2161,8 +2158,8 @@
               }
             ]
           },
-          "tone": "Motivational & Empowering",
-          "custom_tone": ""
+          "tone": "Custom",
+          "custom_tone": "all lowercase. written in a motivational yet conversational tone using first person \"i\" perspective when sharing personal experiences about wellness, managing stress, improving focus, and boosting energy naturally. write at a 7th grade reading level in a style that sounds like a supportive friend\n\nyou can also ask rhetorical questions. position yourself as someone who understands the struggle of prioritizing yourself and has found success. use short, punchy sentences. the writing should feel authentic, conversational, like you're talking with a good friend you love and trust. do not add any discourse markers in the text like \"honestly,\" \"trust me,\" \"frankly,\" \"to tell you the truth,\" or \"believe me\". remove these so called truth parentheticals or sincerity markers. the content should feel personal and relatable, creating a progression from recognizing self-deception to embracing growth"
         },
         "hooks": [
           "rules of emotional sobriety for people who feel everything too deeply",
@@ -2192,15 +2189,15 @@
       }
     },
     {
-      "id": "template-reelfarm-15508",
-      "sourceAutomationId": "15508",
+      "id": "template-reelfarm-12022",
+      "sourceAutomationId": "12022",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "Emotional Intelligence 2",
       "theme": "emotional-intelligence-2",
-      "createdAt": "2026-07-03T10:55:31.032Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2026-05-19T02:27:36.891653+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:55:31.032Z",
+        "created_at": "2026-05-19T02:27:36.891653+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -2229,6 +2226,8 @@
           "content": {
             "aspect_ratio": "9:16",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 5,
             "overlay": true,
             "display_text": true,
             "text_items": [
@@ -2262,12 +2261,10 @@
                 "text_align": "left",
                 "text_anchor": "flush"
               }
-            ],
-            "slide_count_mode": "static",
-            "slide_count": 5
+            ]
           },
           "cta": {
-            "enabled": true,
+            "enabled": false,
             "image_mode": "collection",
             "aspect_ratio": "fit",
             "image_grid": "none",
@@ -2291,8 +2288,8 @@
               }
             ]
           },
-          "tone": "Motivational & Empowering",
-          "custom_tone": ""
+          "tone": "Custom",
+          "custom_tone": "all lowercase. written in a motivational yet conversational tone using first person \"i\" perspective when sharing personal experiences about wellness, managing stress, improving focus, and boosting energy naturally. write at a 7th grade reading level in a style that sounds like a supportive friend\n\nyou can also ask rhetorical questions. position yourself as someone who understands the struggle of prioritizing yourself and has found success. use short, punchy sentences. the writing should feel authentic, conversational, like you're talking with a good friend you love and trust. do not add any discourse markers in the text like \"honestly,\" \"trust me,\" \"frankly,\" \"to tell you the truth,\" or \"believe me\". remove these so called truth parentheticals or sincerity markers. the content should feel personal and relatable, creating a progression from recognizing self-deception to embracing personal truth about natural wellness practices and sustainable energy."
         },
         "hooks": [
           "rules of emotional sobriety for people who feel everything too deeply",
@@ -2322,15 +2319,15 @@
       }
     },
     {
-      "id": "template-reelfarm-15507",
-      "sourceAutomationId": "15507",
+      "id": "template-reelfarm-12029",
+      "sourceAutomationId": "12029",
       "sourceUrl": "https://reel.farm/dashboard/automations",
       "name": "NDE Video Recs",
       "theme": "nde-video-recs",
-      "createdAt": "2026-07-03T10:55:27.156Z",
-      "updatedAt": "2026-07-03T11:30:00.000Z",
+      "createdAt": "2026-05-19T04:42:43.292619+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
-        "created_at": "2026-07-03T10:55:27.156Z",
+        "created_at": "2026-05-19T04:42:43.292619+00:00",
         "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-space-2026-07-03t00-00-15-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-space-2026-07-03t00-00-15-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":10,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
@@ -2359,7 +2356,14 @@
           "content": {
             "aspect_ratio": "9:16",
             "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 4,
             "overlay": false,
+            "overlay_image": {
+              "enabled": true,
+              "collection_id": "user_collection_11436",
+              "height": 5
+            },
             "display_text": true,
             "text_items": [
               {
@@ -2377,17 +2381,10 @@
                 "text_align": "center",
                 "text_anchor": "padded"
               }
-            ],
-            "slide_count_mode": "static",
-            "slide_count": 4,
-            "overlay_image": {
-              "enabled": true,
-              "collection_id": "community_collection_11436",
-              "height": 5
-            }
+            ]
           },
           "cta": {
-            "enabled": true,
+            "enabled": false,
             "image_mode": "collection",
             "aspect_ratio": "fit",
             "image_grid": "none",
@@ -2411,19 +2408,757 @@
               }
             ]
           },
-          "tone": "Motivational & Empowering",
-          "custom_tone": ""
+          "tone": "Custom",
+          "custom_tone": "all lowercase. written in a motivational yet conversational tone using first person \"i\" perspective when sharing personal experiences about wellness, managing stress, improving focus, and boosting energy naturally. write at a 7th grade reading level in a style that sounds like a supportive friend\n\nyou can also ask rhetorical questions. position yourself as someone who understands the struggle of prioritizing yourself and has found success. use short, punchy sentences. the writing should feel authentic, conversational, like you're talking with a good friend you love and trust. do not add any discourse markers in the text like \"honestly,\" \"trust me,\" \"frankly,\" \"to tell you the truth,\" or \"believe me\". remove these so called truth parentheticals or sincerity markers. the content should feel personal and relatable, creating a progression from recognizing self-deception to embracing personal truth about natural wellness practices and sustainable energy."
         },
         "hooks": [
           "videos that make me believe in the afterlife",
-          "videos that talk about NDEs",
-          "videos i recommend everyone watches to learn about NDEs",
+          "videos that talk about ndes",
+          "videos i recommend everyone watches to learn about ndes",
           "videos i believe confirm we live on after death",
           "videos that make me believe we're living in the matrix",
           "videos i believe confirm we reincarnate",
-          "videos i re-watch to learn about NDEs",
+          "videos i re-watch to learn about ndes",
           "videos that make me question everything about reality",
           "videos that changed how i see death completely"
+        ]
+      }
+    },
+    {
+      "id": "template-reelfarm-13685",
+      "sourceAutomationId": "13685",
+      "sourceUrl": "https://reel.farm/dashboard/automations",
+      "name": "Be A Winner Horizontal",
+      "theme": "be-a-winner-horizontal",
+      "createdAt": "2026-06-09T18:21:49.884943+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
+      "template": {
+        "created_at": "2026-06-09T18:21:49.884943+00:00",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_12468\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_12468\",\"aspect_ratio\":\"3:2\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"background_opacity\":20,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
+        "format": {
+          "hook": {
+            "aspect_ratio": "3:2",
+            "image_grid": "none",
+            "overlay": true,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "f5461d0a-c10c-4b2a-b51c-95247c753ca7",
+                "font": "TikTok Display Medium",
+                "font_size": "16px",
+                "text_style": "yellowText",
+                "text_position": "center",
+                "text_item_width": "80%",
+                "word_length_min": 5,
+                "word_length_max": 10,
+                "content_direction": "hook text, all lowercase",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              }
+            ]
+          },
+          "content": {
+            "aspect_ratio": "3:2",
+            "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 5,
+            "overlay": true,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "83e86366-9d97-4305-843d-0a656dc32997",
+                "font": "TikTok Display Medium",
+                "font_size": "6px",
+                "text_style": "yellowText",
+                "text_position": "center",
+                "text_item_width": "50%",
+                "word_length_min": 5,
+                "word_length_max": 7,
+                "content_direction": "heading/title with ~4-8 words on a general topic/subject matter related to the hook of the slideshow, all lowercase",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "left",
+                "text_anchor": "flush"
+              },
+              {
+                "id": "2d27673a-56a6-4b9e-8cb4-875e19e5d8ce",
+                "font": "TikTok Display Medium",
+                "font_size": "6px",
+                "text_style": "yellowText",
+                "text_position": "center",
+                "text_item_width": "50%",
+                "word_length_min": 15,
+                "word_length_max": 20,
+                "content_direction": "short supporting text, body text, explaining the concept further, all lowercase",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "left",
+                "text_anchor": "flush"
+              }
+            ]
+          },
+          "cta": {
+            "enabled": false,
+            "image_mode": "collection",
+            "aspect_ratio": "9:16",
+            "image_grid": "none",
+            "overlay": false,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "29080d44-6029-43d0-a5a5-fd7ffa5ad176",
+                "font": "TikTok Display Medium",
+                "font_size": "14px",
+                "text_style": "outline",
+                "text_position": "center",
+                "text_item_width": "100%",
+                "word_length_min": 3,
+                "word_length_max": 8,
+                "content_direction": "",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              }
+            ]
+          },
+          "tone": "Custom",
+          "custom_tone": "all lowercase. written in a conversational, relatable tone using first person \"i\" perspective. write at a 7th grade reading level in a style that sounds like a supportive friend sharing advice. use short, punchy sentences. the writing should feel authentic, like you're talking with a good friend. do not add discourse markers like \"honestly,\" \"trust me,\" \"frankly,\" or \"believe me\"."
+        },
+        "hooks": [
+          "my daily routine that fixed my life",
+          "high-level skills to acquire in your 20s",
+          "how to kill your laziness",
+          "how to outwork 99% of people",
+          "how to make your brain a weapon",
+          "skills that make you rich",
+          "uncomfortable things to build extreme confidence",
+          "how to improve your social life",
+          "unusual hobbies that make you a genius",
+          "how you become dangerously intelligent",
+          "how to become a winner",
+          "unusual ways to beat your phone addiction",
+          "high-level rules of unrotting your brain",
+          "how to become the smartest person in the room",
+          "how to become dangerously well educated"
+        ]
+      }
+    },
+    {
+      "id": "template-reelfarm-12713",
+      "sourceAutomationId": "12713",
+      "sourceUrl": "https://reel.farm/dashboard/automations",
+      "name": "Horizontal Science",
+      "theme": "horizontal-science",
+      "createdAt": "2026-05-27T17:40:39.597963+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
+      "template": {
+        "created_at": "2026-05-27T17:40:39.597963+00:00",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11945\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11945\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_4932\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":20,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "format": {
+          "hook": {
+            "aspect_ratio": "4:3",
+            "image_grid": "none",
+            "overlay": true,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "8445e59b-4fa3-4fb5-8f61-ece56e313baf",
+                "font": "TikTok Display Medium",
+                "font_size": "22px",
+                "text_style": "lightPinkText",
+                "text_position": "top",
+                "text_item_width": "80%",
+                "word_length_min": 5,
+                "word_length_max": 10,
+                "content_direction": "introducing the hook about 6 small lies, all lowercase",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "left",
+                "text_anchor": "flush"
+              },
+              {
+                "id": "0c2fdf70-f6a2-46fe-9d56-68f2d60a4ae6",
+                "font": "CormorantGaramond-Italic",
+                "font_size": "16px",
+                "text_style": "whiteText",
+                "text_position": "top",
+                "text_item_width": "80%",
+                "word_length_min": 2,
+                "word_length_max": 3,
+                "content_direction": "this should literally just say \"backed by science\" and that's it",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "left",
+                "text_anchor": "flush"
+              }
+            ]
+          },
+          "content": {
+            "aspect_ratio": "4:3",
+            "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 5,
+            "overlay": true,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "a3686a56-0f6d-4256-8001-fdea26c2fc54",
+                "font": "TikTok Display Medium",
+                "font_size": "8px",
+                "text_style": "whiteText",
+                "text_position": "top",
+                "text_item_width": "80%",
+                "word_length_min": 20,
+                "word_length_max": 25,
+                "content_direction": "short supporting text item explaining the concept further, about 30-40 words, all lowercase",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "left",
+                "text_anchor": "flush"
+              }
+            ]
+          },
+          "cta": {
+            "enabled": false,
+            "image_mode": "collection",
+            "aspect_ratio": "fit",
+            "image_grid": "none",
+            "overlay": false,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "7c376e41-c075-4e5a-b605-c19a9092b527",
+                "font": "TikTok Display Medium",
+                "font_size": "12px",
+                "text_style": "yellowText",
+                "text_position": "center",
+                "text_item_width": "70%",
+                "word_length_min": 5,
+                "word_length_max": 10,
+                "content_direction": "",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              }
+            ]
+          },
+          "tone": "Custom",
+          "custom_tone": "Written in an educational collegiate conversational tone. Write at a 7th grade reading level in a style that sounds like you're a respected figure in a specific field/subject. Position yourself as someone who understands the topic/subject in the hook.\n\nYour body sentences should be backed up with evidence when needed (maybe 1-2 sources per slideshow). The writing should feel authentic, conversational, like you're talking with a good friend you love and trust. DO NOT ADD ANY DISCOURSE MARKERS IN THE TEXT like \"honestly,\" \"trust me,\" \"frankly,\" \"to tell you the truth,\" or \"believe me\". REMOVE THESE so called truth parentheticals or sincerity markers.\n\nAll text should be lowercase. Content should feel very educational, personal, and relatable about the topics/subject from the hook."
+        },
+        "hooks": [
+          "activities and things to boost a dopamine hit",
+          "unknown and fun wellness activities to boost your health",
+          "habits to get used to for a better life",
+          "why your brain overreacts and ways to calm it",
+          "how to attract peace & live a good life",
+          "7 ways to live happier and healthier",
+          "how to actually lower your stress (cortisol) levels",
+          "7 habits to adapt to for a better life",
+          "ways to boost your serotonin levels",
+          "ways to better your appearance through nutrition & wellbeing",
+          "7 things you gotta do to better your brain health",
+          "6 habits to get used to for a better life",
+          "7 habits to get used to for a better life",
+          "simple ways to make life good again",
+          "how to stop assuming people dislike you",
+          "things to do instead of doomscrolling",
+          "5 things to do to feel better in life",
+          "morning habits to change your life around",
+          "daily habits to improve your life",
+          "how you're going to increase motivation & discipline",
+          "ways to keep your brain fresh and young",
+          "7 things you gotta do to fix your health",
+          "random things to optimize your health to it's best",
+          "ways to start valuing & appreciating life more",
+          "8 ways to lower your cancer risk",
+          "what yoga actually does to your body",
+          "5 of the best exercises you can ever do",
+          "foods that actually slow aging"
+        ]
+      }
+    },
+    {
+      "id": "template-reelfarm-12401",
+      "sourceAutomationId": "12401",
+      "sourceUrl": "https://reel.farm/dashboard/automations",
+      "name": "We're Not Really Strangers",
+      "theme": "we-re-not-really-strangers",
+      "createdAt": "2026-05-23T01:43:20.63364+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
+      "template": {
+        "created_at": "2026-05-23T01:43:20.63364+00:00",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11759\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_11758\",\"aspect_ratio\":\"3:4\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"background_opacity\":35,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
+        "format": {
+          "hook": {
+            "aspect_ratio": "3:4",
+            "image_grid": "none",
+            "overlay": false,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "e1c6d11c-0f4e-4ab6-9a80-1ff58200667f",
+                "font": "TikTok Display Medium",
+                "font_size": "12px",
+                "text_style": "outline",
+                "text_position": "top",
+                "text_item_width": "70%",
+                "word_length_min": 5,
+                "word_length_max": 10,
+                "content_direction": "",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              }
+            ]
+          },
+          "content": {
+            "aspect_ratio": "3:4",
+            "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 3,
+            "overlay": false,
+            "display_text": false,
+            "text_items": [
+              {
+                "id": "0d8f2c1a-6ca7-4260-928e-03ec7a6b7597",
+                "font": "TikTok Display Medium",
+                "font_size": "12px",
+                "text_style": "outline",
+                "text_position": "center",
+                "text_item_width": "100%",
+                "word_length_min": 3,
+                "word_length_max": 5,
+                "content_direction": "",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              },
+              {
+                "id": "33387388-c8af-499b-8515-7468be3d54e7",
+                "font": "TikTok Display Medium",
+                "font_size": "12px",
+                "text_style": "outline",
+                "text_position": "center",
+                "text_item_width": "100%",
+                "word_length_min": 3,
+                "word_length_max": 5,
+                "content_direction": "",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              }
+            ]
+          },
+          "cta": {
+            "enabled": false,
+            "image_mode": "collection",
+            "aspect_ratio": "9:16",
+            "image_grid": "none",
+            "overlay": false,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "12ee535d-9449-416c-b1ac-062b711c284b",
+                "font": "TikTok Display Medium",
+                "font_size": "14px",
+                "text_style": "outline",
+                "text_position": "center",
+                "text_item_width": "100%",
+                "word_length_min": 3,
+                "word_length_max": 8,
+                "content_direction": "",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              }
+            ]
+          },
+          "tone": "Custom",
+          "custom_tone": "all lowercase. written in a conversational, relatable tone using first person \"i\" perspective. write at a 7th grade reading level in a style that sounds like a supportive friend sharing advice. use short, punchy sentences. the writing should feel authentic, like you're talking with a good friend. do not add discourse markers like \"honestly,\" \"trust me,\" \"frankly,\" or \"believe me\"."
+        },
+        "hooks": [
+          "uncomfortable but healthy questions i've asked in my relationship",
+          "4 uncomfortable but healthy relationship questions i've asked my partner"
+        ]
+      }
+    },
+    {
+      "id": "template-reelfarm-12379",
+      "sourceAutomationId": "12379",
+      "sourceUrl": "https://reel.farm/dashboard/automations",
+      "name": "Soccer Motivational",
+      "theme": "soccer-motivational",
+      "createdAt": "2026-05-22T18:31:08.583329+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
+      "template": {
+        "created_at": "2026-05-22T18:31:08.583329+00:00",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11750\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_11751\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"background_opacity\":35,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
+        "format": {
+          "hook": {
+            "aspect_ratio": "9:16",
+            "image_grid": "none",
+            "overlay": false,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "8af8029e-320e-47fc-b303-8412b6fa7cf6",
+                "font": "TikTok Display Medium",
+                "font_size": "22px",
+                "text_style": "yellowText",
+                "text_position": "top",
+                "text_item_width": "50%",
+                "word_length_min": 5,
+                "word_length_max": 10,
+                "content_direction": "hook text",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "left",
+                "text_anchor": "flush"
+              }
+            ]
+          },
+          "content": {
+            "aspect_ratio": "9:16",
+            "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 5,
+            "overlay": false,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "e3fb3033-1d79-4658-9167-887e8473ad31",
+                "font": "TikTok Display Medium",
+                "font_size": "16px",
+                "text_style": "yellowText",
+                "text_position": "top",
+                "text_item_width": "100%",
+                "word_length_min": 3,
+                "word_length_max": 5,
+                "content_direction": "descending list item with title. for 5 slides the first item should be \"5. {title}\" and go down towards \"1. {title}\"",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              },
+              {
+                "id": "0c9cd579-0053-4bf3-a820-0f99e744ef5c",
+                "font": "TikTok Display Medium",
+                "font_size": "10px",
+                "text_style": "yellowText",
+                "text_position": "top",
+                "text_item_width": "100%",
+                "word_length_min": 5,
+                "word_length_max": 10,
+                "content_direction": "",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              },
+              {
+                "id": "0dee7ae4-05bf-4428-9aa9-21b53e6d06ba",
+                "font": "TikTok Display Medium",
+                "font_size": "10px",
+                "text_style": "yellowText",
+                "text_position": "top",
+                "text_item_width": "100%",
+                "word_length_min": 10,
+                "word_length_max": 15,
+                "content_direction": "",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              }
+            ]
+          },
+          "cta": {
+            "enabled": false,
+            "image_mode": "collection",
+            "aspect_ratio": "9:16",
+            "image_grid": "none",
+            "overlay": false,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "812ffafd-e6de-44ac-8ea0-3eb025ae008a",
+                "font": "TikTok Display Medium",
+                "font_size": "14px",
+                "text_style": "outline",
+                "text_position": "center",
+                "text_item_width": "100%",
+                "word_length_min": 3,
+                "word_length_max": 8,
+                "content_direction": "",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              }
+            ]
+          },
+          "tone": "Custom",
+          "custom_tone": "all lowercase. written in a conversational, relatable tone using first person \"i\" perspective. write at a 7th grade reading level in a style that sounds like a supportive friend sharing advice. use short, punchy sentences. the writing should feel authentic, like you're talking with a good friend. do not add discourse markers like \"honestly,\" \"trust me,\" \"frankly,\" or \"believe me\"."
+        },
+        "hooks": [
+          "how to become the most elite version of yourself",
+          "how to stop caring what people think",
+          "how to become the main character of your own life",
+          "5 uncomfortable things to do alone to build extreme confidence",
+          "how to trick your brain into doing difficult things",
+          "5 ways to lower cortisol",
+          "top 5 best habits to have from a neuroscientist",
+          "5 life investments with the highest roi backed by neuroscience",
+          "5 ways to hack your brain into getting things done",
+          "how to start living your life to the fullest"
+        ]
+      }
+    },
+    {
+      "id": "template-reelfarm-12277",
+      "sourceAutomationId": "12277",
+      "sourceUrl": "https://reel.farm/dashboard/automations",
+      "name": "Substacks I Read This Week",
+      "theme": "substacks-i-read-this-week",
+      "createdAt": "2026-05-21T19:09:15.151529+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
+      "template": {
+        "created_at": "2026-05-21T19:09:15.151529+00:00",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11625\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11625\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11625\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":10,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\",\"autoImagesBody\":false}",
+        "format": {
+          "hook": {
+            "aspect_ratio": "9:16",
+            "image_grid": "none",
+            "overlay": true,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "ffb82f88-3cee-4cdd-9338-7ac1e693869b",
+                "font": "TikTok Display Medium",
+                "font_size": "10px",
+                "text_style": "whiteText",
+                "text_position": "center",
+                "text_item_width": "60%",
+                "word_length_min": 10,
+                "word_length_max": 15,
+                "content_direction": "hook text, all lowercase. must be under 10 words total",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              }
+            ]
+          },
+          "content": {
+            "aspect_ratio": "9:16",
+            "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 4,
+            "overlay": false,
+            "overlay_image": {
+              "enabled": true,
+              "collection_id": "user_collection_11693",
+              "height": 20
+            },
+            "display_text": false,
+            "text_items": [
+              {
+                "id": "852ae8ab-f9ae-4c23-ae2d-c4cec10a3f87",
+                "font": "TikTok Display Medium",
+                "font_size": "12px",
+                "text_style": "whiteText",
+                "text_position": "top",
+                "text_item_width": "80%",
+                "word_length_min": 1,
+                "word_length_max": 2,
+                "content_direction": "just do a quick 2-5 word review like \"11/10 must watch\" or \"ive watched this 4x times\" or \"love this one\" or \"highly recommend this vid\"",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              }
+            ]
+          },
+          "cta": {
+            "enabled": false,
+            "image_mode": "collection",
+            "aspect_ratio": "fit",
+            "image_grid": "none",
+            "overlay": false,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "079f30f3-4958-4082-afc2-bdb1585e49fe",
+                "font": "TikTok Display Medium",
+                "font_size": "12px",
+                "text_style": "yellowText",
+                "text_position": "center",
+                "text_item_width": "70%",
+                "word_length_min": 5,
+                "word_length_max": 10,
+                "content_direction": "",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              }
+            ]
+          },
+          "tone": "Custom",
+          "custom_tone": "all lowercase. written in a motivational yet conversational tone using first person \"i\" perspective when sharing personal experiences about wellness, managing stress, improving focus, and boosting energy naturally. write at a 7th grade reading level in a style that sounds like a supportive friend\n\nyou can also ask rhetorical questions. position yourself as someone who understands the struggle of prioritizing yourself and has found success. use short, punchy sentences. the writing should feel authentic, conversational, like you're talking with a good friend you love and trust. do not add any discourse markers in the text like \"honestly,\" \"trust me,\" \"frankly,\" \"to tell you the truth,\" or \"believe me\". remove these so called truth parentheticals or sincerity markers. the content should feel personal and relatable, creating a progression from recognizing self-deception to embracing personal truth about natural wellness practices and sustainable energy."
+        },
+        "hooks": [
+          "substack articles that i read this week",
+          "articles that i saved this week",
+          "substack articles i recommend everyone reads"
+        ]
+      }
+    },
+    {
+      "id": "template-reelfarm-12104",
+      "sourceAutomationId": "12104",
+      "sourceUrl": "https://reel.farm/dashboard/automations",
+      "name": "Natalie Portman (@sklandmore)",
+      "theme": "natalie-portman-sklandmore",
+      "createdAt": "2026-05-19T17:53:00.700484+00:00",
+      "updatedAt": "2026-07-04T02:08:22.094Z",
+      "template": {
+        "created_at": "2026-05-19T17:53:00.700484+00:00",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11507\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11501\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "format": {
+          "hook": {
+            "aspect_ratio": "fit",
+            "image_grid": "none",
+            "overlay": true,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "ffb82f88-3cee-4cdd-9338-7ac1e693869b",
+                "font": "TikTok Display Medium",
+                "font_size": "10px",
+                "text_style": "whiteText",
+                "text_position": "center",
+                "text_item_width": "50%",
+                "word_length_min": 5,
+                "word_length_max": 10,
+                "content_direction": "hook text, all lowercase. must be under 10 words total",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "left",
+                "text_anchor": "flush"
+              }
+            ]
+          },
+          "content": {
+            "aspect_ratio": "3:2",
+            "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 5,
+            "overlay": true,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "852ae8ab-f9ae-4c23-ae2d-c4cec10a3f87",
+                "font": "TikTok Display Medium",
+                "font_size": "8px",
+                "text_style": "yellowText",
+                "text_position": "center",
+                "text_item_width": "50%",
+                "word_length_min": 5,
+                "word_length_max": 7,
+                "content_direction": "heading/tile with -5-8 words on a general topic related to the  topic in all lowercase, (examples e.g. \"1. {title}\") this should be a list item title",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "left",
+                "text_anchor": "flush"
+              },
+              {
+                "id": "dbae41c0-4d60-4820-87fe-e83123715188",
+                "font": "TikTok Display Medium",
+                "font_size": "6px",
+                "text_style": "yellowText",
+                "text_position": "center",
+                "text_item_width": "50%",
+                "word_length_min": 10,
+                "word_length_max": 15,
+                "content_direction": "short supporting text explaining the concept further, all lowercase (focused on the problem described on the first text item of this slide)",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "left",
+                "text_anchor": "flush"
+              },
+              {
+                "id": "18e2b758-674e-49c2-8eb5-b4e9d59c3db8",
+                "font": "TikTok Display Medium",
+                "font_size": "6px",
+                "text_style": "yellowText",
+                "text_position": "center",
+                "text_item_width": "50%",
+                "word_length_min": 10,
+                "word_length_max": 15,
+                "content_direction": "short supporting text explaining the concept further, all lowercase (focused on the solution to the problem described on the previous text item)",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "left",
+                "text_anchor": "flush"
+              }
+            ]
+          },
+          "cta": {
+            "enabled": false,
+            "image_mode": "collection",
+            "aspect_ratio": "fit",
+            "image_grid": "none",
+            "overlay": false,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "079f30f3-4958-4082-afc2-bdb1585e49fe",
+                "font": "TikTok Display Medium",
+                "font_size": "12px",
+                "text_style": "yellowText",
+                "text_position": "center",
+                "text_item_width": "70%",
+                "word_length_min": 5,
+                "word_length_max": 10,
+                "content_direction": "",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              }
+            ]
+          },
+          "tone": "Custom",
+          "custom_tone": "all lowercase. written in a motivational yet conversational tone using first person \"i\" perspective when sharing personal experiences about wellness, managing stress, improving focus, and boosting energy naturally. write at a 7th grade reading level in a style that sounds like a supportive friend\n\nyou can also ask rhetorical questions. position yourself as someone who understands the struggle of prioritizing yourself and has found success. use short, punchy sentences. the writing should feel authentic, conversational, like you're talking with a good friend you love and trust. do not add any discourse markers in the text like \"honestly,\" \"trust me,\" \"frankly,\" \"to tell you the truth,\" or \"believe me\". remove these so called truth parentheticals or sincerity markers. the content should feel personal and relatable, creating a progression from recognizing self-deception to embracing personal truth about natural wellness practices and sustainable energy."
+        },
+        "hooks": [
+          "how to keep moving when everything feels heavy",
+          "how to be less socially awkward + be better at having convos",
+          "small resets you can do to make you feel like you have your life together",
+          "how to motivate yourself for school when you feel like you can't anymore",
+          "how to be okay and deal with not having many friends",
+          "ultimate glow up tips nobody talks about",
+          "how to embrace your own beauty and feel confident",
+          "how to naturally lower your cortisol + feel better overall",
+          "how to stop caring what others think",
+          "how to feel put together without trying too hard",
+          "how to deal with social anxiety and make it less present",
+          "small things you can do to look put together",
+          "how to get up in the morning when you feel mentally exhausted",
+          "how to improve your social life",
+          "how to keep up with your studies without feeling burnt out",
+          "how to be okay and deal with not having a lot of friends at school",
+          "small things you can do throughout the day to strengthen your brain",
+          "how to be more productive in the morning when you feel tired"
         ]
       }
     }

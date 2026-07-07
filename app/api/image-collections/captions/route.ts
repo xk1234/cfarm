@@ -3,7 +3,11 @@ import path from "node:path"
 
 import { NextResponse } from "next/server"
 
-import { updateImageCollectionCaptions, type StoredImageCollection } from "@/lib/image-collections"
+import {
+  updateImageCollectionCaptions,
+  type StoredImageCollection,
+} from "@/lib/image-collections"
+import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-registry"
 
 export const dynamic = "force-dynamic"
 
@@ -25,7 +29,10 @@ export async function POST(request: Request) {
     const apiKey = process.env.OPENROUTER_API_KEY
 
     if (!apiKey) {
-      return NextResponse.json({ error: "Missing OPENROUTER_API_KEY" }, { status: 500 })
+      return NextResponse.json(
+        { error: "Missing OPENROUTER_API_KEY" },
+        { status: 500 }
+      )
     }
 
     const captionedImages = await captionImages(collection, request.url, apiKey)
@@ -40,14 +47,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ collection: saved })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to caption collection images" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to caption collection images",
+      },
       { status: 500 }
     )
   }
 }
 
-async function captionImages(collection: CaptionRequestPayload, requestUrl: string, apiKey: string) {
-  const targetIndex = Number.isInteger(collection.image_index) ? collection.image_index : undefined
+async function captionImages(
+  collection: CaptionRequestPayload,
+  requestUrl: string,
+  apiKey: string
+) {
+  const targetIndex = Number.isInteger(collection.image_index)
+    ? collection.image_index
+    : undefined
 
   if (targetIndex !== undefined) {
     if (targetIndex < 0 || targetIndex >= collection.images.length) {
@@ -58,7 +76,10 @@ async function captionImages(collection: CaptionRequestPayload, requestUrl: stri
     const image = captionedImages[targetIndex]
     captionedImages[targetIndex] = {
       ...image,
-      caption: await captionImageWithRetry(await imageUrlForModel(image.image_link, requestUrl), apiKey),
+      caption: await captionImageWithRetry(
+        await imageUrlForModel(image.image_link, requestUrl),
+        apiKey
+      ),
     }
     return captionedImages
   }
@@ -66,7 +87,10 @@ async function captionImages(collection: CaptionRequestPayload, requestUrl: stri
   return Promise.all(
     collection.images.map(async (image) => ({
       ...image,
-      caption: await captionImageWithRetry(await imageUrlForModel(image.image_link, requestUrl), apiKey),
+      caption: await captionImageWithRetry(
+        await imageUrlForModel(image.image_link, requestUrl),
+        apiKey
+      ),
     }))
   )
 }
@@ -81,46 +105,55 @@ async function captionImageWithRetry(imageUrl: string, apiKey: string) {
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error("Image caption failed")
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Image caption failed")
 }
 
 async function captionImage(imageUrl: string, apiKey: string) {
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "http://localhost:3000",
-      "X-Title": "CFarm Image Captioner",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        {
-          role: "system",
-          content:
-            "Caption images for a slideshow image collection. Return one concise factual caption only. No markdown, no quotes, no hashtags.",
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: "Write a natural one-sentence caption describing this image. Mention the main subject, setting, mood, and useful visual details in under 24 words.",
-            },
-            {
-              type: "image_url",
-              image_url: { url: imageUrl },
-            },
-          ],
-        },
-      ],
-    }),
-  })
+  const response = await fetch(
+    "https://openrouter.ai/api/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "http://localhost:3000",
+        "X-Title": "CFarm Image Captioner",
+      },
+      body: JSON.stringify({
+        model: openRouterModelForUseCase("imageCaptioning"),
+        messages: [
+          {
+            role: "system",
+            content:
+              "Caption images for a slideshow image collection. Return one concise factual caption only. No markdown, no quotes, no hashtags.",
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Write a natural one-sentence caption describing this image. Mention the main subject, setting, mood, and useful visual details in under 24 words.",
+              },
+              {
+                type: "image_url",
+                image_url: { url: imageUrl },
+              },
+            ],
+          },
+        ],
+      }),
+    }
+  )
 
-  const payload = (await response.json().catch(() => ({}))) as CaptionResponse & { error?: { message?: string } }
+  const payload = (await response
+    .json()
+    .catch(() => ({}))) as CaptionResponse & { error?: { message?: string } }
   if (!response.ok) {
-    throw new Error(payload.error?.message || `Image caption failed with ${response.status}`)
+    throw new Error(
+      payload.error?.message || `Image caption failed with ${response.status}`
+    )
   }
 
   return sanitizeCaption(payload.choices?.[0]?.message?.content ?? "")
@@ -138,14 +171,18 @@ async function imageUrlForModel(imageUrl: string, requestUrl: string) {
 
   const absoluteUrl = new URL(cleanUrl, requestUrl).toString()
   const absolutePath = new URL(absoluteUrl).pathname
-  return isLocalhostUrl(absoluteUrl) && absolutePath.startsWith("/api/local-assets/")
+  return isLocalhostUrl(absoluteUrl) &&
+    absolutePath.startsWith("/api/local-assets/")
     ? localAssetDataUrl(absolutePath)
     : absoluteUrl
 }
 
 async function localAssetDataUrl(assetPath: string) {
   const encodedPath = assetPath.replace(/^\/api\/local-assets\/?/, "")
-  const segments = encodedPath.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment))
+  const segments = encodedPath
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => decodeURIComponent(segment))
   const dataRoot = path.join(process.cwd(), "data")
   const filePath = path.normalize(path.join(dataRoot, ...segments))
 
@@ -173,7 +210,11 @@ function imageMimeType(extension: string) {
 function isLocalhostUrl(value: string) {
   try {
     const url = new URL(value)
-    return url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1"
+    return (
+      url.hostname === "localhost" ||
+      url.hostname === "127.0.0.1" ||
+      url.hostname === "::1"
+    )
   } catch {
     return false
   }

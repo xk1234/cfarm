@@ -1,3 +1,5 @@
+import { featuredOpenRouterModelIds } from "@/lib/realfarm-generation-model-registry"
+
 export type OpenRouterModelSummary = {
   id: string
   name: string
@@ -114,16 +116,4 @@ function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : ""
 }
 
-export const featuredModelIds = [
-  "anthropic/claude-sonnet-4.5",
-  "openai/gpt-5.4-mini",
-  "deepseek/deepseek-v4",
-  "google/gemini-3.1-flash-lite",
-  "moonshotai/kimi-k2.7",
-  "x-ai/grok-4.3",
-  "qwen/qwen3.7-plus",
-  "z-ai/glm-5.2",
-  "deepseek/deepseek-v4-flash",
-  "minimax/minimax-m3",
-  "nvidia/nemotron-3-super-120b-a12b:free",
-]
+export const featuredModelIds = [...featuredOpenRouterModelIds]

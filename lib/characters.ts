@@ -1,6 +1,7 @@
 import { rm } from "node:fs/promises"
 import path from "node:path"
 
+import { deleteCharacterImageGenerationsForCharacter } from "@/lib/character-image-generations"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
 export type Character = {
@@ -201,8 +202,14 @@ export async function deleteCharacter(id: number) {
   const deleted = current.find((character) => character.id === id) ?? null
   const next = current.filter((character) => character.id !== id)
   await writeCharactersFile(next)
-  const deletedFiles = deleted ? await deleteUnusedCharacterFiles([deleted], next) : 0
-  return { deleted: current.length !== next.length, deletedFiles }
+  const deletedPreviewFiles = deleted ? await deleteUnusedCharacterFiles([deleted], next) : 0
+  const deletedGenerations = deleted
+    ? await deleteCharacterImageGenerationsForCharacter({ characterId: id })
+    : { deleted: 0, deletedFiles: 0 }
+  return {
+    deleted: current.length !== next.length,
+    deletedFiles: deletedPreviewFiles + deletedGenerations.deletedFiles,
+  }
 }
 
 async function readCharactersFile() {

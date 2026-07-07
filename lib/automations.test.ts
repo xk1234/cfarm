@@ -1,9 +1,18 @@
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { createLocalAutomationRecord, listAutomationRecords, normalizeReelfarmAutomation, upsertAutomationRecords } from "@/lib/automations"
+import { upsertAutomationTemplateRecords } from "@/lib/automation-templates"
+import {
+  automationRecordToSummary,
+  createLocalAutomationRecord,
+  deleteAutomationRecord,
+  listAutomationRecords,
+  normalizeReelfarmAutomation,
+  upsertAutomationRecords,
+} from "@/lib/automations"
+import { defaultAutomationSchema } from "@/lib/realfarm-automation"
 
 let rootDir: string
 
@@ -70,6 +79,23 @@ describe("automation import persistence", () => {
             noText: false,
             overlay: true,
             overlayOpacity: 25,
+            overlayImage: {
+              enabled: true,
+              collectionId: "overlay-collection",
+              padding: 5,
+            },
+            slideOverrides: [
+              {
+                slideIndex: 3,
+                contentDirection: "soft-sell a product on slide 3",
+              },
+            ],
+            imageOverrides: [
+              {
+                slideIndex: 3,
+                collectionId: "product-image-collection",
+              },
+            ],
           },
           {
             id: "_tone",
@@ -78,8 +104,16 @@ describe("automation import persistence", () => {
           },
         ],
         tiktok_post_settings: {
-          caption: { mode: "prompt", static_text: "", prompt_text: "same as first text item" },
-          description: { mode: "prompt", static_text: "", prompt_text: "3-5 hashtags" },
+          caption: {
+            mode: "prompt",
+            static_text: "",
+            prompt_text: "same as first text item",
+          },
+          description: {
+            mode: "prompt",
+            static_text: "",
+            prompt_text: "3-5 hashtags",
+          },
           visibility: "PUBLIC_TO_EVERYONE",
           auto_post: true,
           auto_music: true,
@@ -138,33 +172,55 @@ describe("automation import persistence", () => {
       narrative: "raw narrative prompt",
       num_of_slides: 6,
     })
-    expect(normalized.schema.formatting).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        id: "hook",
-        image_url: "",
-        imageGrid: "none",
-        slideCount: 1,
-        overlayOpacity: 25,
-        textItems: [
-          expect.objectContaining({
-            id: "text-hook",
-            fontSize: "10px",
-            textStyle: "whiteText",
-            wordLengthMin: 5,
-            wordLengthMax: 10,
-            contentDirection: "first hook",
-            textMode: "prompt",
-            textAlign: "left",
-            textAnchor: "flush",
-          }),
-        ],
-      }),
-      expect.objectContaining({
-        id: "_tone",
-        value: "all lowercase",
-        preset: "custom",
-      }),
-    ]))
+    expect(normalized.schema.formatting).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "hook",
+          image_url: "",
+          imageGrid: "none",
+          slideCount: 1,
+          overlayOpacity: 25,
+          textItems: [
+            expect.objectContaining({
+              id: "text-hook",
+              fontSize: "10px",
+              textStyle: "whiteText",
+              wordLengthMin: 5,
+              wordLengthMax: 10,
+              contentDirection: "first hook",
+              textMode: "prompt",
+              textAlign: "left",
+              textAnchor: "flush",
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          id: "_tone",
+          value: "all lowercase",
+          preset: "custom",
+        }),
+        expect.objectContaining({
+          id: "body",
+          overlayImage: {
+            enabled: true,
+            collectionId: "overlay-collection",
+            padding: 5,
+          },
+          slideOverrides: [
+            {
+              slideIndex: 3,
+              contentDirection: "soft-sell a product on slide 3",
+            },
+          ],
+          imageOverrides: [
+            {
+              slideIndex: 3,
+              collectionId: "product-image-collection",
+            },
+          ],
+        }),
+      ])
+    )
     expect(normalized.schema.tiktok_post_settings.caption).toEqual({
       mode: "prompt",
       static_text: "",
@@ -198,14 +254,29 @@ describe("automation import persistence", () => {
     })
     expect(normalized.schema.schedule.timezone).toBe("America/New_York")
     expect(normalized.schema.schedule.posting_times).toEqual([
-      { time: "8:00 AM", days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] },
-      { time: "4:00 PM", days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] },
+      {
+        time: "8:00 AM",
+        days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      },
+      {
+        time: "4:00 PM",
+        days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      },
     ])
   })
 
   it("upserts imported automations by source automation id", async () => {
-    const first = normalizeReelfarmAutomation({ id: "rf-1", name: "Original", status: "Paused" })
-    const second = normalizeReelfarmAutomation({ id: "rf-1", name: "Renamed", status: "Live", times: ["9:00 AM"] })
+    const first = normalizeReelfarmAutomation({
+      id: "rf-1",
+      name: "Original",
+      status: "Paused",
+    })
+    const second = normalizeReelfarmAutomation({
+      id: "rf-1",
+      name: "Renamed",
+      status: "Live",
+      times: ["9:00 AM"],
+    })
 
     await upsertAutomationRecords({ rootDir, records: [first] })
     await upsertAutomationRecords({ rootDir, records: [second] })
@@ -227,18 +298,42 @@ describe("automation import persistence", () => {
     expect(record).toMatchObject({
       name: "Daily product demos",
       status: "live",
-      account: "No TikTok account",
-      handle: "",
+      account: "No social account",
+      handle: "Click to add account",
       favorite: false,
     })
     expect(record).not.toHaveProperty("source")
     expect(record.sourceAutomationId).toBeUndefined()
     expect(record.schema.title).toBe("Daily product demos")
     expect(record.schema.status).toBe("live")
+    expect(record.schema.social_integrations).toEqual([])
+    expect(record.schema.social_post_settings).toMatchObject({
+      instagram: {
+        instagramPublishType: "TIMELINE",
+        instagramPostToGrid: true,
+      },
+      facebook: {
+        facebookContentType: "POST",
+      },
+      youtube: {
+        youtubeIsShort: true,
+        youtubeMadeForKids: false,
+      },
+      x: {
+        xRetweetUrl: "",
+      },
+      linkedin: {
+        linkedinAttachmentKey: "",
+      },
+    })
     expect(record.schema.schedule.posting_times).toEqual([
-      { time: "11:00 AM", days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] },
+      {
+        time: "11:00 AM",
+        days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      },
     ])
     expect(record.schema).toMatchObject({
+      automationKind: "slideshow",
       prompt_formatting: {
         num_of_slides: expect.any(Number),
       },
@@ -276,18 +371,126 @@ describe("automation import persistence", () => {
     })
   })
 
+  it("normalizes fixed social platform settings from per-platform publish mode", () => {
+    const source = createLocalAutomationRecord({
+      name: "Social settings",
+    }).schema
+    source.tiktok_post_settings.publish_type = "video"
+    source.social_publish_as = {
+      instagram: "video",
+      facebook: "video",
+    }
+    source.tiktok_post_settings.description = {
+      mode: "static",
+      static_text: "same tiktok title",
+      prompt_text: "",
+    }
+    source.social_post_settings = {
+      instagram: {
+        instagramPublishType: "STORY",
+        instagramPostToGrid: false,
+      },
+      facebook: {
+        facebookContentType: "STORY",
+      },
+      youtube: {
+        youtubeTitle: "manual youtube title",
+        youtubePrivacy: "PRIVATE",
+        youtubeIsShort: false,
+        youtubeMadeForKids: true,
+        youtubeTags: ["ugc"],
+      },
+      x: {
+        xRetweetUrl: "https://x.com/account/status/1",
+      },
+      linkedin: {
+        linkedinAttachmentKey: "manual-doc-key",
+        linkedinVisibility: "CONNECTIONS",
+      },
+    }
+
+    const normalized = createLocalAutomationRecord({
+      name: "Normalized social settings",
+      schema: source,
+    }).schema
+
+    expect(normalized.social_post_settings).toMatchObject({
+      instagram: {
+        instagramPublishType: "REEL",
+        instagramPostToGrid: true,
+      },
+      facebook: {
+        facebookContentType: "REEL",
+      },
+      youtube: {
+        youtubeTitle: "same tiktok title",
+        youtubePrivacy: "PRIVATE",
+        youtubeIsShort: true,
+        youtubeMadeForKids: false,
+        youtubeTags: ["ugc"],
+      },
+      x: {
+        xRetweetUrl: "",
+      },
+      linkedin: {
+        linkedinAttachmentKey: "",
+        linkedinVisibility: "CONNECTIONS",
+      },
+    })
+  })
+
+  it("keeps slideshow as the default publish mode even when video export is enabled", () => {
+    const source = createLocalAutomationRecord({
+      name: "Slideshow default social settings",
+    }).schema
+    source.tiktok_post_settings.publish_type = "video"
+
+    const normalized = createLocalAutomationRecord({
+      name: "Normalized slideshow defaults",
+      schema: source,
+    }).schema
+
+    expect(normalized.social_post_settings).toMatchObject({
+      instagram: {
+        instagramPublishType: "TIMELINE",
+      },
+      facebook: {
+        facebookContentType: "POST",
+      },
+    })
+  })
+
+  it("creates local video automation records without using the slideshow default kind", () => {
+    const record = createLocalAutomationRecord({
+      name: "Daily UGC videos",
+      automationKind: "video",
+    })
+    const summary = automationRecordToSummary(record)
+
+    expect(record.schema.automationKind).toBe("video")
+    expect(record.schema.tiktok_post_settings.publish_type).toBe("video")
+    expect(summary.automationKind).toBe("video")
+  })
+
   it("copies template settings into the local automation while preserving local overrides", () => {
-    const templateRecord = createLocalAutomationRecord({ name: "Template source" })
+    const templateRecord = createLocalAutomationRecord({
+      name: "Template source",
+    })
     const template = {
+      automationKind: templateRecord.schema.automationKind,
       prompt_formatting: {
         ...templateRecord.schema.prompt_formatting,
         num_of_slides: 6,
       },
       formatting: templateRecord.schema.formatting.map((section) =>
-        section.id === "hook" ? {
-          ...section,
-          textItems: [{ ...section.textItems[0], contentDirection: "template hook" }],
-        } : section
+        section.id === "hook"
+          ? {
+              ...section,
+              textItems: [
+                { ...section.textItems[0], contentDirection: "template hook" },
+              ],
+            }
+          : section
       ),
       tiktok_post_settings: templateRecord.schema.tiktok_post_settings,
       image_collection_ids: templateRecord.schema.image_collection_ids,
@@ -315,10 +518,108 @@ describe("automation import persistence", () => {
   })
 
   it("keeps imported automation templates out of the runnable automation database", async () => {
-    const records = await listAutomationRecords({
-      rootDir: path.join(process.cwd(), "data", "automations"),
+    await upsertAutomationTemplateRecords({
+      rootDir: path.join(rootDir, "automation-templates"),
+      records: [
+        {
+          id: "template-imported",
+          sourceAutomationId: "rf-template-1",
+          name: "Imported template",
+          theme: "template",
+          createdAt: "2026-07-04T00:00:00.000Z",
+          updatedAt: "2026-07-04T00:00:00.000Z",
+          template: {
+            created_at: "2026-07-04T00:00:00.000Z",
+            image_collection_ids: "collection-template",
+            hooks: ["Template hook"],
+            format: {
+              hook: {
+                aspect_ratio: "9:16",
+                image_grid: "none",
+                overlay: false,
+                display_text: true,
+                text_items: [],
+              },
+              content: {
+                aspect_ratio: "9:16",
+                image_grid: "none",
+                slide_count_mode: "static",
+                slide_count: 1,
+                overlay: false,
+                display_text: true,
+                text_items: [],
+              },
+              cta: {
+                enabled: false,
+                image_mode: "collection",
+                aspect_ratio: "9:16",
+                image_grid: "none",
+                overlay: false,
+                display_text: false,
+                text_items: [],
+              },
+              custom_tone: "",
+            },
+          },
+        },
+      ],
     })
+
+    const records = await listAutomationRecords({ rootDir })
 
     expect(records).toEqual([])
   })
+
+  it("removes the selected automation record from the automation database", async () => {
+    await writeFile(
+      path.join(rootDir, "automations.json"),
+      `${JSON.stringify(
+        {
+          automations: [
+            automationRecordFixture("delete-me"),
+            automationRecordFixture("keep-me"),
+          ],
+        },
+        null,
+        2
+      )}\n`
+    )
+
+    const result = await deleteAutomationRecord({ rootDir, id: "delete-me" })
+
+    const stored = JSON.parse(
+      await readFile(path.join(rootDir, "automations.json"), "utf8")
+    )
+    expect(result?.id).toBe("delete-me")
+    expect(
+      stored.automations.map((record: { id: string }) => record.id)
+    ).toEqual(["keep-me"])
+  })
 })
+
+function automationRecordFixture(id: string) {
+  const summary = {
+    id,
+    name: id,
+    status: "Paused",
+    account: "No social account",
+    handle: "Click to add account",
+    times: [],
+    favorite: false,
+    theme: "ugc",
+    socialIntegrations: [],
+  }
+
+  return {
+    id,
+    name: id,
+    status: "paused",
+    account: summary.account,
+    handle: summary.handle,
+    times: [],
+    favorite: false,
+    theme: "ugc",
+    updatedAt: "2026-07-03T00:00:00.000Z",
+    schema: defaultAutomationSchema(summary),
+  }
+}

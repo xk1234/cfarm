@@ -1,6 +1,22 @@
 import { DateTime } from "luxon"
 
+import type {
+  PostFastSocialIntegration,
+  PostFastSocialProvider,
+} from "@/lib/postfast-client"
+import {
+  defaultPostFastProviderControls,
+  type PostFastProviderControls,
+  type PostFastProviderControlsByProvider,
+} from "@/lib/postfast-provider-controls"
 import type { Automation } from "@/lib/realfarm-data"
+import {
+  defaultAutomationLanguage,
+  defaultAutomationPublishType,
+  defaultSlideshowDuration,
+  defaultSlideshowTransition,
+  slideshowDurationValue,
+} from "@/lib/slideshow-publishing-config"
 
 export type AutomationStatus = "paused" | "live"
 export type AutomationAspectRatio =
@@ -48,6 +64,7 @@ export type ImageCollectionConfig = {
   autoPullImagesNotCollections?: boolean
   autoImagesNoTextOnImages?: boolean
   disableAutoImageForFirstSlide?: boolean
+  video_demo_asset_id?: string
   language?: string
 }
 
@@ -76,6 +93,16 @@ export type AutomationTextItem = {
 
 export type AutomationFormatSectionId = "hook" | "body" | "cta"
 
+export type AutomationSlideOverride = {
+  slideIndex: number
+  contentDirection: string
+}
+
+export type AutomationImageOverride = {
+  slideIndex: number
+  collectionId: string
+}
+
 export type AutomationFormatSection = {
   id: AutomationFormatSectionId
   image_url: string
@@ -91,6 +118,8 @@ export type AutomationFormatSection = {
     collectionId?: string
     padding: number
   }
+  slideOverrides?: AutomationSlideOverride[]
+  imageOverrides?: AutomationImageOverride[]
   ctaLocation?: "last" | "static"
   ctaStaticPosition?: string
   imageMode?: AutomationImageMode
@@ -107,10 +136,27 @@ export type AutomationFormattingItem =
 
 export type AutomationTemplate = Pick<
   AutomationSchema,
+  | "automationKind"
   | "prompt_formatting"
   | "formatting"
   | "tiktok_post_settings"
   | "image_collection_ids"
+> & {
+  social_post_settings?: AutomationSocialPostSettings
+  social_publish_as?: AutomationSocialPublishAs
+}
+
+export type AutomationSocialProvider = PostFastSocialProvider
+export type AutomationSocialIntegration = PostFastSocialIntegration
+export type AutomationSocialPostSettings = Partial<{
+  [
+    Provider in AutomationSocialProvider
+  ]: Provider extends keyof PostFastProviderControlsByProvider
+    ? PostFastProviderControlsByProvider[Provider]
+    : PostFastProviderControls
+}>
+export type AutomationSocialPublishAs = Partial<
+  Record<AutomationSocialProvider, TikTokPublishType>
 >
 
 export type AutomationSchedule = {
@@ -122,10 +168,11 @@ export type AutomationSchedule = {
 }
 
 export type AutomationSchema = {
+  automationKind: "slideshow" | "video"
   created_at: Date
   title: string
   status: AutomationStatus
-  tiktok_account_id: string | null
+  social_integrations: AutomationSocialIntegration[]
   prompt_formatting: PromptFormatting
   image_collection_ids: ImageCollectionConfig
   formatting: AutomationFormattingItem[]
@@ -143,7 +190,14 @@ export type AutomationSchema = {
     disclose_branded_content: boolean
     post_mode: TikTokPostMode
     publish_type?: TikTokPublishType
+    slideshow_transition_style?: string
+    slideshow_slide_duration?: number
+    slideshow_sound_id?: string
+    slideshow_sound_name?: string
+    slideshow_sound_url?: string
   }
+  social_post_settings: AutomationSocialPostSettings
+  social_publish_as: AutomationSocialPublishAs
   schedule: AutomationSchedule
 }
 
@@ -196,6 +250,7 @@ export function defaultAutomationSchema(
 ): AutomationSchema {
   const status =
     automation.status.toLowerCase() === "paused" ? "paused" : "live"
+  const template = defaultAutomationTemplate(automation)
   const allDays: AutomationDay[] = [
     "Mon",
     "Tue",
@@ -214,10 +269,11 @@ export function defaultAutomationSchema(
       .toJSDate(),
     title: automation.name,
     status,
-    tiktok_account_id: automation.account.startsWith("@")
-      ? automation.account
-      : null,
-    ...defaultAutomationTemplate(automation),
+    social_integrations: [],
+    ...template,
+    social_post_settings:
+      template.social_post_settings ?? defaultSocialPostSettings(),
+    social_publish_as: normalizeSocialPublishAs(template.social_publish_as, {}),
     schedule: {
       timezone: DateTime.local().zoneName,
       posting_times: (automation.times.length > 0
@@ -246,6 +302,8 @@ export function defaultAutomationTemplate(
     }[automation.theme] ?? "Conversational & Relatable"
 
   return {
+    automationKind:
+      automation.automationKind === "video" ? "video" : "slideshow",
     prompt_formatting: {
       style:
         "The first slide should have one strong hook text item. Body slides should use concise supporting text. Keep text readable and native to TikTok slideshow memes.",
@@ -349,8 +407,18 @@ export function defaultAutomationTemplate(
       disclose_brand_organic: false,
       disclose_branded_content: false,
       post_mode: "MEDIA_UPLOAD",
-      publish_type: "slideshow",
+      publish_type:
+        automation.automationKind === "video"
+          ? "video"
+          : defaultAutomationPublishType,
+      slideshow_transition_style: defaultSlideshowTransition,
+      slideshow_slide_duration: defaultSlideshowDuration,
+      slideshow_sound_id: "",
+      slideshow_sound_name: "",
+      slideshow_sound_url: "",
     },
+    social_post_settings: defaultSocialPostSettings(),
+    social_publish_as: {},
   }
 }
 
@@ -381,6 +449,9 @@ export function mergeAutomationSchema(
       normalizedDraft.formatting,
       defaults.formatting
     ),
+    social_integrations: normalizeAutomationSocialIntegrations(
+      normalizedDraft.social_integrations
+    ),
     tiktok_post_settings: {
       ...defaults.tiktok_post_settings,
       ...normalizedDraft.tiktok_post_settings,
@@ -393,6 +464,16 @@ export function mergeAutomationSchema(
         defaults.tiktok_post_settings.description
       ),
     },
+    social_post_settings: normalizeSocialPostSettings(
+      normalizedDraft.social_post_settings,
+      defaults.social_post_settings,
+      normalizedDraft.tiktok_post_settings,
+      normalizedDraft.social_publish_as
+    ),
+    social_publish_as: normalizeSocialPublishAs(
+      normalizedDraft.social_publish_as,
+      defaults.social_publish_as
+    ),
     schedule: {
       ...defaults.schedule,
       ...normalizedDraft.schedule,
@@ -414,10 +495,13 @@ export function normalizeAutomationSchema(
   return {
     ...defaults,
     ...source,
+    automationKind: source.automationKind === "video" ? "video" : "slideshow",
     created_at: toDate(source.created_at),
     title: source.title || automation.name,
     status: source.status === "paused" ? "paused" : "live",
-    tiktok_account_id: source.tiktok_account_id ?? defaults.tiktok_account_id,
+    social_integrations: normalizeAutomationSocialIntegrations(
+      source.social_integrations
+    ),
     prompt_formatting: normalizePromptFormatting(
       source.prompt_formatting,
       defaults.prompt_formatting
@@ -430,6 +514,16 @@ export function normalizeAutomationSchema(
     tiktok_post_settings: normalizeTikTokPostSettings(
       source.tiktok_post_settings,
       defaults.tiktok_post_settings
+    ),
+    social_post_settings: normalizeSocialPostSettings(
+      source.social_post_settings,
+      defaults.social_post_settings,
+      source.tiktok_post_settings,
+      source.social_publish_as
+    ),
+    social_publish_as: normalizeSocialPublishAs(
+      source.social_publish_as,
+      defaults.social_publish_as
     ),
     schedule: {
       timezone: source.schedule?.timezone ?? defaults.schedule.timezone,
@@ -486,10 +580,20 @@ export function updateAutomationFormatSection<
 }
 
 export function automationHooks(
-  schema: Pick<AutomationSchema, "formatting" | "title">
+  schema: Pick<AutomationSchema, "formatting" | "title"> &
+    Partial<Pick<AutomationSchema, "prompt_formatting">>
 ) {
-  const hooks = automationStoredHooks(schema)
-  return hooks.length > 0 ? hooks : [schema.title]
+  const narrativeHooks = cleanHookLines(schema.prompt_formatting?.narrative)
+  const hooks = automationStoredHooks(schema).filter(
+    (hook) => !isHookInstruction(hook)
+  )
+  if (shouldUseNarrativeHooks(narrativeHooks, hooks)) {
+    return narrativeHooks
+  }
+  if (hooks.length > 0) {
+    return hooks
+  }
+  return narrativeHooks
 }
 
 export function automationStoredHooks(
@@ -499,6 +603,52 @@ export function automationStoredHooks(
   return hookSection.textItems
     .map((item) => textItemValue(item))
     .filter(Boolean)
+}
+
+function cleanHookLines(value: unknown) {
+  if (typeof value !== "string") {
+    return []
+  }
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/^\d+[.)]\s*/, ""))
+    .filter((line) => line && !isHookInstruction(line))
+}
+
+function isHookInstruction(value: string) {
+  const normalized = value.trim().toLowerCase()
+  if (!normalized) {
+    return true
+  }
+  if (
+    [
+      "hook text",
+      "hook text, all lowercase",
+      "fixed hook text from the automation",
+    ].includes(normalized)
+  ) {
+    return true
+  }
+  return (
+    [
+      "lowercase numbered list introduction",
+      "numbered list concept introduction",
+      "numbered heading",
+    ].some((marker) => normalized.startsWith(marker)) ||
+    normalized.includes("using narratives") ||
+    normalized.includes("content varies based on narrative") ||
+    normalized.includes("e.g.")
+  )
+}
+
+function shouldUseNarrativeHooks(
+  narrativeHooks: string[],
+  storedHooks: string[]
+) {
+  if (narrativeHooks.length === 0) {
+    return false
+  }
+  return narrativeHooks.length > 1 || storedHooks.length === 0
 }
 
 export function schemaWithAutomationHooks(
@@ -516,7 +666,13 @@ export function schemaWithAutomationHooks(
     })
   )
 
-  return updateAutomationFormatSection(schema, "hook", { textItems })
+  return {
+    ...updateAutomationFormatSection(schema, "hook", { textItems }),
+    prompt_formatting: {
+      ...schema.prompt_formatting,
+      narrative: nextHooks.join("\n"),
+    },
+  }
 }
 
 export function automationTone(schema: Pick<AutomationSchema, "formatting">) {
@@ -576,6 +732,32 @@ export function automationPublishType(
   schema: Pick<AutomationSchema, "tiktok_post_settings">
 ) {
   return schema.tiktok_post_settings.publish_type ?? "slideshow"
+}
+
+export function automationProviderPublishAs(
+  schema: Pick<AutomationSchema, "social_publish_as">,
+  provider: AutomationSocialProvider
+): TikTokPublishType {
+  const publishAs = schema.social_publish_as ?? {}
+  const direct = publishAs[provider]
+  const alias =
+    provider === "twitter"
+      ? publishAs.x
+      : provider === "x"
+        ? publishAs.twitter
+        : undefined
+
+  return direct === "video" || alias === "video" ? "video" : "slideshow"
+}
+
+export function automationProviderPublishesVideo(
+  schema: Pick<AutomationSchema, "social_publish_as" | "tiktok_post_settings">,
+  provider: AutomationSocialProvider
+) {
+  return (
+    automationPublishType(schema) === "video" &&
+    automationProviderPublishAs(schema, provider) === "video"
+  )
 }
 
 export function automationCollectionId(
@@ -742,6 +924,8 @@ function defaultAutomationSection(
     noText: false,
     overlay: id !== "cta",
     overlayOpacity: 25,
+    slideOverrides: [],
+    imageOverrides: [],
     ctaLocation: id === "cta" ? "last" : undefined,
     imageMode: id === "cta" ? "collection" : undefined,
   }
@@ -772,7 +956,8 @@ function defaultImageCollectionConfig(): ImageCollectionConfig {
     autoPullImagesNotCollections: false,
     autoImagesNoTextOnImages: false,
     disableAutoImageForFirstSlide: false,
-    language: "English",
+    video_demo_asset_id: "",
+    language: defaultAutomationLanguage,
   }
 }
 
@@ -871,7 +1056,10 @@ function normalizeImageCollectionConfig(
       record.disableAutoImageForFirstSlide,
       fallback.disableAutoImageForFirstSlide ?? false
     ),
-    language: clean(record.language) || fallback.language || "English",
+    video_demo_asset_id:
+      clean(record.video_demo_asset_id) || fallback.video_demo_asset_id || "",
+    language:
+      clean(record.language) || fallback.language || defaultAutomationLanguage,
   }
 }
 
@@ -951,6 +1139,8 @@ function normalizeFormattingItem(value: unknown): AutomationFormattingItem[] {
           : defaultAutomationSection(id).overlay,
       overlayOpacity: numberValue(record.overlayOpacity, 25),
       overlayImage: normalizeOverlayImage(record.overlayImage),
+      slideOverrides: normalizeSlideOverrides(record.slideOverrides),
+      imageOverrides: normalizeImageOverrides(record.imageOverrides),
       ctaLocation:
         record.ctaLocation === "static"
           ? "static"
@@ -966,6 +1156,70 @@ function normalizeFormattingItem(value: unknown): AutomationFormattingItem[] {
             : defaultAutomationSection(id).imageMode,
     },
   ]
+}
+
+function normalizeSlideOverrides(value: unknown): AutomationSlideOverride[] {
+  return overrideRecordEntries(value).flatMap(({ record, fallbackIndex }) => {
+    const contentDirection =
+      clean(record.contentDirection) ||
+      clean(record.content_direction) ||
+      clean(record.prompt) ||
+      clean(record.text)
+    if (!contentDirection) {
+      return []
+    }
+
+    return [
+      {
+        slideIndex: normalizeSlideIndex(record.slideIndex, fallbackIndex),
+        contentDirection,
+      },
+    ]
+  })
+}
+
+function normalizeImageOverrides(value: unknown): AutomationImageOverride[] {
+  return overrideRecordEntries(value).flatMap(({ record, fallbackIndex }) => {
+    const collectionId =
+      clean(record.collectionId) ||
+      clean(record.collection_id) ||
+      clean(record.collection)
+    if (!collectionId) {
+      return []
+    }
+
+    return [
+      {
+        slideIndex: normalizeSlideIndex(record.slideIndex, fallbackIndex),
+        collectionId,
+      },
+    ]
+  })
+}
+
+function overrideRecordEntries(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map((item, index) => ({
+      record: isRecord(item) ? item : {},
+      fallbackIndex: index + 1,
+    }))
+  }
+
+  if (!isRecord(value)) {
+    return []
+  }
+
+  return Object.entries(value).map(([key, item], index) => {
+    const numericKey = Number(key)
+    return {
+      record: isRecord(item) ? item : {},
+      fallbackIndex: Number.isFinite(numericKey) ? numericKey + 1 : index + 1,
+    }
+  })
+}
+
+function normalizeSlideIndex(value: unknown, fallback: number) {
+  return Math.max(1, Math.round(numberValue(value, fallback)))
 }
 
 function normalizeOverlayImage(
@@ -1056,6 +1310,268 @@ function normalizeTikTokPostSettings(
         : record.publish_type === "slideshow"
           ? "slideshow"
           : fallback.publish_type,
+    slideshow_transition_style:
+      clean(record.slideshow_transition_style) ||
+      fallback.slideshow_transition_style ||
+      defaultSlideshowTransition,
+    slideshow_slide_duration: slideshowDurationValue(
+      numberValue(
+        record.slideshow_slide_duration,
+        fallback.slideshow_slide_duration ?? defaultSlideshowDuration
+      )
+    ),
+    slideshow_sound_id: clean(record.slideshow_sound_id),
+    slideshow_sound_name: clean(record.slideshow_sound_name),
+    slideshow_sound_url: clean(record.slideshow_sound_url),
+  }
+}
+
+const socialPostSettingProviders: AutomationSocialProvider[] = [
+  "tiktok",
+  "instagram",
+  "facebook",
+  "youtube",
+  "x",
+  "linkedin",
+  "pinterest",
+  "threads",
+  "telegram",
+  "bluesky",
+  "google-business-profile",
+]
+
+function defaultSocialPostSettings(
+  tiktokSettings?: AutomationSchema["tiktok_post_settings"]
+): AutomationSocialPostSettings {
+  return Object.fromEntries(
+    socialPostSettingProviders.map((provider) => [
+      provider,
+      automationPostFastProviderControls(provider, tiktokSettings),
+    ])
+  ) as AutomationSocialPostSettings
+}
+
+function automationPostFastProviderControls(
+  provider: AutomationSocialProvider,
+  tiktokSettings?: AutomationSchema["tiktok_post_settings"],
+  socialPublishAs?: AutomationSocialPublishAs,
+  overrides: Record<string, unknown> = {}
+) {
+  return defaultPostFastProviderControls(provider, {
+    ...(provider === "tiktok" && tiktokSettings
+      ? tiktokPostSettingsToPostFastControls(tiktokSettings)
+      : {}),
+    ...overrides,
+    ...fixedAutomationProviderControls(
+      provider,
+      tiktokSettings,
+      socialPublishAs
+    ),
+  })
+}
+
+function fixedAutomationProviderControls(
+  provider: AutomationSocialProvider,
+  tiktokSettings?: AutomationSchema["tiktok_post_settings"],
+  socialPublishAs: AutomationSocialPublishAs = {}
+): PostFastProviderControls {
+  const video =
+    (tiktokSettings?.publish_type ?? defaultAutomationPublishType) ===
+      "video" &&
+    automationProviderPublishAs(
+      { social_publish_as: socialPublishAs },
+      provider
+    ) === "video"
+
+  switch (provider) {
+    case "instagram":
+      return {
+        instagramPublishType: video ? "REEL" : "TIMELINE",
+        instagramPostToGrid: true,
+      }
+    case "facebook":
+      return {
+        facebookContentType: video ? "REEL" : "POST",
+      }
+    case "youtube":
+      return {
+        youtubeTitle: tiktokSettings
+          ? tiktokPostSettingsToPostFastControls(tiktokSettings).tiktokTitle
+          : "",
+        youtubeIsShort: true,
+        youtubeMadeForKids: false,
+      }
+    case "x":
+    case "twitter":
+      return {
+        xRetweetUrl: "",
+      }
+    case "linkedin":
+      return {
+        linkedinAttachmentKey: "",
+      }
+    default:
+      return {}
+  }
+}
+
+function tiktokPostSettingsToPostFastControls(
+  settings: AutomationSchema["tiktok_post_settings"]
+) {
+  return {
+    tiktokTitle: postTextValue(settings.description),
+    tiktokIsDraft: settings.post_mode === "MEDIA_UPLOAD",
+    tiktokAllowComments: settings.allow_comments,
+    tiktokAllowDuet: settings.allow_duet,
+    tiktokAllowStitch: settings.allow_stitch,
+    tiktokBrandOrganic: settings.disclose_brand_organic,
+    tiktokBrandContent: settings.disclose_branded_content,
+    tiktokAutoAddMusic: settings.auto_music,
+    tiktokIsAigc: settings.disclose_video_content,
+  }
+}
+
+function normalizeSocialPostSettings(
+  value: unknown,
+  fallback: AutomationSocialPostSettings,
+  tiktokSettings?: AutomationSchema["tiktok_post_settings"],
+  socialPublishAs?: AutomationSocialPublishAs
+): AutomationSocialPostSettings {
+  const record = isRecord(value) ? value : {}
+  const defaults = {
+    ...defaultSocialPostSettings(tiktokSettings),
+    ...fallback,
+  }
+
+  return Object.fromEntries(
+    socialPostSettingProviders.map((provider) => [
+      provider,
+      automationPostFastProviderControls(
+        provider,
+        tiktokSettings,
+        socialPublishAs,
+        {
+          ...(defaults[provider] ?? {}),
+          ...(isRecord(record[provider]) ? record[provider] : {}),
+        }
+      ),
+    ])
+  ) as AutomationSocialPostSettings
+}
+
+function normalizeSocialPublishAs(
+  value: unknown,
+  fallback: AutomationSocialPublishAs
+): AutomationSocialPublishAs {
+  const source = isRecord(value) ? value : {}
+  const fallbackRecord = isRecord(fallback) ? fallback : {}
+  return Object.fromEntries(
+    socialPostSettingProviders.map((provider) => {
+      const value = source[provider] ?? fallbackRecord[provider]
+      return [provider, value === "video" ? "video" : "slideshow"]
+    })
+  ) as AutomationSocialPublishAs
+}
+
+export function normalizeAutomationSocialIntegrations(
+  value: unknown
+): AutomationSocialIntegration[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const seen = new Set<string>()
+  return value.flatMap((item) => {
+    const record = isRecord(item) ? item : {}
+    const provider = normalizeSocialProvider(record.provider)
+    const integrationId = clean(record.integration_id ?? record.id)
+
+    if (!provider || !integrationId) {
+      return []
+    }
+
+    const key = `${provider}:${integrationId}`
+    if (seen.has(key)) {
+      return []
+    }
+    seen.add(key)
+
+    return [
+      {
+        provider,
+        integration_id: integrationId,
+        name:
+          clean(record.name) ||
+          clean(record.profile) ||
+          providerLabel(provider),
+        profile: clean(record.profile) || undefined,
+        picture: clean(record.picture) || undefined,
+        disabled:
+          typeof record.disabled === "boolean" ? record.disabled : undefined,
+      },
+    ]
+  })
+}
+
+function normalizeSocialProvider(
+  value: unknown
+): AutomationSocialProvider | null {
+  const provider = clean(value).toLowerCase()
+  switch (provider) {
+    case "tiktok":
+    case "tiktok-creative":
+    case "tiktok-seller":
+    case "youtube":
+    case "instagram":
+      return provider
+    case "facebook":
+    case "x":
+    case "twitter":
+    case "linkedin":
+    case "threads":
+    case "pinterest":
+    case "bluesky":
+    case "telegram":
+    case "google":
+    case "google-business-profile":
+      return provider
+    default:
+      return null
+  }
+}
+
+function providerLabel(provider: AutomationSocialProvider) {
+  switch (provider) {
+    case "youtube":
+      return "YouTube"
+    case "instagram":
+      return "Instagram"
+    case "tiktok":
+      return "TikTok"
+    case "tiktok-creative":
+      return "TikTok Creative"
+    case "tiktok-seller":
+      return "TikTok Seller"
+    case "facebook":
+      return "Facebook"
+    case "x":
+      return "X"
+    case "twitter":
+      return "Twitter"
+    case "linkedin":
+      return "LinkedIn"
+    case "threads":
+      return "Threads"
+    case "pinterest":
+      return "Pinterest"
+    case "bluesky":
+      return "Bluesky"
+    case "telegram":
+      return "Telegram"
+    case "google":
+      return "Google"
+    case "google-business-profile":
+      return "Google Business Profile"
   }
 }
 

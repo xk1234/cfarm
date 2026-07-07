@@ -1,12 +1,21 @@
-import { mkdtemp, rm } from "node:fs/promises"
+import {
+  access,
+  mkdtemp,
+  mkdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   createSlideshowRecord,
   deleteSlideshowRecord,
+  deleteSlideshowRecordsForAutomation,
   listSlideshowRecords,
 } from "@/lib/slideshows"
 
@@ -14,17 +23,29 @@ let rootDir: string
 
 beforeEach(async () => {
   rootDir = await mkdtemp(path.join(os.tmpdir(), "cfarm-slideshows-"))
+  vi.spyOn(process, "cwd").mockReturnValue(rootDir)
+  await writeLocalAsset("first.jpg", "first image")
+  await writeLocalAsset("slide.jpg", "slide image")
+  await writeLocalAsset(
+    "scene.svg",
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920"><rect width="1080" height="1920" fill="#111827"/><circle cx="540" cy="960" r="320" fill="#4ade80"/></svg>`
+  )
 })
 
 afterEach(async () => {
+  vi.restoreAllMocks()
   await rm(rootDir, { recursive: true, force: true })
 })
 
 describe("slideshow persistence", () => {
-  it("persists generated slides with render settings and text geometry", async () => {
+  it("persists generated slide metadata in the DB and only writes media outputs", async () => {
     const record = await createSlideshowRecord({
       rootDir,
+      automationId: "automation-1",
+      runId: "automation-run-1",
       title: "New Slideshow",
+      caption: "Generated caption",
+      hashtags: "#focus #study",
       prompt: "I want 12 slides about discipline",
       image_collection: "community_collection_12470",
       slideshow_type: "educational",
@@ -59,10 +80,16 @@ describe("slideshow persistence", () => {
     })
 
     const records = await listSlideshowRecords({ rootDir })
+    const resultsDb = JSON.parse(
+      await readFile(path.join(rootDir, "results.json"), "utf8")
+    )
 
     expect(record).toMatchObject({
       title: "New Slideshow",
-      status: "draft",
+      caption: "Generated caption",
+      hashtags: "#focus #study",
+      automationId: "automation-1",
+      status: "exported",
       prompt: "I want 12 slides about discipline",
       image_collection: "community_collection_12470",
       slideshow_type: "educational",
@@ -75,7 +102,8 @@ describe("slideshow persistence", () => {
     })
     expect(records).toHaveLength(1)
     expect(records[0].images[0]).toMatchObject({
-      image_url: "/api/local-assets/image-collections/files/first.jpg",
+      image_url: `/api/local-assets/slideshows/outputs/${record.id}/slide-001.png`,
+      source_image_url: `/api/local-assets/slideshows/outputs/${record.id}/source-001.jpg`,
       aspect_ratio: "4:5",
       time_length_ms: 2000,
       textItems: [
@@ -86,6 +114,86 @@ describe("slideshow persistence", () => {
           textPosition: { x: 50, y: 16 },
         },
       ],
+    })
+    const legacyRenderKey = ["render", "url"].join("_")
+    expect(Object.prototype.hasOwnProperty.call(record, legacyRenderKey)).toBe(
+      false
+    )
+    expect(record.output_dir).toBe(
+      `/api/local-assets/slideshows/outputs/${record.id}`
+    )
+    expect(record.output_images).toEqual([
+      `/api/local-assets/slideshows/outputs/${record.id}/slide-001.png`,
+    ])
+    expect(resultsDb.results).toHaveLength(1)
+    expect(resultsDb.results[0]).toMatchObject({
+      id: "result-automation-run-1",
+      automationId: "automation-1",
+      runId: "automation-run-1",
+      workflowType: "slideshow",
+      status: "succeeded",
+      artifacts: {
+        slideshowId: record.id,
+        outputImages: [
+          `/api/local-assets/slideshows/outputs/${record.id}/slide-001.png`,
+        ],
+      },
+      payload: {
+        type: "slideshow",
+        caption: "Generated caption",
+        imageCollectionId: "community_collection_12470",
+      },
+    })
+    await expect(
+      access(path.join(rootDir, "slideshows.json"))
+    ).rejects.toThrow()
+
+    const outputImage = await readFile(
+      outputPath(rootDir, record, "slide-001.svg"),
+      "utf8"
+    )
+    expect(outputImage).toContain("WAIT. you&apos;re giving up???")
+    expect(outputImage).toContain('href="data:image/jpeg;base64,')
+    expect(outputImage).not.toContain(
+      `/api/local-assets/slideshows/outputs/${record.id}/source-001.jpg`
+    )
+    await expect(
+      access(outputPath(rootDir, record, "slideshow.json"))
+    ).rejects.toThrow()
+  })
+
+  it("deletes generated slideshow output folders for an automation without touching other slideshows", async () => {
+    const first = await createSlideshowRecord({
+      rootDir,
+      automationId: "automation-delete",
+      title: "Delete 1",
+    })
+    const second = await createSlideshowRecord({
+      rootDir,
+      automationId: "automation-delete",
+      title: "Delete 2",
+    })
+    const keep = await createSlideshowRecord({
+      rootDir,
+      automationId: "automation-keep",
+      title: "Keep",
+    })
+
+    const deleted = await deleteSlideshowRecordsForAutomation({
+      rootDir,
+      automationId: "automation-delete",
+    })
+    const records = await listSlideshowRecords({ rootDir })
+
+    expect(deleted.map((record) => record.title).sort()).toEqual([
+      "Delete 1",
+      "Delete 2",
+    ])
+    expect(records.map((record) => record.title)).toEqual(["Keep"])
+    await expect(stat(outputDir(rootDir, first))).rejects.toThrow()
+    await expect(stat(outputDir(rootDir, second))).rejects.toThrow()
+    await expect(stat(outputDir(rootDir, keep))).resolves.toMatchObject({
+      size: expect.any(Number),
     })
   })
 
@@ -102,6 +210,246 @@ describe("slideshow persistence", () => {
 
     expect(deleted?.id).toBe(record.id)
     expect(records).toEqual([])
+  })
+
+  it("renders output slides with configured aspect ratio and bounded text lines", async () => {
+    const record = await createSlideshowRecord({
+      rootDir,
+      title: "Bounded text",
+      images: [
+        {
+          image_url: "/api/local-assets/image-collections/files/first.jpg",
+          aspect_ratio: "4:5",
+          textItems: [
+            {
+              id: "text-1",
+              text: "the note-taking method that helped me go from c's to straight a's in one semester",
+              font: "TikTok Display Medium",
+              fontSize: "15px",
+              textSize: { width: 80, height: 18 },
+              textStyle: "outline",
+              textAlign: "center",
+              textAnchor: "padded",
+              textPosition: { x: 50, y: 50 },
+            },
+          ],
+        },
+      ],
+    })
+
+    const outputImage = await readFile(
+      outputPath(rootDir, record, "slide-001.svg"),
+      "utf8"
+    )
+
+    expect(outputImage).toContain('width="1080" height="1350"')
+    expect(outputImage).toContain('viewBox="0 0 1080 1350"')
+    expect(outputImage).not.toContain("textLength=")
+    expect(outputImage).not.toContain("lengthAdjust=")
+    expect(outputImage).not.toContain(
+      '<tspan x="540" dy="0">the note-taking method that helped me go from c&apos;s to straight a&apos;s in one semester</tspan>'
+    )
+  })
+
+  it("uses the actual local image file type when the source extension is wrong", async () => {
+    const mislabeledPng = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+      "base64"
+    )
+    await writeLocalAsset("mislabeled.jpg", mislabeledPng)
+
+    const record = await createSlideshowRecord({
+      rootDir,
+      title: "Mislabeled image",
+      images: [
+        {
+          image_url: "/api/local-assets/image-collections/files/mislabeled.jpg",
+          textItems: [
+            {
+              id: "text-1",
+              text: "hook text",
+              font: "TikTok Display Medium",
+              fontSize: "10px",
+              textSize: { width: 56, height: 18 },
+              textStyle: "outline",
+              textAlign: "center",
+              textAnchor: "padded",
+              textPosition: { x: 50, y: 18 },
+            },
+          ],
+        },
+      ],
+    })
+
+    expect(record.images[0].source_image_url).toBe(
+      `/api/local-assets/slideshows/outputs/${record.id}/source-001.png`
+    )
+
+    const outputImage = await readFile(
+      outputPath(rootDir, record, "slide-001.svg"),
+      "utf8"
+    )
+    expect(outputImage).toContain('href="data:image/png;base64,')
+    expect(outputImage).not.toContain('href="data:image/jpeg;base64,')
+  })
+
+  it("wraps translated CJK text to the configured text box width", async () => {
+    const text =
+      "使用计时器，学习25分钟后休息5分钟。这有助于保持大脑清醒，并专注于学习。"
+    const record = await createSlideshowRecord({
+      rootDir,
+      title: "Translated text",
+      images: [
+        {
+          image_url: "/api/local-assets/image-collections/files/first.jpg",
+          textItems: [
+            {
+              id: "text-1",
+              text,
+              font: "TikTok Display Medium",
+              fontSize: "14px",
+              textSize: { width: 80, height: 18 },
+              textStyle: "outline",
+              textAlign: "center",
+              textAnchor: "padded",
+              textPosition: { x: 50, y: 45 },
+            },
+          ],
+        },
+      ],
+    })
+
+    const outputImage = await readFile(
+      outputPath(rootDir, record, "slide-001.svg"),
+      "utf8"
+    )
+
+    expect(outputImage).not.toContain(`<tspan x="540" dy="0">${text}</tspan>`)
+    expect(outputImage.match(/<tspan/g)?.length).toBeGreaterThan(1)
+  })
+
+  it("renders automation text style names in exported slide SVGs", async () => {
+    const record = await createSlideshowRecord({
+      rootDir,
+      title: "Styled automation text",
+      images: [
+        {
+          image_url: "/api/local-assets/image-collections/files/first.jpg",
+          textItems: [
+            {
+              id: "white-text",
+              text: "white editor text",
+              font: "TikTok Display Medium",
+              fontSize: "12px",
+              textSize: { width: 70, height: 18 },
+              textStyle: "whiteText",
+              textAlign: "center",
+              textAnchor: "padded",
+              textPosition: { x: 50, y: 30 },
+            },
+            {
+              id: "yellow-text",
+              text: "yellow editor text",
+              font: "TikTok Display Medium",
+              fontSize: "12px",
+              textSize: { width: 70, height: 18 },
+              textStyle: "yellowText",
+              textAlign: "center",
+              textAnchor: "padded",
+              textPosition: { x: 50, y: 70 },
+            },
+          ],
+        },
+      ],
+    })
+
+    const outputImage = await readFile(
+      outputPath(rootDir, record, "slide-001.svg"),
+      "utf8"
+    )
+
+    expect(outputImage).toMatch(/<text[^>]*font-size="48"[^>]*fill="#ffffff"/)
+    expect(outputImage).toMatch(/<text[^>]*font-size="48"[^>]*fill="#fff176"/)
+  })
+
+  it("renders configured overlay images in exported slide SVGs", async () => {
+    await writeLocalAsset(
+      "overlay.svg",
+      `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900"><rect width="1600" height="900" fill="#ff00ff"/></svg>`
+    )
+
+    const record = await createSlideshowRecord({
+      rootDir,
+      title: "Overlay image",
+      images: [
+        {
+          image_url: "/api/local-assets/image-collections/files/first.jpg",
+          aspect_ratio: "9:16",
+          overlayImage: {
+            image_url: "/api/local-assets/image-collections/files/overlay.svg",
+            padding: 10,
+          },
+          textItems: [],
+        },
+      ],
+    })
+
+    const outputImage = await readFile(
+      outputPath(rootDir, record, "slide-001.svg"),
+      "utf8"
+    )
+
+    expect(outputImage.match(/<image /g)).toHaveLength(2)
+    expect(outputImage).toContain('x="108"')
+    expect(outputImage).toContain('width="864"')
+    expect(outputImage).toContain('height="486"')
+  })
+
+  it("stacks text boxes that share the same slide position", async () => {
+    const record = await createSlideshowRecord({
+      rootDir,
+      title: "Stacked text",
+      images: [
+        {
+          image_url: "/api/local-assets/image-collections/files/first.jpg",
+          textItems: [
+            {
+              id: "title",
+              text: "4. 安排短暂的定时学习休息时间",
+              font: "TikTok Display Medium",
+              fontSize: "14px",
+              textSize: { width: 80, height: 18 },
+              textStyle: "outline",
+              textAlign: "center",
+              textAnchor: "padded",
+              textPosition: { x: 50, y: 45 },
+            },
+            {
+              id: "body",
+              text: "使用计时器，学习25分钟后休息5分钟。这有助于保持大脑清醒，并专注于学习。",
+              font: "TikTok Display Medium",
+              fontSize: "12px",
+              textSize: { width: 80, height: 18 },
+              textStyle: "outline",
+              textAlign: "center",
+              textAnchor: "padded",
+              textPosition: { x: 50, y: 45 },
+            },
+          ],
+        },
+      ],
+    })
+
+    const outputImage = await readFile(
+      outputPath(rootDir, record, "slide-001.svg"),
+      "utf8"
+    )
+    const yValues = Array.from(
+      outputImage.matchAll(/<text x="540" y="([^"]+)"/g)
+    ).map((match) => Number(match[1]))
+
+    expect(yValues).toHaveLength(2)
+    expect(yValues[0]).toBeLessThan(yValues[1])
   })
 
   it("persists video export settings with selected TikTok sound metadata", async () => {
@@ -121,6 +469,9 @@ describe("slideshow persistence", () => {
           image_url: "/api/local-assets/image-collections/files/slide.jpg",
         },
       ],
+      video_url: "/api/local-assets/assets/files/slideshow-video.webm",
+      thumbnail_url:
+        "/api/local-assets/assets/files/slideshow-video-thumbnail.jpg",
     })
 
     expect(record.settings).toMatchObject({
@@ -131,6 +482,76 @@ describe("slideshow persistence", () => {
       sound_name: "TikTok trend sound",
       sound_url: "/api/local-assets/music/files/trend.mp3",
     })
+    expect(record.video_url).toBe(
+      "/api/local-assets/assets/files/slideshow-video.webm"
+    )
+    expect(record.thumbnail_url).toBe(
+      "/api/local-assets/assets/files/slideshow-video-thumbnail.jpg"
+    )
     expect(record.images[0].time_length_ms).toBe(3000)
   })
+
+  it.runIf(process.platform === "darwin")(
+    "renders slideshow PNG frames and a video into the output folder",
+    async () => {
+      const record = await createSlideshowRecord({
+        rootDir,
+        title: "Rendered video slideshow",
+        settings: {
+          duration: 1,
+          transition_style: "fade",
+          export_as_video: true,
+        },
+        images: [
+          {
+            image_url: "/api/local-assets/image-collections/files/scene.svg",
+            textItems: [
+              {
+                id: "text-1",
+                text: "how to stop caring what people think",
+                font: "TikTok Display Medium",
+                fontSize: "10px",
+                textSize: { width: 56, height: 18 },
+                textStyle: "outline",
+                textAlign: "center",
+                textAnchor: "padded",
+                textPosition: { x: 50, y: 18 },
+              },
+            ],
+          },
+        ],
+      })
+
+      expect(record.output_images).toEqual([
+        `/api/local-assets/slideshows/outputs/${record.id}/slide-001.png`,
+      ])
+      expect(record.images[0].image_url).toBe(record.output_images[0])
+      expect(record.video_url).toBe(
+        `/api/local-assets/slideshows/outputs/${record.id}/slideshow-export.mp4`
+      )
+      expect(record.thumbnail_url).toBe(
+        `/api/local-assets/slideshows/outputs/${record.id}/slideshow-thumbnail.png`
+      )
+      await expect(
+        stat(outputPath(rootDir, record, "slide-001.png"))
+      ).resolves.toMatchObject({ size: expect.any(Number) })
+      await expect(
+        stat(outputPath(rootDir, record, "slideshow-export.mp4"))
+      ).resolves.toMatchObject({ size: expect.any(Number) })
+    }
+  )
 })
+
+async function writeLocalAsset(fileName: string, value: string | Uint8Array) {
+  const dir = path.join(rootDir, "data", "image-collections", "files")
+  await mkdir(dir, { recursive: true })
+  await writeFile(path.join(dir, fileName), value)
+}
+
+function outputDir(rootDir: string, record: { id: string }) {
+  return path.join(rootDir, "outputs", record.id)
+}
+
+function outputPath(rootDir: string, record: { id: string }, fileName: string) {
+  return path.join(outputDir(rootDir, record), fileName)
+}

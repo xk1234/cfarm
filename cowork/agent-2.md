@@ -154,7 +154,7 @@ These are likely shared with other agents and need extra care:
   - Agent 2 should keep generated export state inside the generated media workflows unless workspace-level orchestration is unavoidable.
 
 - `components/realfarm/ugc-ads-view.tsx`
-  - Possible overlap with export, styling, Postiz, or generated video work.
+  - Possible overlap with export, styling, PostFast, or generated video work.
 
 - `components/realfarm/greenscreen-view.tsx`
   - Possible overlap with export, styling, and generated video work.

@@ -33,7 +33,7 @@ async function searchPinterest(query: string, safeLimit: number, payloadApiKey =
     return NextResponse.json({ error: "Query is required" }, { status: 400 })
   }
 
-  const token = payloadApiKey || process.env.APIFY_KEY || process.env.APIFY_TOKEN
+  const token = payloadApiKey || process.env.APIFY_KEY
 
   if (!token) {
     return NextResponse.json({

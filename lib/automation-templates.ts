@@ -15,6 +15,7 @@ import {
   type AutomationTextItem,
 } from "@/lib/realfarm-automation"
 import type { Automation } from "@/lib/realfarm-data"
+import { defaultAutomationPublishType } from "@/lib/slideshow-publishing-config"
 
 export type AutomationTemplateTone =
   | "Conversational & Relatable"
@@ -87,6 +88,7 @@ export type AutomationTemplateDefinition = {
 
 export type AutomationTemplateRecord = {
   id: string
+  automationKind?: "slideshow" | "video"
   sourceAutomationId?: string
   sourceUrl?: string
   name: string
@@ -118,7 +120,9 @@ const dbFileName = "templates.json"
 const exampleRunsFileName = "example-runs.json"
 const allDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const
 
-export async function listAutomationTemplateRecords(options: { rootDir?: string } = {}) {
+export async function listAutomationTemplateRecords(
+  options: { rootDir?: string } = {}
+) {
   return await readJsonArrayStore({
     rootDir: options.rootDir ?? defaultRootDir,
     fileName: dbFileName,
@@ -127,7 +131,9 @@ export async function listAutomationTemplateRecords(options: { rootDir?: string 
   })
 }
 
-export async function listAutomationTemplateExampleRuns(options: { rootDir?: string } = {}) {
+export async function listAutomationTemplateExampleRuns(
+  options: { rootDir?: string } = {}
+) {
   return await readJsonArrayStore({
     rootDir: options.rootDir ?? defaultRootDir,
     fileName: exampleRunsFileName,
@@ -136,14 +142,22 @@ export async function listAutomationTemplateExampleRuns(options: { rootDir?: str
   })
 }
 
-export function groupAutomationTemplateExampleRunsByTemplateId(runs: AutomationTemplateExampleRun[]) {
-  return runs.reduce<Record<string, AutomationTemplateExampleRun[]>>((groups, run) => {
-    groups[run.templateId] = [...(groups[run.templateId] ?? []), run]
-    return groups
-  }, {})
+export function groupAutomationTemplateExampleRunsByTemplateId(
+  runs: AutomationTemplateExampleRun[]
+) {
+  return runs.reduce<Record<string, AutomationTemplateExampleRun[]>>(
+    (groups, run) => {
+      groups[run.templateId] = [...(groups[run.templateId] ?? []), run]
+      return groups
+    },
+    {}
+  )
 }
 
-export async function writeAutomationTemplateRecords(input: { rootDir?: string; records: AutomationTemplateRecord[] }) {
+export async function writeAutomationTemplateRecords(input: {
+  rootDir?: string
+  records: AutomationTemplateRecord[]
+}) {
   await writeJsonArrayStore({
     rootDir: input.rootDir ?? defaultRootDir,
     fileName: dbFileName,
@@ -152,8 +166,13 @@ export async function writeAutomationTemplateRecords(input: { rootDir?: string; 
   })
 }
 
-export async function upsertAutomationTemplateRecords(input: { rootDir?: string; records: AutomationTemplateRecord[] }) {
-  const current = await listAutomationTemplateRecords({ rootDir: input.rootDir })
+export async function upsertAutomationTemplateRecords(input: {
+  rootDir?: string
+  records: AutomationTemplateRecord[]
+}) {
+  const current = await listAutomationTemplateRecords({
+    rootDir: input.rootDir,
+  })
   const next = [...current]
 
   for (const record of input.records) {
@@ -173,13 +192,19 @@ export async function upsertAutomationTemplateRecords(input: { rootDir?: string;
     }
   }
 
-  await writeAutomationTemplateRecords({ rootDir: input.rootDir, records: next })
+  await writeAutomationTemplateRecords({
+    rootDir: input.rootDir,
+    records: next,
+  })
   return next
 }
 
-export function automationTemplateRecordToSummary(record: AutomationTemplateRecord): Automation {
+export function automationTemplateRecordToSummary(
+  record: AutomationTemplateRecord
+): Automation {
   return {
     id: record.id,
+    automationKind: automationTemplateKind(record),
     name: record.name,
     status: "Template",
     account: "",
@@ -188,41 +213,57 @@ export function automationTemplateRecordToSummary(record: AutomationTemplateReco
     favorite: false,
     theme: record.theme,
     created_at: record.template.created_at,
-  } as Automation
+    socialIntegrations: [],
+  }
 }
 
-export function automationTemplateRecordToSchema(record: AutomationTemplateRecord): AutomationSchema {
+export function automationTemplateRecordToSchema(
+  record: AutomationTemplateRecord
+): AutomationSchema {
   const summary = automationTemplateRecordToSummary(record)
   const base = defaultAutomationSchema(summary)
-  const schema = normalizeAutomationSchema({
-    ...base,
-    created_at: new Date(record.template.created_at),
-    title: record.name,
-    status: "live",
-    tiktok_account_id: null,
-    prompt_formatting: {
-      style: record.template.format.custom_tone,
-      narrative: record.template.hooks.join("\n"),
-      num_of_slides: templateSlideCount(record.template.format),
+  const schema = normalizeAutomationSchema(
+    {
+      ...base,
+      created_at: new Date(record.template.created_at),
+      title: record.name,
+      status: "live",
+      social_integrations: [],
+      prompt_formatting: {
+        style: record.template.format.custom_tone,
+        narrative: record.template.hooks.join("\n"),
+        num_of_slides: templateSlideCount(record.template.format),
+      },
+      image_collection_ids: parseImageCollectionIds(
+        record.template.image_collection_ids,
+        base.image_collection_ids
+      ),
+      formatting: templateFormatToRuntime(record.template.format),
+      tiktok_post_settings: {
+        ...base.tiktok_post_settings,
+        publish_type:
+          summary.automationKind === "video"
+            ? "video"
+            : defaultAutomationPublishType,
+      },
+      schedule: {
+        timezone:
+          Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Singapore",
+        posting_times: [{ time: "11:00 AM", days: [...allDays] }],
+      },
     },
-    image_collection_ids: parseImageCollectionIds(record.template.image_collection_ids, base.image_collection_ids),
-    formatting: templateFormatToRuntime(record.template.format),
-    tiktok_post_settings: {
-      ...base.tiktok_post_settings,
-      publish_type: "slideshow",
-    },
-    schedule: {
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Singapore",
-      posting_times: [{ time: "11:00 AM", days: [...allDays] }],
-    },
-  }, summary)
+    summary
+  )
 
   return schema
 }
 
-export function automationTemplateRecordToRuntimeTemplate(record: AutomationTemplateRecord): RuntimeAutomationTemplate {
+export function automationTemplateRecordToRuntimeTemplate(
+  record: AutomationTemplateRecord
+): RuntimeAutomationTemplate {
   const schema = automationTemplateRecordToSchema(record)
   return {
+    automationKind: schema.automationKind,
     prompt_formatting: schema.prompt_formatting,
     image_collection_ids: schema.image_collection_ids,
     formatting: schema.formatting,
@@ -243,6 +284,7 @@ export function automationSchemaToTemplateRecord(input: {
 }): AutomationTemplateRecord {
   return {
     id: input.id,
+    automationKind: "slideshow",
     sourceAutomationId: input.sourceAutomationId,
     sourceUrl: input.sourceUrl,
     name: input.name,
@@ -258,7 +300,9 @@ export function automationSchemaToTemplateRecord(input: {
   }
 }
 
-function automationSchemaToTemplateFormat(schema: AutomationSchema): AutomationTemplateFormat {
+function automationSchemaToTemplateFormat(
+  schema: AutomationSchema
+): AutomationTemplateFormat {
   const hook = automationFormatSection(schema, "hook")
   const content = automationFormatSection(schema, "content")
   const cta = automationFormatSection(schema, "cta")
@@ -290,7 +334,9 @@ function automationSchemaToTemplateFormat(schema: AutomationSchema): AutomationT
       text_items: content.textItems.map(textItemToTemplate),
     },
     cta: {
-      enabled: cta.slideCount > 0 || Boolean(schema.image_collection_ids.cta_slide.check),
+      enabled:
+        cta.slideCount > 0 ||
+        Boolean(schema.image_collection_ids.cta_slide.check),
       image_mode: cta.imageMode ?? "collection",
       aspect_ratio: cta.aspect_ratio,
       image_grid: cta.imageGrid,
@@ -303,7 +349,9 @@ function automationSchemaToTemplateFormat(schema: AutomationSchema): AutomationT
   }
 }
 
-function templateFormatToRuntime(format: AutomationTemplateFormat): AutomationSchema["formatting"] {
+function templateFormatToRuntime(
+  format: AutomationTemplateFormat
+): AutomationSchema["formatting"] {
   return [
     {
       id: "hook",
@@ -321,9 +369,10 @@ function templateFormatToRuntime(format: AutomationTemplateFormat): AutomationSc
       image_url: "",
       aspect_ratio: format.content.aspect_ratio,
       imageGrid: format.content.image_grid,
-      slideCount: format.content.slide_count_mode === "varying"
-        ? format.content.slide_count_min ?? format.content.slide_count ?? 1
-        : format.content.slide_count ?? 1,
+      slideCount:
+        format.content.slide_count_mode === "varying"
+          ? (format.content.slide_count_min ?? format.content.slide_count ?? 1)
+          : (format.content.slide_count ?? 1),
       noText: !format.content.display_text,
       overlay: format.content.overlay,
       overlayOpacity: 25,
@@ -350,13 +399,16 @@ function templateFormatToRuntime(format: AutomationTemplateFormat): AutomationSc
     },
     {
       id: "_tone",
-      value: format.tone === "Custom" ? format.custom_tone : tonePrompt(format.tone),
+      value:
+        format.tone === "Custom" ? format.custom_tone : tonePrompt(format.tone),
       preset: format.tone ?? "Custom",
     },
   ]
 }
 
-function textItemToTemplate(item: AutomationTextItem): AutomationTemplateTextItem {
+function textItemToTemplate(
+  item: AutomationTextItem
+): AutomationTemplateTextItem {
   return {
     id: item.id,
     font: item.font,
@@ -374,7 +426,9 @@ function textItemToTemplate(item: AutomationTextItem): AutomationTemplateTextIte
   }
 }
 
-function templateTextItemToRuntime(item: AutomationTemplateTextItem): AutomationTextItem {
+function templateTextItemToRuntime(
+  item: AutomationTemplateTextItem
+): AutomationTextItem {
   return {
     id: item.id,
     text: "",
@@ -393,7 +447,9 @@ function templateTextItemToRuntime(item: AutomationTemplateTextItem): Automation
   }
 }
 
-function normalizeAutomationTemplateRecord(record: AutomationTemplateRecord): AutomationTemplateRecord | null {
+function normalizeAutomationTemplateRecord(
+  record: AutomationTemplateRecord
+): AutomationTemplateRecord | null {
   if (!record?.id || !record.name || !record.template) {
     return null
   }
@@ -401,22 +457,36 @@ function normalizeAutomationTemplateRecord(record: AutomationTemplateRecord): Au
   const template = record.template
   return {
     id: clean(record.id),
+    automationKind: automationTemplateKind(record),
     sourceAutomationId: clean(record.sourceAutomationId) || undefined,
     sourceUrl: clean(record.sourceUrl) || undefined,
     name: clean(record.name),
     theme: clean(record.theme) || "template",
-    createdAt: clean(record.createdAt) || clean(template.created_at) || new Date().toISOString(),
+    createdAt:
+      clean(record.createdAt) ||
+      clean(template.created_at) ||
+      new Date().toISOString(),
     updatedAt: clean(record.updatedAt) || new Date().toISOString(),
     template: {
-      created_at: clean(template.created_at) || clean(record.createdAt) || new Date().toISOString(),
-      image_collection_ids: typeof template.image_collection_ids === "string" ? template.image_collection_ids : JSON.stringify(template.image_collection_ids ?? {}),
+      created_at:
+        clean(template.created_at) ||
+        clean(record.createdAt) ||
+        new Date().toISOString(),
+      image_collection_ids:
+        typeof template.image_collection_ids === "string"
+          ? template.image_collection_ids
+          : JSON.stringify(template.image_collection_ids ?? {}),
       format: normalizeTemplateFormat(template.format),
-      hooks: Array.isArray(template.hooks) ? template.hooks.map(clean).filter(Boolean) : [],
+      hooks: Array.isArray(template.hooks)
+        ? template.hooks.map(clean).filter(Boolean)
+        : [],
     },
   }
 }
 
-function normalizeAutomationTemplateExampleRun(record: AutomationTemplateExampleRun): AutomationTemplateExampleRun | null {
+function normalizeAutomationTemplateExampleRun(
+  record: AutomationTemplateExampleRun
+): AutomationTemplateExampleRun | null {
   const id = clean(record?.id)
   const templateId = clean(record?.templateId) || clean(record?.automationId)
   if (!id || !templateId) {
@@ -445,14 +515,18 @@ function normalizeAutomationTemplateExampleRun(record: AutomationTemplateExample
   }
 }
 
-function normalizeTemplateFormat(format: AutomationTemplateFormat): AutomationTemplateFormat {
+function normalizeTemplateFormat(
+  format: AutomationTemplateFormat
+): AutomationTemplateFormat {
   return {
     hook: {
       aspect_ratio: format?.hook?.aspect_ratio ?? "9:16",
       image_grid: format?.hook?.image_grid ?? "none",
       overlay: Boolean(format?.hook?.overlay),
       display_text: format?.hook?.display_text !== false,
-      text_items: Array.isArray(format?.hook?.text_items) ? format.hook.text_items : [],
+      text_items: Array.isArray(format?.hook?.text_items)
+        ? format.hook.text_items
+        : [],
     },
     content: {
       aspect_ratio: format?.content?.aspect_ratio ?? "9:16",
@@ -464,7 +538,9 @@ function normalizeTemplateFormat(format: AutomationTemplateFormat): AutomationTe
       overlay: Boolean(format?.content?.overlay),
       overlay_image: format?.content?.overlay_image,
       display_text: format?.content?.display_text !== false,
-      text_items: Array.isArray(format?.content?.text_items) ? format.content.text_items : [],
+      text_items: Array.isArray(format?.content?.text_items)
+        ? format.content.text_items
+        : [],
     },
     cta: {
       enabled: Boolean(format?.cta?.enabled),
@@ -473,20 +549,35 @@ function normalizeTemplateFormat(format: AutomationTemplateFormat): AutomationTe
       image_grid: format?.cta?.image_grid ?? "none",
       overlay: Boolean(format?.cta?.overlay),
       display_text: format?.cta?.display_text !== false,
-      text_items: Array.isArray(format?.cta?.text_items) ? format.cta.text_items : [],
+      text_items: Array.isArray(format?.cta?.text_items)
+        ? format.cta.text_items
+        : [],
     },
     tone: format?.tone ?? "Custom",
     custom_tone: clean(format?.custom_tone),
   }
 }
 
-function templateSlideCount(format: AutomationTemplateFormat) {
-  return 1 + (format.content.slide_count_mode === "varying"
-    ? format.content.slide_count_min ?? format.content.slide_count ?? 1
-    : format.content.slide_count ?? 1) + (format.cta.enabled ? 1 : 0)
+function automationTemplateKind(
+  record: Pick<AutomationTemplateRecord, "automationKind"> | undefined
+) {
+  return record?.automationKind === "video" ? "video" : "slideshow"
 }
 
-function parseImageCollectionIds(value: string, fallback: AutomationSchema["image_collection_ids"]) {
+function templateSlideCount(format: AutomationTemplateFormat) {
+  return (
+    1 +
+    (format.content.slide_count_mode === "varying"
+      ? (format.content.slide_count_min ?? format.content.slide_count ?? 1)
+      : (format.content.slide_count ?? 1)) +
+    (format.cta.enabled ? 1 : 0)
+  )
+}
+
+function parseImageCollectionIds(
+  value: string,
+  fallback: AutomationSchema["image_collection_ids"]
+) {
   try {
     return JSON.parse(value)
   } catch {
@@ -495,13 +586,16 @@ function parseImageCollectionIds(value: string, fallback: AutomationSchema["imag
 }
 
 function toneLabel(value: string): AutomationTemplateTone {
-  const normalized = value.toLowerCase()
-  if (normalized.includes("motivational")) return "Motivational & Empowering"
-  if (normalized.includes("educational")) return "Educational & Informative"
-  if (normalized.includes("bold") || normalized.includes("provocative")) return "Bold & Provocative"
-  if (normalized.includes("calm") || normalized.includes("reflective")) return "Calm & Reflective"
-  if (normalized.includes("witty") || normalized.includes("humor")) return "Witty & Humorous"
-  if (normalized.includes("conversational") && normalized.length < 120) return "Conversational & Relatable"
+  const normalized = value.trim().toLowerCase()
+  if (normalized === "motivational & empowering")
+    return "Motivational & Empowering"
+  if (normalized === "educational & informative")
+    return "Educational & Informative"
+  if (normalized === "bold & provocative") return "Bold & Provocative"
+  if (normalized === "calm & reflective") return "Calm & Reflective"
+  if (normalized === "witty & humorous") return "Witty & Humorous"
+  if (normalized === "conversational & relatable")
+    return "Conversational & Relatable"
   return "Custom"
 }
 

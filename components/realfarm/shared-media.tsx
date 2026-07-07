@@ -1,6 +1,11 @@
 "use client"
 
-import { IconMovie, IconUser, IconVolume } from "@tabler/icons-react"
+import {
+  IconMovie,
+  IconPlayerPlay,
+  IconUser,
+  IconVolume,
+} from "@tabler/icons-react"
 import type { ReactNode } from "react"
 
 import { SelectLike } from "@/components/ui/form-controls"
@@ -9,12 +14,24 @@ import type { Video } from "@/lib/realfarm-data"
 import type { PinterestSearchResult } from "@/lib/pinterest-search"
 import { cn } from "@/lib/utils"
 
-export function VideoGrid({ videos, avatarUrl }: { videos: Video[]; avatarUrl?: string }) {
+export function VideoGrid({
+  videos,
+  avatarUrl,
+}: {
+  videos: Video[]
+  avatarUrl?: string
+}) {
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
       {videos.map((video, index) => (
-        <article key={video.id} className="overflow-hidden rounded-[7px] border border-[#deddd5] bg-white">
-          <VideoPhone caption={video.caption} tone={video.tone} avatarIndex={index} avatarUrl={avatarUrl} className="h-52 w-full rounded-none" />
+        <article key={video.id} className="app-card overflow-hidden">
+          <VideoPhone
+            caption={video.caption}
+            tone={video.tone}
+            avatarIndex={index}
+            avatarUrl={avatarUrl}
+            className="h-52 w-full rounded-none"
+          />
         </article>
       ))}
     </div>
@@ -35,16 +52,30 @@ export function VideoPhone({
   className?: string
 }) {
   return (
-    <div className={cn("relative overflow-hidden rounded-[5px] bg-[#d8d6ce]", phoneTone(tone), className)}>
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-[5px] bg-[#d8d6ce]",
+        phoneTone(tone),
+        className
+      )}
+    >
       <div className="absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
-      <div className="absolute left-1/2 top-[18%] size-28 -translate-x-1/2 rounded-full bg-white/30 blur-2xl" />
-      <AvatarDot name="creator" index={avatarIndex} imageUrl={avatarUrl} className="absolute left-1/2 top-[27%] size-28 -translate-x-1/2 border-4 border-white/20" />
-      <div className="absolute inset-x-5 bottom-[30%] text-center text-[12px] font-extrabold leading-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,.8)]">
+      <div className="absolute top-[18%] left-1/2 size-28 -translate-x-1/2 rounded-full bg-white/30 blur-2xl" />
+      <AvatarDot
+        name="creator"
+        index={avatarIndex}
+        imageUrl={avatarUrl}
+        className="absolute top-[27%] left-1/2 size-28 -translate-x-1/2 border-4 border-white/20"
+      />
+      <div className="absolute inset-x-5 bottom-[30%] text-center text-[12px] leading-tight font-extrabold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,.8)]">
         {caption}
       </div>
       <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 gap-3">
         {[IconMovie, IconVolume, IconUser].map((Icon, index) => (
-          <span key={index} className="grid size-8 place-items-center rounded-[5px] bg-white/85 text-[#686761]">
+          <span
+            key={index}
+            className="grid size-8 place-items-center rounded-[5px] bg-white/85 text-[#686761]"
+          >
             <Icon className="size-4" />
           </span>
         ))}
@@ -65,24 +96,133 @@ export function ToolPill({
   onClick?: () => void
 }) {
   return (
-    <button className={cn("grid h-8 min-w-8 place-items-center rounded-full bg-white px-2 text-[12px] font-semibold shadow-sm", danger && "text-[#e16d6d]")} onClick={onClick} aria-label={label}>
+    <button
+      className={cn(
+        "grid h-8 min-w-8 place-items-center rounded-full bg-white px-2 text-[12px] font-semibold shadow-sm",
+        danger && "text-[#e16d6d]"
+      )}
+      onClick={onClick}
+      aria-label={label}
+    >
       {Icon ? <Icon className="size-4" /> : label}
     </button>
   )
 }
 
-export function CollectionPreview({ collection, index }: { collection: CreatedImageCollection; index: number }) {
+export function MediaCardShell({
+  children,
+  className,
+  danger,
+}: {
+  children: ReactNode
+  className?: string
+  danger?: boolean
+}) {
+  return (
+    <article
+      className={cn(
+        "app-card overflow-hidden",
+        danger && "border-app-danger-surface",
+        className
+      )}
+    >
+      {children}
+    </article>
+  )
+}
+
+export function MediaFrame({
+  children,
+  className,
+  aspect = "portrait",
+}: {
+  children: ReactNode
+  className?: string
+  aspect?: "portrait" | "square" | "wide"
+}) {
+  return (
+    <div
+      className={cn(
+        "app-media-frame",
+        aspect === "portrait" && "aspect-[9/16]",
+        aspect === "square" && "aspect-square",
+        aspect === "wide" && "aspect-video",
+        className
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
+export function MediaPendingState({
+  label,
+  className,
+}: {
+  label: string
+  className?: string
+}) {
+  return (
+    <MediaFrame
+      className={cn(
+        "flex flex-col items-center justify-center gap-4 bg-app-surface p-6 text-center",
+        className
+      )}
+    >
+      <div className="text-[13px] font-semibold text-app-muted-text">
+        {label}
+      </div>
+      <div className="h-1.5 w-full max-w-[140px] overflow-hidden rounded-full bg-app-control-hover">
+        <div className="h-full w-2/5 animate-[shimmer_1.5s_ease-in-out_infinite] rounded-full bg-app-text" />
+      </div>
+    </MediaFrame>
+  )
+}
+
+export function MediaErrorState({
+  title,
+  message,
+  action,
+}: {
+  title: string
+  message: string
+  action?: ReactNode
+}) {
+  return (
+    <MediaFrame className="flex flex-col items-center justify-center gap-3 bg-app-danger-surface p-6 text-center">
+      <div className="text-[13px] font-bold text-app-danger-muted">{title}</div>
+      <div className="line-clamp-4 text-[12px] leading-5 font-semibold text-app-danger-text">
+        {message}
+      </div>
+      {action}
+    </MediaFrame>
+  )
+}
+
+export function CollectionPreview({
+  collection,
+  index,
+}: {
+  collection: CreatedImageCollection
+  index: number
+}) {
   const firstImage = collection.images[0]
 
   if (!firstImage) {
     return (
-      <div className="grid h-[170px] place-items-center bg-[#dbdad2] text-[13px] font-semibold text-[#8b8a83]">
-        No images
+      <div className="grid h-[170px] place-items-center bg-app-media-empty text-[13px] font-semibold text-app-muted-text">
+        No {collection.mediaType === "video" ? "videos" : "images"}
       </div>
     )
   }
 
-  return <PinterestPreviewTile image={firstImage} index={index} className="h-[170px]" />
+  return (
+    <PinterestPreviewTile
+      image={firstImage}
+      index={index}
+      className="h-[170px]"
+    />
+  )
 }
 
 export function PinterestPreviewTile({
@@ -96,11 +236,17 @@ export function PinterestPreviewTile({
   className?: string
   fit?: "cover" | "contain"
 }) {
+  const isVideo = isVideoMediaUrl(image.imageUrl)
+
   return (
     <div
-      className={cn("bg-[#d9d8d0]", !image.imageUrl && thumbTone("collection", index), className)}
+      className={cn(
+        "relative overflow-hidden bg-app-media-empty",
+        !image.imageUrl && thumbTone("collection", index),
+        className
+      )}
       style={
-        image.imageUrl
+        image.imageUrl && !isVideo
           ? {
               backgroundImage: `url(${image.imageUrl})`,
               backgroundPosition: "center",
@@ -109,15 +255,47 @@ export function PinterestPreviewTile({
             }
           : undefined
       }
-    />
+    >
+      {image.imageUrl && isVideo ? (
+        <>
+          <video
+            className="absolute inset-0 h-full w-full object-cover"
+            src={image.imageUrl}
+            muted
+            playsInline
+            preload="metadata"
+          />
+          <span className="absolute inset-0 grid place-items-center bg-black/10 text-white">
+            <span className="grid size-9 place-items-center rounded-full bg-black/55">
+              <IconPlayerPlay className="size-5" fill="white" />
+            </span>
+          </span>
+        </>
+      ) : null}
+    </div>
   )
 }
 
-export function ControlRow({ label, value, image }: { label: string; value: string; image?: boolean }) {
+function isVideoMediaUrl(url?: string) {
+  return /\.(mp4|mov|m4v|webm)(\?|#|$)/i.test(url ?? "")
+}
+
+export function ControlRow({
+  label,
+  value,
+  image,
+}: {
+  label: string
+  value: string
+  image?: boolean
+}) {
   return (
     <div className="mb-3 flex items-center justify-between rounded-[8px] bg-[#f8f8f4] px-3 py-2 text-[12px]">
       <span className="font-semibold">{label}</span>
-      <span className="max-w-[135px] truncate text-[#77766f]">{image ? "▧ " : ""}{value}</span>
+      <span className="max-w-[135px] truncate text-[#77766f]">
+        {image ? "▧ " : ""}
+        {value}
+      </span>
     </div>
   )
 }
@@ -136,23 +314,55 @@ export function ControlSelect({
   return (
     <div className="mb-3 grid grid-cols-[1fr_92px] items-center gap-3 rounded-[8px] bg-[#f8f8f4] px-3 py-2 text-[12px]">
       <span className="font-semibold">{label}</span>
-      <SelectLike value={value} options={options} placement="bottom" onChange={onChange} />
+      <SelectLike
+        value={value}
+        options={options}
+        placement="bottom"
+        onChange={onChange}
+      />
     </div>
   )
 }
 
-export function ControlToggle({ label, enabled, onClick }: { label: string; enabled: boolean; onClick?: () => void }) {
+export function ControlToggle({
+  label,
+  enabled,
+  onClick,
+}: {
+  label: string
+  enabled: boolean
+  onClick?: () => void
+}) {
   return (
-    <button className="mb-3 flex w-full items-center justify-between px-1 text-[12px]" onClick={onClick}>
+    <button
+      className="mb-3 flex w-full items-center justify-between px-1 text-[12px]"
+      onClick={onClick}
+    >
       <span className="font-semibold text-[#66655f]">{label}</span>
-      <span className={cn("h-5 w-8 rounded-full p-0.5 transition", enabled ? "bg-app-action" : "bg-[#edede8]")}>
-        <span className={cn("block size-4 rounded-full bg-white transition", enabled && "translate-x-3")} />
+      <span
+        className={cn(
+          "h-5 w-8 rounded-full p-0.5 transition",
+          enabled ? "bg-app-action" : "bg-[#edede8]"
+        )}
+      >
+        <span
+          className={cn(
+            "block size-4 rounded-full bg-white transition",
+            enabled && "translate-x-3"
+          )}
+        />
       </span>
     </button>
   )
 }
 
-export function AutomationThumb({ theme, index }: { theme: string; index: number }) {
+export function AutomationThumb({
+  theme,
+  index,
+}: {
+  theme: string
+  index: number
+}) {
   if (theme === "empty") {
     return (
       <div className="relative grid h-24 place-items-center overflow-hidden bg-[#c9c9c5] text-[12px] font-semibold text-white">
@@ -162,25 +372,49 @@ export function AutomationThumb({ theme, index }: { theme: string; index: number
   }
 
   return (
-    <div className={cn("relative h-24 overflow-hidden", thumbTone(theme, index))}>
-      <div className="absolute inset-x-2 top-5 text-[9px] font-bold leading-tight text-white drop-shadow">
-        {index % 2 === 0 ? "5 Ways To Lower Cortisol" : "Template preview"}
+    <div
+      className={cn("relative h-24 overflow-hidden", thumbTone(theme, index))}
+    >
+      <div className="absolute inset-x-2 top-5 text-[9px] leading-tight font-bold text-white drop-shadow">
+        {index % 2 === 0 ? "5 ways to lower cortisol" : "template preview"}
       </div>
-      <div className="absolute bottom-2 left-2 right-2 h-1 rounded-full bg-white/40" />
+      <div className="absolute right-2 bottom-2 left-2 h-1 rounded-full bg-white/40" />
     </div>
   )
 }
 
-export function SlideThumb({ index, className }: { index: number; className?: string }) {
+export function SlideThumb({
+  index,
+  className,
+}: {
+  index: number
+  className?: string
+}) {
   return (
-    <div className={cn("relative overflow-hidden bg-[#d9d8d0]", thumbTone("slide", index), className)}>
+    <div
+      className={cn(
+        "relative overflow-hidden bg-[#d9d8d0]",
+        thumbTone("slide", index),
+        className
+      )}
+    >
       <div className="absolute inset-x-2 top-2 h-1 rounded-full bg-white/45" />
-      <div className="absolute bottom-2 left-2 right-2 h-8 rounded bg-black/15" />
+      <div className="absolute right-2 bottom-2 left-2 h-8 rounded bg-black/15" />
     </div>
   )
 }
 
-export function AvatarDot({ name, index, imageUrl, className }: { name: string; index: number; imageUrl?: string; className?: string }) {
+export function AvatarDot({
+  name,
+  index,
+  imageUrl,
+  className,
+}: {
+  name: string
+  index: number
+  imageUrl?: string
+  className?: string
+}) {
   return (
     <span
       className={cn(
@@ -231,10 +465,15 @@ export function thumbTone(theme: string, index: number) {
     "bg-gradient-to-br from-[#d7d6d2] via-[#77736a] to-[#171717]",
     "bg-gradient-to-br from-[#d5c5d9] via-[#9d718e] to-[#382c3b]",
   ]
-  if (theme.includes("soccer")) return "bg-gradient-to-br from-[#6fb46a] via-[#245b2f] to-[#111b16]"
-  if (theme.includes("nature")) return "bg-gradient-to-br from-[#b7d596] via-[#67863c] to-[#23331e]"
-  if (theme.includes("space")) return "bg-gradient-to-br from-[#94b3c9] via-[#5a6d98] to-[#1d2039]"
-  if (theme.includes("books")) return "bg-gradient-to-br from-[#d4c5a3] via-[#84684b] to-[#2a221a]"
-  if (theme.includes("cinema")) return "bg-gradient-to-br from-[#cfc7b8] via-[#826552] to-[#171313]"
+  if (theme.includes("soccer"))
+    return "bg-gradient-to-br from-[#6fb46a] via-[#245b2f] to-[#111b16]"
+  if (theme.includes("nature"))
+    return "bg-gradient-to-br from-[#b7d596] via-[#67863c] to-[#23331e]"
+  if (theme.includes("space"))
+    return "bg-gradient-to-br from-[#94b3c9] via-[#5a6d98] to-[#1d2039]"
+  if (theme.includes("books"))
+    return "bg-gradient-to-br from-[#d4c5a3] via-[#84684b] to-[#2a221a]"
+  if (theme.includes("cinema"))
+    return "bg-gradient-to-br from-[#cfc7b8] via-[#826552] to-[#171313]"
   return tones[index % tones.length]
 }

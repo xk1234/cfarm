@@ -9,11 +9,21 @@ export type GeneratedShowcaseSlide = {
   imageUrl?: string
   text?: string
   imageCaption?: string
+  durationSeconds?: number
 }
 
 export type GeneratedShowcaseRun = {
   id: string
+  automationTitle?: string
+  scheduledFor?: string
+  status?: string
+  createdAt?: string
+  error?: string
   plan?: {
+    title?: string
+    hook?: string
+    publishType?: string
+    language?: string
     slides?: GeneratedShowcaseSlide[]
   }
 }
@@ -23,11 +33,21 @@ export type TemplateExampleSlide = {
   imageUrl: string
   text: string
   section: "hook" | "content" | "cta"
+  durationSeconds?: number
 }
 
 export type TemplateExampleSlideshow = {
   id: string
   label: string
+  title: string
+  status: string
+  scheduledFor?: string
+  createdAt?: string
+  durationSeconds: number
+  caption: string
+  publishType?: string
+  language?: string
+  error?: string
   slides: TemplateExampleSlide[]
 }
 
@@ -47,28 +67,58 @@ export function generatedExampleSlideshows(
 ) {
   return (
     runs
-      ?.map((run, runIndex) => {
+      ?.map<TemplateExampleSlideshow | null>((run, runIndex) => {
         const slides = (run.plan?.slides ?? [])
-          .map((slide, index) => ({
-            id: `${run.id}-${slide.id ?? index}`,
-            imageUrl: slide.imageUrl?.trim() ?? "",
-            text: slide.text?.trim() || slide.imageCaption?.trim() || "",
-            section: exampleSlideSection(slide, index),
-          }))
-          .filter((slide): slide is TemplateExampleSlide =>
-            Boolean(slide.imageUrl)
-          )
+          .map<TemplateExampleSlide | null>((slide, index) => {
+            const imageUrl = slide.imageUrl?.trim()
+            if (!imageUrl) {
+              return null
+            }
+
+            return {
+              id: `${run.id}-${slide.id ?? index}`,
+              imageUrl,
+              text: slide.text?.trim() || slide.imageCaption?.trim() || "",
+              section: exampleSlideSection(slide, index),
+              durationSeconds: slide.durationSeconds,
+            }
+          })
+          .filter((slide): slide is TemplateExampleSlide => Boolean(slide))
+
+        if (slides.length === 0) {
+          return null
+        }
 
         return {
           id: run.id,
           label: `Slideshow ${runIndex + 1}`,
+          title:
+            run.plan?.title?.trim() ||
+            run.plan?.hook?.trim() ||
+            run.automationTitle?.trim() ||
+            `Slideshow ${runIndex + 1}`,
+          status: run.status?.trim() || "succeeded",
+          scheduledFor: run.scheduledFor,
+          createdAt: run.createdAt,
+          durationSeconds: slideshowDurationSeconds(slides),
+          caption: run.plan?.hook?.trim() || slides[0]?.text || "",
+          publishType: run.plan?.publishType,
+          language: run.plan?.language,
+          error: run.error,
           slides,
         }
       })
       .filter(
         (slideshow): slideshow is TemplateExampleSlideshow =>
-          slideshow.slides.length > 0
+          slideshow !== null
       ) ?? []
+  )
+}
+
+function slideshowDurationSeconds(slides: TemplateExampleSlide[]) {
+  return slides.reduce(
+    (total, slide) => total + Math.max(1, slide.durationSeconds ?? 4),
+    0
   )
 }
 

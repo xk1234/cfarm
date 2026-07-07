@@ -1,6 +1,12 @@
 const CFARM_BUTTON_ATTR = "data-cfarm-swipe"
 const CFARM_CARD_ATTR = "data-cfarm-swipe-card"
 const CFARM_API_URL = "http://localhost:3000/api/swipes"
+const swipedIndex = {
+  loaded: false,
+  loading: false,
+  unavailable: false,
+  keys: new Set(),
+}
 
 function platform() {
   const host = location.hostname
@@ -185,6 +191,10 @@ function isTikTokTrendVideoPage() {
   return location.hostname.includes("ads.tiktok.com") && location.pathname.toLowerCase().includes("/creative/creativecenter/trends/video")
 }
 
+function isTikTokSellerInspirationVideoPage() {
+  return location.hostname.includes("seller-sg.tiktok.com") && location.pathname.toLowerCase().includes("/shoppable-videos/inspiration/videos")
+}
+
 function isTikTokTrendVideoCard(element) {
   if (!(element instanceof HTMLElement)) return false
   if (element.closest("header, nav, [id*='Header'], [class*='Header'], [class*='FixedHeader']")) return false
@@ -200,6 +210,25 @@ function tiktokTrendVideoCardCandidates() {
     .filter((element) => textFrom(element, 80) === "View details")
     .map(findTikTokTrendVideoCard)
     .filter(Boolean)
+
+  return uniqueElements(cards).slice(0, 120)
+}
+
+function isTikTokSellerInspirationVideoCard(element) {
+  if (!(element instanceof HTMLElement)) return false
+  if (element.closest("header, nav, [id*='Header'], [class*='Header'], [class*='FixedHeader']")) return false
+  const isVideoPlayer = element.getAttribute?.("data-tid") === "video-player" || /^short_video_.+-wrapper$/.test(element.id || "")
+  if (!isVideoPlayer) return false
+  if (!element.closest?.("[data-tid='short_video_inspiration.video-tab.video-list']")) return false
+  return Boolean(element.querySelector("img,video"))
+}
+
+function tiktokSellerInspirationVideoCardCandidates() {
+  if (!isTikTokSellerInspirationVideoPage()) return []
+  const list = document.querySelector("[data-tid='short_video_inspiration.video-tab.video-list']")
+  if (!list) return []
+  const cards = Array.from(list.querySelectorAll("[data-tid='video-player'], [id^='short_video_'][id$='-wrapper']"))
+    .filter(isTikTokSellerInspirationVideoCard)
 
   return uniqueElements(cards).slice(0, 120)
 }
@@ -303,12 +332,18 @@ function twitterStatusUrl(container) {
 
 function twitterPayload(container) {
   const lines = twitterVisibleLines(container)
-  const tweetText = textFrom(container.querySelector('[data-testid="tweetText"]'), 900) || twitterTextFromLines(lines)
+  const tweetText = textFrom(container.querySelector('[data-testid="tweetText"]'), 900) || twitterArticleText(container, lines) || twitterTextFromLines(lines)
   const userBlock = textFrom(container.querySelector('[data-testid="User-Name"]'), 180) || twitterUserFromLines(lines)
   const tweetUrl = twitterStatusUrl(container) || location.href
-  const mediaUrl = bestVideo(container) || bestImage(container)
+  const mediaUrls = twitterTweetMediaUrls(container)
+  const videoUrl = bestVideo(container)
+  const mediaUrl = videoUrl || mediaUrls[0] || ""
   const timestamp = container.querySelector("time[datetime]")?.getAttribute("datetime") || ""
   const promoted = /promoted/i.test(textFrom(container, 1200))
+  const postType = twitterPostType(container, mediaUrl, mediaUrls)
+  const format = postType === "video" || postType === "carousel" || postType === "image"
+    ? postType
+    : "unknown"
 
   return {
     advertiser: userBlock || "Twitter/X",
@@ -317,20 +352,208 @@ function twitterPayload(container) {
     sourceUrl: tweetUrl,
     title: tweetText.slice(0, 90) || userBlock || "Twitter/X post",
     caption: tweetText || textFrom(container, 900),
-    format: inferFormat(container),
+    format,
     cta: "Inspect Swipe",
     landingPageUrl: tweetUrl,
     mediaUrl,
+    mediaUrls,
     uploaded_at: timestamp,
     metadata: {
       Source: "Twitter/X",
       URL: location.href,
       TweetURL: tweetUrl,
       Promoted: promoted ? "true" : "false",
+      PostType: postType,
     },
     stats: inferTwitterStats(container, lines),
     folder: "No Folder",
   }
+}
+
+function twitterTweetMediaUrls(container) {
+  return uniqueValues(
+    Array.from(container.querySelectorAll('[data-testid="tweetPhoto"]'))
+      .flatMap((photo) => [
+        ...Array.from(photo.querySelectorAll?.("img") || []).map((image) => image.currentSrc || image.src),
+        cssBackgroundUrl(photo),
+        ...Array.from(photo.querySelectorAll?.("*") || []).map(cssBackgroundUrl),
+      ])
+      .map(normalizeText)
+      .filter((url) => /^https?:\/\/pbs\.twimg\.com\/media\//i.test(url))
+  )
+}
+
+function uniqueValues(values) {
+  return Array.from(new Set(values.filter(Boolean)))
+}
+
+function ensureSwipedIndexReady() {
+  if (swipedIndex.loaded || swipedIndex.unavailable) return true
+  if (swipedIndex.loading) return false
+  if (typeof fetch !== "function") {
+    swipedIndex.unavailable = true
+    return true
+  }
+
+  swipedIndex.loading = true
+  fetch(CFARM_API_URL, { cache: "no-store" })
+    .then((response) => response.ok ? response.json() : Promise.reject(new Error("Failed to load swipes")))
+    .then((payload) => {
+      swipedIndex.keys = buildSwipedKeyIndex(Array.isArray(payload?.swipes) ? payload.swipes : [])
+      swipedIndex.loaded = true
+    })
+    .catch(() => {
+      swipedIndex.unavailable = true
+    })
+    .finally(() => {
+      swipedIndex.loading = false
+      window.requestAnimationFrame(injectButtons)
+    })
+
+  return false
+}
+
+function buildSwipedKeyIndex(swipes) {
+  const keys = new Set()
+  for (const swipe of swipes) {
+    for (const key of swipeKeys(swipe)) {
+      keys.add(key)
+    }
+  }
+  return keys
+}
+
+function markPayloadSwiped(payload) {
+  for (const key of swipeKeys(payload)) {
+    swipedIndex.keys.add(key)
+  }
+  swipedIndex.loaded = true
+}
+
+function isAlreadySwiped(container) {
+  if (!swipedIndex.loaded) return false
+  return swipeCandidateKeys(container).some((key) => swipedIndex.keys.has(key))
+}
+
+function swipeCandidateKeys(container) {
+  const currentPlatform = platform()
+  if (currentPlatform === "twitter") {
+    return swipeKeys({ platform: "twitter", sourceUrl: twitterStatusUrl(container), metadata: { TweetURL: twitterStatusUrl(container) } })
+  }
+  if (currentPlatform === "tiktok" && tiktokPostLink(container)) {
+    return swipeKeys({ platform: "tiktok", sourceUrl: tiktokPostLink(container), metadata: { PostURL: tiktokPostLink(container) } })
+  }
+  if (currentPlatform === "tiktok-seller" && isTikTokSellerInspirationVideoCard(container)) {
+    return swipeKeys({ platform: "tiktok-seller", metadata: { VideoID: tiktokSellerVideoId(container) } })
+  }
+  if (currentPlatform === "tiktok-creative" && isTikTokTopAdsCard(container)) {
+    const href = container.querySelector("a[href*='/business/creativecenter/topads/']")?.getAttribute("href") || ""
+    return swipeKeys({ platform: "tiktok-creative", sourceUrl: absoluteUrl(href) })
+  }
+  if (currentPlatform === "facebook") {
+    return swipeKeys({ platform: "facebook", metadata: { LibraryID: facebookLibraryId(container) } })
+  }
+  return swipeKeys(buildPayload(container))
+}
+
+function swipeKeys(value) {
+  const keys = new Set()
+  const platformValue = normalizeText(value?.platform || value?.source || platform()).toLowerCase()
+  const metadata = value?.metadata || {}
+
+  addCanonicalUrlKey(keys, value?.sourceUrl, platformValue)
+  addCanonicalUrlKey(keys, value?.landingPageUrl, platformValue)
+  addCanonicalUrlKey(keys, metadata.TweetURL, platformValue)
+  addCanonicalUrlKey(keys, metadata.PostURL, platformValue)
+  addCanonicalUrlKey(keys, metadata.URL, platformValue)
+
+  const sellerVideoId = normalizeText(metadata.VideoID || metadata.videoId || metadata["Video ID"] || "")
+  if (sellerVideoId) keys.add(`tiktok-seller:video:${sellerVideoId}`)
+
+  const libraryId = normalizeText(metadata.LibraryID || metadata["Library ID"] || facebookLibraryIdFromText(`${value?.caption || ""} ${value?.title || ""}`) || "")
+  if (libraryId) keys.add(`facebook:library:${libraryId}`)
+
+  return Array.from(keys)
+}
+
+function addCanonicalUrlKey(keys, rawUrl, platformValue) {
+  const canonical = canonicalSwipeUrlKey(rawUrl, platformValue)
+  if (canonical) keys.add(canonical)
+}
+
+function canonicalSwipeUrlKey(rawUrl, platformValue = platform()) {
+  const urlText = typeof rawUrl === "string" ? normalizeText(rawUrl) : ""
+  if (!urlText) return ""
+
+  try {
+    const url = new URL(urlText, location.href)
+    const host = url.hostname.replace(/^www\./, "")
+    const twitterStatus = url.pathname.match(/^\/[^/]+\/status\/(\d+)/)
+    if ((host === "x.com" || host === "twitter.com" || host.endsWith(".twitter.com")) && twitterStatus?.[1]) {
+      return `twitter:status:${twitterStatus[1]}`
+    }
+
+    const tiktokPost = url.pathname.match(/^\/@[^/]+\/(?:video|photo)\/(\d+)/)
+    if (host.endsWith("tiktok.com") && tiktokPost?.[1]) {
+      return `tiktok:post:${tiktokPost[1]}`
+    }
+
+    const topAds = url.pathname.match(/\/business\/creativecenter\/topads\/(?:pc\/)?[^/?#]+/)
+    if (host === "ads.tiktok.com" && topAds?.[0]) {
+      return `tiktok-creative:url:${host}${topAds[0]}`
+    }
+
+    url.hash = ""
+    if (platformValue === "twitter") {
+      url.search = ""
+    }
+    return `${platformValue || "unknown"}:url:${url.origin}${url.pathname}${url.search}`
+  } catch {
+    return `${platformValue || "unknown"}:url:${urlText}`
+  }
+}
+
+function facebookLibraryId(element) {
+  return facebookLibraryIdFromText(fullTextFrom(element))
+}
+
+function facebookLibraryIdFromText(value) {
+  return normalizeText(value).match(/Library ID:?\s*(\d+)/i)?.[1] || ""
+}
+
+function twitterPostType(container, mediaUrl, mediaUrls) {
+  if (container.querySelector("video")) return "video"
+  if (mediaUrls.length > 1) return "carousel"
+  if (mediaUrl) return "image"
+  if (container.querySelector('[data-testid="article-cover-image"]')) return "article"
+  return "text"
+}
+
+function twitterArticleText(container, lines = twitterVisibleLines(container)) {
+  if (!container.querySelector('[data-testid="article-cover-image"]')) {
+    return ""
+  }
+
+  const userBlock = textFrom(container.querySelector('[data-testid="User-Name"]'), 180)
+  const userTokens = new Set(
+    userBlock
+      .split(/\s+/)
+      .map((value) => value.trim())
+      .filter(Boolean)
+  )
+  const contentLines = lines
+    .map(normalizeText)
+    .filter(Boolean)
+    .filter((line) => line !== "Article")
+    .filter((line) => !/^@[\w-]+$/.test(line))
+    .filter((line) => !twitterMetadataLine(line))
+    .filter((line) => !/^(grok actions|more|share post|bookmark)$/i.test(line))
+    .filter((line) => line !== userBlock && !userBlock.includes(line))
+    .filter((line) => !userTokens.has(line))
+    .filter((line) => !/^translated from /i.test(line))
+    .filter((line) => !/^show original$/i.test(line))
+
+  return uniqueValues(contentLines).join("\n").slice(0, 1200)
 }
 
 function twitterVisibleLines(container) {
@@ -507,6 +730,44 @@ function tiktokTrendVideoPayload(container) {
     stats: views ? { "Video views": views } : {},
     folder: "No Folder",
   }
+}
+
+function tiktokSellerInspirationVideoPayload(container) {
+  const title = textFrom(container.querySelector(".text-head-s, p"), 100) || "TikTok Shop inspiration video"
+  const statsText = textFrom(container, 700)
+  const values = Array.from(container.querySelectorAll("p"))
+    .map((node) => textFrom(node, 80))
+    .filter(Boolean)
+  const videoId = tiktokSellerVideoId(container)
+  const mediaUrl = bestVideo(container) || bestImage(container)
+
+  return {
+    advertiser: "TikTok Shop Seller Center",
+    platform: "tiktok-seller",
+    source: "tiktok-seller",
+    sourceUrl: location.href,
+    title,
+    caption: statsText || title,
+    format: "video",
+    cta: "Inspect Swipe",
+    landingPageUrl: location.href,
+    mediaUrl,
+    metadata: {
+      Source: "TikTok Shop Seller Center inspiration videos",
+      URL: location.href,
+      VideoID: videoId,
+      Category: title,
+    },
+    stats: {
+      Plays: values[1] || "",
+      Likes: values[2] || "",
+    },
+    folder: "No Folder",
+  }
+}
+
+function tiktokSellerVideoId(container) {
+  return (container.id || "").match(/short_video_(\d+)/)?.[1] || ""
 }
 
 function tiktokTrendVideoCaption(container) {
@@ -827,6 +1088,9 @@ function buildPayload(container) {
   if (platform() === "tiktok" && tiktokPostLink(container)) {
     return tiktokPostPayload(container)
   }
+  if (platform() === "tiktok-seller" && isTikTokSellerInspirationVideoCard(container)) {
+    return tiktokSellerInspirationVideoPayload(container)
+  }
   if (platform() === "twitter") {
     return twitterPayload(container)
   }
@@ -888,6 +1152,7 @@ function sendSwipePayload(button, payload) {
         return
       }
       if (response?.ok) {
+        markPayloadSwiped(payload)
         setButtonState(button, "saved", "✓ Swiped")
         return
       }
@@ -925,6 +1190,9 @@ function cardCandidates() {
     }
     return tiktokTopAdsCardCandidates()
   }
+  if (platform() === "tiktok-seller") {
+    return tiktokSellerInspirationVideoCardCandidates()
+  }
   if (platform() === "twitter") {
     return twitterCardCandidates()
   }
@@ -946,17 +1214,21 @@ function cardCandidates() {
 }
 
 function injectCardButtons() {
+  if (!ensureSwipedIndexReady()) return
   for (const candidate of cardCandidates()) {
     if (candidate.querySelector(`[${CFARM_BUTTON_ATTR}]`)) continue
+    if (isAlreadySwiped(candidate)) continue
     candidate.style.position ||= "relative"
     candidate.appendChild(makeButton(candidate))
   }
 }
 
 function injectMetaAdButtons() {
+  if (!ensureSwipedIndexReady()) return
   for (const detailsControl of metaSeeAdDetailsControls()) {
     const card = findMetaAdCard(detailsControl)
     if (!card || card.querySelector(`[${CFARM_BUTTON_ATTR}]`)) continue
+    if (isAlreadySwiped(card)) continue
 
     const button = makeButton(card, "meta")
     const insertionPoint = metaDetailsInsertionPoint(detailsControl)
@@ -965,10 +1237,12 @@ function injectMetaAdButtons() {
 }
 
 function injectTikTokPostButtons() {
+  if (!ensureSwipedIndexReady()) return 0
   let count = 0
 
   for (const card of tiktokPostCards()) {
     if (card.querySelector(`[${CFARM_BUTTON_ATTR}]`)) continue
+    if (isAlreadySwiped(card)) continue
 
     const postItem = card.querySelector("[data-e2e='user-post-item']") || card
     const button = makeButton(card, "tiktok-grid")
@@ -980,10 +1254,12 @@ function injectTikTokPostButtons() {
 }
 
 function injectTikTokTrendVideoButtons() {
+  if (!ensureSwipedIndexReady()) return 0
   let count = 0
 
   for (const card of tiktokTrendVideoCardCandidates()) {
     if (card.hasAttribute?.(CFARM_CARD_ATTR) || card.querySelector(`[${CFARM_BUTTON_ATTR}]`)) continue
+    if (isAlreadySwiped(card)) continue
     card.setAttribute?.(CFARM_CARD_ATTR, "true")
 
     const button = makeButton(card, "tiktok-grid")
@@ -999,13 +1275,33 @@ function injectTikTokTrendVideoButtons() {
   return count
 }
 
+function injectTikTokSellerInspirationVideoButtons() {
+  if (!ensureSwipedIndexReady()) return 0
+  let count = 0
+
+  for (const card of tiktokSellerInspirationVideoCardCandidates()) {
+    if (card.hasAttribute?.(CFARM_CARD_ATTR) || card.querySelector(`[${CFARM_BUTTON_ATTR}]`)) continue
+    if (isAlreadySwiped(card)) continue
+    card.setAttribute?.(CFARM_CARD_ATTR, "true")
+    card.style.position ||= "relative"
+    card.appendChild(makeButton(card))
+    count += 1
+  }
+
+  return count
+}
+
 function injectGoogleButton() {
+  if (!ensureSwipedIndexReady()) return
   if (document.querySelector(".cfarm-swipe-fixed")) return
+  if (isAlreadySwiped(document.body)) return
   document.body.appendChild(makeButton(document.body, "fixed"))
 }
 
 function injectTikTokButton() {
+  if (!ensureSwipedIndexReady()) return
   if (document.querySelector(".cfarm-swipe-fixed")) return
+  if (isAlreadySwiped(document.querySelector("main") || document.body)) return
   const main = document.querySelector("main") || document.body
   document.body.appendChild(makeButton(main, "fixed"))
 }
@@ -1031,7 +1327,10 @@ function injectButtons() {
   }
 
   if (currentPlatform === "tiktok-seller") {
-    injectTikTokButton()
+    if (isTikTokSellerInspirationVideoPage()) {
+      injectTikTokSellerInspirationVideoButtons()
+    }
+    return
   }
 
   if (currentPlatform === "tiktok-creative" && isTikTokTrendVideoPage()) {

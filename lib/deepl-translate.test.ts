@@ -26,7 +26,7 @@ describe("DeepL translation", () => {
 
     expect(result).toEqual(["hola", "mundo"])
     const [url, request] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
-    expect(url).toBe("https://api-free.deepl.com/v2/translate")
+    expect(url).toBe("https://api.deepl.com/v2/translate")
     expect(request.headers).toMatchObject({
       Authorization: "DeepL-Auth-Key deepl-key",
       "Content-Type": "application/json",

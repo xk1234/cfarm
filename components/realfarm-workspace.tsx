@@ -21,7 +21,6 @@ import {
   IconLayoutDashboard,
   IconList,
   IconMessage,
-  IconMovie,
   IconPhoto,
   IconPhotoPlus,
   IconPlayerPlay,
@@ -35,7 +34,6 @@ import {
   IconTrash,
   IconUpload,
   IconVolume,
-  IconWand,
   IconX,
 } from "@tabler/icons-react"
 import {
@@ -65,6 +63,7 @@ import {
 } from "@/components/realfarm/calendar-analytics"
 import { AutomationSettingsDrawer } from "@/components/realfarm/automation-settings"
 import { AutomationsView } from "@/components/realfarm/automations-view"
+import { SocialAccountPickerModal } from "@/components/realfarm/social-account-picker"
 import {
   BuilderStep,
   CreatorBuilderPanel,
@@ -79,9 +78,7 @@ import {
 import { HomeView } from "@/components/realfarm/home-view"
 import { AvatarsView } from "@/components/realfarm/characters-view"
 import { Sidebar, type ViewKey } from "@/components/realfarm/navigation"
-import { EditorView } from "@/components/realfarm/slideshow-editor"
 import { TemplateFolderModal } from "@/components/realfarm/templates"
-import { UGCAdsView } from "@/components/realfarm/ugc-ads-view"
 import { Button } from "@/components/ui/button"
 import {
   CheckedDropdownButton,
@@ -128,6 +125,7 @@ import {
   wordLengthLabel,
   type AutomationSchedule,
   type AutomationSchema,
+  type AutomationSocialIntegration,
   type AutomationStatus,
   type AutomationTemplate,
   type AutomationTextItem,
@@ -138,6 +136,7 @@ import {
   collectionToStored,
   defaultImageCollections,
   storedToCollection,
+  ugcAvatarVideoCollectionFromAssets,
   type CreatedImageCollection,
   type PinterestCollectionCreatePayload,
   type StoredImageCollection,
@@ -153,23 +152,64 @@ import {
 import type { CharacterPayload, CharacterRecord } from "@/lib/characters"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import type { PinterestSearchResult } from "@/lib/pinterest-search"
+import { isSlideshowSocialProvider } from "@/lib/slideshow-social-platforms"
 import { cn } from "@/lib/utils"
 
-type AutomationRunSummary = {
+export type AutomationRunSummary = {
   id: string
   automationId: string
+  automationTitle?: string
+  scheduledFor?: string
+  status?: string
   createdAt: string
+  error?: string
+  videoUrl?: string
+  thumbnailUrl?: string
+  outputImages?: string[]
+  outputDir?: string
+  renderedSlides?: {
+    id?: string
+    imageUrl?: string
+    sourceImageUrl?: string
+    text?: string
+    imageCaption?: string
+    durationMs?: number
+    aspectRatio?: string
+  }[]
   plan?: {
+    title?: string
+    hook?: string
+    publishType?: string
+    language?: string
     slides?: {
       id?: string
       imageUrl?: string
       text?: string
       imageCaption?: string
+      durationSeconds?: number
     }[]
   }
 }
 
-export function RealFarmWorkspace({ data }: { data: RealFarmData }) {
+export type InitialTemplateData = {
+  templates: Automation[]
+  schemas: Record<string, AutomationSchema>
+  exampleRunsByTemplateId: Record<string, AutomationRunSummary[]>
+}
+
+const emptyInitialTemplateData: InitialTemplateData = {
+  templates: [],
+  schemas: {},
+  exampleRunsByTemplateId: {},
+}
+
+export function RealFarmWorkspace({
+  data,
+  initialTemplateData = emptyInitialTemplateData,
+}: {
+  data: RealFarmData
+  initialTemplateData?: InitialTemplateData
+}) {
   const [view, setView] = useState<ViewKey>("home")
   const [selectedSoundId, setSelectedSoundId] = useState("")
   const [collections, setCollections] = useState<CreatedImageCollection[]>(() =>
@@ -195,20 +235,29 @@ export function RealFarmWorkspace({ data }: { data: RealFarmData }) {
     Record<string, AutomationSchema>
   >({})
   const [templateAutomations, setTemplateAutomations] = useState<Automation[]>(
-    []
+    initialTemplateData.templates
   )
   const [templateConfigEdits, setTemplateConfigEdits] = useState<
     Record<string, AutomationSchema>
-  >({})
+  >(() =>
+    Object.fromEntries(
+      Object.entries(initialTemplateData.schemas).map(([id, schema]) => [
+        id,
+        reviveAutomationSchema(schema),
+      ])
+    )
+  )
   const [templateExampleRunsById, setTemplateExampleRunsById] = useState<
     Record<string, AutomationRunSummary[]>
-  >({})
+  >(initialTemplateData.exampleRunsByTemplateId)
   const [recentAutomationRuns, setRecentAutomationRuns] = useState<
     AutomationRunSummary[]
   >([])
   const [editingAutomation, setEditingAutomation] = useState<Automation | null>(
     null
   )
+  const [socialAccountAutomation, setSocialAccountAutomation] =
+    useState<Automation | null>(null)
   const [templateFolderOpen, setTemplateFolderOpen] = useState(false)
 
   const automations = useMemo(
@@ -243,9 +292,13 @@ export function RealFarmWorkspace({ data }: { data: RealFarmData }) {
     () => allImagesCollectionFrom(collections),
     [collections]
   )
+  const ugcAvatarVideoCollection = useMemo(
+    () => ugcAvatarVideoCollectionFromAssets(data.assets.ugcAvatarVideos),
+    [data.assets.ugcAvatarVideos]
+  )
   const visibleCollections = useMemo(
-    () => [allImagesCollection, ...collections],
-    [allImagesCollection, collections]
+    () => [allImagesCollection, ugcAvatarVideoCollection, ...collections],
+    [allImagesCollection, ugcAvatarVideoCollection, collections]
   )
   const selectedCollection =
     visibleCollections.find(
@@ -391,6 +444,18 @@ export function RealFarmWorkspace({ data }: { data: RealFarmData }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(collectionToStored(collection)),
     }).catch(() => undefined)
+  }
+
+  function upsertRecentAutomationRun(run: AutomationRunSummary) {
+    setRecentAutomationRuns((current) =>
+      [run, ...current.filter((item) => item.id !== run.id)].slice(0, 100)
+    )
+  }
+
+  function removeRecentAutomationRun(runId: string) {
+    setRecentAutomationRuns((current) =>
+      current.filter((item) => item.id !== runId)
+    )
   }
 
   function deleteCollections(ids: string[]) {
@@ -543,14 +608,54 @@ export function RealFarmWorkspace({ data }: { data: RealFarmData }) {
     })
   }
 
+  function onSocialIntegrationsChange(
+    automation: Automation,
+    socialIntegrations: AutomationSocialIntegration[]
+  ) {
+    const slideshowSocialIntegrations = socialIntegrations.filter(
+      (integration) => isSlideshowSocialProvider(integration.provider)
+    )
+    const currentConfig = mergeAutomationSchema(
+      automation,
+      automationConfigEdits[automation.id]
+    )
+    const nextConfig = {
+      ...currentConfig,
+      social_integrations: slideshowSocialIntegrations,
+    }
+    const nextAutomation = withSocialIntegrationSummary(
+      automation,
+      slideshowSocialIntegrations
+    )
+
+    setAutomationConfigEdits((current) => ({
+      ...current,
+      [automation.id]: nextConfig,
+    }))
+    setPersistedAutomations((current) =>
+      current.map((item) => (item.id === automation.id ? nextAutomation : item))
+    )
+    setCreatedAutomations((current) =>
+      current.map((item) => (item.id === automation.id ? nextAutomation : item))
+    )
+    setEditingAutomation((current) =>
+      current?.id === automation.id ? nextAutomation : current
+    )
+    setSocialAccountAutomation((current) =>
+      current?.id === automation.id ? nextAutomation : current
+    )
+    persistAutomationPatch(automation.id, { schema: nextConfig })
+  }
+
   async function createLocalAutomation(
     input: {
       name?: string
+      automationKind?: Automation["automationKind"]
       schema?: AutomationSchema
       template?: AutomationTemplate
       overrides?: {
         status?: AutomationStatus
-        tiktok_account_id?: string | null
+        social_integrations?: AutomationSocialIntegration[]
         schedule?: AutomationSchedule
       }
     } = {}
@@ -563,6 +668,7 @@ export function RealFarmWorkspace({ data }: { data: RealFarmData }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: input.name,
+        automationKind: input.automationKind,
         schema: input.schema,
         template: input.template,
         overrides: input.overrides,
@@ -576,6 +682,8 @@ export function RealFarmWorkspace({ data }: { data: RealFarmData }) {
     return applyAutomationRecord(payload.record, payload.automation)
   }
 
+  const fillsWorkspace = view === "automations" && Boolean(editingAutomation)
+
   return (
     <main className="h-svh overflow-hidden bg-[#f6f6f2] text-[#242421]">
       <div className="flex h-svh">
@@ -585,7 +693,12 @@ export function RealFarmWorkspace({ data }: { data: RealFarmData }) {
           onViewChange={setView}
           onNewAutomation={() => setTemplateFolderOpen(true)}
         />
-        <section className="min-w-0 flex-1 overflow-y-auto px-5 py-5 lg:px-7">
+        <section
+          className={cn(
+            "min-w-0 flex-1 overflow-y-auto",
+            fillsWorkspace ? "p-0" : "px-5 py-5 lg:px-7"
+          )}
+        >
           {view === "home" && (
             <HomeView
               data={data}
@@ -600,6 +713,7 @@ export function RealFarmWorkspace({ data }: { data: RealFarmData }) {
                 void createLocalAutomation({
                   name: automation.name,
                   template: {
+                    automationKind: templateSource.automationKind,
                     prompt_formatting: templateSource.prompt_formatting,
                     image_collection_ids: templateSource.image_collection_ids,
                     formatting: templateSource.formatting,
@@ -617,19 +731,13 @@ export function RealFarmWorkspace({ data }: { data: RealFarmData }) {
           )}
           {view === "swipes" && <SwipesView />}
           {view === "avatars" && <AvatarsView />}
-          {view === "ugcads" && (
-            <UGCAdsView
-              data={data}
-              selectedSound={selectedSound}
-              music={data.assets.music}
-              onSoundSelect={setSelectedSoundId}
-              onCreate={createDraft}
-            />
-          )}
           {view === "greenscreen" && (
             <GreenscreenMemesView
               data={data}
               collections={visibleCollections}
+              selectedSound={selectedSound}
+              music={data.assets.music}
+              onSoundSelect={setSelectedSoundId}
               onCreateCollection={(collection) => {
                 setCollections((current) => [
                   collection,
@@ -641,37 +749,11 @@ export function RealFarmWorkspace({ data }: { data: RealFarmData }) {
             />
           )}
           {view === "schedule" && (
-            <ContentCalendarView onGoLibrary={() => setView("editor")} />
-          )}
-          {view === "analytics" && <AnalyticsView />}
-          {view === "editor" && (
-            <EditorView
-              data={data}
-              automations={automations}
-              automationConfigs={automationConfigEdits}
-              collections={visibleCollections}
-              recentRunsByAutomationId={recentRunsByAutomationId}
-              selectedSound={selectedSound}
-              music={data.assets.music}
-              onSoundSelect={setSelectedSoundId}
-              onAutomationConfigChange={(automation, config) => {
-                const nextConfig = reviveAutomationSchema(config)
-                setAutomationConfigEdits((current) => ({
-                  ...current,
-                  [automation.id]: nextConfig,
-                }))
-                persistAutomationPatch(automation.id, { schema: nextConfig })
-              }}
-              onCreateCollection={(collection) => {
-                setCollections((current) => [
-                  collection,
-                  ...current.filter((item) => item.id !== collection.id),
-                ])
-                persistCollection(collection)
-              }}
-              onCreate={createDraft}
+            <ContentCalendarView
+              onGoAutomations={() => setView("automations")}
             />
           )}
+          {view === "analytics" && <AnalyticsView />}
           {view === "collections" &&
             (selectedCollection ? (
               <CollectionDetailView
@@ -765,123 +847,150 @@ export function RealFarmWorkspace({ data }: { data: RealFarmData }) {
                 onOpenCollection={setSelectedCollectionId}
               />
             ))}
-          {view === "automations" && (
-            <AutomationsView
-              automations={automations}
-              recentRunsByAutomationId={recentRunsByAutomationId}
-              onCreateNew={() => setTemplateFolderOpen(true)}
-              onRename={(automation, name) => {
-                setAutomationNameEdits((current) => ({
-                  ...current,
-                  [automation.id]: name,
-                }))
-                setPersistedAutomations((current) =>
-                  current.map((item) =>
-                    item.id === automation.id ? { ...item, name } : item
+          {view === "automations" &&
+            (editingAutomation ? (
+              <AutomationSettingsDrawer
+                key={editingAutomation.id}
+                automation={editingAutomation}
+                config={mergeAutomationSchema(
+                  editingAutomation,
+                  automationConfigEdits[editingAutomation.id]
+                )}
+                collections={visibleCollections}
+                selectedSound={selectedSound}
+                music={data.assets.music}
+                demoVideos={data.assets.demoVideos}
+                onCreateCollection={(collection) => {
+                  setCollections((current) => [
+                    collection,
+                    ...current.filter((item) => item.id !== collection.id),
+                  ])
+                  persistCollection(collection)
+                }}
+                onRename={(name) => {
+                  setAutomationNameEdits((current) => ({
+                    ...current,
+                    [editingAutomation.id]: name,
+                  }))
+                  setAutomationConfigEdits((current) => {
+                    const nextConfig = mergeAutomationSchema(
+                      editingAutomation,
+                      current[editingAutomation.id]
+                    )
+                    const renamedConfig = { ...nextConfig, title: name }
+                    persistAutomationPatch(editingAutomation.id, {
+                      name,
+                      schema: renamedConfig,
+                    })
+                    return { ...current, [editingAutomation.id]: renamedConfig }
+                  })
+                  setPersistedAutomations((current) =>
+                    current.map((automation) =>
+                      automation.id === editingAutomation.id
+                        ? { ...automation, name }
+                        : automation
+                    )
                   )
-                )
-                setCreatedAutomations((current) =>
-                  current.map((item) =>
-                    item.id === automation.id ? { ...item, name } : item
+                  setCreatedAutomations((current) =>
+                    current.map((automation) =>
+                      automation.id === editingAutomation.id
+                        ? { ...automation, name }
+                        : automation
+                    )
                   )
-                )
-                persistAutomationPatch(automation.id, { name })
-              }}
-              onToggleFavorite={(automation) => {
-                const nextFavorite = !(
-                  automationFavoriteEdits[automation.id] ?? automation.favorite
-                )
-                setAutomationFavoriteEdits((current) => ({
-                  ...current,
-                  [automation.id]: nextFavorite,
-                }))
-                setAutomationFavoriteRanks((current) => ({
-                  ...current,
-                  [automation.id]: nextFavorite ? Date.now() : 0,
-                }))
-                setPersistedAutomations((current) =>
-                  current.map((item) =>
-                    item.id === automation.id
-                      ? { ...item, favorite: nextFavorite }
-                      : item
+                  setEditingAutomation((current) =>
+                    current ? { ...current, name } : current
                   )
-                )
-                setCreatedAutomations((current) =>
-                  current.map((item) =>
-                    item.id === automation.id
-                      ? { ...item, favorite: nextFavorite }
-                      : item
+                }}
+                onConfigChange={(config) => {
+                  setAutomationConfigEdits((current) => ({
+                    ...current,
+                    [editingAutomation.id]: config,
+                  }))
+                  persistAutomationPatch(editingAutomation.id, {
+                    schema: config,
+                  })
+                }}
+                onGenerationRunUpdate={upsertRecentAutomationRun}
+                onGenerationRunRemove={removeRecentAutomationRun}
+                onEditSocialAccounts={() =>
+                  setSocialAccountAutomation(editingAutomation)
+                }
+                onDelete={() => deleteAutomation(editingAutomation.id)}
+                onClose={() => setEditingAutomation(null)}
+              />
+            ) : (
+              <AutomationsView
+                automations={automations}
+                recentRunsByAutomationId={recentRunsByAutomationId}
+                onCreateNew={() => setTemplateFolderOpen(true)}
+                onRename={(automation, name) => {
+                  setAutomationNameEdits((current) => ({
+                    ...current,
+                    [automation.id]: name,
+                  }))
+                  setPersistedAutomations((current) =>
+                    current.map((item) =>
+                      item.id === automation.id ? { ...item, name } : item
+                    )
                   )
-                )
-                persistAutomationPatch(automation.id, {
-                  favorite: nextFavorite,
-                })
-              }}
-              onToggleStatus={toggleAutomationStatus}
-              onEdit={setEditingAutomation}
-            />
-          )}
+                  setCreatedAutomations((current) =>
+                    current.map((item) =>
+                      item.id === automation.id ? { ...item, name } : item
+                    )
+                  )
+                  persistAutomationPatch(automation.id, { name })
+                }}
+                onToggleFavorite={(automation) => {
+                  const nextFavorite = !(
+                    automationFavoriteEdits[automation.id] ??
+                    automation.favorite
+                  )
+                  setAutomationFavoriteEdits((current) => ({
+                    ...current,
+                    [automation.id]: nextFavorite,
+                  }))
+                  setAutomationFavoriteRanks((current) => ({
+                    ...current,
+                    [automation.id]: nextFavorite ? Date.now() : 0,
+                  }))
+                  setPersistedAutomations((current) =>
+                    current.map((item) =>
+                      item.id === automation.id
+                        ? { ...item, favorite: nextFavorite }
+                        : item
+                    )
+                  )
+                  setCreatedAutomations((current) =>
+                    current.map((item) =>
+                      item.id === automation.id
+                        ? { ...item, favorite: nextFavorite }
+                        : item
+                    )
+                  )
+                  persistAutomationPatch(automation.id, {
+                    favorite: nextFavorite,
+                  })
+                }}
+                onToggleStatus={toggleAutomationStatus}
+                onEditSocialAccounts={setSocialAccountAutomation}
+                onEdit={setEditingAutomation}
+              />
+            ))}
         </section>
       </div>
-      {editingAutomation && (
-        <AutomationSettingsDrawer
-          automation={editingAutomation}
-          config={mergeAutomationSchema(
-            editingAutomation,
-            automationConfigEdits[editingAutomation.id]
-          )}
-          collections={visibleCollections}
-          onCreateCollection={(collection) => {
-            setCollections((current) => [
-              collection,
-              ...current.filter((item) => item.id !== collection.id),
-            ])
-            persistCollection(collection)
-          }}
-          onRename={(name) => {
-            setAutomationNameEdits((current) => ({
-              ...current,
-              [editingAutomation.id]: name,
-            }))
-            setAutomationConfigEdits((current) => {
-              const nextConfig = mergeAutomationSchema(
-                editingAutomation,
-                current[editingAutomation.id]
-              )
-              const renamedConfig = { ...nextConfig, title: name }
-              persistAutomationPatch(editingAutomation.id, {
-                name,
-                schema: renamedConfig,
-              })
-              return { ...current, [editingAutomation.id]: renamedConfig }
-            })
-            setPersistedAutomations((current) =>
-              current.map((automation) =>
-                automation.id === editingAutomation.id
-                  ? { ...automation, name }
-                  : automation
-              )
-            )
-            setCreatedAutomations((current) =>
-              current.map((automation) =>
-                automation.id === editingAutomation.id
-                  ? { ...automation, name }
-                  : automation
-              )
-            )
-            setEditingAutomation((current) =>
-              current ? { ...current, name } : current
-            )
-          }}
-          onConfigChange={(config) => {
-            setAutomationConfigEdits((current) => ({
-              ...current,
-              [editingAutomation.id]: config,
-            }))
-            persistAutomationPatch(editingAutomation.id, { schema: config })
-          }}
-          onDelete={() => deleteAutomation(editingAutomation.id)}
-          onClose={() => setEditingAutomation(null)}
+      {socialAccountAutomation && (
+        <SocialAccountPickerModal
+          selectedIntegrations={
+            mergeAutomationSchema(
+              socialAccountAutomation,
+              automationConfigEdits[socialAccountAutomation.id]
+            ).social_integrations
+          }
+          onSelect={(integrations) =>
+            onSocialIntegrationsChange(socialAccountAutomation, integrations)
+          }
+          onClose={() => setSocialAccountAutomation(null)}
         />
       )}
       {templateFolderOpen && (
@@ -892,8 +1001,8 @@ export function RealFarmWorkspace({ data }: { data: RealFarmData }) {
           collections={visibleCollections}
           recentRunsByAutomationId={showcaseRunsByAutomationId}
           onClose={() => setTemplateFolderOpen(false)}
-          onCreateBlank={() => {
-            void createLocalAutomation()
+          onCreateBlank={(automationKind) => {
+            void createLocalAutomation({ automationKind })
               .then((automation) => {
                 setTemplateFolderOpen(false)
                 setView("automations")
@@ -908,7 +1017,9 @@ export function RealFarmWorkspace({ data }: { data: RealFarmData }) {
             )
             void createLocalAutomation({
               name: automation.name,
+              automationKind: automation.automationKind,
               template: {
+                automationKind: templateSource.automationKind,
                 prompt_formatting: templateSource.prompt_formatting,
                 image_collection_ids: templateSource.image_collection_ids,
                 formatting: templateSource.formatting,
@@ -932,5 +1043,76 @@ function reviveAutomationSchema(schema: AutomationSchema): AutomationSchema {
   return {
     ...schema,
     created_at: schema.created_at ? new Date(schema.created_at) : new Date(),
+  }
+}
+
+function withSocialIntegrationSummary(
+  automation: Automation,
+  socialIntegrations: AutomationSocialIntegration[]
+): Automation {
+  const activeIntegrations = socialIntegrations.filter(
+    (integration) =>
+      !integration.disabled && isSlideshowSocialProvider(integration.provider)
+  )
+  const first = activeIntegrations[0]
+
+  if (!first) {
+    return {
+      ...automation,
+      account: "No social account",
+      handle: "Click to add account",
+      socialIntegrations,
+    }
+  }
+
+  const extraCount = activeIntegrations.length - 1
+  const provider = socialProviderLabel(first.provider)
+  const account = extraCount > 0 ? `${first.name} +${extraCount}` : first.name
+  const profile = first.profile
+    ? `@${first.profile.replace(/^@/, "")}`
+    : provider
+
+  return {
+    ...automation,
+    account,
+    handle: `${provider} · ${profile}`,
+    socialIntegrations,
+  }
+}
+
+function socialProviderLabel(
+  provider: AutomationSocialIntegration["provider"]
+) {
+  switch (provider) {
+    case "youtube":
+      return "YouTube"
+    case "instagram":
+      return "Instagram"
+    case "tiktok":
+      return "TikTok"
+    case "tiktok-creative":
+      return "TikTok Creative"
+    case "tiktok-seller":
+      return "TikTok Seller"
+    case "facebook":
+      return "Facebook"
+    case "x":
+      return "X"
+    case "twitter":
+      return "Twitter"
+    case "linkedin":
+      return "LinkedIn"
+    case "threads":
+      return "Threads"
+    case "pinterest":
+      return "Pinterest"
+    case "bluesky":
+      return "Bluesky"
+    case "telegram":
+      return "Telegram"
+    case "google":
+      return "Google"
+    case "google-business-profile":
+      return "Google Business Profile"
   }
 }

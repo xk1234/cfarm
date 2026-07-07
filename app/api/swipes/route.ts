@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server"
 
-import { createSwipe, listSwipes, type SwipePayload } from "@/lib/swipes"
+import {
+  createSwipe,
+  deleteSwipe,
+  listSwipes,
+  type SwipePayload,
+} from "@/lib/swipes"
 
 export const dynamic = "force-dynamic"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 }
 
@@ -30,4 +35,26 @@ export async function POST(request: Request) {
       { status: 400, headers: corsHeaders }
     )
   }
+}
+
+export async function DELETE(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const id = searchParams.get("id")?.trim()
+
+  if (!id) {
+    return NextResponse.json(
+      { error: "A swipe id is required" },
+      { status: 400, headers: corsHeaders }
+    )
+  }
+
+  const swipe = await deleteSwipe(id)
+  if (!swipe) {
+    return NextResponse.json(
+      { error: "Swipe not found" },
+      { status: 404, headers: corsHeaders }
+    )
+  }
+
+  return NextResponse.json({ swipe }, { headers: corsHeaders })
 }

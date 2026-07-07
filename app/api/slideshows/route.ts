@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import {
-  createSlideshowRecord,
+  createSlideshowResultRecord,
   deleteSlideshowRecord,
   listSlideshowRecords,
   type CreateSlideshowInput,
@@ -16,23 +16,28 @@ export async function GET(request: Request) {
   const [slideshows, allSlideshows] = await Promise.all([
     listSlideshowRecords({
       id: id || undefined,
-      limit: Number.isFinite(limitValue) && limitValue > 0 ? limitValue : undefined,
+      limit:
+        Number.isFinite(limitValue) && limitValue > 0 ? limitValue : undefined,
     }),
-    listSlideshowRecords(),
+    listSlideshowRecords({ limit: Number.MAX_SAFE_INTEGER }),
   ])
 
   return NextResponse.json({
     slideshows,
     slideshowsCount: allSlideshows.length,
-    videosCount: 0,
+    videosCount: allSlideshows.filter(
+      (slideshow) => slideshow.settings.export_as_video
+    ).length,
   })
 }
 
 export async function POST(request: Request) {
   const payload = await request.json().catch(() => null)
-  const slideshow = await createSlideshowRecord(isRecord(payload) ? payload as CreateSlideshowInput : {})
+  const { slideshow, result } = await createSlideshowResultRecord(
+    isRecord(payload) ? (payload as CreateSlideshowInput) : {}
+  )
 
-  return NextResponse.json({ slideshow }, { status: 201 })
+  return NextResponse.json({ slideshow, result }, { status: 201 })
 }
 
 export async function DELETE(request: Request) {
@@ -40,7 +45,10 @@ export async function DELETE(request: Request) {
   const id = searchParams.get("id")?.trim()
 
   if (!id) {
-    return NextResponse.json({ error: "A slideshow id is required" }, { status: 400 })
+    return NextResponse.json(
+      { error: "A slideshow id is required" },
+      { status: 400 }
+    )
   }
 
   const slideshow = await deleteSlideshowRecord({ id })

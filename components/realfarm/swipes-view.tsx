@@ -1,13 +1,25 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { IconSearch } from "@tabler/icons-react"
+import {
+  IconBrandFacebookFilled,
+  IconBrandGoogleFilled,
+  IconBrandTiktok,
+  IconBrandX,
+  IconChevronDown,
+  IconWorld,
+  IconWriting,
+  IconShoppingBag,
+  IconSearch,
+  IconTrash,
+} from "@tabler/icons-react"
 import { toast } from "sonner"
 
 import { SwipeDetailPage } from "@/components/realfarm/swipe-detail-page"
 import { toSwipeDisplayModel, type SwipeDisplayModel } from "@/components/realfarm/swipe-display-model"
 import { SwipeMedia } from "@/components/realfarm/swipe-media"
 import { Button } from "@/components/ui/button"
+import { useDismissableLayer } from "@/components/ui/dismissable"
 import { SelectLike } from "@/components/ui/form-controls"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import type { SwipeRecord } from "@/lib/swipes"
@@ -90,6 +102,30 @@ export function SwipesView() {
     setSelectedSwipeId(null)
   }
 
+  async function deleteSwipe(id: string) {
+    const deleted = swipes.find((swipe) => swipe.id === id)
+    if (!deleted) {
+      return
+    }
+
+    setSwipes((current) => current.filter((swipe) => swipe.id !== id))
+    if (selectedSwipeId === id) {
+      backToList()
+    }
+
+    try {
+      await fetchJsonWithTimeout(`/api/swipes?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        timeoutMs: 12_000,
+        toastOnError: false,
+      })
+      toast.success("Swipe deleted")
+    } catch (error) {
+      setSwipes((current) => [deleted, ...current])
+      toast.error(getApiErrorMessage(error, "Failed to delete swipe"))
+    }
+  }
+
   if (selectedSwipe) {
     return <SwipeDetailPage swipe={selectedSwipe} onBack={backToList} />
   }
@@ -111,12 +147,7 @@ export function SwipesView() {
           />
         </label>
         <div className="flex flex-wrap items-center gap-3">
-          <SelectLike
-            value={`Platform: ${platform}`}
-            options={["Platform: All", "Platform: facebook", "Platform: tiktok", "Platform: tiktok-creative", "Platform: tiktok-seller", "Platform: google", "Platform: twitter"]}
-            onChange={(value) => setPlatform(value.replace("Platform: ", ""))}
-            placement="bottom"
-          />
+          <PlatformSelect value={platform} onChange={setPlatform} />
           <SelectLike
             value={`Sort by: ${sort}`}
             options={["Sort by: Recent", "Sort by: Oldest"]}
@@ -154,7 +185,13 @@ export function SwipesView() {
       ) : (
         <div className="columns-1 gap-5 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5">
           {filteredSwipes.map(({ model }, index) => (
-            <SwipeCard key={model.id} swipe={model} index={index} onInspect={() => inspectSwipe(model.id)} />
+            <SwipeCard
+              key={model.id}
+              swipe={model}
+              index={index}
+              onInspect={() => inspectSwipe(model.id)}
+              onDelete={() => void deleteSwipe(model.id)}
+            />
           ))}
         </div>
       )}
@@ -162,10 +199,124 @@ export function SwipesView() {
   )
 }
 
-function SwipeCard({ swipe, index, onInspect }: { swipe: SwipeDisplayModel; index: number; onInspect: () => void }) {
+const platformOptions = [
+  "All",
+  "facebook",
+  "tiktok",
+  "tiktok-creative",
+  "tiktok-seller",
+  "google",
+  "twitter",
+] as const
+
+type SwipePlatformFilter = (typeof platformOptions)[number]
+
+function PlatformSelect({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useDismissableLayer<HTMLDivElement>(() => setOpen(false), open)
+  const selected = platformOptions.includes(value as SwipePlatformFilter)
+    ? (value as SwipePlatformFilter)
+    : "All"
+
   return (
-    <article className="mb-5 break-inside-avoid overflow-hidden rounded-[6px] border border-[#e6e4f7] bg-white shadow-[0_4px_16px_rgba(40,37,93,0.08)]">
-      <div className="flex items-start gap-3 p-4 pb-3">
+    <div ref={ref} className="relative">
+      <Button
+        type="button"
+        variant="softControl"
+        size="appDefault"
+        className="min-w-[158px] justify-between gap-3"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <PlatformOptionContent platform={selected} />
+        <IconChevronDown className="size-4 text-[#77766f]" />
+      </Button>
+      {open && (
+        <div className="absolute left-0 top-full z-30 mt-2 w-[190px] rounded-lg border border-app-panel-border bg-app-control-bg p-1 text-sm shadow-xl">
+          {platformOptions.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={cn(
+                "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left font-semibold hover:bg-app-control-hover",
+                option === selected && "bg-app-control-hover"
+              )}
+              onClick={() => {
+                onChange(option)
+                setOpen(false)
+              }}
+            >
+              <PlatformOptionContent platform={option} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PlatformOptionContent({ platform }: { platform: SwipePlatformFilter }) {
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[#111] text-white">
+        {platformIcon(platform)}
+      </span>
+      <span className="truncate">{platformLabel(platform)}</span>
+    </span>
+  )
+}
+
+function platformIcon(platform: SwipePlatformFilter) {
+  switch (platform) {
+    case "facebook":
+      return <IconBrandFacebookFilled className="size-3.5" />
+    case "tiktok":
+      return <IconBrandTiktok className="size-3.5" />
+    case "tiktok-creative":
+      return <IconWriting className="size-3.5" />
+    case "tiktok-seller":
+      return <IconShoppingBag className="size-3.5" />
+    case "google":
+      return <IconBrandGoogleFilled className="size-3.5" />
+    case "twitter":
+      return <IconBrandX className="size-3.5" />
+    case "All":
+      return <IconWorld className="size-3.5" />
+  }
+}
+
+function platformLabel(platform: SwipePlatformFilter) {
+  return platform === "All" ? "All" : platform
+}
+
+function SwipeCard({
+  swipe,
+  index,
+  onInspect,
+  onDelete,
+}: {
+  swipe: SwipeDisplayModel
+  index: number
+  onInspect: () => void
+  onDelete: () => void
+}) {
+  return (
+    <article className="relative mb-5 break-inside-avoid overflow-hidden rounded-[6px] border border-[#e6e4f7] bg-white shadow-[0_4px_16px_rgba(40,37,93,0.08)]">
+      <button
+        type="button"
+        className="absolute right-2 top-2 z-10 grid size-8 place-items-center rounded-full bg-white/95 text-[#b44d38] shadow-sm ring-1 ring-[#f1d6d2] transition hover:bg-[#fff0ed]"
+        onClick={onDelete}
+        aria-label={`Delete swipe ${swipe.title}`}
+        title="Delete swipe"
+      >
+        <IconTrash className="size-4" />
+      </button>
+      <div className="flex items-start gap-3 p-4 pb-3 pr-12">
         <SwipeAvatar name={swipe.advertiser} index={index} />
         <div className="min-w-0">
           <div className="truncate text-[14px] font-semibold text-[#28255d]">{swipe.advertiser}</div>

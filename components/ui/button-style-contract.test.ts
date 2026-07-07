@@ -3,9 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import path from "node:path"
 
 const roots = ["app", "components"]
-const ignoredFiles = new Set([
-  path.join("components", "ui", "button.tsx"),
-])
+const ignoredFiles = new Set([path.join("components", "ui", "button.tsx")])
 const selectAllowedFiles = new Set([
   path.join("components", "ui", "form-controls.tsx"),
 ])
@@ -79,9 +77,11 @@ describe("shared control styling contract", () => {
       path.join("components", "realfarm", "calendar-analytics.tsx"),
       path.join("components", "realfarm", "characters-view.tsx"),
       path.join("components", "realfarm", "collections-view.tsx"),
-      path.join("components", "realfarm", "slideshow-preview.tsx"),
     ].filter((relativePath) => {
-      const source = readFileSync(path.join(process.cwd(), relativePath), "utf8")
+      const source = readFileSync(
+        path.join(process.cwd(), relativePath),
+        "utf8"
+      )
       return !source.includes("useDismissableLayer")
     })
 
@@ -100,9 +100,13 @@ function findControlVisualOverrides() {
 
     const source = readFileSync(filePath, "utf8")
     for (const componentName of checkedComponents) {
-      for (const tag of source.matchAll(new RegExp(`<${componentName}\\\\b[\\\\s\\\\S]*?(?:\\\\/>|>)`, "g"))) {
-        const disallowedClasses = collectClassNames(tag[0])
-          .filter((classToken) => visualClassPatterns.some((pattern) => pattern.test(classToken)))
+      for (const tag of source.matchAll(
+        new RegExp(`<${componentName}\\\\b[\\\\s\\\\S]*?(?:\\\\/>|>)`, "g")
+      )) {
+        const disallowedClasses = collectClassNames(tag[0]).filter(
+          (classToken) =>
+            visualClassPatterns.some((pattern) => pattern.test(classToken))
+        )
 
         if (disallowedClasses.length > 0) {
           violations.push(`${relativePath}: ${disallowedClasses.join(" ")}`)
@@ -213,7 +217,9 @@ function collectClassNames(tag: string) {
     }
   }
 
-  return classNames.flatMap((className) => className.split(/\s+/).filter(Boolean))
+  return classNames.flatMap((className) =>
+    className.split(/\s+/).filter(Boolean)
+  )
 }
 
 function collectFiles(root: string) {

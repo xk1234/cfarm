@@ -45,6 +45,21 @@
     --app-control-hover: #f4f4f2;
     --app-panel-border: #e5e4dc;
     --app-muted-text: #77766f;
+    --app-surface: #ffffff;
+    --app-surface-subtle: #f8f8f4;
+    --app-surface-raised: #ffffff;
+    --app-media-placeholder: #d8d6ce;
+    --app-media-empty: #d9d9d4;
+    --app-text: #242421;
+    --app-text-soft: #4d4c47;
+    --app-text-faint: #a9a8a1;
+    --app-danger: #d94444;
+    --app-danger-surface: #fff1f1;
+    --app-danger-muted: #ad3434;
+    --app-danger-text: #8d5c5c;
+    --app-radius-card: 7px;
+    --app-radius-panel: 8px;
+    --app-shadow-card: 0 1px 2px rgb(30 30 25 / 0.06);
 }
 
 .dark {
@@ -85,6 +100,21 @@
     --app-control-hover: #33332f;
     --app-panel-border: oklch(1 0 0 / 14%);
     --app-muted-text: #a9a8a1;
+    --app-surface: #1f1f1c;
+    --app-surface-subtle: #242421;
+    --app-surface-raised: #242421;
+    --app-media-placeholder: #34332f;
+    --app-media-empty: #34332f;
+    --app-text: #f8f8f4;
+    --app-text-soft: #deddd5;
+    --app-text-faint: #a9a8a1;
+    --app-danger: #ff7777;
+    --app-danger-surface: #3a2020;
+    --app-danger-muted: #ff9090;
+    --app-danger-text: #ffd2d2;
+    --app-radius-card: 7px;
+    --app-radius-panel: 8px;
+    --app-shadow-card: 0 1px 2px rgb(0 0 0 / 0.18);
 }
 
 @theme inline {
@@ -107,6 +137,18 @@
     --color-app-control-hover: var(--app-control-hover);
     --color-app-panel-border: var(--app-panel-border);
     --color-app-muted-text: var(--app-muted-text);
+    --color-app-surface: var(--app-surface);
+    --color-app-surface-subtle: var(--app-surface-subtle);
+    --color-app-surface-raised: var(--app-surface-raised);
+    --color-app-media-placeholder: var(--app-media-placeholder);
+    --color-app-media-empty: var(--app-media-empty);
+    --color-app-text: var(--app-text);
+    --color-app-text-soft: var(--app-text-soft);
+    --color-app-text-faint: var(--app-text-faint);
+    --color-app-danger: var(--app-danger);
+    --color-app-danger-surface: var(--app-danger-surface);
+    --color-app-danger-muted: var(--app-danger-muted);
+    --color-app-danger-text: var(--app-danger-text);
     --color-chart-5: var(--chart-5);
     --color-chart-4: var(--chart-4);
     --color-chart-3: var(--chart-3);
@@ -153,6 +195,44 @@
 
 .font-tiktok {
   font-family: var(--font-tiktok);
+}
+
+@layer components {
+  .app-card {
+    border: 1px solid var(--app-panel-border);
+    border-radius: var(--app-radius-card);
+    background: var(--app-surface);
+    box-shadow: var(--app-shadow-card);
+  }
+
+  .app-empty-state {
+    border: 1px dashed color-mix(in srgb, var(--app-panel-border) 86%, var(--app-muted-text));
+    border-radius: var(--app-radius-panel);
+    background: var(--app-surface-subtle);
+    color: var(--app-muted-text);
+  }
+
+  .app-media-frame {
+    position: relative;
+    overflow: hidden;
+    background: var(--app-media-placeholder);
+  }
+
+  .app-media-poster-fallback {
+    background: linear-gradient(135deg, #dfd2c4 0%, #a37b68 52%, #3c3532 100%);
+  }
+
+  .app-slideshow-library-card {
+    width: 156px;
+    flex-shrink: 0;
+  }
+
+  .app-slideshow-library-frame {
+    width: 156px;
+    height: 276px;
+    border-radius: var(--app-radius-card);
+    background: #000;
+  }
 }
 
 @keyframes shimmer {

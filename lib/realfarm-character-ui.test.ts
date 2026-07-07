@@ -3,13 +3,16 @@ import { describe, expect, it } from "vitest"
 import { defaultCharacterAttributes } from "@/lib/character-model"
 import {
   buildCharacterPromptPackage,
-  characterImageAspectRatios,
+  characterGenerationPrimaryMedia,
   characterGenerationModels,
+  characterImageAspectRatios,
   characterImageToVideoModels,
   createCharacterImageGenerationRecord,
+  editCharacterWorkflowKeys,
   defaultImageGenerationModel,
   defaultImageToVideoModel,
-  ugcImagePromptPresets,
+  getCharacterWorkflowMode,
+  visibleCharacterWorkflowOptions,
 } from "@/lib/realfarm-character-ui"
 
 describe("buildCharacterPromptPackage", () => {
@@ -35,25 +38,66 @@ describe("buildCharacterPromptPackage", () => {
     })
 
     expect(result.prompt).toMatch(/^character:\n\{/)
-    expect(result.prompt).toContain('\n\nfilm this in a bright kitchen')
+    expect(result.prompt).toContain("\n\nfilm this in a bright kitchen")
     expect(result.prompt).not.toContain("Character attributes JSON")
     expect(result.prompt).toContain('"gender": "female"')
-    expect(result.prompt.indexOf("character:")).toBeLessThan(result.prompt.indexOf("film this in a bright kitchen"))
+    expect(result.prompt.indexOf("character:")).toBeLessThan(
+      result.prompt.indexOf("film this in a bright kitchen")
+    )
     expect(result.attachments).toEqual([
-      { label: "Maya profile picture", url: "/api/local-assets/characters/headshots/maya.png", kind: "character_headshot" },
-      { label: "Serum bottle", url: "/api/local-assets/assets/serum.png", kind: "asset" },
+      {
+        label: "Maya profile picture",
+        url: "/api/local-assets/characters/headshots/maya.png",
+        kind: "character_headshot",
+      },
+      {
+        label: "Serum bottle",
+        url: "/api/local-assets/assets/serum.png",
+        kind: "asset",
+      },
     ])
   })
 })
 
 describe("UGC image generation options", () => {
-  it("defaults image generation to Flux 2", () => {
-    expect(defaultImageGenerationModel).toBe("Flux 2")
+  it("separates create workflows from edit workflows that require a generated source image", () => {
+    expect(editCharacterWorkflowKeys).toEqual([
+      "recreate_reference",
+      "animate_image",
+      "motion_control",
+      "seedream_bedroom_selfie",
+      "outfit_transfer",
+      "pose_variation_cut_video",
+    ])
+    expect(getCharacterWorkflowMode("free_generate")).toBe("create")
+    expect(getCharacterWorkflowMode("seedream_bedroom_selfie")).toBe("edit")
+    expect(getCharacterWorkflowMode("recreate_reference")).toBe("edit")
+    expect(getCharacterWorkflowMode("pose_variation_cut_video")).toBe("edit")
+    expect(
+      visibleCharacterWorkflowOptions(false).map((option) => option.key)
+    ).not.toContain("recreate_reference")
+    expect(
+      visibleCharacterWorkflowOptions(false).map((option) => option.key)
+    ).not.toContain("pose_variation_cut_video")
+    expect(
+      visibleCharacterWorkflowOptions(true).map((option) => option.key)
+    ).toContain("recreate_reference")
+  })
+
+  it("defaults image generation to Nano Banana Pro", () => {
+    expect(defaultImageGenerationModel).toBe("Nano Banana Pro")
     expect(characterGenerationModels[0]).toBe(defaultImageGenerationModel)
   })
 
   it("exposes aspect ratio options for image generation", () => {
-    expect(characterImageAspectRatios).toEqual(["9:16", "4:5", "1:1", "16:9", "3:4", "4:3"])
+    expect(characterImageAspectRatios).toEqual([
+      "9:16",
+      "4:5",
+      "1:1",
+      "16:9",
+      "3:4",
+      "4:3",
+    ])
   })
 
   it("exposes Kie image-to-video model options for generated character images", () => {
@@ -63,24 +107,17 @@ describe("UGC image generation options", () => {
       "Kling 3.0 Video",
       "Seedance 2.0",
     ])
-    expect(characterImageToVideoModels.every((model) => model.provider === "kie")).toBe(true)
+    expect(
+      characterImageToVideoModels.every((model) => model.provider === "kie")
+    ).toBe(true)
   })
 
-  it("loads the captured Genviral image presets for the prompt menu", () => {
-    expect(ugcImagePromptPresets.length).toBeGreaterThanOrEqual(20)
-    expect(ugcImagePromptPresets[0]).toMatchObject({
-      name: expect.any(String),
-      prompt: expect.any(String),
-    })
-    expect(ugcImagePromptPresets.every((preset) => preset.prompt.trim().length > 0)).toBe(true)
-    expect(ugcImagePromptPresets.every((preset) => preset.thumbnailUrl?.startsWith("https://cdn.vireel.io/"))).toBe(true)
-  })
-
-  it("creates a Flux 2 generation record with a real prompt", () => {
+  it("creates a default model generation record with a real prompt", () => {
     const record = createCharacterImageGenerationRecord({
       id: "test-generation",
       createdAt: "2026-07-02T08:00:00.000Z",
-      prompt: "Generate a candid UGC image of Maya holding a serum bottle in a bright bathroom.",
+      prompt:
+        "Generate a candid UGC image of Maya holding a serum bottle in a bright bathroom.",
       attachments: [],
       aspectRatio: "4:5",
       status: "processing",
@@ -88,7 +125,7 @@ describe("UGC image generation options", () => {
 
     expect(record).toMatchObject({
       id: "test-generation",
-      model: "Flux 2",
+      model: "Nano Banana Pro",
       createdAt: "2026-07-02T08:00:00.000Z",
       aspectRatio: "4:5",
       status: "processing",
@@ -113,6 +150,25 @@ describe("UGC image generation options", () => {
       videoUrl: "/api/local-assets/characters/videos/maya.mp4",
       videoModel: "Kling 2.6 Image to Video",
       videoStatus: "ready",
+    })
+    expect(characterGenerationPrimaryMedia(record)).toEqual({
+      type: "video",
+      url: "/api/local-assets/characters/videos/maya.mp4",
+    })
+  })
+
+  it("falls back to image media when a generation has no video output", () => {
+    const record = createCharacterImageGenerationRecord({
+      id: "test-generation",
+      createdAt: "2026-07-02T08:00:00.000Z",
+      prompt: "Generate Maya.",
+      attachments: [],
+      imageUrl: "/api/local-assets/characters/images/maya.png",
+    })
+
+    expect(characterGenerationPrimaryMedia(record)).toEqual({
+      type: "image",
+      url: "/api/local-assets/characters/images/maya.png",
     })
   })
 })

@@ -1,0 +1,164 @@
+{
+  "posts": [
+    {
+      "id": "9b1b6507-f8eb-4037-9995-77fd8069db08",
+      "sourceType": "greenscreen",
+      "sourceId": "0b0a5069-c1a3-4920-bc32-9c947cf24d21",
+      "postfastPostId": "e46c01dd-128c-4914-845a-475cbdc09175",
+      "integrationId": "bc9adcbf-2294-452e-9ed6-6601e6133017",
+      "provider": "facebook",
+      "status": "draft",
+      "content": "oh man cutting those podcast clips later is gonna be a pain",
+      "media": [
+        {
+          "key": "video/0599639c-1cd9-4aaf-af58-5bc6ade744ef.webm",
+          "type": "VIDEO",
+          "sortOrder": 0
+        }
+      ],
+      "lastSyncedAt": "2026-07-04T12:59:25.077Z",
+      "createdAt": "2026-07-04T12:59:25.077Z",
+      "updatedAt": "2026-07-04T12:59:25.077Z"
+    },
+    {
+      "id": "57b24d7c-9b0e-4f2f-931e-eac826144740",
+      "sourceType": "greenscreen",
+      "sourceId": "0b0a5069-c1a3-4920-bc32-9c947cf24d21",
+      "postfastPostId": "409ccbb6-3a49-4e59-82fc-c10fd7858777",
+      "integrationId": "030786b5-598b-4206-83be-444c92165143",
+      "provider": "x",
+      "status": "draft",
+      "content": "oh man cutting those podcast clips later is gonna be a pain",
+      "media": [
+        {
+          "key": "video/0599639c-1cd9-4aaf-af58-5bc6ade744ef.webm",
+          "type": "VIDEO",
+          "sortOrder": 0
+        }
+      ],
+      "lastSyncedAt": "2026-07-04T12:59:24.608Z",
+      "createdAt": "2026-07-04T12:59:24.608Z",
+      "updatedAt": "2026-07-04T12:59:24.608Z"
+    },
+    {
+      "id": "542c5b41-4046-4f08-b22b-e2ea6676629b",
+      "sourceType": "greenscreen",
+      "sourceId": "0b0a5069-c1a3-4920-bc32-9c947cf24d21",
+      "postfastPostId": "68f15ee1-9a29-45bb-b0e0-abeff4e51b4e",
+      "integrationId": "fd092478-73df-4031-931c-f62ad3bd0b32",
+      "provider": "youtube",
+      "status": "draft",
+      "content": "oh man cutting those podcast clips later is gonna be a pain",
+      "media": [
+        {
+          "key": "video/0599639c-1cd9-4aaf-af58-5bc6ade744ef.webm",
+          "type": "VIDEO",
+          "sortOrder": 0
+        }
+      ],
+      "lastSyncedAt": "2026-07-04T12:59:23.982Z",
+      "createdAt": "2026-07-04T12:59:23.982Z",
+      "updatedAt": "2026-07-04T12:59:23.982Z"
+    },
+    {
+      "id": "b31ca0f1-9806-485e-b9a5-ccfe67bad88a",
+      "sourceType": "greenscreen",
+      "sourceId": "0b0a5069-c1a3-4920-bc32-9c947cf24d21",
+      "postfastPostId": "6e1f30de-54f7-42fe-9bf0-5a72faae0543",
+      "integrationId": "b3258917-4d2e-492d-8818-1ef2e6ddecdf",
+      "provider": "tiktok",
+      "status": "draft",
+      "content": "oh man cutting those podcast clips later is gonna be a pain",
+      "media": [
+        {
+          "key": "video/0599639c-1cd9-4aaf-af58-5bc6ade744ef.webm",
+          "type": "VIDEO",
+          "sortOrder": 0
+        }
+      ],
+      "lastSyncedAt": "2026-07-04T12:59:23.437Z",
+      "createdAt": "2026-07-04T12:59:23.437Z",
+      "updatedAt": "2026-07-04T12:59:23.437Z"
+    },
+    {
+      "id": "9838a5e6-f580-4a46-b7ea-548b5a302ce7",
+      "sourceType": "ugc_ad",
+      "sourceId": "1a2f9413-6353-40c8-9a3b-22506ebf086e",
+      "postfastPostId": "ebdf8191-6846-4d42-88d3-5aa5d3406f02",
+      "integrationId": "b3258917-4d2e-492d-8818-1ef2e6ddecdf",
+      "provider": "tiktok",
+      "status": "draft",
+      "content": "i was thinking you could watch this quick video for me...",
+      "media": [
+        {
+          "key": "video/784e0647-37e9-45e0-86d2-2f0a486caa3d.webm",
+          "type": "VIDEO",
+          "sortOrder": 0
+        }
+      ],
+      "lastSyncedAt": "2026-07-04T12:56:36.021Z",
+      "createdAt": "2026-07-04T12:56:36.021Z",
+      "updatedAt": "2026-07-04T12:56:36.021Z"
+    },
+    {
+      "id": "e60ca63b-7fb1-40ef-8af3-496fdd41f5ab",
+      "sourceType": "ugc_ad",
+      "sourceId": "1a2f9413-6353-40c8-9a3b-22506ebf086e",
+      "postfastPostId": "9bac802a-fd8c-4c26-9f7a-738f8811ea14",
+      "integrationId": "030786b5-598b-4206-83be-444c92165143",
+      "provider": "x",
+      "status": "draft",
+      "content": "i was thinking you could watch this quick video for me...",
+      "media": [
+        {
+          "key": "video/784e0647-37e9-45e0-86d2-2f0a486caa3d.webm",
+          "type": "VIDEO",
+          "sortOrder": 0
+        }
+      ],
+      "lastSyncedAt": "2026-07-04T12:53:35.049Z",
+      "createdAt": "2026-07-04T12:53:35.049Z",
+      "updatedAt": "2026-07-04T12:53:35.049Z"
+    },
+    {
+      "id": "70e1d1c7-1efa-4144-a690-9b7d77af2438",
+      "sourceType": "ugc_ad",
+      "sourceId": "1a2f9413-6353-40c8-9a3b-22506ebf086e",
+      "postfastPostId": "f2adcd80-1d41-43de-b59d-a0a537e977e2",
+      "integrationId": "bc9adcbf-2294-452e-9ed6-6601e6133017",
+      "provider": "facebook",
+      "status": "draft",
+      "content": "i was thinking you could watch this quick video for me...",
+      "media": [
+        {
+          "key": "video/784e0647-37e9-45e0-86d2-2f0a486caa3d.webm",
+          "type": "VIDEO",
+          "sortOrder": 0
+        }
+      ],
+      "lastSyncedAt": "2026-07-04T12:53:34.956Z",
+      "createdAt": "2026-07-04T12:53:34.956Z",
+      "updatedAt": "2026-07-04T12:53:34.956Z"
+    },
+    {
+      "id": "6dcf6720-e226-458b-9ab7-8d78b209af26",
+      "sourceType": "ugc_ad",
+      "sourceId": "1a2f9413-6353-40c8-9a3b-22506ebf086e",
+      "postfastPostId": "c140d3ef-cbe3-4381-a74a-9138827f60da",
+      "integrationId": "fd092478-73df-4031-931c-f62ad3bd0b32",
+      "provider": "youtube",
+      "status": "draft",
+      "content": "i was thinking you could watch this quick video for me...",
+      "media": [
+        {
+          "key": "video/784e0647-37e9-45e0-86d2-2f0a486caa3d.webm",
+          "type": "VIDEO",
+          "sortOrder": 0
+        }
+      ],
+      "lastSyncedAt": "2026-07-04T12:53:34.948Z",
+      "createdAt": "2026-07-04T12:53:34.948Z",
+      "updatedAt": "2026-07-04T12:53:34.948Z"
+    }
+  ]
+}

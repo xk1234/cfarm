@@ -4,11 +4,9 @@ import {
   IconBolt,
   IconCalendar,
   IconHome,
-  IconMovie,
   IconPhoto,
   IconPlus,
   IconSparkles,
-  IconWand,
 } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
@@ -19,11 +17,9 @@ export type ViewKey =
   | "home"
   | "swipes"
   | "avatars"
-  | "ugcads"
   | "greenscreen"
   | "schedule"
   | "analytics"
-  | "editor"
   | "collections"
   | "automations"
 
@@ -37,7 +33,6 @@ const topNav: NavItem[] = [
   { key: "home", label: "Home", icon: IconHome },
   { key: "swipes", label: "Swipes", icon: IconPhoto },
   { key: "avatars", label: "AI UGC avatars", icon: IconPhoto },
-  { key: "ugcads", label: "AI UGC ads", icon: IconMovie },
   { key: "greenscreen", label: "Greenscreen Memes", icon: IconSparkles },
   { key: "schedule", label: "Schedule", icon: IconCalendar },
   { key: "analytics", label: "Analytics", icon: IconBolt },
@@ -45,7 +40,6 @@ const topNav: NavItem[] = [
 
 const slideshowNav: NavItem[] = [
   { key: "automations", label: "Automations", icon: IconBolt },
-  { key: "editor", label: "Slideshow Editor", icon: IconWand },
   { key: "collections", label: "Image Collections", icon: IconPhoto },
 ]
 
@@ -86,7 +80,6 @@ export function Sidebar({
               (view === "home" && item.label === "Home") ||
               (view === "swipes" && item.label === "Swipes") ||
               (view === "avatars" && item.label === "AI UGC avatars") ||
-              (view === "ugcads" && item.label === "AI UGC ads") ||
               (view === "greenscreen" && item.label === "Greenscreen Memes") ||
               (view === "schedule" && item.label === "Schedule") ||
               (view === "analytics" && item.label === "Analytics")
@@ -95,7 +88,9 @@ export function Sidebar({
           />
         ))}
       </nav>
-      <div className="mt-4 text-[11px] font-medium text-[#a09f98]">Slideshows</div>
+      <div className="mt-4 text-[11px] font-medium text-[#a09f98]">
+        Slideshows
+      </div>
       <nav className="mt-1 space-y-1">
         {slideshowNav.map((item) => (
           <SidebarButton

@@ -12,6 +12,7 @@ describe("buttonVariants", () => {
   it("exposes app-specific button sizes", () => {
     expect(buttonVariants({ variant: "action", size: "largeAction" })).toContain("h-12")
     expect(buttonVariants({ variant: "action", size: "dialogAction" })).toContain("h-14")
+    expect(buttonVariants({ variant: "softControl", size: "settingsRow" })).toContain("min-h-[74px]")
     expect(buttonVariants({ variant: "softControl", size: "compact" })).toContain("h-8")
   })
 })

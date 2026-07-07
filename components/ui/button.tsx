@@ -41,6 +41,7 @@ const buttonVariants = cva(
         appDefault: "h-9 gap-1.5 rounded-lg px-4 text-sm",
         largeAction: "h-12 gap-2 rounded-full px-8 text-base font-semibold",
         dialogAction: "h-14 gap-2 rounded-xl px-8 text-lg font-semibold",
+        settingsRow: "min-h-[74px] w-full gap-4 rounded-lg p-5 text-left",
         "icon-control": "size-8 rounded-full",
         "icon-control-sm": "size-7 rounded-md",
         "icon-control-lg": "size-10 rounded-full",

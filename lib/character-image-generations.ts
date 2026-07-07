@@ -1,26 +1,42 @@
 import path from "node:path"
+import { rm } from "node:fs/promises"
 
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
-import type { CharacterImageGenerationRecord, CharacterPromptAttachment } from "@/lib/realfarm-character-ui"
+import {
+  characterWorkflowOptions,
+  type CharacterImageGenerationRecord,
+  type CharacterPromptAttachment,
+  type CharacterWorkflowKey,
+  type CharacterWorkflowMetadata,
+} from "@/lib/realfarm-character-ui"
 
-export type StoredCharacterImageGenerationRecord = CharacterImageGenerationRecord & {
-  characterId?: number
-}
+export type StoredCharacterImageGenerationRecord =
+  CharacterImageGenerationRecord & {
+    characterId?: number
+  }
 
 const defaultRootDir = path.join(process.cwd(), "data", "characters")
 const dbFileName = "images.json"
 
-export async function listCharacterImageGenerations(input: {
-  rootDir?: string
-  characterId?: number
-} = {}) {
+export async function listCharacterImageGenerations(
+  input: {
+    rootDir?: string
+    characterId?: number
+  } = {}
+) {
   const records = await readCharacterImageGenerations(input.rootDir)
-  return records.filter((record) => input.characterId === undefined || record.characterId === input.characterId)
+  return records.filter(
+    (record) =>
+      input.characterId === undefined ||
+      record.characterId === input.characterId
+  )
 }
 
-export async function upsertCharacterImageGeneration(input: StoredCharacterImageGenerationRecord & {
-  rootDir?: string
-}) {
+export async function upsertCharacterImageGeneration(
+  input: StoredCharacterImageGenerationRecord & {
+    rootDir?: string
+  }
+) {
   const rootDir = input.rootDir ?? defaultRootDir
   const record = normalizeGeneration(input)
   const records = await readCharacterImageGenerations(rootDir)
@@ -29,7 +45,51 @@ export async function upsertCharacterImageGeneration(input: StoredCharacterImage
   return record
 }
 
-async function readCharacterImageGenerations(rootDir = defaultRootDir): Promise<StoredCharacterImageGenerationRecord[]> {
+export async function deleteCharacterImageGenerationsForCharacter(input: {
+  rootDir?: string
+  characterId: number
+}) {
+  const rootDir = input.rootDir ?? defaultRootDir
+  const records = await readCharacterImageGenerations(rootDir)
+  const deleted = records.filter(
+    (record) => record.characterId === input.characterId
+  )
+  if (deleted.length === 0) {
+    return { deleted: 0, deletedFiles: 0 }
+  }
+
+  const next = records.filter(
+    (record) => record.characterId !== input.characterId
+  )
+  await writeCharacterImageGenerations(rootDir, next)
+  const deletedFiles = await deleteUnusedGenerationFiles(rootDir, deleted, next)
+  return { deleted: deleted.length, deletedFiles }
+}
+
+export async function deleteCharacterImageGeneration(input: {
+  rootDir?: string
+  id: string
+}) {
+  const rootDir = input.rootDir ?? defaultRootDir
+  const id = clean(input.id)
+  if (!id) {
+    return { deleted: false, deletedFiles: 0 }
+  }
+  const records = await readCharacterImageGenerations(rootDir)
+  const deleted = records.filter((record) => record.id === id)
+  if (deleted.length === 0) {
+    return { deleted: false, deletedFiles: 0 }
+  }
+
+  const next = records.filter((record) => record.id !== id)
+  await writeCharacterImageGenerations(rootDir, next)
+  const deletedFiles = await deleteUnusedGenerationFiles(rootDir, deleted, next)
+  return { deleted: true, deletedFiles }
+}
+
+async function readCharacterImageGenerations(
+  rootDir = defaultRootDir
+): Promise<StoredCharacterImageGenerationRecord[]> {
   return readJsonArrayStore({
     rootDir,
     fileName: dbFileName,
@@ -41,20 +101,37 @@ async function readCharacterImageGenerations(rootDir = defaultRootDir): Promise<
   })
 }
 
-async function writeCharacterImageGenerations(rootDir: string, records: StoredCharacterImageGenerationRecord[]) {
-  await writeJsonArrayStore({ rootDir, fileName: dbFileName, key: "generations", records })
+async function writeCharacterImageGenerations(
+  rootDir: string,
+  records: StoredCharacterImageGenerationRecord[]
+) {
+  await writeJsonArrayStore({
+    rootDir,
+    fileName: dbFileName,
+    key: "generations",
+    records,
+  })
 }
 
-function normalizeGeneration(record: StoredCharacterImageGenerationRecord): StoredCharacterImageGenerationRecord {
+function normalizeGeneration(
+  record: StoredCharacterImageGenerationRecord
+): StoredCharacterImageGenerationRecord {
   return {
     id: clean(record.id) || `${Date.now()}`,
-    characterId: typeof record.characterId === "number" && Number.isFinite(record.characterId) ? record.characterId : undefined,
+    characterId:
+      typeof record.characterId === "number" &&
+      Number.isFinite(record.characterId)
+        ? record.characterId
+        : undefined,
     prompt: clean(record.prompt),
     model: clean(record.model) || "Unknown model",
     createdAt: clean(record.createdAt) || new Date().toISOString(),
     attachments: normalizeAttachments(record.attachments),
     aspectRatio: clean(record.aspectRatio) || "9:16",
-    status: record.status === "processing" || record.status === "failed" ? record.status : "ready",
+    status:
+      record.status === "processing" || record.status === "failed"
+        ? record.status
+        : "ready",
     imageUrl: clean(record.imageUrl) || undefined,
     error: clean(record.error) || undefined,
     progress: numberValue(record.progress),
@@ -63,6 +140,9 @@ function normalizeGeneration(record: StoredCharacterImageGenerationRecord): Stor
     videoStatus: record.videoStatus,
     videoError: clean(record.videoError) || undefined,
     videoProgress: numberValue(record.videoProgress),
+    workflow: normalizeWorkflow(record.workflow),
+    workflowLabel: clean(record.workflowLabel) || undefined,
+    workflowMetadata: normalizeWorkflowMetadata(record.workflowMetadata),
   }
 }
 
@@ -75,7 +155,12 @@ function normalizeAttachments(value: unknown): CharacterPromptAttachment[] {
         const record = attachment as Partial<CharacterPromptAttachment>
         const label = clean(record.label)
         const url = clean(record.url)
-        const kind = record.kind === "character_headshot" ? "character_headshot" : record.kind === "asset" ? "asset" : undefined
+        const kind =
+          record.kind === "character_headshot"
+            ? "character_headshot"
+            : record.kind === "asset"
+              ? "asset"
+              : undefined
         return label && url && kind ? [{ label, url, kind }] : []
       })
     : []
@@ -87,4 +172,112 @@ function numberValue(value: unknown) {
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.trim() : ""
+}
+
+function normalizeWorkflow(value: unknown): CharacterWorkflowKey | undefined {
+  const workflow = clean(value)
+  return characterWorkflowOptions.some((option) => option.key === workflow)
+    ? (workflow as CharacterWorkflowKey)
+    : undefined
+}
+
+function normalizeWorkflowMetadata(
+  value: unknown
+): CharacterWorkflowMetadata | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined
+  }
+  const record = value as Partial<CharacterWorkflowMetadata>
+  const workflow = normalizeWorkflow(record.workflow)
+  const workflowLabel = clean(record.workflowLabel)
+  if (!workflow || !workflowLabel) {
+    return undefined
+  }
+  return {
+    workflow,
+    workflowLabel,
+    recipe:
+      record.recipe &&
+      typeof record.recipe === "object" &&
+      !Array.isArray(record.recipe)
+        ? (record.recipe as Record<string, unknown>)
+        : undefined,
+    note: clean(record.note) || undefined,
+  }
+}
+
+async function deleteUnusedGenerationFiles(
+  rootDir: string,
+  deletedRecords: StoredCharacterImageGenerationRecord[],
+  remainingRecords: StoredCharacterImageGenerationRecord[]
+) {
+  const remainingUrls = new Set(
+    remainingRecords.flatMap((record) => generationOutputUrls(record))
+  )
+  const filePaths = new Set<string>()
+
+  for (const record of deletedRecords) {
+    for (const url of generationOutputUrls(record)) {
+      const normalizedUrl = clean(url)
+      if (!normalizedUrl || remainingUrls.has(normalizedUrl)) {
+        continue
+      }
+      const filePath = localCharacterGenerationFilePath(rootDir, normalizedUrl)
+      if (filePath) {
+        filePaths.add(filePath)
+      }
+    }
+  }
+
+  await Promise.all(
+    [...filePaths].map((filePath) => rm(filePath, { force: true }))
+  )
+  return filePaths.size
+}
+
+function generationOutputUrls(record: StoredCharacterImageGenerationRecord) {
+  return [
+    record.imageUrl,
+    record.videoUrl,
+    generatedWorkflowRecipeUrl(record, "rawVideoUrl"),
+  ]
+    .map(clean)
+    .filter(Boolean)
+}
+
+function generatedWorkflowRecipeUrl(
+  record: StoredCharacterImageGenerationRecord,
+  key: string
+) {
+  const recipe = record.workflowMetadata?.recipe
+  if (!recipe || typeof recipe !== "object" || Array.isArray(recipe)) {
+    return ""
+  }
+  const value = recipe[key]
+  return typeof value === "string" ? value : ""
+}
+
+function localCharacterGenerationFilePath(rootDir: string, assetUrl: string) {
+  const prefix = "/api/local-assets/characters/"
+  if (!assetUrl.startsWith(prefix)) {
+    return null
+  }
+
+  const encodedRelativePath = assetUrl.slice(prefix.length).split(/[?#]/)[0]
+  let relativePath = ""
+  try {
+    relativePath = encodedRelativePath
+      .split("/")
+      .map((part) => decodeURIComponent(part))
+      .join(path.sep)
+  } catch {
+    return null
+  }
+  if (!relativePath || path.isAbsolute(relativePath)) {
+    return null
+  }
+
+  const dataRoot = path.resolve(rootDir)
+  const filePath = path.resolve(dataRoot, relativePath)
+  return filePath.startsWith(`${dataRoot}${path.sep}`) ? filePath : null
 }

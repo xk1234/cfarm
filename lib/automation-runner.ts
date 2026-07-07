@@ -4,7 +4,15 @@ import path from "node:path"
 import { DateTime } from "luxon"
 
 import { listAutomationRecords, type AutomationRecord } from "@/lib/automations"
-import { deeplTargetLanguage, translateTextsWithDeepL } from "@/lib/deepl-translate"
+import {
+  deeplTargetLanguage,
+  translateTextsWithDeepL,
+} from "@/lib/deepl-translate"
+import {
+  defaultAutomationLanguage,
+  defaultSlideshowTransition,
+  slideshowDurationValue,
+} from "@/lib/slideshow-publishing-config"
 import {
   automationCollectionIds,
   automationFormatSection,
@@ -14,15 +22,31 @@ import {
   type AutomationSchema,
 } from "@/lib/realfarm-automation"
 import { collectionAliases, slugify } from "@/lib/realfarm-collections"
-import { defaultSlideshowTextModel, generateSlideshowText } from "@/lib/slideshow-text-generation"
-import { createSlideshowRecord, defaultSlideshowSettings, type SlideshowSlide } from "@/lib/slideshows"
+import {
+  defaultSlideshowTextModel,
+  generateSlideshowText,
+  type SlideshowTextGenerationResult,
+} from "@/lib/slideshow-text-generation"
+import {
+  listPostFastPostRecords,
+  type PostFastPostStatus,
+} from "@/lib/postfast-posts"
+import {
+  createSlideshowResultRecord,
+  defaultSlideshowSettings,
+  listSlideshowRecords,
+  type SlideshowRecord,
+  type SlideshowSlide,
+  type SlideshowTextItem,
+} from "@/lib/slideshows"
+import type { ResultRecord } from "@/lib/results"
 import {
   automationSchemaToTempSlideTestingAutomation,
   type TempSlideSpec,
   type TempSlideStructuredOutput,
 } from "@/lib/temp-slide-testing"
 
-export type AutomationRunStatus = "scheduled" | "draft" | "failed"
+export type AutomationRunStatus = "succeeded" | "failed"
 
 export type AutomationRunRecord = {
   id: string
@@ -30,8 +54,14 @@ export type AutomationRunRecord = {
   automationTitle: string
   scheduledFor: string
   status: AutomationRunStatus
-  postizRecordId?: string
+  postfastRecordId?: string
   slideshowId?: string
+  videoUrl?: string
+  thumbnailUrl?: string
+  outputImages?: string[]
+  outputDir?: string
+  socialStatuses?: AutomationRunSocialStatus[]
+  renderedSlides?: AutomationRunRenderedSlide[]
   plan: AutomationRunPlan
   createdAt: string
   updatedAt: string
@@ -40,6 +70,8 @@ export type AutomationRunRecord = {
 
 export type AutomationRunPlan = {
   title: string
+  caption: string
+  hashtags: string
   hook: string
   imageCollectionIds: string[]
   slides: AutomationRunSlide[]
@@ -52,9 +84,14 @@ export type AutomationRunPlan = {
   publishType: string
   autoMusic: boolean
   autoPost: boolean
+  hookCandidates?: string[]
   textModel?: string
   language: string
   translationProvider?: "deepl"
+  debug?: {
+    selectedHookIndex?: number
+    textModelPrompt?: SlideshowTextGenerationResult["promptPayload"]
+  }
 }
 
 export type AutomationRunSlide = {
@@ -62,54 +99,164 @@ export type AutomationRunSlide = {
   role: "hook" | "content" | "cta"
   imageUrl: string
   imageCaption: string
+  overlayImage?: {
+    imageUrl: string
+    imageCaption: string
+    padding: number
+  }
   text: string
   textPlacement: "top"
+  aspectRatio?: string
+  imageGrid?: string
+  overlay?: boolean
+  displayText?: boolean
+  textItems?: SlideshowTextItem[]
+}
+
+export type AutomationRunRenderedSlide = {
+  id: string
+  role?: AutomationRunSlide["role"]
+  imageUrl: string
+  sourceImageUrl?: string
+  imageCaption?: string
+  text: string
+  durationMs: number
+  aspectRatio: string
+}
+
+type AutomationRunnerImage = {
+  id: string
+  imageUrl: string
+  imageCaption: string
+}
+
+export type AutomationRunSocialStatus = {
+  provider: AutomationSchema["social_integrations"][number]["provider"]
+  integrationId: string
+  name: string
+  profile?: string
+  status: PostFastPostStatus | "queued" | "disabled"
+  error?: string
 }
 
 export type AutomationRunResult = {
   created: AutomationRunRecord[]
-  skipped: { automationId: string; reason: "not_live" | "not_due" | "already_ran" | "no_images"; scheduledFor?: string }[]
+  results: ResultRecord[]
+  skipped: {
+    automationId: string
+    reason: "not_live" | "not_due" | "already_ran" | "no_images"
+    scheduledFor?: string
+  }[]
+}
+
+type RawAutomationRunRecord = Omit<
+  Partial<AutomationRunRecord>,
+  "status" | "plan"
+> & {
+  status?: unknown
+  plan?: Partial<AutomationRunPlan>
 }
 
 type AutomationRunsDb = {
-  runs?: AutomationRunRecord[]
+  runs?: RawAutomationRunRecord[]
 }
 
 const defaultAutomationRootDir = path.join(process.cwd(), "data", "automations")
 const defaultRunRootDir = path.join(process.cwd(), "data", "automations")
 const runsFileName = "runs.json"
 
-export async function listAutomationRuns(input: {
-  runRootDir?: string
-  automationId?: string
-  limit?: number
-} = {}) {
+export async function listAutomationRuns(
+  input: {
+    runRootDir?: string
+    slideshowRootDir?: string
+    automationRootDir?: string
+    postfastRootDir?: string
+    automationId?: string
+    limit?: number
+  } = {}
+) {
   const runs = await readAutomationRuns(input.runRootDir ?? defaultRunRootDir)
   const filteredRuns = input.automationId
     ? runs.filter((run) => run.automationId === input.automationId)
     : runs
-  return filteredRuns.slice(0, Math.max(1, input.limit ?? 50))
+  const limitedRuns = filteredRuns.slice(0, Math.max(1, input.limit ?? 50))
+  const renderedRuns = await enrichRunsWithRenderedSlides(
+    limitedRuns,
+    input.slideshowRootDir
+  )
+  return enrichRunsWithSocialStatuses(
+    renderedRuns,
+    input.automationRootDir,
+    input.postfastRootDir
+  )
 }
 
-export async function runDueAutomations(input: {
-  automationRootDir?: string
+export async function deleteAutomationRuns(input: {
   runRootDir?: string
-  postizRootDir?: string
-  slideshowRootDir?: string
-  imageCollectionDbPath?: string
   automationId?: string
-  schemaOverride?: AutomationSchema
-  force?: boolean
-  now?: Date
-  lookbackMinutes?: number
-  random?: () => number
-} = {}): Promise<AutomationRunResult> {
+  slideshowIds?: string[]
+}) {
+  const automationId = clean(input.automationId)
+  const slideshowIds = new Set(
+    (input.slideshowIds ?? []).map(clean).filter(Boolean)
+  )
+  if (!automationId && slideshowIds.size === 0) {
+    return []
+  }
+
+  const runRootDir = input.runRootDir ?? defaultRunRootDir
+  const runs = await readAutomationRuns(runRootDir)
+  const deleted = runs.filter(
+    (run) =>
+      (automationId && run.automationId === automationId) ||
+      (run.slideshowId && slideshowIds.has(run.slideshowId))
+  )
+  if (deleted.length === 0) {
+    return []
+  }
+
+  const deletedIds = new Set(deleted.map((run) => run.id))
+  await writeAutomationRuns(
+    runRootDir,
+    runs.filter((run) => !deletedIds.has(run.id))
+  )
+  return deleted
+}
+
+export async function runDueAutomations(
+  input: {
+    automationRootDir?: string
+    runRootDir?: string
+    resultRootDir?: string
+    postfastRootDir?: string
+    slideshowRootDir?: string
+    imageCollectionDbPath?: string
+    automationId?: string
+    schemaOverride?: AutomationSchema
+    force?: boolean
+    now?: Date
+    lookbackMinutes?: number
+    random?: () => number
+  } = {}
+): Promise<AutomationRunResult> {
   const now = input.now ?? new Date()
   const lookbackMinutes = input.lookbackMinutes ?? 24 * 60
   const runRootDir = input.runRootDir ?? defaultRunRootDir
-  const records = await listAutomationRecords({ rootDir: input.automationRootDir ?? defaultAutomationRootDir })
+  const slideshowRootDir =
+    input.slideshowRootDir ??
+    (input.postfastRootDir
+      ? path.join(input.postfastRootDir, "slideshows")
+      : undefined)
+  const resultRootDir =
+    input.resultRootDir ??
+    (input.postfastRootDir
+      ? path.join(input.postfastRootDir, "results")
+      : undefined)
+  const records = await listAutomationRecords({
+    rootDir: input.automationRootDir ?? defaultAutomationRootDir,
+  })
   const existingRuns = await readAutomationRuns(runRootDir)
-  const result: AutomationRunResult = { created: [], skipped: [] }
+  const result: AutomationRunResult = { created: [], results: [], skipped: [] }
   const nextRuns = [...existingRuns]
 
   for (const record of records) {
@@ -131,27 +278,47 @@ export async function runDueAutomations(input: {
     }
 
     for (const scheduledFor of dueSlots) {
-      if (!input.force && nextRuns.some((run) => run.automationId === record.id && run.scheduledFor === scheduledFor)) {
-        result.skipped.push({ automationId: record.id, reason: "already_ran", scheduledFor })
+      if (
+        !input.force &&
+        nextRuns.some(
+          (run) =>
+            run.automationId === record.id && run.scheduledFor === scheduledFor
+        )
+      ) {
+        result.skipped.push({
+          automationId: record.id,
+          reason: "already_ran",
+          scheduledFor,
+        })
         continue
       }
 
-      const effectiveRecord = input.schemaOverride && input.automationId === record.id
-        ? { ...record, schema: input.schemaOverride }
-        : record
-      const run = await createAutomationRun({
+      const effectiveRecord =
+        input.schemaOverride && input.automationId === record.id
+          ? { ...record, schema: input.schemaOverride }
+          : record
+      const createdRun = await createAutomationRun({
         record: effectiveRecord,
         scheduledFor,
-        postizRootDir: input.postizRootDir,
-        slideshowRootDir: input.slideshowRootDir,
+        postfastRootDir: input.postfastRootDir,
+        slideshowRootDir,
+        resultRootDir,
         imageCollectionDbPath: input.imageCollectionDbPath,
         random: input.random,
       })
+      const run = createdRun.run
       if (run.status === "failed") {
-        result.skipped.push({ automationId: record.id, reason: "no_images", scheduledFor })
+        result.skipped.push({
+          automationId: record.id,
+          reason: "no_images",
+          scheduledFor,
+        })
       }
       nextRuns.unshift(run)
       result.created.push(run)
+      if (createdRun.result) {
+        result.results.push(createdRun.result)
+      }
     }
   }
 
@@ -162,31 +329,42 @@ export async function runDueAutomations(input: {
   return result
 }
 
-function dueAutomationSlots(schema: AutomationSchema, now: Date, lookbackMinutes: number) {
+function dueAutomationSlots(
+  schema: AutomationSchema,
+  now: Date,
+  lookbackMinutes: number
+) {
   const zone = schema.schedule.timezone || DateTime.local().zoneName
   const nowLocal = DateTime.fromJSDate(now, { zone })
   const earliest = nowLocal.minus({ minutes: lookbackMinutes })
   const day = nowLocal.toFormat("ccc")
 
-  return schema.schedule.posting_times.flatMap((postingTime) => {
-    if (!postingTime.days.includes(day as never)) {
-      return []
-    }
+  return schema.schedule.posting_times
+    .flatMap((postingTime) => {
+      if (!postingTime.days.includes(day as never)) {
+        return []
+      }
 
-    const slot = parseLocalSlot(nowLocal, postingTime.time)
-    if (!slot || slot > nowLocal || slot < earliest) {
-      return []
-    }
+      const slot = parseLocalSlot(nowLocal, postingTime.time)
+      if (!slot || slot > nowLocal || slot < earliest) {
+        return []
+      }
 
-    return [slot.toUTC().toISO({ suppressMilliseconds: false }) ?? slot.toUTC().toISO()]
-  }).filter((value): value is string => Boolean(value))
+      return [
+        slot.toUTC().toISO({ suppressMilliseconds: false }) ??
+          slot.toUTC().toISO(),
+      ]
+    })
+    .filter((value): value is string => Boolean(value))
 }
 
 function parseLocalSlot(nowLocal: DateTime, time: string) {
   const formats = ["h:mm a", "h a", "H:mm", "HH:mm"]
   const zone = nowLocal.zoneName || "UTC"
   for (const format of formats) {
-    const parsed = DateTime.fromFormat(time.trim().toUpperCase(), format, { zone })
+    const parsed = DateTime.fromFormat(time.trim().toUpperCase(), format, {
+      zone,
+    })
     if (parsed.isValid) {
       return nowLocal.set({
         hour: parsed.hour,
@@ -202,8 +380,9 @@ function parseLocalSlot(nowLocal: DateTime, time: string) {
 async function createAutomationRun(input: {
   record: AutomationRecord
   scheduledFor: string
-  postizRootDir?: string
+  postfastRootDir?: string
   slideshowRootDir?: string
+  resultRootDir?: string
   imageCollectionDbPath?: string
   random?: () => number
 }) {
@@ -212,7 +391,8 @@ async function createAutomationRun(input: {
     imageCollectionDbPath: input.imageCollectionDbPath,
     random: input.random,
   })
-  const status: AutomationRunStatus = plan.slides.length > 0 ? "scheduled" : "failed"
+  const status: AutomationRunStatus =
+    plan.slides.length > 0 ? "succeeded" : "failed"
   const run: AutomationRunRecord = {
     id: `automation-run-${randomUUID()}`,
     automationId: input.record.id,
@@ -222,59 +402,244 @@ async function createAutomationRun(input: {
     plan,
     createdAt: now,
     updatedAt: now,
-    error: status === "failed" ? "No images available for automation collections" : undefined,
+    error:
+      status === "failed"
+        ? "No images available for automation collections"
+        : undefined,
   }
-  const slideshow = await createSlideshowRecord({
+  if (status === "failed") {
+    return { run }
+  }
+
+  const { slideshow, result } = await createSlideshowResultRecord({
     rootDir: input.slideshowRootDir,
-    title: input.record.schema.title || input.record.name,
+    resultRootDir: input.resultRootDir,
+    runId: run.id,
+    automationId: input.record.id,
+    title: plan.title || input.record.schema.title || input.record.name,
+    caption: plan.caption,
+    hashtags: plan.hashtags,
     prompt: automationSlideshowPrompt(input.record.schema, plan.hook),
     image_collection: plan.imageCollectionIds[0] ?? "",
     slideshow_type: "automation",
-    status: "draft",
-    is_finished: status !== "failed",
-    is_failed: status === "failed",
+    status: "exported",
+    is_finished: true,
+    is_failed: false,
     settings: automationSlideshowSettings(input.record.schema),
     images: automationRunSlidesToSlideshowSlides(input.record.schema, plan),
   })
 
-  return {
+  const runWithSlideshowId = {
     ...run,
     slideshowId: slideshow.id,
+    videoUrl: slideshow.video_url,
+    thumbnailUrl: slideshow.thumbnail_url,
+    outputImages: slideshow.output_images,
+    outputDir: slideshow.output_dir,
+  }
+  const runWithStatuses = {
+    ...runWithSlideshowId,
+    socialStatuses: await socialStatusesForRun({
+      run: runWithSlideshowId,
+      schema: input.record.schema,
+      postfastRootDir: input.postfastRootDir,
+    }),
+  }
+
+  return {
+    run: runWithRenderedSlides(runWithStatuses, slideshow),
+    result,
   }
 }
 
-async function createAutomationRunPlan(schema: AutomationSchema, options: {
-  imageCollectionDbPath?: string
-  random?: () => number
-} = {}): Promise<AutomationRunPlan> {
+async function enrichRunsWithRenderedSlides(
+  runs: AutomationRunRecord[],
+  slideshowRootDir?: string
+) {
+  const slideshowIds = new Set(
+    runs.map((run) => run.slideshowId).filter((id): id is string => Boolean(id))
+  )
+  if (slideshowIds.size === 0) {
+    return runs
+  }
+
+  const slideshows = await listSlideshowRecords({
+    rootDir: slideshowRootDir,
+    limit: Math.max(100, slideshowIds.size),
+  })
+  const slideshowsById = new Map(
+    slideshows
+      .filter((slideshow) => slideshowIds.has(slideshow.id))
+      .map((slideshow) => [slideshow.id, slideshow])
+  )
+
+  return runs.map((run) => {
+    const slideshow = run.slideshowId
+      ? slideshowsById.get(run.slideshowId)
+      : undefined
+    return slideshow ? runWithRenderedSlides(run, slideshow) : run
+  })
+}
+
+function runWithRenderedSlides(
+  run: AutomationRunRecord,
+  slideshow: SlideshowRecord
+): AutomationRunRecord {
+  const renderedSlides: AutomationRunRenderedSlide[] = []
+  slideshow.images.forEach((slide, index) => {
+    const imageUrl = slide.image_url.trim()
+    if (!imageUrl) {
+      return
+    }
+    const planSlide = run.plan.slides[index]
+    const firstText =
+      slide.textItems[0]?.text || planSlide?.text || run.plan.hook
+    renderedSlides.push({
+      id: slide.id || planSlide?.id || `rendered-slide-${index + 1}`,
+      role: planSlide?.role,
+      imageUrl,
+      sourceImageUrl: slide.source_image_url,
+      imageCaption: planSlide?.imageCaption,
+      text: firstText,
+      durationMs: slide.time_length_ms,
+      aspectRatio: slide.aspect_ratio,
+    })
+  })
+
+  return {
+    ...run,
+    videoUrl: slideshow.video_url,
+    thumbnailUrl: slideshow.thumbnail_url,
+    outputImages: slideshow.output_images,
+    outputDir: slideshow.output_dir,
+    renderedSlides,
+  }
+}
+
+async function enrichRunsWithSocialStatuses(
+  runs: AutomationRunRecord[],
+  automationRootDir = defaultAutomationRootDir,
+  postfastRootDir?: string
+) {
+  if (runs.length === 0) {
+    return runs
+  }
+
+  const records = await listAutomationRecords({ rootDir: automationRootDir })
+  const recordsById = new Map(records.map((record) => [record.id, record]))
+
+  return Promise.all(
+    runs.map(async (run) => {
+      const record = recordsById.get(run.automationId)
+      if (!record) {
+        return run
+      }
+      return {
+        ...run,
+        socialStatuses: await socialStatusesForRun({
+          run,
+          schema: record.schema,
+          postfastRootDir,
+        }),
+      }
+    })
+  )
+}
+
+async function socialStatusesForRun(input: {
+  run: Pick<AutomationRunRecord, "id" | "status" | "slideshowId">
+  schema: AutomationSchema
+  postfastRootDir?: string
+}): Promise<AutomationRunSocialStatus[]> {
+  const integrations = input.schema.social_integrations.filter(
+    (integration) => integration.integration_id
+  )
+  if (integrations.length === 0) {
+    return []
+  }
+
+  const postRecords = await listPostFastPostRecords({
+    rootDir: input.postfastRootDir,
+  }).catch(() => [])
+
+  return integrations.map((integration) => {
+    const postRecord = postRecords.find(
+      (record) =>
+        record.integrationId === integration.integration_id &&
+        ((input.run.slideshowId &&
+          record.sourceType === "slideshow" &&
+          record.sourceId === input.run.slideshowId) ||
+          (record.sourceType === "automation" &&
+            record.sourceId === input.run.id))
+    )
+    const status =
+      postRecord?.status ??
+      (integration.disabled
+        ? "disabled"
+        : input.run.status === "failed"
+          ? "failed"
+          : "queued")
+
+    return {
+      provider: integration.provider,
+      integrationId: integration.integration_id,
+      name: integration.name,
+      profile: integration.profile,
+      status,
+      error: postRecord?.error,
+    }
+  })
+}
+
+async function createAutomationRunPlan(
+  schema: AutomationSchema,
+  options: {
+    imageCollectionDbPath?: string
+    random?: () => number
+  } = {}
+): Promise<AutomationRunPlan> {
   const collectionIds = automationCollectionIds(schema)
   const content = automationFormatSection(schema, "content")
   const slideCount = automationTotalSlideCount(schema)
-  const hook = automationHooks(schema)[0] || schema.title
+  const hookCandidates = automationHooks(schema)
+  const selectedHookIndex = selectRandomIndex(
+    hookCandidates.length,
+    options.random
+  )
+  const hook = hookCandidates[selectedHookIndex] || schema.title
   const textAutomation = automationSchemaToTempSlideTestingAutomation(schema)
   const textGeneration = await generateAutomationText({
     automation: textAutomation,
     hook,
   })
-  const images = await loadAutomationImages({
+  const imageCollections = await readImageCollections(
+    options.imageCollectionDbPath
+  )
+  const images = imagesForCollectionIds({
+    collections: imageCollections,
     collectionIds,
-    imageCollectionDbPath: options.imageCollectionDbPath,
+    useFallback: true,
   })
   const slides = await translateAutomationSlides({
-    language: schema.image_collection_ids.language || "English",
+    language: schema.image_collection_ids.language || defaultAutomationLanguage,
     slides: createSlides({
       title: schema.title,
       hook,
       images,
+      imageCollections,
       slideCount,
       textAutomation,
       generatedText: textGeneration?.result,
       random: options.random,
     }),
   })
+  const caption =
+    clean(textGeneration?.result.caption) || slideshowCaption(slides, hook)
 
   return {
-    title: schema.title,
+    title: clean(textGeneration?.result.title) || schema.title,
+    caption,
+    hashtags: clean(textGeneration?.result.hashtags),
     hook,
     imageCollectionIds: collectionIds,
     slides,
@@ -287,9 +652,18 @@ async function createAutomationRunPlan(schema: AutomationSchema, options: {
     publishType: automationPublishType(schema),
     autoMusic: schema.tiktok_post_settings.auto_music,
     autoPost: schema.tiktok_post_settings.auto_post,
+    hookCandidates,
     textModel: textGeneration?.model,
-    language: schema.image_collection_ids.language || "English",
-    translationProvider: deeplTargetLanguage(schema.image_collection_ids.language || "English") ? "deepl" : undefined,
+    language: schema.image_collection_ids.language || defaultAutomationLanguage,
+    translationProvider: deeplTargetLanguage(
+      schema.image_collection_ids.language || defaultAutomationLanguage
+    )
+      ? "deepl"
+      : undefined,
+    debug: {
+      selectedHookIndex,
+      textModelPrompt: textGeneration?.promptPayload,
+    },
   }
 }
 
@@ -301,21 +675,53 @@ async function translateAutomationSlides(input: {
     return input.slides
   }
 
-  const apiKey = clean(process.env.DEEPL_API_KEY)
+  const apiKey = clean(process.env.DEEPL_KEY)
   if (!apiKey) {
-    throw new Error("DEEPL_API_KEY is not configured")
+    throw new Error("DEEPL_KEY is not configured")
+  }
+
+  const targets = input.slides.flatMap((slide, slideIndex) => {
+    if (slide.textItems?.length) {
+      return slide.textItems.map((textItem, textIndex) => ({
+        slideIndex,
+        textIndex,
+        text: textItem.text,
+      }))
+    }
+    return [{ slideIndex, textIndex: -1, text: slide.text }]
+  })
+  if (targets.length === 0) {
+    return input.slides
   }
 
   const translatedTexts = await translateTextsWithDeepL({
     apiKey,
     targetLanguage: input.language,
-    texts: input.slides.map((slide) => slide.text),
-    apiUrl: clean(process.env.DEEPL_API_URL) || undefined,
+    texts: targets.map((target) => target.text),
   })
-  return input.slides.map((slide, index) => ({
+  const nextSlides = input.slides.map((slide) => ({
     ...slide,
-    text: translatedTexts[index] || slide.text,
+    textItems: slide.textItems?.map((textItem) => ({ ...textItem })),
   }))
+
+  targets.forEach((target, index) => {
+    const translatedText = translatedTexts[index] || target.text
+    const slide = nextSlides[target.slideIndex]
+    if (!slide) {
+      return
+    }
+    if (target.textIndex >= 0 && slide.textItems?.[target.textIndex]) {
+      slide.textItems[target.textIndex] = {
+        ...slide.textItems[target.textIndex],
+        text: translatedText,
+      }
+      slide.text = slide.textItems[0]?.text || translatedText
+      return
+    }
+    slide.text = translatedText
+  })
+
+  return nextSlides
 }
 
 async function generateAutomationText(input: {
@@ -327,26 +733,26 @@ async function generateAutomationText(input: {
     return null
   }
 
-  try {
-    return await generateSlideshowText({
-      automation: input.automation,
-      model: defaultSlideshowTextModel,
-      selectedHook: input.hook,
-      apiKey,
-    })
-  } catch {
-    return null
-  }
+  return generateSlideshowText({
+    automation: input.automation,
+    model: defaultSlideshowTextModel,
+    selectedHook: input.hook,
+    apiKey,
+  })
 }
 
-async function loadAutomationImages(input: {
+function imagesForCollectionIds(input: {
+  collections: Awaited<ReturnType<typeof readImageCollections>>
   collectionIds: string[]
-  imageCollectionDbPath?: string
-}) {
-  const collections = await readImageCollections(input.imageCollectionDbPath)
+  useFallback: boolean
+}): AutomationRunnerImage[] {
   const requested = new Set(input.collectionIds)
-  const matching = collections
-    .filter((collection) => requested.size === 0 || collection.aliases.some((alias) => requested.has(alias)))
+  const matching = input.collections
+    .filter(
+      (collection) =>
+        (requested.size === 0 && input.useFallback) ||
+        collection.aliases.some((alias) => requested.has(alias))
+    )
     .flatMap((collection) =>
       collection.images.map((image, index) => ({
         id: `${collection.id}-${index}`,
@@ -354,7 +760,7 @@ async function loadAutomationImages(input: {
         imageCaption: image.caption,
       }))
     )
-  const fallback = collections.flatMap((collection) =>
+  const fallback = input.collections.flatMap((collection) =>
     collection.images.map((image, index) => ({
       id: `${collection.id}-${index}`,
       imageUrl: image.image_link,
@@ -362,96 +768,249 @@ async function loadAutomationImages(input: {
     }))
   )
 
-  return matching.length > 0 ? matching : fallback
+  return matching.length > 0 || !input.useFallback ? matching : fallback
+}
+
+function overlayImageForSlide(input: {
+  collections: Awaited<ReturnType<typeof readImageCollections>>
+  slide: TempSlideSpec
+  slideIndex: number
+}): AutomationRunSlide["overlayImage"] {
+  if (
+    !input.slide.overlayImage?.enabled ||
+    !input.slide.overlayImage.collectionId
+  ) {
+    return undefined
+  }
+  const images = imagesForCollectionIds({
+    collections: input.collections,
+    collectionIds: [input.slide.overlayImage.collectionId],
+    useFallback: false,
+  })
+  const image = images[input.slideIndex % Math.max(1, images.length)]
+  if (!image) {
+    return undefined
+  }
+
+  return {
+    imageUrl: image.imageUrl,
+    imageCaption: image.imageCaption,
+    padding: Math.max(0, input.slide.overlayImage.height),
+  }
 }
 
 function createSlides(input: {
   title: string
   hook: string
-  images: { id: string; imageUrl: string; imageCaption: string }[]
+  images: AutomationRunnerImage[]
+  imageCollections: Awaited<ReturnType<typeof readImageCollections>>
   slideCount: number
-  textAutomation?: ReturnType<typeof automationSchemaToTempSlideTestingAutomation>
+  textAutomation?: ReturnType<
+    typeof automationSchemaToTempSlideTestingAutomation
+  >
   generatedText?: TempSlideStructuredOutput
   random?: () => number
 }): AutomationRunSlide[] {
-  const selectedImages = chooseImages(input.images, input.slideCount, input.random)
-  return selectedImages.map((image, index) => ({
-    id: `slide-${index + 1}`,
-    role: index === 0 ? "hook" : index === selectedImages.length - 1 && selectedImages.length > 1 ? "cta" : "content",
-    imageUrl: image.imageUrl,
-    imageCaption: image.imageCaption,
-    text: automationSlideText({
+  const specs: TempSlideSpec[] =
+    input.textAutomation?.slides ??
+    Array.from({ length: input.slideCount }, (_, index) => ({
+      id: `slide-${index + 1}`,
+      index,
+      section: index === 0 ? "hook" : "content",
+      title: index === 0 ? "Hook" : `Content ${index}`,
+      aspectRatio: "9:16",
+      imageGrid: "none",
+      overlay: false,
+      displayText: true,
+      collectionId: "",
+      textItems: [],
+    }))
+  const selectedImages = chooseImages(input.images, specs.length, input.random)
+  return specs.flatMap((slide, index) => {
+    const image = selectedImages[index]
+    if (!image) {
+      return []
+    }
+    const textItems = automationSlideTextItems({
       title: input.title,
       hook: input.hook,
       slide: input.textAutomation?.slides[index],
       generatedText: input.generatedText,
-    }),
-    textPlacement: "top",
-  }))
+    })
+    const text = textItems[0]?.text || input.hook || input.title
+
+    return [
+      {
+        id: `slide-${index + 1}`,
+        role:
+          slide.section === "cta"
+            ? "cta"
+            : slide.section === "hook"
+              ? "hook"
+              : "content",
+        imageUrl: image.imageUrl,
+        imageCaption: image.imageCaption,
+        text,
+        textPlacement: "top",
+        aspectRatio: slide.aspectRatio,
+        imageGrid: slide.imageGrid,
+        overlay: slide.overlay,
+        overlayImage: overlayImageForSlide({
+          collections: input.imageCollections,
+          slide,
+          slideIndex: index,
+        }),
+        displayText: slide.displayText,
+        textItems,
+      },
+    ]
+  })
 }
 
-function automationSlideText(input: {
+function automationSlideTextItems(input: {
   title: string
   hook: string
   slide?: TempSlideSpec
   generatedText?: TempSlideStructuredOutput
-}) {
+}): SlideshowTextItem[] {
   if (!input.slide || input.slide.section === "hook") {
-    return input.hook
+    const textItem = input.slide?.textItems[0]
+    return [
+      slideshowTextItemFromTempTextItem({
+        textItem,
+        text: input.hook,
+        fallbackId: "hook-text",
+      }),
+    ]
   }
 
-  const textItem = input.slide.textItems[0]
-  if (!textItem) {
-    return input.title
+  if (!input.slide.displayText) {
+    return []
   }
-  if (textItem.textMode === "static") {
-    return textItem.staticText || input.title
+
+  const textItems = input.slide.textItems.flatMap((textItem, index) => {
+    const text =
+      textItem.textMode === "static"
+        ? textItem.staticText || input.title
+        : input.generatedText?.text[textItem.id] ||
+          textItem.contentDirection ||
+          input.title
+    if (!text.trim()) {
+      return []
+    }
+    return [
+      slideshowTextItemFromTempTextItem({
+        textItem,
+        text,
+        fallbackId: `text-${index + 1}`,
+      }),
+    ]
+  })
+
+  if (textItems.length > 0) {
+    return textItems
   }
-  return input.generatedText?.text[textItem.id] || textItem.contentDirection || input.title
+
+  return [
+    slideshowTextItemFromTempTextItem({
+      textItem: undefined,
+      text: input.title,
+      fallbackId: "fallback-text",
+    }),
+  ]
 }
 
-function automationRunSlidesToSlideshowSlides(schema: AutomationSchema, plan: AutomationRunPlan): SlideshowSlide[] {
+function automationRunSlidesToSlideshowSlides(
+  schema: AutomationSchema,
+  plan: AutomationRunPlan
+): SlideshowSlide[] {
   const settings = automationSlideshowSettings(schema)
   return plan.slides.map((slide, index) => {
-    const section = automationFormatSection(schema, slide.role === "hook" ? "hook" : slide.role === "cta" ? "cta" : "content")
+    const section = automationFormatSection(
+      schema,
+      slide.role === "hook" ? "hook" : slide.role === "cta" ? "cta" : "content"
+    )
     const textItem = section.textItems[0]
     const text = slide.text || plan.hook || schema.title
     const textPosition = textItemPosition(textItem, slide.role === "hook")
+    const textItems = slide.textItems?.length
+      ? slide.textItems
+      : section.noText
+        ? []
+        : [
+            {
+              id: textItem?.id || `text-${index + 1}`,
+              text,
+              font: textItem?.font || "TikTok Display Medium",
+              fontSize: textItem?.fontSize || "10px",
+              textSize: {
+                width: textItemWidth(textItem?.textItemWidth, text),
+                height: 18,
+              },
+              textStyle: textItem?.textStyle || "outline",
+              textAlign: textItem?.textAlign || "center",
+              textAnchor: textItem?.textAnchor || "padded",
+              textPosition,
+            },
+          ]
 
     return {
       id: slide.id || `slide-${index + 1}`,
       image_url: slide.imageUrl,
-      aspect_ratio: section.aspect_ratio || "9:16",
+      overlayImage: slide.overlayImage
+        ? {
+            image_url: slide.overlayImage.imageUrl,
+            padding: slide.overlayImage.padding,
+          }
+        : undefined,
+      aspect_ratio: slide.aspectRatio || section.aspect_ratio || "9:16",
       time_length_ms: Math.max(1, settings.duration) * 1000,
-      textItems: section.noText ? [] : [
-        {
-          id: textItem?.id || `text-${index + 1}`,
-          text,
-          font: textItem?.font || "TikTok Display Medium",
-          fontSize: textItem?.fontSize || "10px",
-          textSize: {
-            width: textItemWidth(textItem?.textItemWidth, text),
-            height: 18,
-          },
-          textStyle: textItem?.textStyle || "outline",
-          textAlign: textItem?.textAlign || "center",
-          textAnchor: textItem?.textAnchor || "padded",
-          textPosition,
-        },
-      ],
+      textItems,
     }
   })
 }
 
+function slideshowTextItemFromTempTextItem(input: {
+  textItem: TempSlideSpec["textItems"][number] | undefined
+  text: string
+  fallbackId: string
+}): SlideshowTextItem {
+  return {
+    id: input.textItem?.itemId || input.textItem?.id || input.fallbackId,
+    text: input.text,
+    font: input.textItem?.font || "TikTok Display Medium",
+    fontSize: input.textItem?.fontSize || "10px",
+    textSize: {
+      width: textItemWidth(input.textItem?.textItemWidth, input.text),
+      height: 18,
+    },
+    textStyle: input.textItem?.textStyle || "outline",
+    textAlign: input.textItem?.textAlign || "center",
+    textAnchor: input.textItem?.textAnchor || "padded",
+    textPosition: tempTextItemPosition(input.textItem),
+  }
+}
+
 function automationSlideshowSettings(schema: AutomationSchema) {
   const content = automationFormatSection(schema, "content")
+  const tiktok = schema.tiktok_post_settings
   return defaultSlideshowSettings({
-    duration: 4,
+    duration: slideshowDurationValue(tiktok.slideshow_slide_duration),
     background_color: "#000000",
     is_bg_overlay_on: content.overlay,
-    transition_style: "hard",
-    background_opacity: schema.image_collection_ids.background_opacity ?? content.overlayOpacity ?? 40,
-    is_bg_overlay_on_hook_image: Boolean(schema.image_collection_ids.is_bg_overlay_on_hook_image),
+    transition_style:
+      clean(tiktok.slideshow_transition_style) || defaultSlideshowTransition,
+    background_opacity:
+      schema.image_collection_ids.background_opacity ??
+      content.overlayOpacity ??
+      40,
+    is_bg_overlay_on_hook_image: Boolean(
+      schema.image_collection_ids.is_bg_overlay_on_hook_image
+    ),
+    export_as_video: automationPublishType(schema) === "video",
+    sound_id: clean(tiktok.slideshow_sound_id),
+    sound_name: clean(tiktok.slideshow_sound_name),
+    sound_url: clean(tiktok.slideshow_sound_url),
   })
 }
 
@@ -460,19 +1019,46 @@ function automationSlideshowPrompt(schema: AutomationSchema, hook: string) {
     schema.prompt_formatting.narrative,
     schema.prompt_formatting.style,
     hook ? `Hook: ${hook}` : "",
-  ].filter(Boolean).join("\n\n")
+  ]
+    .filter(Boolean)
+    .join("\n\n")
 }
 
 function textItemPosition(
-  textItem: ReturnType<typeof automationFormatSection>["textItems"][number] | undefined,
+  textItem:
+    ReturnType<typeof automationFormatSection>["textItems"][number] | undefined,
   preferTop: boolean
 ) {
-  const y = textItem?.textPosition === "bottom"
-    ? 82
-    : textItem?.textPosition === "center" && !preferTop
-      ? 45
-      : 16
-  const x = textItem?.textAlign === "left" ? 28 : textItem?.textAlign === "right" ? 72 : 50
+  const y =
+    textItem?.textPosition === "bottom"
+      ? 82
+      : textItem?.textPosition === "center" && !preferTop
+        ? 45
+        : 16
+  const x =
+    textItem?.textAlign === "left"
+      ? 28
+      : textItem?.textAlign === "right"
+        ? 72
+        : 50
+  return { x, y }
+}
+
+function tempTextItemPosition(
+  textItem: TempSlideSpec["textItems"][number] | undefined
+) {
+  const y =
+    textItem?.textPosition === "bottom"
+      ? 82
+      : textItem?.textPosition === "center"
+        ? 45
+        : 16
+  const x =
+    textItem?.textAlign === "left"
+      ? 28
+      : textItem?.textAlign === "right"
+        ? 72
+        : 50
   return { x, y }
 }
 
@@ -501,7 +1087,19 @@ function chooseImages<T>(items: T[], count: number, random = Math.random) {
   return selected
 }
 
-async function readImageCollections(imageCollectionDbPath = path.join(process.cwd(), "data", "image-collections.json")) {
+function slideshowCaption(slides: AutomationRunSlide[], hook: string) {
+  const firstHookText =
+    slides.find((slide) => slide.role === "hook")?.text || hook
+  return firstHookText.toLowerCase()
+}
+
+async function readImageCollections(
+  imageCollectionDbPath = path.join(
+    process.cwd(),
+    "data",
+    "image-collections.json"
+  )
+) {
   try {
     const contents = await readFile(imageCollectionDbPath, "utf8")
     const parsed = JSON.parse(contents) as {
@@ -511,77 +1109,119 @@ async function readImageCollections(imageCollectionDbPath = path.join(process.cw
         images?: { image_link?: string; caption?: string }[]
       }[]
     }
-    return (parsed.collections ?? []).map((collection) => ({
-      id: `collection-${slugify(`${clean(collection.name)}-${clean(collection.created_at)}`)}`,
-      name: clean(collection.name),
-      images: (collection.images ?? []).flatMap((image) => {
-        const imageLink = clean(image.image_link)
-        return imageLink ? [{ image_link: imageLink, caption: clean(image.caption) }] : []
-      }),
-    })).map((collection) => ({
-      ...collection,
-      aliases: collectionAliases({
-        id: collection.id,
-        title: collection.name,
-        createdAt: "",
-        source: "pinterest",
-        images: collection.images.map((image, index) => ({
-          id: `${collection.id}-${index}`,
-          title: image.caption || collection.name,
-          description: image.caption,
-          imageUrl: image.image_link,
-          sourceUrl: image.image_link,
-          dominantColor: "#d9d8d0",
-        })),
-      }),
-    }))
+    return (parsed.collections ?? [])
+      .map((collection) => ({
+        id: `collection-${slugify(`${clean(collection.name)}-${clean(collection.created_at)}`)}`,
+        name: clean(collection.name),
+        images: (collection.images ?? []).flatMap((image) => {
+          const imageLink = clean(image.image_link)
+          return imageLink
+            ? [{ image_link: imageLink, caption: clean(image.caption) }]
+            : []
+        }),
+      }))
+      .map((collection) => ({
+        ...collection,
+        aliases: collectionAliases({
+          id: collection.id,
+          title: collection.name,
+          createdAt: "",
+          source: "pinterest",
+          images: collection.images.map((image, index) => ({
+            id: `${collection.id}-${index}`,
+            title: image.caption || collection.name,
+            description: image.caption,
+            imageUrl: image.image_link,
+            sourceUrl: image.image_link,
+            dominantColor: "#d9d8d0",
+          })),
+        }),
+      }))
   } catch {
     return []
   }
 }
 
-function randomInteger(min: number, max: number, random = Math.random) {
-  return min + Math.floor(random() * (max - min + 1))
+function selectRandomIndex(length: number, random = Math.random) {
+  if (length <= 1) {
+    return 0
+  }
+  const value = random()
+  return Math.min(length - 1, Math.max(0, Math.floor(value * length)))
 }
 
-function automationCaption(record: AutomationRecord, plan: AutomationRunPlan) {
-  return `${record.schema.title || record.name}: ${plan.hook}`
-}
-
-async function readAutomationRuns(rootDir = defaultRunRootDir): Promise<AutomationRunRecord[]> {
+async function readAutomationRuns(
+  rootDir = defaultRunRootDir
+): Promise<AutomationRunRecord[]> {
   try {
     const contents = await readFile(path.join(rootDir, runsFileName), "utf8")
     const parsed = JSON.parse(contents) as AutomationRunsDb
-    return Array.isArray(parsed.runs) ? parsed.runs.map(normalizeRun).flatMap((run) => run ? [run] : []) : []
+    return Array.isArray(parsed.runs)
+      ? parsed.runs.map(normalizeRun).flatMap((run) => (run ? [run] : []))
+      : []
   } catch {
     return []
   }
 }
 
-async function writeAutomationRuns(rootDir: string, runs: AutomationRunRecord[]) {
+async function writeAutomationRuns(
+  rootDir: string,
+  runs: AutomationRunRecord[]
+) {
   await mkdir(rootDir, { recursive: true })
-  await writeFile(path.join(rootDir, runsFileName), `${JSON.stringify({ runs }, null, 2)}\n`)
+  await writeFile(
+    path.join(rootDir, runsFileName),
+    `${JSON.stringify({ runs }, null, 2)}\n`
+  )
 }
 
-function normalizeRun(run: AutomationRunRecord): AutomationRunRecord | null {
-  if (!run?.id || !run.automationId || !run.scheduledFor) {
+function normalizeRun(run: RawAutomationRunRecord): AutomationRunRecord | null {
+  const id = clean(run?.id)
+  const automationId = clean(run?.automationId)
+  const scheduledFor = clean(run?.scheduledFor)
+  if (!id || !automationId || !scheduledFor) {
     return null
   }
-  return {
+  const normalizedRun = {
     ...run,
-    status: run.status === "draft" || run.status === "failed" ? run.status : "scheduled",
-    plan: run.plan ?? {
-      title: run.automationTitle,
-      hook: run.automationTitle,
-      imageCollectionIds: [],
-      slides: [],
-      slideCount: { mode: "varying" },
-      publishType: "slideshow",
-      autoMusic: true,
-      autoPost: false,
-    },
+    id,
+    automationId,
+    automationTitle: clean(run.automationTitle) || "Automation",
+    scheduledFor,
+    status: run.status === "failed" ? "failed" : "succeeded",
     createdAt: clean(run.createdAt) || new Date().toISOString(),
-    updatedAt: clean(run.updatedAt) || clean(run.createdAt) || new Date().toISOString(),
+    updatedAt:
+      clean(run.updatedAt) || clean(run.createdAt) || new Date().toISOString(),
+  } as AutomationRunRecord
+
+  return {
+    ...normalizedRun,
+    plan: normalizeRunPlan(normalizedRun),
+  }
+}
+
+function normalizeRunPlan(run: AutomationRunRecord): AutomationRunPlan {
+  const plan = run.plan
+  const hook = clean(plan?.hook) || run.automationTitle
+  const title = clean(plan?.title) || run.automationTitle
+  return {
+    title,
+    caption: clean(plan?.caption) || hook.toLowerCase(),
+    hashtags: clean(plan?.hashtags),
+    hook,
+    imageCollectionIds: Array.isArray(plan?.imageCollectionIds)
+      ? plan.imageCollectionIds
+      : [],
+    slides: Array.isArray(plan?.slides) ? plan.slides : [],
+    slideCount: plan?.slideCount ?? { mode: "varying" },
+    publishType: clean(plan?.publishType) || "slideshow",
+    autoMusic: typeof plan?.autoMusic === "boolean" ? plan.autoMusic : true,
+    autoPost: typeof plan?.autoPost === "boolean" ? plan.autoPost : false,
+    hookCandidates: plan?.hookCandidates,
+    textModel: plan?.textModel,
+    language: clean(plan?.language) || defaultAutomationLanguage,
+    translationProvider: plan?.translationProvider,
+    debug: plan?.debug,
   }
 }
 

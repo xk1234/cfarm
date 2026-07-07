@@ -3,6 +3,8 @@ import path from "node:path"
 
 import realfarmData from "../data/realfarm.json"
 
+import type { PostFastSocialIntegration } from "@/lib/postfast-client"
+
 type LocalAssetKind = "audio" | "video" | "text"
 
 export type LocalAsset = {
@@ -25,34 +27,28 @@ export type Project = {
 export type Automation = {
   id: string
   name: string
+  automationKind?: "slideshow" | "video"
   status: string
   account: string
   handle: string
   times: string[]
+  timezone?: string
   favorite: boolean
   theme: string
+  socialIntegrations: PostFastSocialIntegration[]
+  created_at?: string
 }
 
-export type EditorSlide = {
-  id: string
-  kind: string
-  text: string
-  duration: string
-  aspectRatio: string
-}
-
-type RealFarmJson = Omit<typeof realfarmData, "projects" | "automations" | "editor"> & {
+type RealFarmJson = Omit<typeof realfarmData, "projects" | "automations"> & {
   projects: Project[]
   automations: Automation[]
-  editor: Omit<typeof realfarmData.editor, "slides"> & {
-    slides: EditorSlide[]
-  }
 }
 
 export type RealFarmData = RealFarmJson & {
   assets: {
     music: LocalAsset[]
     ugcAvatarVideos: LocalAsset[]
+    demoVideos: LocalAsset[]
     greenscreenMemes: LocalAsset[]
     ctas: LocalAsset[]
   }
@@ -67,22 +63,44 @@ export function loadRealFarmData(): RealFarmData {
     ...data,
     assets: {
       music: listLocalAssets("music", ["mp3", "wav"], "audio"),
-      ugcAvatarVideos: listLocalAssets("ugc_avatar_videos", ["mp4", "webm", "mov"], "video"),
-      greenscreenMemes: listLocalAssets("greenscreen_memes", ["mp4", "webm", "mov"], "video"),
+      ugcAvatarVideos: listLocalAssets(
+        "ugc_avatar_videos",
+        ["mp4", "webm", "mov"],
+        "video"
+      ),
+      demoVideos: listLocalAssets(
+        "assets/demos",
+        ["mp4", "webm", "mov"],
+        "video"
+      ),
+      greenscreenMemes: listLocalAssets(
+        "greenscreen_memes",
+        ["mp4", "webm", "mov"],
+        "video"
+      ),
       ctas: listLocalAssets("ctas", ["txt"], "text"),
     },
   }
 }
 
-function listLocalAssets(folder: string, extensions: string[], kind: LocalAssetKind): LocalAsset[] {
+function listLocalAssets(
+  folder: string,
+  extensions: string[],
+  kind: LocalAssetKind
+): LocalAsset[] {
   const root = path.join(process.cwd(), "data", folder)
-  const allowed = new Set(extensions.map((extension) => `.${extension.toLowerCase()}`))
+  const allowed = new Set(
+    extensions.map((extension) => `.${extension.toLowerCase()}`)
+  )
 
   try {
     return collectFiles(root)
       .filter((filePath) => allowed.has(path.extname(filePath).toLowerCase()))
       .map((filePath) => {
-        const relativePath = path.relative(path.join(process.cwd(), "data"), filePath)
+        const relativePath = path.relative(
+          path.join(process.cwd(), "data"),
+          filePath
+        )
         const name = titleFromFilename(filePath)
 
         return {
@@ -91,7 +109,8 @@ function listLocalAssets(folder: string, extensions: string[], kind: LocalAssetK
           path: relativePath,
           url: `/api/local-assets/${relativePath.split(path.sep).map(encodeURIComponent).join("/")}`,
           kind,
-          text: kind === "text" ? readFileSync(filePath, "utf8").trim() : undefined,
+          text:
+            kind === "text" ? readFileSync(filePath, "utf8").trim() : undefined,
         }
       })
   } catch {
@@ -116,5 +135,8 @@ function titleFromFilename(filePath: string) {
 }
 
 function slugify(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
 }

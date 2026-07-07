@@ -53,12 +53,21 @@ describe("temp slide testing helpers", () => {
       type: "object",
       additionalProperties: false,
       properties: {
+        title: {
+          type: "string",
+        },
+        caption: {
+          type: "string",
+        },
+        hashtags: {
+          type: "string",
+        },
         text: {
           type: "object",
           additionalProperties: false,
         },
       },
-      required: ["text"],
+      required: ["title", "caption", "hashtags", "text"],
     })
     expect(schema.properties.text.required).not.toContain("hook-1__hook-title")
     expect(schema.properties.text.required).toContain("content-2__body-title")
@@ -176,6 +185,9 @@ describe("temp slide testing helpers", () => {
     const placeholders = getTempSlidePromptPlaceholders(automation)
     const normalized = normalizeTempSlideStructuredOutput(
       {
+        title: "Useful test hooks",
+        caption: "Try these hook ideas for your next post.",
+        hashtags: "#testing #hooks #content",
         text: {
           "hook-1__hook-title": "3 ways to test hooks",
         },
@@ -185,6 +197,9 @@ describe("temp slide testing helpers", () => {
 
     expect(normalized.text["hook-1__hook-title"]).toBeUndefined()
     expect(normalized.text["content-2__body-title"]).toBe("")
+    expect(normalized.title).toBe("Useful test hooks")
+    expect(normalized.caption).toBe("Try these hook ideas for your next post.")
+    expect(normalized.hashtags).toBe("#testing #hooks #content")
   })
 
   it("builds the full user prompt with dynamic automation context", () => {
@@ -203,6 +218,10 @@ describe("temp slide testing helpers", () => {
     expect(prompt).toContain("Automation: Test Automation")
     expect(prompt).toContain("Hook: 3 ways to test hooks")
     expect(prompt).toContain("Tone: Educational & Informative")
+    expect(prompt).toContain("Metadata requirements:")
+    expect(prompt).toContain(
+      "give me 3-5 broad hashtags related to the topic/niche of the content"
+    )
     expect(prompt).toContain("Prompt instructions:")
     expect(prompt).toContain(defaultTempSlideUserInstructions)
     expect(prompt).not.toContain("hook-1__hook-title")

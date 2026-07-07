@@ -25,7 +25,7 @@ Top-level keys currently used:
 | Key | Purpose | Notes |
 | --- | --- | --- |
 | `brand` | Sidebar and account summary copy. | Includes `name`, owner/contact, quota-like numbers. |
-| `ugcAds` | Seed hooks and initial selections for AI UGC ads. | The component overrides avatar/demo lists in places. |
+| `ugcAds` | Legacy seed hooks/avatar ordering used by migrated UGC video automation assets. | Standalone AI UGC Ads editor was removed; generated UGC ads now live in video automations. |
 | `generatedAssets` | Generated media references. | Currently used for the Higgsfield character image URL. |
 | `defaultCollections` | Real image lists bundled with the app. | `backgrounds.images` is the primary default image pool. |
 | `projects` | Home draft cards. | Demo project metadata only. |
@@ -110,7 +110,7 @@ Type source: `lib/generated-videos.ts`
 
 Backing file: `data/generated-videos/exports.json`
 
-Used by AI UGC Ads and Greenscreen Memes export queues.
+Used by video automation UGC ad exports and Greenscreen Memes export queues.
 
 ```ts
 type GeneratedVideoExport = {
@@ -237,8 +237,7 @@ The workspace also has a local duplicate type in `components/realfarm-workspace.
 Used by:
 
 - Image Collections tab
-- Slideshow Editor image picker
-- Format picker collection controls
+- Automation settings collection controls
 - Greenscreen background fallback, via default background collection
 
 ## StoredImageCollection
@@ -391,66 +390,44 @@ type ImageCollectionConfig = {
 
 For imported automations, `AutomationSchema` is persisted inside `AutomationRecord.schema`.
 
-## PostizPostRecord
+## PostFastPostRecord
 
-Type source: `lib/postiz-posts.ts`
+Type source: `lib/postfast-posts.ts`
 
-Backing file: `data/postiz-posts.json`
+Backing file: `data/postfast-posts.json`
 
 API routes:
 
-- `GET /api/postiz/integrations`
-- `GET /api/postiz/connect-url?provider=`
-- `GET /api/postiz/find-slot?integrationId=`
-- `POST /api/postiz/upload`
-- `GET /api/postiz/posts?startDate=&endDate=`
-- `POST /api/postiz/posts`
-- `GET /api/postiz/analytics/platform?integrationId=&days=`
-- `GET /api/postiz/analytics/post?postId=&days=`
+- `GET /api/postfast/integrations`
+- `GET /api/postfast/connect-url`
+- `POST /api/postfast/upload`
+- `GET /api/postfast/posts?startDate=&endDate=`
+- `POST /api/postfast/posts`
+- `GET /api/postfast/analytics/platform?integrationId=&days=`
 
 ```ts
-type PostizPostRecord = {
+type PostFastPostRecord = {
   id: string
   sourceType: "automation" | "generated_video" | "asset" | "greenscreen" | "ugc_ad" | "image" | "swipe" | "manual"
   sourceId: string
-  postizPostId?: string
+  postfastPostId?: string
   integrationId: string
   provider: string
   status: "draft" | "scheduled" | "published" | "failed"
   scheduledAt?: string
   releaseUrl?: string
   content: string
-  media: { id: string; path: string }[]
+  media: { key: string; type: "IMAGE" | "VIDEO"; sortOrder?: number }[]
   createdAt: string
   updatedAt: string
   lastSyncedAt?: string
   lastAnalyticsSyncedAt?: string
-  analytics?: PostizAnalyticsMetric[]
+  analytics?: PostFastAnalyticsMetric[]
   error?: string
 }
 ```
 
-Generated export cards can upload ready media to Postiz and create draft posts. Schedule and analytics tabs read Postiz data when `POSTIZ_API_KEY` is configured.
-
-## EditorSlide
-
-Type source: `RealFarmData["editor"]["slides"][number]`
-
-Backing object: `data/realfarm.json.editor.slides[]`
-
-Current shape:
-
-```ts
-type EditorSlide = {
-  id: string
-  kind: string
-  text: string
-  duration: string
-  aspectRatio: string
-}
-```
-
-Used as default text/preview seeds in the editor and template views.
+Generated export cards can upload ready media to PostFast and create scheduled posts. Schedule and analytics tabs read PostFast data when `POSTFAST_API_KEY` is configured.
 
 ## Character
 

@@ -10,6 +10,7 @@ const contentTypes: Record<string, string> = {
   ".jpeg": "image/jpeg",
   ".avif": "image/avif",
   ".gif": "image/gif",
+  ".json": "application/json; charset=utf-8",
   ".mp3": "audio/mpeg",
   ".mp4": "video/mp4",
   ".mov": "video/quicktime",
@@ -21,7 +22,10 @@ const contentTypes: Record<string, string> = {
   ".webp": "image/webp",
 }
 
-export async function GET(request: Request, context: { params: Promise<{ assetPath: string[] }> }) {
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ assetPath: string[] }> }
+) {
   const { assetPath } = await context.params
   const dataRoot = path.join(process.cwd(), "data")
   const requestedPath = path.normalize(path.join(dataRoot, ...assetPath))
@@ -31,7 +35,9 @@ export async function GET(request: Request, context: { params: Promise<{ assetPa
   }
 
   try {
-    const contentType = contentTypes[path.extname(requestedPath).toLowerCase()] ?? "application/octet-stream"
+    const contentType =
+      contentTypes[path.extname(requestedPath).toLowerCase()] ??
+      "application/octet-stream"
     const fileStat = await stat(requestedPath)
     const range = parseRangeHeader(request.headers.get("range"), fileStat.size)
 
@@ -92,7 +98,13 @@ function parseRangeHeader(value: string | null, size: number) {
 
   const start = Number(rawStart)
   const requestedEnd = rawEnd ? Number(rawEnd) : size - 1
-  if (!Number.isFinite(start) || !Number.isFinite(requestedEnd) || start < 0 || start >= size || requestedEnd < start) {
+  if (
+    !Number.isFinite(start) ||
+    !Number.isFinite(requestedEnd) ||
+    start < 0 ||
+    start >= size ||
+    requestedEnd < start
+  ) {
     return null
   }
 

@@ -231,21 +231,5 @@
       "theme": "space"
     }
   ],
-  "automations": [],
-  "editor": {
-    "title": "New Slideshow",
-    "slides": [],
-    "captionRanges": [
-      "1-2 words",
-      "2-3 words",
-      "3-5 words",
-      "5-7 words",
-      "5-10 words",
-      "10-15 words",
-      "15-20 words",
-      "20-25 words",
-      "25-30 words",
-      "30-40 words"
-    ]
-  }
+  "automations": []
 }

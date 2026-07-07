@@ -1,17 +1,39 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type * as React from "react"
-import { IconChevronLeft, IconLayoutDashboard, IconList, IconPhotoPlus, IconPlus, IconTrash, IconUpload, IconX } from "@tabler/icons-react"
+import {
+  IconChevronLeft,
+  IconLayoutDashboard,
+  IconList,
+  IconPhoto,
+  IconPhotoPlus,
+  IconPlus,
+  IconSearch,
+  IconTrash,
+  IconUpload,
+  IconVideo,
+  IconX,
+} from "@tabler/icons-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { useDismissableLayer } from "@/components/ui/dismissable"
-import { LabelledSelect, SelectControl, ToggleRow } from "@/components/ui/form-controls"
+import {
+  LabelledSelect,
+  SelectControl,
+  ToggleRow,
+} from "@/components/ui/form-controls"
 import { AppModal, AppModalPanel } from "@/components/ui/modal"
 import { UploadDropzone } from "@/components/ui/upload-dropzone"
 import { ImageViewerModal } from "@/components/realfarm/image-viewer-modal"
-import { CollectionPreview, ControlRow, ControlToggle, PinterestPreviewTile, SlideThumb } from "@/components/realfarm/shared-media"
+import {
+  CollectionPreview,
+  ControlRow,
+  ControlToggle,
+  PinterestPreviewTile,
+  SlideThumb,
+} from "@/components/realfarm/shared-media"
 import { PinterestCollectionSearch } from "@/components/realfarm/pinterest-collection-search"
 import {
   collectionToStored,
@@ -32,6 +54,10 @@ type CaptionProgressState = {
 
 const INITIAL_VISIBLE_ROWS = 3
 const LOAD_MORE_ROWS = 3
+const INITIAL_COLLECTION_VISIBLE_ROWS = 4
+const COLLECTION_LOAD_MORE_ROWS = 4
+const COLLECTION_CARD_WIDTH = 170
+const COLLECTION_GRID_GAP = 20
 
 export function CollectionsView({
   collections,
@@ -45,8 +71,61 @@ export function CollectionsView({
   onOpenCollection: (id: string) => void
 }) {
   const [searchOpen, setSearchOpen] = useState(false)
-  const [selectedCollectionIds, setSelectedCollectionIds] = useState<Set<string>>(new Set())
+  const [collectionSearch, setCollectionSearch] = useState("")
+  const [visibleCollectionRows, setVisibleCollectionRows] = useState(
+    INITIAL_COLLECTION_VISIBLE_ROWS
+  )
+  const [collectionColumns, setCollectionColumns] = useState(1)
+  const [selectedCollectionIds, setSelectedCollectionIds] = useState<
+    Set<string>
+  >(new Set())
+  const collectionGridRef = useRef<HTMLDivElement | null>(null)
   const selectedIds = Array.from(selectedCollectionIds)
+  const filteredCollections = useMemo(() => {
+    const query = collectionSearch.trim().toLowerCase()
+    if (!query) {
+      return collections
+    }
+    return collections.filter((collection) =>
+      collection.title.toLowerCase().includes(query)
+    )
+  }, [collections, collectionSearch])
+  const visibleCollectionCount = visibleCollectionRows * collectionColumns
+  const visibleCollections = filteredCollections.slice(
+    0,
+    visibleCollectionCount
+  )
+  const hasMoreCollections =
+    visibleCollections.length < filteredCollections.length
+
+  useEffect(() => {
+    const grid = collectionGridRef.current
+    if (!grid) {
+      return
+    }
+
+    function updateColumns() {
+      const width = grid?.clientWidth ?? 0
+      const columns = Math.max(
+        1,
+        Math.floor(
+          (width + COLLECTION_GRID_GAP) /
+            (COLLECTION_CARD_WIDTH + COLLECTION_GRID_GAP)
+        )
+      )
+      setCollectionColumns(columns)
+    }
+
+    updateColumns()
+    const observer = new ResizeObserver(updateColumns)
+    observer.observe(grid)
+    return () => observer.disconnect()
+  }, [filteredCollections.length])
+
+  function updateCollectionSearch(value: string) {
+    setCollectionSearch(value)
+    setVisibleCollectionRows(INITIAL_COLLECTION_VISIBLE_ROWS)
+  }
 
   function toggleCollection(id: string) {
     setSelectedCollectionIds((current) => {
@@ -69,22 +148,26 @@ export function CollectionsView({
     <div className="mx-auto max-w-[1540px]">
       <div className="mb-8 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-[24px] font-semibold tracking-normal">
-          My Image Collections
+          Collections
           <span className="group relative grid size-6 place-items-center rounded-full border border-[#aeb5c0] text-[14px] font-semibold text-[#7b8492]">
             ?
-            <span className="pointer-events-none absolute left-1/2 top-7 z-20 hidden w-[280px] -translate-x-1/2 rounded-[8px] bg-[#2f2f2d] px-3 py-2 text-left text-[12px] font-medium leading-5 text-white shadow-lg group-hover:block">
-              Image collections allow you organize images so you can generate slideshows with a specific aesthetic or mood.
+            <span className="pointer-events-none absolute top-7 left-1/2 z-20 hidden w-[280px] -translate-x-1/2 rounded-[8px] bg-[#2f2f2d] px-3 py-2 text-left text-[12px] leading-5 font-medium text-white shadow-lg group-hover:block">
+              Collections organize image or video assets for automations.
             </span>
           </span>
         </h1>
         {selectedIds.length > 0 ? (
           <div className="flex items-center gap-4">
-            <button className="h-11 rounded-[12px] px-4 text-[17px] font-bold text-[#8c8b84] hover:text-[#242421]" onClick={() => setSelectedCollectionIds(new Set())}>
+            <button
+              className="h-11 rounded-[12px] px-4 text-[17px] font-bold text-[#8c8b84] hover:text-[#242421]"
+              onClick={() => setSelectedCollectionIds(new Set())}
+            >
               Clear
             </button>
             <Button onClick={() => deleteCollections(selectedIds)}>
               <IconTrash className="mr-2 size-5" />
-              Delete {selectedIds.length} {selectedIds.length === 1 ? "Collection" : "Collections"}
+              Delete {selectedIds.length}{" "}
+              {selectedIds.length === 1 ? "Collection" : "Collections"}
             </Button>
           </div>
         ) : (
@@ -103,13 +186,31 @@ export function CollectionsView({
             >
               Create empty collection
             </button>
-            <Button variant="action" size="largeAction" onClick={() => setSearchOpen(true)}>
+            <Button
+              variant="action"
+              size="largeAction"
+              onClick={() => setSearchOpen(true)}
+            >
               <IconPlus className="size-7" />
               Add
             </Button>
           </div>
         )}
       </div>
+      {collections.length > 0 && (
+        <div className="mb-5 max-w-[440px]">
+          <label className="relative block">
+            <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#8b8a83]" />
+            <input
+              className="h-11 w-full rounded-[10px] border border-[#deddd5] bg-white pr-3 pl-10 text-[14px] font-semibold text-[#242421] shadow-sm outline-none placeholder:text-[#aaa9a2] focus:border-[#b8b6ad]"
+              value={collectionSearch}
+              onChange={(event) => updateCollectionSearch(event.target.value)}
+              placeholder="Search collections"
+              aria-label="Search image collections"
+            />
+          </label>
+        </div>
+      )}
       {collections.length === 0 ? (
         <button
           className="grid min-h-[470px] w-full place-items-center rounded-[12px] border border-dashed border-[#d3d1c8] bg-[#efefea] text-center"
@@ -119,60 +220,122 @@ export function CollectionsView({
             <span className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-white text-[#e46954] shadow-sm">
               <IconPhotoPlus className="size-6" />
             </span>
-            <span className="block text-[18px] font-semibold">No image collections yet</span>
+            <span className="block text-[18px] font-semibold">
+              No collections yet
+            </span>
             <span className="mt-2 block text-[13px] leading-5 text-[#77766f]">
-              Search Pinterest, choose the first batch of images, then create your first collection.
+              Search Pinterest, choose the first batch of images, then create
+              your first collection.
             </span>
           </span>
         </button>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,170px)] gap-5">
-          {collections.map((collection, index) => (
-            <article key={collection.id} className="group relative w-[170px] overflow-hidden rounded-[8px] bg-white text-left shadow-sm ring-1 ring-[#e4e3dc]">
-              {!collection.virtual && (
-                <>
-                  <button
-                    className={cn(
-                      "absolute left-2 top-2 z-10 grid size-6 place-items-center rounded-[5px] border border-[#d7d6cf] bg-white text-[13px] font-bold text-[#ff5626] opacity-0 shadow-sm transition group-hover:opacity-100",
-                      selectedCollectionIds.has(collection.id) && "opacity-100"
+        <>
+          {filteredCollections.length === 0 ? (
+            <div className="grid min-h-[260px] place-items-center rounded-[12px] border border-dashed border-[#d3d1c8] bg-[#efefea] text-center">
+              <span>
+                <span className="block text-[18px] font-semibold">
+                  No matching collections
+                </span>
+                <span className="mt-2 block text-[13px] leading-5 text-[#77766f]">
+                  Try another search term.
+                </span>
+              </span>
+            </div>
+          ) : (
+            <>
+              <div
+                ref={collectionGridRef}
+                className="grid grid-cols-[repeat(auto-fill,170px)] gap-5"
+              >
+                {visibleCollections.map((collection, index) => (
+                  <article
+                    key={collection.id}
+                    className="group relative w-[170px] overflow-hidden rounded-[8px] bg-white text-left shadow-sm ring-1 ring-[#e4e3dc]"
+                  >
+                    {!collection.virtual && (
+                      <>
+                        <button
+                          className={cn(
+                            "absolute top-2 left-2 z-10 grid size-6 place-items-center rounded-[5px] border border-[#d7d6cf] bg-white text-[13px] font-bold text-[#ff5626] opacity-0 shadow-sm transition group-hover:opacity-100",
+                            selectedCollectionIds.has(collection.id) &&
+                              "opacity-100"
+                          )}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            toggleCollection(collection.id)
+                          }}
+                          aria-label={`Select ${collection.title}`}
+                        >
+                          {selectedCollectionIds.has(collection.id) ? "✓" : ""}
+                        </button>
+                        <button
+                          className="absolute top-2 right-2 z-10 grid size-7 place-items-center rounded-[6px] bg-white text-[#e82929] opacity-0 shadow-sm transition group-hover:opacity-100"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            deleteCollections([collection.id])
+                          }}
+                          aria-label={`Delete ${collection.title}`}
+                        >
+                          <IconTrash className="size-4" />
+                        </button>
+                      </>
                     )}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      toggleCollection(collection.id)
-                    }}
-                    aria-label={`Select ${collection.title}`}
+                    <button
+                      className="block w-full text-left"
+                      onClick={() => onOpenCollection(collection.id)}
+                    >
+                      <CollectionPreview
+                        collection={collection}
+                        index={index}
+                      />
+                      <div className="bg-white px-4 py-4">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          {collection.mediaType === "video" ? (
+                            <IconVideo className="size-4 shrink-0 text-[#77766f]" />
+                          ) : (
+                            <IconPhoto className="size-4 shrink-0 text-[#77766f]" />
+                          )}
+                          <div className="truncate text-[17px] leading-6 font-bold">
+                            {collection.title}
+                          </div>
+                        </div>
+                        <div className="mt-1 text-[15px] font-medium text-[#7a7f8a]">
+                          {collection.images.length}{" "}
+                          {collection.mediaType === "video"
+                            ? "videos"
+                            : "images"}
+                        </div>
+                      </div>
+                    </button>
+                  </article>
+                ))}
+                <button
+                  className="grid h-[242px] w-[170px] place-items-center rounded-[8px] bg-[#e5e5e0] text-[#77766f]"
+                  onClick={() => setSearchOpen(true)}
+                  aria-label="Add image collection"
+                >
+                  <IconPlus className="size-10" />
+                </button>
+              </div>
+              {hasMoreCollections && (
+                <div className="mt-8 flex justify-center">
+                  <Button
+                    variant="softControl"
+                    size="appDefault"
+                    onClick={() =>
+                      setVisibleCollectionRows(
+                        (current) => current + COLLECTION_LOAD_MORE_ROWS
+                      )
+                    }
                   >
-                    {selectedCollectionIds.has(collection.id) ? "✓" : ""}
-                  </button>
-                  <button
-                    className="absolute right-2 top-2 z-10 grid size-7 place-items-center rounded-[6px] bg-white text-[#e82929] opacity-0 shadow-sm transition group-hover:opacity-100"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      deleteCollections([collection.id])
-                    }}
-                    aria-label={`Delete ${collection.title}`}
-                  >
-                    <IconTrash className="size-4" />
-                  </button>
-                </>
-              )}
-              <button className="block w-full text-left" onClick={() => onOpenCollection(collection.id)}>
-                <CollectionPreview collection={collection} index={index} />
-                <div className="bg-white px-4 py-4">
-                  <div className="truncate text-[17px] font-bold leading-6">{collection.title}</div>
-                  <div className="mt-1 text-[15px] font-medium text-[#7a7f8a]">{collection.images.length} images</div>
+                    Load more
+                  </Button>
                 </div>
-              </button>
-            </article>
-          ))}
-          <button
-            className="grid h-[242px] w-[170px] place-items-center rounded-[8px] bg-[#e5e5e0] text-[#77766f]"
-            onClick={() => setSearchOpen(true)}
-            aria-label="Add image collection"
-          >
-            <IconPlus className="size-10" />
-          </button>
-        </div>
+              )}
+            </>
+          )}
+        </>
       )}
       {searchOpen && (
         <PinterestCollectionSearch
@@ -187,10 +350,19 @@ export function CollectionsView({
   )
 }
 
-function CaptionProgressModal({ progress, onClose }: { progress: CaptionProgressState; onClose: () => void }) {
+function CaptionProgressModal({
+  progress,
+  onClose,
+}: {
+  progress: CaptionProgressState
+  onClose: () => void
+}) {
   const complete = progress.status === "complete"
   const failed = progress.status === "error"
-  const percent = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0
+  const percent =
+    progress.total > 0
+      ? Math.round((progress.completed / progress.total) * 100)
+      : 0
 
   return (
     <AppModal className="z-[70]" onClose={onClose}>
@@ -198,26 +370,45 @@ function CaptionProgressModal({ progress, onClose }: { progress: CaptionProgress
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-[22px] font-bold text-[#333]">
-              {failed ? "Captioning stopped" : complete ? "Captions generated" : "Generating captions"}
+              {failed
+                ? "Captioning stopped"
+                : complete
+                  ? "Captions generated"
+                  : "Generating captions"}
             </h2>
             <p className="mt-1 text-[13px] font-semibold text-app-muted-text">
               {progress.completed} of {progress.total} captions generated
             </p>
           </div>
           {(complete || failed) && (
-            <Button type="button" variant="iconControl" size="icon-sm" onClick={onClose} aria-label="Close captions progress">
+            <Button
+              type="button"
+              variant="iconControl"
+              size="icon-sm"
+              onClick={onClose}
+              aria-label="Close captions progress"
+            >
               <IconX className="size-5" />
             </Button>
           )}
         </div>
         <div className="mt-5">
           <div className="mb-2 flex items-center justify-between gap-3 text-[12px] font-semibold text-app-muted-text">
-            <span className="min-w-0 truncate">{failed ? "Failed" : complete ? "Complete" : `Captioning ${progress.currentTitle}`}</span>
+            <span className="min-w-0 truncate">
+              {failed
+                ? "Failed"
+                : complete
+                  ? "Complete"
+                  : `Captioning ${progress.currentTitle}`}
+            </span>
             <span>{percent}%</span>
           </div>
           <div className="h-3 overflow-hidden rounded-md bg-app-control-bg">
             <div
-              className={cn("h-full rounded-md transition-all", failed ? "bg-destructive" : "bg-app-action")}
+              className={cn(
+                "h-full rounded-md transition-all",
+                failed ? "bg-destructive" : "bg-app-action"
+              )}
               style={{ width: `${percent}%` }}
             />
           </div>
@@ -229,7 +420,12 @@ function CaptionProgressModal({ progress, onClose }: { progress: CaptionProgress
         )}
         {(complete || failed) && (
           <div className="mt-5 flex justify-end">
-            <Button type="button" variant={failed ? "outline" : "action"} size="compact" onClick={onClose}>
+            <Button
+              type="button"
+              variant={failed ? "outline" : "action"}
+              size="compact"
+              onClick={onClose}
+            >
               Done
             </Button>
           </div>
@@ -263,7 +459,10 @@ export function CollectionDetailView({
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState(collection.title)
   const [viewOpen, setViewOpen] = useState(false)
-  const viewMenuRef = useDismissableLayer<HTMLDivElement>(() => setViewOpen(false), viewOpen)
+  const viewMenuRef = useDismissableLayer<HTMLDivElement>(
+    () => setViewOpen(false),
+    viewOpen
+  )
   const [columns, setColumns] = useState(5)
   const [visibleRows, setVisibleRows] = useState(INITIAL_VISIBLE_ROWS)
   const [showDescriptions, setShowDescriptions] = useState(false)
@@ -271,7 +470,8 @@ export function CollectionDetailView({
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const [captionEdits, setCaptionEdits] = useState<Record<string, string>>({})
   const [captioning, setCaptioning] = useState(false)
-  const [captionProgress, setCaptionProgress] = useState<CaptionProgressState | null>(null)
+  const [captionProgress, setCaptionProgress] =
+    useState<CaptionProgressState | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [selectedImageKeys, setSelectedImageKeys] = useState<string[]>([])
   const visibleImageCount = visibleRows * columns
@@ -279,12 +479,17 @@ export function CollectionDetailView({
   const visibleImageKeys = visibleImages.map(imageKey)
   const hasMoreImages = visibleImages.length < collection.images.length
   const selectedCount = selectedImageKeys.length
-  const selectedVisibleCount = visibleImageKeys.filter((key) => selectedImageKeys.includes(key)).length
+  const selectedVisibleCount = visibleImageKeys.filter((key) =>
+    selectedImageKeys.includes(key)
+  ).length
 
   useEffect(() => {
-    setVisibleRows(INITIAL_VISIBLE_ROWS)
-    setViewerIndex(null)
-    setSelectedImageKeys([])
+    const reset = window.setTimeout(() => {
+      setVisibleRows(INITIAL_VISIBLE_ROWS)
+      setViewerIndex(null)
+      setSelectedImageKeys([])
+    }, 0)
+    return () => window.clearTimeout(reset)
   }, [collection.id])
 
   function saveTitle() {
@@ -330,7 +535,9 @@ export function CollectionDetailView({
     })
 
     try {
-      const payload = await fetchJsonWithTimeout<{ collection?: StoredImageCollection }>("/api/image-collections/captions", {
+      const payload = await fetchJsonWithTimeout<{
+        collection?: StoredImageCollection
+      }>("/api/image-collections/captions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         timeoutMs: 180_000,
@@ -347,7 +554,8 @@ export function CollectionDetailView({
         createdAt: payload.collection.created_at,
         images: workingCollection.images.map((image, index) => ({
           ...image,
-          description: payload.collection!.images[index]?.caption ?? image.description,
+          description:
+            payload.collection!.images[index]?.caption ?? image.description,
         })),
       }
       onUpdateCollection(workingCollection)
@@ -355,12 +563,21 @@ export function CollectionDetailView({
         total: workingCollection.images.length,
         completed: workingCollection.images.length,
         status: "complete",
-        currentTitle: workingCollection.images.at(-1)?.title || `Image ${workingCollection.images.length}`,
+        currentTitle:
+          workingCollection.images.at(-1)?.title ||
+          `Image ${workingCollection.images.length}`,
       })
-      toast.success(`Generated ${workingCollection.images.length} image captions`)
+      toast.success(
+        `Generated ${workingCollection.images.length} image captions`
+      )
     } catch (captionError) {
-      const message = getApiErrorMessage(captionError, "Failed to caption images")
-      setCaptionProgress((current) => current ? { ...current, status: "error", error: message } : null)
+      const message = getApiErrorMessage(
+        captionError,
+        "Failed to caption images"
+      )
+      setCaptionProgress((current) =>
+        current ? { ...current, status: "error", error: message } : null
+      )
       toast.error(message)
     } finally {
       setCaptioning(false)
@@ -369,7 +586,9 @@ export function CollectionDetailView({
 
   function toggleImageSelection(key: string) {
     setSelectedImageKeys((current) =>
-      current.includes(key) ? current.filter((item) => item !== key) : [...current, key]
+      current.includes(key)
+        ? current.filter((item) => item !== key)
+        : [...current, key]
     )
   }
 
@@ -406,7 +625,11 @@ export function CollectionDetailView({
     <div className="mx-auto max-w-[1120px]">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <button className="grid size-8 shrink-0 place-items-center rounded-full hover:bg-[#ecebe4]" onClick={onBack} aria-label="Back to collections">
+          <button
+            className="grid size-8 shrink-0 place-items-center rounded-full hover:bg-[#ecebe4]"
+            onClick={onBack}
+            aria-label="Back to collections"
+          >
             <IconChevronLeft className="size-5" />
           </button>
           {editingTitle ? (
@@ -426,7 +649,9 @@ export function CollectionDetailView({
               }}
             />
           ) : (
-            <h1 className="truncate text-[22px] font-semibold">{collection.title}</h1>
+            <h1 className="truncate text-[22px] font-semibold">
+              {collection.title}
+            </h1>
           )}
           {!readonly && editingTitle && (
             <div className="flex items-center gap-2">
@@ -460,32 +685,58 @@ export function CollectionDetailView({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="softControl" size="compact" disabled={readonly || captioning || collection.images.length === 0} onClick={() => void captionImages()}>
+          <Button
+            variant="softControl"
+            size="compact"
+            disabled={readonly || captioning || collection.images.length === 0}
+            onClick={() => void captionImages()}
+          >
             <IconPhotoPlus className="size-4" />
             {captioning ? "Captioning..." : "Get image captions"}
           </Button>
           <div ref={viewMenuRef} className="relative">
-            <Button variant="softControl" size="compact" onClick={() => setViewOpen((current) => !current)}>
+            <Button
+              variant="softControl"
+              size="compact"
+              onClick={() => setViewOpen((current) => !current)}
+            >
               <IconList className="size-4" />
               View
             </Button>
             {viewOpen && (
-              <div className="absolute right-0 top-10 z-20 w-[210px] rounded-[8px] bg-white p-3 text-[13px] font-semibold shadow-xl">
+              <div className="absolute top-10 right-0 z-20 w-[210px] rounded-[8px] bg-white p-3 text-[13px] font-semibold shadow-xl">
                 <label className="flex items-center justify-between gap-3">
                   Columns:
-                  <SelectControl value={columns} onChange={(event) => setColumns(Number(event.target.value))}>
-                    {[3, 4, 5, 6].map((value) => <option key={value}>{value}</option>)}
+                  <SelectControl
+                    value={columns}
+                    onChange={(event) => setColumns(Number(event.target.value))}
+                  >
+                    {[3, 4, 5, 6].map((value) => (
+                      <option key={value}>{value}</option>
+                    ))}
                   </SelectControl>
                 </label>
                 <div className="mt-3 border-t border-[#ecebe4] pt-3">
-                  <ToggleRow label="No collections only" enabled={noCollectionsOnly} onToggle={() => setNoCollectionsOnly((current) => !current)} />
-                  <ToggleRow label="Show descriptions" enabled={showDescriptions} onToggle={() => setShowDescriptions((current) => !current)} />
+                  <ToggleRow
+                    label="No collections only"
+                    enabled={noCollectionsOnly}
+                    onToggle={() => setNoCollectionsOnly((current) => !current)}
+                  />
+                  <ToggleRow
+                    label="Show descriptions"
+                    enabled={showDescriptions}
+                    onToggle={() => setShowDescriptions((current) => !current)}
+                  />
                 </div>
               </div>
             )}
           </div>
           {!readonly && (
-            <Button variant="action" size="compact" onClick={() => setSearchOpen(true)}>
+            <Button
+              variant="action"
+              size="compact"
+              onClick={() => setSearchOpen(true)}
+            >
               <IconPlus className="size-4" />
               Add
             </Button>
@@ -503,15 +754,21 @@ export function CollectionDetailView({
         >
           <span>
             <IconUpload className="mx-auto mb-2 size-5 text-[#77766f]" />
-            <span className="block text-[15px] font-semibold">Drag and drop (or click to upload)</span>
-            <span className="mt-2 block text-[12px] text-[#8b8a83]">Upload your images (PNG, JPEG up to 10MB each)</span>
+            <span className="block text-[15px] font-semibold">
+              Drag and drop (or click to upload)
+            </span>
+            <span className="mt-2 block text-[12px] text-[#8b8a83]">
+              Upload your images (PNG, JPEG up to 10MB each)
+            </span>
           </span>
         </UploadDropzone>
       )}
 
       {collection.images.length === 0 ? (
         <div className="grid min-h-[260px] place-items-center rounded-[8px] bg-[#efeee9] text-center text-[13px] text-[#77766f]">
-          <span>No images yet. Upload images or use Add to search Pinterest.</span>
+          <span>
+            No {collection.mediaType === "video" ? "videos" : "images"} yet.
+          </span>
         </div>
       ) : (
         <>
@@ -519,13 +776,19 @@ export function CollectionDetailView({
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
-                onClick={() => setSelectedImageKeys((current) => Array.from(new Set([...current, ...visibleImageKeys])))}
+                onClick={() =>
+                  setSelectedImageKeys((current) =>
+                    Array.from(new Set([...current, ...visibleImageKeys]))
+                  )
+                }
               >
                 Select loaded
               </Button>
               <Button
                 variant="outline"
-                onClick={() => setSelectedImageKeys(collection.images.map(imageKey))}
+                onClick={() =>
+                  setSelectedImageKeys(collection.images.map(imageKey))
+                }
               >
                 Select all ({collection.images.length})
               </Button>
@@ -541,12 +804,11 @@ export function CollectionDetailView({
             {selectedCount > 0 && (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-[8px] bg-white px-3 py-2 text-[13px] font-semibold text-[#55544f] shadow-sm">
-                  {selectedCount} selected{selectedVisibleCount > 0 ? ` loaded` : ""}
+                  {selectedCount} selected
+                  {selectedVisibleCount > 0 ? ` loaded` : ""}
                 </span>
                 {!readonly && (
-                  <Button
-                    onClick={deleteSelectedImages}
-                  >
+                  <Button onClick={deleteSelectedImages}>
                     <IconTrash className="size-4" />
                     Delete
                   </Button>
@@ -555,7 +817,12 @@ export function CollectionDetailView({
             )}
           </div>
 
-          <div className="grid gap-x-4 gap-y-6" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+          <div
+            className="grid gap-x-4 gap-y-6"
+            style={{
+              gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+            }}
+          >
             {visibleImages.map((image, index) => {
               const key = imageKey(image)
               const selected = selectedImageKeys.includes(key)
@@ -564,21 +831,33 @@ export function CollectionDetailView({
                   key={`${key}-${index}`}
                   className={cn(
                     "relative rounded-[5px] border bg-white p-2 shadow-sm transition",
-                    selected ? "border-app-action ring-2 ring-app-action/20" : "border-[#e1e0d8]"
+                    selected
+                      ? "border-app-action ring-2 ring-app-action/20"
+                      : "border-[#e1e0d8]"
                   )}
                 >
                   <input
-                    className="absolute left-3 top-3 z-10 size-4 accent-app-action"
+                    className="absolute top-3 left-3 z-10 size-4 accent-app-action"
                     type="checkbox"
                     checked={selected}
                     onChange={() => toggleImageSelection(key)}
                     onClick={(event) => event.stopPropagation()}
                     aria-label={`Select ${image.title}`}
                   />
-                  <button className="block w-full text-left" onClick={() => setViewerIndex(index)}>
-                    <PinterestPreviewTile image={image} index={index} fit="contain" className="aspect-square w-full rounded-[3px] bg-white" />
+                  <button
+                    className="block w-full text-left"
+                    onClick={() => setViewerIndex(index)}
+                  >
+                    <PinterestPreviewTile
+                      image={image}
+                      index={index}
+                      fit="contain"
+                      className="aspect-square w-full rounded-[3px] bg-white"
+                    />
                     {showDescriptions && (
-                      <div className="mt-2 line-clamp-3 min-h-12 text-[11px] leading-4 text-[#647084]">{captionFor(image) || "No description"}</div>
+                      <div className="mt-2 line-clamp-3 min-h-12 text-[11px] leading-4 text-[#647084]">
+                        {captionFor(image) || "No description"}
+                      </div>
                     )}
                   </button>
                 </article>
@@ -590,7 +869,9 @@ export function CollectionDetailView({
               <Button
                 variant="softControl"
                 size="appDefault"
-                onClick={() => setVisibleRows((current) => current + LOAD_MORE_ROWS)}
+                onClick={() =>
+                  setVisibleRows((current) => current + LOAD_MORE_ROWS)
+                }
               >
                 Load more
               </Button>
@@ -633,11 +914,16 @@ export function CollectionDetailView({
           total={visibleImages.length}
           onCaptionChange={(caption) => {
             const image = visibleImages[viewerIndex]
-            setCaptionEdits((current) => ({ ...current, [imageKey(image)]: caption }))
+            setCaptionEdits((current) => ({
+              ...current,
+              [imageKey(image)]: caption,
+            }))
             onUpdateCollection({
               ...collection,
               images: collection.images.map((item) =>
-                imageKey(item) === imageKey(image) ? { ...item, description: caption } : item
+                imageKey(item) === imageKey(image)
+                  ? { ...item, description: caption }
+                  : item
               ),
             })
           }}
@@ -646,12 +932,24 @@ export function CollectionDetailView({
             onUpdateCollection({
               ...collection,
               images: collection.images.map((item) =>
-                imageKey(item) === imageKey(image) ? { ...item, imageUrl } : item
+                imageKey(item) === imageKey(image)
+                  ? { ...item, imageUrl }
+                  : item
               ),
             })
           }}
-          onPrevious={() => setViewerIndex((current) => current === null ? 0 : Math.max(0, current - 1))}
-          onNext={() => setViewerIndex((current) => current === null ? 0 : Math.min(visibleImages.length - 1, current + 1))}
+          onPrevious={() =>
+            setViewerIndex((current) =>
+              current === null ? 0 : Math.max(0, current - 1)
+            )
+          }
+          onNext={() =>
+            setViewerIndex((current) =>
+              current === null
+                ? 0
+                : Math.min(visibleImages.length - 1, current + 1)
+            )
+          }
           onClose={() => setViewerIndex(null)}
         />
       )}
@@ -671,7 +969,9 @@ function CollectionAutomationEditor({
   const [wordRange, setWordRange] = useState("3-5 words")
   const [displayText, setDisplayText] = useState(true)
   const [ctaEnabled, setCtaEnabled] = useState(false)
-  const [activeTab, setActiveTab] = useState<"Hook" | "Content" | "CTA">("Content")
+  const [activeTab, setActiveTab] = useState<"Hook" | "Content" | "CTA">(
+    "Content"
+  )
   const [createOpen, setCreateOpen] = useState(false)
   const previewImages = collection.images.slice(0, 4)
 
@@ -680,7 +980,10 @@ function CollectionAutomationEditor({
       <AppModalPanel className="relative grid max-w-[760px] rounded-[10px] bg-[#d0d0cc] md:grid-cols-[255px_1fr]">
         <div className="flex min-h-[520px] flex-col bg-white p-4">
           <div className="mb-5 flex items-center justify-between text-[13px]">
-            <button className="flex items-center gap-2 text-[#686761]" onClick={onClose}>
+            <button
+              className="flex items-center gap-2 text-[#686761]"
+              onClick={onClose}
+            >
               <IconChevronLeft className="size-4" />
               Back
             </button>
@@ -693,7 +996,11 @@ function CollectionAutomationEditor({
             {(["Hook", "Content", "CTA"] as const).map((tab) => (
               <button
                 key={tab}
-                className={cn("pb-3", activeTab === tab && "border-b-2 border-[#242421] text-[#242421]")}
+                className={cn(
+                  "pb-3",
+                  activeTab === tab &&
+                    "border-b-2 border-[#242421] text-[#242421]"
+                )}
                 onClick={() => setActiveTab(tab)}
               >
                 {tab}
@@ -704,27 +1011,53 @@ function CollectionAutomationEditor({
             <div className="mt-5 flex items-center justify-between text-[14px] font-semibold">
               Enable CTA
               <button
-                className={cn("flex h-7 w-12 items-center rounded-full p-1 transition", ctaEnabled ? "bg-app-action" : "bg-[#ecece8]")}
+                className={cn(
+                  "flex h-7 w-12 items-center rounded-full p-1 transition",
+                  ctaEnabled ? "bg-app-action" : "bg-[#ecece8]"
+                )}
                 onClick={() => setCtaEnabled((value) => !value)}
                 aria-label="Enable CTA"
               >
-                <span className={cn("block size-5 rounded-full bg-white shadow-sm transition", ctaEnabled && "translate-x-5")} />
+                <span
+                  className={cn(
+                    "block size-5 rounded-full bg-white shadow-sm transition",
+                    ctaEnabled && "translate-x-5"
+                  )}
+                />
               </button>
             </div>
           ) : (
             <>
               <ControlRow label={activeTab} value={collection.title} image />
-              {activeTab === "Content" && <ControlRow label="Slide count" value="Static     4" />}
-              <ControlRow label="Aspect Ratio" value={activeTab === "Hook" ? "9:16" : "3:2"} />
+              {activeTab === "Content" && (
+                <ControlRow label="Slide count" value="Static     4" />
+              )}
+              <ControlRow
+                label="Aspect Ratio"
+                value={activeTab === "Hook" ? "9:16" : "3:2"}
+              />
               <ControlRow label="Image Grid" value="None" />
               <ControlToggle label="Overlay" enabled={false} />
-              {activeTab === "Content" && <ControlToggle label="Overlay Image" enabled={false} />}
-              <ControlToggle label="Display text" enabled={displayText} onClick={() => setDisplayText((value) => !value)} />
-              <div className="mt-6 text-[12px] font-semibold text-[#77766f]">Advanced</div>
+              {activeTab === "Content" && (
+                <ControlToggle label="Overlay Image" enabled={false} />
+              )}
+              <ControlToggle
+                label="Display text"
+                enabled={displayText}
+                onClick={() => setDisplayText((value) => !value)}
+              />
+              <div className="mt-6 text-[12px] font-semibold text-[#77766f]">
+                Advanced
+              </div>
               {activeTab === "Content" && (
                 <div className="mt-6 text-[12px]">
-                  <div className="mb-1 font-semibold text-[#6b6a64]">Image overrides <span className="float-right text-app-action">+ Add</span></div>
-                  <p className="leading-4 text-[#9a9991]">Override the image collection for a specific slide.</p>
+                  <div className="mb-1 font-semibold text-[#6b6a64]">
+                    Image overrides{" "}
+                    <span className="float-right text-app-action">+ Add</span>
+                  </div>
+                  <p className="leading-4 text-[#9a9991]">
+                    Override the image collection for a specific slide.
+                  </p>
                 </div>
               )}
             </>
@@ -744,9 +1077,19 @@ function CollectionAutomationEditor({
         </div>
 
         <div className="min-h-[520px] p-6">
-          <div className={cn("mx-auto grid max-w-[390px] gap-3", activeTab === "Hook" ? "grid-cols-[1fr_120px]" : "grid-cols-3")}>
+          <div
+            className={cn(
+              "mx-auto grid max-w-[390px] gap-3",
+              activeTab === "Hook" ? "grid-cols-[1fr_120px]" : "grid-cols-3"
+            )}
+          >
             {[0, 1, 2].map((index) => (
-              <div key={index} className={cn(activeTab === "Hook" && index > 0 && "opacity-80")}>
+              <div
+                key={index}
+                className={cn(
+                  activeTab === "Hook" && index > 0 && "opacity-80"
+                )}
+              >
                 <div className="mb-2 text-center text-[11px] font-semibold text-[#6c6b66]">
                   {index === 0 ? activeTab : `Content ${index}`}
                 </div>
@@ -755,34 +1098,82 @@ function CollectionAutomationEditor({
                     <PinterestPreviewTile
                       image={previewImages[index]}
                       index={index}
-                      className={cn("w-full rounded-[3px] shadow-sm", activeTab === "Hook" && index === 0 ? "h-72" : "h-44")}
+                      className={cn(
+                        "w-full rounded-[3px] shadow-sm",
+                        activeTab === "Hook" && index === 0 ? "h-72" : "h-44"
+                      )}
                     />
                     {displayText && (
-                      <div className="font-tiktok absolute inset-x-3 top-[44%] rounded border border-[#4f91ff] bg-black/35 px-2 py-1 text-center text-[10px] font-bold leading-tight text-white">
-                        {index === 0 ? "uncomfortable things to build extreme confidence" : "Et dolore magna"}
+                      <div className="absolute inset-x-3 top-[44%] rounded border border-[#4f91ff] bg-black/35 px-2 py-1 text-center font-tiktok text-[10px] leading-tight font-bold text-white">
+                        {index === 0
+                          ? "uncomfortable things to build extreme confidence"
+                          : "Et dolore magna"}
                       </div>
                     )}
                   </div>
                 ) : (
-                  <SlideThumb index={index + 6} className={cn("w-full rounded-[3px]", activeTab === "Hook" && index === 0 ? "h-72" : "h-44")} />
+                  <SlideThumb
+                    index={index + 6}
+                    className={cn(
+                      "w-full rounded-[3px]",
+                      activeTab === "Hook" && index === 0 ? "h-72" : "h-44"
+                    )}
+                  />
                 )}
               </div>
             ))}
           </div>
           <div className="mx-auto mt-5 flex w-fit gap-1">
             {[0, 1, 2, 3, 4].map((dot) => (
-              <span key={dot} className={cn("size-1.5 rounded-full", dot === 0 ? "bg-white" : "bg-white/45")} />
+              <span
+                key={dot}
+                className={cn(
+                  "size-1.5 rounded-full",
+                  dot === 0 ? "bg-white" : "bg-white/45"
+                )}
+              />
             ))}
           </div>
           <div className="mt-5 rounded-[8px] bg-white p-4">
             <div className="grid grid-cols-3 gap-3">
-              <LabelledSelect label={activeTab === "Hook" ? "Font" : "Content direction"} value={activeTab === "Hook" ? "Default" : wordRange} options={["Default", "1-2 words", "2-3 words", "3-5 words", "5-7 words", "10-15 words"]} onChange={setWordRange} />
-              <LabelledSelect label="Style" value="Outline" options={["Outline", "Bold", "Plain"]} />
-              <LabelledSelect label="Size" value={activeTab === "Hook" ? "14px" : "12px"} options={["12px", "14px", "16px"]} />
-              <LabelledSelect label="Position" value="Center" options={["Center", "Bottom", "Top"]} />
-              <LabelledSelect label="Width" value="100%" options={["50%", "75%", "100%"]} />
+              <LabelledSelect
+                label={activeTab === "Hook" ? "Font" : "Content direction"}
+                value={activeTab === "Hook" ? "Default" : wordRange}
+                options={[
+                  "Default",
+                  "1-2 words",
+                  "2-3 words",
+                  "3-5 words",
+                  "5-7 words",
+                  "10-15 words",
+                ]}
+                onChange={setWordRange}
+              />
+              <LabelledSelect
+                label="Style"
+                value="Outline"
+                options={["Outline", "Bold", "Plain"]}
+              />
+              <LabelledSelect
+                label="Size"
+                value={activeTab === "Hook" ? "14px" : "12px"}
+                options={["12px", "14px", "16px"]}
+              />
+              <LabelledSelect
+                label="Position"
+                value="Center"
+                options={["Center", "Bottom", "Top"]}
+              />
+              <LabelledSelect
+                label="Width"
+                value="100%"
+                options={["50%", "75%", "100%"]}
+              />
             </div>
-            <input className="mt-4 h-10 w-full rounded-[6px] border border-[#ecebe4] px-3 text-[12px] outline-none" placeholder="e.g. A bold hook about..." />
+            <input
+              className="mt-4 h-10 w-full rounded-[6px] border border-[#ecebe4] px-3 text-[12px] outline-none"
+              placeholder="e.g. A bold hook about..."
+            />
             <div className="mt-4 flex items-center justify-between text-[12px]">
               <button className="text-[#8b8a83]">Advanced ^</button>
               <div className="flex gap-4">
@@ -821,7 +1212,9 @@ function CreateAutomationDialog({
     <div className="absolute inset-0 z-50 grid place-items-center bg-[#24251f]/32 p-4">
       <section className="w-full max-w-[430px] rounded-[8px] bg-white p-5 shadow-2xl">
         <h2 className="text-[18px] font-semibold">Create Automation</h2>
-        <p className="mt-1 text-[13px] text-[#77766f]">Name your automation, add hooks, and set the tone & style.</p>
+        <p className="mt-1 text-[13px] text-[#77766f]">
+          Name your automation, add hooks, and set the tone & style.
+        </p>
         <label className="mt-5 block text-[12px] font-semibold">
           Automation name
           <input
@@ -831,11 +1224,17 @@ function CreateAutomationDialog({
           />
         </label>
         <div className="mt-4 flex border-b text-[12px] font-semibold">
-          <button className="border-b-2 border-[#242421] pb-2 pr-6">Hooks (1)</button>
+          <button className="border-b-2 border-[#242421] pr-6 pb-2">
+            Hooks (1)
+          </button>
           <button className="pb-2 text-[#8b8a83]">Tone & Style</button>
         </div>
-        <div className="mt-4 text-[14px] font-semibold">Slideshow Hooks <span className="text-[#aaa9a2]">⊙</span></div>
-        <div className="mt-1 text-[12px] font-semibold text-app-action">Each line is a separate hook</div>
+        <div className="mt-4 text-[14px] font-semibold">
+          Slideshow Hooks <span className="text-[#aaa9a2]">⊙</span>
+        </div>
+        <div className="mt-1 text-[12px] font-semibold text-app-action">
+          Each line is a separate hook
+        </div>
         <textarea
           className="mt-3 h-28 w-full resize-none rounded-[8px] border border-[#ecebe4] p-3 text-[13px] outline-none"
           defaultValue="uncomfortable things to build extreme confidence"

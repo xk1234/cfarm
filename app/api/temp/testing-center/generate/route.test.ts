@@ -10,8 +10,27 @@ afterEach(() => {
 })
 
 describe("POST /api/temp/testing-center/generate", () => {
-  it("skips OpenRouter for hook-only templates with no model-fillable text", async () => {
-    const fetchMock = vi.fn()
+  it("generates metadata for hook-only templates with no model-fillable slide text", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-openrouter-key")
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    title: "Cute Nail Ideas",
+                    hashtags: "#nails #beauty #style",
+                    text: {},
+                  }),
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+    )
     vi.stubGlobal("fetch", fetchMock)
     vi.doMock("@/lib/automation-templates", () => ({
       listAutomationTemplateRecords: vi.fn(async () => [hookOnlyTemplate]),
@@ -30,12 +49,16 @@ describe("POST /api/temp/testing-center/generate", () => {
     const payload = await response.json()
 
     expect(response.status).toBe(200)
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(payload).toEqual({
       automationId: "template-hook-only",
       model: "anthropic/claude-sonnet-4.5",
       selectedHook: "cute nail designs i found on pinterest",
-      result: { text: {} },
+      result: {
+        title: "Cute Nail Ideas",
+        hashtags: "#nails #beauty #style",
+        text: {},
+      },
     })
   })
 })

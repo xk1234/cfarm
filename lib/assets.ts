@@ -7,12 +7,34 @@ import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 export type AssetKind = "image" | "video" | "audio" | "text"
 export type AssetSource = "upload" | "ai_generated"
 export type AssetStatus = "processing" | "ready" | "failed"
-export type AssetScope = "ugc_avatar" | "ugc_ad" | "ugc_demo" | "greenscreen" | "global"
-export type AssetCategory = "outfit" | "accessory" | "background" | "product" | "reference" | "sound" | "other"
+export type AssetScope =
+  "ugc_avatar" | "ugc_ad" | "ugc_demo" | "greenscreen" | "global"
+export type AssetCategory =
+  | "outfit"
+  | "accessory"
+  | "background"
+  | "product"
+  | "reference"
+  | "sound"
+  | "other"
 
 export const assetKinds: AssetKind[] = ["image", "video", "audio", "text"]
-export const assetScopes: AssetScope[] = ["ugc_avatar", "ugc_ad", "ugc_demo", "greenscreen", "global"]
-export const assetCategories: AssetCategory[] = ["outfit", "accessory", "background", "product", "reference", "sound", "other"]
+export const assetScopes: AssetScope[] = [
+  "ugc_avatar",
+  "ugc_ad",
+  "ugc_demo",
+  "greenscreen",
+  "global",
+]
+export const assetCategories: AssetCategory[] = [
+  "outfit",
+  "accessory",
+  "background",
+  "product",
+  "reference",
+  "sound",
+  "other",
+]
 
 export type AssetRecord = {
   id: string
@@ -68,10 +90,11 @@ const extensionKindMap: Record<string, AssetKind> = {
 
 export async function listAssetRecords(filters: AssetListFilters = {}) {
   const records = await readAssetRecords(filters.rootDir)
-  return records.filter((record) =>
-    (!filters.scope || record.scope === filters.scope) &&
-    (!filters.category || record.category === filters.category) &&
-    (!filters.kind || record.kind === filters.kind)
+  return records.filter(
+    (record) =>
+      (!filters.scope || record.scope === filters.scope) &&
+      (!filters.category || record.category === filters.category) &&
+      (!filters.kind || record.kind === filters.kind)
   )
 }
 
@@ -83,13 +106,17 @@ export async function createUploadedAssetRecord(input: {
   scope: AssetScope
   category?: AssetCategory
   name?: string
+  metadata?: Record<string, unknown>
 }) {
   const now = new Date().toISOString()
   const rootDir = input.rootDir ?? defaultAssetRoot
   const extension = extensionForFile(input.fileName)
   const kind = kindFromExtension(extension)
   const id = randomUUID()
-  const name = clean(input.name) || path.basename(input.fileName, extension) || "Untitled asset"
+  const name =
+    clean(input.name) ||
+    path.basename(input.fileName, extension) ||
+    "Untitled asset"
   const safeFileName = `${Date.now()}-${id}${extension || ".bin"}`
   const filesFolder = uploadedAssetFolder(input.scope)
 
@@ -110,6 +137,7 @@ export async function createUploadedAssetRecord(input: {
     fileUrl: publicAssetUrl(safeFileName, filesFolder),
     createdAt: now,
     updatedAt: now,
+    metadata: input.metadata,
   }
 
   await prependAssetRecord(rootDir, record)
@@ -128,17 +156,25 @@ export async function createGeneratedAssetRecord(input: {
   const now = new Date().toISOString()
   const rootDir = input.rootDir ?? defaultAssetRoot
   const id = randomUUID()
-  const name = clean(input.name) || clean(input.prompt).slice(0, 60) || "Generated asset"
+  const name =
+    clean(input.name) || clean(input.prompt).slice(0, 60) || "Generated asset"
   const prompt = clean(input.prompt)
   const model = clean(input.model) || "Unknown model"
-  const fileName = input.kind === "image" ? `${Date.now()}-${id}.svg` : undefined
+  const fileName =
+    input.kind === "image" ? `${Date.now()}-${id}.svg` : undefined
   const fileUrl = fileName ? publicAssetUrl(fileName) : undefined
   const status: AssetStatus = input.kind === "image" ? "ready" : "failed"
-  const error = input.kind === "image" ? undefined : "AI generation for this asset type is not wired yet"
+  const error =
+    input.kind === "image"
+      ? undefined
+      : "AI generation for this asset type is not wired yet"
 
   if (fileName) {
     await mkdir(path.join(rootDir, assetFilesFolder), { recursive: true })
-    await writeFile(path.join(rootDir, assetFilesFolder, fileName), generatedSvg({ name, prompt, model }))
+    await writeFile(
+      path.join(rootDir, assetFilesFolder, fileName),
+      generatedSvg({ name, prompt, model })
+    )
   }
 
   const record: AssetRecord = {
@@ -149,9 +185,15 @@ export async function createGeneratedAssetRecord(input: {
     scope: input.scope,
     category: input.category,
     name,
-    caption: status === "ready"
-      ? captionForAsset({ kind: input.kind, name, source: "ai_generated", prompt })
-      : "",
+    caption:
+      status === "ready"
+        ? captionForAsset({
+            kind: input.kind,
+            name,
+            source: "ai_generated",
+            prompt,
+          })
+        : "",
     prompt,
     model,
     mimeType: fileName ? "image/svg+xml" : undefined,
@@ -197,14 +239,26 @@ export async function deleteAssetRecordsForUrls(input: {
 
   const records = await readAssetRecords(rootDir)
   const deletedRecords = records.filter((record) => {
-    const recordUrls = [record.fileUrl, record.thumbnailUrl].map(clean).filter(Boolean)
+    const recordUrls = [record.fileUrl, record.thumbnailUrl]
+      .map(clean)
+      .filter(Boolean)
     return recordUrls.some((url) => urls.has(url) && !keepUrls.has(url))
   })
-  const nextRecords = records.filter((record) => !deletedRecords.some((deleted) => deleted.id === record.id))
+  const nextRecords = records.filter(
+    (record) => !deletedRecords.some((deleted) => deleted.id === record.id)
+  )
 
   await writeAssetRecords(rootDir, nextRecords)
-  const remainingUrls = new Set(nextRecords.flatMap((record) => [record.fileUrl, record.thumbnailUrl].map(clean).filter(Boolean)))
-  const deletedFiles = await deleteUnusedAssetFiles(rootDir, deletedRecords, remainingUrls)
+  const remainingUrls = new Set(
+    nextRecords.flatMap((record) =>
+      [record.fileUrl, record.thumbnailUrl].map(clean).filter(Boolean)
+    )
+  )
+  const deletedFiles = await deleteUnusedAssetFiles(
+    rootDir,
+    deletedRecords,
+    remainingUrls
+  )
 
   return {
     deleted: deletedRecords.length,
@@ -214,10 +268,15 @@ export async function deleteAssetRecordsForUrls(input: {
 
 async function prependAssetRecord(rootDir: string, record: AssetRecord) {
   const records = await readAssetRecords(rootDir)
-  await writeAssetRecords(rootDir, [record, ...records.filter((item) => item.id !== record.id)])
+  await writeAssetRecords(rootDir, [
+    record,
+    ...records.filter((item) => item.id !== record.id),
+  ])
 }
 
-async function readAssetRecords(rootDir = defaultAssetRoot): Promise<AssetRecord[]> {
+async function readAssetRecords(
+  rootDir = defaultAssetRoot
+): Promise<AssetRecord[]> {
   return readJsonArrayStore({
     rootDir,
     fileName: assetDbFileName,
@@ -227,14 +286,25 @@ async function readAssetRecords(rootDir = defaultAssetRoot): Promise<AssetRecord
 }
 
 async function writeAssetRecords(rootDir: string, records: AssetRecord[]) {
-  await writeJsonArrayStore({ rootDir, fileName: assetDbFileName, key: "assets", records })
+  await writeJsonArrayStore({
+    rootDir,
+    fileName: assetDbFileName,
+    key: "assets",
+    records,
+  })
 }
 
-async function deleteUnusedAssetFiles(rootDir: string, deletedRecords: AssetRecord[], remainingUrls: Set<string>) {
+async function deleteUnusedAssetFiles(
+  rootDir: string,
+  deletedRecords: AssetRecord[],
+  remainingUrls: Set<string>
+) {
   const filePaths = new Map<string, string>()
 
   for (const record of deletedRecords) {
-    for (const url of [record.fileUrl, record.thumbnailUrl].map(clean).filter(Boolean)) {
+    for (const url of [record.fileUrl, record.thumbnailUrl]
+      .map(clean)
+      .filter(Boolean)) {
       if (remainingUrls.has(url)) {
         continue
       }
@@ -261,7 +331,10 @@ function localAssetFilePath(rootDir: string, assetUrl: string) {
   const encodedRelativePath = assetUrl.slice(prefix.length).split(/[?#]/)[0]
   let relativePath = ""
   try {
-    relativePath = encodedRelativePath.split("/").map((part) => decodeURIComponent(part)).join(path.sep)
+    relativePath = encodedRelativePath
+      .split("/")
+      .map((part) => decodeURIComponent(part))
+      .join(path.sep)
   } catch {
     return null
   }
@@ -276,7 +349,13 @@ function localAssetFilePath(rootDir: string, assetUrl: string) {
 }
 
 function normalizeAssetRecord(record: AssetRecord): AssetRecord | null {
-  if (!record?.id || !record.scope || !record.kind || !record.source || !record.status) {
+  if (
+    !record?.id ||
+    !record.scope ||
+    !record.kind ||
+    !record.source ||
+    !record.status
+  ) {
     return null
   }
   return {
@@ -284,12 +363,18 @@ function normalizeAssetRecord(record: AssetRecord): AssetRecord | null {
     name: clean(record.name) || "Untitled asset",
     caption: clean(record.caption),
     createdAt: clean(record.createdAt) || new Date().toISOString(),
-    updatedAt: clean(record.updatedAt) || clean(record.createdAt) || new Date().toISOString(),
+    updatedAt:
+      clean(record.updatedAt) ||
+      clean(record.createdAt) ||
+      new Date().toISOString(),
     metadata: sanitizeAssetMetadata(record.metadata, record.fileUrl),
   }
 }
 
-function sanitizeAssetMetadata(metadata: unknown, fileUrl: unknown): Record<string, unknown> | undefined {
+function sanitizeAssetMetadata(
+  metadata: unknown,
+  fileUrl: unknown
+): Record<string, unknown> | undefined {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
     return undefined
   }
@@ -336,7 +421,7 @@ export function parseAssetCategory(value: unknown) {
 
 function enumValue<T extends string>(value: unknown, allowed: T[]) {
   const text = clean(value)
-  return text && allowed.includes(text as T) ? text as T : undefined
+  return text && allowed.includes(text as T) ? (text as T) : undefined
 }
 
 function extensionForFile(fileName: string) {

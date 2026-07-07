@@ -15,6 +15,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import type { AutomationTemplateExampleRun } from "@/lib/automation-templates"
 import type { OpenRouterModelSummary } from "@/lib/openrouter-models"
+import { tempTestingCenterFallbackModels } from "@/lib/realfarm-generation-model-registry"
 import { slideshowTextGenerationPayload } from "@/lib/slideshow-text-generation"
 import { cn } from "@/lib/utils"
 import type {
@@ -34,22 +35,8 @@ import {
   promptPreviewHook,
 } from "@/lib/temp-slide-testing"
 
-const fallbackModelOptions: OpenRouterModelSummary[] = [
-  modelSummary("anthropic/claude-sonnet-4.5", "Anthropic: Claude Sonnet 4.5"),
-  modelSummary("openai/gpt-5.4-mini", "OpenAI: GPT-5.4 Mini"),
-  modelSummary("deepseek/deepseek-v4", "DeepSeek: DeepSeek V4"),
-  modelSummary("google/gemini-3.1-flash-lite", "Google: Gemini 3.1 Flash Lite"),
-  modelSummary("moonshotai/kimi-k2.7", "Moonshot AI: Kimi 2.7"),
-  modelSummary("x-ai/grok-4.3", "xAI: Grok 4.3"),
-  modelSummary("qwen/qwen3.7-plus", "Qwen: Qwen3.7 Plus"),
-  modelSummary("z-ai/glm-5.2", "Z.ai: GLM 5.2"),
-  modelSummary("deepseek/deepseek-v4-flash", "DeepSeek: DeepSeek V4 Flash"),
-  modelSummary("minimax/minimax-m3", "MiniMax: MiniMax M3"),
-  modelSummary(
-    "nvidia/nemotron-3-super-120b-a12b:free",
-    "NVIDIA: Nemotron 3 Super (free)"
-  ),
-]
+const fallbackModelOptions: OpenRouterModelSummary[] =
+  tempTestingCenterFallbackModels
 
 type GenerationRun = {
   id: string
@@ -1377,16 +1364,4 @@ function randomRunSeed(model: string) {
       ? crypto.randomUUID()
       : Math.random().toString(36).slice(2)
   return `${model}-${uuid}`
-}
-
-function modelSummary(id: string, name: string): OpenRouterModelSummary {
-  return {
-    id,
-    name,
-    contextLength: null,
-    promptPrice: "",
-    completionPrice: "",
-    supportsResponseFormat: true,
-    supportsStructuredOutputs: true,
-  }
 }

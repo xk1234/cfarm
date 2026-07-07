@@ -1,6 +1,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 
+import {
+  kieFluxKontextModel,
+  kieTopazImageUpscaleModel,
+} from "@/lib/realfarm-generation-model-registry"
+
 export type KieImageMode = "edit" | "upscale"
 
 export type KieImageActionResult = {
@@ -17,7 +22,7 @@ const LOCAL_ASSET_PREFIX = "/api/local-assets/"
 type FetchLike = typeof fetch
 
 export function getKieApiKey(env: Partial<NodeJS.ProcessEnv> = process.env) {
-  return clean(env.KIE_KEY) || clean(env.KIE_API_KEY) || clean(env.KIE_AI_API_KEY) || clean(env.FLUX_API_KEY)
+  return clean(env.KIE_KEY)
 }
 
 export function buildFluxKontextGeneratePayload(input: {
@@ -49,7 +54,7 @@ export function buildFluxKontextEditPayload(input: {
     enableTranslation: true,
     outputFormat: "jpeg",
     promptUpsampling: false,
-    model: clean(input.model) || "flux-kontext-pro",
+    model: clean(input.model) || kieFluxKontextModel,
     safetyTolerance: 2,
   }
 }
@@ -59,7 +64,7 @@ export function buildTopazImageUpscalePayload(input: {
   upscaleFactor?: string
 }) {
   return {
-    model: "topaz/image-upscale",
+    model: kieTopazImageUpscaleModel,
     input: {
       image_url: clean(input.imageUrl),
       upscale_factor: clean(input.upscaleFactor) || "2",
@@ -107,14 +112,62 @@ export function readTopazResultUrl(payload: unknown) {
   }
 
   try {
-    const parsed = JSON.parse(resultJson) as { resultUrls?: unknown[]; imageUrls?: unknown[]; url?: unknown }
+    const parsed = JSON.parse(resultJson) as {
+      resultUrls?: unknown[]
+      imageUrls?: unknown[]
+      url?: unknown
+    }
     return (
-      parsed.resultUrls?.find((value): value is string => typeof value === "string") ||
-      parsed.imageUrls?.find((value): value is string => typeof value === "string") ||
+      parsed.resultUrls?.find(
+        (value): value is string => typeof value === "string"
+      ) ||
+      parsed.imageUrls?.find(
+        (value): value is string => typeof value === "string"
+      ) ||
       (typeof parsed.url === "string" ? parsed.url : "")
     )
   } catch {
     return ""
+  }
+}
+
+export function readKieMarketResultUrls(payload: unknown) {
+  const data = readRecord(readRecord(payload)?.data)
+  if (!data || readString(data.state) !== "success") {
+    return []
+  }
+
+  const resultJson = readString(data.resultJson)
+  if (!resultJson) {
+    const directUrl =
+      readString(readRecord(data.videoInfo)?.videoUrl) ||
+      readString(readRecord(data.response)?.resultImageUrl)
+    return directUrl ? [directUrl] : []
+  }
+
+  try {
+    const parsed = JSON.parse(resultJson) as {
+      resultUrls?: unknown[]
+      imageUrls?: unknown[]
+      videoUrls?: unknown[]
+      videos?: unknown[]
+      url?: unknown
+      videoUrl?: unknown
+      result_video_url?: unknown
+    }
+    return [
+      ...(parsed.resultUrls ?? []),
+      ...(parsed.imageUrls ?? []),
+      ...(parsed.videoUrls ?? []),
+      ...(parsed.videos ?? []),
+      parsed.result_video_url,
+      parsed.videoUrl,
+      parsed.url,
+    ].filter(
+      (value): value is string => typeof value === "string" && value.length > 0
+    )
+  } catch {
+    return []
   }
 }
 
@@ -124,10 +177,14 @@ export async function editImageWithFluxKontext(input: {
   apiKey: string
 }) {
   const imageUrl = await prepareKieInputImageUrl(input)
-  const task = await createKieTask("/api/v1/flux/kontext/generate", input.apiKey, buildFluxKontextEditPayload({
-    ...input,
-    imageUrl,
-  }))
+  const task = await createKieTask(
+    "/api/v1/flux/kontext/generate",
+    input.apiKey,
+    buildFluxKontextEditPayload({
+      ...input,
+      imageUrl,
+    })
+  )
   return {
     taskId: task,
     imageUrl: await pollKieImageResult({
@@ -145,10 +202,14 @@ export async function upscaleImageWithTopaz(input: {
   upscaleFactor?: string
 }) {
   const imageUrl = await prepareKieInputImageUrl(input)
-  const task = await createKieTask("/api/v1/jobs/createTask", input.apiKey, buildTopazImageUpscalePayload({
-    ...input,
-    imageUrl,
-  }))
+  const task = await createKieTask(
+    "/api/v1/jobs/createTask",
+    input.apiKey,
+    buildTopazImageUpscalePayload({
+      ...input,
+      imageUrl,
+    })
+  )
   return {
     taskId: task,
     imageUrl: await pollKieImageResult({
@@ -182,6 +243,29 @@ export async function prepareKieInputImageUrl(input: {
   })
 }
 
+export async function prepareKieInputFileUrl(input: {
+  fileUrl: string
+  apiKey: string
+  uploadPath: string
+  fetchImpl?: FetchLike
+}) {
+  const fileUrl = clean(input.fileUrl)
+  const localAssetPath = localAssetFilePath(fileUrl)
+  if (!localAssetPath) {
+    return fileUrl
+  }
+
+  const bytes = await readFile(localAssetPath)
+  const fileName = `${Date.now()}-${path.basename(localAssetPath)}`
+  return uploadKieBase64Image({
+    apiKey: input.apiKey,
+    base64Data: `data:${contentTypeFor(localAssetPath)};base64,${bytes.toString("base64")}`,
+    fileName,
+    uploadPath: input.uploadPath,
+    fetchImpl: input.fetchImpl,
+  })
+}
+
 export async function uploadKieBase64Image(input: {
   apiKey: string
   base64Data: string
@@ -190,22 +274,29 @@ export async function uploadKieBase64Image(input: {
   fetchImpl?: FetchLike
   failureMessage?: string
 }) {
-  const response = await (input.fetchImpl ?? fetch)(`${KIE_FILE_UPLOAD_BASE_URL}/api/file-base64-upload`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${input.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      base64Data: input.base64Data,
-      fileName: input.fileName,
-      uploadPath: input.uploadPath,
-    }),
-  })
+  const response = await (input.fetchImpl ?? fetch)(
+    `${KIE_FILE_UPLOAD_BASE_URL}/api/file-base64-upload`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${input.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        base64Data: input.base64Data,
+        fileName: input.fileName,
+        uploadPath: input.uploadPath,
+      }),
+    }
+  )
   const payload = await response.json().catch(() => ({}))
   const uploadedUrl = readKieUploadedFileUrl(payload)
   if (!response.ok || !uploadedUrl) {
-    throw new Error(readKieError(payload) || input.failureMessage || `Kie image upload failed with ${response.status}`)
+    throw new Error(
+      readKieError(payload) ||
+        input.failureMessage ||
+        `Kie image upload failed with ${response.status}`
+    )
   }
 
   return uploadedUrl
@@ -219,7 +310,44 @@ export async function createFluxKontextTask(input: {
   model?: string
   fetchImpl?: FetchLike
 }) {
-  return createKieTask("/api/v1/flux/kontext/generate", input.apiKey, buildFluxKontextGeneratePayload(input), input.fetchImpl)
+  return createKieTask(
+    "/api/v1/flux/kontext/generate",
+    input.apiKey,
+    buildFluxKontextGeneratePayload(input),
+    input.fetchImpl
+  )
+}
+
+export async function createKieMarketTask(input: {
+  apiKey: string
+  body: unknown
+  fetchImpl?: FetchLike
+}) {
+  return createKieTask(
+    "/api/v1/jobs/createTask",
+    input.apiKey,
+    input.body,
+    input.fetchImpl
+  )
+}
+
+export async function pollKieMarketTask(input: {
+  apiKey: string
+  taskId: string
+  pollLimit?: number
+  pollDelayMs?: number
+  fetchImpl?: FetchLike
+}) {
+  return pollKieImageResult({
+    path: `/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(input.taskId)}`,
+    apiKey: input.apiKey,
+    readResultUrl: (payload) => readKieMarketResultUrls(payload)[0] ?? "",
+    pollLimit: input.pollLimit ?? TOPAZ_RESULT_POLL_LIMIT,
+    pollDelayMs: input.pollDelayMs,
+    fetchImpl: input.fetchImpl,
+    failedMessage: "Kie market task failed",
+    timeoutMessage: "Kie market task timed out",
+  })
 }
 
 export async function pollFluxKontextTask(input: {
@@ -272,7 +400,12 @@ export async function downloadRemoteImageToLocalAsset(input: {
   return `${input.publicPrefix}/${encodeURIComponent(fileName)}`
 }
 
-async function createKieTask(path: string, apiKey: string, body: unknown, fetchImpl?: FetchLike) {
+async function createKieTask(
+  path: string,
+  apiKey: string,
+  body: unknown,
+  fetchImpl?: FetchLike
+) {
   const response = await (fetchImpl ?? fetch)(`${KIE_API_BASE_URL}${path}`, {
     method: "POST",
     headers: {
@@ -284,7 +417,9 @@ async function createKieTask(path: string, apiKey: string, body: unknown, fetchI
   const payload = await response.json().catch(() => ({}))
   const taskId = readKieTaskId(payload)
   if (!response.ok || !taskId) {
-    throw new Error(readKieError(payload) || `Kie image task failed with ${response.status}`)
+    throw new Error(
+      readKieError(payload) || `Kie image task failed with ${response.status}`
+    )
   }
   return taskId
 }
@@ -300,18 +435,25 @@ async function pollKieImageResult(input: {
   timeoutMessage?: string
 }) {
   for (let attempt = 0; attempt < input.pollLimit; attempt += 1) {
-    const response = await (input.fetchImpl ?? fetch)(`${KIE_API_BASE_URL}${input.path}`, {
-      headers: {
-        Authorization: `Bearer ${input.apiKey}`,
-      },
-    })
+    const response = await (input.fetchImpl ?? fetch)(
+      `${KIE_API_BASE_URL}${input.path}`,
+      {
+        headers: {
+          Authorization: `Bearer ${input.apiKey}`,
+        },
+      }
+    )
     const payload = await response.json().catch(() => ({}))
     const resultUrl = input.readResultUrl(payload)
     if (resultUrl) {
       return resultUrl
     }
     if (!response.ok || isFailedKieResult(payload)) {
-      throw new Error(readKieError(payload) || input.failedMessage || `Kie image result failed with ${response.status}`)
+      throw new Error(
+        readKieError(payload) ||
+          input.failedMessage ||
+          `Kie image result failed with ${response.status}`
+      )
     }
     if (attempt < input.pollLimit - 1) {
       await sleep(input.pollDelayMs ?? 3000)
@@ -326,7 +468,9 @@ function isFailedKieResult(payload: unknown) {
     return false
   }
   const data = readRecord(payload.data)
-  return data?.successFlag === 2 || data?.successFlag === 3 || data?.state === "fail"
+  return (
+    data?.successFlag === 2 || data?.successFlag === 3 || data?.state === "fail"
+  )
 }
 
 function readKieError(payload: unknown) {
@@ -334,7 +478,11 @@ function readKieError(payload: unknown) {
     return ""
   }
   const data = readRecord(payload.data)
-  return readString(payload.msg) || readString(data?.errorMessage) || readString(data?.failMsg)
+  return (
+    readString(payload.msg) ||
+    readString(data?.errorMessage) ||
+    readString(data?.failMsg)
+  )
 }
 
 function readKieUploadedFileUrl(payload: unknown) {
@@ -359,7 +507,10 @@ function localAssetFilePath(imageUrl: string) {
   }
 
   const dataRoot = path.join(process.cwd(), "data")
-  const decodedSegments = assetPath.split("/").filter(Boolean).map((segment) => decodeURIComponent(segment))
+  const decodedSegments = assetPath
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => decodeURIComponent(segment))
   const requestedPath = path.normalize(path.join(dataRoot, ...decodedSegments))
   if (!requestedPath.startsWith(dataRoot + path.sep)) {
     throw new Error("Invalid local asset path")
@@ -378,7 +529,9 @@ function localAssetUrlPath(imageUrl: string) {
     if (!["localhost", "127.0.0.1", "::1"].includes(url.hostname)) {
       return ""
     }
-    return url.pathname.startsWith(LOCAL_ASSET_PREFIX) ? url.pathname.slice(LOCAL_ASSET_PREFIX.length) : ""
+    return url.pathname.startsWith(LOCAL_ASSET_PREFIX)
+      ? url.pathname.slice(LOCAL_ASSET_PREFIX.length)
+      : ""
   } catch {
     return ""
   }
@@ -391,6 +544,10 @@ function contentTypeFor(filePath: string) {
     ".jpeg": "image/jpeg",
     ".png": "image/png",
     ".webp": "image/webp",
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime",
+    ".webm": "video/webm",
+    ".mkv": "video/x-matroska",
   }
 
   return contentTypes[extension] ?? "application/octet-stream"
@@ -398,8 +555,8 @@ function contentTypeFor(filePath: string) {
 
 function fluxKontextModelSlug(value: unknown) {
   const model = clean(value).toLowerCase()
-  if (model.includes("flux")) return "flux-kontext-pro"
-  return "flux-kontext-pro"
+  if (model.includes("flux")) return kieFluxKontextModel
+  return kieFluxKontextModel
 }
 
 function sleep(ms: number) {

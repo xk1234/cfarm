@@ -4,7 +4,10 @@ import type {
   AutomationTemplateTextItem,
 } from "@/lib/automation-templates"
 import type { StoredImageCollection } from "@/lib/image-collections"
-import { collectionAliases, storedToCollection } from "@/lib/realfarm-collections"
+import {
+  collectionAliases,
+  storedToCollection,
+} from "@/lib/realfarm-collections"
 import {
   automationCollectionId,
   automationFormatSection,
@@ -84,14 +87,17 @@ export type TempSlideTestingAutomation = {
 }
 
 export type TempSlideStructuredOutput = {
+  title: string
+  caption: string
+  hashtags: string
   text: Record<string, string>
 }
 
 export const defaultTempSlideSystemPrompt =
-  "You fill text placeholders for TikTok slideshow ads. Return only JSON that matches the provided schema. Do not add visual parameters, image prompts, commentary, markdown, or extra keys."
+  "You fill metadata and text placeholders for TikTok slideshow ads. Return only JSON that matches the provided schema. Do not add visual parameters, image prompts, commentary, markdown, or extra keys."
 
 export const defaultTempSlideUserInstructions =
-  "Fill every non-hook placeholder text box. Use the fixed hook as context only and do not rewrite it. Body slides should be specific to the automation, not generic. Return text only in the schema's text object."
+  "Generate a concise slideshow title, a short social caption, and broad niche hashtags. Fill every non-hook placeholder text box. Use the fixed hook as context only and do not rewrite it. Body slides should be specific to the automation, not generic. Return slide text only in the schema's text object."
 
 export type TempSlidePromptInput = {
   automationName: string
@@ -112,6 +118,10 @@ export function buildTempSlideUserPrompt(input: TempSlidePromptInput) {
     `Hook: ${input.hook}`,
     `Tone: ${input.tone}`,
     `Style: ${input.style}`,
+    "Metadata requirements:",
+    "- title: write an AI-generated title for the slideshow, 3-8 words, specific to the hook/topic.",
+    "- caption: write a short TikTok/Instagram-style post caption for the slideshow, one sentence, specific to the hook/topic, no hashtags.",
+    "- hashtags: give me 3-5 broad hashtags related to the topic/niche of the content, all lowercase, nothing else other than 3-5 hashtags.",
     "Prompt instructions:",
     input.promptInstructions,
     "Placeholders:",
@@ -194,7 +204,8 @@ export function automationSchemaToTempSlideTestingAutomation(
   const hook = automationFormatSection(schema, "hook")
   const content = automationFormatSection(schema, "content")
   const cta = automationFormatSection(schema, "cta")
-  const ctaEnabled = cta.slideCount > 0 || schema.image_collection_ids.cta_slide.check
+  const ctaEnabled =
+    cta.slideCount > 0 || schema.image_collection_ids.cta_slide.check
 
   return {
     id,
@@ -280,6 +291,21 @@ export function buildTempSlideStructuredOutputSchema(
     type: "object",
     additionalProperties: false,
     properties: {
+      title: {
+        type: "string",
+        description:
+          "AI-generated slideshow title, 3-8 words, specific to the hook/topic.",
+      },
+      caption: {
+        type: "string",
+        description:
+          "Short TikTok/Instagram-style post caption for the slideshow, one sentence, specific to the hook/topic, no hashtags.",
+      },
+      hashtags: {
+        type: "string",
+        description:
+          "Give me 3-5 broad hashtags related to the topic/niche of the content, all lowercase, nothing else other than 3-5 hashtags.",
+      },
       text: {
         type: "object",
         additionalProperties: false,
@@ -287,7 +313,7 @@ export function buildTempSlideStructuredOutputSchema(
         required: promptPlaceholders.map((placeholder) => placeholder.id),
       },
     },
-    required: ["text"],
+    required: ["title", "caption", "hashtags", "text"],
   }
 }
 
@@ -311,6 +337,9 @@ export function normalizeTempSlideStructuredOutput(
   const textRecord =
     isRecord(output) && isRecord(output.text) ? output.text : {}
   return {
+    title: clean(isRecord(output) ? output.title : ""),
+    caption: clean(isRecord(output) ? output.caption : ""),
+    hashtags: normalizeHashtags(clean(isRecord(output) ? output.hashtags : "")),
     text: Object.fromEntries(
       placeholders.map((placeholder) => [
         placeholder.id,
@@ -322,6 +351,15 @@ export function normalizeTempSlideStructuredOutput(
       ])
     ),
   }
+}
+
+function normalizeHashtags(value: string) {
+  return value
+    .split(/\s+/)
+    .map((tag) => tag.trim().toLowerCase())
+    .filter((tag) => tag.startsWith("#") && tag.length > 1)
+    .slice(0, 5)
+    .join(" ")
 }
 
 function buildAutomationSlideSpec(input: {
@@ -373,7 +411,9 @@ function automationTextItemToPlaceholder(input: {
     section: input.section,
     slideId: input.slideId,
     label: `${input.section} text ${input.index + 1}`,
-    contentDirection: clean(input.textItem.contentDirection || input.textItem.text),
+    contentDirection: clean(
+      input.textItem.contentDirection || input.textItem.text
+    ),
     wordLengthMin: input.textItem.wordLengthMin,
     wordLengthMax: input.textItem.wordLengthMax,
     textMode: input.textItem.textMode,

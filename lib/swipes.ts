@@ -1,7 +1,16 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 
-export type SwipePlatform = "facebook" | "tiktok" | "tiktok-creative" | "tiktok-seller" | "google" | "twitter" | "unknown"
+import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-registry"
+
+export type SwipePlatform =
+  | "facebook"
+  | "tiktok"
+  | "tiktok-creative"
+  | "tiktok-seller"
+  | "google"
+  | "twitter"
+  | "unknown"
 export type SwipeFormat = "image" | "video" | "carousel" | "unknown"
 export type BudgetLevel = "low" | "medium" | "high" | "unknown"
 export type ConfidenceLevel = "low" | "medium" | "high"
@@ -95,6 +104,7 @@ export type SwipeRecord = {
   cta?: string
   landingPageUrl?: string
   mediaUrl?: string
+  mediaUrls?: string[]
   source_video_url?: string
   uploaded_at?: string
   time?: number
@@ -125,7 +135,9 @@ export type SwipeRecord = {
   folder: string
 }
 
-export type SwipePayload = Partial<Omit<SwipeRecord, "id" | "swipedAt" | "screenshotPath">> & {
+export type SwipePayload = Partial<
+  Omit<SwipeRecord, "id" | "swipedAt" | "screenshotPath">
+> & {
   analyticsText?: string
   screenshotDataUrl?: string
   landingPageMobileScreenshotDataUrl?: string
@@ -157,21 +169,48 @@ export async function createSwipe(payload: SwipePayload): Promise<SwipeRecord> {
   const screenshotPath = payload.screenshotDataUrl
     ? await saveScreenshot(id, payload.screenshotDataUrl)
     : undefined
-  const landingPageMobileScreenshotPath = payload.landingPageMobileScreenshotDataUrl
-    ? await saveScreenshot(`${id}-landing-mobile`, payload.landingPageMobileScreenshotDataUrl)
-    : undefined
-  const landingPageDesktopScreenshotPath = payload.landingPageDesktopScreenshotDataUrl
-    ? await saveScreenshot(`${id}-landing-desktop`, payload.landingPageDesktopScreenshotDataUrl)
-    : undefined
+  const landingPageMobileScreenshotPath =
+    payload.landingPageMobileScreenshotDataUrl
+      ? await saveScreenshot(
+          `${id}-landing-mobile`,
+          payload.landingPageMobileScreenshotDataUrl
+        )
+      : undefined
+  const landingPageDesktopScreenshotPath =
+    payload.landingPageDesktopScreenshotDataUrl
+      ? await saveScreenshot(
+          `${id}-landing-desktop`,
+          payload.landingPageDesktopScreenshotDataUrl
+        )
+      : undefined
   const inputMediaUrl = clean(payload.mediaUrl)
-  const savedMedia = isRemoteUrl(inputMediaUrl) ? await saveRemoteMedia(id, inputMediaUrl) : undefined
+  const inputMediaUrls = mediaUrlsFromPayload(payload.mediaUrls, inputMediaUrl)
+  const shouldDownloadMediaUrls =
+    inputMediaUrls.length > 1 || (!inputMediaUrl && inputMediaUrls.length === 1)
+  const savedMediaItems = shouldDownloadMediaUrls
+    ? (await Promise.all(
+        inputMediaUrls.map((url, index) =>
+          isRemoteUrl(url)
+            ? saveRemoteMedia(id, url, `media-${index + 1}`)
+            : Promise.resolve(undefined)
+        )
+      )).filter((value): value is SavedSwipeMedia => Boolean(value))
+    : []
+  const savedMedia = savedMediaItems[0] ??
+    (isRemoteUrl(inputMediaUrl) ? await saveRemoteMedia(id, inputMediaUrl) : undefined)
+  const localMediaUrls = savedMediaItems.map((media) => media.publicUrl)
   const localMediaUrl = savedMedia?.publicUrl ?? ""
   const mediaUrl = localMediaUrl || localAppUrl(inputMediaUrl) || undefined
   const sourceVideoUrl = localMediaUrl || localAppUrl(payload.source_video_url)
   const shouldProcess = payload.format === "video"
   const fallback = fallbackAnalysis(payload)
-  const processingStatus: SwipeProcessingStatus = shouldProcess ? "processing" : "complete"
-  const landingPageCapturedAt = landingPageMobileScreenshotPath || landingPageDesktopScreenshotPath ? now.toISOString() : undefined
+  const processingStatus: SwipeProcessingStatus = shouldProcess
+    ? "processing"
+    : "complete"
+  const landingPageCapturedAt =
+    landingPageMobileScreenshotPath || landingPageDesktopScreenshotPath
+      ? now.toISOString()
+      : undefined
 
   const next: SwipeRecord = {
     id,
@@ -185,6 +224,7 @@ export async function createSwipe(payload: SwipePayload): Promise<SwipeRecord> {
     cta: clean(payload.cta),
     landingPageUrl: clean(payload.landingPageUrl),
     mediaUrl,
+    mediaUrls: localMediaUrls.length ? localMediaUrls : undefined,
     source_video_url: sourceVideoUrl || undefined,
     uploaded_at: clean(payload.uploaded_at) || undefined,
     time: toNumber(payload.time),
@@ -198,13 +238,18 @@ export async function createSwipe(payload: SwipePayload): Promise<SwipeRecord> {
     remain_rank: clean(payload.remain_rank) || undefined,
     budget_level: normalizeBudgetLevel(payload.budget_level),
     industry_benchmark: normalizeIndustryBenchmark(payload.industry_benchmark),
-    full_script_transcription: shouldProcess ? undefined : fallback.full_script_transcription,
-    core_ugc_aesthetic_analysis: shouldProcess ? undefined : fallback.core_ugc_aesthetic_analysis,
+    full_script_transcription: shouldProcess
+      ? undefined
+      : fallback.full_script_transcription,
+    core_ugc_aesthetic_analysis: shouldProcess
+      ? undefined
+      : fallback.core_ugc_aesthetic_analysis,
     screenshotPath,
     landingPageMobileScreenshotPath,
     landingPageDesktopScreenshotPath,
     landingPageCapturedAt,
-    landingPageCaptureError: clean(payload.landingPageCaptureError) || undefined,
+    landingPageCaptureError:
+      clean(payload.landingPageCaptureError) || undefined,
     processingStatus,
     processingStartedAt: shouldProcess ? now.toISOString() : undefined,
     processingCompletedAt: shouldProcess ? undefined : now.toISOString(),
@@ -214,21 +259,37 @@ export async function createSwipe(payload: SwipePayload): Promise<SwipeRecord> {
     folder: clean(payload.folder) || "No Folder",
   }
 
-  await writeFile(swipeDbPath, `${JSON.stringify([next, ...current], null, 2)}\n`, "utf8")
+  await writeFile(
+    swipeDbPath,
+    `${JSON.stringify([next, ...current], null, 2)}\n`,
+    "utf8"
+  )
   if (shouldProcess) {
-    void completeSwipeProcessing(id, payload, { sourceVideoUrl, media: savedMedia })
+    void completeSwipeProcessing(id, payload, {
+      sourceVideoUrl,
+      media: savedMedia,
+    })
   }
   return next
 }
 
-export async function updateSwipe(id: string, patch: Partial<SwipeRecord>): Promise<SwipeRecord | undefined> {
+export async function updateSwipe(
+  id: string,
+  patch: Partial<SwipeRecord>
+): Promise<SwipeRecord | undefined> {
   const current = await readAllSwipes()
   let updated: SwipeRecord | undefined
   const next = current.map((swipe) => {
     if (swipe.id !== id) {
       return swipe
     }
-    updated = { ...swipe, ...patch, metadata: patch.metadata ? sanitizeSwipeMetadata(patch.metadata) : swipe.metadata }
+    updated = {
+      ...swipe,
+      ...patch,
+      metadata: patch.metadata
+        ? sanitizeSwipeMetadata(patch.metadata)
+        : swipe.metadata,
+    }
     return updated
   })
 
@@ -240,10 +301,35 @@ export async function updateSwipe(id: string, patch: Partial<SwipeRecord>): Prom
   return updated
 }
 
-async function completeSwipeProcessing(id: string, payload: SwipePayload, input: {
-  sourceVideoUrl: string
-  media?: SavedSwipeMedia
-}) {
+export async function deleteSwipe(id: string): Promise<SwipeRecord | undefined> {
+  const cleanId = clean(id)
+  if (!cleanId) {
+    return undefined
+  }
+
+  const current = await readAllSwipes()
+  const deleted = current.find((swipe) => swipe.id === cleanId)
+  if (!deleted) {
+    return undefined
+  }
+
+  await writeFile(
+    swipeDbPath,
+    `${JSON.stringify(current.filter((swipe) => swipe.id !== cleanId), null, 2)}\n`,
+    "utf8"
+  )
+  await deleteSwipeAssets(deleted)
+  return deleted
+}
+
+async function completeSwipeProcessing(
+  id: string,
+  payload: SwipePayload,
+  input: {
+    sourceVideoUrl: string
+    media?: SavedSwipeMedia
+  }
+) {
   try {
     const analysis = await enrichSwipeAnalysis(payload, input)
     await updateSwipe(id, {
@@ -257,7 +343,8 @@ async function completeSwipeProcessing(id: string, payload: SwipePayload, input:
     await updateSwipe(id, {
       processingStatus: "failed",
       processingCompletedAt: new Date().toISOString(),
-      processingError: error instanceof Error ? error.message : "Swipe processing failed",
+      processingError:
+        error instanceof Error ? error.message : "Swipe processing failed",
     })
   }
 }
@@ -265,10 +352,22 @@ async function completeSwipeProcessing(id: string, payload: SwipePayload, input:
 async function readAllSwipes(): Promise<SwipeRecord[]> {
   await ensureSwipeStore()
   const file = await readFile(swipeDbPath, "utf8")
-  return (JSON.parse(file) as SwipeRecord[]).map((swipe) => ({
+  return (JSON.parse(file) as SwipeRecord[]).map(normalizeStoredSwipe)
+}
+
+function normalizeStoredSwipe(swipe: SwipeRecord): SwipeRecord {
+  return {
     ...swipe,
+    mediaUrl: localAppUrl(swipe.mediaUrl) || undefined,
+    mediaUrls: normalizeStoredMediaUrls(swipe.mediaUrls),
+    source_video_url: localAppUrl(swipe.source_video_url) || undefined,
+    screenshotPath: localAppUrl(swipe.screenshotPath) || undefined,
+    landingPageMobileScreenshotPath:
+      localAppUrl(swipe.landingPageMobileScreenshotPath) || undefined,
+    landingPageDesktopScreenshotPath:
+      localAppUrl(swipe.landingPageDesktopScreenshotPath) || undefined,
     metadata: sanitizeSwipeMetadata(swipe.metadata),
-  }))
+  }
 }
 
 async function ensureSwipeStore() {
@@ -288,11 +387,50 @@ async function saveScreenshot(id: string, dataUrl: string) {
 
   const extension = match[1] === "jpeg" ? "jpg" : match[1]
   const fileName = `${id}.${extension}`
-  await writeFile(path.join(swipeAssetRoot, fileName), Buffer.from(match[2], "base64"))
+  await writeFile(
+    path.join(swipeAssetRoot, fileName),
+    Buffer.from(match[2], "base64")
+  )
   return `/api/swipes/assets/${fileName}`
 }
 
-async function saveRemoteMedia(id: string, mediaUrl: string): Promise<SavedSwipeMedia | undefined> {
+async function deleteSwipeAssets(swipe: SwipeRecord) {
+  const paths = [
+    swipe.mediaUrl,
+    ...(Array.isArray(swipe.mediaUrls) ? swipe.mediaUrls : []),
+    swipe.source_video_url,
+    swipe.screenshotPath,
+    swipe.landingPageMobileScreenshotPath,
+    swipe.landingPageDesktopScreenshotPath,
+  ]
+    .map(swipeAssetPublicUrlToPath)
+    .filter((value): value is string => Boolean(value))
+
+  await Promise.all(
+    Array.from(new Set(paths)).map((filePath) =>
+      rm(filePath, { force: true }).catch(() => undefined)
+    )
+  )
+}
+
+function swipeAssetPublicUrlToPath(value: unknown) {
+  const url = clean(value)
+  const prefix = "/api/swipes/assets/"
+  if (!url.startsWith(prefix)) {
+    return ""
+  }
+  const fileName = path.basename(decodeURIComponent(url.slice(prefix.length)))
+  if (!fileName || fileName === "." || fileName === "..") {
+    return ""
+  }
+  return path.join(swipeAssetRoot, fileName)
+}
+
+async function saveRemoteMedia(
+  id: string,
+  mediaUrl: string,
+  suffix = "media"
+): Promise<SavedSwipeMedia | undefined> {
   try {
     const url = new URL(mediaUrl)
     if (url.protocol !== "https:" && url.protocol !== "http:") {
@@ -308,8 +446,16 @@ async function saveRemoteMedia(id: string, mediaUrl: string): Promise<SavedSwipe
       return undefined
     }
 
-    const contentType = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() ?? ""
-    if (!contentType.startsWith("image/") && !contentType.startsWith("video/")) {
+    const contentType =
+      response.headers
+        .get("content-type")
+        ?.split(";")[0]
+        .trim()
+        .toLowerCase() ?? ""
+    if (
+      !contentType.startsWith("image/") &&
+      !contentType.startsWith("video/")
+    ) {
       return undefined
     }
 
@@ -324,7 +470,7 @@ async function saveRemoteMedia(id: string, mediaUrl: string): Promise<SavedSwipe
     }
 
     const format = extensionFromContentType(contentType)
-    const fileName = `${id}-media.${format}`
+    const fileName = `${id}-${suffix}.${format}`
     const filePath = path.join(swipeAssetRoot, fileName)
     await writeFile(filePath, buffer)
     return {
@@ -335,6 +481,28 @@ async function saveRemoteMedia(id: string, mediaUrl: string): Promise<SavedSwipe
   } catch {
     return undefined
   }
+}
+
+function mediaUrlsFromPayload(value: unknown, fallback: string) {
+  const urls = Array.isArray(value)
+    ? value.map(clean)
+    : typeof value === "string"
+      ? value.split(",").map(clean)
+      : []
+  if (fallback) {
+    urls.unshift(fallback)
+  }
+  return Array.from(new Set(urls.filter(Boolean)))
+}
+
+function normalizeStoredMediaUrls(value: unknown) {
+  if (!Array.isArray(value)) {
+    return undefined
+  }
+  const urls = Array.from(
+    new Set(value.map(localAppUrl).filter(Boolean))
+  )
+  return urls.length ? urls : undefined
 }
 
 function extensionFromContentType(contentType: string) {
@@ -411,19 +579,33 @@ function toNumber(value: unknown) {
     return undefined
   }
 
-  const multiplier = match[2]?.toUpperCase() === "B" ? 1_000_000_000 : match[2]?.toUpperCase() === "M" ? 1_000_000 : match[2]?.toUpperCase() === "K" ? 1_000 : 1
+  const multiplier =
+    match[2]?.toUpperCase() === "B"
+      ? 1_000_000_000
+      : match[2]?.toUpperCase() === "M"
+        ? 1_000_000
+        : match[2]?.toUpperCase() === "K"
+          ? 1_000
+          : 1
   return Math.round(amount * multiplier)
 }
 
 function normalizeBudgetLevel(value: unknown): BudgetLevel | undefined {
   const normalized = clean(value).toLowerCase()
-  if (normalized === "low" || normalized === "medium" || normalized === "high" || normalized === "unknown") {
+  if (
+    normalized === "low" ||
+    normalized === "medium" ||
+    normalized === "high" ||
+    normalized === "unknown"
+  ) {
     return normalized
   }
   return undefined
 }
 
-function normalizeIndustryBenchmark(value: unknown): IndustryBenchmark | undefined {
+function normalizeIndustryBenchmark(
+  value: unknown
+): IndustryBenchmark | undefined {
   if (!value || typeof value !== "object") {
     return undefined
   }
@@ -439,10 +621,13 @@ function normalizeIndustryBenchmark(value: unknown): IndustryBenchmark | undefin
   return { metric, rank, comparison }
 }
 
-export async function enrichSwipeAnalysis(payload: SwipePayload, input: {
-  sourceVideoUrl: string
-  media?: SavedSwipeMedia
-}): Promise<{
+export async function enrichSwipeAnalysis(
+  payload: SwipePayload,
+  input: {
+    sourceVideoUrl: string
+    media?: SavedSwipeMedia
+  }
+): Promise<{
   full_script_transcription: FullScriptTranscription
   core_ugc_aesthetic_analysis: CoreUgcAestheticAnalysis
 }> {
@@ -452,8 +637,18 @@ export async function enrichSwipeAnalysis(payload: SwipePayload, input: {
     return fallback
   }
 
-  const transcript = await transcribeSwipeMedia(input.media, fallback.full_script_transcription, key)
-  const coreAnalysis = await analyzeSwipeAesthetic(payload, input.sourceVideoUrl, transcript, fallback.core_ugc_aesthetic_analysis, key)
+  const transcript = await transcribeSwipeMedia(
+    input.media,
+    fallback.full_script_transcription,
+    key
+  )
+  const coreAnalysis = await analyzeSwipeAesthetic(
+    payload,
+    input.sourceVideoUrl,
+    transcript,
+    fallback.core_ugc_aesthetic_analysis,
+    key
+  )
 
   return {
     full_script_transcription: transcript,
@@ -461,7 +656,11 @@ export async function enrichSwipeAnalysis(payload: SwipePayload, input: {
   }
 }
 
-async function transcribeSwipeMedia(media: SavedSwipeMedia | undefined, fallback: FullScriptTranscription, key: string) {
+async function transcribeSwipeMedia(
+  media: SavedSwipeMedia | undefined,
+  fallback: FullScriptTranscription,
+  key: string
+) {
   if (!media?.filePath) {
     return fallback
   }
@@ -472,22 +671,25 @@ async function transcribeSwipeMedia(media: SavedSwipeMedia | undefined, fallback
       return fallback
     }
 
-    const response = await fetch("https://openrouter.ai/api/v1/audio/transcriptions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "http://localhost:3000",
-        "X-Title": "CFarm Swipe Analyzer",
-      },
-      body: JSON.stringify({
-        model: "openai/whisper-1",
-        input_audio: {
-          data: audioBytes.toString("base64"),
-          format: media.format,
+    const response = await fetch(
+      "https://openrouter.ai/api/v1/audio/transcriptions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "http://localhost:3000",
+          "X-Title": "CFarm Swipe Analyzer",
         },
-      }),
-    })
+        body: JSON.stringify({
+          model: openRouterModelForUseCase("swipeTranscription"),
+          input_audio: {
+            data: audioBytes.toString("base64"),
+            format: media.format,
+          },
+        }),
+      }
+    )
 
     if (!response.ok) {
       return fallback
@@ -515,47 +717,50 @@ async function analyzeSwipeAesthetic(
   sourceVideoUrl: string,
   transcript: FullScriptTranscription,
   fallback: CoreUgcAestheticAnalysis,
-  key: string,
+  key: string
 ) {
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "http://localhost:3000",
-        "X-Title": "CFarm Swipe Analyzer",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content:
-              "Return only JSON. Fill core_ugc_aesthetic_analysis for a short-form UGC ad. Use the provided Whisper transcript as fixed source text. Do not create, rewrite, or return any transcript. Use empty arrays and 'unknown' when evidence is missing. Do not invent numeric metrics.",
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify({
-                  schema: {
-                    core_ugc_aesthetic_analysis: fallback,
-                  },
-                  title: payload.title,
-                  caption: payload.caption,
-                  transcript_text: transcript.full_text,
-                  source_video_url: sourceVideoUrl,
-                  analytics_text: clean(payload.analyticsText).slice(0, 6000),
-                }),
-              },
-            ],
-          },
-        ],
-      }),
-    })
+    const response = await fetch(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "http://localhost:3000",
+          "X-Title": "CFarm Swipe Analyzer",
+        },
+        body: JSON.stringify({
+          model: openRouterModelForUseCase("swipeAnalysis"),
+          response_format: { type: "json_object" },
+          messages: [
+            {
+              role: "system",
+              content:
+                "Return only JSON. Fill core_ugc_aesthetic_analysis for a short-form UGC ad. Use the provided Whisper transcript as fixed source text. Do not create, rewrite, or return any transcript. Use empty arrays and 'unknown' when evidence is missing. Do not invent numeric metrics.",
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify({
+                    schema: {
+                      core_ugc_aesthetic_analysis: fallback,
+                    },
+                    title: payload.title,
+                    caption: payload.caption,
+                    transcript_text: transcript.full_text,
+                    source_video_url: sourceVideoUrl,
+                    analytics_text: clean(payload.analyticsText).slice(0, 6000),
+                  }),
+                },
+              ],
+            },
+          ],
+        }),
+      }
+    )
 
     if (!response.ok) {
       return fallback
@@ -573,7 +778,10 @@ async function analyzeSwipeAesthetic(
       core_ugc_aesthetic_analysis: CoreUgcAestheticAnalysis
     }>
 
-    return normalizeAestheticAnalysis(parsed.core_ugc_aesthetic_analysis, fallback)
+    return normalizeAestheticAnalysis(
+      parsed.core_ugc_aesthetic_analysis,
+      fallback
+    )
   } catch {
     return fallback
   }
@@ -583,7 +791,10 @@ function fallbackAnalysis(payload: SwipePayload): {
   full_script_transcription: FullScriptTranscription
   core_ugc_aesthetic_analysis: CoreUgcAestheticAnalysis
 } {
-  const text = clean(payload.analyticsText) || clean(payload.caption) || clean(payload.title)
+  const text =
+    clean(payload.analyticsText) ||
+    clean(payload.caption) ||
+    clean(payload.title)
   return {
     full_script_transcription: {
       speakers: text ? [{ speaker: "Unknown", text }] : [],
@@ -639,7 +850,10 @@ function fallbackAnalysis(payload: SwipePayload): {
   }
 }
 
-function normalizeAestheticAnalysis(value: unknown, fallback: CoreUgcAestheticAnalysis): CoreUgcAestheticAnalysis {
+function normalizeAestheticAnalysis(
+  value: unknown,
+  fallback: CoreUgcAestheticAnalysis
+): CoreUgcAestheticAnalysis {
   if (!value || typeof value !== "object") {
     return fallback
   }
@@ -647,7 +861,12 @@ function normalizeAestheticAnalysis(value: unknown, fallback: CoreUgcAestheticAn
 }
 
 function hasCapturedSwipeMedia(swipe: SwipeRecord) {
-  return Boolean(swipe.processingStatus === "processing" || clean(swipe.screenshotPath) || clean(swipe.mediaUrl))
+  return Boolean(
+    swipe.processingStatus === "processing" ||
+    clean(swipe.screenshotPath) ||
+    clean(swipe.mediaUrl) ||
+    Boolean(swipe.mediaUrls?.length)
+  )
 }
 
 function platformLabel(platform?: SwipePlatform) {

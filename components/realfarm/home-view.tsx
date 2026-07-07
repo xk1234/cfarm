@@ -4,8 +4,11 @@ import { useEffect, useRef, useState } from "react"
 import {
   IconChevronLeft,
   IconChevronRight,
+  IconPhoto,
   IconPlayerPlay,
   IconPlus,
+  IconSlideshow,
+  IconVideo,
 } from "@tabler/icons-react"
 
 import {
@@ -13,6 +16,11 @@ import {
   generatedExampleSlides,
   type GeneratedShowcaseRun,
 } from "@/components/realfarm/template-showcase-preview"
+import {
+  MediaCardShell,
+  MediaFrame,
+  MediaPendingState,
+} from "@/components/realfarm/shared-media"
 import { ExampleSlideshowModal } from "@/components/realfarm/example-slideshow-modal"
 import { Button } from "@/components/ui/button"
 import { fetchJsonWithTimeout } from "@/lib/client-api"
@@ -277,7 +285,7 @@ function QuickStartTemplateCard({
         type="button"
         className="block h-[128px] w-full text-left"
         onClick={onOpenExamples}
-        aria-label={`View ${automation.name} example slideshow`}
+        aria-label={`View ${automation.name} examples`}
       >
         <TemplateGeneratedPreview
           exampleSlides={exampleSlides}
@@ -288,10 +296,24 @@ function QuickStartTemplateCard({
       <div className="flex items-center justify-between gap-3 px-3 py-3">
         <div className="min-w-0">
           <div className="truncate text-[15px] font-bold text-[#30302e]">
-            {automation.name}
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              {automation.automationKind === "video" ? (
+                <IconVideo className="size-4 shrink-0 text-[#67665f]" />
+              ) : (
+                <IconSlideshow className="size-4 shrink-0 text-[#67665f]" />
+              )}
+              <span className="truncate">{automation.name}</span>
+            </span>
           </div>
-          <div className="mt-0.5 text-[12px] font-semibold text-[#8a8a83]">
-            Automation template
+          <div className="mt-0.5 flex items-center gap-1 text-[12px] font-semibold text-[#8a8a83]">
+            {automation.automationKind === "video" ? (
+              <IconPlayerPlay className="size-3.5" />
+            ) : (
+              <IconPhoto className="size-3.5" />
+            )}
+            {automation.automationKind === "video"
+              ? "Video automation"
+              : "Slideshow automation"}
           </div>
         </div>
         <Button variant="softControl" size="sm" onClick={onUse}>
@@ -322,22 +344,15 @@ function VideoCard({ item }: { item: GeneratedVideoExport }) {
 
   if (isPending) {
     return (
-      <article className="overflow-hidden rounded-[7px] border border-[#deddd5] bg-white shadow-sm">
-        <div className="relative flex aspect-[9/16] flex-col items-center justify-center gap-4 bg-white p-6 text-center">
-          <div className="text-[13px] font-semibold text-[#667085]">
-            Creating hook video...
-          </div>
-          <div className="h-1.5 w-full max-w-[140px] overflow-hidden rounded-full bg-[#ecebe4]">
-            <div className="h-full w-2/5 animate-[shimmer_1.5s_ease-in-out_infinite] rounded-full bg-[#242421]" />
-          </div>
-        </div>
-      </article>
+      <MediaCardShell>
+        <MediaPendingState label="Creating hook video..." />
+      </MediaCardShell>
     )
   }
 
   return (
-    <article className="overflow-hidden rounded-[7px] border border-[#deddd5] bg-white shadow-sm">
-      <div className="relative aspect-[9/16] bg-[#d8d6ce]">
+    <MediaCardShell>
+      <MediaFrame>
         {item.videoUrl ? (
           <>
             <video
@@ -367,9 +382,9 @@ function VideoCard({ item }: { item: GeneratedVideoExport }) {
             style={{ backgroundImage: `url(${item.previewUrl})` }}
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-[#dfd2c4] via-[#a37b68] to-[#3c3532]" />
+          <div className="app-media-poster-fallback absolute inset-0" />
         )}
-      </div>
-    </article>
+      </MediaFrame>
+    </MediaCardShell>
   )
 }

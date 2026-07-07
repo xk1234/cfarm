@@ -1,40 +1,674 @@
 {
   "generations": [
     {
-      "id": "recovered-1783000155531-dbc02a9c6dde97972c9e0506edec743a",
-      "characterId": 1782997043443,
-      "prompt": "Recovered generated character image",
-      "model": "Unknown model",
-      "createdAt": "2026-07-02T13:49:15.531Z",
+      "id": "3e99acd31ca9145eef27179aacbdd35c",
+      "characterId": 1783255593836,
+      "prompt": "Edit the original image to create a strong pose variation. Increase head tilt significantly. Lean the face slightly closer toward the camera. Angle the head downward and sideways as if filmed from a tilted handheld selfie. Preserve identity, face structure, hairstyle, and outfit. Background and lighting may remain simple.\n\nGenerate a smooth handheld selfie transition from image 1 to image 2. Preserve identity, face structure, hairstyle, and outfit. The movement should emphasize a stronger head tilt, face leaning closer to camera, and a downward sideways tilted selfie angle. Natural realistic motion, stable face, no identity drift.",
+      "model": "Nano Banana Pro + Kling 2.5 + ffmpeg",
+      "createdAt": "2026-07-05T16:27:51.466Z",
       "attachments": [],
       "aspectRatio": "9:16",
       "status": "ready",
-      "imageUrl": "/api/local-assets/characters/images/1783000155531-dbc02a9c6dde97972c9e0506edec743a.png",
-      "progress": 100
+      "imageUrl": "/api/local-assets/characters/images/1783268436467-04256a4f1ad94219cf702eee1a03be30.png",
+      "progress": 100,
+      "videoUrl": "/api/local-assets/characters/videos/1783268869275-3e99acd31ca9145eef27179aacbdd35c-pose-variation-final.mp4",
+      "videoStatus": "ready",
+      "videoProgress": 100,
+      "workflow": "pose_variation_cut_video",
+      "workflowLabel": "Pose Cut Video",
+      "workflowMetadata": {
+        "workflow": "pose_variation_cut_video",
+        "workflowLabel": "Pose Cut Video",
+        "recipe": {
+          "originalImageUrl": "/api/local-assets/characters/images/1783268249995-de16aea1203b3c54a88c76e0a3c44f86.png",
+          "endImageUrl": "/api/local-assets/characters/images/1783268436467-04256a4f1ad94219cf702eee1a03be30.png",
+          "rawVideoUrl": "/api/local-assets/characters/videos/1783268868803-3e99acd31ca9145eef27179aacbdd35c-pose-variation-raw.mp4",
+          "musicPath": "/Users/yexinkang/Desktop/cfarm/data/music/Tiktok Trending Songs/Instrumental/Drake - Family Matters _INSTRUMENTAL_ _PT_ 2__4.mp3",
+          "microCuts": [
+            {
+              "start": 2.118,
+              "end": 2.393
+            },
+            {
+              "start": 3.29,
+              "end": 3.49
+            }
+          ]
+        }
+      }
     },
     {
-      "id": "recovered-1783045993707-57fdcc55cb345c362934dd20675dbf37",
-      "characterId": 1782997043443,
-      "prompt": "Recovered generated character image",
-      "model": "Unknown model",
-      "createdAt": "2026-07-03T02:33:13.707Z",
+      "id": "52a371fd2167a730e0ccaa0eaf91d837",
+      "characterId": 1783255593836,
+      "prompt": "Same girl as reference image, identical face and features. Follow the movement and facial expressions in the video precisely. Smooth realistic animation, natural physics, stable camera.",
+      "model": "Kling 3.0 Motion Control",
+      "createdAt": "2026-07-05T16:26:47.600Z",
       "attachments": [],
       "aspectRatio": "9:16",
       "status": "ready",
-      "imageUrl": "/api/local-assets/characters/images/1783045993707-57fdcc55cb345c362934dd20675dbf37.png",
-      "progress": 100
+      "imageUrl": "/api/local-assets/characters/images/1783268249995-de16aea1203b3c54a88c76e0a3c44f86.png",
+      "progress": 100,
+      "videoUrl": "/api/local-assets/characters/videos/1783268807114-52a371fd2167a730e0ccaa0eaf91d837.mp4",
+      "videoStatus": "ready",
+      "videoProgress": 100,
+      "workflow": "motion_control",
+      "workflowLabel": "Motion Control",
+      "workflowMetadata": {
+        "workflow": "motion_control",
+        "workflowLabel": "Motion Control",
+        "recipe": {
+          "motionVideoUrl": "/api/local-assets/assets/files/1783266973034-4660c301-d37d-4dda-921b-bae2c9fab69c.mp4",
+          "character_orientation": "image"
+        }
+      }
     },
     {
-      "id": "recovered-1783046042142-3f77610b2f7756c61ff9f83bd3d73b4c",
-      "characterId": 1782997043443,
-      "prompt": "Recovered generated character image",
-      "model": "Unknown model",
-      "createdAt": "2026-07-03T02:34:02.142Z",
+      "id": "de16aea1203b3c54a88c76e0a3c44f86",
+      "characterId": 1783255593836,
+      "prompt": "have the woman in image 1 wearing the clothing from reference image 2. Preserve facial structure, skin texture, lighting and body proportions.",
+      "model": "Wan 2.7 Image",
+      "createdAt": "2026-07-05T16:17:30.280Z",
       "attachments": [],
       "aspectRatio": "9:16",
       "status": "ready",
-      "imageUrl": "/api/local-assets/characters/images/1783046042142-3f77610b2f7756c61ff9f83bd3d73b4c.png",
-      "progress": 100
+      "imageUrl": "/api/local-assets/characters/images/1783268249995-de16aea1203b3c54a88c76e0a3c44f86.png",
+      "progress": 100,
+      "workflow": "outfit_transfer",
+      "workflowLabel": "Outfit Transfer",
+      "workflowMetadata": {
+        "workflow": "outfit_transfer",
+        "workflowLabel": "Outfit Transfer",
+        "recipe": {
+          "clothingImageUrl": "/api/local-assets/assets/outfits/victorias-secret-sleep-11254312-black-pink-angel-pink.jpg",
+          "providerModel": "wan/2-7-image"
+        },
+        "note": "KIE docs currently expose wan/2-7-image for Wan image editing; wan-2.6-image-edit was not found in current docs."
+      }
+    },
+    {
+      "id": "f66fc9624509ce6dbfd0a44471805e49",
+      "characterId": 1783255593836,
+      "prompt": "Create a photorealistic UGC image of Jade.\n\nUse image 1 only for the character identity, face, features, skin texture, and body proportions.\n\nUse the reference recipe JSON below for pose, composition, camera, outfit vibe, background, and lighting.\n\nDo not copy the reference person's identity. The identity must stay as the character in image 1.\n\nreference recipe:\n{\n  \"composition\": {\n    \"orientation\": \"vertical portrait\",\n    \"framing\": \"tight upper-body to mid-thigh selfie framing with arms extending toward the camera\",\n    \"subject_position\": \"centered, leaning forward into the frame\",\n    \"crop\": \"top of head close to upper edge; arms partially cropped at lower left and right edges; legs cropped near upper thighs\",\n    \"depth_of_field\": \"shallow-to-moderate depth of field with subject sharply emphasized and background softly minimal\",\n    \"background_perspective\": \"slightly distorted close-range perspective from a wide smartphone lens, making foreground arms and upper body appear larger\"\n  },\n  \"camera\": {\n    \"shot_type\": \"close selfie / UGC portrait\",\n    \"camera_angle\": \"low-to-slightly-upward angle, camera positioned below face level\",\n    \"camera_distance\": \"very close, arm’s-length distance\",\n    \"lens_feel\": \"wide-angle smartphone lens with mild perspective distortion\",\n    \"capture_device\": \"front-facing smartphone camera feel\",\n    \"image_texture\": \"bright, smooth, high-exposure mobile photo with polished skin detail\"\n  },\n  \"pose\": {\n    \"body_orientation\": \"body facing the camera directly\",\n    \"torso_position\": \"leaning forward from the waist toward the camera\",\n    \"head_position\": \"head slightly tilted back with chin subtly raised\",\n    \"arm_position\": \"both arms extended forward toward the camera as if holding or stabilizing the phone\",\n    \"hand_position\": \"hands out of frame or cropped, implied holding the camera\",\n    \"leg_position\": \"standing with legs slightly apart, visible from shorts downward to upper thighs\",\n    \"gaze_direction\": \"looking directly into the camera lens\"\n  },\n  \"facial_expression\": {\n    \"eyes\": \"relaxed, half-lidded eyes with long lashes\",\n    \"mouth\": \"softly pursed lips\",\n    \"overall_expression\": \"confident, posed, glamorous selfie expression\"\n  },\n  \"hair\": {\n    \"length\": \"long, reaching past chest\",\n    \"color\": \"light to medium brown with warm highlights\",\n    \"texture\": \"straight and smooth\",\n    \"parting\": \"center part\",\n    \"placement\": \"hair falls over both shoulders, with a large section draped over the left side of the chest\",\n    \"hair_accessories\": []\n  },\n  \"clothing\": {\n    \"top\": {\n      \"type\": \"tank crop top\",\n      \"color\": \"white\",\n      \"fit\": \"tight, body-hugging\",\n      \"details\": \"scoop neckline, sleeveless, cropped above the waist\"\n    },\n    \"outerwear\": {\n      \"type\": \"none\",\n      \"color\": \"\",\n      \"fit\": \"\",\n      \"details\": \"\"\n    },\n    \"bottom\": {\n      \"type\": \"denim shorts\",\n      \"color\": \"light blue wash\",\n      \"fit\": \"high-waisted, fitted\",\n      \"details\": \"frayed raw hem, visible front pockets, casual distressed summer style\"\n    },\n    \"footwear\": {\n      \"type\": null,\n      \"color\": null,\n      \"fit\": null,\n      \"details\": null\n    }\n  },\n  \"accessories\": {\n    \"jewelry\": [\n      \"delicate thin necklace with small horizontal pendant\"\n    ],\n    \"face_accessories\": [],\n    \"handheld_items\": [\n      \"smartphone implied by selfie perspective, not visible\"\n    ],\n    \"other\": []\n  },\n  \"environment\": {\n    \"location_type\": \"indoor residential or minimal studio-like room\",\n    \"setting\": \"bright clean interior with plain light-colored walls\",\n    \"background_elements\": [\n      \"white or cream wall\",\n      \"soft curtain or bright window area on the right\",\n      \"minimal architectural edge or wall corner on the left\"\n    ],\n    \"ground_surface\": \"not visible\",\n    \"weather\": \"not visible\",\n    \"time_of_day\": \"daytime suggested by strong natural brightness\",\n    \"props\": []\n  },\n  \"lighting\": {\n    \"main_light_source\": \"strong natural daylight from the right/front-right side\",\n    \"secondary_light_sources\": [\n      \"ambient white room bounce light\"\n    ],\n    \"direction\": \"front-right and slightly above, washing across face and body\",\n    \"intensity\": \"very bright, high-key exposure\",\n    \"color_temperature\": \"neutral to warm daylight\",\n    \"shadow_quality\": \"soft, minimal shadows due to overexposure and bright bounce\",\n    \"reflections\": \"subtle highlights on hair, skin, and necklace pendant\"\n  },\n  \"recreation_notes\": {\n    \"must_preserve\": [\n      \"vertical smartphone selfie composition\",\n      \"low slightly upward angle\",\n      \"subject leaning forward with both arms extended toward camera\",\n      \"direct gaze with softly pursed lips\",\n      \"white fitted cropped tank top\",\n      \"light blue frayed denim shorts\",\n      \"long straight center-parted hair\",\n      \"bright high-key indoor daylight\",\n      \"minimal pale background\"\n    ],\n    \"can_change\": [\n      \"person identity and facial features\",\n      \"hair shade within natural brown tones\",\n      \"exact necklace pendant shape\",\n      \"room layout details\",\n      \"minor crop variations\"\n    ],\n    \"avoid\": [\n      \"identifying the original person\",\n      \"visible logos or branded items\",\n      \"overly dark or moody lighting\",\n      \"busy background\",\n      \"full-body distant framing\",\n      \"dramatic facial expression instead of relaxed posed selfie\"\n    ]\n  }\n}\n\ncharacter:\n{\n  \"name\": \"Jade\",\n  \"age\": 20,\n  \"ethnicity\": \"southeast asian\",\n  \"gender\": \"female\",\n  \"hair\": {\n    \"length\": \"long\",\n    \"texture\": \"straight\",\n    \"color\": \"dark brown\",\n    \"highlights\": \"none\",\n    \"style\": \"down\",\n    \"part\": \"side-part\"\n  },\n  \"eyes\": {\n    \"color\": \"dark brown\",\n    \"shape\": \"almond\",\n    \"details\": \"none\"\n  },\n  \"facial_features\": {\n    \"face_shape\": \"oval\",\n    \"forehead\": \"average\",\n    \"jawline\": \"defined\",\n    \"chin\": \"pointed\",\n    \"cheekbones\": \"prominent\",\n    \"nose\": \"small\",\n    \"lips\": \"full\",\n    \"eyebrows\": \"thin\",\n    \"other_distinctive_features\": \"none\"\n  },\n  \"skin\": {\n    \"tone\": \"tan\",\n    \"undertone\": \"warm\",\n    \"texture\": \"dewy\",\n    \"visible_details\": \"none\"\n  },\n  \"build\": {\n    \"body_type\": \"lean\",\n    \"height_impression\": \"average\"\n  },\n  \"clothing\": {\n    \"outfit_description\": \"casual wear\",\n    \"top\": \"light-colored short-sleeved t-shirt with a logo\",\n    \"bottoms\": \"light wash jeans\",\n    \"footwear\": \"not visible\",\n    \"makeup\": \"light natural makeup\"\n  },\n  \"posture_and_mannerisms\": {\n    \"posture\": \"relaxed\",\n    \"body_language\": \"open and smiling\",\n    \"gestures\": \"hand resting on curtain\"\n  },\n  \"emotional_baseline\": {\n    \"primary_emotion\": \"joyful\",\n    \"demeanor\": \"friendly\",\n    \"communication_style\": \"engaging and warm\"\n  },\n  \"accessories\": {\n    \"visible_accessories\": [\n      \"gold hoop earrings\",\n      \"gold chain necklace with a small pendant\",\n      \"gold bracelet\"\n    ],\n    \"no_visible_accessories\": false\n  },\n  \"voice\": {\n    \"tone\": \"warm\",\n    \"clarity\": \"clear\",\n    \"vocal_quality\": \"steady\",\n    \"speech_patterns\": \"natural conversational pacing\"\n  }\n}",
+      "model": "Nano Banana Pro",
+      "createdAt": "2026-07-05T16:16:15.201Z",
+      "attachments": [],
+      "aspectRatio": "9:16",
+      "status": "ready",
+      "imageUrl": "/api/local-assets/characters/images/1783268175138-f66fc9624509ce6dbfd0a44471805e49.png",
+      "progress": 100,
+      "workflow": "recreate_reference",
+      "workflowLabel": "Recreate Reference",
+      "workflowMetadata": {
+        "workflow": "recreate_reference",
+        "workflowLabel": "Recreate Reference",
+        "recipe": {
+          "analysis": {
+            "composition": {
+              "orientation": "vertical portrait",
+              "framing": "tight upper-body to mid-thigh selfie framing with arms extending toward the camera",
+              "subject_position": "centered, leaning forward into the frame",
+              "crop": "top of head close to upper edge; arms partially cropped at lower left and right edges; legs cropped near upper thighs",
+              "depth_of_field": "shallow-to-moderate depth of field with subject sharply emphasized and background softly minimal",
+              "background_perspective": "slightly distorted close-range perspective from a wide smartphone lens, making foreground arms and upper body appear larger"
+            },
+            "camera": {
+              "shot_type": "close selfie / UGC portrait",
+              "camera_angle": "low-to-slightly-upward angle, camera positioned below face level",
+              "camera_distance": "very close, arm’s-length distance",
+              "lens_feel": "wide-angle smartphone lens with mild perspective distortion",
+              "capture_device": "front-facing smartphone camera feel",
+              "image_texture": "bright, smooth, high-exposure mobile photo with polished skin detail"
+            },
+            "pose": {
+              "body_orientation": "body facing the camera directly",
+              "torso_position": "leaning forward from the waist toward the camera",
+              "head_position": "head slightly tilted back with chin subtly raised",
+              "arm_position": "both arms extended forward toward the camera as if holding or stabilizing the phone",
+              "hand_position": "hands out of frame or cropped, implied holding the camera",
+              "leg_position": "standing with legs slightly apart, visible from shorts downward to upper thighs",
+              "gaze_direction": "looking directly into the camera lens"
+            },
+            "facial_expression": {
+              "eyes": "relaxed, half-lidded eyes with long lashes",
+              "mouth": "softly pursed lips",
+              "overall_expression": "confident, posed, glamorous selfie expression"
+            },
+            "hair": {
+              "length": "long, reaching past chest",
+              "color": "light to medium brown with warm highlights",
+              "texture": "straight and smooth",
+              "parting": "center part",
+              "placement": "hair falls over both shoulders, with a large section draped over the left side of the chest",
+              "hair_accessories": []
+            },
+            "clothing": {
+              "top": {
+                "type": "tank crop top",
+                "color": "white",
+                "fit": "tight, body-hugging",
+                "details": "scoop neckline, sleeveless, cropped above the waist"
+              },
+              "outerwear": {
+                "type": "none",
+                "color": "",
+                "fit": "",
+                "details": ""
+              },
+              "bottom": {
+                "type": "denim shorts",
+                "color": "light blue wash",
+                "fit": "high-waisted, fitted",
+                "details": "frayed raw hem, visible front pockets, casual distressed summer style"
+              },
+              "footwear": {
+                "type": null,
+                "color": null,
+                "fit": null,
+                "details": null
+              }
+            },
+            "accessories": {
+              "jewelry": [
+                "delicate thin necklace with small horizontal pendant"
+              ],
+              "face_accessories": [],
+              "handheld_items": [
+                "smartphone implied by selfie perspective, not visible"
+              ],
+              "other": []
+            },
+            "environment": {
+              "location_type": "indoor residential or minimal studio-like room",
+              "setting": "bright clean interior with plain light-colored walls",
+              "background_elements": [
+                "white or cream wall",
+                "soft curtain or bright window area on the right",
+                "minimal architectural edge or wall corner on the left"
+              ],
+              "ground_surface": "not visible",
+              "weather": "not visible",
+              "time_of_day": "daytime suggested by strong natural brightness",
+              "props": []
+            },
+            "lighting": {
+              "main_light_source": "strong natural daylight from the right/front-right side",
+              "secondary_light_sources": [
+                "ambient white room bounce light"
+              ],
+              "direction": "front-right and slightly above, washing across face and body",
+              "intensity": "very bright, high-key exposure",
+              "color_temperature": "neutral to warm daylight",
+              "shadow_quality": "soft, minimal shadows due to overexposure and bright bounce",
+              "reflections": "subtle highlights on hair, skin, and necklace pendant"
+            },
+            "recreation_notes": {
+              "must_preserve": [
+                "vertical smartphone selfie composition",
+                "low slightly upward angle",
+                "subject leaning forward with both arms extended toward camera",
+                "direct gaze with softly pursed lips",
+                "white fitted cropped tank top",
+                "light blue frayed denim shorts",
+                "long straight center-parted hair",
+                "bright high-key indoor daylight",
+                "minimal pale background"
+              ],
+              "can_change": [
+                "person identity and facial features",
+                "hair shade within natural brown tones",
+                "exact necklace pendant shape",
+                "room layout details",
+                "minor crop variations"
+              ],
+              "avoid": [
+                "identifying the original person",
+                "visible logos or branded items",
+                "overly dark or moody lighting",
+                "busy background",
+                "full-body distant framing",
+                "dramatic facial expression instead of relaxed posed selfie"
+              ]
+            }
+          },
+          "referenceImageUrl": "/api/local-assets/assets/files/1783268108464-05edc2b0-3432-48f4-9f2d-04d6b0035857.png"
+        }
+      }
+    },
+    {
+      "id": "7bafa175dfde7d4112bcabe5f7057cfb",
+      "characterId": 1783255593836,
+      "prompt": "Create a photorealistic UGC image of Jade.\n\nUse image 1 only for the character identity, face, features, skin texture, and body proportions.\n\nUse the reference recipe JSON below for pose, composition, camera, outfit vibe, background, and lighting.\n\nDo not copy the reference person's identity. The identity must stay as the character in image 1.\n\nreference recipe:\n{\n  \"composition\": {\n    \"orientation\": \"vertical portrait smartphone selfie\",\n    \"framing\": \"tight full-body-to-three-quarter selfie framing from above, with the subject filling most of the frame diagonally\",\n    \"subject_position\": \"subject centered slightly left, body running from lower left to upper center, extended camera arm dominating the right foreground\",\n    \"crop\": \"top of head near upper edge; feet visible near bottom; right arm partially cropped by the frame edge\",\n    \"depth_of_field\": \"deep focus with subject and nearby background clearly visible\",\n    \"background_perspective\": \"steep downward perspective showing wall corner, floor, and partial door from above\"\n  },\n  \"camera\": {\n    \"shot_type\": \"high-angle mirrorless/selfie-style portrait\",\n    \"camera_angle\": \"very high angle looking down from above the subject’s face and shoulder\",\n    \"camera_distance\": \"close handheld arm’s-length distance\",\n    \"lens_feel\": \"wide-angle smartphone lens with slight perspective distortion, especially on the extended arm\",\n    \"capture_device\": \"front-facing smartphone camera or handheld phone\",\n    \"image_texture\": \"clean digital UGC texture, sharp detail, minimal grain, natural phone processing\"\n  },\n  \"pose\": {\n    \"body_orientation\": \"standing with body turned slightly sideways, hips angled toward the lower left of frame\",\n    \"torso_position\": \"torso elongated and subtly arched, shoulders angled diagonally toward camera\",\n    \"head_position\": \"head tilted upward toward the camera with chin slightly raised\",\n    \"arm_position\": \"one arm extended upward/outward holding the camera; opposite arm bent with hand placed behind or near the back of the head\",\n    \"hand_position\": \"camera hand out of frame; other hand hidden behind head/neck area\",\n    \"leg_position\": \"legs close together with one knee subtly bent; feet positioned near the bottom of frame\",\n    \"gaze_direction\": \"direct eye contact with the camera lens\"\n  },\n  \"facial_expression\": {\n    \"eyes\": \"open, alert eyes looking directly up at camera\",\n    \"mouth\": \"lips softly parted with relaxed glossed appearance\",\n    \"overall_expression\": \"neutral to subtly pouty selfie expression, calm and composed\"\n  },\n  \"hair\": {\n    \"length\": \"long\",\n    \"color\": \"blonde with slightly darker roots\",\n    \"texture\": \"smooth, pulled back with braided length\",\n    \"parting\": \"soft center/front part with face-framing strands\",\n    \"placement\": \"hair pulled into a braid falling over one shoulder/side, with loose strands framing the face\",\n    \"hair_accessories\": []\n  },\n  \"clothing\": {\n    \"top\": {\n      \"type\": \"long-sleeve fitted mini dress or one-piece bodycon outfit\",\n      \"color\": \"black\",\n      \"fit\": \"very fitted, body-hugging\",\n      \"details\": \"ribbed fabric texture, crew neckline, long sleeves\"\n    },\n    \"outerwear\": {\n      \"type\": \"none\",\n      \"color\": \"none\",\n      \"fit\": \"none\",\n      \"details\": \"no outer layer visible\"\n    },\n    \"bottom\": {\n      \"type\": \"integrated short mini dress hem\",\n      \"color\": \"black\",\n      \"fit\": \"bodycon fitted\",\n      \"details\": \"short hemline, continuous ribbed material matching top\"\n    },\n    \"footwear\": {\n      \"type\": \"sneakers\",\n      \"color\": \"white/off-white\",\n      \"fit\": \"athletic casual\",\n      \"details\": \"chunky low-top sneakers worn with white crew socks\"\n    }\n  },\n  \"accessories\": {\n    \"jewelry\": [\n      \"small hoop earring\"\n    ],\n    \"face_accessories\": [],\n    \"handheld_items\": [\n      \"smartphone used for selfie, mostly out of frame\"\n    ],\n    \"other\": [\n      \"white wireless earbud in one ear\"\n    ]\n  },\n  \"environment\": {\n    \"location_type\": \"indoor entryway or utility/back-door area\",\n    \"setting\": \"simple interior corner with painted wall and concrete floor\",\n    \"background_elements\": [\n      \"white vertical paneling on upper wall\",\n      \"dark gray painted brick or block wall on lower section\",\n      \"white door partially visible on right\",\n      \"stained concrete floor\"\n    ],\n    \"ground_surface\": \"raw or stained concrete floor\",\n    \"weather\": \"not visible, indoor setting\",\n    \"time_of_day\": \"indeterminate, likely daytime or bright indoor lighting\",\n    \"props\": [\n      \"door hinge/door edge\",\n      \"base trim or wall ledge\"\n    ]\n  },\n  \"lighting\": {\n    \"main_light_source\": \"soft overhead or front-facing ambient indoor light\",\n    \"secondary_light_sources\": [\n      \"possible reflected light from white door and wall panels\"\n    ],\n    \"direction\": \"light falls evenly from above/front, illuminating face and outfit\",\n    \"intensity\": \"moderate to bright\",\n    \"color_temperature\": \"neutral to slightly cool indoor white\",\n    \"shadow_quality\": \"soft shadows with minimal harsh contrast\",\n    \"reflections\": \"subtle highlights on glossy lips, earbud, and white shoes\"\n  },\n  \"recreation_notes\": {\n    \"must_preserve\": [\n      \"vertical high-angle smartphone selfie composition\",\n      \"direct gaze upward at camera\",\n      \"one arm extended toward camera with strong foreground perspective\",\n      \"opposite arm bent behind head\",\n      \"black ribbed long-sleeve fitted mini dress silhouette\",\n      \"white sneakers and socks\",\n      \"indoor corner with gray lower wall, white upper paneling, concrete floor, and partial door\",\n      \"soft neutral indoor lighting\"\n    ],\n    \"can_change\": [\n      \"character identity, facial features, ethnicity, and exact body type\",\n      \"exact hairstyle color or braid details while keeping pulled-back sporty styling\",\n      \"minor wall texture and floor stain patterns\",\n      \"specific jewelry style\"\n    ],\n    \"avoid\": [\n      \"identifying or matching the original person\",\n      \"studio-polished editorial lighting\",\n      \"wide environmental framing that loses selfie intimacy\",\n      \"dramatic filters or heavy retouching\",\n      \"different camera angle such as eye-level or low-angle\"\n    ]\n  }\n}\n\ncharacter:\n{\n  \"name\": \"Jade\",\n  \"age\": 20,\n  \"ethnicity\": \"southeast asian\",\n  \"gender\": \"female\",\n  \"hair\": {\n    \"length\": \"long\",\n    \"texture\": \"straight\",\n    \"color\": \"dark brown\",\n    \"highlights\": \"none\",\n    \"style\": \"down\",\n    \"part\": \"side-part\"\n  },\n  \"eyes\": {\n    \"color\": \"dark brown\",\n    \"shape\": \"almond\",\n    \"details\": \"none\"\n  },\n  \"facial_features\": {\n    \"face_shape\": \"oval\",\n    \"forehead\": \"average\",\n    \"jawline\": \"defined\",\n    \"chin\": \"pointed\",\n    \"cheekbones\": \"prominent\",\n    \"nose\": \"small\",\n    \"lips\": \"full\",\n    \"eyebrows\": \"thin\",\n    \"other_distinctive_features\": \"none\"\n  },\n  \"skin\": {\n    \"tone\": \"tan\",\n    \"undertone\": \"warm\",\n    \"texture\": \"dewy\",\n    \"visible_details\": \"none\"\n  },\n  \"build\": {\n    \"body_type\": \"lean\",\n    \"height_impression\": \"average\"\n  },\n  \"clothing\": {\n    \"outfit_description\": \"casual wear\",\n    \"top\": \"light-colored short-sleeved t-shirt with a logo\",\n    \"bottoms\": \"light wash jeans\",\n    \"footwear\": \"not visible\",\n    \"makeup\": \"light natural makeup\"\n  },\n  \"posture_and_mannerisms\": {\n    \"posture\": \"relaxed\",\n    \"body_language\": \"open and smiling\",\n    \"gestures\": \"hand resting on curtain\"\n  },\n  \"emotional_baseline\": {\n    \"primary_emotion\": \"joyful\",\n    \"demeanor\": \"friendly\",\n    \"communication_style\": \"engaging and warm\"\n  },\n  \"accessories\": {\n    \"visible_accessories\": [\n      \"gold hoop earrings\",\n      \"gold chain necklace with a small pendant\",\n      \"gold bracelet\"\n    ],\n    \"no_visible_accessories\": false\n  },\n  \"voice\": {\n    \"tone\": \"warm\",\n    \"clarity\": \"clear\",\n    \"vocal_quality\": \"steady\",\n    \"speech_patterns\": \"natural conversational pacing\"\n  }\n}",
+      "model": "Nano Banana Pro",
+      "createdAt": "2026-07-05T16:16:08.537Z",
+      "attachments": [],
+      "aspectRatio": "9:16",
+      "status": "ready",
+      "imageUrl": "/api/local-assets/characters/images/1783268168498-7bafa175dfde7d4112bcabe5f7057cfb.png",
+      "progress": 100,
+      "workflow": "recreate_reference",
+      "workflowLabel": "Recreate Reference",
+      "workflowMetadata": {
+        "workflow": "recreate_reference",
+        "workflowLabel": "Recreate Reference",
+        "recipe": {
+          "analysis": {
+            "composition": {
+              "orientation": "vertical portrait smartphone selfie",
+              "framing": "tight full-body-to-three-quarter selfie framing from above, with the subject filling most of the frame diagonally",
+              "subject_position": "subject centered slightly left, body running from lower left to upper center, extended camera arm dominating the right foreground",
+              "crop": "top of head near upper edge; feet visible near bottom; right arm partially cropped by the frame edge",
+              "depth_of_field": "deep focus with subject and nearby background clearly visible",
+              "background_perspective": "steep downward perspective showing wall corner, floor, and partial door from above"
+            },
+            "camera": {
+              "shot_type": "high-angle mirrorless/selfie-style portrait",
+              "camera_angle": "very high angle looking down from above the subject’s face and shoulder",
+              "camera_distance": "close handheld arm’s-length distance",
+              "lens_feel": "wide-angle smartphone lens with slight perspective distortion, especially on the extended arm",
+              "capture_device": "front-facing smartphone camera or handheld phone",
+              "image_texture": "clean digital UGC texture, sharp detail, minimal grain, natural phone processing"
+            },
+            "pose": {
+              "body_orientation": "standing with body turned slightly sideways, hips angled toward the lower left of frame",
+              "torso_position": "torso elongated and subtly arched, shoulders angled diagonally toward camera",
+              "head_position": "head tilted upward toward the camera with chin slightly raised",
+              "arm_position": "one arm extended upward/outward holding the camera; opposite arm bent with hand placed behind or near the back of the head",
+              "hand_position": "camera hand out of frame; other hand hidden behind head/neck area",
+              "leg_position": "legs close together with one knee subtly bent; feet positioned near the bottom of frame",
+              "gaze_direction": "direct eye contact with the camera lens"
+            },
+            "facial_expression": {
+              "eyes": "open, alert eyes looking directly up at camera",
+              "mouth": "lips softly parted with relaxed glossed appearance",
+              "overall_expression": "neutral to subtly pouty selfie expression, calm and composed"
+            },
+            "hair": {
+              "length": "long",
+              "color": "blonde with slightly darker roots",
+              "texture": "smooth, pulled back with braided length",
+              "parting": "soft center/front part with face-framing strands",
+              "placement": "hair pulled into a braid falling over one shoulder/side, with loose strands framing the face",
+              "hair_accessories": []
+            },
+            "clothing": {
+              "top": {
+                "type": "long-sleeve fitted mini dress or one-piece bodycon outfit",
+                "color": "black",
+                "fit": "very fitted, body-hugging",
+                "details": "ribbed fabric texture, crew neckline, long sleeves"
+              },
+              "outerwear": {
+                "type": "none",
+                "color": "none",
+                "fit": "none",
+                "details": "no outer layer visible"
+              },
+              "bottom": {
+                "type": "integrated short mini dress hem",
+                "color": "black",
+                "fit": "bodycon fitted",
+                "details": "short hemline, continuous ribbed material matching top"
+              },
+              "footwear": {
+                "type": "sneakers",
+                "color": "white/off-white",
+                "fit": "athletic casual",
+                "details": "chunky low-top sneakers worn with white crew socks"
+              }
+            },
+            "accessories": {
+              "jewelry": [
+                "small hoop earring"
+              ],
+              "face_accessories": [],
+              "handheld_items": [
+                "smartphone used for selfie, mostly out of frame"
+              ],
+              "other": [
+                "white wireless earbud in one ear"
+              ]
+            },
+            "environment": {
+              "location_type": "indoor entryway or utility/back-door area",
+              "setting": "simple interior corner with painted wall and concrete floor",
+              "background_elements": [
+                "white vertical paneling on upper wall",
+                "dark gray painted brick or block wall on lower section",
+                "white door partially visible on right",
+                "stained concrete floor"
+              ],
+              "ground_surface": "raw or stained concrete floor",
+              "weather": "not visible, indoor setting",
+              "time_of_day": "indeterminate, likely daytime or bright indoor lighting",
+              "props": [
+                "door hinge/door edge",
+                "base trim or wall ledge"
+              ]
+            },
+            "lighting": {
+              "main_light_source": "soft overhead or front-facing ambient indoor light",
+              "secondary_light_sources": [
+                "possible reflected light from white door and wall panels"
+              ],
+              "direction": "light falls evenly from above/front, illuminating face and outfit",
+              "intensity": "moderate to bright",
+              "color_temperature": "neutral to slightly cool indoor white",
+              "shadow_quality": "soft shadows with minimal harsh contrast",
+              "reflections": "subtle highlights on glossy lips, earbud, and white shoes"
+            },
+            "recreation_notes": {
+              "must_preserve": [
+                "vertical high-angle smartphone selfie composition",
+                "direct gaze upward at camera",
+                "one arm extended toward camera with strong foreground perspective",
+                "opposite arm bent behind head",
+                "black ribbed long-sleeve fitted mini dress silhouette",
+                "white sneakers and socks",
+                "indoor corner with gray lower wall, white upper paneling, concrete floor, and partial door",
+                "soft neutral indoor lighting"
+              ],
+              "can_change": [
+                "character identity, facial features, ethnicity, and exact body type",
+                "exact hairstyle color or braid details while keeping pulled-back sporty styling",
+                "minor wall texture and floor stain patterns",
+                "specific jewelry style"
+              ],
+              "avoid": [
+                "identifying or matching the original person",
+                "studio-polished editorial lighting",
+                "wide environmental framing that loses selfie intimacy",
+                "dramatic filters or heavy retouching",
+                "different camera angle such as eye-level or low-angle"
+              ]
+            }
+          },
+          "referenceImageUrl": "/api/local-assets/assets/files/1783268090374-778e0100-44ab-4934-ac0b-703170758898.jpg"
+        }
+      }
+    },
+    {
+      "id": "b09411c92d0549a9ddb29242f1e1855f",
+      "characterId": 1783255593836,
+      "prompt": "Create a photorealistic UGC image of Jade.\n\nUse image 1 only for the character identity, face, features, skin texture, and body proportions.\n\nUse the reference recipe JSON below for pose, composition, camera, outfit vibe, background, and lighting.\n\nDo not copy the reference person's identity. The identity must stay as the character in image 1.\n\nreference recipe:\n{\n  \"composition\": {\n    \"orientation\": \"vertical portrait smartphone selfie\",\n    \"framing\": \"tight full-body-to-three-quarter selfie framing from above, with the subject filling most of the frame diagonally\",\n    \"subject_position\": \"subject centered slightly left, body running from lower left to upper center, extended camera arm dominating the right foreground\",\n    \"crop\": \"top of head near upper edge; feet visible near bottom; right arm partially cropped by the frame edge\",\n    \"depth_of_field\": \"deep focus with subject and nearby background clearly visible\",\n    \"background_perspective\": \"steep downward perspective showing wall corner, floor, and partial door from above\"\n  },\n  \"camera\": {\n    \"shot_type\": \"high-angle mirrorless/selfie-style portrait\",\n    \"camera_angle\": \"very high angle looking down from above the subject’s face and shoulder\",\n    \"camera_distance\": \"close handheld arm’s-length distance\",\n    \"lens_feel\": \"wide-angle smartphone lens with slight perspective distortion, especially on the extended arm\",\n    \"capture_device\": \"front-facing smartphone camera or handheld phone\",\n    \"image_texture\": \"clean digital UGC texture, sharp detail, minimal grain, natural phone processing\"\n  },\n  \"pose\": {\n    \"body_orientation\": \"standing with body turned slightly sideways, hips angled toward the lower left of frame\",\n    \"torso_position\": \"torso elongated and subtly arched, shoulders angled diagonally toward camera\",\n    \"head_position\": \"head tilted upward toward the camera with chin slightly raised\",\n    \"arm_position\": \"one arm extended upward/outward holding the camera; opposite arm bent with hand placed behind or near the back of the head\",\n    \"hand_position\": \"camera hand out of frame; other hand hidden behind head/neck area\",\n    \"leg_position\": \"legs close together with one knee subtly bent; feet positioned near the bottom of frame\",\n    \"gaze_direction\": \"direct eye contact with the camera lens\"\n  },\n  \"facial_expression\": {\n    \"eyes\": \"open, alert eyes looking directly up at camera\",\n    \"mouth\": \"lips softly parted with relaxed glossed appearance\",\n    \"overall_expression\": \"neutral to subtly pouty selfie expression, calm and composed\"\n  },\n  \"hair\": {\n    \"length\": \"long\",\n    \"color\": \"blonde with slightly darker roots\",\n    \"texture\": \"smooth, pulled back with braided length\",\n    \"parting\": \"soft center/front part with face-framing strands\",\n    \"placement\": \"hair pulled into a braid falling over one shoulder/side, with loose strands framing the face\",\n    \"hair_accessories\": []\n  },\n  \"clothing\": {\n    \"top\": {\n      \"type\": \"long-sleeve fitted mini dress or one-piece bodycon outfit\",\n      \"color\": \"black\",\n      \"fit\": \"very fitted, body-hugging\",\n      \"details\": \"ribbed fabric texture, crew neckline, long sleeves\"\n    },\n    \"outerwear\": {\n      \"type\": \"none\",\n      \"color\": \"none\",\n      \"fit\": \"none\",\n      \"details\": \"no outer layer visible\"\n    },\n    \"bottom\": {\n      \"type\": \"integrated short mini dress hem\",\n      \"color\": \"black\",\n      \"fit\": \"bodycon fitted\",\n      \"details\": \"short hemline, continuous ribbed material matching top\"\n    },\n    \"footwear\": {\n      \"type\": \"sneakers\",\n      \"color\": \"white/off-white\",\n      \"fit\": \"athletic casual\",\n      \"details\": \"chunky low-top sneakers worn with white crew socks\"\n    }\n  },\n  \"accessories\": {\n    \"jewelry\": [\n      \"small hoop earring\"\n    ],\n    \"face_accessories\": [],\n    \"handheld_items\": [\n      \"smartphone used for selfie, mostly out of frame\"\n    ],\n    \"other\": [\n      \"white wireless earbud in one ear\"\n    ]\n  },\n  \"environment\": {\n    \"location_type\": \"indoor entryway or utility/back-door area\",\n    \"setting\": \"simple interior corner with painted wall and concrete floor\",\n    \"background_elements\": [\n      \"white vertical paneling on upper wall\",\n      \"dark gray painted brick or block wall on lower section\",\n      \"white door partially visible on right\",\n      \"stained concrete floor\"\n    ],\n    \"ground_surface\": \"raw or stained concrete floor\",\n    \"weather\": \"not visible, indoor setting\",\n    \"time_of_day\": \"indeterminate, likely daytime or bright indoor lighting\",\n    \"props\": [\n      \"door hinge/door edge\",\n      \"base trim or wall ledge\"\n    ]\n  },\n  \"lighting\": {\n    \"main_light_source\": \"soft overhead or front-facing ambient indoor light\",\n    \"secondary_light_sources\": [\n      \"possible reflected light from white door and wall panels\"\n    ],\n    \"direction\": \"light falls evenly from above/front, illuminating face and outfit\",\n    \"intensity\": \"moderate to bright\",\n    \"color_temperature\": \"neutral to slightly cool indoor white\",\n    \"shadow_quality\": \"soft shadows with minimal harsh contrast\",\n    \"reflections\": \"subtle highlights on glossy lips, earbud, and white shoes\"\n  },\n  \"recreation_notes\": {\n    \"must_preserve\": [\n      \"vertical high-angle smartphone selfie composition\",\n      \"direct gaze upward at camera\",\n      \"one arm extended toward camera with strong foreground perspective\",\n      \"opposite arm bent behind head\",\n      \"black ribbed long-sleeve fitted mini dress silhouette\",\n      \"white sneakers and socks\",\n      \"indoor corner with gray lower wall, white upper paneling, concrete floor, and partial door\",\n      \"soft neutral indoor lighting\"\n    ],\n    \"can_change\": [\n      \"character identity, facial features, ethnicity, and exact body type\",\n      \"exact hairstyle color or braid details while keeping pulled-back sporty styling\",\n      \"minor wall texture and floor stain patterns\",\n      \"specific jewelry style\"\n    ],\n    \"avoid\": [\n      \"identifying or matching the original person\",\n      \"studio-polished editorial lighting\",\n      \"wide environmental framing that loses selfie intimacy\",\n      \"dramatic filters or heavy retouching\",\n      \"different camera angle such as eye-level or low-angle\"\n    ]\n  }\n}\n\ncharacter:\n{\n  \"name\": \"Jade\",\n  \"age\": 20,\n  \"ethnicity\": \"southeast asian\",\n  \"gender\": \"female\",\n  \"hair\": {\n    \"length\": \"long\",\n    \"texture\": \"straight\",\n    \"color\": \"dark brown\",\n    \"highlights\": \"none\",\n    \"style\": \"down\",\n    \"part\": \"side-part\"\n  },\n  \"eyes\": {\n    \"color\": \"dark brown\",\n    \"shape\": \"almond\",\n    \"details\": \"none\"\n  },\n  \"facial_features\": {\n    \"face_shape\": \"oval\",\n    \"forehead\": \"average\",\n    \"jawline\": \"defined\",\n    \"chin\": \"pointed\",\n    \"cheekbones\": \"prominent\",\n    \"nose\": \"small\",\n    \"lips\": \"full\",\n    \"eyebrows\": \"thin\",\n    \"other_distinctive_features\": \"none\"\n  },\n  \"skin\": {\n    \"tone\": \"tan\",\n    \"undertone\": \"warm\",\n    \"texture\": \"dewy\",\n    \"visible_details\": \"none\"\n  },\n  \"build\": {\n    \"body_type\": \"lean\",\n    \"height_impression\": \"average\"\n  },\n  \"clothing\": {\n    \"outfit_description\": \"casual wear\",\n    \"top\": \"light-colored short-sleeved t-shirt with a logo\",\n    \"bottoms\": \"light wash jeans\",\n    \"footwear\": \"not visible\",\n    \"makeup\": \"light natural makeup\"\n  },\n  \"posture_and_mannerisms\": {\n    \"posture\": \"relaxed\",\n    \"body_language\": \"open and smiling\",\n    \"gestures\": \"hand resting on curtain\"\n  },\n  \"emotional_baseline\": {\n    \"primary_emotion\": \"joyful\",\n    \"demeanor\": \"friendly\",\n    \"communication_style\": \"engaging and warm\"\n  },\n  \"accessories\": {\n    \"visible_accessories\": [\n      \"gold hoop earrings\",\n      \"gold chain necklace with a small pendant\",\n      \"gold bracelet\"\n    ],\n    \"no_visible_accessories\": false\n  },\n  \"voice\": {\n    \"tone\": \"warm\",\n    \"clarity\": \"clear\",\n    \"vocal_quality\": \"steady\",\n    \"speech_patterns\": \"natural conversational pacing\"\n  }\n}",
+      "model": "Nano Banana Pro",
+      "createdAt": "2026-07-05T16:16:05.405Z",
+      "attachments": [],
+      "aspectRatio": "9:16",
+      "status": "ready",
+      "imageUrl": "/api/local-assets/characters/images/1783268165235-b09411c92d0549a9ddb29242f1e1855f.png",
+      "progress": 100,
+      "workflow": "recreate_reference",
+      "workflowLabel": "Recreate Reference",
+      "workflowMetadata": {
+        "workflow": "recreate_reference",
+        "workflowLabel": "Recreate Reference",
+        "recipe": {
+          "analysis": {
+            "composition": {
+              "orientation": "vertical portrait smartphone selfie",
+              "framing": "tight full-body-to-three-quarter selfie framing from above, with the subject filling most of the frame diagonally",
+              "subject_position": "subject centered slightly left, body running from lower left to upper center, extended camera arm dominating the right foreground",
+              "crop": "top of head near upper edge; feet visible near bottom; right arm partially cropped by the frame edge",
+              "depth_of_field": "deep focus with subject and nearby background clearly visible",
+              "background_perspective": "steep downward perspective showing wall corner, floor, and partial door from above"
+            },
+            "camera": {
+              "shot_type": "high-angle mirrorless/selfie-style portrait",
+              "camera_angle": "very high angle looking down from above the subject’s face and shoulder",
+              "camera_distance": "close handheld arm’s-length distance",
+              "lens_feel": "wide-angle smartphone lens with slight perspective distortion, especially on the extended arm",
+              "capture_device": "front-facing smartphone camera or handheld phone",
+              "image_texture": "clean digital UGC texture, sharp detail, minimal grain, natural phone processing"
+            },
+            "pose": {
+              "body_orientation": "standing with body turned slightly sideways, hips angled toward the lower left of frame",
+              "torso_position": "torso elongated and subtly arched, shoulders angled diagonally toward camera",
+              "head_position": "head tilted upward toward the camera with chin slightly raised",
+              "arm_position": "one arm extended upward/outward holding the camera; opposite arm bent with hand placed behind or near the back of the head",
+              "hand_position": "camera hand out of frame; other hand hidden behind head/neck area",
+              "leg_position": "legs close together with one knee subtly bent; feet positioned near the bottom of frame",
+              "gaze_direction": "direct eye contact with the camera lens"
+            },
+            "facial_expression": {
+              "eyes": "open, alert eyes looking directly up at camera",
+              "mouth": "lips softly parted with relaxed glossed appearance",
+              "overall_expression": "neutral to subtly pouty selfie expression, calm and composed"
+            },
+            "hair": {
+              "length": "long",
+              "color": "blonde with slightly darker roots",
+              "texture": "smooth, pulled back with braided length",
+              "parting": "soft center/front part with face-framing strands",
+              "placement": "hair pulled into a braid falling over one shoulder/side, with loose strands framing the face",
+              "hair_accessories": []
+            },
+            "clothing": {
+              "top": {
+                "type": "long-sleeve fitted mini dress or one-piece bodycon outfit",
+                "color": "black",
+                "fit": "very fitted, body-hugging",
+                "details": "ribbed fabric texture, crew neckline, long sleeves"
+              },
+              "outerwear": {
+                "type": "none",
+                "color": "none",
+                "fit": "none",
+                "details": "no outer layer visible"
+              },
+              "bottom": {
+                "type": "integrated short mini dress hem",
+                "color": "black",
+                "fit": "bodycon fitted",
+                "details": "short hemline, continuous ribbed material matching top"
+              },
+              "footwear": {
+                "type": "sneakers",
+                "color": "white/off-white",
+                "fit": "athletic casual",
+                "details": "chunky low-top sneakers worn with white crew socks"
+              }
+            },
+            "accessories": {
+              "jewelry": [
+                "small hoop earring"
+              ],
+              "face_accessories": [],
+              "handheld_items": [
+                "smartphone used for selfie, mostly out of frame"
+              ],
+              "other": [
+                "white wireless earbud in one ear"
+              ]
+            },
+            "environment": {
+              "location_type": "indoor entryway or utility/back-door area",
+              "setting": "simple interior corner with painted wall and concrete floor",
+              "background_elements": [
+                "white vertical paneling on upper wall",
+                "dark gray painted brick or block wall on lower section",
+                "white door partially visible on right",
+                "stained concrete floor"
+              ],
+              "ground_surface": "raw or stained concrete floor",
+              "weather": "not visible, indoor setting",
+              "time_of_day": "indeterminate, likely daytime or bright indoor lighting",
+              "props": [
+                "door hinge/door edge",
+                "base trim or wall ledge"
+              ]
+            },
+            "lighting": {
+              "main_light_source": "soft overhead or front-facing ambient indoor light",
+              "secondary_light_sources": [
+                "possible reflected light from white door and wall panels"
+              ],
+              "direction": "light falls evenly from above/front, illuminating face and outfit",
+              "intensity": "moderate to bright",
+              "color_temperature": "neutral to slightly cool indoor white",
+              "shadow_quality": "soft shadows with minimal harsh contrast",
+              "reflections": "subtle highlights on glossy lips, earbud, and white shoes"
+            },
+            "recreation_notes": {
+              "must_preserve": [
+                "vertical high-angle smartphone selfie composition",
+                "direct gaze upward at camera",
+                "one arm extended toward camera with strong foreground perspective",
+                "opposite arm bent behind head",
+                "black ribbed long-sleeve fitted mini dress silhouette",
+                "white sneakers and socks",
+                "indoor corner with gray lower wall, white upper paneling, concrete floor, and partial door",
+                "soft neutral indoor lighting"
+              ],
+              "can_change": [
+                "character identity, facial features, ethnicity, and exact body type",
+                "exact hairstyle color or braid details while keeping pulled-back sporty styling",
+                "minor wall texture and floor stain patterns",
+                "specific jewelry style"
+              ],
+              "avoid": [
+                "identifying or matching the original person",
+                "studio-polished editorial lighting",
+                "wide environmental framing that loses selfie intimacy",
+                "dramatic filters or heavy retouching",
+                "different camera angle such as eye-level or low-angle"
+              ]
+            }
+          },
+          "referenceImageUrl": "/api/local-assets/assets/files/1783268090374-778e0100-44ab-4934-ac0b-703170758898.jpg"
+        }
+      }
+    },
+    {
+      "id": "332f47110bde5c88a486c156a27650e2",
+      "characterId": 1783255593836,
+      "prompt": "have the woman in image 1 wearing the clothing from reference image 2. Preserve facial structure, skin texture, lighting and body proportions.",
+      "model": "Wan 2.7 Image",
+      "createdAt": "2026-07-05T16:13:10.824Z",
+      "attachments": [],
+      "aspectRatio": "9:16",
+      "status": "ready",
+      "imageUrl": "/api/local-assets/characters/images/1783267990613-332f47110bde5c88a486c156a27650e2.png",
+      "progress": 100,
+      "workflow": "outfit_transfer",
+      "workflowLabel": "Outfit Transfer",
+      "workflowMetadata": {
+        "workflow": "outfit_transfer",
+        "workflowLabel": "Outfit Transfer",
+        "recipe": {
+          "clothingImageUrl": "/api/local-assets/assets/outfits/victorias-secret-panties-11273909-black-093-praline-black.jpg",
+          "providerModel": "wan/2-7-image"
+        },
+        "note": "KIE docs currently expose wan/2-7-image for Wan image editing; wan-2.6-image-edit was not found in current docs."
+      }
+    },
+    {
+      "id": "630925add45c034e137a91a9541811e6",
+      "characterId": 1783255593836,
+      "prompt": "have the woman in image 1 wearing the clothing from reference image 2. Preserve facial structure, skin texture, lighting and body proportions.",
+      "model": "Wan 2.7 Image",
+      "createdAt": "2026-07-05T16:08:17.988Z",
+      "attachments": [],
+      "aspectRatio": "9:16",
+      "status": "ready",
+      "imageUrl": "/api/local-assets/characters/images/1783267697763-630925add45c034e137a91a9541811e6.png",
+      "progress": 100,
+      "workflow": "outfit_transfer",
+      "workflowLabel": "Outfit Transfer",
+      "workflowMetadata": {
+        "workflow": "outfit_transfer",
+        "workflowLabel": "Outfit Transfer",
+        "recipe": {
+          "clothingImageUrl": "/api/local-assets/assets/outfits/victorias-secret-panties-11255210-light-blue.jpg",
+          "providerModel": "wan/2-7-image"
+        },
+        "note": "KIE docs currently expose wan/2-7-image for Wan image editing; wan-2.6-image-edit was not found in current docs."
+      }
+    },
+    {
+      "id": "9d5c7b5a98e9963c6826f2efda00ca2a",
+      "characterId": 1783255593836,
+      "prompt": "grainy low-light bedroom selfie, natural handheld selfie in a dimly lit bedroom at night, lying on bed. moody uneven lighting. visible pillow, handheld iphone camera photo. grainy iphone camera quality. low exposure, intimate candid vibe. soft flirty smirk, head tilted toward shoulder. framing slightly cropped at forehead. wearing a ribbed white tank top. adult woman. d cup. Preserve the attached character identity, face, features, skin texture, and body proportions.",
+      "model": "Seedream v4 Edit",
+      "createdAt": "2026-07-05T15:48:47.803Z",
+      "attachments": [],
+      "aspectRatio": "9:16",
+      "status": "ready",
+      "imageUrl": "/api/local-assets/characters/images/1783266527777-9d5c7b5a98e9963c6826f2efda00ca2a.jpg",
+      "progress": 100,
+      "workflow": "seedream_bedroom_selfie",
+      "workflowLabel": "Seedream Selfie",
+      "workflowMetadata": {
+        "workflow": "seedream_bedroom_selfie",
+        "workflowLabel": "Seedream Selfie",
+        "recipe": {
+          "template": "tank_top_flirty_smile",
+          "breastSize": "d cup"
+        }
+      }
+    },
+    {
+      "id": "6d7b4a2d9d1f8664c37e0de3b0752152",
+      "characterId": 1783255593836,
+      "prompt": "grainy low-light bedroom selfie, natural handheld selfie in a dimly lit bedroom at night, lying on bed. moody uneven lighting. visible pillow and duvet. handheld iphone camera photo. grainy iphone camera quality. low exposure, intimate candid vibe. head slightly tilted downward, soft unfocused gaze, relaxed eyelids. hair slightly messy. one hand under cheek. shoulder angled slightly toward camera. wearing an oversized white t-shirt. Looking directly at camera. adult woman. d cup. Preserve the attached character identity, face, features, skin texture, and body proportions.",
+      "model": "Seedream v4 Edit",
+      "createdAt": "2026-07-05T15:39:22.063Z",
+      "attachments": [],
+      "aspectRatio": "9:16",
+      "status": "ready",
+      "imageUrl": "/api/local-assets/characters/images/1783265962033-6d7b4a2d9d1f8664c37e0de3b0752152.jpg",
+      "progress": 100,
+      "workflow": "seedream_bedroom_selfie",
+      "workflowLabel": "Seedream Selfie",
+      "workflowMetadata": {
+        "workflow": "seedream_bedroom_selfie",
+        "workflowLabel": "Seedream Selfie",
+        "recipe": {
+          "template": "barely_awake_oversized_tee",
+          "breastSize": "d cup"
+        }
+      }
+    },
+    {
+      "id": "uploaded-1783265913055-uploaded-hf_20260624_064157_a630c24c-eaeb-4bf7-a945-caabb947e85e",
+      "characterId": 1783255593836,
+      "prompt": "Dropped source image: hf_20260624_064157_a630c24c-eaeb-4bf7-a945-caabb947e85e.png",
+      "model": "Uploaded image",
+      "createdAt": "2026-07-05T15:38:33.080Z",
+      "attachments": [],
+      "aspectRatio": "9:16",
+      "status": "ready",
+      "imageUrl": "/api/local-assets/characters/images/1783265913055-uploaded-hf_20260624_064157_a630c24c-eaeb-4bf7-a945-caabb947e85e.png",
+      "progress": 100,
+      "workflowLabel": "Uploaded Source",
+      "workflowMetadata": {
+        "workflow": "free_generate",
+        "workflowLabel": "Uploaded Source",
+        "recipe": {
+          "source": "drag_drop_upload",
+          "originalFileName": "hf_20260624_064157_a630c24c-eaeb-4bf7-a945-caabb947e85e.png"
+        }
+      }
+    },
+    {
+      "id": "uploaded-1783265908041-uploaded-drag-source",
+      "characterId": 1,
+      "prompt": "Uploaded source image: drag-source.png",
+      "model": "Uploaded image",
+      "createdAt": "2026-07-05T15:38:28.042Z",
+      "attachments": [],
+      "aspectRatio": "1:1",
+      "status": "ready",
+      "imageUrl": "/api/local-assets/characters/images/1783265908041-uploaded-drag-source.png",
+      "progress": 100,
+      "workflowLabel": "Uploaded Source",
+      "workflowMetadata": {
+        "workflow": "free_generate",
+        "workflowLabel": "Uploaded Source",
+        "recipe": {
+          "source": "drag_drop_upload",
+          "originalFileName": "drag-source.png"
+        }
+      }
     }
   ]
 }

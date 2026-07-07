@@ -1,3 +1,253 @@
 {
-  "automations": []
+  "automations": [
+    {
+      "id": "automation-local-5c7c1b0d-9492-4a2b-ae4e-5ee32b2b450f",
+      "name": "Untitled automation",
+      "status": "live",
+      "account": "No social account",
+      "handle": "Click to add account",
+      "times": [
+        "11:00 AM"
+      ],
+      "favorite": false,
+      "theme": "ugc",
+      "updatedAt": "2026-07-07T01:46:06.200Z",
+      "schema": {
+        "created_at": "2026-07-07T01:46:06.200Z",
+        "title": "Untitled automation",
+        "status": "live",
+        "social_integrations": [],
+        "automationKind": "video",
+        "prompt_formatting": {
+          "style": "The first slide should have one strong hook text item. Body slides should use concise supporting text. Keep text readable and native to TikTok slideshow memes.",
+          "narrative": "Create a concise slideshow narrative for the selected topic.",
+          "num_of_slides": 4
+        },
+        "image_collection_ids": {
+          "first_slide": {
+            "collection": "",
+            "mode": "collection",
+            "single_image": null
+          },
+          "all_slides": "",
+          "aspect_ratio": "9:16",
+          "is_bg_overlay_on": true,
+          "cta_slide": {
+            "check": true,
+            "cta_collection_check": true,
+            "cta_collection_id": "",
+            "image_id": null,
+            "cta_location": "last_slide"
+          },
+          "keepOriginalAspectRatio": true,
+          "background_opacity": 25,
+          "is_bg_overlay_on_hook_image": true,
+          "textOnFirstSlideOnly": false,
+          "noTextOnSlides": false,
+          "autoPullImagesNotCollections": false,
+          "autoImagesNoTextOnImages": false,
+          "disableAutoImageForFirstSlide": false,
+          "language": "English"
+        },
+        "formatting": [
+          {
+            "id": "hook",
+            "image_url": "",
+            "textItems": [
+              {
+                "id": "text-o5rxruzx",
+                "text": "",
+                "fontSize": "10px",
+                "textStyle": "whiteText",
+                "font": "TikTok Display Medium",
+                "textPosition": "center",
+                "textItemWidth": "60%",
+                "wordLengthMin": 5,
+                "wordLengthMax": 10,
+                "contentDirection": "hook text, all lowercase",
+                "textMode": "prompt",
+                "staticText": "",
+                "textAlign": "left",
+                "textAnchor": "flush"
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "imageGrid": "none",
+            "slideCount": 1,
+            "noText": false,
+            "overlay": true,
+            "overlayOpacity": 25
+          },
+          {
+            "id": "body",
+            "image_url": "",
+            "textItems": [
+              {
+                "id": "text-9eamal36",
+                "text": "",
+                "fontSize": "8px",
+                "textStyle": "whiteText",
+                "font": "TikTok Display Medium",
+                "textPosition": "center",
+                "textItemWidth": "80%",
+                "wordLengthMin": 5,
+                "wordLengthMax": 10,
+                "contentDirection": "short supporting text, all lowercase",
+                "textMode": "prompt",
+                "staticText": "",
+                "textAlign": "left",
+                "textAnchor": "flush"
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "imageGrid": "none",
+            "slideCount": 3,
+            "noText": false,
+            "overlay": true,
+            "overlayOpacity": 25
+          },
+          {
+            "id": "cta",
+            "image_url": "",
+            "textItems": [
+              {
+                "id": "text-5f89qgjs",
+                "text": "",
+                "fontSize": "12px",
+                "textStyle": "yellowText",
+                "font": "TikTok Display Medium",
+                "textPosition": "center",
+                "textItemWidth": "70%",
+                "wordLengthMin": 5,
+                "wordLengthMax": 10,
+                "contentDirection": "",
+                "textMode": "prompt",
+                "staticText": "",
+                "textAlign": "center",
+                "textAnchor": "padded"
+              }
+            ],
+            "aspect_ratio": "fit",
+            "imageGrid": "none",
+            "slideCount": 0,
+            "ctaLocation": "last",
+            "noText": false,
+            "overlay": false,
+            "overlayOpacity": 25,
+            "imageMode": "collection"
+          },
+          {
+            "id": "_tone",
+            "value": "Conversational & Relatable",
+            "preset": "custom"
+          }
+        ],
+        "tiktok_post_settings": {
+          "caption": {
+            "mode": "prompt",
+            "static_text": "",
+            "prompt_text": "this should be in \"lowercase,\" same exact text as the first text item."
+          },
+          "description": {
+            "mode": "prompt",
+            "static_text": "",
+            "prompt_text": "give me 3-5 broad hashtags related to the topic/niche of the content, all lowercase, nothing else other than 3-5 hashtags"
+          },
+          "visibility": "PUBLIC_TO_EVERYONE",
+          "auto_music": true,
+          "auto_post": false,
+          "allow_comments": true,
+          "allow_duet": true,
+          "allow_stitch": true,
+          "disclose_video_content": false,
+          "disclose_brand_organic": false,
+          "disclose_branded_content": false,
+          "post_mode": "MEDIA_UPLOAD",
+          "publish_type": "video",
+          "slideshow_transition_style": "hard",
+          "slideshow_slide_duration": 4,
+          "slideshow_sound_id": "",
+          "slideshow_sound_name": "",
+          "slideshow_sound_url": ""
+        },
+        "social_post_settings": {
+          "tiktok": {
+            "tiktokTitle": "",
+            "tiktokIsDraft": false,
+            "tiktokAllowComments": true,
+            "tiktokAllowDuet": true,
+            "tiktokAllowStitch": true,
+            "tiktokBrandOrganic": false,
+            "tiktokBrandContent": false,
+            "tiktokAutoAddMusic": false,
+            "tiktokIsAigc": false
+          },
+          "instagram": {
+            "instagramPublishType": "TIMELINE",
+            "instagramPostToGrid": true
+          },
+          "facebook": {
+            "facebookContentType": "POST"
+          },
+          "youtube": {
+            "youtubeTitle": "",
+            "youtubePrivacy": "PUBLIC",
+            "youtubeIsShort": true,
+            "youtubeMadeForKids": false,
+            "youtubeTags": []
+          },
+          "x": {
+            "xRetweetUrl": ""
+          },
+          "linkedin": {
+            "linkedinAttachmentKey": "",
+            "linkedinVisibility": "PUBLIC"
+          },
+          "pinterest": {
+            "pinterestBoardId": "",
+            "pinterestLink": ""
+          },
+          "threads": {},
+          "telegram": {},
+          "bluesky": {},
+          "google-business-profile": {
+            "gbpLocationId": "",
+            "gbpPostType": "STANDARD",
+            "gbpEventStartDate": "",
+            "gbpEventEndDate": ""
+          }
+        },
+        "social_publish_as": {
+          "tiktok": "slideshow",
+          "instagram": "slideshow",
+          "facebook": "slideshow",
+          "youtube": "slideshow",
+          "x": "slideshow",
+          "linkedin": "slideshow",
+          "pinterest": "slideshow",
+          "threads": "slideshow",
+          "telegram": "slideshow",
+          "bluesky": "slideshow",
+          "google-business-profile": "slideshow"
+        },
+        "schedule": {
+          "timezone": "Asia/Singapore",
+          "posting_times": [
+            {
+              "time": "11:00 AM",
+              "days": [
+                "Mon",
+                "Tue",
+                "Wed",
+                "Thu",
+                "Fri",
+                "Sat",
+                "Sun"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
 }

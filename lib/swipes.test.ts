@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, test, vi } from "vitest"
@@ -294,6 +294,196 @@ describe("enrichSwipeAnalysis", () => {
     const records = JSON.parse(await readFile(path.join(tempDir, "data", "swipes", "swipes.json"), "utf8"))
     expect(records[0].mediaUrl).toBeUndefined()
     expect(records[0].source_video_url).toBeUndefined()
+  })
+
+  test("listSwipes does not expose legacy remote media URLs", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "swipe-store-"))
+    process.chdir(tempDir)
+    vi.resetModules()
+    const dbDir = path.join(tempDir, "data", "swipes")
+    await mkdir(dbDir, { recursive: true })
+    await writeFile(
+      path.join(dbDir, "swipes.json"),
+      JSON.stringify(
+        [
+          {
+            id: "legacy-remote-swipe",
+            advertiser: "Legacy",
+            platform: "tiktok",
+            source: "tiktok",
+            sourceUrl: "https://www.tiktok.com/@creator/video/123",
+            title: "Legacy remote",
+            caption: "Caption",
+            format: "video",
+            mediaUrl: "https://cdn.tiktok.com/video.mp4",
+            source_video_url: "https://cdn.tiktok.com/source.mp4",
+            screenshotPath: "/api/swipes/assets/local.png",
+            swipedAt: new Date().toISOString(),
+            metadata: {},
+            stats: {},
+            folder: "No Folder",
+          },
+        ],
+        null,
+        2
+      )
+    )
+    const { listSwipes } = await import("./swipes")
+
+    const swipes = await listSwipes()
+
+    expect(swipes).toHaveLength(1)
+    expect(swipes[0].mediaUrl).toBeUndefined()
+    expect(swipes[0].source_video_url).toBeUndefined()
+    expect(swipes[0].screenshotPath).toBe("/api/swipes/assets/local.png")
+  })
+
+  test("deleteSwipe removes the record and downloaded swipe asset", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "swipe-store-"))
+    process.chdir(tempDir)
+    vi.resetModules()
+    const { createSwipe, deleteSwipe, listSwipes } = await import("./swipes")
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(Buffer.from("fake jpg bytes"), {
+        status: 200,
+        headers: {
+          "content-type": "image/jpeg",
+          "content-length": "14",
+        },
+      })
+    )
+
+    const swipe = await createSwipe({
+      advertiser: "TikTok",
+      platform: "tiktok-seller",
+      source: "tiktok-seller",
+      sourceUrl: "https://seller-sg.tiktok.com/shoppable-videos/inspiration/videos",
+      title: "Local media",
+      caption: "Caption",
+      format: "image",
+      mediaUrl: "https://cdn.tiktok.com/cover.jpg",
+      metadata: {},
+      stats: {},
+      folder: "No Folder",
+    })
+    const mediaPath = path.join(
+      tempDir,
+      "data",
+      "swipes",
+      "assets",
+      path.basename(swipe.mediaUrl ?? "")
+    )
+    expect(await readFile(mediaPath, "utf8")).toBe("fake jpg bytes")
+
+    const deleted = await deleteSwipe(swipe.id)
+
+    expect(deleted?.id).toBe(swipe.id)
+    expect(await listSwipes()).toEqual([])
+    await expect(readFile(mediaPath)).rejects.toThrow()
+    const records = JSON.parse(
+      await readFile(path.join(tempDir, "data", "swipes", "swipes.json"), "utf8")
+    )
+    expect(records).toEqual([])
+  })
+
+  test("createSwipe downloads every mediaUrls entry and stores only local paths", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "swipe-store-"))
+    process.chdir(tempDir)
+    vi.resetModules()
+    const { createSwipe, listSwipes } = await import("./swipes")
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(Buffer.from("first jpg bytes"), {
+          status: 200,
+          headers: {
+            "content-type": "image/jpeg",
+            "content-length": "15",
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(Buffer.from("second png bytes"), {
+          status: 200,
+          headers: {
+            "content-type": "image/png",
+            "content-length": "16",
+          },
+        })
+      )
+
+    const swipe = await createSwipe({
+      advertiser: "X",
+      platform: "twitter",
+      source: "twitter",
+      sourceUrl: "https://x.com/user/status/1",
+      title: "Two images",
+      caption: "Caption",
+      format: "carousel",
+      mediaUrl: "https://pbs.twimg.com/media/first.jpg",
+      mediaUrls: [
+        "https://pbs.twimg.com/media/first.jpg",
+        "https://pbs.twimg.com/media/second.png",
+      ],
+      metadata: {},
+      stats: {},
+      folder: "No Folder",
+    })
+
+    expect(swipe.mediaUrl).toMatch(/^\/api\/swipes\/assets\/swipe-.+-media-1\.jpg$/)
+    expect(swipe.mediaUrls).toHaveLength(2)
+    expect(swipe.mediaUrls?.[0]).toBe(swipe.mediaUrl)
+    expect(swipe.mediaUrls?.[1]).toMatch(/^\/api\/swipes\/assets\/swipe-.+-media-2\.png$/)
+    expect(swipe.mediaUrls?.some((url) => url.startsWith("https://"))).toBe(false)
+    expect(await listSwipes()).toHaveLength(1)
+
+    const firstPath = path.join(tempDir, "data", "swipes", "assets", path.basename(swipe.mediaUrls?.[0] ?? ""))
+    const secondPath = path.join(tempDir, "data", "swipes", "assets", path.basename(swipe.mediaUrls?.[1] ?? ""))
+    expect(await readFile(firstPath, "utf8")).toBe("first jpg bytes")
+    expect(await readFile(secondPath, "utf8")).toBe("second png bytes")
+  })
+
+  test("deleteSwipe removes every downloaded mediaUrls asset", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "swipe-store-"))
+    process.chdir(tempDir)
+    vi.resetModules()
+    const { createSwipe, deleteSwipe } = await import("./swipes")
+    globalThis.fetch = vi.fn().mockImplementation(() =>
+      Promise.resolve(new Response(Buffer.from("fake image bytes"), {
+        status: 200,
+        headers: {
+          "content-type": "image/jpeg",
+          "content-length": "16",
+        },
+      }))
+    )
+
+    const swipe = await createSwipe({
+      advertiser: "X",
+      platform: "twitter",
+      source: "twitter",
+      sourceUrl: "https://x.com/user/status/1",
+      title: "Two images",
+      caption: "Caption",
+      format: "carousel",
+      mediaUrls: [
+        "https://pbs.twimg.com/media/first.jpg",
+        "https://pbs.twimg.com/media/second.jpg",
+      ],
+      metadata: {},
+      stats: {},
+      folder: "No Folder",
+    })
+    const mediaPaths = (swipe.mediaUrls ?? []).map((url) =>
+      path.join(tempDir, "data", "swipes", "assets", path.basename(url))
+    )
+    expect(mediaPaths).toHaveLength(2)
+
+    await deleteSwipe(swipe.id)
+
+    for (const mediaPath of mediaPaths) {
+      await expect(readFile(mediaPath)).rejects.toThrow()
+    }
   })
 })
 

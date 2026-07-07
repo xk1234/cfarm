@@ -2,7 +2,10 @@ import path from "node:path"
 
 import { NextResponse } from "next/server"
 
-import { normalizeCharacterAttributes, type Character } from "@/lib/character-model"
+import {
+  normalizeCharacterAttributes,
+  type Character,
+} from "@/lib/character-model"
 import {
   createFluxKontextTask,
   downloadRemoteImageToLocalAsset,
@@ -10,10 +13,16 @@ import {
   pollFluxKontextTask,
   uploadKieBase64Image,
 } from "@/lib/kie-image"
+import { kieFluxKontextModel } from "@/lib/realfarm-generation-model-registry"
 
 export const dynamic = "force-dynamic"
 
-const headshotFolder = path.join(process.cwd(), "data", "characters", "headshots")
+const headshotFolder = path.join(
+  process.cwd(),
+  "data",
+  "characters",
+  "headshots"
+)
 const fluxPollLimit = 70
 const fluxPollDelayMs = 3000
 
@@ -36,14 +45,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing KIE_KEY" }, { status: 500 })
     }
 
-    const sourceImageDataUrl = validSourceImageDataUrl(payload.sourceImageDataUrl)
-    const inputImage = sourceImageDataUrl ? await uploadSourceImage(apiKey, sourceImageDataUrl, name) : undefined
+    const sourceImageDataUrl = validSourceImageDataUrl(
+      payload.sourceImageDataUrl
+    )
+    const inputImage = sourceImageDataUrl
+      ? await uploadSourceImage(apiKey, sourceImageDataUrl, name)
+      : undefined
     const taskId = await createFluxKontextTask({
       apiKey,
       prompt,
       inputImage,
       aspectRatio: "1:1",
-      model: "flux-kontext-pro",
+      model: kieFluxKontextModel,
     })
     const imageUrl = await pollFluxKontextTask({
       apiKey,
@@ -63,13 +76,22 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to generate character headshot" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to generate character headshot",
+      },
       { status: 500 }
     )
   }
 }
 
-function buildHeadshotPrompt(name: string, attributes: Character, customPrompt?: string) {
+function buildHeadshotPrompt(
+  name: string,
+  attributes: Character,
+  customPrompt?: string
+) {
   const characterJson = JSON.stringify({ ...attributes, name }, null, 2)
   const extraPrompt = customPrompt?.trim()
 
@@ -80,12 +102,21 @@ function buildHeadshotPrompt(name: string, attributes: Character, customPrompt?:
     "Use the uploaded character image only as a visual reference when one is provided. Do not return the uploaded image itself; generate a new clean headshot from the reference plus the character JSON.",
     "Character JSON:",
     characterJson,
-    extraPrompt ? `Custom prompt: ${extraPrompt}` : "Custom prompt: professional neutral headshot, white background, passport-style crop but natural UGC realism.",
+    extraPrompt
+      ? `Custom prompt: ${extraPrompt}`
+      : "Custom prompt: professional neutral headshot, white background, passport-style crop but natural UGC realism.",
   ].join("\n\n")
 }
 
-async function uploadSourceImage(apiKey: string, sourceImageDataUrl: string, name: string) {
-  const extension = sourceImageDataUrl.match(/^data:image\/([^;]+);base64,/i)?.[1]?.replace("jpeg", "jpg") ?? "png"
+async function uploadSourceImage(
+  apiKey: string,
+  sourceImageDataUrl: string,
+  name: string
+) {
+  const extension =
+    sourceImageDataUrl
+      .match(/^data:image\/([^;]+);base64,/i)?.[1]
+      ?.replace("jpeg", "jpg") ?? "png"
   const fileName = `${Date.now()}-${safeFilePart(name) || "character-source"}.${extension}`
   return uploadKieBase64Image({
     apiKey,
@@ -113,11 +144,17 @@ function validSourceImageDataUrl(value: unknown) {
     return undefined
   }
   if (!/^data:image\/(?:png|jpe?g|webp);base64,/i.test(input)) {
-    throw new Error("Uploaded source image must be a PNG, JPG, or WEBP data URL")
+    throw new Error(
+      "Uploaded source image must be a PNG, JPG, or WEBP data URL"
+    )
   }
   return input
 }
 
 function safeFilePart(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-|-$/g, "").slice(0, 48)
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 48)
 }
