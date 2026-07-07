@@ -1,3 +1,6 @@
+import { clean, isRecord } from "@/lib/guards"
+import { fetchWithTimeout } from "@/lib/http"
+
 export type PostFastFetch = (
   url: string | URL | Request,
   init?: RequestInit
@@ -131,11 +134,15 @@ export async function postfastRequest<T = unknown>(
     headers["Content-Type"] = "application/json"
   }
 
-  const response = await fetcher(url, {
-    method: options.method ?? (body === undefined ? "GET" : "POST"),
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
+  const response = await fetchWithTimeout(
+    url,
+    {
+      method: options.method ?? (body === undefined ? "GET" : "POST"),
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    },
+    { fetchImpl: fetcher, timeoutMs: 30_000 }
+  )
 
   if (!response.ok) {
     throw await normalizePostFastError(response)
@@ -397,12 +404,4 @@ function codeForStatus(status: number) {
     default:
       return status >= 500 ? "postfast_unavailable" : "postfast_error"
   }
-}
-
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
 }

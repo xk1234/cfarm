@@ -1,10 +1,14 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { readFile } from "node:fs/promises"
 import path from "node:path"
 
 import {
   kieFluxKontextModel,
   kieTopazImageUpscaleModel,
 } from "@/lib/realfarm-generation-model-registry"
+import { clean, isRecord, readRecord, readString } from "@/lib/guards"
+import { fetchWithTimeout } from "@/lib/http"
+import { downloadRemoteFileToLocalAsset } from "@/lib/local-asset-download"
+import { pollUntil } from "@/lib/poll"
 
 export type KieImageMode = "edit" | "upscale"
 
@@ -274,7 +278,7 @@ export async function uploadKieBase64Image(input: {
   fetchImpl?: FetchLike
   failureMessage?: string
 }) {
-  const response = await (input.fetchImpl ?? fetch)(
+  const response = await fetchWithTimeout(
     `${KIE_FILE_UPLOAD_BASE_URL}/api/file-base64-upload`,
     {
       method: "POST",
@@ -287,6 +291,10 @@ export async function uploadKieBase64Image(input: {
         fileName: input.fileName,
         uploadPath: input.uploadPath,
       }),
+    },
+    {
+      fetchImpl: input.fetchImpl,
+      timeoutMs: 30_000,
     }
   )
   const payload = await response.json().catch(() => ({}))
@@ -380,24 +388,16 @@ export async function downloadRemoteImageToLocalAsset(input: {
   failureMessage: string
   fetchImpl?: FetchLike
 }) {
-  const response = await (input.fetchImpl ?? fetch)(input.imageUrl)
-  if (!response.ok) {
-    throw new Error(input.failureMessage)
-  }
-
-  const contentType = response.headers.get("content-type") ?? ""
-  const extension = contentType.includes("webp")
-    ? ".webp"
-    : contentType.includes("jpeg") || contentType.includes("jpg")
-      ? ".jpg"
-      : ".png"
-  const safeTaskId = input.taskId.replace(/[^a-zA-Z0-9_-]/g, "")
-  const fileName = `${Date.now()}-${safeTaskId || input.fallbackName}${extension}`
-  const filePath = path.join(input.folder, fileName)
-  await mkdir(input.folder, { recursive: true })
-  await writeFile(filePath, Buffer.from(await response.arrayBuffer()))
-
-  return `${input.publicPrefix}/${encodeURIComponent(fileName)}`
+  return downloadRemoteFileToLocalAsset({
+    url: input.imageUrl,
+    taskId: input.taskId,
+    folder: input.folder,
+    publicPrefix: input.publicPrefix,
+    fallbackName: input.fallbackName,
+    failureMessage: input.failureMessage,
+    fetchImpl: input.fetchImpl,
+    extensionForContentType: imageExtensionForContentType,
+  })
 }
 
 async function createKieTask(
@@ -406,14 +406,21 @@ async function createKieTask(
   body: unknown,
   fetchImpl?: FetchLike
 ) {
-  const response = await (fetchImpl ?? fetch)(`${KIE_API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
+  const response = await fetchWithTimeout(
+    `${KIE_API_BASE_URL}${path}`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
-  })
+    {
+      fetchImpl,
+      timeoutMs: 30_000,
+    }
+  )
   const payload = await response.json().catch(() => ({}))
   const taskId = readKieTaskId(payload)
   if (!response.ok || !taskId) {
@@ -434,33 +441,41 @@ async function pollKieImageResult(input: {
   failedMessage?: string
   timeoutMessage?: string
 }) {
-  for (let attempt = 0; attempt < input.pollLimit; attempt += 1) {
-    const response = await (input.fetchImpl ?? fetch)(
-      `${KIE_API_BASE_URL}${input.path}`,
-      {
-        headers: {
-          Authorization: `Bearer ${input.apiKey}`,
+  return pollUntil(
+    async () => {
+      const response = await fetchWithTimeout(
+        `${KIE_API_BASE_URL}${input.path}`,
+        {
+          headers: {
+            Authorization: `Bearer ${input.apiKey}`,
+          },
         },
-      }
-    )
-    const payload = await response.json().catch(() => ({}))
-    const resultUrl = input.readResultUrl(payload)
-    if (resultUrl) {
-      return resultUrl
-    }
-    if (!response.ok || isFailedKieResult(payload)) {
-      throw new Error(
-        readKieError(payload) ||
-          input.failedMessage ||
-          `Kie image result failed with ${response.status}`
+        {
+          fetchImpl: input.fetchImpl,
+          timeoutMs: 30_000,
+        }
       )
+      const payload = await response.json().catch(() => ({}))
+      const resultUrl = input.readResultUrl(payload)
+      if (resultUrl) {
+        return resultUrl
+      }
+      if (!response.ok || isFailedKieResult(payload)) {
+        throw new Error(
+          readKieError(payload) ||
+            input.failedMessage ||
+            `Kie image result failed with ${response.status}`
+        )
+      }
+      return null
+    },
+    {
+      intervalMs: input.pollDelayMs ?? 3000,
+      maxAttempts: input.pollLimit,
+      description: "Kie image task",
+      timeoutMessage: input.timeoutMessage || "Kie image task timed out",
     }
-    if (attempt < input.pollLimit - 1) {
-      await sleep(input.pollDelayMs ?? 3000)
-    }
-  }
-
-  throw new Error(input.timeoutMessage || "Kie image task timed out")
+  )
 }
 
 function isFailedKieResult(payload: unknown) {
@@ -553,28 +568,16 @@ function contentTypeFor(filePath: string) {
   return contentTypes[extension] ?? "application/octet-stream"
 }
 
+function imageExtensionForContentType(contentType: string) {
+  return contentType.includes("webp")
+    ? ".webp"
+    : contentType.includes("jpeg") || contentType.includes("jpg")
+      ? ".jpg"
+      : ".png"
+}
+
 function fluxKontextModelSlug(value: unknown) {
   const model = clean(value).toLowerCase()
   if (model.includes("flux")) return kieFluxKontextModel
   return kieFluxKontextModel
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return isRecord(value) ? value : undefined
-}
-
-function readString(value: unknown) {
-  return typeof value === "string" && value.length > 0 ? value : ""
 }

@@ -1,7 +1,10 @@
-import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 
+import { clean, readRecord, readString } from "@/lib/guards"
+import { fetchWithTimeout } from "@/lib/http"
 import { prepareKieInputImageUrl, readKieTaskId } from "@/lib/kie-image"
+import { downloadRemoteFileToLocalAsset } from "@/lib/local-asset-download"
+import { pollUntil } from "@/lib/poll"
 import {
   kieModelForCharacterImageToVideo,
   kling30CharacterImageToVideoProviderModel,
@@ -128,14 +131,18 @@ export async function generateCharacterVideoFromImage(input: {
 }
 
 async function createKieVideoTask(apiKey: string, body: unknown) {
-  const response = await fetch(`${KIE_API_BASE_URL}/api/v1/jobs/createTask`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
+  const response = await fetchWithTimeout(
+    `${KIE_API_BASE_URL}/api/v1/jobs/createTask`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
-  })
+    { timeoutMs: 30_000 }
+  )
   const payload = await response.json().catch(() => ({}))
   const taskId = readKieTaskId(payload)
   if (!response.ok || !taskId) {
@@ -147,51 +154,49 @@ async function createKieVideoTask(apiKey: string, body: unknown) {
 }
 
 async function pollKieVideoResult(apiKey: string, taskId: string) {
-  for (let attempt = 0; attempt < VIDEO_RESULT_POLL_LIMIT; attempt += 1) {
-    const response = await fetch(
-      `${KIE_API_BASE_URL}/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
+  return pollUntil(
+    async () => {
+      const response = await fetchWithTimeout(
+        `${KIE_API_BASE_URL}/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+          },
         },
-      }
-    )
-    const payload = await response.json().catch(() => ({}))
-    const videoUrl = readKieVideoResultUrl(payload)
-    if (videoUrl) {
-      return videoUrl
-    }
-    if (!response.ok || isFailedKieVideoResult(payload)) {
-      throw new Error(
-        readKieError(payload) ||
-          `Kie video result failed with ${response.status}`
+        { timeoutMs: 30_000 }
       )
+      const payload = await response.json().catch(() => ({}))
+      const videoUrl = readKieVideoResultUrl(payload)
+      if (videoUrl) {
+        return videoUrl
+      }
+      if (!response.ok || isFailedKieVideoResult(payload)) {
+        throw new Error(
+          readKieError(payload) ||
+            `Kie video result failed with ${response.status}`
+        )
+      }
+      return null
+    },
+    {
+      intervalMs: VIDEO_RESULT_POLL_DELAY_MS,
+      maxAttempts: VIDEO_RESULT_POLL_LIMIT,
+      description: "Kie video task",
+      timeoutMessage: "Kie video task timed out",
     }
-    await sleep(VIDEO_RESULT_POLL_DELAY_MS)
-  }
-
-  throw new Error("Kie video task timed out")
+  )
 }
 
 async function downloadCharacterVideo(taskId: string, videoUrl: string) {
-  const response = await fetch(videoUrl)
-  if (!response.ok) {
-    throw new Error("Failed to download generated character video")
-  }
-
-  const contentType = response.headers.get("content-type") ?? ""
-  const extension = contentType.includes("quicktime")
-    ? ".mov"
-    : contentType.includes("webm")
-      ? ".webm"
-      : ".mp4"
-  const safeTaskId = taskId.replace(/[^a-zA-Z0-9_-]/g, "")
-  const fileName = `${Date.now()}-${safeTaskId || "character-video"}${extension}`
-  const filePath = path.join(CHARACTER_VIDEOS_FOLDER, fileName)
-  await mkdir(CHARACTER_VIDEOS_FOLDER, { recursive: true })
-  await writeFile(filePath, Buffer.from(await response.arrayBuffer()))
-
-  return `/api/local-assets/characters/videos/${encodeURIComponent(fileName)}`
+  return downloadRemoteFileToLocalAsset({
+    url: videoUrl,
+    taskId,
+    folder: CHARACTER_VIDEOS_FOLDER,
+    publicPrefix: "/api/local-assets/characters/videos",
+    fallbackName: "character-video",
+    failureMessage: "Failed to download generated character video",
+    extensionForContentType: videoExtensionForContentType,
+  })
 }
 
 function kieVideoModelSlug(value: string) {
@@ -213,6 +218,14 @@ function normalizeKlingAspectRatio(value: unknown) {
   return ["16:9", "9:16", "1:1"].includes(ratio) ? ratio : "9:16"
 }
 
+function videoExtensionForContentType(contentType: string) {
+  return contentType.includes("quicktime")
+    ? ".mov"
+    : contentType.includes("webm")
+      ? ".webm"
+      : ".mp4"
+}
+
 function isFailedKieVideoResult(payload: unknown) {
   const data = readRecord(readRecord(payload)?.data)
   return readString(data?.state) === "fail"
@@ -228,24 +241,6 @@ function readKieError(payload: unknown) {
   )
 }
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}
-
 function isString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0
-}
-
-function readString(value: unknown) {
-  return typeof value === "string" && value.length > 0 ? value : ""
-}
-
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined
 }

@@ -1,3 +1,4 @@
+import { clean } from "@/lib/guards"
 export type ReferenceRecreationAnalysis = {
   composition: Record<string, unknown>
   camera: Record<string, unknown>
@@ -242,9 +243,6 @@ function normalizeNanoAspectRatio(value: unknown) {
     : "9:16"
 }
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}
 
 const stringSchema = { type: "string" } as const
 const stringArraySchema = { type: "array", items: stringSchema } as const

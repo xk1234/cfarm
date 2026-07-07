@@ -1,3 +1,4 @@
+import { clean } from "@/lib/guards"
 import { randomUUID } from "node:crypto"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
@@ -1396,6 +1397,3 @@ function normalizeRunPlan(run: AutomationRunRecord): AutomationRunPlan {
   }
 }
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}

@@ -1,3 +1,4 @@
+import { clean, isRecord } from "@/lib/guards"
 import { randomUUID } from "node:crypto"
 import path from "node:path"
 
@@ -150,9 +151,6 @@ function isGeneratedVideoStatus(value: unknown): value is GeneratedVideoStatus {
   return value === "queued" || value === "processing" || value === "ready" || value === "failed"
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 
 function defaultTitle(type: GeneratedVideoType) {
   return generatedVideoTypeConfig[type].title
@@ -168,9 +166,6 @@ function numberValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}
 
 function localMediaUrl(value: unknown) {
   const url = clean(value)

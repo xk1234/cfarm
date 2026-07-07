@@ -1,3 +1,4 @@
+import { clean } from "@/lib/guards"
 import path from "node:path"
 
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
@@ -603,6 +604,3 @@ function tonePrompt(tone?: AutomationTemplateTone) {
   return tone && tone !== "Custom" ? tone : ""
 }
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}

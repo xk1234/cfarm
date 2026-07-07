@@ -1,3 +1,4 @@
+import { clean, isRecord } from "@/lib/guards"
 import { randomUUID } from "node:crypto"
 import path from "node:path"
 
@@ -296,10 +297,4 @@ function normalizeDate(value: unknown, fallback: unknown) {
   return new Date().toISOString()
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}

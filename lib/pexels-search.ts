@@ -1,4 +1,10 @@
 import type { PinterestSearchResult } from "@/lib/pinterest-search"
+import { fetchJson } from "@/lib/http"
+import {
+  isRecord,
+  readOptionalString as readString,
+  readRecord,
+} from "@/lib/guards"
 
 type UnknownRecord = Record<string, unknown>
 
@@ -64,30 +70,19 @@ export function createFallbackPexelsResults(query: string, limit: number): Pinte
 }
 
 export async function runPexelsSearch(query: string, limit: number, apiKey: string) {
-  const response = await fetch(buildPexelsSearchUrl(query, limit), {
-    headers: {
-      Authorization: apiKey,
+  const payload = await fetchJson<{ photos?: unknown[] }>(
+    buildPexelsSearchUrl(query, limit),
+    {
+      headers: {
+        Authorization: apiKey,
+      },
     },
-  })
-
-  if (!response.ok) {
-    throw new Error(`Pexels search failed with ${response.status}`)
-  }
-
-  const payload = (await response.json()) as { photos?: unknown[] }
+    {
+      timeoutMs: 30_000,
+      errorMessage: (response) => `Pexels search failed with ${response.status}`,
+    }
+  )
   return normalizePexelsPhotos(Array.isArray(payload.photos) ? payload.photos : [])
-}
-
-function isRecord(value: unknown): value is UnknownRecord {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
-function readRecord(value: unknown): UnknownRecord | undefined {
-  return isRecord(value) ? value : undefined
-}
-
-function readString(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined
 }
 
 function readNumber(value: unknown): number | undefined {

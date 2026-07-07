@@ -1,3 +1,4 @@
+import { clean } from "@/lib/guards"
 import {
   defaultCharacterAttributes,
   normalizeCharacterAttributes,
@@ -429,9 +430,6 @@ function inferAttributesFromPlainText(
   return matched ? { attributes } : null
 }
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}
 
 export function getCharacterFieldValue(
   attributes: CharacterAttributes,

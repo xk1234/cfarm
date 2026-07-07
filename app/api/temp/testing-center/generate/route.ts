@@ -1,3 +1,4 @@
+import { clean } from "@/lib/guards"
 import { NextResponse } from "next/server"
 
 import { listAutomationTemplateRecords } from "@/lib/automation-templates"
@@ -91,6 +92,3 @@ export async function POST(request: Request) {
   }
 }
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}

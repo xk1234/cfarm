@@ -1,3 +1,4 @@
+import { clean } from "@/lib/guards"
 import { textStyleToEditorColor } from "@/lib/realfarm-slideshow-text-style-config"
 
 export type SlideshowTextItem = {
@@ -303,6 +304,3 @@ function escapeXml(value: string) {
     .replace(/'/g, "&apos;")
 }
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}

@@ -2,6 +2,14 @@ import { randomUUID } from "node:crypto"
 import { open, stat, writeFile, mkdir } from "node:fs/promises"
 import path from "node:path"
 
+import {
+  cleanString,
+  readLooseRecord,
+  readTrimmedString,
+} from "@/lib/guards"
+import { fetchWithTimeout } from "@/lib/http"
+import { pollUntil } from "@/lib/poll"
+
 const RENDI_API_BASE_URL = "https://api.rendi.dev"
 const DEFAULT_POLL_DELAY_MS = 5000
 const DEFAULT_FILE_POLL_LIMIT = 120
@@ -37,7 +45,7 @@ export async function uploadLocalFileToRendi(input: {
   pollDelayMs?: number
   pollLimit?: number
 }) {
-  const apiKey = clean(input.apiKey)
+  const apiKey = cleanString(input.apiKey)
   if (!apiKey) {
     throw new Error("Missing RENDI_API_KEY")
   }
@@ -73,10 +81,17 @@ export async function uploadLocalFileToRendi(input: {
       const size = Math.min(initUpload.part_size, fileStats.size - offset)
       const buffer = Buffer.alloc(size)
       await file.read(buffer, 0, size, offset)
-      const uploadResponse = await fetchImpl(uploadUrl, {
-        method: "PUT",
-        body: buffer,
-      })
+      const uploadResponse = await fetchWithTimeout(
+        uploadUrl,
+        {
+          method: "PUT",
+          body: buffer,
+        },
+        {
+          fetchImpl,
+          timeoutMs: 120_000,
+        }
+      )
       if (!uploadResponse.ok) {
         throw new Error(
           `Rendi file part upload failed with ${uploadResponse.status}`
@@ -130,7 +145,7 @@ export async function runRendiFfmpegAndDownload(input: {
   vcpuCount?: number
   metadata?: Record<string, string | number | boolean>
 }) {
-  const apiKey = clean(input.apiKey)
+  const apiKey = cleanString(input.apiKey)
   if (!apiKey) {
     throw new Error("Missing RENDI_API_KEY")
   }
@@ -170,7 +185,14 @@ export async function runRendiFfmpegAndDownload(input: {
     throw new Error("Rendi command finished without a downloadable output file")
   }
 
-  const downloadResponse = await fetchImpl(outputFile.storage_url)
+  const downloadResponse = await fetchWithTimeout(
+    outputFile.storage_url,
+    undefined,
+    {
+      fetchImpl,
+      timeoutMs: 120_000,
+    }
+  )
   if (!downloadResponse.ok) {
     throw new Error(
       `Failed to download Rendi output with ${downloadResponse.status}`
@@ -192,28 +214,31 @@ async function pollRendiFile(input: {
   pollLimit?: number
 }) {
   const pollLimit = input.pollLimit ?? DEFAULT_FILE_POLL_LIMIT
-  for (let attempt = 0; attempt < pollLimit; attempt += 1) {
-    const file = await rendiJson<RendiStoredFile>(
-      input.fetchImpl,
-      `${RENDI_API_BASE_URL}/v1/files/${encodeURIComponent(input.fileId)}`,
-      {
-        headers: authHeaders(input.apiKey),
-      }
-    )
-    if (file.status === "FAILED") {
-      throw new Error(
-        file.external_error_message ||
-          file.error_status ||
-          "Rendi file upload failed"
+  return pollUntil(
+    async () => {
+      const file = await rendiJson<RendiStoredFile>(
+        input.fetchImpl,
+        `${RENDI_API_BASE_URL}/v1/files/${encodeURIComponent(input.fileId)}`,
+        {
+          headers: authHeaders(input.apiKey),
+        }
       )
+      if (file.status === "FAILED") {
+        throw new Error(
+          file.external_error_message ||
+            file.error_status ||
+            "Rendi file upload failed"
+        )
+      }
+      return file.status === "STORED" && file.storage_url ? file : null
+    },
+    {
+      intervalMs: input.pollDelayMs ?? DEFAULT_POLL_DELAY_MS,
+      maxAttempts: pollLimit,
+      description: "Rendi file upload",
+      timeoutMessage: "Rendi file upload timed out",
     }
-    if (file.status === "STORED" && file.storage_url) {
-      return file
-    }
-    await sleep(input.pollDelayMs ?? DEFAULT_POLL_DELAY_MS)
-  }
-
-  throw new Error("Rendi file upload timed out")
+  )
 }
 
 async function pollRendiCommand(input: {
@@ -224,28 +249,31 @@ async function pollRendiCommand(input: {
   pollLimit?: number
 }) {
   const pollLimit = input.pollLimit ?? DEFAULT_COMMAND_POLL_LIMIT
-  for (let attempt = 0; attempt < pollLimit; attempt += 1) {
-    const command = await rendiJson<RendiCommandStatus>(
-      input.fetchImpl,
-      `${RENDI_API_BASE_URL}/v1/commands/${encodeURIComponent(input.commandId)}`,
-      {
-        headers: authHeaders(input.apiKey),
-      }
-    )
-    if (command.status === "FAILED") {
-      throw new Error(
-        command.error_message ||
-          command.error_status ||
-          "Rendi FFmpeg command failed"
+  return pollUntil(
+    async () => {
+      const command = await rendiJson<RendiCommandStatus>(
+        input.fetchImpl,
+        `${RENDI_API_BASE_URL}/v1/commands/${encodeURIComponent(input.commandId)}`,
+        {
+          headers: authHeaders(input.apiKey),
+        }
       )
+      if (command.status === "FAILED") {
+        throw new Error(
+          command.error_message ||
+            command.error_status ||
+            "Rendi FFmpeg command failed"
+        )
+      }
+      return command.status === "SUCCESS" ? command : null
+    },
+    {
+      intervalMs: input.pollDelayMs ?? DEFAULT_POLL_DELAY_MS,
+      maxAttempts: pollLimit,
+      description: "Rendi FFmpeg command",
+      timeoutMessage: "Rendi FFmpeg command timed out",
     }
-    if (command.status === "SUCCESS") {
-      return command
-    }
-    await sleep(input.pollDelayMs ?? DEFAULT_POLL_DELAY_MS)
-  }
-
-  throw new Error("Rendi FFmpeg command timed out")
+  )
 }
 
 async function rendiJson<T>(
@@ -253,7 +281,10 @@ async function rendiJson<T>(
   url: string,
   init: RequestInit
 ): Promise<T> {
-  const response = await fetchImpl(url, init)
+  const response = await fetchWithTimeout(url, init, {
+    fetchImpl,
+    timeoutMs: 30_000,
+  })
   const payload = await response.json().catch(() => null)
   if (!response.ok) {
     throw new Error(
@@ -277,41 +308,21 @@ function authHeaders(apiKey: string) {
 }
 
 function readRendiError(payload: unknown) {
-  const record = readRecord(payload)
+  const record = readLooseRecord(payload)
   const detail = record?.detail
   if (typeof detail === "string") {
     return detail
   }
   if (Array.isArray(detail) && detail.length > 0) {
     return detail
-      .map((item) => readString(readRecord(item)?.msg))
+      .map((item) => readTrimmedString(readLooseRecord(item)?.msg))
       .filter(Boolean)
       .join("; ")
   }
-  return readString(record?.error) || readString(record?.message)
+  return readTrimmedString(record?.error) || readTrimmedString(record?.message)
 }
 
 function rendiSafeFileName(value: string) {
   const cleanName = value.replace(/[^a-zA-Z0-9_.-]/g, "_")
   return cleanName || `${randomUUID()}.bin`
-}
-
-function readRecord(value: unknown) {
-  return value && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : null
-}
-
-function readString(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}
-
-function clean(value: string) {
-  return value.trim()
-}
-
-function sleep(ms: number) {
-  return ms > 0
-    ? new Promise((resolve) => setTimeout(resolve, ms))
-    : Promise.resolve()
 }

@@ -1,3 +1,4 @@
+import { clean } from "@/lib/guards"
 import { NextResponse } from "next/server"
 
 import { generateCharacterVideoFromImage } from "@/lib/kie-video"
@@ -59,6 +60,3 @@ export async function POST(request: Request) {
   }
 }
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}

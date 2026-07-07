@@ -1,6 +1,8 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 
+import { cleanCollapsedWhitespace as clean } from "@/lib/guards"
+import { fetchWithTimeout } from "@/lib/http"
 import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-registry"
 
 export type SwipePlatform =
@@ -437,11 +439,15 @@ async function saveRemoteMedia(
       return undefined
     }
 
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 CFarm Swipe Saver",
+    const response = await fetchWithTimeout(
+      url,
+      {
+        headers: {
+          "User-Agent": "Mozilla/5.0 CFarm Swipe Saver",
+        },
       },
-    })
+      { timeoutMs: 120_000 }
+    )
     if (!response.ok) {
       return undefined
     }
@@ -524,10 +530,6 @@ function extensionFromContentType(contentType: string) {
     default:
       return contentType.startsWith("video/") ? "mp4" : "jpg"
   }
-}
-
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : ""
 }
 
 function sanitizeSwipeMetadata(metadata: unknown): Record<string, string> {
@@ -671,7 +673,7 @@ async function transcribeSwipeMedia(
       return fallback
     }
 
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       "https://openrouter.ai/api/v1/audio/transcriptions",
       {
         method: "POST",
@@ -688,7 +690,8 @@ async function transcribeSwipeMedia(
             format: media.format,
           },
         }),
-      }
+      },
+      { timeoutMs: 30_000 }
     )
 
     if (!response.ok) {
@@ -720,7 +723,7 @@ async function analyzeSwipeAesthetic(
   key: string
 ) {
   try {
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       "https://openrouter.ai/api/v1/chat/completions",
       {
         method: "POST",
@@ -759,7 +762,8 @@ async function analyzeSwipeAesthetic(
             },
           ],
         }),
-      }
+      },
+      { timeoutMs: 30_000 }
     )
 
     if (!response.ok) {

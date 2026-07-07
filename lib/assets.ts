@@ -1,3 +1,4 @@
+import { clean } from "@/lib/guards"
 import { mkdir, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { randomUUID } from "node:crypto"
@@ -521,6 +522,3 @@ function escapeXml(value: string) {
     .replace(/"/g, "&quot;")
 }
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}

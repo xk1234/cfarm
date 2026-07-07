@@ -1,3 +1,4 @@
+import { clean } from "@/lib/guards"
 import { randomUUID } from "node:crypto"
 import { mkdir, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
@@ -314,6 +315,3 @@ function safeHttpUrl(rawUrl: string) {
   }
 }
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}

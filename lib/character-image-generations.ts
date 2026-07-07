@@ -1,3 +1,4 @@
+import { clean } from "@/lib/guards"
 import path from "node:path"
 import { rm } from "node:fs/promises"
 
@@ -170,9 +171,6 @@ function numberValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}
 
 function normalizeWorkflow(value: unknown): CharacterWorkflowKey | undefined {
   const workflow = clean(value)

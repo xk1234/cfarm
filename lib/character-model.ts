@@ -1,3 +1,5 @@
+import { isRecord } from "@/lib/guards"
+
 export type Character = {
   name: string
   age: number
@@ -243,10 +245,6 @@ function mergeCharacter(base: Character, raw: Record<string, unknown>): Characte
     },
     voice: { ...base.voice, ...(isRecord(raw.voice) ? stringRecord(raw.voice) : {}) },
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === "object" && !Array.isArray(value))
 }
 
 function stringValue(value: unknown, fallback = "") {

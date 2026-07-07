@@ -1,3 +1,4 @@
+import { clean } from "@/lib/guards"
 import { NextResponse } from "next/server"
 
 import { createUploadedAssetRecord } from "@/lib/assets"
@@ -166,6 +167,3 @@ function mimeTypeForFileName(fileName: string) {
   return "image/png"
 }
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}

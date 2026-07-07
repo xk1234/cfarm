@@ -1,3 +1,4 @@
+import { clean } from "@/lib/guards"
 import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 
@@ -635,6 +636,3 @@ function numberValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}

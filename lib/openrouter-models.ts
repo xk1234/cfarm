@@ -1,3 +1,4 @@
+import { clean } from "@/lib/guards"
 import { featuredOpenRouterModelIds } from "@/lib/realfarm-generation-model-registry"
 
 export type OpenRouterModelSummary = {
@@ -112,8 +113,5 @@ function numberOrNull(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : null
 }
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}
 
 export const featuredModelIds = [...featuredOpenRouterModelIds]

@@ -10,6 +10,8 @@ import {
   type TempSlideTestingAutomation,
 } from "@/lib/temp-slide-testing"
 import { defaultSlideshowTextModel } from "@/lib/realfarm-generation-model-registry"
+import { clean } from "@/lib/guards"
+import { fetchJson } from "@/lib/http"
 
 export { defaultSlideshowTextModel }
 
@@ -51,7 +53,6 @@ export async function generateSlideshowText(input: {
     throw new Error("OPENROUTER_API_KEY is not configured")
   }
 
-  const fetchImpl = input.fetchImpl ?? fetch
   const promptPayload = slideshowTextGenerationPayload({
     automation: input.automation,
     model,
@@ -59,7 +60,7 @@ export async function generateSlideshowText(input: {
     systemPrompt: input.systemPrompt,
     promptInstructions: input.promptInstructions,
   })
-  const response = await fetchImpl(
+  const payload = await fetchJson<OpenRouterResponse>(
     "https://openrouter.ai/api/v1/chat/completions",
     {
       method: "POST",
@@ -68,13 +69,22 @@ export async function generateSlideshowText(input: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(promptPayload),
+    },
+    {
+      fetchImpl: input.fetchImpl,
+      timeoutMs: 30_000,
+      errorMessage: (_response, payload) =>
+        typeof payload === "object" &&
+        payload !== null &&
+        "error" in payload &&
+        typeof payload.error === "object" &&
+        payload.error !== null &&
+        "message" in payload.error &&
+        typeof payload.error.message === "string"
+          ? payload.error.message
+          : "OpenRouter generation failed",
     }
   )
-
-  const payload = (await response.json()) as OpenRouterResponse
-  if (!response.ok) {
-    throw new Error(payload.error?.message || "OpenRouter generation failed")
-  }
 
   const output = parseOpenRouterContent(payload.choices?.[0]?.message?.content)
   return {
@@ -162,8 +172,4 @@ function parseOpenRouterContent(content: unknown) {
   }
 
   throw new Error("OpenRouter returned an empty response")
-}
-
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
 }

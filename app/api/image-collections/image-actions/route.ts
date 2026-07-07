@@ -1,3 +1,4 @@
+import { clean } from "@/lib/guards"
 import { NextResponse } from "next/server"
 
 import {
@@ -60,6 +61,3 @@ function runImageAction(
   return editImageWithFluxKontext(input)
 }
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}

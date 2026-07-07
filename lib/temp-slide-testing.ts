@@ -1,3 +1,4 @@
+import { clean, isRecord } from "@/lib/guards"
 import type {
   AutomationTemplateFormat,
   AutomationTemplateRecord,
@@ -612,12 +613,4 @@ function placeholderRequirement(placeholder: TempSlideTextPlaceholder) {
 
 function mentionsWordRange(value: string) {
   return /\b\d+\s*[-–—+]\s*\d*\s*words?\b/i.test(value)
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
-}
-
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
 }

@@ -1,3 +1,4 @@
+import { clean, isRecord } from "@/lib/guards"
 import { NextResponse } from "next/server"
 
 import {
@@ -220,10 +221,4 @@ function normalizeHookKey(value: string) {
   return value.toLowerCase().replace(/\s+/g, " ").trim()
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}

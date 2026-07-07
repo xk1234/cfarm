@@ -1,3 +1,4 @@
+import { clean } from "@/lib/guards"
 import { randomUUID } from "node:crypto"
 import { execFile } from "node:child_process"
 import {
@@ -32,6 +33,7 @@ import {
   type SlideshowSlide,
   type SlideshowTextItem,
 } from "@/lib/slideshow-renderer"
+import { fetchWithTimeout } from "@/lib/http"
 export type {
   SlideshowOverlayImage,
   SlideshowSlide,
@@ -889,7 +891,9 @@ async function fetchRemoteAsset(sourceUrl: string) {
   }
 
   try {
-    const response = await fetch(sourceUrl)
+    const response = await fetchWithTimeout(sourceUrl, undefined, {
+      timeoutMs: 120_000,
+    })
     if (!response.ok) {
       return null
     }
@@ -1089,6 +1093,3 @@ if writer.status != .completed {
 `
 }
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}

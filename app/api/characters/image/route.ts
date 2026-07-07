@@ -1,3 +1,4 @@
+import { clean } from "@/lib/guards"
 import path from "node:path"
 
 import { NextResponse } from "next/server"
@@ -214,9 +215,6 @@ function allowedAspectRatio(value: unknown) {
     : characterImageAspectRatios[0]
 }
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}
 
 function isNanoBananaProModel(value: unknown) {
   return clean(value).toLowerCase() === "nano banana pro"

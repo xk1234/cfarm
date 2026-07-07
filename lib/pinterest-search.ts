@@ -1,3 +1,10 @@
+import { fetchJson } from "@/lib/http"
+import {
+  isRecord,
+  readOptionalString as readString,
+  readRecord,
+} from "@/lib/guards"
+
 export const PINTEREST_ACTOR_ID = "fatihtahta/pinterest-scraper-search"
 const PINTEREST_ACTOR_PATH = "fatihtahta~pinterest-scraper-search"
 
@@ -117,7 +124,7 @@ export async function runPinterestImport(
   token: string,
   mode: "search" | "board" = "search"
 ): Promise<PinterestSearchResult[]> {
-  const response = await fetch(
+  const items = await fetchJson<unknown[]>(
     `https://api.apify.com/v2/acts/${PINTEREST_ACTOR_PATH}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}`,
     {
       method: "POST",
@@ -125,14 +132,13 @@ export async function runPinterestImport(
         "content-type": "application/json",
       },
       body: JSON.stringify(buildPinterestActorInput(query, limit, mode)),
+    },
+    {
+      timeoutMs: 30_000,
+      errorMessage: (response) =>
+        `Pinterest import failed with ${response.status}`,
     }
   )
-
-  if (!response.ok) {
-    throw new Error(`Pinterest import failed with ${response.status}`)
-  }
-
-  const items = (await response.json()) as unknown[]
   return normalizePinterestItems(items)
 }
 
@@ -190,18 +196,6 @@ function readImage(item: UnknownRecord) {
   }
 
   return undefined
-}
-
-function isRecord(value: unknown): value is UnknownRecord {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
-function readRecord(value: unknown): UnknownRecord | undefined {
-  return isRecord(value) ? value : undefined
-}
-
-function readString(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined
 }
 
 function readNumber(value: unknown): number | undefined {

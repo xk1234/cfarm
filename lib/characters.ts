@@ -1,3 +1,4 @@
+import { clean, isRecord } from "@/lib/guards"
 import { rm } from "node:fs/promises"
 import path from "node:path"
 
@@ -382,10 +383,6 @@ function mergeCharacter(base: Character, raw: Record<string, unknown>): Characte
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === "object" && !Array.isArray(value))
-}
-
 function stringValue(value: unknown, fallback = "") {
   if (typeof value === "string") {
     return value
@@ -415,8 +412,4 @@ function stringRecord(record: Record<string, unknown>) {
       .filter(([, value]) => typeof value === "string" || typeof value === "number")
       .map(([key, value]) => [key, String(value)])
   )
-}
-
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
 }

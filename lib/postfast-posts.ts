@@ -1,3 +1,4 @@
+import { clean } from "@/lib/guards"
 import { randomUUID } from "node:crypto"
 import path from "node:path"
 
@@ -190,9 +191,6 @@ function isStatus(value: unknown): value is PostFastPostStatus {
   return value === "draft" || value === "scheduled" || value === "published" || value === "failed"
 }
 
-function clean(value: unknown) {
-  return typeof value === "string" ? value.trim() : ""
-}
 
 function baseSourceId(sourceId: string) {
   return clean(sourceId).split(":")[0] ?? ""

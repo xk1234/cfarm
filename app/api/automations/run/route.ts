@@ -1,3 +1,4 @@
+import { isRecord } from "@/lib/guards"
 import { NextResponse } from "next/server"
 
 import { runDueAutomations } from "@/lib/automation-runner"
@@ -70,6 +71,3 @@ function stringValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}

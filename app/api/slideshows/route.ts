@@ -1,3 +1,4 @@
+import { isRecord } from "@/lib/guards"
 import { NextResponse } from "next/server"
 
 import {
@@ -59,6 +60,3 @@ export async function DELETE(request: Request) {
   return NextResponse.json({ slideshow })
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
