@@ -10,7 +10,6 @@ import {
   IconBrandTiktok,
   IconBrandX,
   IconBrandYoutubeFilled,
-  type Icon,
 } from "@tabler/icons-react"
 
 import type { PostFastSocialProvider } from "@/lib/postfast-client"
@@ -83,7 +82,6 @@ function SocialAccountStatusBadge({
   size: "compact" | "default"
   showLabel: boolean
 }) {
-  const Icon = platformIcon(item.provider)
   const label = accountLabel(item)
   const statusLabel = publishStatusLabel(item.status)
 
@@ -103,10 +101,10 @@ function SocialAccountStatusBadge({
           size === "compact" ? "size-6" : "size-8"
         )}
       >
-        <Icon
-          className={cn(size === "compact" ? "size-3.5" : "size-4.5")}
-          stroke={2.4}
-        />
+        {platformIconElement(item.provider, {
+          className: cn(size === "compact" ? "size-3.5" : "size-4.5"),
+          stroke: 2.4,
+        })}
       </span>
       {showLabel ? (
         <span className="min-w-0">
@@ -222,35 +220,38 @@ function publishStatusDotClass(status: SocialAccountPublishStatus) {
   }
 }
 
-function platformIcon(provider: PostFastSocialProvider): Icon {
+function platformIconElement(
+  provider: PostFastSocialProvider,
+  props: { className?: string; stroke?: number }
+) {
   switch (provider) {
     case "instagram":
-      return IconBrandInstagram
+      return <IconBrandInstagram {...props} />
     case "youtube":
-      return IconBrandYoutubeFilled
+      return <IconBrandYoutubeFilled {...props} />
     case "facebook":
-      return IconBrandFacebookFilled
+      return <IconBrandFacebookFilled {...props} />
     case "x":
     case "twitter":
-      return IconBrandX
+      return <IconBrandX {...props} />
     case "linkedin":
-      return IconBrandLinkedin
+      return <IconBrandLinkedin {...props} />
     case "threads":
-      return IconBrandThreads
+      return <IconBrandThreads {...props} />
     case "pinterest":
-      return IconBrandPinterest
+      return <IconBrandPinterest {...props} />
     case "bluesky":
-      return IconBrandBluesky
+      return <IconBrandBluesky {...props} />
     case "telegram":
-      return IconBrandTelegram
+      return <IconBrandTelegram {...props} />
     case "google":
     case "google-business-profile":
-      return IconBrandGoogleFilled
+      return <IconBrandGoogleFilled {...props} />
     case "tiktok":
     case "tiktok-creative":
     case "tiktok-seller":
     default:
-      return IconBrandTiktok
+      return <IconBrandTiktok {...props} />
   }
 }
 

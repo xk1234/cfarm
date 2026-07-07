@@ -22,8 +22,7 @@
     "https://x.com/*",
     "https://twitter.com/*",
     "https://adstransparency.google.com/*",
-    "https://ads.google.com/*",
-    "<all_urls>"
+    "https://ads.google.com/*"
   ],
   "background": {
     "service_worker": "background.js"

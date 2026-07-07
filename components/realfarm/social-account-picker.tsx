@@ -70,7 +70,39 @@ export function SocialAccountPickerModal({
   )
 
   useEffect(() => {
+    let cancelled = false
+    const loadIntegrations = async () => {
+      try {
+        const payload = await fetchJsonWithTimeout<{
+          integrations?: unknown[]
+        }>("/api/postfast/integrations", { toastOnError: false })
+        if (cancelled) return
+        setIntegrations(
+          (payload.integrations ?? []).flatMap((integration) => {
+            const normalized = normalizePostFastIntegration(integration)
+            return normalized && isSlideshowSocialProvider(normalized.provider)
+              ? [normalized]
+              : []
+          })
+        )
+      } catch (loadError) {
+        if (cancelled) return
+        const message = getApiErrorMessage(
+          loadError,
+          "Failed to load social accounts"
+        )
+        setError(message)
+        toast.error(message)
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
     void loadIntegrations()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
@@ -78,34 +110,6 @@ export function SocialAccountPickerModal({
       onSelect(selectedSlideshowIntegrations)
     }
   }, [onSelect, selectedIntegrations, selectedSlideshowIntegrations])
-
-  async function loadIntegrations() {
-    setLoading(true)
-    setError("")
-    try {
-      const payload = await fetchJsonWithTimeout<{ integrations?: unknown[] }>(
-        "/api/postfast/integrations",
-        { toastOnError: false }
-      )
-      setIntegrations(
-        (payload.integrations ?? []).flatMap((integration) => {
-          const normalized = normalizePostFastIntegration(integration)
-          return normalized && isSlideshowSocialProvider(normalized.provider)
-            ? [normalized]
-            : []
-        })
-      )
-    } catch (loadError) {
-      const message = getApiErrorMessage(
-        loadError,
-        "Failed to load social accounts"
-      )
-      setError(message)
-      toast.error(message)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   function toggleIntegration(integration: PostFastSocialIntegration) {
     if (!isSlideshowSocialProvider(integration.provider)) {
@@ -277,35 +281,30 @@ function PlatformIcon({
   provider: PostFastSocialProvider
   className?: string
 }) {
-  const Icon = platformIcon(provider)
-  return <Icon className={className} stroke={2.4} />
-}
-
-function platformIcon(provider: PostFastSocialProvider) {
   switch (provider) {
     case "instagram":
-      return IconBrandInstagram
+      return <IconBrandInstagram className={className} stroke={2.4} />
     case "youtube":
-      return IconBrandYoutubeFilled
+      return <IconBrandYoutubeFilled className={className} stroke={2.4} />
     case "tiktok":
-      return IconBrandTiktok
+      return <IconBrandTiktok className={className} stroke={2.4} />
     case "facebook":
-      return IconBrandFacebookFilled
+      return <IconBrandFacebookFilled className={className} stroke={2.4} />
     case "x":
     case "twitter":
-      return IconBrandX
+      return <IconBrandX className={className} stroke={2.4} />
     case "linkedin":
-      return IconBrandLinkedin
+      return <IconBrandLinkedin className={className} stroke={2.4} />
     case "threads":
-      return IconBrandThreads
+      return <IconBrandThreads className={className} stroke={2.4} />
     case "pinterest":
-      return IconBrandPinterest
+      return <IconBrandPinterest className={className} stroke={2.4} />
     case "bluesky":
-      return IconBrandBluesky
+      return <IconBrandBluesky className={className} stroke={2.4} />
     case "telegram":
-      return IconBrandTelegram
+      return <IconBrandTelegram className={className} stroke={2.4} />
     default:
-      return IconBrandTiktok
+      return <IconBrandTiktok className={className} stroke={2.4} />
   }
 }
 

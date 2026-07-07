@@ -6,7 +6,7 @@ chrome.webRequest?.onCompleted?.addListener(
   (details) => {
     void recordTumblrImageRequest(details)
   },
-  { urls: ["<all_urls>"], types: ["image"] }
+  { urls: ["*://*.media.tumblr.com/*"], types: ["image"] }
 )
 
 chrome.tabs?.onRemoved?.addListener((tabId) => {

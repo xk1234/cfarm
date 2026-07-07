@@ -1,3 +1,5 @@
+Status: DONE — implemented in lib/realfarm-generation-model-registry.ts
+
 # Hardcoded Generation Model Registry
 
 ## Problem
