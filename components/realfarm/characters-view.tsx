@@ -855,16 +855,12 @@ function CharactersView({
             >
               <IconBug className="size-5" />
             </Button>
-            <input
-              ref={sourceImageInputRef}
-              type="file"
+            <UploadDropzone
+              inputRef={sourceImageInputRef}
               accept="image/*"
               multiple
+              onFiles={(files) => void uploadDroppedGenerationImages(files)}
               className="hidden"
-              onChange={(event) => {
-                void uploadDroppedGenerationImages(event.currentTarget.files)
-                event.currentTarget.value = ""
-              }}
             />
             <Button
               variant="outline"

@@ -250,6 +250,7 @@ describe("automation import persistence", () => {
       autoPullImagesNotCollections: false,
       autoImagesNoTextOnImages: false,
       disableAutoImageForFirstSlide: false,
+      video_demo_asset_id: "",
       language: "English",
     })
     expect(normalized.schema.schedule.timezone).toBe("America/New_York")

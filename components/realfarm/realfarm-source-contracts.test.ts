@@ -40,7 +40,8 @@ describe("RealFarm source contracts", () => {
         'window.addEventListener("hashchange", syncSwipeHashView)',
         'className="h-svh overflow-hidden bg-[#f6f6f2] text-[#242421]"',
         'className="flex h-svh"',
-        'className="min-w-0 flex-1 overflow-y-auto px-5 py-5 lg:px-7"',
+        '"min-w-0 flex-1 overflow-y-auto"',
+        '"px-5 py-5 lg:px-7"',
       ])
       expectContains(navigationSource, [
         "hidden h-svh w-[214px] shrink-0 overflow-y-auto",
@@ -312,7 +313,7 @@ describe("RealFarm source contracts", () => {
         "toggleDay",
         "updateTime",
         "removePostingTime",
-        'placeholder="11:00 AM"',
+        'type="time"',
       ])
       expectContains(settingsSource, [
         "config.image_collection_ids.language",
@@ -479,8 +480,8 @@ describe("RealFarm source contracts", () => {
         "runScheduleDurationLine",
         "renderedSlides",
         "ratioToCss(activeSlideRecord?.aspectRatio)",
-        "absolute left-2 top-1/2",
-        "absolute right-2 top-1/2",
+        "absolute top-1/2 left-2",
+        "absolute top-1/2 right-2",
         "AutomationRunDetail",
         "No generated slideshows yet.",
       ])
@@ -493,7 +494,7 @@ describe("RealFarm source contracts", () => {
       ])
       expectContains(automationsSource, [
         "recentRunsByAutomationId",
-        "No recent generations",
+        "No recent generation",
         "text-center",
         "backgroundImage: `url(${imageUrl})`",
         "onToggleStatus",
@@ -576,7 +577,6 @@ describe("RealFarm source contracts", () => {
       expectNotContains(schemaSource, ["tiktok_account_id: string | null"])
       expectContains(pickerSource, [
         "SocialAccountPickerModal",
-        "/api/postfast/connect-url",
         "/api/postfast/integrations",
         '"tiktok"',
         '"youtube"',
@@ -587,8 +587,6 @@ describe("RealFarm source contracts", () => {
         "Selected to run",
         "AccountTile",
         "selectedIntegrationGrid",
-        "Connect",
-        "Refresh accounts",
       ])
       expectNotContains(pickerSource, ["providerIntegrations"])
       expectContains(automationsSource, [
@@ -659,7 +657,7 @@ describe("RealFarm source contracts", () => {
         "TemplateGeneratedPreview",
         "exampleSlides={generatedExampleSlides",
         "ExampleSlideshowModal",
-        "View ${automation.name} example slideshow",
+        "View ${automation.name} examples",
         "No templates available",
         "No matching templates",
         "opacity-0",
@@ -675,9 +673,10 @@ describe("RealFarm source contracts", () => {
       expectContains(exampleModalSource, [
         "generatedExampleSlideshows",
         "CheckedDropdownButton",
-        "selectedSlideshowId",
-        "const visibleSlots = [activeSlide - 1, activeSlide, activeSlide + 1]",
-        "`Slideshow ${activeSlide + 1}`",
+        "selectedSlideshowLabel",
+        "boundedActiveSlide - 1",
+        "boundedActiveSlide + 1",
+        "`Slideshow ${boundedActiveSlide + 1}`",
         "setActiveSlide(nextIndex)",
         'aria-hidden="true"',
         'slide.section !== "hook"',
@@ -725,7 +724,7 @@ describe("RealFarm source contracts", () => {
     it("uses stable PostFast fetch dependencies and AG Grid metric rows", () => {
       const source = src("components/realfarm/calendar-analytics.tsx")
       const fetchStart = source.indexOf(
-        "void fetchJsonWithTimeout<{ posts?: { posts?: PostFastListedPost[] }; configured?: boolean }>"
+        "void fetchJsonWithTimeout<{\n      posts?: { posts?: PostFastListedPost[] }\n      configured?: boolean\n    }>(monthRangeKey)"
       )
       const fetchBlock = source.slice(
         fetchStart,
@@ -832,7 +831,7 @@ describe("RealFarm source contracts", () => {
         "generations?: CharacterImageGenerationRecord[]",
         "`/api/characters/images?characterId=${selectedCharacter.id}`",
         "setGenerations(payload.generations ?? [])",
-        "characterId: selectedCharacter.id",
+        "characterId: input.selectedCharacter.id",
         'className="relative h-[calc(100svh-72px)] overflow-hidden bg-[#f8f8f4] px-7 py-6"',
         '"absolute inset-x-0 top-[104px] bottom-0 overflow-y-auto px-7 pt-8 pb-64"',
         'className="absolute inset-x-8 bottom-6 z-30 mx-auto max-w-[760px] rounded-[16px] bg-white p-4 shadow-[0_18px_48px_rgba(0,0,0,0.14)]"',

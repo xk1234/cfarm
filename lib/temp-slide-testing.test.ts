@@ -253,6 +253,7 @@ describe("temp slide testing helpers", () => {
         "collection-hook-2026-07-03t00-00-00-000z",
         "Hook",
         "community_collection_11436",
+        "user_collection_11436",
       ],
       title: "Hook",
       images: [

@@ -108,6 +108,24 @@ describe("kie image helpers", () => {
   })
 
   it("uploads local app assets before passing them to Kie image models", async () => {
+    const tempRoot = await mkdtemp(
+      path.join(os.tmpdir(), "cfarm-kie-image-asset-")
+    )
+    await mkdir(path.join(tempRoot, "data", "characters", "headshots"), {
+      recursive: true,
+    })
+    await writeFile(
+      path.join(
+        tempRoot,
+        "data",
+        "characters",
+        "headshots",
+        "jade-homeysg-preview.png"
+      ),
+      new Uint8Array([0, 1, 2, 3])
+    )
+    vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
+
     const fetchImpl = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         void input
@@ -155,6 +173,8 @@ describe("kie image helpers", () => {
     expect(requestBody.base64Data).toMatch(/^data:image\/png;base64,/)
     expect(requestBody.fileName).toContain("jade-homeysg-preview.png")
     expect(requestBody.uploadPath).toBe("images/realfarm")
+    await rm(tempRoot, { recursive: true, force: true })
+    vi.restoreAllMocks()
   })
 
   it("uploads local app video assets before passing them to Kie motion-control", async () => {

@@ -17,7 +17,7 @@ describe("HTTP helpers", () => {
         bodySnippetLength: 24,
       })
     ).rejects.toThrow(
-      "HTTP request failed with 502 Bad Gateway: this body is intention..."
+      "HTTP request failed with 502 Bad Gateway: this body is intentional..."
     )
   })
 

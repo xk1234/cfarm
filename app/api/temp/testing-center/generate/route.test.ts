@@ -21,6 +21,7 @@ describe("POST /api/temp/testing-center/generate", () => {
                 message: {
                   content: JSON.stringify({
                     title: "Cute Nail Ideas",
+                    caption: "",
                     hashtags: "#nails #beauty #style",
                     text: {},
                   }),
@@ -56,6 +57,7 @@ describe("POST /api/temp/testing-center/generate", () => {
       selectedHook: "cute nail designs i found on pinterest",
       result: {
         title: "Cute Nail Ideas",
+        caption: "",
         hashtags: "#nails #beauty #style",
         text: {},
       },

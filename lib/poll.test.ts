@@ -29,11 +29,16 @@ describe("pollUntil", () => {
       description: "test operation",
     })
 
-    await vi.advanceTimersByTimeAsync(250)
-
-    await expect(pending).rejects.toThrow(
+    // Attach the rejection assertion before advancing timers so the
+    // rejection is observed as soon as it happens instead of leaking as
+    // an unhandled rejection while the timers are being flushed.
+    const assertion = expect(pending).rejects.toThrow(
       "Timed out waiting for test operation after 2 attempts"
     )
+
+    await vi.advanceTimersByTimeAsync(250)
+    await assertion
+
     vi.useRealTimers()
   })
 })
