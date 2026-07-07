@@ -27,10 +27,10 @@ afterEach(async () => {
 })
 
 describe("POST /api/automations/run", () => {
-  it("fails closed when the cron secret is not configured", async () => {
+  it("fails closed for non-localhost requests when the cron secret is not configured", async () => {
     const { POST } = await import("./route")
     const response = await POST(
-      new Request("http://localhost/api/automations/run", {
+      new Request("https://cfarm.example.com/api/automations/run", {
         method: "POST",
         headers: {
           authorization: "Bearer secret-1",
@@ -42,6 +42,20 @@ describe("POST /api/automations/run", () => {
 
     expect(response.status).toBe(500)
     expect(payload.error).toBe("CRON_SECRET is not configured")
+  })
+
+  it("allows localhost requests without a secret for local development", async () => {
+    const { POST } = await import("./route")
+    const response = await POST(
+      new Request("http://localhost/api/automations/run", {
+        method: "POST",
+        body: JSON.stringify({ now: "2026-07-03T15:05:00.000Z" }),
+      })
+    )
+    const payload = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(payload.created).toEqual([])
   })
 
   it("requires the cron secret bearer token", async () => {
@@ -206,10 +220,10 @@ describe("POST /api/automations/run", () => {
 })
 
 describe("GET /api/automations/run", () => {
-  it("fails closed when the cron secret is not configured", async () => {
+  it("fails closed for non-localhost requests when the cron secret is not configured", async () => {
     const { GET } = await import("./route")
     const response = await GET(
-      new Request("http://localhost/api/automations/run", {
+      new Request("https://cfarm.example.com/api/automations/run", {
         headers: {
           authorization: "Bearer secret-1",
         },

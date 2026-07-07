@@ -27,6 +27,13 @@ export async function POST(request: Request) {
 function validateCronRequest(request: Request) {
   const cronSecret = process.env.CRON_SECRET
   if (!cronSecret) {
+    // Local development convenience (mirrors middleware.ts): the browser UI's
+    // "run now" button can't send a bearer token. Deployed environments must
+    // configure CRON_SECRET; anything non-localhost fails closed.
+    if (isLocalhostRequest(request)) {
+      return null
+    }
+
     return NextResponse.json(
       { error: "CRON_SECRET is not configured" },
       { status: 500 }
@@ -38,6 +45,11 @@ function validateCronRequest(request: Request) {
   }
 
   return null
+}
+
+function isLocalhostRequest(request: Request) {
+  const hostname = new URL(request.url).hostname
+  return hostname === "localhost" || hostname === "127.0.0.1"
 }
 
 async function runAutomations(request: Request) {
