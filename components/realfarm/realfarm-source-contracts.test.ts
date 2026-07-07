@@ -7,6 +7,34 @@ function src(relativePath: string) {
   return readFileSync(path.join(process.cwd(), relativePath), "utf8")
 }
 
+function readAutomationSettingsSource() {
+  return [
+    "components/realfarm/automation-settings.tsx",
+    "components/realfarm/automation-settings/content-format-editor.tsx",
+    "components/realfarm/automation-settings/drawer.tsx",
+    "components/realfarm/automation-settings/format-helpers.ts",
+    "components/realfarm/automation-settings/format-preview-card.tsx",
+    "components/realfarm/automation-settings/format-text-toolbar.tsx",
+    "components/realfarm/automation-settings/general-settings.tsx",
+    "components/realfarm/automation-settings/overview-panel.tsx",
+    "components/realfarm/automation-settings/prompt-settings.tsx",
+    "components/realfarm/automation-settings/run-helpers.ts",
+    "components/realfarm/automation-settings/schedule-helpers.ts",
+    "components/realfarm/automation-settings/schedule-settings.tsx",
+    "components/realfarm/automation-settings/settings-layout.tsx",
+    "components/realfarm/automation-settings/slideshow-format-panel.tsx",
+    "components/realfarm/automation-settings/slideshow-format-preview-stage.tsx",
+    "components/realfarm/automation-settings/social-platform-fields.tsx",
+    "components/realfarm/automation-settings/social-settings-helpers.ts",
+    "components/realfarm/automation-settings/social-settings.tsx",
+    "components/realfarm/automation-settings/types.ts",
+    "components/realfarm/automation-settings/video-format-panel.tsx",
+    "components/realfarm/automation-settings/video-format-helpers.ts",
+  ]
+    .map(src)
+    .join("\n")
+}
+
 function section(source: string, start: string, end: string) {
   return source.slice(
     source.indexOf(start),
@@ -76,9 +104,7 @@ describe("RealFarm source contracts", () => {
     })
 
     it("moves AI UGC ad creation into video automation settings", () => {
-      const automationSettingsSource = src(
-        "components/realfarm/automation-settings.tsx"
-      )
+      const automationSettingsSource = readAutomationSettingsSource()
       const videoPanelSource = section(
         automationSettingsSource,
         "function VideoAutomationFormatPanel",
@@ -171,9 +197,7 @@ describe("RealFarm source contracts", () => {
       const pinterestSource = src(
         "components/realfarm/pinterest-collection-search.tsx"
       )
-      const automationSettingsSource = src(
-        "components/realfarm/automation-settings.tsx"
-      )
+      const automationSettingsSource = readAutomationSettingsSource()
 
       expectContains(selectorSource, [
         "export function CollectionSelector",
@@ -279,7 +303,7 @@ describe("RealFarm source contracts", () => {
 
   describe("automation settings and automations grid", () => {
     it("keeps settings tabs, controls, and backing schema fields wired", () => {
-      const source = src("components/realfarm/automation-settings.tsx")
+      const source = readAutomationSettingsSource()
       const settingsSource = section(
         source,
         "function AutomationGeneralSettingsPanel",
@@ -360,7 +384,7 @@ describe("RealFarm source contracts", () => {
     })
 
     it("uses real collection data in automation format previews and compact controls", () => {
-      const source = src("components/realfarm/automation-settings.tsx")
+      const source = readAutomationSettingsSource()
       const sharedSource = src("components/realfarm/shared-media.tsx")
       const toolbarSource = section(
         source,
@@ -461,7 +485,7 @@ describe("RealFarm source contracts", () => {
     })
 
     it("wires automation grid actions, delete, and generation through persisted APIs", () => {
-      const settingsSource = src("components/realfarm/automation-settings.tsx")
+      const settingsSource = readAutomationSettingsSource()
       const automationsSource = src("components/realfarm/automations-view.tsx")
       const workspaceSource = src("components/realfarm-workspace.tsx")
 
@@ -518,7 +542,7 @@ describe("RealFarm source contracts", () => {
     })
 
     it("renders automation settings inline on the automations page instead of a modal overlay", () => {
-      const settingsSource = src("components/realfarm/automation-settings.tsx")
+      const settingsSource = readAutomationSettingsSource()
       const workspaceSource = src("components/realfarm-workspace.tsx")
       const automationViewBranch = section(
         workspaceSource,
@@ -564,7 +588,7 @@ describe("RealFarm source contracts", () => {
     })
 
     it("uses a multi-provider PostFast social account picker for automation destinations", () => {
-      const settingsSource = src("components/realfarm/automation-settings.tsx")
+      const settingsSource = readAutomationSettingsSource()
       const automationsSource = src("components/realfarm/automations-view.tsx")
       const pickerSource = src("components/realfarm/social-account-picker.tsx")
       const workspaceSource = src("components/realfarm-workspace.tsx")
@@ -606,7 +630,7 @@ describe("RealFarm source contracts", () => {
     })
 
     it("renders TikTok sounds as a full-row clickable picker", () => {
-      const settingsSource = src("components/realfarm/automation-settings.tsx")
+      const settingsSource = readAutomationSettingsSource()
       const creatorSource = src("components/realfarm/creator-ui.tsx")
 
       expectContains(settingsSource, [
@@ -866,7 +890,7 @@ describe("RealFarm source contracts", () => {
         "components/realfarm/generated-video-exports.tsx"
       )
       const greenscreenSource = src("components/realfarm/greenscreen-view.tsx")
-      const ugcSource = src("components/realfarm/automation-settings.tsx")
+      const ugcSource = readAutomationSettingsSource()
       const routeSource = src("app/api/generated-videos/route.ts")
       const greenscreenFlow = section(
         greenscreenSource,
