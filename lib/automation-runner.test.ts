@@ -1141,6 +1141,116 @@ describe("runDueAutomations", () => {
     expect(runs.runs).toHaveLength(1)
   })
 
+  it("claims a due slot before generation so overlapping invocations skip it", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-openrouter-key")
+    let releaseGeneration: () => void = () => undefined
+    const generationReleased = new Promise<void>((resolve) => {
+      releaseGeneration = resolve
+    })
+    let generationStarted: () => void = () => undefined
+    const generationStartedPromise = new Promise<void>((resolve) => {
+      generationStarted = resolve
+    })
+    const fetchMock = vi.fn(async () => {
+      generationStarted()
+      await generationReleased
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  title: "Claimed run",
+                  caption: "Claimed caption",
+                  hashtags: "#claimed",
+                  text: {},
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200 }
+      )
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const automation = createLocalAutomationRecord({
+      name: "Daily hooks",
+      overrides: {
+        status: "live",
+        social_integrations: [
+          {
+            provider: "tiktok",
+            integration_id: "tiktok-1",
+            name: "Brand TikTok",
+            profile: "brand",
+          },
+        ],
+        schedule: {
+          timezone: "America/New_York",
+          posting_times: [{ time: "11:00 AM", days: ["Fri"] }],
+        },
+      },
+    })
+    await upsertAutomationRecords({
+      rootDir: automationRootDir,
+      records: [automation],
+    })
+    await writeImageCollections([
+      {
+        image_link: "/api/local-assets/image-collections/files/daily-scene.jpg",
+        caption: "Daily scene",
+      },
+    ])
+    const now = DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate()
+
+    const firstPromise = runDueAutomations({
+      automationRootDir,
+      runRootDir,
+      postfastRootDir: rootDir,
+      imageCollectionDbPath,
+      now,
+    })
+    await generationStartedPromise
+
+    const claimedRuns = JSON.parse(
+      await readFile(path.join(runRootDir, "runs.json"), "utf8")
+    )
+    expect(claimedRuns.runs).toHaveLength(1)
+    expect(claimedRuns.runs[0]).toMatchObject({
+      automationId: automation.id,
+      scheduledFor: "2026-07-03T15:00:00.000Z",
+      status: "running",
+    })
+
+    const second = await runDueAutomations({
+      automationRootDir,
+      runRootDir,
+      postfastRootDir: rootDir,
+      imageCollectionDbPath,
+      now,
+    })
+    releaseGeneration()
+    const first = await firstPromise
+    const runs = JSON.parse(
+      await readFile(path.join(runRootDir, "runs.json"), "utf8")
+    )
+
+    expect(second.created).toEqual([])
+    expect(second.skipped).toEqual([
+      {
+        automationId: automation.id,
+        reason: "already_ran",
+        scheduledFor: "2026-07-03T15:00:00.000Z",
+      },
+    ])
+    expect(first.created).toHaveLength(1)
+    expect(runs.runs).toHaveLength(1)
+    expect(runs.runs[0]).toMatchObject({
+      id: first.created[0].id,
+      status: "succeeded",
+    })
+  })
+
   it("force creates an immediate run for a selected automation even when the slot already ran", async () => {
     const automation = createLocalAutomationRecord({
       name: "Daily hooks",

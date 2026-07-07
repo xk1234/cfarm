@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { DateTime } from "luxon"
 
@@ -45,8 +45,13 @@ import {
   type TempSlideSpec,
   type TempSlideStructuredOutput,
 } from "@/lib/temp-slide-testing"
+import {
+  readJsonArrayStore,
+  withJsonArrayStore,
+  writeJsonArrayStore,
+} from "@/lib/json-store"
 
-export type AutomationRunStatus = "succeeded" | "failed"
+export type AutomationRunStatus = "running" | "succeeded" | "failed"
 
 export type AutomationRunRecord = {
   id: string
@@ -157,13 +162,10 @@ type RawAutomationRunRecord = Omit<
   plan?: Partial<AutomationRunPlan>
 }
 
-type AutomationRunsDb = {
-  runs?: RawAutomationRunRecord[]
-}
-
 const defaultAutomationRootDir = path.join(process.cwd(), "data", "automations")
 const defaultRunRootDir = path.join(process.cwd(), "data", "automations")
 const runsFileName = "runs.json"
+const runningClaimGuardMinutes = 10
 
 export async function listAutomationRuns(
   input: {
@@ -255,9 +257,7 @@ export async function runDueAutomations(
   const records = await listAutomationRecords({
     rootDir: input.automationRootDir ?? defaultAutomationRootDir,
   })
-  const existingRuns = await readAutomationRuns(runRootDir)
   const result: AutomationRunResult = { created: [], results: [], skipped: [] }
-  const nextRuns = [...existingRuns]
 
   for (const record of records) {
     if (input.automationId && record.id !== input.automationId) {
@@ -278,13 +278,18 @@ export async function runDueAutomations(
     }
 
     for (const scheduledFor of dueSlots) {
-      if (
-        !input.force &&
-        nextRuns.some(
-          (run) =>
-            run.automationId === record.id && run.scheduledFor === scheduledFor
-        )
-      ) {
+      const effectiveRecord =
+        input.schemaOverride && input.automationId === record.id
+          ? { ...record, schema: input.schemaOverride }
+          : record
+      const claim = await claimAutomationRunSlot({
+        runRootDir,
+        record: effectiveRecord,
+        scheduledFor,
+        now,
+        force: Boolean(input.force),
+      })
+      if (!claim.run) {
         result.skipped.push({
           automationId: record.id,
           reason: "already_ran",
@@ -293,18 +298,20 @@ export async function runDueAutomations(
         continue
       }
 
-      const effectiveRecord =
-        input.schemaOverride && input.automationId === record.id
-          ? { ...record, schema: input.schemaOverride }
-          : record
       const createdRun = await createAutomationRun({
+        claimedRun: claim.run,
         record: effectiveRecord,
-        scheduledFor,
         postfastRootDir: input.postfastRootDir,
         slideshowRootDir,
         resultRootDir,
         imageCollectionDbPath: input.imageCollectionDbPath,
         random: input.random,
+      }).catch(async (error) => {
+        await updateAutomationRun(
+          runRootDir,
+          failedClaimedAutomationRun(claim.run!, error)
+        )
+        throw error
       })
       const run = createdRun.run
       if (run.status === "failed") {
@@ -314,16 +321,12 @@ export async function runDueAutomations(
           scheduledFor,
         })
       }
-      nextRuns.unshift(run)
+      await updateAutomationRun(runRootDir, run)
       result.created.push(run)
       if (createdRun.result) {
         result.results.push(createdRun.result)
       }
     }
-  }
-
-  if (result.created.length > 0) {
-    await writeAutomationRuns(runRootDir, nextRuns)
   }
 
   return result
@@ -378,8 +381,8 @@ function parseLocalSlot(nowLocal: DateTime, time: string) {
 }
 
 async function createAutomationRun(input: {
+  claimedRun: AutomationRunRecord
   record: AutomationRecord
-  scheduledFor: string
   postfastRootDir?: string
   slideshowRootDir?: string
   resultRootDir?: string
@@ -394,13 +397,10 @@ async function createAutomationRun(input: {
   const status: AutomationRunStatus =
     plan.slides.length > 0 ? "succeeded" : "failed"
   const run: AutomationRunRecord = {
-    id: `automation-run-${randomUUID()}`,
-    automationId: input.record.id,
+    ...input.claimedRun,
     automationTitle: input.record.schema.title || input.record.name,
-    scheduledFor: input.scheduledFor,
     status,
     plan,
-    createdAt: now,
     updatedAt: now,
     error:
       status === "failed"
@@ -1153,26 +1153,192 @@ function selectRandomIndex(length: number, random = Math.random) {
 async function readAutomationRuns(
   rootDir = defaultRunRootDir
 ): Promise<AutomationRunRecord[]> {
-  try {
-    const contents = await readFile(path.join(rootDir, runsFileName), "utf8")
-    const parsed = JSON.parse(contents) as AutomationRunsDb
-    return Array.isArray(parsed.runs)
-      ? parsed.runs.map(normalizeRun).flatMap((run) => (run ? [run] : []))
-      : []
-  } catch {
-    return []
-  }
+  return readJsonArrayStore<RawAutomationRunRecord>({
+    rootDir,
+    fileName: runsFileName,
+    key: "runs",
+    normalize: normalizeRun,
+  }) as Promise<AutomationRunRecord[]>
 }
 
 async function writeAutomationRuns(
   rootDir: string,
   runs: AutomationRunRecord[]
 ) {
-  await mkdir(rootDir, { recursive: true })
-  await writeFile(
-    path.join(rootDir, runsFileName),
-    `${JSON.stringify({ runs }, null, 2)}\n`
+  await writeJsonArrayStore({
+    rootDir,
+    fileName: runsFileName,
+    key: "runs",
+    records: runs,
+  })
+}
+
+async function claimAutomationRunSlot(input: {
+  runRootDir: string
+  record: AutomationRecord
+  scheduledFor: string
+  now: Date
+  force: boolean
+}) {
+  return withJsonArrayStore<
+    RawAutomationRunRecord,
+    { run?: AutomationRunRecord }
+  >({
+    rootDir: input.runRootDir,
+    fileName: runsFileName,
+    key: "runs",
+    normalize: normalizeRun,
+    update(runs) {
+      if (
+        !input.force &&
+        runs.some((run) =>
+          isClaimForAutomationSlot({
+            run,
+            automationId: input.record.id,
+            scheduledFor: input.scheduledFor,
+            now: input.now,
+          })
+        )
+      ) {
+        return {
+          records: runs,
+          result: {},
+        }
+      }
+
+      const run = runningAutomationRun({
+        record: input.record,
+        scheduledFor: input.scheduledFor,
+        now: input.now,
+      })
+      const records = input.force
+        ? runs
+        : runs.filter(
+            (existingRun) =>
+              !isSameAutomationSlot({
+                run: existingRun,
+                automationId: input.record.id,
+                scheduledFor: input.scheduledFor,
+              }) || existingRun.status !== "running"
+          )
+      return {
+        records: [run, ...records],
+        result: { run },
+      }
+    },
+  })
+}
+
+async function updateAutomationRun(
+  runRootDir: string,
+  run: AutomationRunRecord
+) {
+  await withJsonArrayStore<RawAutomationRunRecord>({
+    rootDir: runRootDir,
+    fileName: runsFileName,
+    key: "runs",
+    normalize: normalizeRun,
+    update(runs) {
+      let updated = false
+      const records = runs.map((existingRun) => {
+        if (existingRun.id !== run.id) {
+          return existingRun
+        }
+        updated = true
+        return run
+      })
+      return {
+        records: updated ? records : [run, ...records],
+      }
+    },
+  })
+}
+
+function isClaimForAutomationSlot(input: {
+  run: RawAutomationRunRecord
+  automationId: string
+  scheduledFor: string
+  now: Date
+}) {
+  if (!isSameAutomationSlot(input)) {
+    return false
+  }
+  if (input.run.status !== "running") {
+    return true
+  }
+
+  const updatedAt = new Date(clean(input.run.updatedAt)).getTime()
+  const guardMs = runningClaimGuardMinutes * 60 * 1000
+  return Number.isFinite(updatedAt) && input.now.getTime() - updatedAt < guardMs
+}
+
+function isSameAutomationSlot(input: {
+  run: RawAutomationRunRecord
+  automationId: string
+  scheduledFor: string
+}) {
+  return (
+    input.run.automationId === input.automationId &&
+    input.run.scheduledFor === input.scheduledFor
   )
+}
+
+function runningAutomationRun(input: {
+  record: AutomationRecord
+  scheduledFor: string
+  now: Date
+}): AutomationRunRecord {
+  const now = input.now.toISOString()
+  return {
+    id: `automation-run-${randomUUID()}`,
+    automationId: input.record.id,
+    automationTitle: input.record.schema.title || input.record.name,
+    scheduledFor: input.scheduledFor,
+    status: "running",
+    plan: pendingAutomationRunPlan(input.record),
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+function failedClaimedAutomationRun(
+  run: AutomationRunRecord,
+  error: unknown
+): AutomationRunRecord {
+  const message = error instanceof Error ? error.message : String(error)
+  return {
+    ...run,
+    status: "failed",
+    updatedAt: new Date().toISOString(),
+    error: message,
+  }
+}
+
+function pendingAutomationRunPlan(record: AutomationRecord): AutomationRunPlan {
+  const collectionIds = automationCollectionIds(record.schema)
+  const content = automationFormatSection(record.schema, "content")
+  const slideCount = automationTotalSlideCount(record.schema)
+  const hook = automationHooks(record.schema)[0] || record.schema.title
+  return {
+    title: record.schema.title || record.name,
+    caption: hook.toLowerCase(),
+    hashtags: "",
+    hook,
+    imageCollectionIds: collectionIds,
+    slides: [],
+    slideCount: {
+      mode: "static",
+      count: slideCount,
+      min: content.slideCount,
+      max: record.schema.prompt_formatting.num_of_slides,
+    },
+    publishType: automationPublishType(record.schema),
+    autoMusic: record.schema.tiktok_post_settings.auto_music,
+    autoPost: record.schema.tiktok_post_settings.auto_post,
+    hookCandidates: automationHooks(record.schema),
+    language:
+      record.schema.image_collection_ids.language || defaultAutomationLanguage,
+  }
 }
 
 function normalizeRun(run: RawAutomationRunRecord): AutomationRunRecord | null {
@@ -1188,7 +1354,12 @@ function normalizeRun(run: RawAutomationRunRecord): AutomationRunRecord | null {
     automationId,
     automationTitle: clean(run.automationTitle) || "Automation",
     scheduledFor,
-    status: run.status === "failed" ? "failed" : "succeeded",
+    status:
+      run.status === "failed"
+        ? "failed"
+        : run.status === "running"
+          ? "running"
+          : "succeeded",
     createdAt: clean(run.createdAt) || new Date().toISOString(),
     updatedAt:
       clean(run.updatedAt) || clean(run.createdAt) || new Date().toISOString(),
