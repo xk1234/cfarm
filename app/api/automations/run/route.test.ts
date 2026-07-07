@@ -27,7 +27,43 @@ afterEach(async () => {
 })
 
 describe("POST /api/automations/run", () => {
+  it("fails closed when the cron secret is not configured", async () => {
+    const { POST } = await import("./route")
+    const response = await POST(
+      new Request("http://localhost/api/automations/run", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer secret-1",
+        },
+        body: JSON.stringify({ force: true }),
+      })
+    )
+    const payload = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(payload.error).toBe("CRON_SECRET is not configured")
+  })
+
+  it("requires the cron secret bearer token", async () => {
+    vi.stubEnv("CRON_SECRET", "secret-1")
+
+    const { POST } = await import("./route")
+    const response = await POST(
+      new Request("http://localhost/api/automations/run", {
+        method: "POST",
+        body: JSON.stringify({
+          force: true,
+          schema: { social_integrations: [] },
+        }),
+      })
+    )
+
+    expect(response.status).toBe(401)
+  })
+
   it("runs due automations through the local runner", async () => {
+    vi.stubEnv("CRON_SECRET", "secret-1")
+
     const automation = createLocalAutomationRecord({
       name: "Daily hooks",
       overrides: {
@@ -90,6 +126,9 @@ describe("POST /api/automations/run", () => {
     const response = await POST(
       new Request("http://localhost/api/automations/run", {
         method: "POST",
+        headers: {
+          authorization: "Bearer secret-1",
+        },
         body: JSON.stringify({ now: "2026-07-03T15:05:00.000Z" }),
       })
     )
@@ -167,6 +206,21 @@ describe("POST /api/automations/run", () => {
 })
 
 describe("GET /api/automations/run", () => {
+  it("fails closed when the cron secret is not configured", async () => {
+    const { GET } = await import("./route")
+    const response = await GET(
+      new Request("http://localhost/api/automations/run", {
+        headers: {
+          authorization: "Bearer secret-1",
+        },
+      })
+    )
+    const payload = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(payload.error).toBe("CRON_SECRET is not configured")
+  })
+
   it("requires the cron secret when configured", async () => {
     vi.stubEnv("CRON_SECRET", "secret-1")
 
@@ -181,6 +235,8 @@ describe("GET /api/automations/run", () => {
 
 describe("GET /api/automations/runs", () => {
   it("returns persisted recent runs for an automation", async () => {
+    vi.stubEnv("CRON_SECRET", "secret-1")
+
     const automation = createLocalAutomationRecord({
       name: "Recent hooks",
       overrides: {
@@ -235,6 +291,9 @@ describe("GET /api/automations/runs", () => {
     const createResponse = await runRoute.POST(
       new Request("http://localhost/api/automations/run", {
         method: "POST",
+        headers: {
+          authorization: "Bearer secret-1",
+        },
         body: JSON.stringify({
           automationId: automation.id,
           force: true,

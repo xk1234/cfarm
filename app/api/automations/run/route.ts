@@ -6,16 +6,37 @@ import type { AutomationSchema } from "@/lib/realfarm-automation"
 export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const authError = validateCronRequest(request)
+  if (authError) {
+    return authError
   }
 
   return runAutomations(request)
 }
 
 export async function POST(request: Request) {
+  const authError = validateCronRequest(request)
+  if (authError) {
+    return authError
+  }
+
   return runAutomations(request)
+}
+
+function validateCronRequest(request: Request) {
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret) {
+    return NextResponse.json(
+      { error: "CRON_SECRET is not configured" },
+      { status: 500 }
+    )
+  }
+
+  if (request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  return null
 }
 
 async function runAutomations(request: Request) {

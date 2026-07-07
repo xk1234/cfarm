@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 
+import { assertPublicHttpUrl } from "@/lib/url-guard"
+
 export const dynamic = "force-dynamic"
 
 const allowedContentTypes = new Set([
@@ -21,12 +23,13 @@ export async function GET(request: Request) {
   }
 
   try {
-    const response = await fetch(remoteUrl, {
-      headers: {
-        Accept: "image/avif,image/webp,image/png,image/jpeg,image/gif;q=0.8,*/*;q=0.5",
-        "User-Agent": "Mozilla/5.0 RealFarm image proxy",
-      },
-    })
+    await assertPublicHttpUrl(remoteUrl)
+  } catch {
+    return NextResponse.json({ error: "A valid remote image URL is required" }, { status: 400 })
+  }
+
+  try {
+    const response = await fetchRemoteImage(remoteUrl)
 
     if (!response.ok) {
       return NextResponse.json({ error: "Remote image could not be loaded" }, { status: 502 })
@@ -57,6 +60,37 @@ export async function GET(request: Request) {
   } catch {
     return NextResponse.json({ error: "Remote image could not be loaded" }, { status: 502 })
   }
+}
+
+async function fetchRemoteImage(url: string, redirectCount = 0): Promise<Response> {
+  const response = await fetch(url, {
+    redirect: "manual",
+    headers: {
+      Accept: "image/avif,image/webp,image/png,image/jpeg,image/gif;q=0.8,*/*;q=0.5",
+      "User-Agent": "Mozilla/5.0 RealFarm image proxy",
+    },
+  })
+
+  if (!isRedirect(response.status)) {
+    return response
+  }
+
+  if (redirectCount >= 3) {
+    throw new Error("Too many redirects")
+  }
+
+  const location = response.headers.get("location")
+  if (!location) {
+    throw new Error("Redirect did not include a location")
+  }
+
+  const nextUrl = new URL(location, url).toString()
+  await assertPublicHttpUrl(nextUrl)
+  return fetchRemoteImage(nextUrl, redirectCount + 1)
+}
+
+function isRedirect(status: number) {
+  return status >= 300 && status < 400
 }
 
 function parseRemoteImageUrl(rawUrl?: string | null) {

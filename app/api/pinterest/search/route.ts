@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server"
 
-import {
-  createFallbackPinterestResults,
-  runPinterestImport,
-} from "@/lib/pinterest-search"
+import { runPinterestImport } from "@/lib/pinterest-search"
 
 export const dynamic = "force-dynamic"
 
@@ -25,21 +22,25 @@ export async function POST(request: Request) {
   const query = readPayloadQuery(firstPayload)
   const mode = readPayloadMode(firstPayload)
 
-  return searchPinterest(query, safeLimit, readPayloadApiKey(firstPayload), mode)
+  return searchPinterest(query, safeLimit, mode)
 }
 
-async function searchPinterest(query: string, safeLimit: number, payloadApiKey = "", mode: "search" | "board" = "search") {
+async function searchPinterest(
+  query: string,
+  safeLimit: number,
+  mode: "search" | "board" = "search"
+) {
   if (!query) {
     return NextResponse.json({ error: "Query is required" }, { status: 400 })
   }
 
-  const token = payloadApiKey || process.env.APIFY_KEY
+  const token = process.env.APIFY_KEY
 
   if (!token) {
-    return NextResponse.json({
-      source: "fallback",
-      results: createFallbackPinterestResults(query, safeLimit),
-    })
+    return NextResponse.json(
+      { error: "APIFY_KEY is not configured" },
+      { status: 500 }
+    )
   }
 
   try {
@@ -66,15 +67,6 @@ function readPayloadQuery(value: unknown) {
 
   const query = (value as { query?: unknown }).query
   return typeof query === "string" ? query.trim() : ""
-}
-
-function readPayloadApiKey(value: unknown) {
-  if (!value || typeof value !== "object") {
-    return ""
-  }
-
-  const apiKey = (value as { apiKey?: unknown }).apiKey
-  return typeof apiKey === "string" ? apiKey.trim() : ""
 }
 
 function readPayloadMode(value: unknown): "search" | "board" {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { postfastRequest, type PostFastMediaType } from "@/lib/postfast-client"
 import { postfastRouteError } from "@/lib/postfast-route"
+import { assertPublicHttpUrl } from "@/lib/url-guard"
 
 export const dynamic = "force-dynamic"
 
@@ -28,7 +29,16 @@ export async function POST(request: Request) {
 
     const source = file
       ? { bytes: await file.arrayBuffer(), contentType: file.type }
-      : await fetchSource(sourceUrl, request.url)
+      : await fetchSource(sourceUrl, request.url).catch((error) => {
+          if (error instanceof SourceUrlError) {
+            return error
+          }
+          throw error
+        })
+    if (source instanceof SourceUrlError) {
+      return NextResponse.json({ error: source.message }, { status: 400 })
+    }
+
     const uploadContentType =
       source.contentType || contentTypeFromUrl(sourceUrl) || "application/octet-stream"
     const mediaType = postFastMediaType(uploadContentType)
@@ -81,8 +91,8 @@ export async function POST(request: Request) {
 }
 
 async function fetchSource(url: string, requestUrl: string) {
-  const resolvedUrl = absoluteSourceUrl(url, requestUrl)
-  const response = await fetch(resolvedUrl)
+  const resolvedUrl = await absoluteSourceUrl(url, requestUrl)
+  const response = await fetchPublicSource(resolvedUrl)
   if (!response.ok) {
     throw new Error("Failed to fetch media source")
   }
@@ -92,10 +102,44 @@ async function fetchSource(url: string, requestUrl: string) {
   }
 }
 
-function absoluteSourceUrl(url: string, requestUrl: string) {
-  return url.startsWith("/")
-    ? new URL(url, requestUrl).toString()
-    : url
+async function fetchPublicSource(url: string, redirectCount = 0): Promise<Response> {
+  const response = await fetch(url, { redirect: "manual" })
+  if (!isRedirect(response.status)) {
+    return response
+  }
+
+  if (redirectCount >= 3) {
+    throw new SourceUrlError("Too many media source redirects")
+  }
+
+  const location = response.headers.get("location")
+  if (!location) {
+    throw new SourceUrlError("Media source redirect did not include a location")
+  }
+
+  const nextUrl = new URL(location, url).toString()
+  await assertPublicHttpUrl(nextUrl)
+  return fetchPublicSource(nextUrl, redirectCount + 1)
+}
+
+async function absoluteSourceUrl(url: string, requestUrl: string) {
+  if (url.startsWith("/api/local-assets/")) {
+    return new URL(url, requestUrl).toString()
+  }
+  if (url.startsWith("/")) {
+    throw new SourceUrlError("Only /api/local-assets/ relative URLs are supported")
+  }
+
+  try {
+    const parsedUrl = await assertPublicHttpUrl(url)
+    return parsedUrl.toString()
+  } catch {
+    throw new SourceUrlError("A public http or https media source URL is required")
+  }
+}
+
+function isRedirect(status: number) {
+  return status >= 300 && status < 400
 }
 
 function contentTypeFromUrl(url: string) {
@@ -142,3 +186,5 @@ function firstSignedUpload(value: unknown) {
     typeof record.signedUrl === "string" ? record.signedUrl : ""
   return key && signedUrl ? { key, signedUrl } : null
 }
+
+class SourceUrlError extends Error {}
