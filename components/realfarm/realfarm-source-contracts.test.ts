@@ -812,9 +812,13 @@ describe("RealFarm source contracts", () => {
     })
 
     it("keeps character assets, generated images, and fixed editor layout in place", () => {
-      const source = src("components/realfarm/characters-view.tsx")
+      const source = src("components/realfarm/characters/characters-view.tsx")
+      const modalsSource = src("components/realfarm/characters/modals.tsx")
+      const sharedSource = src(
+        "components/realfarm/characters/shared-components.tsx"
+      )
       const gridSource = section(
-        source,
+        modalsSource,
         "function AssetImageTile",
         "function AssetThumb"
       )
@@ -824,6 +828,41 @@ describe("RealFarm source contracts", () => {
       )
 
       expectContains(source, [
+        "AttachmentSquareRow",
+        "characterImageAspectRatios",
+        'aria-label="Image aspect ratio"',
+        "fetchJsonWithTimeout<{",
+        "imageUrl?: string",
+        "generation?: CharacterImageGenerationRecord",
+        '"/api/characters/image"',
+        'status: "processing"',
+        "setPreviewGeneration(generation)",
+        'aria-label="Use as source image"',
+        "setSelectedGeneration(generation)",
+        "generations?: CharacterImageGenerationRecord[]",
+        "`/api/characters/images?characterId=${selectedCharacter.id}`",
+        "setGenerations(payload.generations ?? [])",
+        "characterId: input.selectedCharacter.id",
+        'className="relative h-[calc(100svh-72px)] overflow-hidden bg-[#f8f8f4] px-7 py-6"',
+        '"absolute inset-x-0 top-[104px] bottom-0 overflow-y-auto px-7 pt-8 pb-64"',
+        'className="absolute inset-x-8 bottom-6 z-30 mx-auto max-w-[760px] rounded-[16px] bg-white p-4 shadow-[0_18px_48px_rgba(0,0,0,0.14)]"',
+        "videoUrl?: string",
+        "group relative block overflow-hidden rounded-[10px] bg-transparent p-0",
+      ])
+      expect(debugButtonIndex).toBeGreaterThan(-1)
+      expect(composerIndex).toBeGreaterThan(-1)
+      expect(debugButtonIndex).toBeLessThan(composerIndex)
+      expectContains(gridSource, [
+        "const caption =",
+        'asset.caption || asset.prompt || asset.name || "No caption yet"',
+      ])
+      expectContains(sharedSource, [
+        "src={attachment.url}",
+        "alt={attachment.label}",
+        "style={{ width: `${generation.progress}%` }}",
+        'alt={generation.prompt || "Generated character image"}',
+      ])
+      expectContains(modalsSource, [
         "@/lib/realfarm-asset-ui-config",
         "assetCategoryByTab",
         "assetTabs.map((tab) => (",
@@ -835,44 +874,13 @@ describe("RealFarm source contracts", () => {
         "aspect-square",
         "group-hover:opacity-100",
         "group-focus-visible:opacity-100",
-        "AttachmentSquareRow",
-        "src={attachment.url}",
-        "alt={attachment.label}",
         "debug-attachments-bottom",
-        "characterImageAspectRatios",
-        'aria-label="Image aspect ratio"',
-        "fetchJsonWithTimeout<{",
-        "imageUrl?: string",
-        "generation?: CharacterImageGenerationRecord",
-        '"/api/characters/image"',
-        'status: "processing"',
-        "style={{ width: `${generation.progress}%` }}",
         "src={generation.imageUrl}",
-        'alt={generation.prompt || "Generated character image"}',
-        "setPreviewGeneration(generation)",
-        'aria-label="Use as source image"',
-        "setSelectedGeneration(generation)",
-        "generations?: CharacterImageGenerationRecord[]",
-        "`/api/characters/images?characterId=${selectedCharacter.id}`",
-        "setGenerations(payload.generations ?? [])",
-        "characterId: input.selectedCharacter.id",
-        'className="relative h-[calc(100svh-72px)] overflow-hidden bg-[#f8f8f4] px-7 py-6"',
-        '"absolute inset-x-0 top-[104px] bottom-0 overflow-y-auto px-7 pt-8 pb-64"',
-        'className="absolute inset-x-8 bottom-6 z-30 mx-auto max-w-[760px] rounded-[16px] bg-white p-4 shadow-[0_18px_48px_rgba(0,0,0,0.14)]"',
         "CharacterImageEditorModal",
         'aria-label="Video generation prompt"',
         "characterImageToVideoModels",
-        "videoUrl?: string",
         "taskId?: string",
         '"/api/characters/video"',
-        "group relative block overflow-hidden rounded-[10px] bg-transparent p-0",
-      ])
-      expect(debugButtonIndex).toBeGreaterThan(-1)
-      expect(composerIndex).toBeGreaterThan(-1)
-      expect(debugButtonIndex).toBeLessThan(composerIndex)
-      expectContains(gridSource, [
-        "const caption =",
-        'asset.caption || asset.prompt || asset.name || "No caption yet"',
       ])
       expectNotContains(gridSource, ["asset.source", "replace"])
       expectNotContains(source, [

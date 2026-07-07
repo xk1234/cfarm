@@ -75,7 +75,7 @@ describe("shared control styling contract", () => {
     const violations = [
       path.join("components", "ui", "form-controls.tsx"),
       path.join("components", "realfarm", "calendar-analytics.tsx"),
-      path.join("components", "realfarm", "characters-view.tsx"),
+      path.join("components", "realfarm", "characters", "characters-view.tsx"),
       path.join("components", "realfarm", "collections-view.tsx"),
     ].filter((relativePath) => {
       const source = readFileSync(

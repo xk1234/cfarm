@@ -713,23 +713,45 @@ async function encodePngSequenceToMp4(input: {
   durationSeconds: number
   slideImagePaths: string[]
 }) {
-  const scriptDir = await mkdtemp(path.join(os.tmpdir(), "cfarm-video-"))
-  const scriptPath = path.join(scriptDir, "render.swift")
-  await writeFile(scriptPath, slideshowVideoSwiftSource())
+  const concatDir = await mkdtemp(path.join(os.tmpdir(), "cfarm-video-"))
+  const concatPath = path.join(concatDir, "slides.ffconcat")
+  await writeFile(
+    concatPath,
+    [
+      "ffconcat version 1.0",
+      ...input.slideImagePaths.flatMap((slidePath) => [
+        `file '${escapeFfconcatPath(slidePath)}'`,
+        `duration ${Math.max(1, input.durationSeconds || defaultSlideshowDuration)}`,
+      ]),
+      `file '${escapeFfconcatPath(input.slideImagePaths[input.slideImagePaths.length - 1])}'`,
+    ].join("\n")
+  )
   try {
     await execFileAsync(
-      "swift",
+      "ffmpeg",
       [
-        scriptPath,
+        "-y",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        concatPath,
+        "-vf",
+        "fps=12,format=yuv420p",
+        "-movflags",
+        "+faststart",
         input.outputPath,
-        String(Math.max(1, input.durationSeconds || defaultSlideshowDuration)),
-        ...input.slideImagePaths,
       ],
       { timeout: 120_000, maxBuffer: 1024 * 1024 }
     )
   } finally {
-    await rm(scriptDir, { recursive: true, force: true })
+    await rm(concatDir, { recursive: true, force: true })
   }
+}
+
+function escapeFfconcatPath(filePath: string) {
+  return filePath.replace(/'/g, "'\\''")
 }
 
 async function materializeSlideSource(input: {
@@ -1092,4 +1114,3 @@ if writer.status != .completed {
 }
 `
 }
-
