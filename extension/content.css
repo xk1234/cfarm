@@ -56,18 +56,6 @@
   width: 100%;
 }
 
-.cfarm-swipe-fixed {
-  bottom: 24px;
-  left: 50%;
-  min-width: 360px;
-  position: fixed;
-  transform: translateX(-50%);
-}
-
-.cfarm-swipe-fixed:hover {
-  transform: translateX(-50%) translateY(-1px);
-}
-
 .cfarm-swipe-dock {
   margin: 12px 0;
   width: 100%;

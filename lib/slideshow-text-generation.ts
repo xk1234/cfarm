@@ -6,6 +6,7 @@ import {
   getTempSlidePromptPlaceholders,
   normalizeTempSlideStructuredOutput,
   promptPreviewHook,
+  styleRequestsLowercase,
   type TempSlideStructuredOutput,
   type TempSlideTestingAutomation,
 } from "@/lib/temp-slide-testing"
@@ -40,6 +41,7 @@ export async function generateSlideshowText(input: {
   systemPrompt?: string
   promptInstructions?: string
   selectedHook?: string
+  avoidSimilarOutputs?: string[]
   apiKey?: string
   fetchImpl?: typeof fetch
 }): Promise<SlideshowTextGenerationResult> {
@@ -59,6 +61,7 @@ export async function generateSlideshowText(input: {
     selectedHook,
     systemPrompt: input.systemPrompt,
     promptInstructions: input.promptInstructions,
+    avoidSimilarOutputs: input.avoidSimilarOutputs,
   })
   const payload = await fetchJson<OpenRouterResponse>(
     "https://openrouter.ai/api/v1/chat/completions",
@@ -87,10 +90,16 @@ export async function generateSlideshowText(input: {
   )
 
   const output = parseOpenRouterContent(payload.choices?.[0]?.message?.content)
+  const lowercase =
+    styleRequestsLowercase(input.automation.style) ||
+    styleRequestsLowercase(input.systemPrompt) ||
+    styleRequestsLowercase(input.promptInstructions)
   return {
     model,
     selectedHook,
-    result: normalizeTempSlideStructuredOutput(output, placeholders),
+    result: normalizeTempSlideStructuredOutput(output, placeholders, {
+      lowercase,
+    }),
     skippedOpenRouter: false,
     promptPayload,
   }
@@ -102,6 +111,7 @@ export function slideshowTextGenerationPayload(input: {
   selectedHook?: string
   systemPrompt?: string
   promptInstructions?: string
+  avoidSimilarOutputs?: string[]
 }) {
   const model = clean(input.model) || defaultSlideshowTextModel
   const selectedHook =
@@ -127,6 +137,7 @@ export function slideshowTextGenerationPayload(input: {
           style: input.automation.style,
           promptInstructions,
           placeholders,
+          avoidSimilarOutputs: input.avoidSimilarOutputs,
         }),
       },
     ],

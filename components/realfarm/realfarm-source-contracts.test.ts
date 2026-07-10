@@ -16,6 +16,7 @@ function readAutomationSettingsSource() {
     "components/realfarm/automation-settings/format-preview-card.tsx",
     "components/realfarm/automation-settings/format-text-toolbar.tsx",
     "components/realfarm/automation-settings/general-settings.tsx",
+    "components/realfarm/automation-settings/generated-slideshow-frame.tsx",
     "components/realfarm/automation-settings/overview-panel.tsx",
     "components/realfarm/automation-settings/prompt-settings.tsx",
     "components/realfarm/automation-settings/run-helpers.ts",
@@ -173,6 +174,11 @@ describe("RealFarm source contracts", () => {
         "QUICK_START_ITEMS_PER_PAGE = 6",
         "quickStartPage",
         "pagedQuickStartTemplates",
+        "generatedRunsByAutomationId",
+        "generatedHomeSlideshowCards",
+        "Slideshows ({generatedSlideshowCards.length})",
+        "GeneratedSlideshowCard",
+        "No generated slideshows yet. Run a slideshow automation",
         'aria-label="Previous quick start page"',
         'aria-label="Next quick start page"',
         "QuickStartTemplateCard",
@@ -181,6 +187,7 @@ describe("RealFarm source contracts", () => {
       ])
       expectNotContains(homeSource, [
         'if (activeTab !== "videos") return',
+        "Slideshows (0)",
         "templates.slice(0, 6)",
         "Start automating this format",
       ])
@@ -661,6 +668,9 @@ describe("RealFarm source contracts", () => {
       const exampleModalSource = src(
         "components/realfarm/example-slideshow-modal.tsx"
       )
+      const slideshowViewerSource = src(
+        "components/realfarm/slideshow-viewer-modal.tsx"
+      )
 
       expectContains(workspaceSource, [
         "initialTemplateData",
@@ -674,6 +684,7 @@ describe("RealFarm source contracts", () => {
         "exampleRunsByTemplateId",
         "showcaseRunsByAutomationId",
         "recentRunsByAutomationId={showcaseRunsByAutomationId}",
+        "generatedRunsByAutomationId={recentRunsByAutomationId}",
       ])
       expectContains(templatesSource, [
         "templates: templateAutomations",
@@ -682,26 +693,41 @@ describe("RealFarm source contracts", () => {
         "exampleSlides={generatedExampleSlides",
         "ExampleSlideshowModal",
         "View ${automation.name} examples",
+        'useState<TemplateKindFilter>("slideshow")',
+        "templateKind(automation) === selectedKind",
+        "setSelectedKind(kind)",
+        "onClick={() => onCreateBlank(selectedKind)}",
+        "New {selectedKindLabel.toLowerCase()} automation",
         "No templates available",
-        "No matching templates",
+        "No matching ${selectedKindLabel.toLowerCase()} templates",
         "opacity-0",
         "group-hover:opacity-100",
       ])
-      expectContains(homeSource, ["ExampleSlideshowModal", "onOpenExamples"])
+      expectNotContains(templatesSource, [
+        'onCreateBlank("slideshow")',
+        'onCreateBlank("video")',
+      ])
+      expectContains(homeSource, ["ExampleSlideshowModal", "onOpenSlideshow"])
       expectContains(previewSource, [
         "No example slideshow yet",
         "slide.text",
         'slide.section !== "hook"',
         "slide.imageUrl",
+        "run.renderedSlides?.length",
+        "slide.sourceImageUrl",
       ])
       expectContains(exampleModalSource, [
         "generatedExampleSlideshows",
+        "SlideshowViewerModal",
+        "initialSlideshowId",
+      ])
+      expectContains(slideshowViewerSource, [
         "CheckedDropdownButton",
         "selectedSlideshowLabel",
         "boundedActiveSlide - 1",
         "boundedActiveSlide + 1",
-        "`Slideshow ${boundedActiveSlide + 1}`",
-        "setActiveSlide(nextIndex)",
+        "onSelectSlideshow(nextIndex)",
+        "initialSlideshowId",
         'aria-hidden="true"',
         'slide.section !== "hook"',
       ])
@@ -828,7 +854,7 @@ describe("RealFarm source contracts", () => {
       )
 
       expectContains(source, [
-        "AttachmentSquareRow",
+        "PromptInputRow",
         "characterImageAspectRatios",
         'aria-label="Image aspect ratio"',
         "fetchJsonWithTimeout<{",
@@ -843,9 +869,9 @@ describe("RealFarm source contracts", () => {
         "`/api/characters/images?characterId=${selectedCharacter.id}`",
         "setGenerations(payload.generations ?? [])",
         "characterId: input.selectedCharacter.id",
-        'className="relative h-[calc(100svh-72px)] overflow-hidden bg-[#f8f8f4] px-7 py-6"',
+        'className="relative h-[calc(100svh-72px)] overflow-hidden bg-app-surface-subtle px-7 py-6"',
         '"absolute inset-x-0 top-[104px] bottom-0 overflow-y-auto px-7 pt-8 pb-64"',
-        'className="absolute inset-x-8 bottom-6 z-30 mx-auto max-w-[760px] rounded-[16px] bg-white p-4 shadow-[0_18px_48px_rgba(0,0,0,0.14)]"',
+        'className="absolute inset-x-8 bottom-6 z-30 mx-auto max-w-[760px] overflow-hidden rounded-2xl border border-app-panel-border bg-app-surface shadow-[0_12px_32px_rgba(30,30,25,0.12)]"',
         "videoUrl?: string",
         "group relative block overflow-hidden rounded-[10px] bg-transparent p-0",
       ])
@@ -888,6 +914,41 @@ describe("RealFarm source contracts", () => {
         "presetMenuOpen",
         'className="overflow-hidden rounded-[14px] border border-[#e1e1dc] bg-white text-left shadow-sm',
         "{generation.model} · {generation.aspectRatio}",
+      ])
+    })
+  })
+
+  describe("automation dynamic tags and loading", () => {
+    it("keeps automation dynamic tags and generation loading wired", () => {
+      const automationSettingsSource = readAutomationSettingsSource()
+      const promptSource = src(
+        "components/realfarm/automation-settings/prompt-settings.tsx"
+      )
+      const loadingSource = src("components/realfarm/generation-loading.tsx")
+      const wordCollectionRouteSource = src("app/api/word-collections/route.ts")
+
+      expectContains(promptSource, [
+        "Dynamic tags",
+        "dynamicHookSlotPattern",
+        "/api/word-collections",
+        "schemaWithAutomationHookSlots",
+        "[[{slot}]]",
+      ])
+      expectContains(automationSettingsSource, [
+        "generating={generating}",
+        "StandardGenerationLoadingScreen",
+        "Selecting images, expanding dynamic tags",
+        "Preview will update when ready.",
+      ])
+      expectContains(loadingSource, [
+        "StandardGenerationLoadingScreen",
+        'role="status"',
+        'aria-busy="true"',
+      ])
+      expectContains(wordCollectionRouteSource, [
+        "listWordCollections",
+        "upsertWordCollection",
+        'export const dynamic = "force-dynamic"',
       ])
     })
   })

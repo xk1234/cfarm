@@ -9,6 +9,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { SelectControl } from "@/components/ui/form-controls"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
+import { Spinner } from "@/components/ui/spinner"
 import { UploadDropzone } from "@/components/ui/upload-dropzone"
 import { defaultCharacterAttributes, normalizeCharacterAttributes } from "@/lib/character-model"
 import type { CharacterPayload, CharacterRecord } from "@/lib/characters"
@@ -512,8 +513,8 @@ export function CharacterCreateModal({
               )}
               {!headshotReady && (
                 <div className="absolute inset-0 grid place-items-center rounded-[18px] bg-white/80 px-5 text-center backdrop-blur-sm">
-                  <div>
-                    <div className="mx-auto mb-3 size-8 animate-spin rounded-full border-2 border-[#d7dce5] border-t-app-action" />
+                  <div className="flex flex-col items-center">
+                    <Spinner size={30} className="mb-3" />
                     <div className="text-[13px] font-bold text-[#555]">Generating headshot...</div>
                   </div>
                 </div>

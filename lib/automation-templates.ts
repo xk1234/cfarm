@@ -1,14 +1,19 @@
-import { clean } from "@/lib/guards"
+import { clean, isRecord } from "@/lib/guards"
+import { readFile } from "node:fs/promises"
 import path from "node:path"
 
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
+import { defaultAutomationTemplateDefaults } from "@/lib/automation-template-defaults"
+import {
+  findCollectionByIdOrAlias,
+  type CreatedImageCollection,
+} from "@/lib/realfarm-collections"
 import {
   automationFormatSection,
   automationTone,
   defaultAutomationSchema,
   normalizeAutomationSchema,
   type AutomationAspectRatio,
-  type AutomationFormatSection,
   type AutomationImageGrid,
   type AutomationImageMode,
   type AutomationSchema,
@@ -116,6 +121,12 @@ export type AutomationTemplateExampleRun = {
   }
 }
 
+export type AutomationTemplateCollectionValidationIssue = {
+  templateId: string
+  templateName: string
+  missingCollectionIds: string[]
+}
+
 const defaultRootDir = path.join(process.cwd(), "data", "automation-templates")
 const dbFileName = "templates.json"
 const exampleRunsFileName = "example-runs.json"
@@ -124,12 +135,20 @@ const allDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const
 export async function listAutomationTemplateRecords(
   options: { rootDir?: string } = {}
 ) {
-  return await readJsonArrayStore({
-    rootDir: options.rootDir ?? defaultRootDir,
+  const rootDir = options.rootDir ?? defaultRootDir
+  const records = await readJsonArrayStore({
+    rootDir,
     fileName: dbFileName,
     key: "templates",
     normalize: normalizeAutomationTemplateRecord,
   })
+
+  if (path.resolve(rootDir) !== path.resolve(defaultRootDir)) {
+    return records
+  }
+
+  const seedRecords = await readAutomationTemplateSeedRecords(rootDir)
+  return appendMissingAutomationTemplateSeeds(records, seedRecords)
 }
 
 export async function listAutomationTemplateExampleRuns(
@@ -141,6 +160,48 @@ export async function listAutomationTemplateExampleRuns(
     key: "runs",
     normalize: normalizeAutomationTemplateExampleRun,
   })
+}
+
+async function readAutomationTemplateSeedRecords(rootDir: string) {
+  try {
+    const contents = await readFile(path.join(rootDir, dbFileName), "utf8")
+    const parsed = JSON.parse(contents) as Record<string, unknown>
+    const templates = parsed.templates
+    if (!Array.isArray(templates)) {
+      return []
+    }
+    return templates.flatMap((record) => {
+      const normalized = normalizeAutomationTemplateRecord(
+        record as AutomationTemplateRecord
+      )
+      return normalized ? [normalized] : []
+    })
+  } catch {
+    return []
+  }
+}
+
+function appendMissingAutomationTemplateSeeds(
+  records: AutomationTemplateRecord[],
+  seedRecords: AutomationTemplateRecord[]
+) {
+  const keys = new Set(records.map(automationTemplateIdentityKey))
+  const missingSeeds = seedRecords.filter((record) => {
+    const key = automationTemplateIdentityKey(record)
+    if (keys.has(key)) {
+      return false
+    }
+    keys.add(key)
+    return true
+  })
+
+  return [...records, ...missingSeeds]
+}
+
+function automationTemplateIdentityKey(record: AutomationTemplateRecord) {
+  return record.sourceAutomationId
+    ? `source:${record.sourceAutomationId}`
+    : `id:${record.id}`
 }
 
 export function groupAutomationTemplateExampleRunsByTemplateId(
@@ -250,13 +311,40 @@ export function automationTemplateRecordToSchema(
       schedule: {
         timezone:
           Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Singapore",
-        posting_times: [{ time: "11:00 AM", days: [...allDays] }],
+        posting_times: [
+          {
+            time: defaultAutomationTemplateDefaults.schedule.defaultPostingTime,
+            days: [...allDays],
+          },
+        ],
       },
     },
     summary
   )
 
   return schema
+}
+
+export function validateAutomationTemplateCollectionIds(input: {
+  records: AutomationTemplateRecord[]
+  collections: CreatedImageCollection[]
+}): AutomationTemplateCollectionValidationIssue[] {
+  return input.records.flatMap((record) => {
+    const missingCollectionIds = templateCollectionIds(record).filter(
+      (collectionId) =>
+        !findCollectionByIdOrAlias(input.collections, collectionId)
+    )
+
+    return missingCollectionIds.length > 0
+      ? [
+          {
+            templateId: record.id,
+            templateName: record.name,
+            missingCollectionIds,
+          },
+        ]
+      : []
+  })
 }
 
 export function automationTemplateRecordToRuntimeTemplate(
@@ -586,6 +674,41 @@ function parseImageCollectionIds(
   }
 }
 
+function templateCollectionIds(record: AutomationTemplateRecord) {
+  const ids = new Set<string>()
+  const parsed = parseTemplateImageCollectionIds(
+    record.template.image_collection_ids
+  )
+  const firstSlide = isRecord(parsed.first_slide) ? parsed.first_slide : {}
+  const ctaSlide = isRecord(parsed.cta_slide) ? parsed.cta_slide : {}
+
+  addCollectionId(ids, firstSlide.collection)
+  addCollectionId(ids, parsed.all_slides)
+  addCollectionId(ids, ctaSlide.cta_collection_id)
+  addCollectionId(
+    ids,
+    record.template.format.content.overlay_image?.collection_id
+  )
+
+  return [...ids]
+}
+
+function parseTemplateImageCollectionIds(value: string) {
+  try {
+    const parsed = JSON.parse(value)
+    return isRecord(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function addCollectionId(ids: Set<string>, value: unknown) {
+  const collectionId = clean(value)
+  if (collectionId) {
+    ids.add(collectionId)
+  }
+}
+
 function toneLabel(value: string): AutomationTemplateTone {
   const normalized = value.trim().toLowerCase()
   if (normalized === "motivational & empowering")
@@ -603,4 +726,3 @@ function toneLabel(value: string): AutomationTemplateTone {
 function tonePrompt(tone?: AutomationTemplateTone) {
   return tone && tone !== "Custom" ? tone : ""
 }
-

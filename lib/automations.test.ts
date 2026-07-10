@@ -12,7 +12,11 @@ import {
   normalizeReelfarmAutomation,
   upsertAutomationRecords,
 } from "@/lib/automations"
-import { defaultAutomationSchema } from "@/lib/realfarm-automation"
+import {
+  automationCollectionIds,
+  defaultAutomationSchema,
+} from "@/lib/realfarm-automation"
+import { defaultAutomationTemplateDefaults } from "@/lib/automation-template-defaults"
 
 let rootDir: string
 
@@ -370,6 +374,38 @@ describe("automation import persistence", () => {
         expect.objectContaining({ id: "cta", textItems: expect.any(Array) }),
       ]),
     })
+    expect(
+      record.schema.formatting.flatMap((section) =>
+        section.id === "_tone"
+          ? []
+          : section.textItems.map((item) => item.contentDirection)
+      )
+    ).not.toEqual(
+      expect.arrayContaining([
+        "hook text, all lowercase",
+        "short supporting text, all lowercase",
+      ])
+    )
+  })
+
+  it("loads default automation template settings from a single config source", () => {
+    const record = createLocalAutomationRecord({ name: "Config-backed" })
+
+    expect(defaultAutomationTemplateDefaults.version).toMatch(
+      /^default-automation-template-v\d+$/
+    )
+    expect(record.schema.prompt_formatting).toEqual(
+      defaultAutomationTemplateDefaults.prompt_formatting
+    )
+    expect(record.schema.image_collection_ids).toEqual(
+      defaultAutomationTemplateDefaults.image_collection_ids
+    )
+    expect(record.schema.schedule.posting_times).toEqual([
+      {
+        time: defaultAutomationTemplateDefaults.schedule.defaultPostingTime,
+        days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      },
+    ])
   })
 
   it("normalizes fixed social platform settings from per-platform publish mode", () => {
@@ -459,6 +495,26 @@ describe("automation import persistence", () => {
         facebookContentType: "POST",
       },
     })
+  })
+
+  it("returns unique image collection ids for automation planning", () => {
+    const schema = createLocalAutomationRecord({
+      name: "Shared collections",
+    }).schema
+    schema.image_collection_ids = {
+      ...schema.image_collection_ids,
+      first_slide: {
+        ...schema.image_collection_ids.first_slide,
+        collection: "collection-shared",
+      },
+      all_slides: "collection-shared",
+      cta_slide: {
+        ...schema.image_collection_ids.cta_slide,
+        cta_collection_id: "collection-shared",
+      },
+    }
+
+    expect(automationCollectionIds(schema)).toEqual(["collection-shared"])
   })
 
   it("creates local video automation records without using the slideshow default kind", () => {

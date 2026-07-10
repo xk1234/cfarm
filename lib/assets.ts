@@ -1,8 +1,9 @@
 import { clean } from "@/lib/guards"
-import { mkdir, rm, writeFile } from "node:fs/promises"
+import { rm } from "node:fs/promises"
 import path from "node:path"
 import { randomUUID } from "node:crypto"
 
+import { persistAsset } from "@/lib/asset-storage"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
 export type AssetKind = "image" | "video" | "audio" | "text"
@@ -121,8 +122,7 @@ export async function createUploadedAssetRecord(input: {
   const safeFileName = `${Date.now()}-${id}${extension || ".bin"}`
   const filesFolder = uploadedAssetFolder(input.scope)
 
-  await mkdir(path.join(rootDir, filesFolder), { recursive: true })
-  await writeFile(path.join(rootDir, filesFolder, safeFileName), input.bytes)
+  await persistAsset(path.join(rootDir, filesFolder, safeFileName), input.bytes)
 
   const record: AssetRecord = {
     id,
@@ -171,8 +171,7 @@ export async function createGeneratedAssetRecord(input: {
       : "AI generation for this asset type is not wired yet"
 
   if (fileName) {
-    await mkdir(path.join(rootDir, assetFilesFolder), { recursive: true })
-    await writeFile(
+    await persistAsset(
       path.join(rootDir, assetFilesFolder, fileName),
       generatedSvg({ name, prompt, model })
     )

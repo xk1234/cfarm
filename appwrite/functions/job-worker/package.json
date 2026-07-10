@@ -1,0 +1,10 @@
+{
+  "name": "job-worker",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/main.js",
+  "description": "Appwrite cron function: drains the jobs queue with lease/retry/dead-letter",
+  "dependencies": {
+    "node-appwrite": "^26.2.0"
+  }
+}

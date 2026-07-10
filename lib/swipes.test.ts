@@ -177,7 +177,7 @@ describe("enrichSwipeAnalysis", () => {
 
     expect(swipe.processingStatus).toBe("processing")
     const dbPath = path.join(tempDir, "data", "swipes", "swipes.json")
-    const initialRecords = JSON.parse(await readFile(dbPath, "utf8"))
+    const initialRecords = JSON.parse(await readFile(dbPath, "utf8")).swipes
     expect(initialRecords[0]).toMatchObject({
       id: swipe.id,
       processingStatus: "processing",
@@ -193,7 +193,7 @@ describe("enrichSwipeAnalysis", () => {
     )
 
     await waitFor(async () => {
-      const records = JSON.parse(await readFile(dbPath, "utf8"))
+      const records = JSON.parse(await readFile(dbPath, "utf8")).swipes
       expect(records[0]).toMatchObject({
         id: swipe.id,
         processingStatus: "complete",
@@ -231,7 +231,7 @@ describe("enrichSwipeAnalysis", () => {
     expect(swipe.landingPageDesktopScreenshotPath).toMatch(/^\/api\/swipes\/assets\/swipe-.+-landing-desktop\.png$/)
     expect(swipe.processingStatus).toBe("complete")
 
-    const records = JSON.parse(await readFile(path.join(tempDir, "data", "swipes", "swipes.json"), "utf8"))
+    const records = JSON.parse(await readFile(path.join(tempDir, "data", "swipes", "swipes.json"), "utf8")).swipes
     expect(records[0].landingPageMobileScreenshotPath).toBe(swipe.landingPageMobileScreenshotPath)
     expect(records[0].landingPageDesktopScreenshotPath).toBe(swipe.landingPageDesktopScreenshotPath)
   })
@@ -263,7 +263,7 @@ describe("enrichSwipeAnalysis", () => {
     expect(swipe.sourceUrl).toBe("https://www.facebook.com/ads/library/")
     expect(swipe.landingPageUrl).toBe("https://example.com/landing")
     expect(swipe.metadata).toEqual({ Format: "image" })
-    const records = JSON.parse(await readFile(path.join(tempDir, "data", "swipes", "swipes.json"), "utf8"))
+    const records = JSON.parse(await readFile(path.join(tempDir, "data", "swipes", "swipes.json"), "utf8")).swipes
     expect(records[0].metadata).toEqual({ Format: "image" })
   })
 
@@ -291,7 +291,7 @@ describe("enrichSwipeAnalysis", () => {
 
     expect(swipe.mediaUrl).toBeUndefined()
     expect(swipe.source_video_url).toBeUndefined()
-    const records = JSON.parse(await readFile(path.join(tempDir, "data", "swipes", "swipes.json"), "utf8"))
+    const records = JSON.parse(await readFile(path.join(tempDir, "data", "swipes", "swipes.json"), "utf8")).swipes
     expect(records[0].mediaUrl).toBeUndefined()
     expect(records[0].source_video_url).toBeUndefined()
   })
@@ -305,25 +305,27 @@ describe("enrichSwipeAnalysis", () => {
     await writeFile(
       path.join(dbDir, "swipes.json"),
       JSON.stringify(
-        [
-          {
-            id: "legacy-remote-swipe",
-            advertiser: "Legacy",
-            platform: "tiktok",
-            source: "tiktok",
-            sourceUrl: "https://www.tiktok.com/@creator/video/123",
-            title: "Legacy remote",
-            caption: "Caption",
-            format: "video",
-            mediaUrl: "https://cdn.tiktok.com/video.mp4",
-            source_video_url: "https://cdn.tiktok.com/source.mp4",
-            screenshotPath: "/api/swipes/assets/local.png",
-            swipedAt: new Date().toISOString(),
-            metadata: {},
-            stats: {},
-            folder: "No Folder",
-          },
-        ],
+        {
+          swipes: [
+            {
+              id: "legacy-remote-swipe",
+              advertiser: "Legacy",
+              platform: "tiktok",
+              source: "tiktok",
+              sourceUrl: "https://www.tiktok.com/@creator/video/123",
+              title: "Legacy remote",
+              caption: "Caption",
+              format: "video",
+              mediaUrl: "https://cdn.tiktok.com/video.mp4",
+              source_video_url: "https://cdn.tiktok.com/source.mp4",
+              screenshotPath: "/api/swipes/assets/local.png",
+              swipedAt: new Date().toISOString(),
+              metadata: {},
+              stats: {},
+              folder: "No Folder",
+            },
+          ],
+        },
         null,
         2
       )
@@ -382,7 +384,7 @@ describe("enrichSwipeAnalysis", () => {
     await expect(readFile(mediaPath)).rejects.toThrow()
     const records = JSON.parse(
       await readFile(path.join(tempDir, "data", "swipes", "swipes.json"), "utf8")
-    )
+    ).swipes
     expect(records).toEqual([])
   })
 

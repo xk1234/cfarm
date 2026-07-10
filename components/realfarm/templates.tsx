@@ -26,8 +26,10 @@ import {
 } from "@/lib/realfarm-automation"
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { Automation, RealFarmData } from "@/lib/realfarm-data"
+import { cn } from "@/lib/utils"
 
 type TemplateSortOption = "Newest" | "Oldest" | "A → Z" | "Z → A"
+type TemplateKindFilter = "slideshow" | "video"
 const templateSortOptions: TemplateSortOption[] = [
   "Newest",
   "Oldest",
@@ -56,6 +58,8 @@ export function TemplateFolderModal({
 }) {
   const [search, setSearch] = useState("")
   const [sort, setSort] = useState<TemplateSortOption>("Newest")
+  const [selectedKind, setSelectedKind] =
+    useState<TemplateKindFilter>("slideshow")
   const [selectedTemplate, setSelectedTemplate] = useState<Automation | null>(
     null
   )
@@ -63,7 +67,11 @@ export function TemplateFolderModal({
     const query = search.trim().toLowerCase()
     return templateAutomations
       .map((automation, index) => ({ automation, index }))
-      .filter(({ automation }) => automation.name.toLowerCase().includes(query))
+      .filter(
+        ({ automation }) =>
+          templateKind(automation) === selectedKind &&
+          automation.name.toLowerCase().includes(query)
+      )
       .sort((a, b) => {
         if (sort === "Oldest") {
           return (
@@ -83,7 +91,9 @@ export function TemplateFolderModal({
         )
       })
       .map(({ automation }) => automation)
-  }, [templateAutomations, search, sort])
+  }, [templateAutomations, search, selectedKind, sort])
+  const selectedKindLabel =
+    selectedKind === "video" ? "Video" : "Slideshow"
 
   if (selectedTemplate) {
     return (
@@ -122,32 +132,49 @@ export function TemplateFolderModal({
 
         <div className="max-h-[calc(86vh-58px)] overflow-y-auto px-3 pt-2 pb-6">
           <div className="mb-5 flex items-end justify-between">
-            <button className="border-b-2 border-[#242421] pb-2 text-[14px] font-semibold">
-              Templates
-            </button>
+            <div className="flex items-center gap-1">
+              {(["slideshow", "video"] as const).map((kind) => {
+                const active = selectedKind === kind
+                return (
+                  <button
+                    key={kind}
+                    type="button"
+                    className={cn(
+                      "rounded-[7px] px-4 py-2 text-[14px] font-semibold transition",
+                      active
+                        ? "bg-[#242421] text-white"
+                        : "text-[#6f7888] hover:bg-[#ecebe4]"
+                    )}
+                    onClick={() => setSelectedKind(kind)}
+                  >
+                    {kind === "video" ? "Video" : "Slideshow"}
+                  </button>
+                )
+              })}
+            </div>
             <div className="flex items-center gap-2">
               <CheckedDropdownButton
                 value={sort}
                 options={templateSortOptions}
                 onChange={(value) => setSort(value as TemplateSortOption)}
               />
-              <div className="flex overflow-hidden rounded-[8px] border border-[#d5d4ce] bg-white shadow-sm">
-                <button
-                  className="inline-flex h-10 items-center gap-2 border-r border-[#e5e4dd] px-3 text-[13px] font-bold text-[#242421] hover:bg-[#f8f8f4]"
-                  onClick={() => onCreateBlank("slideshow")}
-                >
-                  <IconSlideshow className="size-4" />
-                  Slideshow
-                </button>
-                <button
-                  className="inline-flex h-10 items-center gap-2 px-3 text-[13px] font-bold text-[#242421] hover:bg-[#f8f8f4]"
-                  onClick={() => onCreateBlank("video")}
-                >
-                  <IconVideo className="size-4" />
-                  Video
-                </button>
-              </div>
             </div>
+          </div>
+
+          <div className="mb-3">
+            <Button
+              type="button"
+              variant="softControl"
+              size="appDefault"
+              onClick={() => onCreateBlank(selectedKind)}
+            >
+              {selectedKind === "video" ? (
+                <IconVideo className="size-4" />
+              ) : (
+                <IconSlideshow className="size-4" />
+              )}
+              New {selectedKindLabel.toLowerCase()} automation
+            </Button>
           </div>
 
           {templateAutomations.length === 0 ? (
@@ -157,7 +184,7 @@ export function TemplateFolderModal({
             />
           ) : templates.length === 0 ? (
             <TemplateEmptyState
-              title="No matching templates"
+              title={`No matching ${selectedKindLabel.toLowerCase()} templates`}
               description="Try a different search or clear the search field."
             />
           ) : (
@@ -168,7 +195,7 @@ export function TemplateFolderModal({
                   automation={automation}
                   exampleSlides={generatedExampleSlides(
                     recentRunsByAutomationId[automation.id],
-                    3
+                    1
                   )}
                   index={index}
                   onOpen={() => setSelectedTemplate(automation)}
@@ -225,6 +252,8 @@ function TemplateCard({
       >
         <TemplateGeneratedPreview
           exampleSlides={exampleSlides}
+          tileCount={1}
+          columns={1}
           className="h-full"
           index={index}
         />
@@ -269,7 +298,11 @@ function TemplateCard({
 }
 
 function automationKindLabel(automation: Automation) {
-  return automation.automationKind === "video"
+  return templateKind(automation) === "video"
     ? "Video automation"
     : "Slideshow automation"
+}
+
+function templateKind(automation: Automation): TemplateKindFilter {
+  return automation.automationKind === "video" ? "video" : "slideshow"
 }

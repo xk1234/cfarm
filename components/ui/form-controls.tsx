@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, ChevronDown } from "lucide-react"
+import { Check, ChevronDown, Search } from "lucide-react"
 import type { ComponentProps } from "react"
 import { useState } from "react"
 
@@ -16,9 +16,18 @@ export function SwitchPill({ enabled }: { enabled?: boolean }) {
   )
 }
 
-export function SwitchPillButton({ enabled, onClick }: { enabled?: boolean; onClick: () => void }) {
+export function SwitchPillButton({
+  enabled,
+  className,
+  ...props
+}: Omit<ComponentProps<"button">, "children"> & { enabled?: boolean }) {
   return (
-    <button onClick={onClick} aria-pressed={Boolean(enabled)} className="shrink-0">
+    <button
+      type="button"
+      aria-pressed={Boolean(enabled)}
+      className={cn("shrink-0", className)}
+      {...props}
+    >
       <SwitchPill enabled={enabled} />
     </button>
   )
@@ -158,6 +167,32 @@ export function SelectControl({ className, ...props }: ComponentProps<"select">)
       className={cn("h-9 rounded-lg border border-app-panel-border bg-app-control-bg px-4 text-sm font-medium outline-none", className)}
       {...props}
     />
+  )
+}
+
+export function SearchControl({
+  className,
+  inputClassName,
+  ...props
+}: ComponentProps<"input"> & {
+  inputClassName?: string
+}) {
+  return (
+    <label
+      className={cn(
+        "relative block h-9 rounded-lg border border-app-panel-border bg-app-control-bg shadow-sm focus-within:border-app-muted-text",
+        className
+      )}
+    >
+      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-app-muted-text" />
+      <input
+        className={cn(
+          "h-full w-full rounded-lg bg-transparent pr-3 pl-9 text-sm font-medium text-app-text outline-none placeholder:text-app-text-faint",
+          inputClassName
+        )}
+        {...props}
+      />
+    </label>
   )
 }
 

@@ -18,6 +18,7 @@ import { ratioToCss, referenceAssetReady } from "@/components/realfarm/character
 import { Button } from "@/components/ui/button"
 import { SelectControl } from "@/components/ui/form-controls"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
+import { Spinner } from "@/components/ui/spinner"
 import { UploadDropzone } from "@/components/ui/upload-dropzone"
 import type { AssetCategory, AssetKind, AssetRecord } from "@/lib/assets"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
@@ -487,7 +488,8 @@ export function CharacterAssetsPanel({
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {loading ? (
-            <div className="grid h-full place-items-center text-center">
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+              <Spinner size={26} aria-label="Loading assets" />
               <div className="text-[14px] font-bold text-[#737373]">
                 Loading assets...
               </div>
@@ -1130,6 +1132,7 @@ export function ReferenceImageModal({
   onClose: () => void
 }) {
   const [assets, setAssets] = useState<AssetRecord[]>([])
+  const [source, setSource] = useState<"upload" | "url">("upload")
   const [imageUrl, setImageUrl] = useState("")
   const [file, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState("")
@@ -1279,8 +1282,17 @@ export function ReferenceImageModal({
           )}
         >
           {assets.length === 0 ? (
-            <div className="text-[24px] font-semibold text-[#9ca3af]">
-              No reference images yet
+            <div className="text-center">
+              <IconPhoto
+                className="mx-auto size-10 text-app-text-faint"
+                stroke={1.5}
+              />
+              <div className="mt-4 text-[16px] font-semibold text-app-text">
+                No reference images yet
+              </div>
+              <p className="mt-1 text-[13px] text-app-muted-text">
+                Upload a screenshot or paste an image URL below.
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-3">
@@ -1291,11 +1303,11 @@ export function ReferenceImageModal({
                     key={asset.id}
                     disabled={!ready}
                     className={cn(
-                      "overflow-hidden rounded-[10px] border-2 bg-[#f7f7f4] text-left transition",
+                      "overflow-hidden rounded-xl border-2 bg-app-surface text-left transition",
                       ready
-                        ? "border-[#12b76a] hover:shadow-md"
-                        : "border-[#f04438] opacity-70",
-                      selectedAssetId === asset.id && "ring-2 ring-[#12b76a]"
+                        ? "border-emerald-500 hover:border-emerald-600"
+                        : "border-app-danger opacity-70",
+                      selectedAssetId === asset.id && "ring-2 ring-emerald-500"
                     )}
                     onClick={() => ready && onSelect(asset)}
                     title={
@@ -1305,19 +1317,21 @@ export function ReferenceImageModal({
                     }
                   >
                     {asset.fileUrl && (
-                      // eslint-disable-next-line @next/next/no-img-element -- Asset image is served by local app API.
-                      <img
-                        src={asset.fileUrl}
-                        alt={asset.name}
-                        className="h-40 w-full object-cover"
-                      />
+                      <span className="grid aspect-[3/4] w-full place-items-center bg-app-media-empty">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- Asset image is served by local app API. */}
+                        <img
+                          src={asset.fileUrl}
+                          alt={asset.name}
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      </span>
                     )}
-                    <div className="flex items-center justify-between gap-2 px-3 py-2 text-[12px] font-semibold text-[#555]">
+                    <div className="flex items-center justify-between gap-2 px-3 py-2 text-[12px] font-medium text-app-text-soft">
                       <span className="truncate">{asset.name}</span>
                       <span
                         className={cn(
-                          "size-2 rounded-full",
-                          ready ? "bg-[#12b76a]" : "bg-[#f04438]"
+                          "size-2 shrink-0 rounded-full",
+                          ready ? "bg-emerald-500" : "bg-app-danger"
                         )}
                       />
                     </div>
@@ -1327,65 +1341,109 @@ export function ReferenceImageModal({
             </div>
           )}
         </div>
-        <div className="border-t border-[#eceff3] p-3">
-          <div className="mb-3">
-            <UploadDropzone
-              inputRef={fileInputRef}
-              accept="image/*"
-              onFiles={chooseReferenceFile}
-              className="min-h-32 rounded-[10px]"
-            >
-              {previewUrl ? (
-                <span className="block w-full">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- Local file preview from user-selected upload. */}
-                  <img
-                    src={previewUrl}
-                    alt={file?.name || "Reference upload preview"}
-                    className="mx-auto max-h-32 rounded-[8px] object-contain"
-                  />
-                  <span className="mt-2 block text-[12px] font-bold text-[#333]">
-                    {file?.name}
-                  </span>
-                </span>
-              ) : (
-                <span>
-                  <IconUpload className="mx-auto mb-2 size-7 text-[#8b8b86]" />
-                  <span className="block text-[14px] font-bold text-[#333]">
-                    Upload reference image
-                  </span>
-                  <span className="mt-1 block text-[12px] font-semibold text-[#8b8b86]">
-                    JPG, PNG, WEBP, or GIF
-                  </span>
-                </span>
-              )}
-            </UploadDropzone>
-            <Button
-              variant="action"
-              className="mt-2 w-full justify-center"
-              disabled={importing || !file}
-              onClick={() => void importReference("upload")}
-            >
-              {importing ? "Analyzing..." : "Upload and analyze"}
-            </Button>
+        <div className="border-t border-app-panel-border p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <ModalSourceTabs value={source} onChange={setSource} />
+            <p className="text-[12px] text-app-muted-text">
+              {source === "upload"
+                ? "Upload a screenshot to analyze."
+                : "Paste an image URL to analyze."}
+            </p>
           </div>
-          <div className="flex gap-2">
-            <input
-              className="h-11 min-w-0 flex-1 rounded-[10px] border border-[#dde1e7] px-3 text-[14px] font-semibold text-[#111827] outline-none"
-              placeholder="Paste image URL"
-              value={imageUrl}
-              onChange={(event) => setImageUrl(event.target.value)}
-            />
-            <Button
-              variant="action"
-              disabled={importing}
-              onClick={() => void importReference("url")}
-            >
-              {importing ? "Analyzing..." : "Add"}
-            </Button>
-          </div>
+          {source === "upload" ? (
+            <div>
+              <UploadDropzone
+                inputRef={fileInputRef}
+                accept="image/*"
+                onFiles={chooseReferenceFile}
+                className="min-h-32 rounded-xl"
+              >
+                {previewUrl ? (
+                  <span className="block w-full">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- Local file preview from user-selected upload. */}
+                    <img
+                      src={previewUrl}
+                      alt={file?.name || "Reference upload preview"}
+                      className="mx-auto max-h-32 rounded-lg object-contain"
+                    />
+                    <span className="mt-2 block text-[12px] font-medium text-app-text">
+                      {file?.name}
+                    </span>
+                  </span>
+                ) : (
+                  <span>
+                    <IconUpload className="mx-auto mb-2 size-7 text-app-muted-text" />
+                    <span className="block text-[14px] font-semibold text-app-text">
+                      Upload reference image
+                    </span>
+                    <span className="mt-1 block text-[12px] text-app-muted-text">
+                      JPG, PNG, WEBP, or GIF
+                    </span>
+                  </span>
+                )}
+              </UploadDropzone>
+              <Button
+                variant="action"
+                className="mt-2 w-full justify-center"
+                disabled={importing || !file}
+                onClick={() => void importReference("upload")}
+              >
+                {importing ? "Analyzing…" : "Upload and analyze"}
+              </Button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                className="h-11 min-w-0 flex-1 rounded-lg border border-app-panel-border bg-app-control-bg px-3 text-[14px] font-medium text-app-text outline-none focus:border-app-action"
+                placeholder="Paste image URL"
+                value={imageUrl}
+                onChange={(event) => setImageUrl(event.target.value)}
+              />
+              <Button
+                variant="action"
+                disabled={importing || !imageUrl.trim()}
+                onClick={() => void importReference("url")}
+              >
+                {importing ? "Analyzing…" : "Analyze"}
+              </Button>
+            </div>
+          )}
         </div>
       </AppModalPanel>
     </AppModal>
+  )
+}
+
+function ModalSourceTabs({
+  value,
+  onChange,
+  urlLabel = "Paste URL",
+}: {
+  value: "upload" | "url"
+  onChange: (value: "upload" | "url") => void
+  urlLabel?: string
+}) {
+  const tabs: Array<{ key: "upload" | "url"; label: string }> = [
+    { key: "upload", label: "Upload" },
+    { key: "url", label: urlLabel },
+  ]
+  return (
+    <div className="inline-grid grid-cols-2 gap-1 rounded-lg bg-app-surface-subtle p-1">
+      {tabs.map((tab) => (
+        <button
+          key={tab.key}
+          type="button"
+          aria-pressed={value === tab.key}
+          className={cn(
+            "h-8 rounded-md px-4 text-[13px] font-medium text-app-muted-text transition",
+            value === tab.key && "bg-app-surface text-app-text shadow-sm"
+          )}
+          onClick={() => onChange(tab.key)}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -1411,6 +1469,7 @@ export function MotionReferenceModal({
   onClose: () => void
 }) {
   const [assets, setAssets] = useState<AssetRecord[]>([])
+  const [source, setSource] = useState<"upload" | "url">("upload")
   const [url, setUrl] = useState(selectedUrl)
   const [file, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState("")
@@ -1504,86 +1563,128 @@ export function MotionReferenceModal({
           onClose={onClose}
         />
         <div className="space-y-4 p-5">
-          <UploadDropzone
-            inputRef={inputRef}
-            accept="video/*"
-            onFiles={chooseFile}
-            className="min-h-36 rounded-[10px]"
-          >
-            {previewUrl ? (
-              <span className="block w-full">
-                <video
-                  src={previewUrl}
-                  className="mx-auto aspect-video max-h-36 w-full rounded-[8px] object-cover"
-                  muted
-                  playsInline
-                  controls
-                />
-                <span className="mt-2 block text-[12px] font-bold text-[#333]">
-                  {file?.name}
-                </span>
-              </span>
-            ) : (
-              <span>
-                <IconUpload className="mx-auto mb-2 size-7 text-[#8b8b86]" />
-                <span className="block text-[14px] font-bold text-[#333]">
-                  Upload motion reference video
-                </span>
-                <span className="mt-1 block text-[12px] font-semibold text-[#8b8b86]">
-                  MP4, MOV, or WEBM
-                </span>
-              </span>
-            )}
-          </UploadDropzone>
-          {uploadError && (
-            <div className="rounded-[8px] bg-[#fff0f0] px-4 py-2 text-[13px] font-semibold text-[#c63d4a]">
-              {uploadError}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <ModalSourceTabs value={source} onChange={setSource} />
+            <p className="text-[12px] text-app-muted-text">
+              {source === "upload"
+                ? "Upload a video to drive the motion."
+                : "Paste a video URL to drive the motion."}
+            </p>
+          </div>
+
+          {source === "upload" ? (
+            <>
+              <UploadDropzone
+                inputRef={inputRef}
+                accept="video/*"
+                onFiles={chooseFile}
+                className="min-h-36 rounded-xl"
+              >
+                {previewUrl ? (
+                  <span className="block w-full">
+                    <video
+                      src={previewUrl}
+                      className="mx-auto aspect-video max-h-36 w-full rounded-lg object-cover"
+                      muted
+                      playsInline
+                      controls
+                    />
+                    <span className="mt-2 block text-[12px] font-medium text-app-text">
+                      {file?.name}
+                    </span>
+                  </span>
+                ) : (
+                  <span>
+                    <IconUpload className="mx-auto mb-2 size-7 text-app-muted-text" />
+                    <span className="block text-[14px] font-semibold text-app-text">
+                      Upload motion reference video
+                    </span>
+                    <span className="mt-1 block text-[12px] text-app-muted-text">
+                      MP4, MOV, or WEBM
+                    </span>
+                  </span>
+                )}
+              </UploadDropzone>
+              {uploadError && (
+                <div className="rounded-lg bg-app-danger-surface px-4 py-2 text-[13px] font-medium text-app-danger-muted">
+                  {uploadError}
+                </div>
+              )}
+              <Button
+                variant="action"
+                className="w-full justify-center"
+                disabled={uploading || !file}
+                onClick={() => void uploadMotionReference()}
+              >
+                {uploading ? "Uploading…" : "Upload and use"}
+              </Button>
+            </>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                className="h-11 min-w-0 flex-1 rounded-lg border border-app-panel-border bg-app-control-bg px-3 text-[14px] font-medium text-app-text outline-none focus:border-app-action"
+                placeholder="Paste video URL"
+                value={url}
+                onChange={(event) => setUrl(event.target.value)}
+              />
+              <Button
+                variant="action"
+                disabled={!url.trim()}
+                onClick={() => {
+                  if (url.trim()) {
+                    onSelect(url.trim())
+                  }
+                }}
+              >
+                Use URL
+              </Button>
             </div>
           )}
-          <Button
-            variant="action"
-            className="w-full justify-center"
-            disabled={uploading || !file}
-            onClick={() => void uploadMotionReference()}
-          >
-            {uploading ? "Uploading..." : "Upload and use"}
-          </Button>
-          <div className="flex gap-2">
-            <input
-              className="h-11 min-w-0 flex-1 rounded-[10px] border border-[#dde1e7] px-3 text-[14px] font-semibold text-[#111827] outline-none"
-              placeholder="Paste video URL"
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-            />
-            <Button
-              variant="action"
-              onClick={() => {
-                if (url.trim()) {
-                  onSelect(url.trim())
-                }
-              }}
-            >
-              Use URL
-            </Button>
-          </div>
-          <div className="grid max-h-[360px] grid-cols-2 gap-3 overflow-y-auto">
-            {assets.map((asset) => (
-              <button
-                key={asset.id}
-                className={cn(
-                  "rounded-[10px] border border-[#eceff3] bg-[#f7f7f4] p-3 text-left text-[12px] font-bold text-[#555]",
-                  selectedUrl === asset.fileUrl && "ring-2 ring-app-action"
-                )}
-                onClick={() => asset.fileUrl && onSelect(asset.fileUrl)}
-                disabled={!asset.fileUrl}
-              >
-                <span className="block truncate">{asset.name}</span>
-                <span className="mt-1 block truncate text-[#8a8a84]">
-                  {asset.fileUrl}
-                </span>
-              </button>
-            ))}
-          </div>
+
+          {assets.length > 0 && (
+            <div>
+              <div className="mb-2 text-[11px] font-medium tracking-wide text-app-text-faint uppercase">
+                Your motion references
+              </div>
+              <div className="grid max-h-[360px] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
+                {assets.map((asset) => (
+                  <button
+                    key={asset.id}
+                    type="button"
+                    className={cn(
+                      "group overflow-hidden rounded-xl border bg-app-surface text-left transition",
+                      selectedUrl === asset.fileUrl
+                        ? "border-app-action ring-2 ring-app-action/30"
+                        : "border-app-panel-border hover:border-app-muted-text/40"
+                    )}
+                    onClick={() => asset.fileUrl && onSelect(asset.fileUrl)}
+                    disabled={!asset.fileUrl}
+                    title={asset.name}
+                  >
+                    <span className="grid aspect-video w-full place-items-center bg-app-media-empty">
+                      {asset.fileUrl ? (
+                        <video
+                          src={asset.fileUrl}
+                          className="h-full w-full object-cover"
+                          muted
+                          playsInline
+                          preload="metadata"
+                        />
+                      ) : (
+                        <IconPhoto
+                          className="size-7 text-app-text-faint"
+                          stroke={1.5}
+                        />
+                      )}
+                    </span>
+                    <span className="block truncate px-3 py-2 text-[12px] font-medium text-app-text-soft">
+                      {asset.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </AppModalPanel>
     </AppModal>

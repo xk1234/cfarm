@@ -3,194 +3,197 @@
 @import "shadcn/tailwind.css";
 @import "ag-grid-community/styles/ag-grid.css";
 @import "ag-grid-community/styles/ag-theme-quartz-no-font.css";
+@import "jsoneditor/dist/jsoneditor.min.css";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.841 0.238 128.85);
-    --primary-foreground: oklch(0.405 0.101 131.063);
-    --secondary: oklch(0.967 0.001 286.375);
-    --secondary-foreground: oklch(0.21 0.006 285.885);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.785 0.115 274.713);
-    --chart-2: oklch(0.585 0.233 277.117);
-    --chart-3: oklch(0.511 0.262 276.966);
-    --chart-4: oklch(0.457 0.24 277.023);
-    --chart-5: oklch(0.398 0.195 277.366);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.648 0.2 131.684);
-    --sidebar-primary-foreground: oklch(0.986 0.031 120.757);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
-    --app-action: #ff5626;
-    --app-action-hover: #ed4d22;
-    --app-control-bg: #ffffff;
-    --app-control-hover: #f4f4f2;
-    --app-panel-border: #e5e4dc;
-    --app-muted-text: #77766f;
-    --app-surface: #ffffff;
-    --app-surface-subtle: #f8f8f4;
-    --app-surface-raised: #ffffff;
-    --app-media-placeholder: #d8d6ce;
-    --app-media-empty: #d9d9d4;
-    --app-text: #242421;
-    --app-text-soft: #4d4c47;
-    --app-text-faint: #a9a8a1;
-    --app-danger: #d94444;
-    --app-danger-surface: #fff1f1;
-    --app-danger-muted: #ad3434;
-    --app-danger-text: #8d5c5c;
-    --app-radius-card: 7px;
-    --app-radius-panel: 8px;
-    --app-shadow-card: 0 1px 2px rgb(30 30 25 / 0.06);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.841 0.238 128.85);
+  --primary-foreground: oklch(0.405 0.101 131.063);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.785 0.115 274.713);
+  --chart-2: oklch(0.585 0.233 277.117);
+  --chart-3: oklch(0.511 0.262 276.966);
+  --chart-4: oklch(0.457 0.24 277.023);
+  --chart-5: oklch(0.398 0.195 277.366);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.648 0.2 131.684);
+  --sidebar-primary-foreground: oklch(0.986 0.031 120.757);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+  --app-action: #ff5626;
+  --app-action-hover: #ed4d22;
+  --app-control-bg: #ffffff;
+  --app-control-hover: #f4f4f2;
+  --app-panel-border: #e5e4dc;
+  --app-muted-text: #77766f;
+  --app-surface: #ffffff;
+  --app-surface-subtle: #f8f8f4;
+  --app-surface-raised: #ffffff;
+  --app-media-placeholder: #d8d6ce;
+  --app-media-empty: #d9d9d4;
+  --app-text: #242421;
+  --app-text-soft: #4d4c47;
+  --app-text-faint: #a9a8a1;
+  --app-danger: #d94444;
+  --app-danger-surface: #fff1f1;
+  --app-danger-muted: #ad3434;
+  --app-danger-text: #8d5c5c;
+  --app-radius-card: 7px;
+  --app-radius-panel: 8px;
+  --app-shadow-card: 0 1px 2px rgb(30 30 25 / 0.06);
 }
 
 .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.768 0.233 130.85);
-    --primary-foreground: oklch(0.405 0.101 131.063);
-    --secondary: oklch(0.274 0.006 286.033);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.785 0.115 274.713);
-    --chart-2: oklch(0.585 0.233 277.117);
-    --chart-3: oklch(0.511 0.262 276.966);
-    --chart-4: oklch(0.457 0.24 277.023);
-    --chart-5: oklch(0.398 0.195 277.366);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.768 0.233 130.85);
-    --sidebar-primary-foreground: oklch(0.274 0.072 132.109);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
-    --app-action: #ff5626;
-    --app-action-hover: #ed4d22;
-    --app-control-bg: #242421;
-    --app-control-hover: #33332f;
-    --app-panel-border: oklch(1 0 0 / 14%);
-    --app-muted-text: #a9a8a1;
-    --app-surface: #1f1f1c;
-    --app-surface-subtle: #242421;
-    --app-surface-raised: #242421;
-    --app-media-placeholder: #34332f;
-    --app-media-empty: #34332f;
-    --app-text: #f8f8f4;
-    --app-text-soft: #deddd5;
-    --app-text-faint: #a9a8a1;
-    --app-danger: #ff7777;
-    --app-danger-surface: #3a2020;
-    --app-danger-muted: #ff9090;
-    --app-danger-text: #ffd2d2;
-    --app-radius-card: 7px;
-    --app-radius-panel: 8px;
-    --app-shadow-card: 0 1px 2px rgb(0 0 0 / 0.18);
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.768 0.233 130.85);
+  --primary-foreground: oklch(0.405 0.101 131.063);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.785 0.115 274.713);
+  --chart-2: oklch(0.585 0.233 277.117);
+  --chart-3: oklch(0.511 0.262 276.966);
+  --chart-4: oklch(0.457 0.24 277.023);
+  --chart-5: oklch(0.398 0.195 277.366);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.768 0.233 130.85);
+  --sidebar-primary-foreground: oklch(0.274 0.072 132.109);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+  --app-action: #ff5626;
+  --app-action-hover: #ed4d22;
+  --app-control-bg: #242421;
+  --app-control-hover: #33332f;
+  --app-panel-border: oklch(1 0 0 / 14%);
+  --app-muted-text: #a9a8a1;
+  --app-surface: #1f1f1c;
+  --app-surface-subtle: #242421;
+  --app-surface-raised: #242421;
+  --app-media-placeholder: #34332f;
+  --app-media-empty: #34332f;
+  --app-text: #f8f8f4;
+  --app-text-soft: #deddd5;
+  --app-text-faint: #a9a8a1;
+  --app-danger: #ff7777;
+  --app-danger-surface: #3a2020;
+  --app-danger-muted: #ff9090;
+  --app-danger-text: #ffd2d2;
+  --app-radius-card: 7px;
+  --app-radius-panel: 8px;
+  --app-shadow-card: 0 1px 2px rgb(0 0 0 / 0.18);
 }
 
 @theme inline {
-    --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
-    --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
-    --font-serif: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
-    --font-heading: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
-    --font-tiktok: "TikTok Sans", "TikTok Display", Arial, ui-sans-serif, system-ui, sans-serif;
-    --color-sidebar-ring: var(--sidebar-ring);
-    --color-sidebar-border: var(--sidebar-border);
-    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-    --color-sidebar-accent: var(--sidebar-accent);
-    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-    --color-sidebar-primary: var(--sidebar-primary);
-    --color-sidebar-foreground: var(--sidebar-foreground);
-    --color-sidebar: var(--sidebar);
-    --color-app-action: var(--app-action);
-    --color-app-action-hover: var(--app-action-hover);
-    --color-app-control-bg: var(--app-control-bg);
-    --color-app-control-hover: var(--app-control-hover);
-    --color-app-panel-border: var(--app-panel-border);
-    --color-app-muted-text: var(--app-muted-text);
-    --color-app-surface: var(--app-surface);
-    --color-app-surface-subtle: var(--app-surface-subtle);
-    --color-app-surface-raised: var(--app-surface-raised);
-    --color-app-media-placeholder: var(--app-media-placeholder);
-    --color-app-media-empty: var(--app-media-empty);
-    --color-app-text: var(--app-text);
-    --color-app-text-soft: var(--app-text-soft);
-    --color-app-text-faint: var(--app-text-faint);
-    --color-app-danger: var(--app-danger);
-    --color-app-danger-surface: var(--app-danger-surface);
-    --color-app-danger-muted: var(--app-danger-muted);
-    --color-app-danger-text: var(--app-danger-text);
-    --color-chart-5: var(--chart-5);
-    --color-chart-4: var(--chart-4);
-    --color-chart-3: var(--chart-3);
-    --color-chart-2: var(--chart-2);
-    --color-chart-1: var(--chart-1);
-    --color-ring: var(--ring);
-    --color-input: var(--input);
-    --color-border: var(--border);
-    --color-destructive: var(--destructive);
-    --color-accent-foreground: var(--accent-foreground);
-    --color-accent: var(--accent);
-    --color-muted-foreground: var(--muted-foreground);
-    --color-muted: var(--muted);
-    --color-secondary-foreground: var(--secondary-foreground);
-    --color-secondary: var(--secondary);
-    --color-primary-foreground: var(--primary-foreground);
-    --color-primary: var(--primary);
-    --color-popover-foreground: var(--popover-foreground);
-    --color-popover: var(--popover);
-    --color-card-foreground: var(--card-foreground);
-    --color-card: var(--card);
-    --color-foreground: var(--foreground);
-    --color-background: var(--background);
-    --radius-sm: calc(var(--radius) * 0.6);
-    --radius-md: calc(var(--radius) * 0.8);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) * 1.4);
-    --radius-2xl: calc(var(--radius) * 1.8);
-    --radius-3xl: calc(var(--radius) * 2.2);
-    --radius-4xl: calc(var(--radius) * 2.6);
+  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  --font-serif: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-heading:
+    "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-tiktok:
+    "TikTok Sans", "TikTok Display", Arial, ui-sans-serif, system-ui, sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-app-action: var(--app-action);
+  --color-app-action-hover: var(--app-action-hover);
+  --color-app-control-bg: var(--app-control-bg);
+  --color-app-control-hover: var(--app-control-hover);
+  --color-app-panel-border: var(--app-panel-border);
+  --color-app-muted-text: var(--app-muted-text);
+  --color-app-surface: var(--app-surface);
+  --color-app-surface-subtle: var(--app-surface-subtle);
+  --color-app-surface-raised: var(--app-surface-raised);
+  --color-app-media-placeholder: var(--app-media-placeholder);
+  --color-app-media-empty: var(--app-media-empty);
+  --color-app-text: var(--app-text);
+  --color-app-text-soft: var(--app-text-soft);
+  --color-app-text-faint: var(--app-text-faint);
+  --color-app-danger: var(--app-danger);
+  --color-app-danger-surface: var(--app-danger-surface);
+  --color-app-danger-muted: var(--app-danger-muted);
+  --color-app-danger-text: var(--app-danger-text);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
-    }
+  }
   body {
     @apply bg-background font-sans text-foreground;
-    }
+  }
   html {
     @apply font-sans;
-    }
+  }
 }
 
 .font-tiktok {
@@ -206,7 +209,8 @@
   }
 
   .app-empty-state {
-    border: 1px dashed color-mix(in srgb, var(--app-panel-border) 86%, var(--app-muted-text));
+    border: 1px dashed
+      color-mix(in srgb, var(--app-panel-border) 86%, var(--app-muted-text));
     border-radius: var(--app-radius-panel);
     background: var(--app-surface-subtle);
     color: var(--app-muted-text);
@@ -236,8 +240,12 @@
 }
 
 @keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(300%); }
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
 }
 
 .realfarm-analytics-grid.ag-theme-quartz {
@@ -249,7 +257,11 @@
   --ag-header-foreground-color: #242421;
   --ag-row-hover-color: #fbfbf7;
   --ag-odd-row-background-color: #ffffff;
-  --ag-selected-row-background-color: color-mix(in srgb, var(--app-action) 9%, white);
+  --ag-selected-row-background-color: color-mix(
+    in srgb,
+    var(--app-action) 9%,
+    white
+  );
   --ag-wrapper-border-radius: 10px;
   --ag-cell-horizontal-padding: 16px;
   --ag-header-column-resize-handle-color: #d7d6cf;

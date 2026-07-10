@@ -13,26 +13,32 @@ Extension files:
 
 ## What Happens On The Website
 
-On TikTok Seller SG pages, the extension injects two kinds of controls:
+On TikTok Seller SG pages, the extension injects buttons only on the inspiration videos page:
 
-- A fixed bottom-center `Swipe` button attached to `main` or `document.body`.
-- Generic card-level `Swipe` buttons on detected ad/card-like elements.
+```txt
+/shoppable-videos/inspiration/videos
+```
 
-The fixed button exists because TikTok seller pages may not expose clean ad card containers. The generic card scanner still runs afterward and may add per-card buttons when matching cards are found.
+Within that page, it targets the video list container:
+
+```txt
+[data-tid="short_video_inspiration.video-tab.video-list"]
+```
+
+and card elements:
+
+```txt
+[data-tid="video-player"]
+[id^="short_video_"][id$="-wrapper"]
+```
 
 ## Swipe Button Behavior
 
-The fixed button uses:
-
-- CSS class `cfarm-swipe-fixed`
-- Bottom-center placement
-- Minimum width of `360px`
-
-Clicking either fixed or card button builds a generic payload and sends it to the background worker.
+Buttons use `cfarm-swipe-card-button` and are appended to each detected inspiration video card. Other Seller SG pages do not show `Swipe` buttons.
 
 ## Data Collected
 
-TikTok Seller uses the generic payload builder.
+TikTok Seller uses an inspiration-video payload builder.
 
 It tries to infer:
 
@@ -60,8 +66,8 @@ http://localhost:3000/api/swipes
 
 ## Hardcoded / Fragile Parts
 
-- No seller-specific DOM parser exists.
-- The fixed button saves `main` or the full body, so captured text can be broad.
-- Card buttons depend on generic selectors and may attach to non-ad cards.
+- Seller support is specific to the inspiration videos page.
+- Other Seller SG pages intentionally show no buttons.
+- Card detection depends on TikTok Seller's `data-tid` attributes and `short_video_*` wrapper IDs.
 - TikTok Creative Center analytics enrichment does not run for `tiktok-seller`.
 - The extension needs the local app running on port `3000`.

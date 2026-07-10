@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner"
 
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
+import { Spinner } from "@/components/ui/spinner"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import {
   normalizePostFastIntegration,
@@ -154,7 +155,8 @@ export function SocialAccountPickerModal({
               </span>
             </div>
             {loading ? (
-              <div className="grid min-h-[172px] place-items-center rounded-[8px] border border-app-panel-border bg-white text-sm font-semibold text-app-muted-text">
+              <div className="flex min-h-[172px] flex-col items-center justify-center gap-3 rounded-[8px] border border-app-panel-border bg-white text-sm font-semibold text-app-muted-text">
+                <Spinner size={24} aria-label="Loading accounts" />
                 Loading accounts...
               </div>
             ) : integrations.length > 0 ? (

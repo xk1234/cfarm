@@ -7,6 +7,7 @@ import {
   characterGenerationModels,
   characterImageAspectRatios,
   characterImageToVideoModels,
+  characterWorkflowOptions,
   createCharacterImageGenerationRecord,
   editCharacterWorkflowKeys,
   defaultImageGenerationModel,
@@ -14,6 +15,7 @@ import {
   getCharacterWorkflowMode,
   visibleCharacterWorkflowOptions,
 } from "@/lib/realfarm-character-ui"
+import { characterWorkflowOptionsConfig } from "@/lib/realfarm-character-ui-config"
 
 describe("buildCharacterPromptPackage", () => {
   it("includes character attributes and headshot as prompt attachments", () => {
@@ -60,6 +62,23 @@ describe("buildCharacterPromptPackage", () => {
 })
 
 describe("UGC image generation options", () => {
+  it("loads character workflow choices from typed config", () => {
+    expect(characterWorkflowOptionsConfig.map((option) => option.key)).toEqual([
+      "free_generate",
+      "recreate_reference",
+      "build_modules",
+      "batch_photo_dump",
+      "tiktok_slideshow",
+      "product_ugc",
+      "animate_image",
+      "motion_control",
+      "seedream_bedroom_selfie",
+      "outfit_transfer",
+      "pose_variation_cut_video",
+    ])
+    expect(characterWorkflowOptions).toBe(characterWorkflowOptionsConfig)
+  })
+
   it("separates create workflows from edit workflows that require a generated source image", () => {
     expect(editCharacterWorkflowKeys).toEqual([
       "recreate_reference",

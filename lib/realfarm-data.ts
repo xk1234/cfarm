@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 
 import realfarmData from "../data/realfarm.json"
+import demoSeedData from "../data/seeds/demo-realfarm.json"
 
 import type { PostFastSocialIntegration } from "@/lib/postfast-client"
 
@@ -39,9 +40,36 @@ export type Automation = {
   created_at?: string
 }
 
-type RealFarmJson = Omit<typeof realfarmData, "projects" | "automations"> & {
+export type ImageCollectionSummary = {
+  id: string
+  title: string
+  imageCount: number
+  withoutCaptions: number
+  theme: string
+}
+
+type GeneratedAssets = Record<string, unknown> & {
+  higgsfieldCharacter?: {
+    name: string
+    model: string
+    type: string
+    url: string
+  }
+}
+
+type RealFarmJson = Omit<
+  typeof realfarmData,
+  "projects" | "automations" | "generatedAssets" | "imageCollections"
+> & {
   projects: Project[]
   automations: Automation[]
+  generatedAssets: GeneratedAssets
+  imageCollections: ImageCollectionSummary[]
+}
+
+type RealFarmDemoSeed = {
+  generatedAssets?: RealFarmJson["generatedAssets"]
+  imageCollections?: RealFarmJson["imageCollections"]
 }
 
 export type RealFarmData = RealFarmJson & {
@@ -56,11 +84,31 @@ export type RealFarmData = RealFarmJson & {
 export type Video = RealFarmData["videos"][number]
 export type ImageCollection = RealFarmData["imageCollections"][number]
 
-export function loadRealFarmData(): RealFarmData {
+export type LoadRealFarmDataOptions = {
+  includeDemoSeed?: boolean
+}
+
+export function loadRealFarmData(
+  options: LoadRealFarmDataOptions = {}
+): RealFarmData {
   const data = realfarmData as RealFarmJson
+  const demoSeed = demoSeedData as RealFarmDemoSeed
+  const seededData = options.includeDemoSeed
+    ? {
+        ...data,
+        generatedAssets: {
+          ...data.generatedAssets,
+          ...(demoSeed.generatedAssets ?? {}),
+        },
+        imageCollections: [
+          ...data.imageCollections,
+          ...(demoSeed.imageCollections ?? []),
+        ],
+      }
+    : data
 
   return {
-    ...data,
+    ...seededData,
     assets: {
       music: listLocalAssets("music", ["mp3", "wav"], "audio"),
       ugcAvatarVideos: listLocalAssets(

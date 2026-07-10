@@ -33,6 +33,8 @@ export type StoredImageCollection = {
   images: {
     image_link: string
     caption: string
+    hash?: string
+    last_used_at?: string
   }[]
 }
 
@@ -44,10 +46,10 @@ export function defaultImageCollections(
   return [
     {
       id: backgrounds.id,
-      title: "Pinterest - backgrounds",
+      title: backgrounds.title || "Backgrounds",
       images: backgrounds.images,
       createdAt: "default",
-      source: "pinterest",
+      source: "fallback",
     },
   ]
 }
@@ -112,6 +114,7 @@ export function collectionToStored(
       .map((image) => ({
         image_link: image.imageUrl,
         caption: image.description ?? "",
+        ...(image.hash ? { hash: image.hash } : {}),
       })),
   }
 }
@@ -126,11 +129,13 @@ export function storedToCollection(
     createdAt: normalizedCollectionDate(collection.created_at),
     source: "pinterest",
     images: collection.images.map((image, index) => ({
-      id: `stored-${slugify(collection.name)}-${index}`,
+      id: image.hash || `stored-${slugify(collection.name)}-${index}`,
       title: image.caption || collection.name,
       description: image.caption,
       imageUrl: image.image_link,
       sourceUrl: image.image_link,
+      ...(image.hash ? { hash: image.hash } : {}),
+      ...(image.last_used_at ? { lastUsedAt: image.last_used_at } : {}),
       dominantColor: "#d9d8d0",
     })),
   }

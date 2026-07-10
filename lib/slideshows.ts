@@ -14,6 +14,7 @@ import os from "node:os"
 import path from "node:path"
 import { promisify } from "node:util"
 
+import { mirrorAssetToAppwrite } from "@/lib/asset-storage"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 import {
   createResultRecord,
@@ -471,6 +472,7 @@ function normalizeTextItem(
     textStyle: clean(item.textStyle) || "outline",
     textAlign: clean(item.textAlign) || "center",
     textAnchor: clean(item.textAnchor) || "padded",
+    textPlacement: item.textPlacement,
     textPosition: normalizeTextPosition(item.textPosition),
   }
 }
@@ -699,6 +701,8 @@ async function materializeSlideshowVideo(input: {
       durationSeconds: input.durationSeconds,
       slideImagePaths: input.slideImagePaths,
     })
+    await mirrorAssetToAppwrite(outputPath).catch(() => undefined)
+    await mirrorAssetToAppwrite(thumbnailPath).catch(() => undefined)
     return {
       videoUrl: outputFileUrl(input.slideshowId, "slideshow-export.mp4"),
       thumbnailUrl: outputFileUrl(input.slideshowId, "slideshow-thumbnail.png"),

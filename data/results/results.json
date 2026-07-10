@@ -1,3 +1,771 @@
 {
-  "results": []
+  "results": [
+    {
+      "id": "result-automation-run-eee05a9a-ac83-4745-922a-682ea6726926",
+      "automationId": "automation-local-632931c1-c9d8-4b82-8a8b-f0127909f52d",
+      "runId": "automation-run-eee05a9a-ac83-4745-922a-682ea6726926",
+      "workflowType": "slideshow",
+      "title": "how to build deep self trust",
+      "status": "succeeded",
+      "createdAt": "2026-07-09T15:55:42.811Z",
+      "updatedAt": "2026-07-09T15:55:42.811Z",
+      "artifacts": {
+        "slideshowId": "slideshow-a441180b-ad87-41f0-8977-30ed160c94b2",
+        "outputImages": [
+          "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/slide-001.png",
+          "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/slide-002.png",
+          "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/slide-003.png",
+          "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/slide-004.png",
+          "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/slide-005.png",
+          "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/slide-006.png",
+          "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/slide-007.png"
+        ],
+        "outputDir": "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2"
+      },
+      "payload": {
+        "type": "slideshow",
+        "caption": "stop doubting yourself and start getting back in touch with your own natural rhythm.",
+        "hashtags": "#mindset #wellness #selfgrowth #mentalhealth",
+        "prompt": "rules of emotional sobriety for people who feel everything too deeply\nhow i become the calmest person in every room\nthings i had to unlearn about love that i mistook for closeness\nthe science of detachment (why letting go is how you receive)\nthe quiet power of being unbothered (mastering the art of emotional sovereignty)\nthe art of being unbothered (how to stop letting people rent space in your head)\nhow i stopped needing external validation to feel like i was enough\nthings i learned about loneliness that no one says out loud\nrules of emotional maturity for people who feel everything but show nothing\nrules of emotional clarity for people who live inside their own head\nthings i had to unlearn about self-worth that i mistook for strength\nthe art of choosing yourself\nhow i became the person who no longer abandons herself to keep the peace\nthings i wish i knew about boundaries before i burned out trying to save everyone\nhow i stopped apologizing for taking up space in my own life\nrules of emotional independence for people who used to need everyone's approval\nthe quiet shift that happens when you stop performing for people who don't see you\nthings i had to unlearn about anger that i mistook for weakness\nhow i learned to sit with silence instead of filling it with noise\nrules of self-trust for people who second-guess everything they feel\nthe art of staying soft without letting people walk all over you\nthings i stopped doing when i realized peace mattered more than being liked\nhow i became someone who doesn't need closure to move on\n\nall lowercase. written in a motivational yet conversational tone using first person \"i\" perspective when sharing personal experiences about wellness, managing stress, improving focus, and boosting energy naturally. write at a 7th grade reading level in a style that sounds like a supportive friend\n\nyou can also ask rhetorical questions. position yourself as someone who understands the struggle of prioritizing yourself and has found success. use short, punchy sentences. the writing should feel authentic, conversational, like you're talking with a good friend you love and trust. do not add any discourse markers in the text like \"honestly,\" \"trust me,\" \"frankly,\" \"to tell you the truth,\" or \"believe me\". remove these so called truth parentheticals or sincerity markers. the content should feel personal and relatable, creating a progression from recognizing self-deception to embracing personal truth about natural wellness practices and sustainable energy.\n\nHook: rules of self-trust for people who second-guess everything they feel",
+        "imageCollectionId": "collection-pinterest-nature-texture-2026-07-03t00-00-21-000z",
+        "slideshowType": "automation",
+        "settings": {
+          "duration": 4,
+          "background_color": "#000000",
+          "is_bg_overlay_on": true,
+          "transition_style": "hard",
+          "background_opacity": 25,
+          "is_bg_overlay_on_hook_image": true,
+          "export_as_video": false,
+          "sound_id": "",
+          "sound_name": "",
+          "sound_url": ""
+        },
+        "slides": [
+          {
+            "id": "slide-1",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/slide-001.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/source-001.jpg",
+            "textItems": [
+              {
+                "id": "ffb82f88-3cee-4cdd-9338-7ac1e693869b",
+                "text": "rules of self-trust for people who second-guess everything they feel",
+                "font": "TikTok Display Medium",
+                "fontSize": "22px",
+                "textSize": {
+                  "width": 60,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "9:16",
+            "time_length_ms": 4000
+          },
+          {
+            "id": "slide-2",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/slide-002.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/source-002.jpg",
+            "textItems": [
+              {
+                "id": "852ae8ab-f9ae-4c23-ae2d-c4cec10a3f87",
+                "text": "rule 1. i honor my internal feelings",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              },
+              {
+                "id": "dbae41c0-4d60-4820-87fe-e83123715188",
+                "text": "i used to ignore my gut instincts to please others. now i pause to listen to what my body needs before agreeing to any new commitments today.",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "9:16",
+            "time_length_ms": 4000
+          },
+          {
+            "id": "slide-3",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/slide-003.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/source-003.jpg",
+            "textItems": [
+              {
+                "id": "852ae8ab-f9ae-4c23-ae2d-c4cec10a3f87",
+                "text": "rule 2. i define my own energy",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              },
+              {
+                "id": "dbae41c0-4d60-4820-87fe-e83123715188",
+                "text": "chasing constant productivity left me feeling burnt out and tired. i now embrace rest as a tool for natural energy instead of fighting against my own biology.",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "9:16",
+            "time_length_ms": 4000
+          },
+          {
+            "id": "slide-4",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/slide-004.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/source-004.jpg",
+            "textItems": [
+              {
+                "id": "852ae8ab-f9ae-4c23-ae2d-c4cec10a3f87",
+                "text": "rule 3. i quit the overthinking cycle",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              },
+              {
+                "id": "dbae41c0-4d60-4820-87fe-e83123715188",
+                "text": "why do i spend hours worried about past mistakes? i practice grounding techniques like deep breathing to stay in the present and let those anxious thoughts drift away.",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "9:16",
+            "time_length_ms": 4000
+          },
+          {
+            "id": "slide-5",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/slide-005.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/source-005.jpg",
+            "textItems": [
+              {
+                "id": "852ae8ab-f9ae-4c23-ae2d-c4cec10a3f87",
+                "text": "rule 4. i trust my natural focus",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              },
+              {
+                "id": "dbae41c0-4d60-4820-87fe-e83123715188",
+                "text": "i stopped forcing myself to work for hours without stopping. i now take small breaks to move my body and refresh my brain to sustain lasting concentration throughout.",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "9:16",
+            "time_length_ms": 4000
+          },
+          {
+            "id": "slide-6",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/slide-006.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/source-006.jpg",
+            "textItems": [
+              {
+                "id": "852ae8ab-f9ae-4c23-ae2d-c4cec10a3f87",
+                "text": "rule 5. i accept my personal truth",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              },
+              {
+                "id": "dbae41c0-4d60-4820-87fe-e83123715188",
+                "text": "it is okay to change my mind when things no longer serve my wellness. i am prioritizing my peace over the expectations that others have placed on me.",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "9:16",
+            "time_length_ms": 4000
+          },
+          {
+            "id": "slide-7",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/slide-007.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-a441180b-ad87-41f0-8977-30ed160c94b2/source-007.jpg",
+            "textItems": [
+              {
+                "id": "079f30f3-4958-4082-afc2-bdb1585e49fe",
+                "text": "save this post to help you trust yourself today",
+                "font": "TikTok Display Medium",
+                "fontSize": "12px",
+                "textSize": {
+                  "width": 70,
+                  "height": 18
+                },
+                "textStyle": "yellowText",
+                "textAlign": "center",
+                "textAnchor": "padded",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 50,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "fit",
+            "time_length_ms": 4000
+          }
+        ]
+      },
+      "destinationAccountIds": []
+    },
+    {
+      "id": "result-automation-run-96afe529-c6ef-4a40-912e-ece4111305f9",
+      "automationId": "automation-astrology-born-to-forced-to",
+      "runId": "automation-run-96afe529-c6ef-4a40-912e-ece4111305f9",
+      "workflowType": "slideshow",
+      "title": "Born to Manifest Forced to Commute",
+      "status": "succeeded",
+      "createdAt": "2026-07-09T14:19:03.168Z",
+      "updatedAt": "2026-07-09T14:19:03.168Z",
+      "artifacts": {
+        "slideshowId": "slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f",
+        "outputImages": [
+          "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/slide-001.png",
+          "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/slide-002.png",
+          "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/slide-003.png",
+          "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/slide-004.png",
+          "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/slide-005.png",
+          "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/slide-006.png",
+          "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/slide-007.png"
+        ],
+        "outputDir": "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f"
+      },
+      "payload": {
+        "type": "slideshow",
+        "caption": "Living a mystical life in a corporate world.",
+        "hashtags": "#astrology #corporatehumor #zodiac #manifestation #officeproblems",
+        "prompt": "born to wear moonstone, forced to answer emails\nborn to be a [[sign]] femme fatale, forced to attend 9am standups\nborn to manifest under full moons, forced to manifest a parking spot\nborn to be draped in talismans, forced to dress office-appropriate\nborn for main character energy, forced into the group project\n\nFirst slide is one strong 'born to X, forced to Y' hook. Body slides each land one escalating contrast line mixing celestial/goddess fantasy with mundane office and commute reality. The contrast is the engine — keep lines punchy, relatable, and native to TikTok slideshow memes.\n\nHook: born to be a [[sign]] femme fatale, forced to attend 9am standups",
+        "imageCollectionId": "Astrology — Celestial vs Office (add your collection)",
+        "slideshowType": "automation",
+        "settings": {
+          "duration": 4,
+          "background_color": "#000000",
+          "is_bg_overlay_on": true,
+          "transition_style": "hard",
+          "background_opacity": 25,
+          "is_bg_overlay_on_hook_image": true,
+          "export_as_video": false,
+          "sound_id": "",
+          "sound_name": "",
+          "sound_url": ""
+        },
+        "slides": [
+          {
+            "id": "slide-1",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/slide-001.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/source-001.jpg",
+            "textItems": [
+              {
+                "id": "text-3t4d6tlp",
+                "text": "born to be a [[sign]] femme fatale, forced to attend 9am standups",
+                "font": "TikTok Display Medium",
+                "fontSize": "10px",
+                "textSize": {
+                  "width": 60,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "time_length_ms": 4000
+          },
+          {
+            "id": "slide-2",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/slide-002.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/source-002.jpg",
+            "textItems": [
+              {
+                "id": "text-z72zy7rf",
+                "text": "Born to channel starlight, forced to write emails.",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "time_length_ms": 4000
+          },
+          {
+            "id": "slide-3",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/slide-003.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/source-003.jpg",
+            "textItems": [
+              {
+                "id": "text-z72zy7rf",
+                "text": "Born to perform rituals, forced to join meetings.",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "time_length_ms": 4000
+          },
+          {
+            "id": "slide-4",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/slide-004.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/source-004.jpg",
+            "textItems": [
+              {
+                "id": "text-z72zy7rf",
+                "text": "Born to read tarot, forced to analyze spreadsheets.",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "time_length_ms": 4000
+          },
+          {
+            "id": "slide-5",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/slide-005.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/source-005.jpg",
+            "textItems": [
+              {
+                "id": "text-z72zy7rf",
+                "text": "Born to command constellations, forced to fix printers.",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "time_length_ms": 4000
+          },
+          {
+            "id": "slide-6",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/slide-006.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/source-006.jpg",
+            "textItems": [
+              {
+                "id": "text-z72zy7rf",
+                "text": "Smuggle your magic charms into your bleak office.",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "time_length_ms": 4000
+          },
+          {
+            "id": "slide-7",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/slide-007.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-283115ab-4d78-4539-aa7f-789d8eacbc1f/source-007.jpg",
+            "textItems": [
+              {
+                "id": "text-i22pzl2z",
+                "text": "Comment your sign for your office-legal talisman.",
+                "font": "TikTok Display Medium",
+                "fontSize": "12px",
+                "textSize": {
+                  "width": 70,
+                  "height": 18
+                },
+                "textStyle": "yellowText",
+                "textAlign": "center",
+                "textAnchor": "padded",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 50,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "fit",
+            "time_length_ms": 4000
+          }
+        ]
+      },
+      "destinationAccountIds": []
+    },
+    {
+      "id": "result-automation-run-ac22bdd7-3afd-401d-b069-e795888879d8",
+      "automationId": "automation-curtains-renter-glowup",
+      "runId": "automation-run-ac22bdd7-3afd-401d-b069-e795888879d8",
+      "workflowType": "slideshow",
+      "title": "Easy Renter Friendly Curtain Hacks",
+      "status": "succeeded",
+      "createdAt": "2026-07-09T05:10:02.601Z",
+      "updatedAt": "2026-07-09T05:10:02.601Z",
+      "artifacts": {
+        "slideshowId": "slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9",
+        "outputImages": [
+          "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9/slide-001.png",
+          "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9/slide-002.png",
+          "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9/slide-003.png",
+          "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9/slide-004.png",
+          "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9/slide-005.png",
+          "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9/slide-006.png"
+        ],
+        "outputDir": "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9"
+      },
+      "payload": {
+        "type": "slideshow",
+        "caption": "Transform your rental windows instantly without damaging the walls.",
+        "hashtags": "#homedecor #renterfriendly #interiordesign #apartmenthacks",
+        "prompt": "stop drilling holes just to hang curtains\nrenters: this window upgrade leaves zero wall damage\nyour [[room]] looks unfinished because of one window mistake\nthis is how designers make cheap curtains look custom\nplain [[room]], one curtain swap, a completely different room\nmost people hang curtains too low and too narrow — here's the fix\ncustom-looking curtains without the custom price\n\nFirst slide is one strong scroll-stopping hook. Body slides each deliver ONE concrete, renter-safe curtain fix as an instant room transformation. Keep text short, confident, and native to TikTok slideshow memes — before/after energy, no jargon.\n\nHook: most people hang curtains too low and too narrow — here's the fix",
+        "imageCollectionId": "Curtains — Renter Glow-Up (add your collection)",
+        "slideshowType": "automation",
+        "settings": {
+          "duration": 4,
+          "background_color": "#000000",
+          "is_bg_overlay_on": true,
+          "transition_style": "hard",
+          "background_opacity": 25,
+          "is_bg_overlay_on_hook_image": true,
+          "export_as_video": false,
+          "sound_id": "",
+          "sound_name": "",
+          "sound_url": ""
+        },
+        "slides": [
+          {
+            "id": "slide-1",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9/slide-001.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9/source-001.jpg",
+            "textItems": [
+              {
+                "id": "text-o4ppg6my",
+                "text": "most people hang curtains too low and too narrow — here's the fix",
+                "font": "TikTok Display Medium",
+                "fontSize": "10px",
+                "textSize": {
+                  "width": 60,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "time_length_ms": 4000
+          },
+          {
+            "id": "slide-2",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9/slide-002.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9/source-002.jpg",
+            "textItems": [
+              {
+                "id": "text-0jmkltys",
+                "text": "Mount your rod high and wide for instant height.",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "time_length_ms": 4000
+          },
+          {
+            "id": "slide-3",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9/slide-003.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9/source-003.webp",
+            "textItems": [
+              {
+                "id": "text-0jmkltys",
+                "text": "Use tension rods to avoid any wall damage.",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "time_length_ms": 4000
+          },
+          {
+            "id": "slide-4",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9/slide-004.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9/source-004.jpg",
+            "textItems": [
+              {
+                "id": "text-0jmkltys",
+                "text": "Layer sheer and blackout curtains for hotel vibes.",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "time_length_ms": 4000
+          },
+          {
+            "id": "slide-5",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9/slide-005.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9/source-005.jpg",
+            "textItems": [
+              {
+                "id": "text-0jmkltys",
+                "text": "Pick the right material to block harsh glare.",
+                "font": "TikTok Display Medium",
+                "fontSize": "8px",
+                "textSize": {
+                  "width": 80,
+                  "height": 18
+                },
+                "textStyle": "whiteText",
+                "textAlign": "left",
+                "textAnchor": "flush",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 28,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "time_length_ms": 4000
+          },
+          {
+            "id": "slide-6",
+            "image_url": "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9/slide-006.png",
+            "source_image_url": "/api/local-assets/slideshows/outputs/slideshow-c58806fc-7e3a-4018-98f4-9699b229d6f9/source-006.jpg",
+            "textItems": [
+              {
+                "id": "text-xojfy3qf",
+                "text": "Comment RENT for the full no-drill curtain list.",
+                "font": "TikTok Display Medium",
+                "fontSize": "12px",
+                "textSize": {
+                  "width": 70,
+                  "height": 18
+                },
+                "textStyle": "yellowText",
+                "textAlign": "center",
+                "textAnchor": "padded",
+                "textPlacement": "top",
+                "textPosition": {
+                  "x": 50,
+                  "y": 45
+                }
+              }
+            ],
+            "aspect_ratio": "fit",
+            "time_length_ms": 4000
+          }
+        ]
+      },
+      "destinationAccountIds": []
+    }
+  ]
 }

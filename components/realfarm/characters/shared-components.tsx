@@ -49,7 +49,7 @@ export function GenerationPreview({
   return (
     <div
       className={cn(
-        "relative grid overflow-hidden rounded-[10px] bg-[#ecece8] transition group-hover:ring-2 group-hover:ring-app-action",
+        "relative grid overflow-hidden rounded-xl bg-app-media-empty transition group-hover:ring-2 group-hover:ring-app-action/60",
         selected && "ring-2 ring-app-action"
       )}
       style={{ aspectRatio: ratioToCss(generation.aspectRatio) }}
@@ -63,14 +63,14 @@ export function GenerationPreview({
                 sizeClassName="size-16"
               />
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-white">
+            <div className="h-2 overflow-hidden rounded-full bg-app-surface">
               <div
                 className="h-full rounded-full bg-app-action transition-all"
                 style={{ width: `${generation.progress}%` }}
               />
             </div>
-            <div className="mt-3 text-center text-[12px] font-bold text-[#667085]">
-              Generating...
+            <div className="mt-3 text-center text-[12px] font-medium text-app-muted-text">
+              Generating…
             </div>
           </div>
         </div>
@@ -92,8 +92,8 @@ export function GenerationPreview({
       ) : generation.status === "failed" ? (
         <div className="grid place-items-center px-5 text-center">
           <div>
-            <IconX className="mx-auto size-8 text-[#d8505f]" />
-            <div className="mt-3 text-[13px] font-bold text-[#c63d4a]">
+            <IconX className="mx-auto size-8 text-app-danger" />
+            <div className="mt-3 text-[13px] font-medium text-app-danger-muted">
               {generation.error || "Generation failed"}
             </div>
           </div>
@@ -106,6 +106,77 @@ export function GenerationPreview({
           />
         </div>
       )}
+    </div>
+  )
+}
+
+export type PromptInputItem = {
+  id: string
+  url: string
+  label: string
+  isVideo?: boolean
+  accent?: boolean
+  onRemove?: () => void
+}
+
+export function PromptInputRow({
+  items,
+  ariaLabel,
+}: {
+  items: PromptInputItem[]
+  ariaLabel: string
+}) {
+  if (items.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2" aria-label={ariaLabel}>
+      {items.map((item) => (
+        <div
+          key={item.id}
+          className={cn(
+            "group/input relative size-16 shrink-0 overflow-hidden rounded-xl border bg-app-media-empty",
+            item.accent ? "border-app-action" : "border-app-panel-border"
+          )}
+          title={item.label}
+        >
+          {item.isVideo ? (
+            <video
+              src={item.url}
+              className="h-full w-full object-cover"
+              muted
+              playsInline
+              preload="metadata"
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element -- Local/generated thumbnails can be blob or local API URLs.
+            <img
+              src={item.url}
+              alt={item.label}
+              className="h-full w-full object-cover"
+            />
+          )}
+          <span
+            className={cn(
+              "absolute inset-x-0 bottom-0 truncate px-1.5 py-0.5 text-[10px] font-medium text-white",
+              item.accent ? "bg-app-action/90" : "bg-black/55"
+            )}
+          >
+            {item.label}
+          </span>
+          {item.onRemove && (
+            <button
+              type="button"
+              className="absolute top-0.5 right-0.5 grid size-5 place-items-center rounded-full bg-black/55 text-white opacity-0 transition group-hover/input:opacity-100 focus-visible:opacity-100"
+              aria-label={`Remove ${item.label}`}
+              onClick={item.onRemove}
+            >
+              <IconX className="size-3" />
+            </button>
+          )}
+        </div>
+      ))}
     </div>
   )
 }
@@ -130,7 +201,7 @@ export function AttachmentSquareRow({
           target="_blank"
           rel="noreferrer"
           title={attachment.label}
-          className="block size-14 shrink-0 overflow-hidden rounded-[10px] border border-[#e4e4df] bg-[#f2f2ee] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          className="block size-14 shrink-0 overflow-hidden rounded-xl border border-app-panel-border bg-app-surface-subtle transition hover:-translate-y-0.5 hover:border-app-muted-text/40"
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- Local/generated attachment thumbnails can be blob or local API URLs. */}
           <img

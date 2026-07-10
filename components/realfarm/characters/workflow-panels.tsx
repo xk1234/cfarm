@@ -1,7 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { IconPhoto, IconX } from "@tabler/icons-react"
+import { IconPhoto } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import { SelectControl } from "@/components/ui/form-controls"
@@ -9,7 +9,6 @@ import type { AssetRecord } from "@/lib/assets"
 import type { CharacterRecord } from "@/lib/characters"
 import {
   characterWorkflowOptions,
-  type CharacterImageGenerationRecord,
   type CharacterPromptAttachment,
   type CharacterWorkflowKey,
 } from "@/lib/realfarm-character-ui"
@@ -59,22 +58,25 @@ export function CharacterWorkflowEmptyState({
   return (
     <div className="w-full max-w-[760px] text-left">
       <div className="text-center">
-        <IconPhoto className="mx-auto size-12 text-[#b8babf]" stroke={1.5} />
-        <div className="mt-5 text-[22px] font-bold text-[#333]">
+        <IconPhoto className="mx-auto size-12 text-app-text-faint" stroke={1.5} />
+        <div className="mt-5 text-[22px] font-semibold text-app-text">
           No images yet
         </div>
+        <p className="mt-1 text-[14px] text-app-muted-text">
+          Pick a starting point below.
+        </p>
       </div>
       <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((card) => (
           <button
             key={`${card.title}-${card.workflow}`}
-            className="min-h-28 rounded-[12px] border border-[#e2e4ea] bg-white p-4 text-left shadow-sm transition hover:border-[#ff4f28] hover:shadow-md"
+            className="min-h-28 rounded-xl border border-app-panel-border bg-app-surface p-4 text-left transition hover:border-app-action"
             onClick={() => onSelectWorkflow(card.workflow)}
           >
-            <span className="text-[15px] font-bold text-[#202020]">
+            <span className="text-[15px] font-semibold text-app-text">
               {card.title}
             </span>
-            <span className="mt-2 block text-[12px] leading-5 font-semibold text-[#77766f]">
+            <span className="mt-2 block text-[13px] leading-5 text-app-muted-text">
               {card.description}
             </span>
           </button>
@@ -86,8 +88,6 @@ export function CharacterWorkflowEmptyState({
 
 export function BottomWorkflowControls({
   workflow,
-  isEditWorkflow,
-  sourceGeneration,
   selectedReferenceAsset,
   selectedOutfitAsset,
   motionVideoUrl,
@@ -109,14 +109,11 @@ export function BottomWorkflowControls({
   onProductAngleChange,
   moduleRecipe,
   onModuleRecipeChange,
-  onClearSource,
   onOpenReference,
   onOpenOutfits,
   onOpenMotion,
 }: {
   workflow: CharacterWorkflowKey
-  isEditWorkflow: boolean
-  sourceGeneration: CharacterImageGenerationRecord | null
   selectedReferenceAsset: AssetRecord | null
   selectedOutfitAsset?: AssetRecord
   motionVideoUrl: string
@@ -138,39 +135,26 @@ export function BottomWorkflowControls({
   onProductAngleChange: (value: string) => void
   moduleRecipe: Record<string, string>
   onModuleRecipeChange: (value: Record<string, string>) => void
-  onClearSource: () => void
   onOpenReference: () => void
   onOpenOutfits: () => void
   onOpenMotion: () => void
 }) {
-  return (
-    <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1">
-      {sourceGeneration?.imageUrl ? (
-        <div className="flex items-center gap-2 rounded-[10px] border border-[#ffb199] bg-[#fff4ed] p-1 pr-2">
-          {/* eslint-disable-next-line @next/next/no-img-element -- Generated local image URL is returned by the app API. */}
-          <img
-            src={sourceGeneration.imageUrl}
-            alt="Selected edit source"
-            className="size-11 rounded-[8px] object-cover"
-          />
-          <span className="text-[12px] font-bold text-[#ff4f28]">Source</span>
-          <button
-            type="button"
-            className="grid size-6 place-items-center rounded-full text-[#ff4f28] hover:bg-[#ffe1d6]"
-            aria-label="Clear selected source image"
-            onClick={onClearSource}
-          >
-            <IconX className="size-4" />
-          </button>
-        </div>
-      ) : (
-        isEditWorkflow && (
-          <div className="rounded-[10px] border border-[#f04438] bg-[#fff5f5] px-3 py-2 text-[12px] font-bold text-[#b42318]">
-            Select a generated image first
-          </div>
-        )
-      )}
+  const hasWorkflowControls =
+    workflow === "recreate_reference" ||
+    workflow === "outfit_transfer" ||
+    workflow === "motion_control" ||
+    workflow === "seedream_bedroom_selfie" ||
+    workflow === "build_modules" ||
+    workflow === "batch_photo_dump" ||
+    workflow === "tiktok_slideshow" ||
+    workflow === "product_ugc"
 
+  if (!hasWorkflowControls) {
+    return null
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2">
       {workflow === "recreate_reference" && (
         <Button
           variant="softControl"
@@ -178,8 +162,8 @@ export function BottomWorkflowControls({
           className={cn(
             "h-auto min-h-12 gap-2 border-2 p-1 pr-3",
             referenceAssetReady(selectedReferenceAsset)
-              ? "border-[#12b76a]"
-              : "border-[#f04438]"
+              ? "border-emerald-500"
+              : "border-app-danger"
           )}
           onClick={onOpenReference}
         >
@@ -189,7 +173,7 @@ export function BottomWorkflowControls({
               <img
                 src={selectedReferenceAsset.fileUrl}
                 alt={selectedReferenceAsset.name || "Selected reference"}
-                className="size-11 rounded-[8px] object-cover"
+                className="size-11 rounded-lg object-cover"
               />
               <span>Reference</span>
             </>
@@ -205,7 +189,7 @@ export function BottomWorkflowControls({
           <span
             className={cn(
               "ml-2 size-2 rounded-full",
-              selectedOutfitAsset?.fileUrl ? "bg-[#12b76a]" : "bg-[#f04438]"
+              selectedOutfitAsset?.fileUrl ? "bg-emerald-500" : "bg-app-danger"
             )}
           />
         </Button>
@@ -217,7 +201,7 @@ export function BottomWorkflowControls({
           <span
             className={cn(
               "ml-2 size-2 rounded-full",
-              motionVideoUrl ? "bg-[#12b76a]" : "bg-[#f04438]"
+              motionVideoUrl ? "bg-emerald-500" : "bg-app-danger"
             )}
           />
         </Button>
@@ -225,7 +209,7 @@ export function BottomWorkflowControls({
 
       {workflow === "seedream_bedroom_selfie" && (
         <>
-          <label className="flex items-center gap-2 text-[12px] font-bold tracking-wide text-[#77766f] uppercase">
+          <label className="flex items-center gap-2 text-[11px] font-medium tracking-wide text-app-text-faint uppercase">
             Preset
             <SelectControl
               value={selfieTemplate}
@@ -237,7 +221,7 @@ export function BottomWorkflowControls({
               <option value="sheet_pull_soft_smile_bralette">Sheet Pull</option>
             </SelectControl>
           </label>
-          <label className="flex items-center gap-2 text-[12px] font-bold tracking-wide text-[#77766f] uppercase">
+          <label className="flex items-center gap-2 text-[11px] font-medium tracking-wide text-app-text-faint uppercase">
             Size
             <SelectControl
               value={breastSize}
@@ -360,10 +344,10 @@ function InlineTextControl({
   onChange: (value: string) => void
 }) {
   return (
-    <label className="flex items-center gap-2 text-[12px] font-bold tracking-wide text-[#77766f] uppercase">
+    <label className="flex items-center gap-2 text-[11px] font-medium tracking-wide text-app-text-faint uppercase">
       {label}
       <input
-        className="h-9 w-[130px] rounded-[9px] border border-[#dde1e7] px-3 text-[13px] font-semibold text-[#111827] outline-none"
+        className="h-9 w-[130px] rounded-lg border border-app-panel-border bg-app-control-bg px-3 text-[13px] font-medium text-app-text outline-none focus:border-app-action"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
@@ -385,10 +369,10 @@ function NumberStepper({
   onChange: (value: number) => void
 }) {
   return (
-    <label className="flex items-center gap-2 text-[12px] font-bold tracking-wide text-[#77766f] uppercase">
+    <label className="flex items-center gap-2 text-[11px] font-medium tracking-wide text-app-text-faint uppercase">
       {label}
       <input
-        className="h-9 w-20 rounded-[9px] border border-[#dde1e7] px-3 text-[13px] font-semibold text-[#111827] outline-none"
+        className="h-9 w-20 rounded-lg border border-app-panel-border bg-app-control-bg px-3 text-[13px] font-medium text-app-text outline-none focus:border-app-action"
         type="number"
         min={min}
         max={max}

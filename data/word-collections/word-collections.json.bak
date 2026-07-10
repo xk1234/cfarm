@@ -1,0 +1,55 @@
+{
+  "collections": [
+    {
+      "id": "occasion",
+      "name": "occasion",
+      "words": [
+        "birthday",
+        "proposal",
+        "baby shower",
+        "grand opening"
+      ],
+      "source": "manual",
+      "created_at": "2026-07-07T13:44:31.803Z",
+      "updated_at": "2026-07-07T13:44:31.803Z"
+    },
+    {
+      "id": "room",
+      "name": "room",
+      "words": [
+        "living room",
+        "master bedroom",
+        "study nook",
+        "kitchen"
+      ],
+      "source": "manual",
+      "created_at": "2026-07-07T13:44:31.803Z",
+      "updated_at": "2026-07-07T13:44:31.803Z"
+    },
+    {
+      "id": "charm",
+      "name": "charm",
+      "words": [
+        "jade bracelet",
+        "gold coin charm",
+        "rose quartz pendant"
+      ],
+      "source": "manual",
+      "created_at": "2026-07-07T13:44:31.803Z",
+      "updated_at": "2026-07-07T13:44:31.803Z"
+    },
+    {
+      "id": "zodiac",
+      "name": "zodiac",
+      "words": [
+        "aries",
+        "taurus",
+        "gemini",
+        "cancer"
+      ],
+      "source": "manual",
+      "created_at": "2026-07-07T13:44:31.802Z",
+      "updated_at": "2026-07-07T13:44:31.802Z"
+    }
+  ]
+}

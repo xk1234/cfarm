@@ -1,6 +1,196 @@
 {
   "templates": [
     {
+      "id": "template-video-ugc-product-demo",
+      "automationKind": "video",
+      "sourceUrl": "local://video-templates/ugc-product-demo",
+      "name": "UGC Product Demo",
+      "theme": "ugc-product-demo",
+      "createdAt": "2026-07-10T00:00:00.000Z",
+      "updatedAt": "2026-07-10T00:00:00.000Z",
+      "template": {
+        "created_at": "2026-07-10T00:00:00.000Z",
+        "image_collection_ids": "{}",
+        "format": {
+          "hook": {
+            "aspect_ratio": "9:16",
+            "image_grid": "none",
+            "overlay": false,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "video-product-demo-hook-text",
+                "font": "TikTok Display Medium",
+                "font_size": "22px",
+                "text_style": "whiteText",
+                "text_position": "top",
+                "text_item_width": "80%",
+                "word_length_min": 4,
+                "word_length_max": 9,
+                "content_direction": "short UGC hook naming the product result",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              }
+            ]
+          },
+          "content": {
+            "aspect_ratio": "9:16",
+            "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 1,
+            "overlay": false,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "video-product-demo-body-text",
+                "font": "TikTok Display Medium",
+                "font_size": "18px",
+                "text_style": "whiteText",
+                "text_position": "bottom",
+                "text_item_width": "80%",
+                "word_length_min": 8,
+                "word_length_max": 18,
+                "content_direction": "specific product benefit or demonstration line",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              }
+            ]
+          },
+          "cta": {
+            "enabled": true,
+            "image_mode": "collection",
+            "aspect_ratio": "9:16",
+            "image_grid": "none",
+            "overlay": false,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "video-product-demo-cta-text",
+                "font": "TikTok Display Medium",
+                "font_size": "18px",
+                "text_style": "whiteText",
+                "text_position": "bottom",
+                "text_item_width": "80%",
+                "word_length_min": 3,
+                "word_length_max": 8,
+                "content_direction": "simple product CTA",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              }
+            ]
+          },
+          "tone": "Custom",
+          "custom_tone": "Write concise first-person UGC ad copy that sounds like a creator demonstrating a product naturally. Keep it practical, specific, and conversion-focused without sounding scripted."
+        },
+        "hooks": [
+          "i did not expect this to work this well",
+          "this is the easiest way to show the product result",
+          "watch what happens after one quick use"
+        ]
+      }
+    },
+    {
+      "id": "template-video-ugc-testimonial",
+      "automationKind": "video",
+      "sourceUrl": "local://video-templates/ugc-testimonial",
+      "name": "UGC Testimonial",
+      "theme": "ugc-testimonial",
+      "createdAt": "2026-07-10T00:00:00.000Z",
+      "updatedAt": "2026-07-10T00:00:00.000Z",
+      "template": {
+        "created_at": "2026-07-10T00:00:00.000Z",
+        "image_collection_ids": "{}",
+        "format": {
+          "hook": {
+            "aspect_ratio": "9:16",
+            "image_grid": "none",
+            "overlay": false,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "video-testimonial-hook-text",
+                "font": "TikTok Display Medium",
+                "font_size": "22px",
+                "text_style": "whiteText",
+                "text_position": "top",
+                "text_item_width": "80%",
+                "word_length_min": 5,
+                "word_length_max": 10,
+                "content_direction": "confessional creator hook about a before-after result",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              }
+            ]
+          },
+          "content": {
+            "aspect_ratio": "9:16",
+            "image_grid": "none",
+            "slide_count_mode": "static",
+            "slide_count": 1,
+            "overlay": false,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "video-testimonial-body-text",
+                "font": "TikTok Display Medium",
+                "font_size": "18px",
+                "text_style": "whiteText",
+                "text_position": "bottom",
+                "text_item_width": "80%",
+                "word_length_min": 8,
+                "word_length_max": 18,
+                "content_direction": "short testimonial proof point with a concrete result",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              }
+            ]
+          },
+          "cta": {
+            "enabled": true,
+            "image_mode": "collection",
+            "aspect_ratio": "9:16",
+            "image_grid": "none",
+            "overlay": false,
+            "display_text": true,
+            "text_items": [
+              {
+                "id": "video-testimonial-cta-text",
+                "font": "TikTok Display Medium",
+                "font_size": "18px",
+                "text_style": "whiteText",
+                "text_position": "bottom",
+                "text_item_width": "80%",
+                "word_length_min": 3,
+                "word_length_max": 8,
+                "content_direction": "simple testimonial CTA",
+                "text_mode": "prompt",
+                "static_text": "",
+                "text_align": "center",
+                "text_anchor": "padded"
+              }
+            ]
+          },
+          "tone": "Custom",
+          "custom_tone": "Write like a real customer sharing a direct testimonial. Use plain language, personal experience, and one specific before-after detail."
+        },
+        "hooks": [
+          "i wish i tried this sooner",
+          "the before and after surprised me",
+          "this fixed the thing i kept putting off"
+        ]
+      }
+    },
+    {
       "id": "template-reelfarm-33",
       "sourceAutomationId": "33",
       "sourceUrl": "https://reel.farm/dashboard/automations",

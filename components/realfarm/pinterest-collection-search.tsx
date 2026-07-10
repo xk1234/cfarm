@@ -2,12 +2,17 @@
 
 import { useState } from "react"
 import type * as React from "react"
-import { IconChevronRight, IconSearch, IconX } from "@tabler/icons-react"
+import { IconChevronRight, IconSearch } from "@tabler/icons-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { SelectControl } from "@/components/ui/form-controls"
-import { AppModal, AppModalPanel } from "@/components/ui/modal"
+import { SelectControl, SwitchPillButton } from "@/components/ui/form-controls"
+import { Spinner } from "@/components/ui/spinner"
+import {
+  AppModal,
+  AppModalCloseButton,
+  AppModalPanel,
+} from "@/components/ui/modal"
 import { thumbTone } from "@/components/realfarm/shared-media"
 import {
   collectionToStored,
@@ -153,13 +158,11 @@ export function PinterestCollectionSearch({
   return (
     <AppModal className="bg-[#24251f]/50" onClose={onCancel}>
       <AppModalPanel className="relative flex max-h-[78vh] max-w-[640px] flex-col rounded-[10px]">
-        <button
-          className="absolute right-3 top-3 z-10 grid size-8 place-items-center rounded-full text-[#8c8b84] hover:bg-[#f1f0eb] hover:text-[#242421]"
+        <AppModalCloseButton
+          className="absolute top-3 right-3 z-10"
           onClick={onCancel}
-          aria-label="Close Pinterest search"
-        >
-          <IconX className="size-4" />
-        </button>
+          ariaLabel="Close Pinterest search"
+        />
         <div className="border-b border-[#ecebe4] p-4 pb-3">
           <form className="flex items-center gap-2 rounded-[9px] bg-white pr-9" onSubmit={submitSearch}>
             <IconSearch className="size-5 shrink-0 text-[#9a9991]" />
@@ -224,15 +227,18 @@ export function PinterestCollectionSearch({
                 {recentSearches.length > 0 ? (
                   <div className="grid gap-3 text-[13px] text-[#62615b]">
                     {recentSearches.map((suggestion) => (
-                      <button
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
                         key={suggestion}
-                        className="text-left hover:text-[#242421]"
+                        className="justify-start px-2 text-left"
                         onClick={() => {
                           setQuery(suggestion)
                         }}
                       >
                         {suggestion}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 ) : (
@@ -264,7 +270,7 @@ export function PinterestCollectionSearch({
                 <Button variant="softControl" size="appDefault" onClick={loadMore} disabled={searchBusy || creatingCollection}>
                   {loadingMore ? (
                     <>
-                      <span className="mr-2 size-3.5 animate-spin rounded-full border-2 border-[#8c8b84] border-t-transparent" />
+                      <Spinner size={14} color="currentColor" className="mr-2" />
                       Loading
                     </>
                   ) : (
@@ -275,37 +281,35 @@ export function PinterestCollectionSearch({
             )}
           </div>
         )}
-        <div className="mt-auto flex items-center justify-between border-t border-[#ecebe4] px-5 py-4 text-[12px] font-medium">
-          <div className="flex items-center gap-7">
-            <button onClick={onCancel}>Cancel</button>
-            <button
+        <div className="mt-auto flex items-center justify-between border-t border-app-panel-border px-5 py-4 text-[12px] font-medium">
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="ghost" size="compact" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
               onClick={() => setSelectedIds(new Set(results.map((result) => result.id)))}
               disabled={results.length === 0}
-              className="disabled:text-[#c4c2ba]"
             >
               Select All
-            </button>
-            <button onClick={() => setSelectedIds(new Set())} disabled={selectedIds.size === 0} className="disabled:text-[#c4c2ba]">
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              onClick={() => setSelectedIds(new Set())}
+              disabled={selectedIds.size === 0}
+            >
               Clear
-            </button>
+            </Button>
             <label className="flex items-center gap-2 text-[#77766f]">
-              <button
-                type="button"
-                className={cn(
-                  "relative h-5 w-9 rounded-full transition",
-                  autoCaption ? "bg-[#ff5626]" : "bg-[#e2e0d8]"
-                )}
+              <SwitchPillButton
+                enabled={autoCaption}
                 onClick={() => setAutoCaption((current) => !current)}
-                aria-pressed={autoCaption}
                 aria-label="Toggle auto caption"
-              >
-                <span
-                  className={cn(
-                    "absolute top-0.5 size-4 rounded-full bg-white shadow transition",
-                    autoCaption ? "left-[18px]" : "left-0.5"
-                  )}
-                />
-              </button>
+              />
               Auto-caption
             </label>
           </div>

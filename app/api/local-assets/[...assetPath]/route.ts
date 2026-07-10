@@ -3,6 +3,9 @@ import path from "node:path"
 
 import { NextResponse } from "next/server"
 
+import { getAppwrite } from "@/lib/appwrite"
+import { bucketForPath, fileIdForPath } from "@/lib/appwrite-stores"
+
 export const dynamic = "force-dynamic"
 
 const contentTypes: Record<string, string> = {
@@ -34,10 +37,20 @@ export async function GET(
     return NextResponse.json({ error: "Invalid asset path" }, { status: 400 })
   }
 
+  const relPath = assetPath.join("/")
+  const contentType =
+    contentTypes[path.extname(relPath).toLowerCase()] ??
+    "application/octet-stream"
+
+  // Serve from Appwrite Storage when configured; fall back to the filesystem.
+  const appwriteResponse = await serveFromAppwrite(
+    relPath,
+    contentType,
+    request.headers.get("range")
+  )
+  if (appwriteResponse) return appwriteResponse
+
   try {
-    const contentType =
-      contentTypes[path.extname(requestedPath).toLowerCase()] ??
-      "application/octet-stream"
     const fileStat = await stat(requestedPath)
     const range = parseRangeHeader(request.headers.get("range"), fileStat.size)
 
@@ -69,6 +82,49 @@ export async function GET(
     })
   } catch {
     return NextResponse.json({ error: "Asset not found" }, { status: 404 })
+  }
+}
+
+async function serveFromAppwrite(
+  relPath: string,
+  contentType: string,
+  rangeHeader: string | null
+): Promise<NextResponse | null> {
+  const aw = getAppwrite()
+  if (!aw) return null
+  try {
+    const bucket = bucketForPath(relPath)
+    const fileId = fileIdForPath(relPath)
+    const view = await aw.storage.getFileView(bucket, fileId)
+    const body = Buffer.from(view as ArrayBuffer)
+    const size = body.byteLength
+    const range = parseRangeHeader(rangeHeader, size)
+
+    if (range) {
+      const chunk = body.subarray(range.start, range.end + 1)
+      return new NextResponse(chunk, {
+        status: 206,
+        headers: {
+          "Accept-Ranges": "bytes",
+          "Cache-Control": "no-store",
+          "Content-Length": String(chunk.byteLength),
+          "Content-Range": `bytes ${range.start}-${range.end}/${size}`,
+          "Content-Type": contentType,
+        },
+      })
+    }
+
+    return new NextResponse(body, {
+      headers: {
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "no-store",
+        "Content-Length": String(size),
+        "Content-Type": contentType,
+      },
+    })
+  } catch {
+    // Not found in Appwrite (e.g. freshly generated asset) -> fall back to fs.
+    return null
   }
 }
 

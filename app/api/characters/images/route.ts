@@ -1,8 +1,9 @@
 import { clean } from "@/lib/guards"
-import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 
 import { NextResponse } from "next/server"
+
+import { persistAsset } from "@/lib/asset-storage"
 
 import {
   deleteCharacterImageGeneration,
@@ -53,8 +54,7 @@ export async function POST(request: Request) {
     const safeBaseName = safeFileBaseName(file.name)
     const fileName = `${Date.now()}-uploaded-${safeBaseName}${extension}`
     const folder = path.join(process.cwd(), "data", "characters", "images")
-    await mkdir(folder, { recursive: true })
-    await writeFile(
+    await persistAsset(
       path.join(folder, fileName),
       Buffer.from(await file.arrayBuffer())
     )

@@ -137,4 +137,73 @@ describe("POST /api/automations/hooks", () => {
     expect(payload.error).toBe("Add at least one hook before generating more")
     expect(fetchMock).not.toHaveBeenCalled()
   })
+
+  it("filters generated hooks that were recently used by the automation", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "openrouter-test-key")
+    const { createLocalAutomationRecord, upsertAutomationRecords } =
+      await import("@/lib/automations")
+    const { appendUsageRecords } = await import("@/lib/usage-ledger")
+    const { schemaWithAutomationHooks } =
+      await import("@/lib/realfarm-automation")
+    const automation = createLocalAutomationRecord({
+      name: "Recent Hook History",
+    })
+    automation.schema = schemaWithAutomationHooks(automation.schema, [
+      "fresh seed hook",
+    ])
+    await upsertAutomationRecords({
+      rootDir: path.join(tempRoot, "data", "automations"),
+      records: [automation],
+    })
+    await appendUsageRecords({
+      rootDir: path.join(tempRoot, "data"),
+      records: [
+        {
+          automation_id: automation.id,
+          kind: "hook",
+          key: "recently used hook",
+          run_id: "run-recent",
+          used_at: "2026-07-07T10:00:00.000Z",
+        },
+      ],
+      now: new Date("2026-07-07T10:00:00.000Z"),
+    })
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify({
+                      hooks: [
+                        "recently used hook",
+                        "new hook one",
+                        "new hook two",
+                      ],
+                    }),
+                  },
+                },
+              ],
+            }),
+            { status: 200 }
+          )
+      )
+    )
+
+    const { POST } = await import("./route")
+    const response = await POST(
+      new Request("http://localhost/api/automations/hooks", {
+        method: "POST",
+        body: JSON.stringify({ automationId: automation.id }),
+      })
+    )
+    const payload = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(payload.generatedHooks).toEqual(["new hook one", "new hook two"])
+  })
 })

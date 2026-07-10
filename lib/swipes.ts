@@ -1,7 +1,9 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rm } from "node:fs/promises"
 import path from "node:path"
 
+import { deleteAssetFromAppwrite, persistAsset } from "@/lib/asset-storage"
 import { cleanCollapsedWhitespace as clean } from "@/lib/guards"
+import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 import { fetchWithTimeout } from "@/lib/http"
 import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-registry"
 
@@ -135,6 +137,18 @@ export type SwipeRecord = {
   metadata: Record<string, string>
   stats: Record<string, string>
   folder: string
+  // B1 organization (additive, optional): boards replace the single folder,
+  // free-form tags/notes/rating, and where the swipe was saved from.
+  boards?: string[]
+  tags?: string[]
+  notes?: string
+  rating?: number
+  saved_from_url?: string
+  suggested_tags?: string[]
+  // B2 longevity tracking (additive, optional).
+  first_seen_at?: string
+  last_seen_at?: string
+  times_seen?: number
 }
 
 export type SwipePayload = Partial<
@@ -154,7 +168,6 @@ export type SavedSwipeMedia = {
 
 const swipeRoot = path.join(process.cwd(), "data", "swipes")
 const swipeAssetRoot = path.join(swipeRoot, "assets")
-const swipeDbPath = path.join(swipeRoot, "swipes.json")
 
 export async function listSwipes(): Promise<SwipeRecord[]> {
   const swipes = await readAllSwipes()
@@ -261,11 +274,7 @@ export async function createSwipe(payload: SwipePayload): Promise<SwipeRecord> {
     folder: clean(payload.folder) || "No Folder",
   }
 
-  await writeFile(
-    swipeDbPath,
-    `${JSON.stringify([next, ...current], null, 2)}\n`,
-    "utf8"
-  )
+  await writeAllSwipes([next, ...current])
   if (shouldProcess) {
     void completeSwipeProcessing(id, payload, {
       sourceVideoUrl,
@@ -299,7 +308,7 @@ export async function updateSwipe(
     return undefined
   }
 
-  await writeFile(swipeDbPath, `${JSON.stringify(next, null, 2)}\n`, "utf8")
+  await writeAllSwipes(next)
   return updated
 }
 
@@ -315,11 +324,7 @@ export async function deleteSwipe(id: string): Promise<SwipeRecord | undefined> 
     return undefined
   }
 
-  await writeFile(
-    swipeDbPath,
-    `${JSON.stringify(current.filter((swipe) => swipe.id !== cleanId), null, 2)}\n`,
-    "utf8"
-  )
+  await writeAllSwipes(current.filter((swipe) => swipe.id !== cleanId))
   await deleteSwipeAssets(deleted)
   return deleted
 }
@@ -351,10 +356,22 @@ async function completeSwipeProcessing(
   }
 }
 
+const swipeStore = {
+  rootDir: swipeRoot,
+  fileName: "swipes.json",
+  key: "swipes",
+}
+
 async function readAllSwipes(): Promise<SwipeRecord[]> {
   await ensureSwipeStore()
-  const file = await readFile(swipeDbPath, "utf8")
-  return (JSON.parse(file) as SwipeRecord[]).map(normalizeStoredSwipe)
+  return readJsonArrayStore<SwipeRecord>({
+    ...swipeStore,
+    normalize: normalizeStoredSwipe,
+  })
+}
+
+async function writeAllSwipes(records: SwipeRecord[]): Promise<void> {
+  await writeJsonArrayStore({ ...swipeStore, records })
 }
 
 function normalizeStoredSwipe(swipe: SwipeRecord): SwipeRecord {
@@ -374,11 +391,6 @@ function normalizeStoredSwipe(swipe: SwipeRecord): SwipeRecord {
 
 async function ensureSwipeStore() {
   await mkdir(swipeAssetRoot, { recursive: true })
-  try {
-    await readFile(swipeDbPath, "utf8")
-  } catch {
-    await writeFile(swipeDbPath, "[]\n", "utf8")
-  }
 }
 
 async function saveScreenshot(id: string, dataUrl: string) {
@@ -389,7 +401,7 @@ async function saveScreenshot(id: string, dataUrl: string) {
 
   const extension = match[1] === "jpeg" ? "jpg" : match[1]
   const fileName = `${id}.${extension}`
-  await writeFile(
+  await persistAsset(
     path.join(swipeAssetRoot, fileName),
     Buffer.from(match[2], "base64")
   )
@@ -409,9 +421,10 @@ async function deleteSwipeAssets(swipe: SwipeRecord) {
     .filter((value): value is string => Boolean(value))
 
   await Promise.all(
-    Array.from(new Set(paths)).map((filePath) =>
-      rm(filePath, { force: true }).catch(() => undefined)
-    )
+    Array.from(new Set(paths)).map(async (filePath) => {
+      await rm(filePath, { force: true }).catch(() => undefined)
+      await deleteAssetFromAppwrite(filePath)
+    })
   )
 }
 
@@ -478,7 +491,7 @@ async function saveRemoteMedia(
     const format = extensionFromContentType(contentType)
     const fileName = `${id}-${suffix}.${format}`
     const filePath = path.join(swipeAssetRoot, fileName)
-    await writeFile(filePath, buffer)
+    await persistAsset(filePath, buffer)
     return {
       publicUrl: `/api/swipes/assets/${fileName}`,
       filePath,

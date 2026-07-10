@@ -1,7 +1,12 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { IconBug, IconPlus, IconSparkles, IconUpload } from "@tabler/icons-react"
+import {
+  IconBug,
+  IconPlus,
+  IconSparkles,
+  IconUpload,
+} from "@tabler/icons-react"
 import { Folder, Pencil, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -14,9 +19,10 @@ import {
   ReferenceImageModal,
 } from "@/components/realfarm/characters/modals"
 import {
-  AttachmentSquareRow,
   CharacterAvatar,
   GenerationPreview,
+  PromptInputRow,
+  type PromptInputItem,
 } from "@/components/realfarm/characters/shared-components"
 import {
   BottomWorkflowControls,
@@ -41,6 +47,7 @@ import {
   characterImageAspectRatios,
   characterWorkflowOptions,
   createCharacterImageGenerationRecord,
+  defaultCharacterPreviewUrl,
   getCharacterWorkflowMode,
   type CharacterImageGenerationRecord,
   type CharacterPromptAttachment,
@@ -195,6 +202,56 @@ export function CharactersView({
     photoDumpCount,
     slideshowSlides,
   })
+  const promptInputs: PromptInputItem[] = []
+  if (selectedGeneration?.imageUrl) {
+    promptInputs.push({
+      id: "source",
+      url: selectedGeneration.imageUrl,
+      label: "Source",
+      accent: true,
+      onRemove: () => setSelectedGeneration(null),
+    })
+  }
+  promptInputs.push({
+    id: "character",
+    url: selectedCharacter.preview_url || defaultCharacterPreviewUrl,
+    label: "Character",
+  })
+  if (currentWorkflow === "recreate_reference" && currentReferenceImageUrl) {
+    promptInputs.push({
+      id: "reference",
+      url: currentReferenceImageUrl,
+      label: "Reference",
+      onRemove: () => {
+        setSelectedReferenceAsset(null)
+        setReferenceImageUrl("")
+      },
+    })
+  }
+  for (const asset of selectedAssets) {
+    if (!asset.fileUrl) {
+      continue
+    }
+    promptInputs.push({
+      id: asset.id,
+      url: asset.fileUrl,
+      label: asset.category === "outfit" ? "Outfit" : asset.name,
+      onRemove: () =>
+        setSelectedAssets((current) =>
+          current.filter((item) => item.id !== asset.id)
+        ),
+    })
+  }
+  const generateBlockReason =
+    isEditWorkflow && !selectedGeneration?.imageUrl
+      ? "Select a source image first"
+      : currentWorkflow === "recreate_reference" && !currentReferenceImageUrl
+        ? "Add a reference image"
+        : currentWorkflow === "outfit_transfer" && !selectedOutfitAsset?.fileUrl
+          ? "Choose an outfit asset"
+          : currentWorkflow === "motion_control" && !motionVideoUrl
+            ? "Add a motion reference"
+            : ""
   useEffect(() => {
     let active = true
     void fetchJsonWithTimeout<{
@@ -472,9 +529,9 @@ export function CharactersView({
   }
 
   return (
-    <div className="grid min-h-[calc(100svh-72px)] overflow-hidden rounded-[8px] bg-[#f8f8f4] lg:grid-cols-[280px_minmax(0,1fr)]">
-      <aside className="bg-[#efefe9] px-2 py-4">
-        <h1 className="px-3 text-[20px] font-bold text-[#111827]">
+    <div className="grid min-h-[calc(100svh-72px)] overflow-hidden rounded-[8px] bg-app-surface-subtle lg:grid-cols-[280px_minmax(0,1fr)]">
+      <aside className="border-r border-app-panel-border bg-app-surface-subtle px-2 py-4">
+        <h1 className="px-3 text-[20px] font-semibold tracking-tight text-app-text">
           AI Characters
         </h1>
         <Button
@@ -486,15 +543,16 @@ export function CharactersView({
           <IconPlus className="mr-2 size-5" />
           New Character
         </Button>
-        <div className="mt-4 space-y-2">
+        <div className="mt-4 space-y-1.5">
           {characters.map((character) => (
             <div
               key={character.id}
               role="button"
               tabIndex={0}
               className={cn(
-                "group relative flex h-20 w-full cursor-pointer items-center gap-3 rounded-[12px] bg-white px-3 text-left shadow-sm transition hover:shadow-md",
-                selectedCharacter.id === character.id && "ring-2 ring-[#ff4f28]"
+                "group relative flex h-[68px] w-full cursor-pointer items-center gap-3 rounded-xl border border-transparent bg-app-surface px-3 text-left transition hover:border-app-panel-border",
+                selectedCharacter.id === character.id &&
+                  "border-app-action ring-1 ring-app-action"
               )}
               onClick={() => onSelect(character.id)}
               onKeyDown={(event) => {
@@ -503,21 +561,21 @@ export function CharactersView({
                 }
               }}
             >
-              <CharacterAvatar character={character} sizeClassName="size-12" />
-              <span className="min-w-0 pr-16">
-                <span className="block truncate text-[15px] font-bold text-[#252525]">
+              <CharacterAvatar character={character} sizeClassName="size-11" />
+              <span className="min-w-0 flex-1 pr-14">
+                <span className="block truncate text-[15px] font-semibold text-app-text">
                   {character.name}
                 </span>
-                <span className="mt-1 block text-[13px] font-bold text-[#555]">
-                  {formatCharacterValue(character.attributes.gender)}{" "}
-                  <span className="ml-4">
-                    {character.attributes.age || "None"}
+                <span className="mt-0.5 flex items-center gap-3 text-[13px] text-app-muted-text">
+                  <span>
+                    {formatCharacterValue(character.attributes.gender)}
                   </span>
+                  <span>{character.attributes.age || "None"}</span>
                 </span>
               </span>
               <span className="absolute top-1/2 right-2 hidden -translate-y-1/2 items-center gap-1 group-hover:flex">
                 <button
-                  className="grid size-8 place-items-center rounded-[8px] bg-white text-[#555] shadow-sm hover:bg-[#f4f4ef]"
+                  className="grid size-8 place-items-center rounded-lg border border-app-panel-border bg-app-surface text-app-muted-text hover:bg-app-control-hover hover:text-app-text"
                   aria-label={`Edit ${character.name}`}
                   onClick={(event) => {
                     event.stopPropagation()
@@ -527,7 +585,7 @@ export function CharactersView({
                   <Pencil className="size-4" />
                 </button>
                 <button
-                  className="grid size-8 place-items-center rounded-[8px] bg-white text-[#df2b34] shadow-sm hover:bg-[#fff0f0]"
+                  className="grid size-8 place-items-center rounded-lg border border-app-panel-border bg-app-surface text-app-danger hover:bg-app-danger-surface"
                   aria-label={`Delete ${character.name}`}
                   onClick={(event) => {
                     event.stopPropagation()
@@ -542,7 +600,7 @@ export function CharactersView({
         </div>
       </aside>
 
-      <main className="relative h-[calc(100svh-72px)] overflow-hidden bg-[#f8f8f4] px-7 py-6">
+      <main className="relative h-[calc(100svh-72px)] overflow-hidden bg-app-surface-subtle px-7 py-6">
         <div className="relative z-20 flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-4">
             <CharacterAvatar
@@ -552,7 +610,7 @@ export function CharactersView({
             <div className="min-w-0">
               {renamingName ? (
                 <input
-                  className="h-10 min-w-[260px] rounded-[10px] border border-[#d8dce5] bg-white px-3 text-[24px] font-bold text-[#111827] shadow-sm outline-none"
+                  className="h-10 min-w-[260px] rounded-lg border border-app-panel-border bg-app-surface px-3 text-[24px] font-semibold text-app-text shadow-sm outline-none focus:border-app-action"
                   value={nameDraft}
                   onChange={(event) =>
                     setNameEdit({
@@ -579,11 +637,11 @@ export function CharactersView({
                 />
               ) : (
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className="truncate text-[26px] font-bold text-[#111827]">
+                  <span className="truncate text-[26px] font-semibold tracking-tight text-app-text">
                     {selectedCharacter.name}
                   </span>
                   <button
-                    className="grid size-8 shrink-0 place-items-center rounded-[8px] text-[#9aa1ad] hover:bg-white hover:text-[#333]"
+                    className="grid size-8 shrink-0 place-items-center rounded-lg text-app-text-faint hover:bg-app-control-hover hover:text-app-text"
                     onClick={() => {
                       setNameEdit({
                         id: selectedCharacter.id,
@@ -597,50 +655,24 @@ export function CharactersView({
                   </button>
                 </div>
               )}
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-[13px] font-bold text-[#77766f]">
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-app-muted-text">
                 <span>
                   {formatCharacterValue(selectedCharacter.attributes.gender)}
                 </span>
+                <span aria-hidden className="text-app-text-faint">
+                  ·
+                </span>
                 <span>{selectedCharacter.attributes.age || "No age"}</span>
-                <span>Headshot locked</span>
+                <span aria-hidden className="text-app-text-faint">
+                  ·
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-app-control-hover px-2 py-0.5 text-[12px] font-medium text-app-text-soft">
+                  Headshot locked
+                </span>
               </div>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {[
-              "Identity",
-              "Generate",
-              "Recreate",
-              "Batch",
-              "Video",
-              "Recipes",
-            ].map((item) => (
-              <button
-                key={item}
-                className={cn(
-                  "hidden h-9 rounded-full border border-[#e2e4ea] bg-white px-3 text-[12px] font-bold text-[#667085] shadow-sm hover:border-[#ff4f28] hover:text-[#ff4f28] xl:inline-flex xl:items-center",
-                  activeWorkflowOption.label
-                    .toLowerCase()
-                    .includes(item.toLowerCase()) &&
-                    "border-[#ff4f28] text-[#ff4f28]"
-                )}
-                onClick={() => {
-                  if (item === "Generate") setActiveWorkflow("free_generate")
-                  if (item === "Recreate")
-                    setActiveWorkflow(
-                      hasEditSource ? "recreate_reference" : "free_generate"
-                    )
-                  if (item === "Batch") setActiveWorkflow("batch_photo_dump")
-                  if (item === "Video")
-                    setActiveWorkflow(
-                      hasEditSource ? "animate_image" : "free_generate"
-                    )
-                  if (item === "Recipes") setActiveWorkflow("build_modules")
-                }}
-              >
-                {item}
-              </button>
-            ))}
             <Button
               variant="outline"
               className="grid w-10 place-items-center"
@@ -702,13 +734,13 @@ export function CharactersView({
           }}
         >
           {generationDropActive && (
-            <div className="pointer-events-none absolute inset-4 z-20 grid place-items-center rounded-[16px] border-2 border-dashed border-[#ff4f28] bg-white/82 text-center shadow-[0_18px_48px_rgba(0,0,0,0.14)] backdrop-blur-sm">
+            <div className="pointer-events-none absolute inset-4 z-20 grid place-items-center rounded-2xl border-2 border-dashed border-app-action bg-app-surface/85 text-center shadow-[0_12px_32px_rgba(30,30,25,0.12)] backdrop-blur-sm">
               <div>
-                <IconUpload className="mx-auto size-10 text-[#ff4f28]" />
-                <div className="mt-3 text-[18px] font-bold text-[#202020]">
+                <IconUpload className="mx-auto size-10 text-app-action" />
+                <div className="mt-3 text-[18px] font-semibold text-app-text">
                   Drop images to add source cards
                 </div>
-                <div className="mt-1 text-[13px] font-semibold text-[#667085]">
+                <div className="mt-1 text-[13px] text-app-muted-text">
                   They will appear in this grid and can be selected for edit
                   workflows.
                 </div>
@@ -756,7 +788,7 @@ export function CharactersView({
                   {generation.imageUrl && (
                     <button
                       type="button"
-                      className="absolute top-2 left-2 z-10 rounded-full border border-white/70 bg-white/90 px-3 py-1 text-[12px] font-bold text-[#252520] shadow-sm backdrop-blur hover:bg-white"
+                      className="absolute top-2 left-2 z-10 rounded-full border border-white/70 bg-white/90 px-3 py-1 text-[12px] font-semibold text-[#252520] shadow-sm backdrop-blur hover:bg-white"
                       aria-label="Use as source image"
                       title="Use as source"
                       onClick={(event) => {
@@ -787,7 +819,7 @@ export function CharactersView({
                     </button>
                     <button
                       type="button"
-                      className="grid size-8 place-items-center rounded-full border border-white/70 bg-black/55 text-white shadow-sm backdrop-blur hover:bg-[#d92d20]"
+                      className="grid size-8 place-items-center rounded-full border border-white/70 bg-black/55 text-white shadow-sm backdrop-blur hover:bg-app-danger"
                       aria-label="Delete generation"
                       title="Delete generation"
                       onClick={(event) => {
@@ -804,9 +836,9 @@ export function CharactersView({
           )}
         </div>
 
-        <section className="absolute inset-x-8 bottom-6 z-30 mx-auto max-w-[760px] rounded-[16px] bg-white p-4 shadow-[0_18px_48px_rgba(0,0,0,0.14)]">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 text-[12px] font-bold tracking-wide text-[#77766f] uppercase">
+        <section className="absolute inset-x-8 bottom-6 z-30 mx-auto max-w-[760px] overflow-hidden rounded-2xl border border-app-panel-border bg-app-surface shadow-[0_12px_32px_rgba(30,30,25,0.12)]">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-app-panel-border bg-app-surface-subtle px-4 py-2.5">
+            <label className="flex items-center gap-2 text-[11px] font-medium tracking-wide text-app-text-faint uppercase">
               Mode
               <SelectControl
                 aria-label="Character generation workflow"
@@ -815,80 +847,82 @@ export function CharactersView({
                   setActiveWorkflow(event.target.value as CharacterWorkflowKey)
                 }
               >
-                {workflowOptions.map((workflow) => (
-                  <option key={workflow.key} value={workflow.key}>
-                    {workflow.label}
-                  </option>
-                ))}
+                <optgroup label="Create">
+                  {workflowOptions
+                    .filter(
+                      (workflow) =>
+                        getCharacterWorkflowMode(workflow.key) === "create"
+                    )
+                    .map((workflow) => (
+                      <option key={workflow.key} value={workflow.key}>
+                        {workflow.label}
+                      </option>
+                    ))}
+                </optgroup>
+                {hasEditSource && (
+                  <optgroup label="Edit selected image">
+                    {workflowOptions
+                      .filter(
+                        (workflow) =>
+                          getCharacterWorkflowMode(workflow.key) === "edit"
+                      )
+                      .map((workflow) => (
+                        <option key={workflow.key} value={workflow.key}>
+                          {workflow.label}
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
               </SelectControl>
             </label>
-            <span className="rounded-full bg-[#f3f4f6] px-3 py-1 text-[12px] font-bold text-[#667085]">
+            <p className="min-w-0 flex-1 truncate text-[13px] text-app-muted-text">
               {activeWorkflowOption.description}
-            </span>
+            </p>
           </div>
-          {!isEditWorkflow && (
-            <textarea
-              className="h-20 w-full resize-none bg-transparent text-[16px] leading-6 font-semibold text-[#333] outline-none placeholder:text-[#a5adbb]"
-              placeholder={activeWorkflowOption.placeholder}
-              aria-label="Edit AI UGC character prompt"
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
+
+          <div className="px-4 pt-3 pb-2">
+            {!isEditWorkflow && (
+              <textarea
+                className="h-20 w-full resize-none bg-transparent text-[15px] leading-relaxed text-app-text outline-none placeholder:text-app-text-faint"
+                placeholder={activeWorkflowOption.placeholder}
+                aria-label="Edit AI UGC character prompt"
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+              />
+            )}
+            <BottomWorkflowControls
+              workflow={currentWorkflow}
+              selectedReferenceAsset={selectedReferenceAsset}
+              selectedOutfitAsset={selectedOutfitAsset}
+              motionVideoUrl={motionVideoUrl}
+              selfieTemplate={selfieTemplate}
+              onSelfieTemplateChange={setSelfieTemplate}
+              breastSize={breastSize}
+              onBreastSizeChange={setBreastSize}
+              imageGenerateCount={imageGenerateCount}
+              onImageGenerateCountChange={setImageGenerateCount}
+              photoDumpCount={photoDumpCount}
+              onPhotoDumpCountChange={setPhotoDumpCount}
+              slideshowSlides={slideshowSlides}
+              onSlideshowSlidesChange={setSlideshowSlides}
+              productName={productName}
+              onProductNameChange={setProductName}
+              productAudience={productAudience}
+              onProductAudienceChange={setProductAudience}
+              productAngle={productAngle}
+              onProductAngleChange={setProductAngle}
+              moduleRecipe={moduleRecipe}
+              onModuleRecipeChange={setModuleRecipe}
+              onOpenReference={() => setReferenceOpen(true)}
+              onOpenOutfits={() => setAssetsOpen(true)}
+              onOpenMotion={() => setMotionReferenceOpen(true)}
             />
-          )}
-          <BottomWorkflowControls
-            workflow={currentWorkflow}
-            isEditWorkflow={isEditWorkflow}
-            sourceGeneration={selectedGeneration}
-            selectedReferenceAsset={selectedReferenceAsset}
-            selectedOutfitAsset={selectedOutfitAsset}
-            motionVideoUrl={motionVideoUrl}
-            selfieTemplate={selfieTemplate}
-            onSelfieTemplateChange={setSelfieTemplate}
-            breastSize={breastSize}
-            onBreastSizeChange={setBreastSize}
-            imageGenerateCount={imageGenerateCount}
-            onImageGenerateCountChange={setImageGenerateCount}
-            photoDumpCount={photoDumpCount}
-            onPhotoDumpCountChange={setPhotoDumpCount}
-            slideshowSlides={slideshowSlides}
-            onSlideshowSlidesChange={setSlideshowSlides}
-            productName={productName}
-            onProductNameChange={setProductName}
-            productAudience={productAudience}
-            onProductAudienceChange={setProductAudience}
-            productAngle={productAngle}
-            onProductAngleChange={setProductAngle}
-            moduleRecipe={moduleRecipe}
-            onModuleRecipeChange={setModuleRecipe}
-            onClearSource={() => setSelectedGeneration(null)}
-            onOpenReference={() => setReferenceOpen(true)}
-            onOpenOutfits={() => setAssetsOpen(true)}
-            onOpenMotion={() => setMotionReferenceOpen(true)}
-          />
-          {!isEditWorkflow && selectedAssets.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-2">
-              {selectedAssets.map((asset) => (
-                <button
-                  key={asset.id}
-                  className="rounded-full bg-[#f2f4f7] px-3 py-1 text-[12px] font-bold text-[#344054] hover:bg-[#e6e9ef]"
-                  onClick={() =>
-                    setSelectedAssets((current) =>
-                      current.filter((item) => item.id !== asset.id)
-                    )
-                  }
-                >
-                  {asset.name}
-                </button>
-              ))}
+            <div className="mt-3">
+              <PromptInputRow items={promptInputs} ariaLabel="Prompt inputs" />
             </div>
-          )}
-          {!isEditWorkflow && (
-            <AttachmentSquareRow
-              attachments={promptPackage.attachments}
-              ariaLabel="Prompt attachments"
-            />
-          )}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 border-t border-app-panel-border px-4 py-2.5">
             {!isEditWorkflow && (
               <Button
                 variant="softControl"
@@ -899,8 +933,13 @@ export function CharactersView({
                 Assets
               </Button>
             )}
+            {generateBlockReason && (
+              <span className="text-[12px] font-medium text-app-danger-muted">
+                {generateBlockReason}
+              </span>
+            )}
             <div className="ml-auto flex items-center gap-2">
-              <label className="flex items-center gap-2 text-[12px] font-bold tracking-wide text-[#77766f] uppercase">
+              <label className="flex items-center gap-2 text-[11px] font-medium tracking-wide text-app-text-faint uppercase">
                 Ratio
                 <SelectControl
                   aria-label="Image aspect ratio"
@@ -928,13 +967,13 @@ export function CharactersView({
                   {selectedModel}
                 </Button>
                 {modelMenuOpen && (
-                  <div className="absolute bottom-[46px] left-0 z-20 w-[210px] overflow-hidden rounded-[10px] border border-[#e4e4df] bg-white p-1 shadow-xl">
+                  <div className="absolute bottom-[46px] left-0 z-20 w-[210px] overflow-hidden rounded-lg border border-app-panel-border bg-app-control-bg p-1 shadow-xl">
                     {characterGenerationModels.map((model) => (
                       <button
                         key={model}
                         className={cn(
-                          "flex h-10 w-full items-center rounded-[8px] px-3 text-left text-[14px] font-bold text-[#333] hover:bg-[#f5f5f1]",
-                          selectedModel === model && "bg-[#eef0f5]"
+                          "flex h-10 w-full items-center rounded-md px-3 text-left text-sm font-medium text-app-text hover:bg-app-control-hover",
+                          selectedModel === model && "bg-app-control-hover"
                         )}
                         onClick={() => {
                           setSelectedModel(model)
@@ -950,12 +989,14 @@ export function CharactersView({
               <Button
                 variant="action"
                 size="lg"
+                disabled={Boolean(generateBlockReason)}
+                title={generateBlockReason || undefined}
                 onClick={() => void generateCharacterImage()}
               >
                 {workflowGenerateCount > 1
                   ? `Generate ${workflowGenerateCount}`
                   : currentWorkflow === "animate_image"
-                    ? "Generate Image"
+                    ? "Generate image"
                     : "Generate"}
               </Button>
             </div>

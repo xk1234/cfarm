@@ -1,6 +1,6 @@
-import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 
+import { persistAsset } from "@/lib/asset-storage"
 import { fetchWithTimeout } from "@/lib/http"
 
 type FetchLike = typeof fetch
@@ -29,8 +29,7 @@ export async function downloadRemoteFileToLocalAsset(input: {
   const safeTaskId = input.taskId.replace(/[^a-zA-Z0-9_-]/g, "")
   const fileName = `${Date.now()}-${safeTaskId || input.fallbackName}${extension}`
   const filePath = path.join(input.folder, fileName)
-  await mkdir(input.folder, { recursive: true })
-  await writeFile(filePath, Buffer.from(await response.arrayBuffer()))
+  await persistAsset(filePath, Buffer.from(await response.arrayBuffer()))
 
   return `${input.publicPrefix}/${encodeURIComponent(fileName)}`
 }

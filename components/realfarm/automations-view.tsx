@@ -11,6 +11,8 @@ import {
 import { Pause, Pencil } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { GeneratedSlideshowViewerModal } from "@/components/realfarm/automation-settings/generated-slideshow-viewer"
+import type { AutomationRunApiRecord } from "@/components/realfarm/automation-settings/types"
 import {
   SocialAccountStatusRow,
   type SocialAccountStatusItem,
@@ -111,6 +113,8 @@ function AutomationGridCard({
   const status =
     automation.status.toLowerCase() === "paused" ? "paused" : "live"
   const previewSlots = automationRunPreviewSlots(recentRuns, 3)
+  const previewRuns = automationRunPreviewRuns(recentRuns, 3)
+  const [viewerRun, setViewerRun] = useState<AutomationRunPreview | null>(null)
   const generating = recentRuns?.some((run) => run.status === "generating")
   const socialIntegrations = automation.socialIntegrations ?? []
   const activeSocialIntegrations = socialIntegrations.filter(
@@ -160,6 +164,8 @@ function AutomationGridCard({
       <div className="grid grid-cols-3">
         {[0, 1, 2].map((slot) => {
           const imageUrl = previewSlots[slot]
+          const slotRun = previewRuns[slot]
+          const openable = Boolean(imageUrl && slotRun)
 
           return (
             <div
@@ -170,10 +176,20 @@ function AutomationGridCard({
               )}
             >
               {imageUrl ? (
-                <div
-                  className="h-full w-full bg-cover bg-center"
-                  style={{ backgroundImage: `url(${imageUrl})` }}
-                />
+                openable ? (
+                  <button
+                    type="button"
+                    className="block h-full w-full cursor-pointer bg-cover bg-center transition hover:brightness-110 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-app-action"
+                    style={{ backgroundImage: `url(${imageUrl})` }}
+                    onClick={() => setViewerRun(slotRun)}
+                    aria-label={`Open ${automation.name} slideshow ${slot + 1}`}
+                  />
+                ) : (
+                  <div
+                    className="h-full w-full bg-cover bg-center"
+                    style={{ backgroundImage: `url(${imageUrl})` }}
+                  />
+                )
               ) : (
                 <div className="grid h-full place-items-center px-2 text-center text-[12px] font-semibold text-white">
                   <span className="leading-tight">
@@ -184,15 +200,22 @@ function AutomationGridCard({
                 </div>
               )}
               {generating && slot === 0 ? (
-                <div className="absolute inset-x-2 bottom-2 rounded-full bg-black/65 px-2 py-1 text-center text-[10px] font-bold text-white shadow-sm">
+                <div className="pointer-events-none absolute inset-x-2 bottom-2 rounded-full bg-black/65 px-2 py-1 text-center text-[10px] font-bold text-white shadow-sm">
                   Generating
                 </div>
               ) : null}
-              <div className="absolute inset-x-0 bottom-0 h-1/6 bg-gradient-to-b from-transparent to-black/10" />
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/6 bg-gradient-to-b from-transparent to-black/10" />
             </div>
           )
         })}
       </div>
+      {viewerRun ? (
+        <GeneratedSlideshowViewerModal
+          run={viewerRun as unknown as AutomationRunApiRecord}
+          runs={(recentRuns ?? []) as unknown as AutomationRunApiRecord[]}
+          onClose={() => setViewerRun(null)}
+        />
+      ) : null}
 
       <div className="p-2 pb-1">
         <button
@@ -294,16 +317,34 @@ export function automationRunPreviewSlots(
   runs: AutomationRunPreview[] | undefined,
   count: number
 ) {
-  const sortedRuns =
-    runs
-      ?.slice()
-      .sort((first, second) => runTimestamp(second) - runTimestamp(first)) ?? []
-  const images = sortedRuns
+  const images = sortedRunsWithPreviewImage(runs)
     .map((run) => firstRunPreviewImage(run))
     .filter((value): value is string => Boolean(value))
     .slice(0, count)
 
   return Array.from({ length: count }, (_, index) => images[index] ?? null)
+}
+
+export function automationRunPreviewRuns(
+  runs: AutomationRunPreview[] | undefined,
+  count: number
+) {
+  const runsWithImages = sortedRunsWithPreviewImage(runs)
+    .filter((run) => firstRunPreviewImage(run) !== null)
+    .slice(0, count)
+
+  return Array.from(
+    { length: count },
+    (_, index) => runsWithImages[index] ?? null
+  )
+}
+
+function sortedRunsWithPreviewImage(runs: AutomationRunPreview[] | undefined) {
+  return (
+    runs
+      ?.slice()
+      .sort((first, second) => runTimestamp(second) - runTimestamp(first)) ?? []
+  )
 }
 
 function firstRunPreviewImage(run: AutomationRunPreview) {

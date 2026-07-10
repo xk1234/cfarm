@@ -1,0 +1,43 @@
+{
+  "projectId": "6a503d670029246bca10",
+  "projectName": "Cfarm",
+  "functions": [
+    {
+      "$id": "automation-scheduler",
+      "name": "automation-scheduler",
+      "runtime": "node-22",
+      "entrypoint": "src/main.js",
+      "commands": "npm install",
+      "schedule": "*/5 * * * *",
+      "timeout": 120,
+      "enabled": true,
+      "logging": true,
+      "execute": [],
+      "scopes": ["databases.read", "databases.write", "tables.read", "tables.write", "documents.read", "documents.write"],
+      "path": "appwrite/functions/automation-scheduler",
+      "variables": {
+        "APPWRITE_DATABASE_ID": "cfarm",
+        "LOOKBACK_MINUTES": "10"
+      }
+    },
+    {
+      "$id": "job-worker",
+      "name": "job-worker",
+      "runtime": "node-22",
+      "entrypoint": "src/main.js",
+      "commands": "npm install",
+      "schedule": "* * * * *",
+      "timeout": 300,
+      "enabled": true,
+      "logging": true,
+      "execute": [],
+      "scopes": ["databases.read", "databases.write", "tables.read", "tables.write", "documents.read", "documents.write"],
+      "path": "appwrite/functions/job-worker",
+      "variables": {
+        "APPWRITE_DATABASE_ID": "cfarm",
+        "BATCH": "10",
+        "LEASE_MS": "120000"
+      }
+    }
+  ]
+}

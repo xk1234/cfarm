@@ -67,9 +67,24 @@ export function AppModalHeader({
   )
 }
 
-export function AppModalCloseButton({ onClick, ariaLabel = "Close modal" }: { onClick: () => void; ariaLabel?: string }) {
+export function AppModalCloseButton({
+  onClick,
+  ariaLabel = "Close modal",
+  className,
+}: {
+  onClick: () => void
+  ariaLabel?: string
+  className?: string
+}) {
   return (
-    <Button type="button" variant="iconControl" size="icon-sm" onClick={onClick} aria-label={ariaLabel}>
+    <Button
+      type="button"
+      variant="iconControl"
+      size="icon-sm"
+      className={className}
+      onClick={onClick}
+      aria-label={ariaLabel}
+    >
       <X className="size-5" />
     </Button>
   )

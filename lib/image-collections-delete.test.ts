@@ -1,4 +1,5 @@
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { createHash } from "node:crypto"
 import os from "node:os"
 import path from "node:path"
 
@@ -7,8 +8,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 let tempRoot: string
 
 beforeEach(async () => {
-  tempRoot = path.join(os.tmpdir(), `cfarm-image-delete-${Date.now()}-${Math.random().toString(16).slice(2)}`)
-  await mkdir(path.join(tempRoot, "data", "image-collections", "files"), { recursive: true })
+  tempRoot = path.join(
+    os.tmpdir(),
+    `cfarm-image-delete-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  )
+  await mkdir(path.join(tempRoot, "data", "image-collections", "files"), {
+    recursive: true,
+  })
   vi.resetModules()
   vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
 })
@@ -36,7 +42,8 @@ describe("deleteImageCollections", () => {
         created_at: "2026-07-03T01:00:00.000Z",
         images: [
           {
-            image_link: "/api/local-assets/image-collections/files/delete-me.jpg",
+            image_link:
+              "/api/local-assets/image-collections/files/delete-me.jpg",
             caption: "Local",
           },
           {
@@ -58,11 +65,32 @@ describe("deleteImageCollections", () => {
       { name: "Delete me", created_at: "2026-07-03T01:00:00.000Z" },
     ])
 
-    const stored = JSON.parse(await readFile(path.join(tempRoot, "data", "image-collections.json"), "utf8"))
+    const stored = JSON.parse(
+      await readFile(
+        path.join(tempRoot, "data", "image-collections.json"),
+        "utf8"
+      )
+    )
     expect(result).toEqual({ deleted: 1, deletedFiles: 1 })
-    expect(stored.collections.map((collection: { name: string }) => collection.name)).toEqual(["Keep"])
-    await expect(stat(path.join(tempRoot, "data", "image-collections", "files", "delete-me.jpg"))).rejects.toThrow()
-    await expect(stat(path.join(tempRoot, "data", "image-collections", "files", "shared.jpg"))).resolves.toMatchObject({ size: 3 })
+    expect(
+      stored.collections.map((collection: { name: string }) => collection.name)
+    ).toEqual(["Keep"])
+    await expect(
+      stat(
+        path.join(
+          tempRoot,
+          "data",
+          "image-collections",
+          "files",
+          "delete-me.jpg"
+        )
+      )
+    ).rejects.toThrow()
+    await expect(
+      stat(
+        path.join(tempRoot, "data", "image-collections", "files", "shared.jpg")
+      )
+    ).resolves.toMatchObject({ size: 3 })
   })
 })
 
@@ -74,11 +102,13 @@ describe("upsertImageCollection", () => {
         created_at: "2026-07-03T02:00:00.000Z",
         images: [
           {
-            image_link: "/api/local-assets/image-collections/files/remove-this.jpg",
+            image_link:
+              "/api/local-assets/image-collections/files/remove-this.jpg",
             caption: "Remove",
           },
           {
-            image_link: "/api/local-assets/image-collections/files/keep-this.jpg",
+            image_link:
+              "/api/local-assets/image-collections/files/keep-this.jpg",
             caption: "Keep",
           },
         ],
@@ -99,16 +129,70 @@ describe("upsertImageCollection", () => {
       ],
     })
 
-    await expect(stat(path.join(tempRoot, "data", "image-collections", "files", "remove-this.jpg"))).rejects.toThrow()
-    await expect(stat(path.join(tempRoot, "data", "image-collections", "files", "keep-this.jpg"))).resolves.toMatchObject({ size: 3 })
+    await expect(
+      stat(
+        path.join(
+          tempRoot,
+          "data",
+          "image-collections",
+          "files",
+          "remove-this.jpg"
+        )
+      )
+    ).rejects.toThrow()
+    await expect(
+      stat(
+        path.join(
+          tempRoot,
+          "data",
+          "image-collections",
+          "files",
+          "keep-this.jpg"
+        )
+      )
+    ).resolves.toMatchObject({ size: 3 })
+  })
+
+  it("backfills hashes for local collection files on upsert", async () => {
+    await writeLocalFile("hash-me.jpg")
+
+    const { upsertImageCollection } = await import("./image-collections")
+    await upsertImageCollection({
+      name: "Hash me",
+      created_at: "2026-07-03T02:00:00.000Z",
+      images: [
+        {
+          image_link: "/api/local-assets/image-collections/files/hash-me.jpg",
+          caption: "Hash local file",
+        },
+      ],
+    })
+
+    const stored = JSON.parse(
+      await readFile(
+        path.join(tempRoot, "data", "image-collections.json"),
+        "utf8"
+      )
+    )
+    expect(stored.collections[0].images[0].hash).toBe(
+      createHash("sha256")
+        .update(Buffer.from([1, 2, 3]))
+        .digest("hex")
+    )
   })
 })
 
 async function writeImageCollectionsDb(collections: unknown[]) {
   await mkdir(path.join(tempRoot, "data"), { recursive: true })
-  await writeFile(path.join(tempRoot, "data", "image-collections.json"), `${JSON.stringify({ collections }, null, 2)}\n`)
+  await writeFile(
+    path.join(tempRoot, "data", "image-collections.json"),
+    `${JSON.stringify({ collections }, null, 2)}\n`
+  )
 }
 
 async function writeLocalFile(fileName: string) {
-  await writeFile(path.join(tempRoot, "data", "image-collections", "files", fileName), new Uint8Array([1, 2, 3]))
+  await writeFile(
+    path.join(tempRoot, "data", "image-collections", "files", fileName),
+    new Uint8Array([1, 2, 3])
+  )
 }

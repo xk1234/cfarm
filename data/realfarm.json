@@ -36,14 +36,7 @@
       "Offer"
     ]
   },
-  "generatedAssets": {
-    "higgsfieldCharacter": {
-      "name": "Soul UGC Creator",
-      "model": "Higgsfield Soul V2",
-      "type": "image",
-      "url": "/api/local-assets/characters/headshots/jade-homeysg-preview.png"
-    }
-  },
+  "generatedAssets": {},
   "defaultCollections": {
     "backgrounds": {
       "id": "default-backgrounds",
@@ -187,49 +180,6 @@
       "tone": "soft"
     }
   ],
-  "imageCollections": [
-    {
-      "id": "all",
-      "title": "All Images",
-      "imageCount": 1210,
-      "withoutCaptions": 0,
-      "theme": "library"
-    },
-    {
-      "id": "soccer-body",
-      "title": "Soccer Body",
-      "imageCount": 11,
-      "withoutCaptions": 11,
-      "theme": "soccer"
-    },
-    {
-      "id": "soccer-hooks",
-      "title": "Soccer Hooks",
-      "imageCount": 19,
-      "withoutCaptions": 19,
-      "theme": "soccer-action"
-    },
-    {
-      "id": "wolf",
-      "title": "Pinterest - the wolf of wall street screencaps",
-      "imageCount": 3,
-      "withoutCaptions": 3,
-      "theme": "cinema"
-    },
-    {
-      "id": "nature",
-      "title": "Pinterest - nature textures",
-      "imageCount": 40,
-      "withoutCaptions": 40,
-      "theme": "nature"
-    },
-    {
-      "id": "space",
-      "title": "Pinterest - space",
-      "imageCount": 13,
-      "withoutCaptions": 13,
-      "theme": "space"
-    }
-  ],
+  "imageCollections": [],
   "automations": []
 }

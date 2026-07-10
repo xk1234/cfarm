@@ -1,8 +1,9 @@
 import { clean } from "@/lib/guards"
-import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 
 import { NextResponse } from "next/server"
+
+import { persistAsset } from "@/lib/asset-storage"
 
 import {
   buildKlingV25StartEndFramePayload,
@@ -612,8 +613,7 @@ async function downloadRemoteVideoFile(input: {
   const suffix = input.suffix ? `-${safeId(input.suffix)}` : ""
   const fileName = `${Date.now()}-${safeId(input.taskId) || "workflow-video"}${suffix}${extension}`
   const filePath = path.join(characterVideosFolder, fileName)
-  await mkdir(characterVideosFolder, { recursive: true })
-  await writeFile(filePath, Buffer.from(await response.arrayBuffer()))
+  await persistAsset(filePath, Buffer.from(await response.arrayBuffer()))
   return {
     filePath,
     videoUrl: `/api/local-assets/characters/videos/${encodeURIComponent(fileName)}`,

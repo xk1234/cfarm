@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   collectionAliases,
+  defaultImageCollections,
   findCollectionByIdOrAlias,
   ugcAvatarVideoCollectionFromAssets,
   type CreatedImageCollection,
@@ -9,6 +10,24 @@ import {
 import type { LocalAsset } from "@/lib/realfarm-data"
 
 describe("realfarm collection helpers", () => {
+  it("uses provider-neutral static default collection names", () => {
+    const collections = defaultImageCollections({
+      defaultCollections: {
+        backgrounds: {
+          id: "default-backgrounds",
+          title: "Backgrounds",
+          images: [],
+        },
+      },
+    } as unknown as Parameters<typeof defaultImageCollections>[0])
+
+    expect(collections[0]).toMatchObject({
+      id: "default-backgrounds",
+      title: "Backgrounds",
+      source: "fallback",
+    })
+  })
+
   it("matches imported Reelfarm collection ids from local asset filenames", () => {
     const collections: CreatedImageCollection[] = [
       {

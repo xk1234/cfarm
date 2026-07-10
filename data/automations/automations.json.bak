@@ -1,0 +1,733 @@
+{
+  "automations": [
+    {
+      "id": "automation-curtains-renter-glowup",
+      "name": "Curtains — Renter Window Glow-Up",
+      "status": "live",
+      "account": "No social account",
+      "handle": "Click to add account",
+      "times": ["9:00 AM"],
+      "favorite": false,
+      "theme": "ugc",
+      "updatedAt": "2026-07-08T11:43:02Z",
+      "schema": {
+        "created_at": "2026-07-08T11:43:02Z",
+        "title": "Curtains — Renter Window Glow-Up",
+        "status": "live",
+        "social_integrations": [],
+        "automationKind": "slideshow",
+        "prompt_formatting": {
+          "style": "First slide is one strong scroll-stopping hook. Body slides each deliver ONE concrete, renter-safe curtain fix as an instant room transformation. Keep text short, confident, and native to TikTok slideshow memes — before/after energy, no jargon.",
+          "narrative": "stop drilling holes just to hang curtains\nrenters: this window upgrade leaves zero wall damage\nyour [[room]] looks unfinished because of one window mistake\nthis is how designers make cheap curtains look custom\nplain [[room]], one curtain swap, a completely different room\nmost people hang curtains too low and too narrow — here's the fix\ncustom-looking curtains without the custom price",
+          "num_of_slides": 6
+        },
+        "image_collection_ids": {
+          "first_slide": {
+            "collection": "collection-pinterest-curtains-2026-07-09t06-20-03-126z",
+            "mode": "collection",
+            "single_image": null
+          },
+          "all_slides": "collection-pinterest-curtains-2026-07-09t06-20-03-126z",
+          "aspect_ratio": "9:16",
+          "is_bg_overlay_on": true,
+          "cta_slide": {
+            "check": true,
+            "cta_collection_check": true,
+            "cta_collection_id": "",
+            "image_id": null,
+            "cta_location": "last_slide"
+          },
+          "keepOriginalAspectRatio": true,
+          "background_opacity": 25,
+          "is_bg_overlay_on_hook_image": true,
+          "textOnFirstSlideOnly": false,
+          "noTextOnSlides": false,
+          "autoPullImagesNotCollections": false,
+          "autoImagesNoTextOnImages": false,
+          "disableAutoImageForFirstSlide": false,
+          "video_demo_asset_id": "",
+          "language": "English"
+        },
+        "formatting": [
+          {
+            "id": "hook",
+            "image_url": "",
+            "textItems": [
+              {
+                "id": "text-o4ppg6my",
+                "text": "",
+                "fontSize": "10px",
+                "textStyle": "whiteText",
+                "font": "TikTok Display Medium",
+                "textPosition": "center",
+                "textItemWidth": "60%",
+                "wordLengthMin": 5,
+                "wordLengthMax": 10,
+                "contentDirection": "stop drilling holes just to hang curtains\nrenters: this window upgrade leaves zero wall damage\nyour [[room]] looks unfinished because of one window mistake\nthis is how designers make cheap curtains look custom\nplain [[room]], one curtain swap, a completely different room\nmost people hang curtains too low and too narrow — here's the fix\ncustom-looking curtains without the custom price",
+                "textMode": "prompt",
+                "staticText": "",
+                "textAlign": "left",
+                "textAnchor": "flush"
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "imageGrid": "none",
+            "slideCount": 1,
+            "noText": false,
+            "overlay": true,
+            "overlayOpacity": 25
+          },
+          {
+            "id": "body",
+            "image_url": "",
+            "textItems": [
+              {
+                "id": "text-0jmkltys",
+                "text": "",
+                "fontSize": "8px",
+                "textStyle": "whiteText",
+                "font": "TikTok Display Medium",
+                "textPosition": "center",
+                "textItemWidth": "80%",
+                "wordLengthMin": 5,
+                "wordLengthMax": 10,
+                "contentDirection": "Each body slide gives one concrete curtain upgrade a renter can do with no tools: hang the rod high and wide, pick the right opacity, use no-drill tension/adhesive hardware, layer sheer + blackout, correct harsh noon glare. Frame every tip as an instant, damage-free room glow-up.",
+                "textMode": "prompt",
+                "staticText": "",
+                "textAlign": "left",
+                "textAnchor": "flush"
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "imageGrid": "none",
+            "slideCount": 4,
+            "noText": false,
+            "overlay": true,
+            "overlayOpacity": 25
+          },
+          {
+            "id": "cta",
+            "image_url": "",
+            "textItems": [
+              {
+                "id": "text-xojfy3qf",
+                "text": "",
+                "fontSize": "12px",
+                "textStyle": "yellowText",
+                "font": "TikTok Display Medium",
+                "textPosition": "center",
+                "textItemWidth": "70%",
+                "wordLengthMin": 5,
+                "wordLengthMax": 10,
+                "contentDirection": "comment RENT and i'll send the no-drill curtain list — save this before you buy curtains",
+                "textMode": "prompt",
+                "staticText": "",
+                "textAlign": "center",
+                "textAnchor": "padded"
+              }
+            ],
+            "aspect_ratio": "fit",
+            "imageGrid": "none",
+            "slideCount": 0,
+            "ctaLocation": "last",
+            "noText": false,
+            "overlay": false,
+            "overlayOpacity": 25,
+            "imageMode": "collection"
+          },
+          {
+            "id": "_tone",
+            "value": "Practical & Aspirational",
+            "preset": "custom"
+          }
+        ],
+        "tiktok_post_settings": {
+          "caption": {
+            "mode": "prompt",
+            "static_text": "",
+            "prompt_text": "this should be in \"lowercase,\" same exact text as the first text item."
+          },
+          "description": {
+            "mode": "prompt",
+            "static_text": "",
+            "prompt_text": "give me 3-5 broad hashtags related to curtains, renter decor, and home upgrades, all lowercase, nothing else other than 3-5 hashtags"
+          },
+          "visibility": "PUBLIC_TO_EVERYONE",
+          "auto_music": true,
+          "auto_post": false,
+          "allow_comments": true,
+          "allow_duet": true,
+          "allow_stitch": true,
+          "disclose_video_content": false,
+          "disclose_brand_organic": false,
+          "disclose_branded_content": false,
+          "post_mode": "MEDIA_UPLOAD",
+          "publish_type": "slideshow",
+          "slideshow_transition_style": "hard",
+          "slideshow_slide_duration": 4,
+          "slideshow_sound_id": "",
+          "slideshow_sound_name": "",
+          "slideshow_sound_url": ""
+        },
+        "social_post_settings": {
+          "tiktok": {
+            "tiktokTitle": "",
+            "tiktokIsDraft": false,
+            "tiktokAllowComments": true,
+            "tiktokAllowDuet": true,
+            "tiktokAllowStitch": true,
+            "tiktokBrandOrganic": false,
+            "tiktokBrandContent": false,
+            "tiktokAutoAddMusic": false,
+            "tiktokIsAigc": false
+          },
+          "instagram": {
+            "instagramPublishType": "TIMELINE",
+            "instagramPostToGrid": true
+          },
+          "facebook": {
+            "facebookContentType": "POST"
+          },
+          "youtube": {
+            "youtubeTitle": "",
+            "youtubePrivacy": "PUBLIC",
+            "youtubeIsShort": true,
+            "youtubeMadeForKids": false,
+            "youtubeTags": []
+          },
+          "x": {
+            "xRetweetUrl": ""
+          },
+          "linkedin": {
+            "linkedinAttachmentKey": "",
+            "linkedinVisibility": "PUBLIC"
+          },
+          "pinterest": {
+            "pinterestBoardId": "",
+            "pinterestLink": ""
+          },
+          "threads": {},
+          "telegram": {},
+          "bluesky": {},
+          "google-business-profile": {
+            "gbpLocationId": "",
+            "gbpPostType": "STANDARD",
+            "gbpEventStartDate": "",
+            "gbpEventEndDate": ""
+          }
+        },
+        "social_publish_as": {
+          "tiktok": "slideshow",
+          "instagram": "slideshow",
+          "facebook": "slideshow",
+          "youtube": "slideshow",
+          "x": "slideshow",
+          "linkedin": "slideshow",
+          "pinterest": "slideshow",
+          "threads": "slideshow",
+          "telegram": "slideshow",
+          "bluesky": "slideshow",
+          "google-business-profile": "slideshow"
+        },
+        "schedule": {
+          "timezone": "Asia/Singapore",
+          "posting_times": [
+            {
+              "time": "9:00 AM",
+              "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+            }
+          ]
+        },
+        "hook_slots": {
+          "room": "room"
+        }
+      }
+    },
+    {
+      "id": "automation-astrology-born-to-forced-to",
+      "name": "Astrology — Born To / Forced To",
+      "status": "live",
+      "account": "No social account",
+      "handle": "Click to add account",
+      "times": ["12:00 PM"],
+      "favorite": false,
+      "theme": "ugc",
+      "updatedAt": "2026-07-08T11:43:02Z",
+      "schema": {
+        "created_at": "2026-07-08T11:43:02Z",
+        "title": "Astrology — Born To / Forced To",
+        "status": "live",
+        "social_integrations": [],
+        "automationKind": "slideshow",
+        "prompt_formatting": {
+          "style": "First slide is one strong 'born to X, forced to Y' hook. Body slides each land one escalating contrast line mixing celestial/goddess fantasy with mundane office and commute reality. The contrast is the engine — keep lines punchy, relatable, and native to TikTok slideshow memes.",
+          "narrative": "born to wear moonstone, forced to answer emails\nborn to be a [[sign]] femme fatale, forced to attend 9am standups\nborn to manifest under full moons, forced to manifest a parking spot\nborn to be draped in talismans, forced to dress office-appropriate\nborn for main character energy, forced into the group project",
+          "num_of_slides": 7
+        },
+        "image_collection_ids": {
+          "first_slide": {
+            "collection": "Astrology — Celestial vs Office (add your collection)",
+            "mode": "collection",
+            "single_image": null
+          },
+          "all_slides": "Astrology — Celestial vs Office (add your collection)",
+          "aspect_ratio": "9:16",
+          "is_bg_overlay_on": true,
+          "cta_slide": {
+            "check": true,
+            "cta_collection_check": true,
+            "cta_collection_id": "",
+            "image_id": null,
+            "cta_location": "last_slide"
+          },
+          "keepOriginalAspectRatio": true,
+          "background_opacity": 25,
+          "is_bg_overlay_on_hook_image": true,
+          "textOnFirstSlideOnly": false,
+          "noTextOnSlides": false,
+          "autoPullImagesNotCollections": false,
+          "autoImagesNoTextOnImages": false,
+          "disableAutoImageForFirstSlide": false,
+          "video_demo_asset_id": "",
+          "language": "English"
+        },
+        "formatting": [
+          {
+            "id": "hook",
+            "image_url": "",
+            "textItems": [
+              {
+                "id": "text-3t4d6tlp",
+                "text": "",
+                "fontSize": "10px",
+                "textStyle": "whiteText",
+                "font": "TikTok Display Medium",
+                "textPosition": "center",
+                "textItemWidth": "60%",
+                "wordLengthMin": 5,
+                "wordLengthMax": 10,
+                "contentDirection": "born to wear moonstone, forced to answer emails\nborn to be a [[sign]] femme fatale, forced to attend 9am standups\nborn to manifest under full moons, forced to manifest a parking spot\nborn to be draped in talismans, forced to dress office-appropriate\nborn for main character energy, forced into the group project",
+                "textMode": "prompt",
+                "staticText": "",
+                "textAlign": "left",
+                "textAnchor": "flush"
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "imageGrid": "none",
+            "slideCount": 1,
+            "noText": false,
+            "overlay": true,
+            "overlayOpacity": 25
+          },
+          {
+            "id": "body",
+            "image_url": "",
+            "textItems": [
+              {
+                "id": "text-z72zy7rf",
+                "text": "",
+                "fontSize": "8px",
+                "textStyle": "whiteText",
+                "font": "TikTok Display Medium",
+                "textPosition": "center",
+                "textItemWidth": "80%",
+                "wordLengthMin": 5,
+                "wordLengthMax": 10,
+                "contentDirection": "Slides 2 to 5 each deliver one escalating 'born to [celestial fantasy], forced to [mundane office/commute reality]' contrast line. The final body slide before the CTA is the loophole: you can't quit the office, but you can smuggle the moonstone in — the charm is the fantasy you carry into real life.",
+                "textMode": "prompt",
+                "staticText": "",
+                "textAlign": "left",
+                "textAnchor": "flush"
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "imageGrid": "none",
+            "slideCount": 5,
+            "noText": false,
+            "overlay": true,
+            "overlayOpacity": 25
+          },
+          {
+            "id": "cta",
+            "image_url": "",
+            "textItems": [
+              {
+                "id": "text-i22pzl2z",
+                "text": "",
+                "fontSize": "12px",
+                "textStyle": "yellowText",
+                "font": "TikTok Display Medium",
+                "textPosition": "center",
+                "textItemWidth": "70%",
+                "wordLengthMin": 5,
+                "wordLengthMax": 10,
+                "contentDirection": "comment your sign for your office-legal talisman",
+                "textMode": "prompt",
+                "staticText": "",
+                "textAlign": "center",
+                "textAnchor": "padded"
+              }
+            ],
+            "aspect_ratio": "fit",
+            "imageGrid": "none",
+            "slideCount": 0,
+            "ctaLocation": "last",
+            "noText": false,
+            "overlay": false,
+            "overlayOpacity": 25,
+            "imageMode": "collection"
+          },
+          {
+            "id": "_tone",
+            "value": "Witty & Relatable",
+            "preset": "custom"
+          }
+        ],
+        "tiktok_post_settings": {
+          "caption": {
+            "mode": "prompt",
+            "static_text": "",
+            "prompt_text": "this should be in \"lowercase,\" same exact text as the first text item."
+          },
+          "description": {
+            "mode": "prompt",
+            "static_text": "",
+            "prompt_text": "give me 3-5 broad hashtags related to astrology, zodiac, and manifestation, all lowercase, nothing else other than 3-5 hashtags"
+          },
+          "visibility": "PUBLIC_TO_EVERYONE",
+          "auto_music": true,
+          "auto_post": false,
+          "allow_comments": true,
+          "allow_duet": true,
+          "allow_stitch": true,
+          "disclose_video_content": false,
+          "disclose_brand_organic": false,
+          "disclose_branded_content": false,
+          "post_mode": "MEDIA_UPLOAD",
+          "publish_type": "slideshow",
+          "slideshow_transition_style": "hard",
+          "slideshow_slide_duration": 4,
+          "slideshow_sound_id": "",
+          "slideshow_sound_name": "",
+          "slideshow_sound_url": ""
+        },
+        "social_post_settings": {
+          "tiktok": {
+            "tiktokTitle": "",
+            "tiktokIsDraft": false,
+            "tiktokAllowComments": true,
+            "tiktokAllowDuet": true,
+            "tiktokAllowStitch": true,
+            "tiktokBrandOrganic": false,
+            "tiktokBrandContent": false,
+            "tiktokAutoAddMusic": false,
+            "tiktokIsAigc": false
+          },
+          "instagram": {
+            "instagramPublishType": "TIMELINE",
+            "instagramPostToGrid": true
+          },
+          "facebook": {
+            "facebookContentType": "POST"
+          },
+          "youtube": {
+            "youtubeTitle": "",
+            "youtubePrivacy": "PUBLIC",
+            "youtubeIsShort": true,
+            "youtubeMadeForKids": false,
+            "youtubeTags": []
+          },
+          "x": {
+            "xRetweetUrl": ""
+          },
+          "linkedin": {
+            "linkedinAttachmentKey": "",
+            "linkedinVisibility": "PUBLIC"
+          },
+          "pinterest": {
+            "pinterestBoardId": "",
+            "pinterestLink": ""
+          },
+          "threads": {},
+          "telegram": {},
+          "bluesky": {},
+          "google-business-profile": {
+            "gbpLocationId": "",
+            "gbpPostType": "STANDARD",
+            "gbpEventStartDate": "",
+            "gbpEventEndDate": ""
+          }
+        },
+        "social_publish_as": {
+          "tiktok": "slideshow",
+          "instagram": "slideshow",
+          "facebook": "slideshow",
+          "youtube": "slideshow",
+          "x": "slideshow",
+          "linkedin": "slideshow",
+          "pinterest": "slideshow",
+          "threads": "slideshow",
+          "telegram": "slideshow",
+          "bluesky": "slideshow",
+          "google-business-profile": "slideshow"
+        },
+        "schedule": {
+          "timezone": "Asia/Singapore",
+          "posting_times": [
+            {
+              "time": "12:00 PM",
+              "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+            }
+          ]
+        },
+        "hook_slots": {
+          "sign": "zodiac sign"
+        }
+      }
+    },
+    {
+      "id": "automation-real-estate-stop-before-you-sign",
+      "name": "Real Estate — Stop Before You Sign",
+      "status": "live",
+      "account": "No social account",
+      "handle": "Click to add account",
+      "times": ["6:00 PM"],
+      "favorite": false,
+      "theme": "ugc",
+      "updatedAt": "2026-07-08T11:43:02Z",
+      "schema": {
+        "created_at": "2026-07-08T11:43:02Z",
+        "title": "Real Estate — Stop Before You Sign",
+        "status": "live",
+        "social_integrations": [],
+        "automationKind": "slideshow",
+        "prompt_formatting": {
+          "style": "First slide is one calm, authoritative 'stop before you sign' style hook. Body slides each expose one hidden cost or overlooked check with a concrete number and a clear next step. Myth-busting, protective, first-time-buyer friendly — readable and native to TikTok slideshow memes.",
+          "narrative": "before you fall in love with the kitchen, check this number\nthe monthly payment is not the full cost of owning this home\nstop before you waive this as a first-time buyer\nyou got pre-approved — don't start shopping until you understand this\na low price can still be an expensive house\nthe biggest homebuying mistake is letting urgency replace the math",
+          "num_of_slides": 7
+        },
+        "image_collection_ids": {
+          "first_slide": {
+            "collection": "Real Estate — Buyer Reality Check (add your collection)",
+            "mode": "collection",
+            "single_image": null
+          },
+          "all_slides": "Real Estate — Buyer Reality Check (add your collection)",
+          "aspect_ratio": "9:16",
+          "is_bg_overlay_on": true,
+          "cta_slide": {
+            "check": true,
+            "cta_collection_check": true,
+            "cta_collection_id": "",
+            "image_id": null,
+            "cta_location": "last_slide"
+          },
+          "keepOriginalAspectRatio": true,
+          "background_opacity": 25,
+          "is_bg_overlay_on_hook_image": true,
+          "textOnFirstSlideOnly": false,
+          "noTextOnSlides": false,
+          "autoPullImagesNotCollections": false,
+          "autoImagesNoTextOnImages": false,
+          "disableAutoImageForFirstSlide": false,
+          "video_demo_asset_id": "",
+          "language": "English"
+        },
+        "formatting": [
+          {
+            "id": "hook",
+            "image_url": "",
+            "textItems": [
+              {
+                "id": "text-l00iwlmk",
+                "text": "",
+                "fontSize": "10px",
+                "textStyle": "whiteText",
+                "font": "TikTok Display Medium",
+                "textPosition": "center",
+                "textItemWidth": "60%",
+                "wordLengthMin": 5,
+                "wordLengthMax": 10,
+                "contentDirection": "before you fall in love with the kitchen, check this number\nthe monthly payment is not the full cost of owning this home\nstop before you waive this as a first-time buyer\nyou got pre-approved — don't start shopping until you understand this\na low price can still be an expensive house\nthe biggest homebuying mistake is letting urgency replace the math",
+                "textMode": "prompt",
+                "staticText": "",
+                "textAlign": "left",
+                "textAnchor": "flush"
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "imageGrid": "none",
+            "slideCount": 1,
+            "noText": false,
+            "overlay": true,
+            "overlayOpacity": 25
+          },
+          {
+            "id": "body",
+            "image_url": "",
+            "textItems": [
+              {
+                "id": "text-visf7yum",
+                "text": "",
+                "fontSize": "8px",
+                "textStyle": "whiteText",
+                "font": "TikTok Display Medium",
+                "textPosition": "center",
+                "textItemWidth": "80%",
+                "wordLengthMin": 5,
+                "wordLengthMax": 10,
+                "contentDirection": "Each body slide exposes one hidden cost or overlooked check for a first-time buyer with a concrete number and what to do about it: closing costs beyond the down payment, inspection red flags worth walking away from, the appraisal gap and your four options, HOA fees and rules to ask about, and the 28% affordability rule. End on: urgency is the real cost — run the math before you sign.",
+                "textMode": "prompt",
+                "staticText": "",
+                "textAlign": "left",
+                "textAnchor": "flush"
+              }
+            ],
+            "aspect_ratio": "4:5",
+            "imageGrid": "none",
+            "slideCount": 5,
+            "noText": false,
+            "overlay": true,
+            "overlayOpacity": 25
+          },
+          {
+            "id": "cta",
+            "image_url": "",
+            "textItems": [
+              {
+                "id": "text-fpul5ya4",
+                "text": "",
+                "fontSize": "12px",
+                "textStyle": "yellowText",
+                "font": "TikTok Display Medium",
+                "textPosition": "center",
+                "textItemWidth": "70%",
+                "wordLengthMin": 5,
+                "wordLengthMax": 10,
+                "contentDirection": "comment BUYER and i'll send the first-time buyer checklist — save this before your next showing",
+                "textMode": "prompt",
+                "staticText": "",
+                "textAlign": "center",
+                "textAnchor": "padded"
+              }
+            ],
+            "aspect_ratio": "fit",
+            "imageGrid": "none",
+            "slideCount": 0,
+            "ctaLocation": "last",
+            "noText": false,
+            "overlay": false,
+            "overlayOpacity": 25,
+            "imageMode": "collection"
+          },
+          {
+            "id": "_tone",
+            "value": "Authoritative & Reassuring",
+            "preset": "custom"
+          }
+        ],
+        "tiktok_post_settings": {
+          "caption": {
+            "mode": "prompt",
+            "static_text": "",
+            "prompt_text": "this should be in \"lowercase,\" same exact text as the first text item."
+          },
+          "description": {
+            "mode": "prompt",
+            "static_text": "",
+            "prompt_text": "give me 3-5 broad hashtags related to real estate, first-time home buyers, and home buying tips, all lowercase, nothing else other than 3-5 hashtags"
+          },
+          "visibility": "PUBLIC_TO_EVERYONE",
+          "auto_music": true,
+          "auto_post": false,
+          "allow_comments": true,
+          "allow_duet": true,
+          "allow_stitch": true,
+          "disclose_video_content": false,
+          "disclose_brand_organic": false,
+          "disclose_branded_content": false,
+          "post_mode": "MEDIA_UPLOAD",
+          "publish_type": "slideshow",
+          "slideshow_transition_style": "hard",
+          "slideshow_slide_duration": 4,
+          "slideshow_sound_id": "",
+          "slideshow_sound_name": "",
+          "slideshow_sound_url": ""
+        },
+        "social_post_settings": {
+          "tiktok": {
+            "tiktokTitle": "",
+            "tiktokIsDraft": false,
+            "tiktokAllowComments": true,
+            "tiktokAllowDuet": true,
+            "tiktokAllowStitch": true,
+            "tiktokBrandOrganic": false,
+            "tiktokBrandContent": false,
+            "tiktokAutoAddMusic": false,
+            "tiktokIsAigc": false
+          },
+          "instagram": {
+            "instagramPublishType": "TIMELINE",
+            "instagramPostToGrid": true
+          },
+          "facebook": {
+            "facebookContentType": "POST"
+          },
+          "youtube": {
+            "youtubeTitle": "",
+            "youtubePrivacy": "PUBLIC",
+            "youtubeIsShort": true,
+            "youtubeMadeForKids": false,
+            "youtubeTags": []
+          },
+          "x": {
+            "xRetweetUrl": ""
+          },
+          "linkedin": {
+            "linkedinAttachmentKey": "",
+            "linkedinVisibility": "PUBLIC"
+          },
+          "pinterest": {
+            "pinterestBoardId": "",
+            "pinterestLink": ""
+          },
+          "threads": {},
+          "telegram": {},
+          "bluesky": {},
+          "google-business-profile": {
+            "gbpLocationId": "",
+            "gbpPostType": "STANDARD",
+            "gbpEventStartDate": "",
+            "gbpEventEndDate": ""
+          }
+        },
+        "social_publish_as": {
+          "tiktok": "slideshow",
+          "instagram": "slideshow",
+          "facebook": "slideshow",
+          "youtube": "slideshow",
+          "x": "slideshow",
+          "linkedin": "slideshow",
+          "pinterest": "slideshow",
+          "threads": "slideshow",
+          "telegram": "slideshow",
+          "bluesky": "slideshow",
+          "google-business-profile": "slideshow"
+        },
+        "schedule": {
+          "timezone": "Asia/Singapore",
+          "posting_times": [
+            {
+              "time": "6:00 PM",
+              "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+            }
+          ]
+        },
+        "hook_slots": {
+          "stage": "home-buying stage"
+        }
+      }
+    }
+  ]
+}

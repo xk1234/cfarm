@@ -21,6 +21,7 @@ import { SwipeMedia } from "@/components/realfarm/swipe-media"
 import { Button } from "@/components/ui/button"
 import { useDismissableLayer } from "@/components/ui/dismissable"
 import { SelectLike } from "@/components/ui/form-controls"
+import { Spinner } from "@/components/ui/spinner"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import type { SwipeRecord } from "@/lib/swipes"
 import { cn } from "@/lib/utils"
@@ -170,7 +171,8 @@ export function SwipesView() {
       )}
 
       {status === "loading" ? (
-        <div className="grid min-h-[360px] place-items-center rounded-[10px] bg-[#f0efff] text-[14px] font-semibold text-[#6d6b90]">
+        <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 rounded-[10px] bg-[#f0efff] text-[14px] font-semibold text-[#6d6b90]">
+          <Spinner size={28} aria-label="Loading swipe file" />
           Loading swipe file...
         </div>
       ) : filteredSwipes.length === 0 ? (

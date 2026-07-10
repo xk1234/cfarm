@@ -7,9 +7,11 @@ export type GeneratedShowcaseSlide = {
   role?: string
   section?: string
   imageUrl?: string
+  sourceImageUrl?: string
   text?: string
   imageCaption?: string
   durationSeconds?: number
+  durationMs?: number
 }
 
 export type GeneratedShowcaseRun = {
@@ -26,6 +28,7 @@ export type GeneratedShowcaseRun = {
     language?: string
     slides?: GeneratedShowcaseSlide[]
   }
+  renderedSlides?: GeneratedShowcaseSlide[]
 }
 
 export type TemplateExampleSlide = {
@@ -68,9 +71,10 @@ export function generatedExampleSlideshows(
   return (
     runs
       ?.map<TemplateExampleSlideshow | null>((run, runIndex) => {
-        const slides = (run.plan?.slides ?? [])
+        const slides = showcaseRunSlides(run)
           .map<TemplateExampleSlide | null>((slide, index) => {
-            const imageUrl = slide.imageUrl?.trim()
+            const imageUrl =
+              slide.imageUrl?.trim() || slide.sourceImageUrl?.trim()
             if (!imageUrl) {
               return null
             }
@@ -80,7 +84,11 @@ export function generatedExampleSlideshows(
               imageUrl,
               text: slide.text?.trim() || slide.imageCaption?.trim() || "",
               section: exampleSlideSection(slide, index),
-              durationSeconds: slide.durationSeconds,
+              durationSeconds:
+                slide.durationSeconds ??
+                (typeof slide.durationMs === "number"
+                  ? Math.max(1, slide.durationMs / 1000)
+                  : undefined),
             }
           })
           .filter((slide): slide is TemplateExampleSlide => Boolean(slide))
@@ -115,6 +123,12 @@ export function generatedExampleSlideshows(
   )
 }
 
+function showcaseRunSlides(run: GeneratedShowcaseRun) {
+  return run.renderedSlides?.length
+    ? run.renderedSlides
+    : (run.plan?.slides ?? [])
+}
+
 function slideshowDurationSeconds(slides: TemplateExampleSlide[]) {
   return slides.reduce(
     (total, slide) => total + Math.max(1, slide.durationSeconds ?? 4),
@@ -128,12 +142,16 @@ export function TemplateGeneratedPreview({
   columns = 3,
   index = 0,
   className,
+  onSelectSlide,
+  selectLabel = "Open slideshow",
 }: {
   exampleSlides: TemplateExampleSlide[]
   tileCount?: number
-  columns?: 2 | 3
+  columns?: 1 | 2 | 3
   index?: number
   className?: string
+  onSelectSlide?: (index: number) => void
+  selectLabel?: string
 }) {
   const hasGeneratedSlides = exampleSlides.length > 0
 
@@ -141,16 +159,33 @@ export function TemplateGeneratedPreview({
     <div
       className={cn(
         "grid overflow-hidden bg-[#deddd6]",
-        columns === 2 ? "grid-cols-2" : "grid-cols-3",
+        columns === 1
+          ? "grid-cols-1"
+          : columns === 2
+            ? "grid-cols-2"
+            : "grid-cols-3",
         className
       )}
     >
       {Array.from({ length: tileCount }, (_, tileIndex) => {
         const slide = exampleSlides[tileIndex]
+        const interactive = Boolean(slide && onSelectSlide)
+        const Tile = interactive ? "button" : "div"
         return (
-          <div
+          <Tile
             key={slide?.id ?? `placeholder-${index}-${tileIndex}`}
-            className="relative overflow-hidden bg-[#d7d6cf]"
+            {...(interactive
+              ? {
+                  type: "button" as const,
+                  onClick: () => onSelectSlide?.(tileIndex),
+                  "aria-label": `${selectLabel} ${tileIndex + 1}`,
+                }
+              : {})}
+            className={cn(
+              "relative overflow-hidden bg-[#d7d6cf]",
+              interactive &&
+                "cursor-pointer transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-app-action"
+            )}
           >
             {slide ? (
               <img
@@ -173,7 +208,7 @@ export function TemplateGeneratedPreview({
                 No example slideshow yet
               </div>
             ) : null}
-          </div>
+          </Tile>
         )
       })}
     </div>

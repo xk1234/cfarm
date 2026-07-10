@@ -13,8 +13,9 @@ import {
 
 import {
   TemplateGeneratedPreview,
-  generatedExampleSlides,
+  generatedExampleSlideshows,
   type GeneratedShowcaseRun,
+  type TemplateExampleSlideshow,
 } from "@/components/realfarm/template-showcase-preview"
 import {
   MediaCardShell,
@@ -42,6 +43,7 @@ export function CreatorsView() {
 export function HomeView({
   templates,
   recentRunsByAutomationId,
+  generatedRunsByAutomationId,
   onCreate,
   onUseTemplate,
   onAutomations,
@@ -49,6 +51,7 @@ export function HomeView({
   data: RealFarmData
   templates: Automation[]
   recentRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
+  generatedRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
   onCreate: () => void
   onUseTemplate: (automation: Automation) => void
   onAutomations: () => void
@@ -59,14 +62,30 @@ export function HomeView({
   const [videos, setVideos] = useState<GeneratedVideoExport[]>([])
   const [page, setPage] = useState(1)
   const [quickStartPage, setQuickStartPage] = useState(1)
-  const [selectedExampleTemplate, setSelectedExampleTemplate] =
-    useState<Automation | null>(null)
+  const [selectedExample, setSelectedExample] = useState<{
+    automation: Automation
+    slideshowId?: string
+  } | null>(null)
+  const [selectedGeneratedSlideshow, setSelectedGeneratedSlideshow] =
+    useState<{
+      title: string
+      runs: GeneratedShowcaseRun[]
+      slideshowId: string
+    } | null>(null)
   const quickStartTemplates = templates
+  const generatedSlideshowCards = generatedHomeSlideshowCards(
+    generatedRunsByAutomationId
+  )
 
-  const totalItems = activeTab === "slideshows" ? 0 : videos.length
+  const totalItems =
+    activeTab === "slideshows" ? generatedSlideshowCards.length : videos.length
   const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE))
   const safePage = Math.min(page, totalPages)
-  const pagedItems = (activeTab === "slideshows" ? [] : videos).slice(
+  const pagedGeneratedSlideshows = generatedSlideshowCards.slice(
+    (safePage - 1) * ITEMS_PER_PAGE,
+    safePage * ITEMS_PER_PAGE
+  )
+  const pagedVideos = videos.slice(
     (safePage - 1) * ITEMS_PER_PAGE,
     safePage * ITEMS_PER_PAGE
   )
@@ -151,7 +170,7 @@ export function HomeView({
               )}
               onClick={() => switchTab("slideshows")}
             >
-              Slideshows (0)
+              Slideshows ({generatedSlideshowCards.length})
             </button>
             <button
               className={cn(
@@ -188,13 +207,30 @@ export function HomeView({
           </div>
         </div>
 
-        {activeTab === "slideshows" ? (
-          <div className="grid min-h-[86px] place-items-center text-[16px] font-medium text-[#667085]">
-            You have no videos yet. Create your first video to get started!
-          </div>
-        ) : pagedItems.length > 0 ? (
+        {activeTab === "slideshows" && pagedGeneratedSlideshows.length > 0 ? (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-            {pagedItems.map((item) => (
+            {pagedGeneratedSlideshows.map((item) => (
+              <GeneratedSlideshowCard
+                key={item.slideshow.id}
+                item={item}
+                onOpen={() =>
+                  setSelectedGeneratedSlideshow({
+                    title: item.title,
+                    runs: item.runs,
+                    slideshowId: item.slideshow.id,
+                  })
+                }
+              />
+            ))}
+          </div>
+        ) : activeTab === "slideshows" ? (
+          <div className="grid min-h-[86px] place-items-center text-[16px] font-medium text-[#667085]">
+            No generated slideshows yet. Run a slideshow automation to create
+            one.
+          </div>
+        ) : pagedVideos.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+            {pagedVideos.map((item) => (
               <VideoCard key={item.id} item={item} />
             ))}
           </div>
@@ -240,11 +276,12 @@ export function HomeView({
                 key={automation.id}
                 automation={automation}
                 index={quickStartOffset + index}
-                exampleSlides={generatedExampleSlides(
-                  recentRunsByAutomationId[automation.id],
-                  3
-                )}
-                onOpenExamples={() => setSelectedExampleTemplate(automation)}
+                slideshows={generatedExampleSlideshows(
+                  recentRunsByAutomationId[automation.id]
+                ).slice(0, 3)}
+                onOpenSlideshow={(slideshowId) =>
+                  setSelectedExample({ automation, slideshowId })
+                }
                 onUse={() => onUseTemplate(automation)}
               />
             ))}
@@ -255,44 +292,150 @@ export function HomeView({
           </div>
         )}
       </section>
-      {selectedExampleTemplate ? (
+      {selectedExample ? (
         <ExampleSlideshowModal
-          title={selectedExampleTemplate.name}
-          runs={recentRunsByAutomationId[selectedExampleTemplate.id]}
-          onClose={() => setSelectedExampleTemplate(null)}
+          title={selectedExample.automation.name}
+          runs={recentRunsByAutomationId[selectedExample.automation.id]}
+          initialSlideshowId={selectedExample.slideshowId}
+          onClose={() => setSelectedExample(null)}
+        />
+      ) : null}
+      {selectedGeneratedSlideshow ? (
+        <ExampleSlideshowModal
+          title={selectedGeneratedSlideshow.title}
+          runs={selectedGeneratedSlideshow.runs}
+          initialSlideshowId={selectedGeneratedSlideshow.slideshowId}
+          onClose={() => setSelectedGeneratedSlideshow(null)}
         />
       ) : null}
     </div>
   )
 }
 
+type GeneratedHomeSlideshowCard = {
+  title: string
+  runs: GeneratedShowcaseRun[]
+  slideshow: TemplateExampleSlideshow
+}
+
+function GeneratedSlideshowCard({
+  item,
+  onOpen,
+}: {
+  item: GeneratedHomeSlideshowCard
+  onOpen: () => void
+}) {
+  const coverSlides = item.slideshow.slides.slice(0, 3)
+  const generatedAt = formatGeneratedSlideshowDate(
+    item.slideshow.createdAt || item.slideshow.scheduledFor
+  )
+
+  return (
+    <MediaCardShell>
+      <button
+        type="button"
+        className="block w-full text-left"
+        onClick={onOpen}
+        aria-label={`Open ${item.title} generated slideshow`}
+      >
+        <div className="h-[172px] w-full">
+          <TemplateGeneratedPreview
+            exampleSlides={coverSlides}
+            className="h-full"
+            selectLabel={`Open ${item.title} slideshow`}
+          />
+        </div>
+        <div className="px-3 py-3">
+          <div className="truncate text-[15px] font-bold text-[#30302e]">
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <IconSlideshow className="size-4 shrink-0 text-[#67665f]" />
+              <span className="truncate">{item.title}</span>
+            </span>
+          </div>
+          <div className="mt-0.5 flex items-center gap-1 text-[12px] font-semibold text-[#8a8a83]">
+            <IconPhoto className="size-3.5" />
+            {generatedAt || item.slideshow.slides.length + " slides"}
+          </div>
+        </div>
+      </button>
+    </MediaCardShell>
+  )
+}
+
+function generatedHomeSlideshowCards(
+  runsByAutomationId: Record<string, GeneratedShowcaseRun[]>
+) {
+  return Object.entries(runsByAutomationId)
+    .flatMap<GeneratedHomeSlideshowCard>(([, runs]) => {
+      const slideshows = generatedExampleSlideshows(runs)
+      return slideshows.map((slideshow) => ({
+        title:
+          runs.find((run) => run.id === slideshow.id)?.automationTitle?.trim() ||
+          slideshow.title,
+        runs,
+        slideshow,
+      }))
+    })
+    .sort(
+      (first, second) =>
+        slideshowTimestamp(second.slideshow) -
+        slideshowTimestamp(first.slideshow)
+    )
+}
+
+function slideshowTimestamp(slideshow: TemplateExampleSlideshow) {
+  const value = slideshow.createdAt || slideshow.scheduledFor
+  const time = value ? new Date(value).getTime() : 0
+  return Number.isFinite(time) ? time : 0
+}
+
+function formatGeneratedSlideshowDate(value?: string) {
+  if (!value) {
+    return ""
+  }
+
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) {
+    return ""
+  }
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  })
+}
+
 function QuickStartTemplateCard({
   automation,
-  exampleSlides,
+  slideshows,
   index,
-  onOpenExamples,
+  onOpenSlideshow,
   onUse,
 }: {
   automation: Automation
-  exampleSlides: ReturnType<typeof generatedExampleSlides>
+  slideshows: TemplateExampleSlideshow[]
   index: number
-  onOpenExamples: () => void
+  onOpenSlideshow: (slideshowId: string) => void
   onUse: () => void
 }) {
+  const coverSlides = slideshows.map((slideshow) => slideshow.slides[0])
+
   return (
     <article className="overflow-hidden rounded-[7px] border border-[#deddd5] bg-white shadow-sm">
-      <button
-        type="button"
-        className="block h-[128px] w-full text-left"
-        onClick={onOpenExamples}
-        aria-label={`View ${automation.name} examples`}
-      >
+      <div className="h-[128px] w-full">
         <TemplateGeneratedPreview
-          exampleSlides={exampleSlides}
+          exampleSlides={coverSlides}
           className="h-full"
           index={index}
+          onSelectSlide={(tileIndex) => {
+            const slideshow = slideshows[tileIndex]
+            if (slideshow) {
+              onOpenSlideshow(slideshow.id)
+            }
+          }}
+          selectLabel={`Open ${automation.name} slideshow`}
         />
-      </button>
+      </div>
       <div className="flex items-center justify-between gap-3 px-3 py-3">
         <div className="min-w-0">
           <div className="truncate text-[15px] font-bold text-[#30302e]">

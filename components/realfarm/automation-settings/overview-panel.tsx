@@ -1,19 +1,20 @@
 import { useState } from "react"
-import { IconBug, IconChevronLeft, IconChevronRight, IconX } from "@tabler/icons-react"
+import { IconBug, IconChevronRight, IconX } from "@tabler/icons-react"
 import { Pencil } from "lucide-react"
 
 import { AutomationThumb, AvatarDot } from "@/components/realfarm/shared-media"
+import { StandardGenerationLoadingScreen } from "@/components/realfarm/generation-loading"
 import { SocialAccountStatusRow } from "@/components/realfarm/social-account-status"
 import { AppModal, AppModalPanel } from "@/components/ui/modal"
 import type { Automation } from "@/lib/realfarm-data"
 import { cn } from "@/lib/utils"
+import { GeneratedSlideshowFrame } from "./generated-slideshow-frame"
 
 import {
   automationRunSlides,
   formatRunDate,
   formatRunDuration,
   formatRunSchedule,
-  ratioToCss,
   runDurationSeconds,
   runScheduleDurationLine,
   runStatusBadgeClass,
@@ -27,6 +28,7 @@ export function AutomationOverviewPanel({
   automation,
   editingName,
   draftName,
+  generating,
   recentRuns,
   onDraftNameChange,
   onStartNameEdit,
@@ -36,6 +38,7 @@ export function AutomationOverviewPanel({
   automation: Automation
   editingName: boolean
   draftName: string
+  generating?: boolean
   recentRuns: AutomationRunApiRecord[]
   onDraftNameChange: (value: string) => void
   onStartNameEdit: () => void
@@ -113,6 +116,13 @@ export function AutomationOverviewPanel({
         </div>
 
         <div className="mx-auto mt-5 max-w-[494px]">
+          {generating ? (
+            <StandardGenerationLoadingScreen
+              title="Generating slideshow"
+              description="Selecting images, expanding dynamic tags, writing slide text, and rendering the preview."
+              className="mb-4"
+            />
+          ) : null}
           <button className="mb-3 flex items-center gap-1 text-[14px] font-bold text-[#242421]">
             Recent
             <IconChevronRight className="size-4 rotate-90" />
@@ -168,6 +178,7 @@ function AutomationRecentRunCard({
   const firstSlide = slides[0]
   const title = slideshowTitle(run)
   const thumbnailUrl = run.thumbnailUrl?.trim() || firstSlide?.imageUrl
+  const generating = run.status === "generating"
 
   return (
     <article className="w-[150px] shrink-0">
@@ -179,10 +190,11 @@ function AutomationRecentRunCard({
           aria-label={`Open generated slideshow ${title}`}
         >
           {thumbnailUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- Automation previews render generated/local asset URLs directly.
             <img
               src={thumbnailUrl}
               alt=""
-              className="absolute inset-0 h-full w-full object-cover"
+              className="absolute inset-0 h-full w-full bg-black object-contain"
             />
           ) : (
             <AutomationThumb theme={theme} index={index} />
@@ -201,6 +213,16 @@ function AutomationRecentRunCard({
             </span>
           ) : null}
         </button>
+        {generating ? (
+          <div className="pointer-events-none absolute inset-x-2 bottom-2">
+            <StandardGenerationLoadingScreen
+              title="Generating"
+              description="Preview will update when ready."
+              compact
+              className="rounded-[8px] border-white/15 bg-white/92 p-2 shadow-lg backdrop-blur"
+            />
+          </div>
+        ) : null}
       </div>
       <SocialAccountStatusRow
         items={run.socialStatuses ?? []}
@@ -227,9 +249,6 @@ function AutomationGeneratedSlideshowViewer({
   const slides = automationRunSlides(run)
   const [activeSlide, setActiveSlide] = useState(0)
   const activeSlideIndex = Math.min(activeSlide, Math.max(0, slides.length - 1))
-  const activeSlideRecord = slides[activeSlideIndex] ?? slides[0]
-  const canGoPrev = activeSlideIndex > 0
-  const canGoNext = activeSlideIndex < slides.length - 1
 
   return (
     <AppModal onClose={onClose}>
@@ -262,62 +281,12 @@ function AutomationGeneratedSlideshowViewer({
         </header>
         <main className="grid h-[calc(100%-60px)] gap-5 overflow-y-auto bg-[#f7f7f4] p-5 lg:grid-cols-[280px_1fr]">
           <section className="min-w-0">
-            <div
-              className="relative overflow-hidden rounded-[9px] bg-black shadow-xl"
-              style={{
-                aspectRatio: ratioToCss(activeSlideRecord?.aspectRatio),
-              }}
-            >
-              {activeSlideRecord?.imageUrl ? (
-                <img
-                  src={activeSlideRecord.imageUrl}
-                  alt=""
-                  className="h-full w-full object-cover"
-                  draggable={false}
-                />
-              ) : (
-                <AutomationThumb theme="blue" index={0} />
-              )}
-              <span
-                className={cn(
-                  "absolute top-2 right-2 rounded-full px-2 py-1 text-[10px] font-bold shadow-sm",
-                  runStatusBadgeClass(run.status)
-                )}
-              >
-                {runStatusLabel(run.status)}
-              </span>
-              {slides.length > 1 ? (
-                <>
-                  <button
-                    type="button"
-                    className="absolute top-1/2 left-2 z-10 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-white/88 text-[#242421] shadow-md transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-35"
-                    onClick={() =>
-                      setActiveSlide((value) => Math.max(0, value - 1))
-                    }
-                    disabled={!canGoPrev}
-                    aria-label="Previous slide"
-                  >
-                    <IconChevronLeft className="size-5" />
-                  </button>
-                  <button
-                    type="button"
-                    className="absolute top-1/2 right-2 z-10 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-white/88 text-[#242421] shadow-md transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-35"
-                    onClick={() =>
-                      setActiveSlide((value) =>
-                        Math.min(slides.length - 1, value + 1)
-                      )
-                    }
-                    disabled={!canGoNext}
-                    aria-label="Next slide"
-                  >
-                    <IconChevronRight className="size-5" />
-                  </button>
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/45 to-transparent px-3 pt-8 pb-2 text-center text-[12px] font-bold text-white">
-                    Slide {activeSlideIndex + 1} of {slides.length}
-                  </div>
-                </>
-              ) : null}
-            </div>
+            <GeneratedSlideshowFrame
+              slides={slides}
+              statusLabel={runStatusLabel(run.status)}
+              statusClassName={runStatusBadgeClass(run.status)}
+              onSlideChange={({ index }) => setActiveSlide(index)}
+            />
             <div className="mt-2 text-[12px] font-semibold text-[#6f6e69]">
               {runScheduleDurationLine(run)}
             </div>
@@ -389,6 +358,27 @@ function AutomationGeneratedSlideshowViewer({
                 {slideshowTitle(run)}
               </p>
             </div>
+            {run.plan?.reuseWarnings?.length ? (
+              <div className="rounded-[10px] border border-[#f0d28a] bg-[#fff9e8] p-4">
+                <div className="mb-2 text-[12px] font-bold tracking-[0.08em] text-[#8a6a16] uppercase">
+                  Reuse warnings
+                </div>
+                <div className="space-y-2">
+                  {run.plan.reuseWarnings.map((warning, index) => (
+                    <p
+                      key={`${warning.kind}-${warning.key}-${index}`}
+                      className="text-[13px] leading-5 font-semibold text-[#6f5510]"
+                    >
+                      {warning.slideId ? `${warning.slideId}: ` : ""}
+                      {warning.reason}
+                      {warning.lastUsedAt
+                        ? ` Last used ${formatRunDate(warning.lastUsedAt)}.`
+                        : ""}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <div className="rounded-[10px] border border-[#e1e0d8] bg-white p-4">
               <div className="mb-2 text-[12px] font-bold tracking-[0.08em] text-[#77766f] uppercase">
                 Caption
@@ -483,5 +473,3 @@ function AutomationRunDebugModal({
     </AppModal>
   )
 }
-
-

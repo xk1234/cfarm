@@ -17,6 +17,8 @@ export type PinterestSearchResult = {
   dominantColor: string
   width?: number
   height?: number
+  hash?: string
+  lastUsedAt?: string
 }
 
 export type PinterestActorInput = {
@@ -34,7 +36,11 @@ export type PinterestActorInput = {
 
 type UnknownRecord = Record<string, unknown>
 
-export function buildPinterestActorInput(query: string, limit: number, mode: "search" | "board" = "search"): PinterestActorInput {
+export function buildPinterestActorInput(
+  query: string,
+  limit: number,
+  mode: "search" | "board" = "search"
+): PinterestActorInput {
   const boundedLimit = Math.max(1, Math.min(limit, 100))
   if (mode === "board") {
     return {
@@ -63,7 +69,9 @@ export function buildPinterestActorInput(query: string, limit: number, mode: "se
   }
 }
 
-export function normalizePinterestItems(items: unknown[]): PinterestSearchResult[] {
+export function normalizePinterestItems(
+  items: unknown[]
+): PinterestSearchResult[] {
   return items.flatMap((item, index) => {
     if (!isRecord(item)) {
       return []
@@ -77,7 +85,8 @@ export function normalizePinterestItems(items: unknown[]): PinterestSearchResult
     const pin = readRecord(item.pin)
     const media = readRecord(item.media)
     const id = readString(item.id) || readString(pin?.id) || `pin-${index + 1}`
-    const title = readString(item.title) || readString(pin?.title) || "Untitled pin"
+    const title =
+      readString(item.title) || readString(pin?.title) || "Untitled pin"
     const description =
       readString(item.description) ||
       readString(pin?.description) ||
@@ -92,8 +101,14 @@ export function normalizePinterestItems(items: unknown[]): PinterestSearchResult
         title,
         description,
         imageUrl: image.url,
-        sourceUrl: readString(item.url) || readString(item.source_url) || `https://www.pinterest.com/pin/${id}/`,
-        dominantColor: readString(pin?.dominant_color) || readString(media?.dominant_color) || "#d8d6ce",
+        sourceUrl:
+          readString(item.url) ||
+          readString(item.source_url) ||
+          `https://www.pinterest.com/pin/${id}/`,
+        dominantColor:
+          readString(pin?.dominant_color) ||
+          readString(media?.dominant_color) ||
+          "#d8d6ce",
         width: image.width,
         height: image.height,
       },
@@ -101,10 +116,24 @@ export function normalizePinterestItems(items: unknown[]): PinterestSearchResult
   })
 }
 
-export function createFallbackPinterestResults(query: string, limit: number): PinterestSearchResult[] {
+export function createFallbackPinterestResults(
+  query: string,
+  limit: number
+): PinterestSearchResult[] {
   const normalizedQuery = query.trim() || "pinterest"
-  const slug = normalizedQuery.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "pinterest"
-  const colors = ["#b88772", "#78996b", "#6d98bf", "#c39b4c", "#746f66", "#b077a3"]
+  const slug =
+    normalizedQuery
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "pinterest"
+  const colors = [
+    "#b88772",
+    "#78996b",
+    "#6d98bf",
+    "#c39b4c",
+    "#746f66",
+    "#b077a3",
+  ]
 
   return Array.from({ length: Math.max(1, limit) }, (_, index) => ({
     id: `fallback-${slug}-${index + 1}`,
@@ -161,9 +190,16 @@ function normalizePinterestBoardUrl(input: string) {
 }
 
 function readImage(item: UnknownRecord) {
-  const directUrl = readString(item.imageUrl) || readString(item.image_url) || readString(item.image)
+  const directUrl =
+    readString(item.imageUrl) ||
+    readString(item.image_url) ||
+    readString(item.image)
   if (directUrl) {
-    return { url: directUrl, width: readNumber(item.width), height: readNumber(item.height) }
+    return {
+      url: directUrl,
+      width: readNumber(item.width),
+      height: readNumber(item.height),
+    }
   }
 
   const media = readRecord(item.media)

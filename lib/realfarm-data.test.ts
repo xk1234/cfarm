@@ -10,10 +10,7 @@ describe("loadRealFarmData", () => {
     expect(data.brand.name).toBe("ReelFarm")
     expect(data.projects).toEqual([])
     expect(data.automations).toEqual([])
-    expect(data.imageCollections[0]).toMatchObject({
-      title: "All Images",
-      imageCount: 1210,
-    })
+    expect(data.imageCollections).toEqual([])
     expect(data.ugcAds.hooks[0]).toContain("watch this quick video")
     expect(data.assets.ugcAvatarVideos).toHaveLength(7)
     expect(data.assets.ugcAvatarVideos[0].url).toMatch(
@@ -25,9 +22,22 @@ describe("loadRealFarmData", () => {
     expect(data.assets.music.length).toBeGreaterThan(0)
     expect(data.assets.greenscreenMemes.length).toBeGreaterThan(0)
     expect(data.assets.ctas[0]).toHaveProperty("text")
-    expect(data.generatedAssets.higgsfieldCharacter.model).toBe(
+    expect(data.generatedAssets).toEqual({})
+    expect(data.defaultCollections.backgrounds.images).toHaveLength(10)
+  })
+
+  it("loads demo seed records only when explicitly requested", () => {
+    const data = loadRealFarmData({ includeDemoSeed: true })
+
+    expect(data.imageCollections.map((collection) => collection.title)).toEqual(
+      expect.arrayContaining([
+        "Pinterest - the wolf of wall street screencaps",
+        "Pinterest - nature textures",
+        "Pinterest - space",
+      ])
+    )
+    expect(data.generatedAssets.higgsfieldCharacter?.model).toBe(
       "Higgsfield Soul V2"
     )
-    expect(data.defaultCollections.backgrounds.images).toHaveLength(10)
   })
 })

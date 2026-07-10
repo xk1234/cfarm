@@ -10,17 +10,22 @@ import {
   upsertAutomationRecords,
 } from "@/lib/automations"
 import { runDueAutomations } from "@/lib/automation-runner"
+import { appendUsageRecords } from "@/lib/usage-ledger"
 
 let rootDir: string
 let automationRootDir: string
 let runRootDir: string
 let imageCollectionDbPath: string
+let wordCollectionRootDir: string
+let usageLedgerRootDir: string
 
 beforeEach(async () => {
   rootDir = await mkdtemp(path.join(os.tmpdir(), "cfarm-automation-runner-"))
   automationRootDir = path.join(rootDir, "automations")
   runRootDir = path.join(rootDir, "automation-runs")
   imageCollectionDbPath = path.join(rootDir, "image-collections.json")
+  wordCollectionRootDir = path.join(rootDir, "word-collections")
+  usageLedgerRootDir = path.join(rootDir, "usage-ledger")
   await mkdir(automationRootDir, { recursive: true })
 })
 
@@ -32,6 +37,407 @@ afterEach(async () => {
 })
 
 describe("runDueAutomations", () => {
+  it("expands hook slots from word collections and records template substitutions", async () => {
+    const automation = createLocalAutomationRecord({
+      name: "Zodiac charms",
+      overrides: {
+        status: "live",
+        schedule: {
+          timezone: "America/New_York",
+          posting_times: [{ time: "11:00 AM", days: ["Fri"] }],
+        },
+      },
+    })
+    automation.schema.hook_slots = {
+      zodiac: "zodiac",
+      charm: "charm",
+    }
+    automation.schema.formatting = automation.schema.formatting.map(
+      (section) =>
+        section.id === "hook"
+          ? {
+              ...section,
+              textItems: [
+                {
+                  ...section.textItems[0],
+                  contentDirection:
+                    "POV: you're a [[zodiac]] and someone gifts you a [[charm]]",
+                },
+              ],
+            }
+          : section.id === "body" || section.id === "cta"
+            ? { ...section, slideCount: 0 }
+            : section
+    )
+    automation.schema.image_collection_ids.cta_slide.check = false
+    selectDailyScenesCollection(automation)
+    await upsertAutomationRecords({
+      rootDir: automationRootDir,
+      records: [automation],
+    })
+    await writeWordCollections([
+      { id: "zodiac", words: ["aries", "taurus", "gemini"] },
+      { id: "charm", words: ["bracelet", "jade ring"] },
+    ])
+    await writeImageCollections([
+      {
+        image_link: "/api/local-assets/image-collections/files/charm-a.jpg",
+        caption: "Charm A",
+      },
+    ])
+
+    const result = await runDueAutomations({
+      automationRootDir,
+      runRootDir,
+      postfastRootDir: rootDir,
+      imageCollectionDbPath,
+      wordCollectionRootDir,
+      usageLedgerRootDir,
+      now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
+      random: () => 0.6,
+    })
+
+    expect(result.created[0].plan).toMatchObject({
+      hook: "POV: you're a Taurus and someone gifts you a jade ring",
+      hookTemplate:
+        "POV: you're a [[zodiac]] and someone gifts you a [[charm]]",
+      hookSubstitutions: {
+        zodiac: "Taurus",
+        charm: "jade ring",
+      },
+    })
+    expect(result.created[0].plan.slides[0].text).toBe(
+      "POV: you're a Taurus and someone gifts you a jade ring"
+    )
+  })
+
+  it("avoids recently used images and hook combinations across forced runs", async () => {
+    const automation = createLocalAutomationRecord({
+      name: "Dedup stress",
+      overrides: {
+        status: "live",
+        schedule: {
+          timezone: "America/New_York",
+          posting_times: [{ time: "11:00 AM", days: ["Fri"] }],
+        },
+      },
+    })
+    automation.schema.hook_slots = { occasion: "occasion" }
+    automation.schema.formatting = automation.schema.formatting.map(
+      (section) =>
+        section.id === "hook"
+          ? {
+              ...section,
+              textItems: [
+                {
+                  ...section.textItems[0],
+                  contentDirection:
+                    "[[occasion]] balloon setups that broke our group chat",
+                },
+              ],
+            }
+          : section.id === "body" || section.id === "cta"
+            ? { ...section, slideCount: 0 }
+            : section
+    )
+    selectDailyScenesCollection(automation)
+    await upsertAutomationRecords({
+      rootDir: automationRootDir,
+      records: [automation],
+    })
+    await writeWordCollections([
+      { id: "occasion", words: ["wedding", "birthday"] },
+    ])
+    await writeImageCollections([
+      {
+        image_link: "/api/local-assets/image-collections/files/balloon-a.jpg",
+        caption: "Balloon A",
+      },
+      {
+        image_link: "/api/local-assets/image-collections/files/balloon-b.jpg",
+        caption: "Balloon B",
+      },
+      {
+        image_link: "/api/local-assets/image-collections/files/balloon-c.jpg",
+        caption: "Balloon C",
+      },
+      {
+        image_link: "/api/local-assets/image-collections/files/balloon-d.jpg",
+        caption: "Balloon D",
+      },
+    ])
+
+    const first = await runDueAutomations({
+      automationRootDir,
+      runRootDir,
+      postfastRootDir: rootDir,
+      imageCollectionDbPath,
+      wordCollectionRootDir,
+      usageLedgerRootDir,
+      automationId: automation.id,
+      force: true,
+      now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
+      random: () => 0,
+    })
+    const second = await runDueAutomations({
+      automationRootDir,
+      runRootDir,
+      postfastRootDir: rootDir,
+      imageCollectionDbPath,
+      wordCollectionRootDir,
+      usageLedgerRootDir,
+      automationId: automation.id,
+      force: true,
+      now: DateTime.fromISO("2026-07-03T16:05:00.000Z").toJSDate(),
+      random: () => 0,
+    })
+
+    expect(first.created[0].plan.hook).toBe(
+      "wedding balloon setups that broke our group chat"
+    )
+    expect(second.created[0].plan.hook).toBe(
+      "birthday balloon setups that broke our group chat"
+    )
+    expect(first.created[0].plan.slides[0].imageUrl).toBe(
+      "/api/local-assets/image-collections/files/balloon-a.jpg"
+    )
+    expect(second.created[0].plan.slides[0].imageUrl).toBe(
+      "/api/local-assets/image-collections/files/balloon-d.jpg"
+    )
+  })
+
+  it("falls back to least-recently-used images and records reuse warnings when the fresh pool is exhausted", async () => {
+    const automation = createLocalAutomationRecord({
+      name: "Reuse warning",
+      overrides: {
+        status: "live",
+        schedule: {
+          timezone: "America/New_York",
+          posting_times: [{ time: "11:00 AM", days: ["Fri"] }],
+        },
+      },
+    })
+    automation.schema.formatting = automation.schema.formatting.map(
+      (section) =>
+        section.id === "body" || section.id === "cta"
+          ? { ...section, slideCount: 0 }
+          : section
+    )
+    selectDailyScenesCollection(automation)
+    await upsertAutomationRecords({
+      rootDir: automationRootDir,
+      records: [automation],
+    })
+    await writeImageCollections([
+      {
+        image_link: "/api/local-assets/image-collections/files/old.jpg",
+        caption: "Old scene",
+        hash: "hash-old",
+      },
+      {
+        image_link: "/api/local-assets/image-collections/files/new.jpg",
+        caption: "New scene",
+        hash: "hash-new",
+      },
+    ])
+    await appendUsageRecords({
+      rootDir: usageLedgerRootDir,
+      records: [
+        {
+          automation_id: automation.id,
+          kind: "image",
+          key: "hash-old",
+          run_id: "run-old",
+          used_at: "2026-07-01T10:00:00.000Z",
+        },
+        {
+          automation_id: automation.id,
+          kind: "image",
+          key: "hash-new",
+          run_id: "run-new",
+          used_at: "2026-07-06T10:00:00.000Z",
+        },
+      ],
+      now: new Date("2026-07-07T10:00:00.000Z"),
+    })
+
+    const result = await runDueAutomations({
+      automationRootDir,
+      runRootDir,
+      postfastRootDir: rootDir,
+      imageCollectionDbPath,
+      usageLedgerRootDir,
+      automationId: automation.id,
+      force: true,
+      now: DateTime.fromISO("2026-07-07T10:00:00.000Z").toJSDate(),
+      random: () => 0.9,
+    })
+
+    expect(result.created[0].plan.slides[0]).toMatchObject({
+      imageKey: "hash-old",
+      imageUrl: "/api/local-assets/image-collections/files/old.jpg",
+    })
+    expect(result.created[0].plan.reuseWarnings).toEqual([
+      expect.objectContaining({
+        kind: "image",
+        key: "hash-old",
+        slideId: "slide-1",
+        lastUsedAt: "2026-07-01T10:00:00.000Z",
+      }),
+      expect.objectContaining({
+        kind: "image",
+        key: "hash-new",
+        slideId: "slide-2",
+        lastUsedAt: "2026-07-06T10:00:00.000Z",
+      }),
+    ])
+  })
+
+  it("routes usage ledger writes to the temp run root when no ledger root is passed", async () => {
+    const automation = createLocalAutomationRecord({
+      name: "Temp ledger",
+      overrides: {
+        status: "live",
+        schedule: {
+          timezone: "America/New_York",
+          posting_times: [{ time: "11:00 AM", days: ["Fri"] }],
+        },
+      },
+    })
+    automation.schema.formatting = automation.schema.formatting.map(
+      (section) =>
+        section.id === "body" || section.id === "cta"
+          ? { ...section, slideCount: 0 }
+          : section
+    )
+    selectDailyScenesCollection(automation)
+    await upsertAutomationRecords({
+      rootDir: automationRootDir,
+      records: [automation],
+    })
+    await writeImageCollections([
+      {
+        image_link: "/api/local-assets/image-collections/files/temp-a.jpg",
+        caption: "Temp scene",
+      },
+    ])
+
+    await runDueAutomations({
+      automationRootDir,
+      runRootDir,
+      postfastRootDir: rootDir,
+      imageCollectionDbPath,
+      now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
+    })
+
+    await expect(
+      readFile(
+        path.join(runRootDir, "usage-ledger", "usage-ledger.json"),
+        "utf8"
+      )
+    ).resolves.toContain("temp-a.jpg")
+  })
+
+  it("does not record placeholder narrative instructions as hook usage", async () => {
+    const automation = createLocalAutomationRecord({
+      name: "Instruction filter",
+      overrides: {
+        status: "live",
+        schedule: {
+          timezone: "America/New_York",
+          posting_times: [{ time: "11:00 AM", days: ["Fri"] }],
+        },
+      },
+    })
+    automation.schema.prompt_formatting.narrative =
+      "Create a concise slideshow narrative for the selected topic."
+    automation.schema.formatting = automation.schema.formatting.map(
+      (section) =>
+        section.id === "body" || section.id === "cta"
+          ? { ...section, slideCount: 0 }
+          : section
+    )
+    selectDailyScenesCollection(automation)
+    await upsertAutomationRecords({
+      rootDir: automationRootDir,
+      records: [automation],
+    })
+    await writeImageCollections([
+      {
+        image_link:
+          "/api/local-assets/image-collections/files/instruction-a.jpg",
+        caption: "Instruction scene",
+      },
+    ])
+
+    await runDueAutomations({
+      automationRootDir,
+      runRootDir,
+      postfastRootDir: rootDir,
+      imageCollectionDbPath,
+      usageLedgerRootDir,
+      now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
+    })
+
+    const stored = JSON.parse(
+      await readFile(path.join(usageLedgerRootDir, "usage-ledger.json"), "utf8")
+    )
+    expect(stored.usage).not.toContainEqual(
+      expect.objectContaining({
+        kind: "hook",
+        key: "create a concise slideshow narrative for the selected topic.",
+      })
+    )
+    expect(stored.usage).toContainEqual(
+      expect.objectContaining({ kind: "image" })
+    )
+  })
+
+  it("claims interval schedule slots with jitter and skips disabled slots", async () => {
+    const automation = createLocalAutomationRecord({
+      name: "Interval slots",
+      overrides: {
+        status: "live",
+        schedule: {
+          timezone: "America/New_York",
+          posting_times: [{ time: "9:00 AM", days: ["Fri"], enabled: false }],
+          interval: {
+            every_n_hours: 3,
+            start_time: "9:00 AM",
+            end_time: "5:00 PM",
+            days: ["Fri"],
+          },
+          jitter_minutes: 15,
+        },
+      },
+    })
+    selectDailyScenesCollection(automation)
+    await upsertAutomationRecords({
+      rootDir: automationRootDir,
+      records: [automation],
+    })
+    await writeImageCollections([
+      {
+        image_link: "/api/local-assets/image-collections/files/slot.jpg",
+        caption: "Slot",
+      },
+    ])
+
+    const result = await runDueAutomations({
+      automationRootDir,
+      runRootDir,
+      postfastRootDir: rootDir,
+      imageCollectionDbPath,
+      now: DateTime.fromISO("2026-07-03T16:10:00.000Z").toJSDate(),
+      lookbackMinutes: 10,
+      random: () => 1,
+    })
+
+    expect(result.created.map((run) => run.scheduledFor)).toEqual([
+      "2026-07-03T16:15:00.000Z",
+    ])
+  })
+
   it("creates one durable run for a due live automation without creating a fake scheduled social post", async () => {
     const automation = createLocalAutomationRecord({
       name: "Daily hooks",
@@ -51,6 +457,7 @@ describe("runDueAutomations", () => {
         },
       },
     })
+    selectDailyScenesCollection(automation)
     await upsertAutomationRecords({
       rootDir: automationRootDir,
       records: [automation],
@@ -402,6 +809,102 @@ describe("runDueAutomations", () => {
     ])
   })
 
+  it("does not fall back to the automation title for body slide text when generation is unavailable", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "")
+    const automation = createLocalAutomationRecord({
+      name: "UAT Zodiac lucky charms",
+      overrides: {
+        status: "live",
+        schedule: {
+          timezone: "America/New_York",
+          posting_times: [{ time: "11:00 AM", days: ["Fri"] }],
+        },
+      },
+    })
+    automation.schema.formatting = automation.schema.formatting.map(
+      (section) =>
+        section.id === "hook"
+          ? {
+              ...section,
+              textItems: [
+                {
+                  ...section.textItems[0],
+                  contentDirection: "fixed hook",
+                },
+              ],
+            }
+          : section.id === "body"
+            ? {
+                ...section,
+                slideCount: 1,
+                textItems: [
+                  {
+                    ...section.textItems[0],
+                    contentDirection: "",
+                  },
+                ],
+              }
+            : section.id === "cta"
+              ? {
+                  ...section,
+                  slideCount: 0,
+                }
+              : section
+    )
+    automation.schema.image_collection_ids = {
+      ...automation.schema.image_collection_ids,
+      first_slide: {
+        collection: "collection-daily-scenes-2026-07-03t00-00-00-000z",
+        mode: "collection",
+        single_image: null,
+      },
+      all_slides: "collection-daily-scenes-2026-07-03t00-00-00-000z",
+      cta_slide: {
+        check: false,
+        cta_collection_check: false,
+        cta_collection_id: "",
+        image_id: null,
+        cta_location: "last_slide",
+      },
+    }
+    await upsertAutomationRecords({
+      rootDir: automationRootDir,
+      records: [automation],
+    })
+    await writeImageCollections([
+      {
+        image_link: "/api/local-assets/image-collections/files/a.jpg",
+        caption: "Lucky charm closeup",
+      },
+      {
+        image_link: "/api/local-assets/image-collections/files/b.jpg",
+        caption: "Zodiac gift table",
+      },
+    ])
+
+    const result = await runDueAutomations({
+      automationRootDir,
+      runRootDir,
+      postfastRootDir: rootDir,
+      imageCollectionDbPath,
+      now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
+      random: () => 0,
+    })
+
+    expect(result.created[0].status).toBe("succeeded")
+    expect(result.created[0].plan.slides[1]).toMatchObject({
+      role: "content",
+      text: "Zodiac gift table",
+    })
+    expect(result.created[0].plan.slides[1].text).not.toBe(
+      "UAT Zodiac lucky charms"
+    )
+    expect(result.created[0].plan.hashtags).toBeTruthy()
+    expect(result.created[0].plan.debug?.textGenerationError).toContain(
+      "OPENROUTER_API_KEY"
+    )
+  })
+
   it("randomly selects one configured hook and records the OpenRouter prompt debug payload", async () => {
     vi.stubEnv("OPENROUTER_API_KEY", "test-openrouter-key")
     const fetchMock = vi.fn(
@@ -487,11 +990,11 @@ describe("runDueAutomations", () => {
     automation.schema.image_collection_ids = {
       ...automation.schema.image_collection_ids,
       first_slide: {
-        collection: "collection-brand-scenes-2026-07-03t00-00-00-000z",
+        collection: "collection-daily-scenes-2026-07-03t00-00-00-000z",
         mode: "collection",
         single_image: null,
       },
-      all_slides: "collection-brand-scenes-2026-07-03t00-00-00-000z",
+      all_slides: "collection-daily-scenes-2026-07-03t00-00-00-000z",
       cta_slide: {
         check: false,
         cta_collection_check: false,
@@ -583,6 +1086,7 @@ describe("runDueAutomations", () => {
               }
             : section
     )
+    selectDailyScenesCollection(automation)
     await upsertAutomationRecords({
       rootDir: automationRootDir,
       records: [automation],
@@ -790,11 +1294,11 @@ describe("runDueAutomations", () => {
     automation.schema.image_collection_ids = {
       ...automation.schema.image_collection_ids,
       first_slide: {
-        collection: "collection-brand-scenes-2026-07-03t00-00-00-000z",
+        collection: "collection-daily-scenes-2026-07-03t00-00-00-000z",
         mode: "collection",
         single_image: null,
       },
-      all_slides: "collection-brand-scenes-2026-07-03t00-00-00-000z",
+      all_slides: "collection-daily-scenes-2026-07-03t00-00-00-000z",
       cta_slide: {
         check: false,
         cta_collection_check: false,
@@ -1100,6 +1604,7 @@ describe("runDueAutomations", () => {
         },
       },
     })
+    selectDailyScenesCollection(automation)
     await upsertAutomationRecords({
       rootDir: automationRootDir,
       records: [automation],
@@ -1191,6 +1696,7 @@ describe("runDueAutomations", () => {
         },
       },
     })
+    selectDailyScenesCollection(automation)
     await upsertAutomationRecords({
       rootDir: automationRootDir,
       records: [automation],
@@ -1270,6 +1776,7 @@ describe("runDueAutomations", () => {
         },
       },
     })
+    selectDailyScenesCollection(automation)
     await upsertAutomationRecords({
       rootDir: automationRootDir,
       records: [automation],
@@ -1527,10 +2034,67 @@ describe("runDueAutomations", () => {
     ])
     expect(result.results).toEqual([])
   })
+
+  it("does not fall back to unrelated images when the configured collection is missing", async () => {
+    const automation = createLocalAutomationRecord({
+      name: "Invalid collection",
+      overrides: {
+        status: "live",
+        schedule: {
+          timezone: "America/New_York",
+          posting_times: [{ time: "11:00 AM", days: ["Fri"] }],
+        },
+      },
+    })
+    automation.schema.image_collection_ids = {
+      ...automation.schema.image_collection_ids,
+      first_slide: {
+        collection: "missing-import-placeholder",
+        mode: "collection",
+        single_image: null,
+      },
+      all_slides: "missing-import-placeholder",
+    }
+    await upsertAutomationRecords({
+      rootDir: automationRootDir,
+      records: [automation],
+    })
+    await writeImageCollections([
+      {
+        image_link: "/api/local-assets/image-collections/files/unrelated.jpg",
+        caption: "Unrelated image",
+      },
+    ])
+
+    const result = await runDueAutomations({
+      automationRootDir,
+      runRootDir,
+      postfastRootDir: rootDir,
+      imageCollectionDbPath,
+      now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
+    })
+
+    expect(result.created[0]).toMatchObject({
+      automationId: automation.id,
+      status: "failed",
+      error: "No images available for automation collections",
+      plan: expect.objectContaining({
+        imageCollectionIds: ["missing-import-placeholder"],
+        slides: [],
+      }),
+    })
+    expect(result.skipped).toEqual([
+      {
+        automationId: automation.id,
+        reason: "no_images",
+        scheduledFor: "2026-07-03T15:00:00.000Z",
+      },
+    ])
+  })
 })
 
 async function writeImageCollections(
-  images: { image_link: string; caption: string }[]
+  images: { image_link: string; caption: string; hash?: string }[]
 ) {
   await writeFile(
     imageCollectionDbPath,
@@ -1543,6 +2107,43 @@ async function writeImageCollections(
             images,
           },
         ],
+      },
+      null,
+      2
+    )}\n`
+  )
+}
+
+function selectDailyScenesCollection(
+  automation: ReturnType<typeof createLocalAutomationRecord>
+) {
+  automation.schema.image_collection_ids = {
+    ...automation.schema.image_collection_ids,
+    first_slide: {
+      ...automation.schema.image_collection_ids.first_slide,
+      collection: "collection-daily-scenes-2026-07-03t00-00-00-000z",
+      mode: "collection",
+    },
+    all_slides: "collection-daily-scenes-2026-07-03t00-00-00-000z",
+  }
+}
+
+async function writeWordCollections(
+  collections: { id: string; words: string[] }[]
+) {
+  await mkdir(wordCollectionRootDir, { recursive: true })
+  await writeFile(
+    path.join(wordCollectionRootDir, "word-collections.json"),
+    `${JSON.stringify(
+      {
+        collections: collections.map((collection) => ({
+          id: collection.id,
+          name: collection.id,
+          words: collection.words,
+          source: "manual",
+          created_at: "2026-07-07T00:00:00.000Z",
+          updated_at: "2026-07-07T00:00:00.000Z",
+        })),
       },
       null,
       2

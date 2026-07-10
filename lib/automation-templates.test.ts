@@ -5,9 +5,11 @@ import { describe, expect, it } from "vitest"
 import {
   automationTemplateRecordToSchema,
   automationTemplateRecordToSummary,
+  validateAutomationTemplateCollectionIds,
   groupAutomationTemplateExampleRunsByTemplateId,
   listAutomationTemplateRecords,
   listAutomationTemplateExampleRuns,
+  type AutomationTemplateRecord,
 } from "@/lib/automation-templates"
 import {
   automationHooks,
@@ -20,8 +22,17 @@ describe("automation template persistence", () => {
       rootDir: path.join(process.cwd(), "data", "automation-templates"),
     })
 
-    expect(records).toHaveLength(27)
-    expect(records.map((record) => record.sourceAutomationId)).toEqual([
+    const importedReelfarmRecords = records.filter(
+      (record) => record.sourceAutomationId
+    )
+    const videoTemplates = records.filter(
+      (record) => record.automationKind === "video"
+    )
+
+    expect(importedReelfarmRecords).toHaveLength(27)
+    expect(
+      importedReelfarmRecords.map((record) => record.sourceAutomationId)
+    ).toEqual([
       "33",
       "44",
       "50",
@@ -49,6 +60,10 @@ describe("automation template persistence", () => {
       "12379",
       "12277",
       "12104",
+    ])
+    expect(videoTemplates.map((record) => record.name)).toEqual([
+      "UGC Product Demo",
+      "UGC Testimonial",
     ])
 
     const studyTips = records.find(
@@ -238,6 +253,98 @@ describe("automation template persistence", () => {
       automationKind: "video",
       name: "Creator UGC Video",
     })
+  })
+
+  it("reports imported template collection ids that do not resolve locally", () => {
+    const template: AutomationTemplateRecord = {
+      id: "template-missing-collections",
+      name: "Missing Collections",
+      theme: "test",
+      createdAt: "2026-07-06T00:00:00.000Z",
+      updatedAt: "2026-07-06T00:00:00.000Z",
+      template: {
+        created_at: "2026-07-06T00:00:00.000Z",
+        image_collection_ids: JSON.stringify({
+          first_slide: { collection: "user_collection_1111" },
+          all_slides: "user_collection_222",
+          cta_slide: {
+            check: true,
+            cta_collection_check: true,
+            cta_collection_id: "user_collection_333",
+          },
+        }),
+        format: {
+          hook: {
+            aspect_ratio: "9:16",
+            image_grid: "none",
+            overlay: false,
+            display_text: true,
+            text_items: [],
+          },
+          content: {
+            aspect_ratio: "9:16",
+            image_grid: "none",
+            slide_count_mode: "static",
+            slide_count: 1,
+            overlay: false,
+            overlay_image: {
+              enabled: true,
+              collection_id: "user_collection_444",
+              height: 5,
+            },
+            display_text: true,
+            text_items: [],
+          },
+          cta: {
+            enabled: true,
+            image_mode: "collection",
+            aspect_ratio: "9:16",
+            image_grid: "none",
+            overlay: false,
+            display_text: false,
+            text_items: [],
+          },
+          custom_tone: "",
+        },
+        hooks: ["test hook"],
+      },
+    }
+
+    expect(
+      validateAutomationTemplateCollectionIds({
+        records: [template],
+        collections: [
+          {
+            id: "collection-hook",
+            title: "Hook",
+            createdAt: "2026-07-06T00:00:00.000Z",
+            source: "pinterest",
+            images: [
+              {
+                id: "hook-image",
+                title: "Hook",
+                description: "Hook",
+                imageUrl:
+                  "/api/local-assets/image-collections/files/hook-1111-0000-a.jpg",
+                sourceUrl:
+                  "/api/local-assets/image-collections/files/hook-1111-0000-a.jpg",
+                dominantColor: "#d9d8d0",
+              },
+            ],
+          },
+        ],
+      })
+    ).toEqual([
+      {
+        templateId: "template-missing-collections",
+        templateName: "Missing Collections",
+        missingCollectionIds: [
+          "user_collection_222",
+          "user_collection_333",
+          "user_collection_444",
+        ],
+      },
+    ])
   })
 
   it("does not treat default hook text instructions as real hooks", async () => {

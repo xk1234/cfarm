@@ -1,0 +1,11 @@
+{
+  "name": "automation-scheduler",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/main.js",
+  "description": "Appwrite cron function: enqueues due-automation jobs into the Appwrite jobs queue",
+  "dependencies": {
+    "node-appwrite": "^26.2.0",
+    "luxon": "^3.7.2"
+  }
+}

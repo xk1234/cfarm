@@ -31,6 +31,13 @@ export type AutomationRunApiRecord = {
     textModel?: string
     publishType?: string
     language?: string
+    reuseWarnings?: {
+      kind: "image"
+      key: string
+      slideId?: string
+      lastUsedAt?: string
+      reason: string
+    }[]
     debug?: {
       selectedHookIndex?: number
       textModelPrompt?: unknown

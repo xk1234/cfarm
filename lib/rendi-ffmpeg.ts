@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto"
-import { open, stat, writeFile, mkdir } from "node:fs/promises"
+import { open, stat } from "node:fs/promises"
 import path from "node:path"
 
+import { persistAsset } from "@/lib/asset-storage"
 import {
   cleanString,
   readLooseRecord,
@@ -198,8 +199,7 @@ export async function runRendiFfmpegAndDownload(input: {
       `Failed to download Rendi output with ${downloadResponse.status}`
     )
   }
-  await mkdir(path.dirname(input.outputPath), { recursive: true })
-  await writeFile(
+  await persistAsset(
     input.outputPath,
     Buffer.from(await downloadResponse.arrayBuffer())
   )

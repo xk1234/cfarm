@@ -468,7 +468,17 @@ function cloneSchedule(schedule: AutomationSchedule): AutomationSchedule {
     posting_times: schedule.posting_times.slice(0, 5).map((postingTime) => ({
       time: postingTime.time || "11:00 AM",
       days: [...postingTime.days],
+      enabled: postingTime.enabled === false ? false : undefined,
     })),
+    paused: schedule.paused,
+    jitter_minutes: schedule.jitter_minutes,
+    min_gap_minutes: schedule.min_gap_minutes,
+    interval: schedule.interval
+      ? {
+          ...schedule.interval,
+          days: [...schedule.interval.days],
+        }
+      : undefined,
   }
 }
 
@@ -528,5 +538,3 @@ function slugify(value: string) {
       .replace(/^-|-$/g, "") || randomUUID()
   )
 }
-
-

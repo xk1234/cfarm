@@ -7,8 +7,8 @@ File: `app/api/automations/run/route.ts`
 - GET currently checks `authorization: Bearer <CRON_SECRET>` but fails open when CRON_SECRET is unset. Make it fail closed: if `process.env.CRON_SECRET` is not set, return 500 (misconfigured) or 401; never run unauthenticated.
 - POST currently has NO auth check at all yet accepts `force: true` and `schemaOverride`. Apply the same bearer-token check to POST.
 
-## 2. Add middleware.ts enforcing a shared secret on all /api/* routes
-- Create `middleware.ts` at repo root. For all `/api/*` paths, require header `x-api-key` to equal `process.env.APP_API_KEY` OR `authorization: Bearer <CRON_SECRET>` (so the Vercel cron keeps working).
+## 2. Add proxy.ts enforcing a shared secret on all /api/* routes
+- Create `proxy.ts` at repo root. For all `/api/*` paths, require header `x-api-key` to equal `process.env.APP_API_KEY` OR `authorization: Bearer <CRON_SECRET>` (so the Vercel cron keeps working).
 - Behavior when APP_API_KEY is unset: allow requests only if the host is localhost/127.0.0.1 (local dev convenience); otherwise 401. Keep the logic small and readable.
 - The frontend calls these APIs same-origin from the browser via `lib/client-api.ts`. To avoid breaking local dev, the localhost allowance above covers it. Add a short comment noting that for production, the key must be provisioned and the client updated to send it.
 

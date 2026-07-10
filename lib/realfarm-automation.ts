@@ -10,6 +10,7 @@ import {
   type PostFastProviderControls,
   type PostFastProviderControlsByProvider,
 } from "@/lib/postfast-provider-controls"
+import { defaultAutomationTemplateDefaults } from "@/lib/automation-template-defaults"
 import type { Automation } from "@/lib/realfarm-data"
 import {
   defaultAutomationLanguage,
@@ -165,7 +166,27 @@ export type AutomationSchedule = {
   posting_times: {
     time: Time
     days: AutomationDay[]
+    enabled?: boolean
   }[]
+  paused?: boolean
+  jitter_minutes?: number
+  min_gap_minutes?: number
+  interval?: {
+    every_n_hours: number
+    start_time: Time
+    end_time: Time
+    days: AutomationDay[]
+    enabled?: boolean
+  }
+}
+
+export type AutomationReusePolicy = {
+  image_exclusion_days?: number
+  image_exclusion_limit?: number
+  hook_exclusion_days?: number
+  text_exclusion_days?: number
+  text_exclusion_limit?: number
+  text_similarity_threshold?: number
 }
 
 export type AutomationSchema = {
@@ -200,6 +221,8 @@ export type AutomationSchema = {
   social_post_settings: AutomationSocialPostSettings
   social_publish_as: AutomationSocialPublishAs
   schedule: AutomationSchedule
+  hook_slots?: Record<string, string>
+  reuse_policy?: AutomationReusePolicy
 }
 
 export const automationAspectRatios: AutomationAspectRatio[] = [
@@ -279,7 +302,7 @@ export function defaultAutomationSchema(
       timezone: DateTime.local().zoneName,
       posting_times: (automation.times.length > 0
         ? automation.times
-        : ["11:00 AM"]
+        : [defaultAutomationTemplateDefaults.schedule.defaultPostingTime]
       )
         .slice(0, 5)
         .map((time) => ({
@@ -293,91 +316,69 @@ export function defaultAutomationSchema(
 export function defaultAutomationTemplate(
   automation: Automation
 ): AutomationTemplate {
+  const themeTones = defaultAutomationTemplateDefaults.themeTones
   const tone =
-    {
-      ugc: "Conversational & Relatable",
-      cinema: "Bold & Provocative",
-      nature: "Calm & Reflective",
-      soccer: "Motivational & Empowering",
-      books: "Educational & Informative",
-    }[automation.theme] ?? "Conversational & Relatable"
+    themeTones[automation.theme as keyof typeof themeTones] ??
+    themeTones.default
+  const hookDefaults = defaultAutomationTemplateDefaults.formatting.hook
+  const bodyDefaults = defaultAutomationTemplateDefaults.formatting.body
+  const ctaDefaults = defaultAutomationTemplateDefaults.formatting.cta
 
   return {
     automationKind:
       automation.automationKind === "video" ? "video" : "slideshow",
     prompt_formatting: {
-      style:
-        "The first slide should have one strong hook text item. Body slides should use concise supporting text. Keep text readable and native to TikTok slideshow memes.",
-      narrative: "Create a concise slideshow narrative for the selected topic.",
-      num_of_slides: 4,
+      ...defaultAutomationTemplateDefaults.prompt_formatting,
     },
     image_collection_ids: defaultImageCollectionConfig(),
     formatting: [
       {
         id: "hook",
-        image_url: "",
+        image_url: hookDefaults.image_url,
         textItems: [
           defaultAutomationTextItem({
-            fontSize: "10px",
-            textStyle: "whiteText",
-            wordLengthMin: 5,
-            wordLengthMax: 10,
-            contentDirection: "hook text, all lowercase",
-            textAlign: "left",
-            textAnchor: "flush",
+            ...hookDefaults.textItem,
           }),
         ],
-        aspect_ratio: "4:5",
-        imageGrid: "none",
-        slideCount: 1,
-        noText: false,
-        overlay: true,
-        overlayOpacity: 25,
+        aspect_ratio: hookDefaults.aspect_ratio,
+        imageGrid: hookDefaults.imageGrid,
+        slideCount: hookDefaults.slideCount,
+        noText: hookDefaults.noText,
+        overlay: hookDefaults.overlay,
+        overlayOpacity: hookDefaults.overlayOpacity,
       },
       {
         id: "body",
-        image_url: "",
+        image_url: bodyDefaults.image_url,
         textItems: [
           defaultAutomationTextItem({
-            fontSize: "8px",
-            textStyle: "whiteText",
-            textItemWidth: "80%",
-            wordLengthMin: 5,
-            wordLengthMax: 10,
-            contentDirection: "short supporting text, all lowercase",
-            textAlign: "left",
-            textAnchor: "flush",
+            ...bodyDefaults.textItem,
           }),
         ],
-        aspect_ratio: "4:5",
-        imageGrid: "none",
-        slideCount: 3,
-        noText: false,
-        overlay: true,
-        overlayOpacity: 25,
+        aspect_ratio: bodyDefaults.aspect_ratio,
+        imageGrid: bodyDefaults.imageGrid,
+        slideCount: bodyDefaults.slideCount,
+        noText: bodyDefaults.noText,
+        overlay: bodyDefaults.overlay,
+        overlayOpacity: bodyDefaults.overlayOpacity,
       },
       {
         id: "cta",
-        image_url: "",
+        image_url: ctaDefaults.image_url,
         textItems: [
           defaultAutomationTextItem({
-            fontSize: "12px",
-            textStyle: "yellowText",
-            textItemWidth: "70%",
-            wordLengthMin: 5,
-            wordLengthMax: 10,
-            textAlign: "center",
+            ...ctaDefaults.textItem,
           }),
         ],
-        aspect_ratio: "fit",
-        imageGrid: "none",
-        slideCount: 0,
-        ctaLocation: "last",
-        ctaStaticPosition: undefined,
-        noText: false,
-        overlay: false,
-        overlayOpacity: 25,
-        imageMode: "collection",
+        aspect_ratio: ctaDefaults.aspect_ratio,
+        imageGrid: ctaDefaults.imageGrid,
+        slideCount: ctaDefaults.slideCount,
+        ctaLocation: ctaDefaults.ctaLocation,
+        ctaStaticPosition: ctaDefaults.ctaStaticPosition,
+        noText: ctaDefaults.noText,
+        overlay: ctaDefaults.overlay,
+        overlayOpacity: ctaDefaults.overlayOpacity,
+        imageMode: ctaDefaults.imageMode,
       },
       {
         id: "_tone",
@@ -386,37 +387,17 @@ export function defaultAutomationTemplate(
       },
     ],
     tiktok_post_settings: {
+      ...defaultAutomationTemplateDefaults.tiktok_post_settings,
       caption: {
-        mode: "prompt",
-        static_text: "",
-        prompt_text:
-          'this should be in "lowercase," same exact text as the first text item.',
+        ...defaultAutomationTemplateDefaults.tiktok_post_settings.caption,
       },
       description: {
-        mode: "prompt",
-        static_text: "",
-        prompt_text:
-          "give me 3-5 broad hashtags related to the topic/niche of the content, all lowercase, nothing else other than 3-5 hashtags",
+        ...defaultAutomationTemplateDefaults.tiktok_post_settings.description,
       },
-      visibility: "PUBLIC_TO_EVERYONE",
-      auto_music: true,
-      auto_post: false,
-      allow_comments: true,
-      allow_duet: true,
-      allow_stitch: true,
-      disclose_video_content: false,
-      disclose_brand_organic: false,
-      disclose_branded_content: false,
-      post_mode: "MEDIA_UPLOAD",
       publish_type:
         automation.automationKind === "video"
           ? "video"
-          : defaultAutomationPublishType,
-      slideshow_transition_style: defaultSlideshowTransition,
-      slideshow_slide_duration: defaultSlideshowDuration,
-      slideshow_sound_id: "",
-      slideshow_sound_name: "",
-      slideshow_sound_url: "",
+          : defaultAutomationTemplateDefaults.tiktok_post_settings.publish_type,
     },
     social_post_settings: defaultSocialPostSettings(),
     social_publish_as: {},
@@ -482,7 +463,13 @@ export function mergeAutomationSchema(
         normalizedDraft.schedule.posting_times,
         defaults.schedule.posting_times
       ),
+      interval: normalizeScheduleInterval(
+        normalizedDraft.schedule.interval,
+        defaults.schedule.interval
+      ),
     },
+    hook_slots: normalizeHookSlots(normalizedDraft.hook_slots),
+    reuse_policy: normalizeReusePolicy(normalizedDraft.reuse_policy),
   }
 }
 
@@ -532,7 +519,17 @@ export function normalizeAutomationSchema(
         source.schedule?.posting_times,
         defaults.schedule.posting_times
       ),
+      paused: Boolean(source.schedule?.paused),
+      jitter_minutes: normalizeNonNegativeNumber(
+        source.schedule?.jitter_minutes
+      ),
+      min_gap_minutes: normalizeNonNegativeNumber(
+        source.schedule?.min_gap_minutes
+      ),
+      interval: normalizeScheduleInterval(source.schedule?.interval),
     },
+    hook_slots: normalizeHookSlots(source.hook_slots),
+    reuse_policy: normalizeReusePolicy(source.reuse_policy),
   }
 }
 
@@ -586,7 +583,7 @@ export function automationHooks(
 ) {
   const narrativeHooks = cleanHookLines(schema.prompt_formatting?.narrative)
   const hooks = automationStoredHooks(schema).filter(
-    (hook) => !isHookInstruction(hook)
+    (hook) => !isAutomationHookInstruction(hook)
   )
   if (shouldUseNarrativeHooks(narrativeHooks, hooks)) {
     return narrativeHooks
@@ -613,10 +610,10 @@ function cleanHookLines(value: unknown) {
   return value
     .split(/\r?\n/)
     .map((line) => line.trim().replace(/^\d+[.)]\s*/, ""))
-    .filter((line) => line && !isHookInstruction(line))
+    .filter((line) => line && !isAutomationHookInstruction(line))
 }
 
-function isHookInstruction(value: string) {
+export function isAutomationHookInstruction(value: string) {
   const normalized = value.trim().toLowerCase()
   if (!normalized) {
     return true
@@ -626,6 +623,7 @@ function isHookInstruction(value: string) {
       "hook text",
       "hook text, all lowercase",
       "fixed hook text from the automation",
+      "create a concise slideshow narrative for the selected topic.",
     ].includes(normalized)
   ) {
     return true
@@ -673,6 +671,16 @@ export function schemaWithAutomationHooks(
       ...schema.prompt_formatting,
       narrative: nextHooks.join("\n"),
     },
+  }
+}
+
+export function schemaWithAutomationHookSlots(
+  schema: AutomationSchema,
+  hookSlots: Record<string, string>
+): AutomationSchema {
+  return {
+    ...schema,
+    hook_slots: normalizeHookSlots(hookSlots),
   }
 }
 
@@ -784,7 +792,10 @@ export function automationCollectionIds(
     automationCollectionId(schema, "hook"),
     automationCollectionId(schema, "content"),
     automationCollectionId(schema, "cta"),
-  ].filter((value): value is string => Boolean(value))
+  ].filter(
+    (value, index, values): value is string =>
+      Boolean(value) && values.indexOf(value) === index
+  )
 }
 
 export function schemaWithAutomationCollectionId(
@@ -847,19 +858,109 @@ export function normalizePostingTimes(
   return value.slice(0, 5).map((item) => {
     const record =
       typeof item === "object" && item !== null
-        ? (item as { time?: unknown; days?: unknown })
+        ? (item as { time?: unknown; days?: unknown; enabled?: unknown })
         : {}
     return {
       time:
         typeof record.time === "string" && record.time.trim()
           ? record.time.trim()
-          : "11:00 AM",
+          : defaultAutomationTemplateDefaults.schedule.defaultPostingTime,
       days:
         Array.isArray(record.days) && record.days.length > 0
           ? (record.days as AutomationDay[])
           : allDays,
+      enabled: record.enabled === false ? false : undefined,
     }
   })
+}
+
+function normalizeScheduleInterval(
+  value: unknown,
+  fallback?: AutomationSchedule["interval"]
+): AutomationSchedule["interval"] {
+  const record =
+    typeof value === "object" && value !== null
+      ? (value as {
+          every_n_hours?: unknown
+          start_time?: unknown
+          end_time?: unknown
+          days?: unknown
+          enabled?: unknown
+        })
+      : null
+  if (!record) {
+    return fallback
+  }
+  const everyNHours = Number(record.every_n_hours)
+  if (!Number.isFinite(everyNHours) || everyNHours <= 0) {
+    return fallback
+  }
+  return {
+    every_n_hours: Math.max(1, Math.min(24, Math.floor(everyNHours))),
+    start_time: clean(record.start_time) || "9:00 AM",
+    end_time: clean(record.end_time) || "5:00 PM",
+    days:
+      Array.isArray(record.days) && record.days.length > 0
+        ? (record.days as AutomationDay[])
+        : ["Mon", "Tue", "Wed", "Thu", "Fri"],
+    enabled: record.enabled === false ? false : undefined,
+  }
+}
+
+function normalizeNonNegativeNumber(value: unknown) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+}
+
+function normalizeBoundedNumber(value: unknown, min: number, max: number) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= min && parsed <= max
+    ? parsed
+    : undefined
+}
+
+function normalizeHookSlots(value: unknown) {
+  if (!isRecord(value)) {
+    return undefined
+  }
+  const entries = Object.entries(value)
+    .map(([key, collectionId]) => [clean(key), clean(collectionId)] as const)
+    .filter(([key, collectionId]) => key && collectionId)
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
+}
+
+function normalizeReusePolicy(
+  value: unknown
+): AutomationReusePolicy | undefined {
+  if (!isRecord(value)) {
+    return undefined
+  }
+  const policy: AutomationReusePolicy = {
+    image_exclusion_days: normalizeNonNegativeNumber(
+      value.image_exclusion_days
+    ),
+    image_exclusion_limit: normalizeNonNegativeNumber(
+      value.image_exclusion_limit
+    ),
+    hook_exclusion_days: normalizeNonNegativeNumber(value.hook_exclusion_days),
+    text_exclusion_days: normalizeNonNegativeNumber(value.text_exclusion_days),
+    text_exclusion_limit: normalizeNonNegativeNumber(
+      value.text_exclusion_limit
+    ),
+    text_similarity_threshold: normalizeBoundedNumber(
+      value.text_similarity_threshold,
+      0,
+      1
+    ),
+  }
+  return policy.image_exclusion_days ||
+    policy.image_exclusion_limit ||
+    policy.hook_exclusion_days ||
+    policy.text_exclusion_days ||
+    policy.text_exclusion_limit ||
+    policy.text_similarity_threshold
+    ? policy
+    : undefined
 }
 
 export function automationCreatedAt(automation: Automation, index: number) {
@@ -933,32 +1034,27 @@ function defaultAutomationSection(
 }
 
 function defaultImageCollectionConfig(): ImageCollectionConfig {
+  const defaults = defaultAutomationTemplateDefaults.image_collection_ids
   return {
     first_slide: {
-      collection: "",
-      mode: "collection",
-      single_image: null,
+      ...defaults.first_slide,
     },
-    all_slides: "",
-    aspect_ratio: "9:16",
-    is_bg_overlay_on: true,
+    all_slides: defaults.all_slides,
+    aspect_ratio: defaults.aspect_ratio,
+    is_bg_overlay_on: defaults.is_bg_overlay_on,
     cta_slide: {
-      check: true,
-      cta_collection_check: true,
-      cta_collection_id: "",
-      image_id: null,
-      cta_location: "last_slide",
+      ...defaults.cta_slide,
     },
-    keepOriginalAspectRatio: true,
-    background_opacity: 25,
-    is_bg_overlay_on_hook_image: true,
-    textOnFirstSlideOnly: false,
-    noTextOnSlides: false,
-    autoPullImagesNotCollections: false,
-    autoImagesNoTextOnImages: false,
-    disableAutoImageForFirstSlide: false,
-    video_demo_asset_id: "",
-    language: defaultAutomationLanguage,
+    keepOriginalAspectRatio: defaults.keepOriginalAspectRatio,
+    background_opacity: defaults.background_opacity,
+    is_bg_overlay_on_hook_image: defaults.is_bg_overlay_on_hook_image,
+    textOnFirstSlideOnly: defaults.textOnFirstSlideOnly,
+    noTextOnSlides: defaults.noTextOnSlides,
+    autoPullImagesNotCollections: defaults.autoPullImagesNotCollections,
+    autoImagesNoTextOnImages: defaults.autoImagesNoTextOnImages,
+    disableAutoImageForFirstSlide: defaults.disableAutoImageForFirstSlide,
+    video_demo_asset_id: defaults.video_demo_asset_id,
+    language: defaults.language,
   }
 }
 
@@ -1625,5 +1721,3 @@ function parseJsonRecord(value: string) {
     return {}
   }
 }
-
-

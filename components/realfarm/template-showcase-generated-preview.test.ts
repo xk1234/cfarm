@@ -78,6 +78,65 @@ describe("template showcase generated previews", () => {
     ])
   })
 
+  it("uses rendered automation slides when final slideshow output exists", () => {
+    const slideshows = generatedExampleSlideshows([
+      {
+        id: "automation-run-1",
+        automationTitle: "Daily Mindset",
+        plan: {
+          title: "Planned title",
+          slides: [
+            {
+              id: "planned",
+              imageUrl: "https://example.com/planned.jpg",
+              text: "Planned slide",
+            },
+          ],
+        },
+        renderedSlides: [
+          {
+            id: "rendered-hook",
+            sourceImageUrl: "https://example.com/rendered-source.jpg",
+            text: "Rendered hook",
+            durationMs: 5000,
+          },
+          {
+            id: "rendered-content",
+            role: "content",
+            imageUrl: "https://example.com/rendered.jpg",
+            text: "Rendered content",
+            durationMs: 3000,
+          },
+        ],
+      },
+    ])
+
+    expect(slideshows).toMatchObject([
+      {
+        id: "automation-run-1",
+        title: "Planned title",
+        caption: "Rendered hook",
+        durationSeconds: 8,
+        slides: [
+          {
+            id: "automation-run-1-rendered-hook",
+            imageUrl: "https://example.com/rendered-source.jpg",
+            text: "Rendered hook",
+            section: "hook",
+            durationSeconds: 5,
+          },
+          {
+            id: "automation-run-1-rendered-content",
+            imageUrl: "https://example.com/rendered.jpg",
+            text: "Rendered content",
+            section: "content",
+            durationSeconds: 3,
+          },
+        ],
+      },
+    ])
+  })
+
   it("does not paint an extra text overlay on hook slide previews", () => {
     const markup = TemplateGeneratedPreview({
       exampleSlides: [

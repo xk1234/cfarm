@@ -9,7 +9,6 @@ import {
   IconPhoto,
   IconPhotoPlus,
   IconPlus,
-  IconSearch,
   IconTrash,
   IconUpload,
   IconVideo,
@@ -21,7 +20,9 @@ import { Button } from "@/components/ui/button"
 import { useDismissableLayer } from "@/components/ui/dismissable"
 import {
   LabelledSelect,
+  SearchControl,
   SelectControl,
+  SwitchPillButton,
   ToggleRow,
 } from "@/components/ui/form-controls"
 import { AppModal, AppModalPanel } from "@/components/ui/modal"
@@ -31,6 +32,7 @@ import {
   CollectionPreview,
   ControlRow,
   ControlToggle,
+  MediaCardShell,
   PinterestPreviewTile,
   SlideThumb,
 } from "@/components/realfarm/shared-media"
@@ -157,23 +159,29 @@ export function CollectionsView({
           </span>
         </h1>
         {selectedIds.length > 0 ? (
-          <div className="flex items-center gap-4">
-            <button
-              className="h-11 rounded-[12px] px-4 text-[17px] font-bold text-[#8c8b84] hover:text-[#242421]"
+          <div className="flex items-center gap-2">
+            <Button
+              variant="softControl"
+              size="appDefault"
               onClick={() => setSelectedCollectionIds(new Set())}
             >
               Clear
-            </button>
-            <Button onClick={() => deleteCollections(selectedIds)}>
-              <IconTrash className="mr-2 size-5" />
+            </Button>
+            <Button
+              variant="destructive"
+              size="appDefault"
+              onClick={() => deleteCollections(selectedIds)}
+            >
+              <IconTrash className="size-4" />
               Delete {selectedIds.length}{" "}
               {selectedIds.length === 1 ? "Collection" : "Collections"}
             </Button>
           </div>
         ) : (
-          <div className="flex items-center gap-4">
-            <button
-              className="h-12 rounded-[14px] bg-white px-7 text-[19px] font-bold text-[#242421] shadow-sm ring-1 ring-[#deddd5] hover:bg-white"
+          <div className="flex items-center gap-2">
+            <Button
+              variant="softControl"
+              size="appDefault"
               onClick={() =>
                 onCreateCollection({
                   id: `collection-empty-${Date.now()}`,
@@ -184,14 +192,15 @@ export function CollectionsView({
                 })
               }
             >
+              <IconPhotoPlus className="size-4" />
               Create empty collection
-            </button>
+            </Button>
             <Button
               variant="action"
-              size="largeAction"
+              size="appDefault"
               onClick={() => setSearchOpen(true)}
             >
-              <IconPlus className="size-7" />
+              <IconPlus className="size-4" />
               Add
             </Button>
           </div>
@@ -199,21 +208,17 @@ export function CollectionsView({
       </div>
       {collections.length > 0 && (
         <div className="mb-5 max-w-[440px]">
-          <label className="relative block">
-            <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#8b8a83]" />
-            <input
-              className="h-11 w-full rounded-[10px] border border-[#deddd5] bg-white pr-3 pl-10 text-[14px] font-semibold text-[#242421] shadow-sm outline-none placeholder:text-[#aaa9a2] focus:border-[#b8b6ad]"
-              value={collectionSearch}
-              onChange={(event) => updateCollectionSearch(event.target.value)}
-              placeholder="Search collections"
-              aria-label="Search image collections"
-            />
-          </label>
+          <SearchControl
+            value={collectionSearch}
+            onChange={(event) => updateCollectionSearch(event.target.value)}
+            placeholder="Search collections"
+            aria-label="Search image collections"
+          />
         </div>
       )}
       {collections.length === 0 ? (
         <button
-          className="grid min-h-[470px] w-full place-items-center rounded-[12px] border border-dashed border-[#d3d1c8] bg-[#efefea] text-center"
+          className="app-empty-state grid min-h-[470px] w-full place-items-center text-center transition hover:bg-app-control-hover"
           onClick={() => setSearchOpen(true)}
         >
           <span className="max-w-[360px]">
@@ -232,7 +237,7 @@ export function CollectionsView({
       ) : (
         <>
           {filteredCollections.length === 0 ? (
-            <div className="grid min-h-[260px] place-items-center rounded-[12px] border border-dashed border-[#d3d1c8] bg-[#efefea] text-center">
+            <div className="app-empty-state grid min-h-[260px] place-items-center text-center">
               <span>
                 <span className="block text-[18px] font-semibold">
                   No matching collections
@@ -249,15 +254,18 @@ export function CollectionsView({
                 className="grid grid-cols-[repeat(auto-fill,170px)] gap-5"
               >
                 {visibleCollections.map((collection, index) => (
-                  <article
+                  <MediaCardShell
                     key={collection.id}
-                    className="group relative w-[170px] overflow-hidden rounded-[8px] bg-white text-left shadow-sm ring-1 ring-[#e4e3dc]"
+                    className="group relative w-[170px] text-left"
                   >
                     {!collection.virtual && (
                       <>
-                        <button
+                        <Button
+                          type="button"
+                          variant="iconControl"
+                          size="icon-control-sm"
                           className={cn(
-                            "absolute top-2 left-2 z-10 grid size-6 place-items-center rounded-[5px] border border-[#d7d6cf] bg-white text-[13px] font-bold text-[#ff5626] opacity-0 shadow-sm transition group-hover:opacity-100",
+                            "absolute top-2 left-2 z-10 opacity-0 shadow-sm group-hover:opacity-100",
                             selectedCollectionIds.has(collection.id) &&
                               "opacity-100"
                           )}
@@ -268,9 +276,12 @@ export function CollectionsView({
                           aria-label={`Select ${collection.title}`}
                         >
                           {selectedCollectionIds.has(collection.id) ? "✓" : ""}
-                        </button>
-                        <button
-                          className="absolute top-2 right-2 z-10 grid size-7 place-items-center rounded-[6px] bg-white text-[#e82929] opacity-0 shadow-sm transition group-hover:opacity-100"
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="iconControl"
+                          size="icon-control-sm"
+                          className="absolute top-2 right-2 z-10 text-app-danger opacity-0 shadow-sm group-hover:opacity-100"
                           onClick={(event) => {
                             event.stopPropagation()
                             deleteCollections([collection.id])
@@ -278,7 +289,7 @@ export function CollectionsView({
                           aria-label={`Delete ${collection.title}`}
                         >
                           <IconTrash className="size-4" />
-                        </button>
+                        </Button>
                       </>
                     )}
                     <button
@@ -296,11 +307,11 @@ export function CollectionsView({
                           ) : (
                             <IconPhoto className="size-4 shrink-0 text-[#77766f]" />
                           )}
-                          <div className="truncate text-[17px] leading-6 font-bold">
+                          <div className="truncate text-[14px] leading-5 font-semibold text-app-text">
                             {collection.title}
                           </div>
                         </div>
-                        <div className="mt-1 text-[15px] font-medium text-[#7a7f8a]">
+                        <div className="mt-1 text-[13px] font-medium text-app-muted-text">
                           {collection.images.length}{" "}
                           {collection.mediaType === "video"
                             ? "videos"
@@ -308,15 +319,17 @@ export function CollectionsView({
                         </div>
                       </div>
                     </button>
-                  </article>
+                  </MediaCardShell>
                 ))}
-                <button
-                  className="grid h-[242px] w-[170px] place-items-center rounded-[8px] bg-[#e5e5e0] text-[#77766f]"
+                <Button
+                  type="button"
+                  variant="iconControl"
+                  className="grid h-[242px] w-[170px] place-items-center rounded-[7px] border border-dashed border-app-panel-border bg-app-surface-subtle text-app-muted-text hover:bg-app-control-hover"
                   onClick={() => setSearchOpen(true)}
                   aria-label="Add image collection"
                 >
-                  <IconPlus className="size-10" />
-                </button>
+                  <IconPlus className="size-6" />
+                </Button>
               </div>
               {hasMoreCollections && (
                 <div className="mt-8 flex justify-center">
@@ -625,13 +638,15 @@ export function CollectionDetailView({
     <div className="mx-auto max-w-[1120px]">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <button
-            className="grid size-8 shrink-0 place-items-center rounded-full hover:bg-[#ecebe4]"
+          <Button
+            type="button"
+            variant="iconControl"
+            size="icon-control"
             onClick={onBack}
             aria-label="Back to collections"
           >
             <IconChevronLeft className="size-5" />
-          </button>
+          </Button>
           {editingTitle ? (
             <input
               className="h-8 min-w-[280px] rounded-[6px] border border-[#d9d8d0] bg-white px-2 text-[22px] font-semibold outline-none"
@@ -655,33 +670,39 @@ export function CollectionDetailView({
           )}
           {!readonly && editingTitle && (
             <div className="flex items-center gap-2">
-              <button
-                className="text-[12px] font-semibold text-app-action"
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
                 onClick={saveTitle}
               >
                 Save
-              </button>
-              <button
-                className="text-[12px] font-semibold text-[#8b8a83]"
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
                 onClick={() => {
                   setTitleDraft(collection.title)
                   setEditingTitle(false)
                 }}
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           )}
           {!readonly && !editingTitle && (
-            <button
-              className="text-[12px] font-semibold text-app-action"
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
               onClick={() => {
                 setTitleDraft(collection.title)
                 setEditingTitle(true)
               }}
             >
               Edit
-            </button>
+            </Button>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -765,7 +786,7 @@ export function CollectionDetailView({
       )}
 
       {collection.images.length === 0 ? (
-        <div className="grid min-h-[260px] place-items-center rounded-[8px] bg-[#efeee9] text-center text-[13px] text-[#77766f]">
+        <div className="app-empty-state grid min-h-[260px] place-items-center text-center text-[13px]">
           <span>
             No {collection.mediaType === "video" ? "videos" : "images"} yet.
           </span>
@@ -775,7 +796,8 @@ export function CollectionDetailView({
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <Button
-                variant="outline"
+                variant="softControl"
+                size="compact"
                 onClick={() =>
                   setSelectedImageKeys((current) =>
                     Array.from(new Set([...current, ...visibleImageKeys]))
@@ -785,7 +807,8 @@ export function CollectionDetailView({
                 Select loaded
               </Button>
               <Button
-                variant="outline"
+                variant="softControl"
+                size="compact"
                 onClick={() =>
                   setSelectedImageKeys(collection.images.map(imageKey))
                 }
@@ -794,7 +817,8 @@ export function CollectionDetailView({
               </Button>
               {selectedCount > 0 && (
                 <Button
-                  variant="outline"
+                  variant="softControl"
+                  size="compact"
                   onClick={() => setSelectedImageKeys([])}
                 >
                   Clear
@@ -808,7 +832,11 @@ export function CollectionDetailView({
                   {selectedVisibleCount > 0 ? ` loaded` : ""}
                 </span>
                 {!readonly && (
-                  <Button onClick={deleteSelectedImages}>
+                  <Button
+                    variant="destructive"
+                    size="compact"
+                    onClick={deleteSelectedImages}
+                  >
                     <IconTrash className="size-4" />
                     Delete
                   </Button>
@@ -827,13 +855,13 @@ export function CollectionDetailView({
               const key = imageKey(image)
               const selected = selectedImageKeys.includes(key)
               return (
-                <article
+                <MediaCardShell
                   key={`${key}-${index}`}
                   className={cn(
-                    "relative rounded-[5px] border bg-white p-2 shadow-sm transition",
+                    "relative p-2 transition",
                     selected
                       ? "border-app-action ring-2 ring-app-action/20"
-                      : "border-[#e1e0d8]"
+                      : "border-app-panel-border"
                   )}
                 >
                   <input
@@ -859,8 +887,13 @@ export function CollectionDetailView({
                         {captionFor(image) || "No description"}
                       </div>
                     )}
+                    {image.lastUsedAt ? (
+                      <div className="mt-2 text-[10px] font-semibold tracking-[0.04em] text-[#8a8982] uppercase">
+                        Last used {formatCollectionImageDate(image.lastUsedAt)}
+                      </div>
+                    ) : null}
                   </button>
-                </article>
+                </MediaCardShell>
               )
             })}
           </div>
@@ -957,6 +990,17 @@ export function CollectionDetailView({
   )
 }
 
+function formatCollectionImageDate(value: string) {
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) {
+    return "recently"
+  }
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  })
+}
+
 function CollectionAutomationEditor({
   collection,
   onClose,
@@ -980,13 +1024,16 @@ function CollectionAutomationEditor({
       <AppModalPanel className="relative grid max-w-[760px] rounded-[10px] bg-[#d0d0cc] md:grid-cols-[255px_1fr]">
         <div className="flex min-h-[520px] flex-col bg-white p-4">
           <div className="mb-5 flex items-center justify-between text-[13px]">
-            <button
-              className="flex items-center gap-2 text-[#686761]"
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              className="justify-start"
               onClick={onClose}
             >
               <IconChevronLeft className="size-4" />
               Back
-            </button>
+            </Button>
             <div className="flex gap-2 text-[#8c8b84]">
               <IconList className="size-4" />
               <IconLayoutDashboard className="size-4" />
@@ -1010,21 +1057,11 @@ function CollectionAutomationEditor({
           {activeTab === "CTA" ? (
             <div className="mt-5 flex items-center justify-between text-[14px] font-semibold">
               Enable CTA
-              <button
-                className={cn(
-                  "flex h-7 w-12 items-center rounded-full p-1 transition",
-                  ctaEnabled ? "bg-app-action" : "bg-[#ecece8]"
-                )}
+              <SwitchPillButton
+                enabled={ctaEnabled}
                 onClick={() => setCtaEnabled((value) => !value)}
                 aria-label="Enable CTA"
-              >
-                <span
-                  className={cn(
-                    "block size-5 rounded-full bg-white shadow-sm transition",
-                    ctaEnabled && "translate-x-5"
-                  )}
-                />
-              </button>
+              />
             </div>
           ) : (
             <>
@@ -1062,8 +1099,11 @@ function CollectionAutomationEditor({
               )}
             </>
           )}
-          <button
-            className="mt-auto w-full rounded-[8px] bg-[#ff5626] py-3 text-[14px] font-semibold text-white hover:bg-[#ed4d22]"
+          <Button
+            type="button"
+            variant="action"
+            size="appDefault"
+            className="mt-auto w-full"
             onClick={() => {
               if (activeTab === "CTA") {
                 onClose()
@@ -1073,7 +1113,7 @@ function CollectionAutomationEditor({
             }}
           >
             {activeTab === "CTA" ? "Save Changes" : "Create automation"}
-          </button>
+          </Button>
         </div>
 
         <div className="min-h-[520px] p-6">
@@ -1175,9 +1215,13 @@ function CollectionAutomationEditor({
               placeholder="e.g. A bold hook about..."
             />
             <div className="mt-4 flex items-center justify-between text-[12px]">
-              <button className="text-[#8b8a83]">Advanced ^</button>
+              <Button type="button" variant="ghost" size="xs">
+                Advanced ^
+              </Button>
               <div className="flex gap-4">
-                <button className="text-app-action">+ Add text</button>
+                <Button type="button" variant="ghost" size="xs">
+                  + Add text
+                </Button>
               </div>
             </div>
           </div>

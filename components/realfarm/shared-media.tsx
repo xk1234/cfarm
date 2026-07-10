@@ -9,6 +9,7 @@ import {
 import type { ReactNode } from "react"
 
 import { SelectLike } from "@/components/ui/form-controls"
+import { Spinner } from "@/components/ui/spinner"
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { Video } from "@/lib/realfarm-data"
 import type { PinterestSearchResult } from "@/lib/pinterest-search"
@@ -169,11 +170,9 @@ export function MediaPendingState({
         className
       )}
     >
+      <Spinner size={26} aria-label={label} />
       <div className="text-[13px] font-semibold text-app-muted-text">
         {label}
-      </div>
-      <div className="h-1.5 w-full max-w-[140px] overflow-hidden rounded-full bg-app-control-hover">
-        <div className="h-full w-2/5 animate-[shimmer_1.5s_ease-in-out_infinite] rounded-full bg-app-text" />
       </div>
     </MediaFrame>
   )

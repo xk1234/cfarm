@@ -202,3 +202,103 @@ export type CharacterAssetCategoryByTab = Record<
   CharacterAssetTab,
   AssetCategory
 >
+
+export type CharacterWorkflowKey =
+  | "free_generate"
+  | "recreate_reference"
+  | "build_modules"
+  | "batch_photo_dump"
+  | "tiktok_slideshow"
+  | "product_ugc"
+  | "animate_image"
+  | "motion_control"
+  | "seedream_bedroom_selfie"
+  | "outfit_transfer"
+  | "pose_variation_cut_video"
+
+export type CharacterWorkflowOption = {
+  key: CharacterWorkflowKey
+  label: string
+  description: string
+  placeholder: string
+}
+
+export const characterWorkflowOptionsConfig: CharacterWorkflowOption[] = [
+  {
+    key: "free_generate",
+    label: "Free Generate",
+    description: "Create a scene from text.",
+    placeholder: "Describe a scene, pose, outfit, background...",
+  },
+  {
+    key: "recreate_reference",
+    label: "Recreate Reference",
+    description: "Use a reference for pose, camera, composition, and vibe.",
+    placeholder: "Optional: describe what to change from the reference...",
+  },
+  {
+    key: "build_modules",
+    label: "Build From Modules",
+    description: "Pick pose, outfit, camera, and background modules.",
+    placeholder: "Describe extra details for the selected modules...",
+  },
+  {
+    key: "batch_photo_dump",
+    label: "Batch Photo Dump",
+    description: "Generate a related lifestyle image set.",
+    placeholder: "Describe the photo dump theme...",
+  },
+  {
+    key: "tiktok_slideshow",
+    label: "TikTok Slideshow",
+    description: "Create a slide-by-slide UGC photo set.",
+    placeholder: "Describe the slideshow topic, vibe, or story...",
+  },
+  {
+    key: "product_ugc",
+    label: "Product UGC",
+    description: "Create ad-style images around a product and angle.",
+    placeholder: "Describe the product angle, hook, or audience...",
+  },
+  {
+    key: "animate_image",
+    label: "Animate Image",
+    description: "Start from a generated image and turn it into video.",
+    placeholder: "Describe the source image or motion you want...",
+  },
+  {
+    key: "motion_control",
+    label: "Motion Control",
+    description:
+      "Apply a trending reference video's movement to this character.",
+    placeholder: "Paste the trending video URL or describe motion changes...",
+  },
+  {
+    key: "seedream_bedroom_selfie",
+    label: "Seedream Selfie",
+    description: "Generate a styled bedroom selfie from preset prompts.",
+    placeholder: "Optional changes for the selected selfie preset...",
+  },
+  {
+    key: "outfit_transfer",
+    label: "Outfit Transfer",
+    description: "Put the character into clothing from an outfit reference.",
+    placeholder: "Optional clothing transfer notes...",
+  },
+  {
+    key: "pose_variation_cut_video",
+    label: "Pose Cut Video",
+    description:
+      "Create a pose variation, animate start/end frames, add cuts and music.",
+    placeholder: "Optional notes for the pose variation video...",
+  },
+]
+
+export const editCharacterWorkflowKeysConfig: CharacterWorkflowKey[] = [
+  "recreate_reference",
+  "animate_image",
+  "motion_control",
+  "seedream_bedroom_selfie",
+  "outfit_transfer",
+  "pose_variation_cut_video",
+]

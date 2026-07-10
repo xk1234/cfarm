@@ -35,6 +35,7 @@ describe("extension Twitter/X support", () => {
 
     expect(manifest.host_permissions).toContain("https://x.com/*")
     expect(manifest.host_permissions).toContain("https://twitter.com/*")
+    expect(manifest.content_scripts[0].js).toEqual(["platform-adapters.js", "content.js"])
     expect(manifest.content_scripts[0].matches).toContain("https://x.com/*")
     expect(manifest.content_scripts[0].matches).toContain("https://twitter.com/*")
   })
@@ -45,6 +46,28 @@ describe("extension Twitter/X support", () => {
     expect(platformFor("x.com")).toBe("twitter")
     expect(platformFor("twitter.com")).toBe("twitter")
     expect(platformFor("mobile.twitter.com")).toBe("twitter")
+  })
+
+  it("exposes platform adapter metadata for candidate and button routing", async () => {
+    const context = await loadContentScriptContext()
+
+    expect(
+      context.__platformAdapters().map((adapter) => [
+        adapter.adapter,
+        adapter.candidateMode,
+        adapter.buttonMode,
+      ])
+    ).toEqual(
+      expect.arrayContaining([
+        ["meta", "metaDetails", "metaDetails"],
+        ["tiktokCreativeCenter", "tiktokCreativeCenter", "tiktokCreativeCenter"],
+        ["tiktokVideo", "tiktokVideo", "tiktokVideo"],
+        ["xTwitter", "xTwitter", "card"],
+        ["googleAdsTransparency", "googleAdsTransparency", "googleAdsTransparency"],
+        ["googleAdsMarketing", "none", "none"],
+        ["tumblr", "backgroundCapture", "none"],
+      ])
+    )
   })
 
   it("builds a Twitter swipe payload from a status article", async () => {
@@ -386,6 +409,68 @@ describe("extension TikTok Creative Center trends support", () => {
   })
 })
 
+describe("extension page-specific button routing", () => {
+  it("uses Google Transparency creative-preview tiles instead of a fixed body button", async () => {
+    const context = await loadContentScriptContext()
+    context.location.hostname = "adstransparency.google.com"
+    context.location.pathname = "/"
+    context.location.href = "https://adstransparency.google.com/advertiser/AR123?region=SG"
+    const creative = makeGoogleTransparencyCreative(context)
+    ;(context.document as { querySelectorAll: (selector: string) => unknown[] }).querySelectorAll = (selector: string) =>
+      selector === "creative-preview, a[href*='/advertiser/'][href*='/creative/'][aria-label^='Advertisement']" ? [creative, creative.link] : []
+
+    expect(context.__cardCandidates()).toEqual([creative])
+    expect(context.__injectGoogleAdsTransparencyButtons()).toBeUndefined()
+    expect(creative.querySelector("[data-cfarm-swipe='true']")).toBeTruthy()
+    expect(context.__buildPayload(creative)).toMatchObject({
+      advertiser: "NIKE GLOBAL TRADING B.V. SINGAPORE BRANCH",
+      platform: "google",
+      sourceUrl: "https://adstransparency.google.com/advertiser/AR123/creative/CR456?region=SG",
+      metadata: {
+        CreativeURL: "https://adstransparency.google.com/advertiser/AR123/creative/CR456?region=SG",
+      },
+    })
+  })
+
+  it("does not fall back to generic card selectors on ads.google.com marketing pages", async () => {
+    const context = await loadContentScriptContext()
+    context.location.hostname = "ads.google.com"
+    context.location.pathname = "/"
+    context.location.href = "https://ads.google.com/"
+    ;(context.document as { querySelectorAll: (selector: string) => unknown[] }).querySelectorAll = () => [
+      makeGenericCardLikeElement(context, "Offer A $600 in ad credit"),
+    ]
+
+    expect(context.__platform()).toBe("google-ads")
+    expect(context.__cardCandidates()).toEqual([])
+  })
+
+  it("uses TikTok feed article selectors on canonical video pages", async () => {
+    const context = await loadContentScriptContext()
+    context.location.hostname = "www.tiktok.com"
+    context.location.pathname = "/@tiktok/video/7659909888675466527"
+    context.location.href = "https://www.tiktok.com/@tiktok/video/7659909888675466527"
+    const article = makeTikTokFeedArticle(context)
+    ;(context.document as { querySelectorAll: (selector: string) => unknown[] }).querySelectorAll = (selector: string) =>
+      selector === "article[data-e2e='recommend-list-item-container']" ? [article] : []
+
+    expect(context.__cardCandidates()).toEqual([article])
+    expect(context.__injectTikTokFeedVideoButtons()).toBe(1)
+    expect(article.querySelector("[data-cfarm-swipe='true']")).toBeTruthy()
+    expect(context.__buildPayload(article)).toMatchObject({
+      advertiser: "@tiktok",
+      platform: "tiktok",
+      sourceUrl: "https://www.tiktok.com/@tiktok/video/7659909888675466527",
+      caption: "Public TikTok video caption",
+      stats: {
+        Likes: "2979",
+        Comments: "983",
+        Shares: "253",
+      },
+    })
+  })
+})
+
 async function loadPlatformFunction() {
   const context = await loadContentScriptContext()
   return (hostname: string) => {
@@ -395,6 +480,7 @@ async function loadPlatformFunction() {
 }
 
 async function loadContentScriptContext() {
+  const adaptersSource = await readFile(path.join(process.cwd(), "extension", "platform-adapters.js"), "utf8")
   const source = await readFile(path.join(process.cwd(), "extension", "content.js"), "utf8")
   const context = {
     location: { hostname: "x.com", pathname: "/", href: "https://x.com/home", search: "" },
@@ -439,14 +525,21 @@ async function loadContentScriptContext() {
     chrome: { runtime: { sendMessage: () => undefined } },
   }
 
-  vm.runInNewContext(`${source}\nglobalThis.__platform = platform\nglobalThis.__buildPayload = buildPayload\nglobalThis.__buildSwipePayload = buildSwipePayload\nglobalThis.__cardCandidates = cardCandidates\nglobalThis.__injectTikTokTrendVideoButtons = injectTikTokTrendVideoButtons\nglobalThis.__injectTikTokSellerInspirationVideoButtons = injectTikTokSellerInspirationVideoButtons\nglobalThis.__trendInsertionPoint = tiktokTrendVideoInsertionPoint\nglobalThis.__trendDetailPayload = tiktokTrendVideoDetailPayload\nglobalThis.__isAlreadySwiped = isAlreadySwiped\nglobalThis.__swipeCandidateKeys = swipeCandidateKeys\nglobalThis.__setSwipedIndexForTests = (swipes) => { swipedIndex.keys = buildSwipedKeyIndex(swipes); swipedIndex.loaded = true; swipedIndex.unavailable = false; swipedIndex.loading = false }`, context)
+  vm.runInNewContext(`${adaptersSource}\n${source}\nglobalThis.__platform = platform\nglobalThis.__platformAdapters = platformAdapters\nglobalThis.__buildPayload = buildPayload\nglobalThis.__buildSwipePayload = buildSwipePayload\nglobalThis.__cardCandidates = cardCandidates\nglobalThis.__injectTikTokTrendVideoButtons = injectTikTokTrendVideoButtons\nglobalThis.__injectTikTokSellerInspirationVideoButtons = injectTikTokSellerInspirationVideoButtons\nglobalThis.__injectTikTokFeedVideoButtons = injectTikTokFeedVideoButtons\nglobalThis.__injectGoogleAdsTransparencyButtons = injectGoogleAdsTransparencyButtons\nglobalThis.__trendInsertionPoint = tiktokTrendVideoInsertionPoint\nglobalThis.__trendDetailPayload = tiktokTrendVideoDetailPayload\nglobalThis.__isAlreadySwiped = isAlreadySwiped\nglobalThis.__swipeCandidateKeys = swipeCandidateKeys\nglobalThis.__setSwipedIndexForTests = (swipes) => { swipedIndex.keys = buildSwipedKeyIndex(swipes); swipedIndex.loaded = true; swipedIndex.unavailable = false; swipedIndex.loading = false }`, context)
   return context as typeof context & {
     __platform: () => string
+    __platformAdapters: () => {
+      adapter: string
+      candidateMode: string
+      buttonMode: string
+    }[]
     __buildPayload: (container: unknown) => Record<string, unknown>
     __buildSwipePayload: (container: unknown) => Promise<Record<string, unknown>>
     __cardCandidates: () => unknown[]
     __injectTikTokTrendVideoButtons: () => number
     __injectTikTokSellerInspirationVideoButtons: () => number
+    __injectTikTokFeedVideoButtons: () => number
+    __injectGoogleAdsTransparencyButtons: () => void
     __trendInsertionPoint: (container: unknown) => unknown
     __trendDetailPayload: (root: unknown) => Record<string, unknown>
     __isAlreadySwiped: (container: unknown) => boolean
@@ -488,6 +581,256 @@ async function loadBackgroundScriptContext() {
       normalizeInterceptedImageUrl: (value: string) => string
     }
   }
+}
+
+function makeGenericCardLikeElement(context: Awaited<ReturnType<typeof loadContentScriptContext>>, label: string) {
+  class FakeElement extends context.HTMLElement {
+    nodeType = 1
+    childNodes = [{ nodeType: 3, nodeValue: label }]
+    style = {}
+
+    hasAttribute() {
+      return false
+    }
+
+    getAttribute() {
+      return ""
+    }
+
+    querySelector() {
+      return null
+    }
+
+    querySelectorAll() {
+      return []
+    }
+
+    closest() {
+      return null
+    }
+
+    getBoundingClientRect() {
+      return { width: 280, height: 160 }
+    }
+  }
+
+  return new FakeElement()
+}
+
+function makeGoogleTransparencyCreative(context: Awaited<ReturnType<typeof loadContentScriptContext>>) {
+  class FakeElement extends context.HTMLElement {
+    nodeType = 1
+    childNodes: unknown[] = []
+    parentElement: FakeElement | null = null
+    style = {}
+    currentSrc = ""
+    src = ""
+    naturalWidth = 0
+    naturalHeight = 0
+    width = 0
+    height = 0
+
+    constructor(
+      private readonly tagNameValue: string,
+      private readonly selectorMap: Record<string, unknown[]> = {},
+      private readonly attrs: Record<string, string> = {},
+      childNodes: unknown[] = [],
+    ) {
+      super()
+      this.childNodes = childNodes
+    }
+
+    get tagName() {
+      return this.tagNameValue.toUpperCase()
+    }
+
+    hasAttribute(name: string) {
+      return Object.hasOwn(this.attrs, name)
+    }
+
+    setAttribute(name: string, value: string) {
+      this.attrs[name] = value
+    }
+
+    getAttribute(name: string) {
+      return this.attrs[name] ?? ""
+    }
+
+    matches(selector: string) {
+      if (selector === "creative-preview") return this.tagNameValue === "creative-preview"
+      if (selector === "a[href*='/advertiser/'][href*='/creative/'][aria-label^='Advertisement']") {
+        return this.tagNameValue === "a" && this.getAttribute("href").includes("/advertiser/") && this.getAttribute("href").includes("/creative/") && this.getAttribute("aria-label").startsWith("Advertisement")
+      }
+      if (selector === "a[href*='/advertiser/'][href*='/creative/']") {
+        return this.tagNameValue === "a" && this.getAttribute("href").includes("/advertiser/") && this.getAttribute("href").includes("/creative/")
+      }
+      return false
+    }
+
+    querySelector(selector: string) {
+      return this.querySelectorAll(selector)[0] ?? null
+    }
+
+    querySelectorAll(selector: string) {
+      if (selector === "[data-cfarm-swipe='true']") {
+        return this.childNodes.filter((child) => (child as { getAttribute?: (name: string) => string }).getAttribute?.("data-cfarm-swipe") === "true")
+      }
+      return this.selectorMap[selector] ?? []
+    }
+
+    appendChild(child: FakeElement) {
+      child.parentElement = this
+      this.childNodes.push(child)
+      return child
+    }
+
+    closest(selector: string) {
+      if (selector === "creative-preview") {
+        let current: FakeElement | null = this
+        while (current) {
+          if (current.matches("creative-preview")) return current
+          current = current.parentElement
+        }
+      }
+      return null
+    }
+
+    getBoundingClientRect() {
+      return { width: this.width || 496, height: this.height || 256 }
+    }
+  }
+
+  const text = (value: string) => ({ nodeType: 3, nodeValue: value })
+  const image = new FakeElement("img")
+  image.currentSrc = "https://tpc.googlesyndication.com/google-ad.jpg"
+  image.src = image.currentSrc
+  image.naturalWidth = 600
+  image.naturalHeight = 400
+  const link = new FakeElement("a", {}, {
+    href: "/advertiser/AR123/creative/CR456?region=SG",
+    "aria-label": "Advertisement (1 of 80)",
+  })
+  const creative = new FakeElement(
+    "creative-preview",
+    {
+      "a[href*='/advertiser/'][href*='/creative/']": [link],
+      img: [image],
+      video: [],
+      "*": [link, image],
+    },
+    {},
+    [text("NIKE GLOBAL TRADING B.V. SINGAPORE BRANCH Verified"), link, image],
+  ) as FakeElement & { link: FakeElement }
+  link.parentElement = creative
+  image.parentElement = creative
+  creative.link = link
+  return creative
+}
+
+function makeTikTokFeedArticle(context: Awaited<ReturnType<typeof loadContentScriptContext>>) {
+  class FakeElement extends context.HTMLElement {
+    nodeType = 1
+    childNodes: unknown[] = []
+    parentElement: FakeElement | null = null
+    style = {}
+    currentSrc = ""
+    src = ""
+    naturalWidth = 0
+    naturalHeight = 0
+    width = 0
+    height = 0
+
+    constructor(
+      private readonly tagNameValue: string,
+      private readonly selectorMap: Record<string, unknown[]> = {},
+      private readonly attrs: Record<string, string> = {},
+      childNodes: unknown[] = [],
+    ) {
+      super()
+      this.childNodes = childNodes
+    }
+
+    get tagName() {
+      return this.tagNameValue.toUpperCase()
+    }
+
+    hasAttribute(name: string) {
+      return Object.hasOwn(this.attrs, name)
+    }
+
+    setAttribute(name: string, value: string) {
+      this.attrs[name] = value
+    }
+
+    getAttribute(name: string) {
+      return this.attrs[name] ?? ""
+    }
+
+    matches(selector: string) {
+      return selector === "article[data-e2e='recommend-list-item-container']" && this.tagNameValue === "article" && this.getAttribute("data-e2e") === "recommend-list-item-container"
+    }
+
+    querySelector(selector: string) {
+      return this.querySelectorAll(selector)[0] ?? null
+    }
+
+    querySelectorAll(selector: string) {
+      if (selector === "[data-cfarm-swipe='true']") {
+        return this.childNodes.filter((child) => (child as { getAttribute?: (name: string) => string }).getAttribute?.("data-cfarm-swipe") === "true")
+      }
+      return this.selectorMap[selector] ?? []
+    }
+
+    appendChild(child: FakeElement) {
+      child.parentElement = this
+      this.childNodes.push(child)
+      return child
+    }
+
+    insertAdjacentElement(_position: string, element: FakeElement) {
+      element.parentElement = this.parentElement
+      this.parentElement?.childNodes.push(element)
+      return element
+    }
+
+    closest() {
+      return null
+    }
+
+    getBoundingClientRect() {
+      return { width: this.width || 563, height: this.height || 920, top: 0, bottom: 920 }
+    }
+  }
+
+  const text = (value: string) => ({ nodeType: 3, nodeValue: value })
+  const desc = new FakeElement("div", {}, { "data-e2e": "video-desc" }, [text("Public TikTok video caption")])
+  const likeCount = new FakeElement("strong", {}, { "data-e2e": "like-count" }, [text("2979")])
+  const commentCount = new FakeElement("strong", {}, { "data-e2e": "comment-count" }, [text("983")])
+  const shareCount = new FakeElement("strong", {}, { "data-e2e": "share-count" }, [text("253")])
+  const video = new FakeElement("video")
+  video.currentSrc = "blob:https://www.tiktok.com/video"
+  const profileLink = new FakeElement("a", {}, { href: "https://www.tiktok.com/@tiktok" }, [text("tiktok")])
+  const media = new FakeElement("section", {}, { "data-e2e": "feed-video" }, [profileLink, desc, video])
+  const article = new FakeElement(
+    "article",
+    {
+      "section[data-e2e='feed-video']": [media],
+      video: [video],
+      "[data-e2e='video-desc']": [desc],
+      "[data-e2e='like-count']": [likeCount],
+      "[data-e2e='comment-count']": [commentCount],
+      "[data-e2e='share-count']": [shareCount],
+      "a[href^='https://www.tiktok.com/@'], a[href^='/@']": [profileLink],
+      img: [],
+      "*": [media, profileLink, desc, video, likeCount, commentCount, shareCount],
+    },
+    { "data-e2e": "recommend-list-item-container" },
+    [profileLink, desc, video, likeCount, commentCount, shareCount],
+  )
+  for (const child of [media, profileLink, desc, video, likeCount, commentCount, shareCount]) {
+    child.parentElement = child === media ? article : media
+  }
+  return article
 }
 
 function makeTweetArticle(context: Awaited<ReturnType<typeof loadContentScriptContext>>) {

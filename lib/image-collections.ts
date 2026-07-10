@@ -1,8 +1,9 @@
 import { clean } from "@/lib/guards"
-import { randomUUID } from "node:crypto"
-import { mkdir, rm, writeFile } from "node:fs/promises"
+import { createHash, randomUUID } from "node:crypto"
+import { readFile, rm } from "node:fs/promises"
 import path from "node:path"
 
+import { persistAsset } from "@/lib/asset-storage"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
 export type StoredImageCollection = {
@@ -11,28 +12,49 @@ export type StoredImageCollection = {
   images: {
     image_link: string
     caption: string
+    hash?: string
+    last_used_at?: string
   }[]
 }
 
-export type ImageCollectionDeleteInput = Pick<StoredImageCollection, "name" | "created_at">
+export type ImageCollectionDeleteInput = Pick<
+  StoredImageCollection,
+  "name" | "created_at"
+>
 
-const IMAGE_COLLECTIONS_DB_PATH = path.join(process.cwd(), "data", "image-collections.json")
-const IMAGE_COLLECTION_FILES_DIR = path.join(process.cwd(), "data", "image-collections", "files")
-const IMAGE_COLLECTION_PUBLIC_PREFIX = "/api/local-assets/image-collections/files"
+const IMAGE_COLLECTIONS_DB_PATH = path.join(
+  process.cwd(),
+  "data",
+  "image-collections.json"
+)
+const IMAGE_COLLECTION_FILES_DIR = path.join(
+  process.cwd(),
+  "data",
+  "image-collections",
+  "files"
+)
+const IMAGE_COLLECTION_PUBLIC_PREFIX =
+  "/api/local-assets/image-collections/files"
 const MAX_IMPORT_IMAGES = 80
 const MAX_IMPORT_IMAGE_BYTES = 16 * 1024 * 1024
 
 export async function listImageCollections() {
-  return readImageCollectionsFile()
+  return collectionsWithLastUsedAt(await readImageCollectionsFile())
 }
 
 export async function upsertImageCollection(collection: StoredImageCollection) {
   const current = await readImageCollectionsFile()
-  const nextCollection = normalizeCollection(collection)
-  const existingIndex = current.findIndex((item) => collectionNameKey(item) === collectionNameKey(nextCollection))
+  const nextCollection = normalizeCollection(
+    await collectionWithLocalImageHashes(collection)
+  )
+  const existingIndex = current.findIndex(
+    (item) => collectionNameKey(item) === collectionNameKey(nextCollection)
+  )
   const next = [
     nextCollection,
-    ...current.filter((item) => collectionNameKey(item) !== collectionNameKey(nextCollection)),
+    ...current.filter(
+      (item) => collectionNameKey(item) !== collectionNameKey(nextCollection)
+    ),
   ]
 
   await writeImageCollectionsFile(next)
@@ -42,18 +64,24 @@ export async function upsertImageCollection(collection: StoredImageCollection) {
   return nextCollection
 }
 
-export async function updateImageCollectionCaptions(collection: StoredImageCollection) {
+export async function updateImageCollectionCaptions(
+  collection: StoredImageCollection
+) {
   return upsertImageCollection(collection)
 }
 
-export async function deleteImageCollections(collections: ImageCollectionDeleteInput[]) {
+export async function deleteImageCollections(
+  collections: ImageCollectionDeleteInput[]
+) {
   const requestedKeys = new Set(
     collections
-      .map((collection) => collectionKey({
-        name: clean(collection.name),
-        created_at: clean(collection.created_at),
-        images: [],
-      }))
+      .map((collection) =>
+        collectionKey({
+          name: clean(collection.name),
+          created_at: clean(collection.created_at),
+          images: [],
+        })
+      )
       .filter((key) => key !== "::")
   )
   if (requestedKeys.size === 0) {
@@ -61,8 +89,12 @@ export async function deleteImageCollections(collections: ImageCollectionDeleteI
   }
 
   const current = await readImageCollectionsFile()
-  const deleted = current.filter((collection) => requestedKeys.has(collectionKey(collection)))
-  const next = current.filter((collection) => !requestedKeys.has(collectionKey(collection)))
+  const deleted = current.filter((collection) =>
+    requestedKeys.has(collectionKey(collection))
+  )
+  const next = current.filter(
+    (collection) => !requestedKeys.has(collectionKey(collection))
+  )
 
   await writeImageCollectionsFile(next)
   const deletedFiles = await deleteUnusedLocalCollectionFiles(deleted, next)
@@ -80,7 +112,10 @@ export async function importRemoteImagesToCollection(input: {
   fetchImpl?: typeof fetch
 }) {
   const imageInputs = Array.isArray(input.images) ? input.images : []
-  const uniqueImages = dedupeImportImages(imageInputs).slice(0, MAX_IMPORT_IMAGES)
+  const uniqueImages = dedupeImportImages(imageInputs).slice(
+    0,
+    MAX_IMPORT_IMAGES
+  )
   if (uniqueImages.length === 0) {
     throw new Error("No images to import")
   }
@@ -88,7 +123,12 @@ export async function importRemoteImagesToCollection(input: {
   const current = await readImageCollectionsFile()
   const requestedName = clean(input.collectionName) || "Tumblr import"
   const requestedCreatedAt = clean(input.collectionCreatedAt)
-  const existing = current.find((collection) => collectionNameKey(collection) === collectionNameKey({ name: requestedName })) ?? null
+  const existing =
+    current.find(
+      (collection) =>
+        collectionNameKey(collection) ===
+        collectionNameKey({ name: requestedName })
+    ) ?? null
   const baseCollection: StoredImageCollection = existing ?? {
     name: requestedName,
     created_at: requestedCreatedAt || new Date().toISOString(),
@@ -106,20 +146,33 @@ export async function importRemoteImagesToCollection(input: {
     importedImages.push({
       image_link: saved.publicUrl,
       caption: clean(image.caption),
+      hash: saved.hash,
     })
   }
 
-  const existingLinks = new Set(baseCollection.images.map((image) => image.image_link))
+  const existingLinks = new Set(
+    baseCollection.images.map((image) => image.image_link)
+  )
+  const existingHashes = new Set(
+    baseCollection.images.map((image) => clean(image.hash)).filter(Boolean)
+  )
   const nextCollection = normalizeCollection({
     ...baseCollection,
     images: [
-      ...importedImages.filter((image) => !existingLinks.has(image.image_link)),
+      ...importedImages.filter(
+        (image) =>
+          !existingLinks.has(image.image_link) &&
+          (!image.hash || !existingHashes.has(image.hash))
+      ),
       ...baseCollection.images,
     ],
   })
   const next = [
     nextCollection,
-    ...current.filter((collection) => collectionNameKey(collection) !== collectionNameKey(nextCollection)),
+    ...current.filter(
+      (collection) =>
+        collectionNameKey(collection) !== collectionNameKey(nextCollection)
+    ),
   ]
 
   await writeImageCollectionsFile(next)
@@ -137,7 +190,9 @@ function collectionNameKey(collection: Pick<StoredImageCollection, "name">) {
   return clean(collection.name).toLowerCase()
 }
 
-function normalizeCollection(collection: StoredImageCollection): StoredImageCollection {
+function normalizeCollection(
+  collection: StoredImageCollection
+): StoredImageCollection {
   return {
     name: clean(collection.name) || "Untitled collection",
     created_at: clean(collection.created_at) || new Date().toISOString(),
@@ -147,9 +202,50 @@ function normalizeCollection(collection: StoredImageCollection): StoredImageColl
           if (!imageLink) {
             return []
           }
-          return [{ image_link: imageLink, caption: clean(image.caption) }]
+          const hash = clean(image.hash)
+          return [
+            {
+              image_link: imageLink,
+              caption: clean(image.caption),
+              ...(hash ? { hash } : {}),
+            },
+          ]
         })
       : [],
+  }
+}
+
+async function collectionWithLocalImageHashes(
+  collection: StoredImageCollection
+): Promise<StoredImageCollection> {
+  if (!Array.isArray(collection.images)) {
+    return collection
+  }
+
+  const images = await Promise.all(
+    collection.images.map(async (image) => {
+      if (clean(image.hash)) {
+        return image
+      }
+      const filePath = localCollectionFilePath(clean(image.image_link))
+      if (!filePath) {
+        return image
+      }
+      try {
+        const bytes = await readFile(filePath)
+        return {
+          ...image,
+          hash: createHash("sha256").update(bytes).digest("hex"),
+        }
+      } catch {
+        return image
+      }
+    })
+  )
+
+  return {
+    ...collection,
+    images,
   }
 }
 
@@ -191,7 +287,9 @@ function localCollectionFilePath(imageLink: string) {
     return null
   }
 
-  const encodedFileName = imageLink.slice(`${IMAGE_COLLECTION_PUBLIC_PREFIX}/`.length).split(/[?#]/)[0]
+  const encodedFileName = imageLink
+    .slice(`${IMAGE_COLLECTION_PUBLIC_PREFIX}/`.length)
+    .split(/[?#]/)[0]
   let fileName = ""
   try {
     fileName = decodeURIComponent(encodedFileName)
@@ -217,6 +315,52 @@ async function readImageCollectionsFile(): Promise<StoredImageCollection[]> {
   })
 }
 
+async function collectionsWithLastUsedAt(
+  collections: StoredImageCollection[]
+): Promise<StoredImageCollection[]> {
+  const lastUsedByKey = await readImageLastUsedDates()
+  if (lastUsedByKey.size === 0) {
+    return collections
+  }
+
+  return collections.map((collection) => ({
+    ...collection,
+    images: collection.images.map((image) => {
+      const lastUsedAt =
+        (image.hash ? lastUsedByKey.get(image.hash) : undefined) ??
+        lastUsedByKey.get(image.image_link)
+      return lastUsedAt ? { ...image, last_used_at: lastUsedAt } : image
+    }),
+  }))
+}
+
+async function readImageLastUsedDates() {
+  const records = await readJsonArrayStore<{
+    kind?: string
+    key?: string
+    used_at?: string
+  }>({
+    rootDir: path.dirname(IMAGE_COLLECTIONS_DB_PATH),
+    fileName: "usage-ledger.json",
+    key: "usage",
+    normalize: (record) => {
+      const key = clean(record.key)
+      const usedAt = clean(record.used_at)
+      return record.kind === "image" && key && usedAt
+        ? { kind: "image", key, used_at: usedAt }
+        : null
+    },
+  })
+  const lastUsedByKey = new Map<string, string>()
+  for (const record of records) {
+    const previous = lastUsedByKey.get(record.key!)
+    if (!previous || Date.parse(record.used_at!) > Date.parse(previous)) {
+      lastUsedByKey.set(record.key!, record.used_at!)
+    }
+  }
+  return lastUsedByKey
+}
+
 async function writeImageCollectionsFile(collections: StoredImageCollection[]) {
   await writeJsonArrayStore({
     rootDir: path.dirname(IMAGE_COLLECTIONS_DB_PATH),
@@ -226,7 +370,9 @@ async function writeImageCollectionsFile(collections: StoredImageCollection[]) {
   })
 }
 
-function dedupeImportImages(images: { url?: string; caption?: string; sourceUrl?: string }[]) {
+function dedupeImportImages(
+  images: { url?: string; caption?: string; sourceUrl?: string }[]
+) {
   const seen = new Set<string>()
   const next = []
   for (const image of images) {
@@ -252,16 +398,20 @@ async function downloadImageToCollectionFile(input: {
 }) {
   const response = await (input.fetchImpl ?? fetch)(input.url, {
     headers: {
-      Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+      Accept:
+        "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
       Referer: safeHttpUrl(input.sourceUrl || "") || "https://www.tumblr.com/",
-      "User-Agent": "Mozilla/5.0 (compatible; cfarm-image-collection-import/1.0)",
+      "User-Agent":
+        "Mozilla/5.0 (compatible; cfarm-image-collection-import/1.0)",
     },
   })
   if (!response.ok) {
     throw new Error(`Failed to download image ${input.index + 1}`)
   }
 
-  const contentType = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() || ""
+  const contentType =
+    response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() ||
+    ""
   if (!contentType.startsWith("image/")) {
     throw new Error(`Imported URL ${input.index + 1} was not an image`)
   }
@@ -270,14 +420,15 @@ async function downloadImageToCollectionFile(input: {
   if (bytes.byteLength > MAX_IMPORT_IMAGE_BYTES) {
     throw new Error(`Image ${input.index + 1} is too large to import`)
   }
+  const hash = createHash("sha256").update(bytes).digest("hex")
 
   const extension = extensionForImage(input.url, contentType)
   const fileName = `${Date.now()}-${randomUUID()}${extension}`
-  await mkdir(IMAGE_COLLECTION_FILES_DIR, { recursive: true })
-  await writeFile(path.join(IMAGE_COLLECTION_FILES_DIR, fileName), bytes)
+  await persistAsset(path.join(IMAGE_COLLECTION_FILES_DIR, fileName), bytes)
 
   return {
     fileName,
+    hash,
     publicUrl: `${IMAGE_COLLECTION_PUBLIC_PREFIX}/${encodeURIComponent(fileName)}`,
   }
 }
@@ -297,7 +448,11 @@ function extensionForImage(url: string, contentType: string) {
 
   try {
     const extension = path.extname(new URL(url).pathname).toLowerCase()
-    return [".avif", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"].includes(extension) ? extension : ".jpg"
+    return [".avif", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"].includes(
+      extension
+    )
+      ? extension
+      : ".jpg"
   } catch {
     return ".jpg"
   }
@@ -314,4 +469,3 @@ function safeHttpUrl(rawUrl: string) {
     return ""
   }
 }
-

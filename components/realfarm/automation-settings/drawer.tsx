@@ -19,10 +19,15 @@ import { Copy } from "lucide-react"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
+import { automationHooks } from "@/lib/realfarm-automation"
 import type { AutomationSchema } from "@/lib/realfarm-automation"
 import { cn } from "@/lib/utils"
 
-import { cloneAutomationSchema, generationPlaceholderRun, wait } from "./run-helpers"
+import {
+  cloneAutomationSchema,
+  generationPlaceholderRun,
+  wait,
+} from "./run-helpers"
 import type {
   AutomationDrawerTab,
   AutomationRunApiPayload,
@@ -76,6 +81,7 @@ export function AutomationSettingsDrawer({
   const [recentRuns, setRecentRuns] = useState<AutomationRunApiRecord[]>([])
   const automationKind =
     draftConfig.automationKind === "video" ? "video" : "slideshow"
+  const hookCount = automationHooks(draftConfig).length
 
   useEffect(() => {
     let active = true
@@ -228,7 +234,7 @@ export function AutomationSettingsDrawer({
               onClick={() => setActiveTab("format")}
             />
             <DrawerNavButton
-              label="Hooks (2) & Style"
+              label={`Hooks (${hookCount}) & Style`}
               icon={IconMessage}
               active={activeTab === "hooks"}
               onClick={() => setActiveTab("hooks")}
@@ -284,6 +290,7 @@ export function AutomationSettingsDrawer({
             automation={automation}
             editingName={editingName}
             draftName={draftName}
+            generating={generating}
             onDraftNameChange={setDraftName}
             onStartNameEdit={() => setEditingName(true)}
             onSaveName={saveName}
@@ -380,4 +387,3 @@ function DrawerNavButton({
     </button>
   )
 }
-

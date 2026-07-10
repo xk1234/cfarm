@@ -704,6 +704,7 @@ export function RealFarmWorkspace({
               data={data}
               templates={templateAutomations}
               recentRunsByAutomationId={showcaseRunsByAutomationId}
+              generatedRunsByAutomationId={recentRunsByAutomationId}
               onCreate={() => setTemplateFolderOpen(true)}
               onUseTemplate={(automation) => {
                 const templateSource = mergeAutomationSchema(

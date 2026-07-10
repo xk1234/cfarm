@@ -11,6 +11,7 @@ import {
   schemaWithAutomationHooks,
 } from "@/lib/realfarm-automation"
 import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-registry"
+import { recentUsageKeys, usageKeyForHook } from "@/lib/usage-ledger"
 
 export const dynamic = "force-dynamic"
 
@@ -62,6 +63,9 @@ export async function POST(request: Request) {
     currentHooks,
     Math.min(10, currentHooks.length)
   )
+  const recentHookKeys = await recentUsageKeys("hook", record.id, {
+    withinDays: record.schema.reuse_policy?.hook_exclusion_days ?? 45,
+  })
   const response = await fetch(
     "https://openrouter.ai/api/v1/chat/completions",
     {
@@ -130,7 +134,9 @@ export async function POST(request: Request) {
     parseGeneratedHooks(openRouterPayload.choices?.[0]?.message?.content)
   )
     .filter(
-      (hook) => !currentHooks.some((currentHook) => sameHook(currentHook, hook))
+      (hook) =>
+        !currentHooks.some((currentHook) => sameHook(currentHook, hook)) &&
+        !recentHookKeys.has(usageKeyForHook(hook))
     )
     .slice(0, 10)
 
@@ -220,5 +226,3 @@ function sameHook(left: string, right: string) {
 function normalizeHookKey(value: string) {
   return value.toLowerCase().replace(/\s+/g, " ").trim()
 }
-
-

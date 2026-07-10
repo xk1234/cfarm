@@ -107,6 +107,7 @@ export type TempSlidePromptInput = {
   style: string
   promptInstructions: string
   placeholders: TempSlideTextPlaceholder[]
+  avoidSimilarOutputs?: string[]
 }
 
 export function buildTempSlideUserPrompt(input: TempSlidePromptInput) {
@@ -125,9 +126,41 @@ export function buildTempSlideUserPrompt(input: TempSlidePromptInput) {
     "- hashtags: give me 3-5 broad hashtags related to the topic/niche of the content, all lowercase, nothing else other than 3-5 hashtags.",
     "Prompt instructions:",
     input.promptInstructions,
+    ...avoidSimilarOutputLines(input.avoidSimilarOutputs),
+    ...strictOutputRuleLines(input.style),
     "Placeholders:",
     ...placeholderLines,
   ].join("\n")
+}
+
+export function styleRequestsLowercase(style: string | undefined) {
+  return /lower\s*case|all\s*lowercase/i.test(style ?? "")
+}
+
+function strictOutputRuleLines(style: string | undefined) {
+  const lines = [
+    "Strict output rules:",
+    "- Fill EVERY field. Never return an empty string for title, caption, hashtags, or any placeholder.",
+    "- Keep each placeholder within the exact word range stated for it; count words before answering.",
+    "- hashtags must be 3-5 tags, each starting with '#', separated by single spaces (e.g. '#focus #wellness #mindset').",
+  ]
+  if (styleRequestsLowercase(style)) {
+    lines.push(
+      "- Write EVERY value — title, caption, hashtags, and all slide text — in all lowercase with no capital letters anywhere."
+    )
+  }
+  return lines
+}
+
+function avoidSimilarOutputLines(outputs: string[] | undefined) {
+  const values = (outputs ?? []).map(clean).filter(Boolean).slice(0, 5)
+  if (values.length === 0) {
+    return []
+  }
+  return [
+    "Avoid making the title, caption, or body slide text substantially similar to these prior outputs:",
+    ...values.map((value) => `- ${value}`),
+  ]
 }
 
 export function promptPreviewHook(automation: TempSlideTestingAutomation) {
@@ -144,6 +177,7 @@ type RawImageCollectionIds = {
   all_slides?: unknown
   cta_slide?: {
     cta_collection_id?: unknown
+    check?: unknown
   }
 }
 
@@ -183,7 +217,8 @@ export function automationTemplateToTempSlideTestingAutomation(
           templateSection: format.content,
         })
       ),
-      ...(format.cta.enabled
+      ...(format.cta.enabled ||
+      parseTemplateCtaSlideCheck(record.template.image_collection_ids)
         ? [
             buildSlideSpec({
               section: "cta",
@@ -333,21 +368,26 @@ export function getTempSlidePromptPlaceholders(
 
 export function normalizeTempSlideStructuredOutput(
   output: unknown,
-  placeholders: TempSlideTextPlaceholder[]
+  placeholders: TempSlideTextPlaceholder[],
+  options: { lowercase?: boolean } = {}
 ): TempSlideStructuredOutput {
   const textRecord =
     isRecord(output) && isRecord(output.text) ? output.text : {}
+  const maybeLower = (value: string) =>
+    options.lowercase ? value.toLowerCase() : value
   return {
-    title: clean(isRecord(output) ? output.title : ""),
-    caption: clean(isRecord(output) ? output.caption : ""),
+    title: maybeLower(clean(isRecord(output) ? output.title : "")),
+    caption: maybeLower(clean(isRecord(output) ? output.caption : "")),
     hashtags: normalizeHashtags(clean(isRecord(output) ? output.hashtags : "")),
     text: Object.fromEntries(
       placeholders.map((placeholder) => [
         placeholder.id,
-        clean(
-          typeof textRecord[placeholder.id] === "string"
-            ? textRecord[placeholder.id]
-            : ""
+        maybeLower(
+          clean(
+            typeof textRecord[placeholder.id] === "string"
+              ? textRecord[placeholder.id]
+              : ""
+          )
         ),
       ])
     ),
@@ -356,9 +396,10 @@ export function normalizeTempSlideStructuredOutput(
 
 function normalizeHashtags(value: string) {
   return value
-    .split(/\s+/)
-    .map((tag) => tag.trim().toLowerCase())
-    .filter((tag) => tag.startsWith("#") && tag.length > 1)
+    .split(/[\s,]+/)
+    .map((tag) => tag.trim().toLowerCase().replace(/^#+/, ""))
+    .filter((tag) => tag.length > 0)
+    .map((tag) => `#${tag}`)
     .slice(0, 5)
     .join(" ")
 }
@@ -586,6 +627,11 @@ function parseTemplateImageCollectionIds(
     content,
     cta,
   }
+}
+
+function parseTemplateCtaSlideCheck(value: string): boolean {
+  const parsed = parseJsonRecord(value) as RawImageCollectionIds | null
+  return parsed?.cta_slide?.check === true
 }
 
 function parseJsonRecord(value: string) {

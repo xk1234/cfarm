@@ -13,6 +13,7 @@ export type SlideshowTextItem = {
   textStyle: string
   textAlign?: string
   textAnchor?: string
+  textPlacement?: "top" | "center" | "bottom"
   textPosition: {
     x: number
     y: number
@@ -116,8 +117,8 @@ function renderedTextItemsSvg(
   for (const item of items) {
     const prepared = prepareRenderedTextItem(item, width, height)
     const key = [
-      Math.round(item.textPosition.x),
-      Math.round(item.textPosition.y),
+      Math.round(prepared.x),
+      Math.round(prepared.y),
       item.textAlign || "center",
     ].join(":")
     groups.set(key, [...(groups.get(key) ?? []), prepared])
@@ -134,11 +135,12 @@ function prepareRenderedTextItem(
   height: number
 ): RenderedTextItem {
   const fontSize = Math.max(32, Math.min(96, parseFontSize(item.fontSize) * 4))
-  const x = clampPercent(item.textPosition.x) * width
-  const y = clampPercent(item.textPosition.y) * height
   const textBoxWidth = textItemPixelWidth(item, width)
+  const x = textItemX(item, width, textBoxWidth)
   const lines = wrapText(item.text, Math.max(4, textBoxWidth / fontSize))
   const lineHeight = fontSize * 1.12
+  const blockHeight = Math.max(fontSize, lines.length * lineHeight)
+  const y = textItemY(item, height, blockHeight)
   return {
     item,
     x,
@@ -146,7 +148,7 @@ function prepareRenderedTextItem(
     fontSize,
     lineHeight,
     lines,
-    blockHeight: Math.max(fontSize, lines.length * lineHeight),
+    blockHeight,
   }
 }
 
@@ -188,7 +190,48 @@ function renderedTextItemSvg(rendered: RenderedTextItem) {
     })
     .join("")
 
-  return `<text x="${x}" y="${y}" text-anchor="${textAnchor}" dominant-baseline="middle" font-family="Inter, Arial, sans-serif" font-size="${fontSize}" font-weight="800" fill="${fill}"${stroke}>${tspans}</text>`
+  return `<text id="${escapeXml(item.id)}" x="${x}" y="${y}" text-anchor="${textAnchor}" dominant-baseline="middle" font-family="Inter, Arial, sans-serif" font-size="${fontSize}" font-weight="800" fill="${fill}"${stroke}>${tspans}</text>`
+}
+
+function textItemY(
+  item: SlideshowTextItem,
+  slideHeight: number,
+  blockHeight: number
+) {
+  const safeMargin = Math.max(32, slideHeight * 0.16)
+  if (item.textPlacement === "top") {
+    return Math.round(safeMargin)
+  }
+  if (item.textPlacement === "bottom") {
+    return Math.round(Math.max(safeMargin, slideHeight - safeMargin))
+  }
+  if (item.textPlacement === "center") {
+    return Math.round(slideHeight * 0.45)
+  }
+  const raw = clampPercent(item.textPosition.y) * slideHeight
+  const min = Math.max(20, blockHeight / 2 + 20)
+  const max = Math.max(min, slideHeight - blockHeight / 2 - 20)
+  return Math.round(Math.min(max, Math.max(min, raw)))
+}
+
+function textItemX(
+  item: SlideshowTextItem,
+  slideWidth: number,
+  textBoxWidth: number
+) {
+  const safeMargin = Math.max(20, slideWidth * 0.05)
+  const raw = clampPercent(item.textPosition.x) * slideWidth
+  if (item.textAlign === "left") {
+    const max = Math.max(safeMargin, slideWidth - textBoxWidth - safeMargin)
+    return Math.round(Math.min(max, Math.max(safeMargin, raw)))
+  }
+  if (item.textAlign === "right") {
+    const min = Math.min(slideWidth - safeMargin, textBoxWidth + safeMargin)
+    return Math.round(Math.min(slideWidth - safeMargin, Math.max(min, raw)))
+  }
+  const min = Math.min(slideWidth - safeMargin, textBoxWidth / 2 + safeMargin)
+  const max = Math.max(min, slideWidth - textBoxWidth / 2 - safeMargin)
+  return Math.round(Math.min(max, Math.max(min, raw)))
 }
 
 function textItemPixelWidth(item: SlideshowTextItem, slideWidth: number) {
@@ -303,4 +346,3 @@ function escapeXml(value: string) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;")
 }
-

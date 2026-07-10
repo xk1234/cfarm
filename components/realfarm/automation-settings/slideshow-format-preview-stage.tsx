@@ -40,13 +40,15 @@ export function SlideshowFormatPreviewStage({
       <div
         className={cn(
           "overflow-hidden",
-          selectedTextIndex !== null ? "h-[315px] pt-[92px]" : "h-full pt-[168px]"
+          selectedTextIndex !== null
+            ? "h-[315px] pt-[92px]"
+            : "h-full pt-[168px]"
         )}
       >
         <div
           className="flex items-start transition-transform duration-500 ease-[cubic-bezier(.22,1,.36,1)]"
           style={{
-            gap: `${previewGap}px`,
+            columnGap: `${previewGap}px`,
             transform: `translateX(calc(50% - ${previewTrackOffset}px))`,
           }}
         >

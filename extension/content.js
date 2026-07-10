@@ -9,35 +9,87 @@ const swipedIndex = {
 }
 
 function platform() {
-  const host = location.hostname
-  const path = location.pathname
-
-  if (host.includes("facebook.com")) return "facebook"
-  if (host.includes("ads.tiktok.com")) return "tiktok-creative"
-  if (host.includes("seller-sg.tiktok.com")) return "tiktok-seller"
-  if (host.includes("tiktok.com")) return "tiktok"
-  if (host === "x.com" || host.endsWith(".x.com") || host === "twitter.com" || host.endsWith(".twitter.com")) return "twitter"
-  if (host.includes("adstransparency.google.com") || path.includes("transparency")) return "google"
-  return "unknown"
+  return activePlatformAdapter()?.id || "unknown"
 }
 
 function platformLabel(value = platform()) {
-  switch (value) {
-    case "facebook":
-      return "facebook"
-    case "tiktok":
-      return "tiktok"
-    case "tiktok-creative":
-      return "tiktok-creative"
-    case "tiktok-seller":
-      return "tiktok-seller"
-    case "google":
-      return "google"
-    case "twitter":
-      return "twitter"
-    default:
-      return "unknown"
-  }
+  return platformAdapters().find((adapter) => adapter.id === value)?.label || "unknown"
+}
+
+function activePlatformAdapter() {
+  const host = location.hostname
+  const path = location.pathname
+  return platformAdapters().find((candidate) => candidate.matches({ host, path, href: location.href }))
+}
+
+function platformAdapters() {
+  return Array.isArray(globalThis.CFARM_PLATFORM_ADAPTERS)
+    ? globalThis.CFARM_PLATFORM_ADAPTERS
+    : [
+        {
+          id: "facebook",
+          label: "facebook",
+          adapter: "meta",
+          candidateMode: "metaDetails",
+          buttonMode: "metaDetails",
+          cardSelectors: [],
+          matches: ({ host }) => host.includes("facebook.com"),
+        },
+        {
+          id: "tiktok-creative",
+          label: "tiktok-creative",
+          adapter: "tiktokCreativeCenter",
+          candidateMode: "tiktokCreativeCenter",
+          buttonMode: "tiktokCreativeCenter",
+          cardSelectors: ["[class*='TopadsVideoCard_card']", "[class*='TopadsList_cardWrapper']", "[class*='CommonGridLayoutDataList_cardWrapper']"],
+          matches: ({ host }) => host.includes("ads.tiktok.com"),
+        },
+        {
+          id: "tiktok-seller",
+          label: "tiktok-seller",
+          adapter: "tiktokSeller",
+          candidateMode: "tiktokSeller",
+          buttonMode: "tiktokSeller",
+          cardSelectors: ["[data-tid='video-player']", "[id^='short_video_'][id$='-wrapper']"],
+          matches: ({ host }) => host.includes("seller-sg.tiktok.com"),
+        },
+        {
+          id: "tiktok",
+          label: "tiktok",
+          adapter: "tiktokVideo",
+          candidateMode: "tiktokVideo",
+          buttonMode: "tiktokVideo",
+          cardSelectors: ["[data-e2e='user-post-item']"],
+          matches: ({ host }) => host.includes("tiktok.com"),
+        },
+        {
+          id: "twitter",
+          label: "twitter",
+          adapter: "xTwitter",
+          candidateMode: "xTwitter",
+          buttonMode: "card",
+          cardSelectors: ['article[data-testid="tweet"]', 'article[role="article"]', "article[data-tweet-id]"],
+          matches: ({ host }) => host === "x.com" || host.endsWith(".x.com") || host === "twitter.com" || host.endsWith(".twitter.com"),
+        },
+        {
+          id: "google",
+          label: "google",
+          adapter: "googleAdsTransparency",
+          candidateMode: "googleAdsTransparency",
+          buttonMode: "googleAdsTransparency",
+          cardSelectors: ["creative-preview", "a[href*='/advertiser/'][href*='/creative/'][aria-label^='Advertisement']"],
+          matches: ({ host }) => host.includes("adstransparency.google.com"),
+        },
+        {
+          id: "google-ads",
+          label: "google-ads",
+          adapter: "googleAdsMarketing",
+          candidateMode: "none",
+          buttonMode: "none",
+          cardSelectors: [],
+          matches: ({ host }) => host === "ads.google.com" || host.endsWith(".ads.google.com"),
+        },
+      ]
 }
 
 function textFrom(element, maxLength = 900) {
@@ -265,6 +317,28 @@ function tiktokPostCards() {
   return uniqueElements(cards).slice(0, 120)
 }
 
+function isTikTokCanonicalPostPage() {
+  return location.hostname.includes("tiktok.com") && /^\/@[^/]+\/(?:video|photo)\/\d+/.test(location.pathname)
+}
+
+function isTikTokFeedVideoCard(element) {
+  if (!(element instanceof HTMLElement)) return false
+  if (!element.matches("article[data-e2e='recommend-list-item-container']")) return false
+  return Boolean(element.querySelector("section[data-e2e='feed-video']") && element.querySelector("video") && element.querySelector("[data-e2e='video-desc']"))
+}
+
+function tiktokFeedVideoCards() {
+  if (!isTikTokCanonicalPostPage()) return []
+  const cards = Array.from(document.querySelectorAll("article[data-e2e='recommend-list-item-container']"))
+    .filter(isTikTokFeedVideoCard)
+  const currentCard = cards.find((card) => {
+    const rect = card.getBoundingClientRect()
+    return rect.top <= window.innerHeight * 0.4 && rect.bottom > 100
+  }) || cards[0]
+
+  return currentCard ? [currentCard] : []
+}
+
 function tiktokPostCaption(container) {
   const imageAlt = Array.from(container.querySelectorAll("img[alt]"))
     .map((image) => cleanAltText(image.getAttribute("alt") || ""))
@@ -311,6 +385,43 @@ function tiktokPostPayload(container) {
       PostURL: sourceUrl,
     },
     stats: views ? { Views: views } : {},
+    folder: "No Folder",
+  }
+}
+
+function tiktokFeedVideoPayload(container) {
+  const sourceUrl = isTikTokCanonicalPostPage() ? location.href : tiktokPostLink(container)
+  const caption = textFrom(container.querySelector("[data-e2e='video-desc']"), 900) || textFrom(container, 900)
+  const profileUrl = Array.from(container.querySelectorAll("a[href^='https://www.tiktok.com/@'], a[href^='/@']"))
+    .map((link) => absoluteUrl(link.getAttribute("href") || ""))
+    .find((url) => /^https:\/\/www\.tiktok\.com\/@[^/?#]+/.test(url)) || ""
+  const advertiser = tiktokUsernameFromUrl(profileUrl) || tiktokUsernameFromUrl(sourceUrl) || document.title.split("|")[0].trim() || "tiktok"
+  const stats = {}
+  const likeCount = textFrom(container.querySelector("[data-e2e='like-count']"), 40)
+  const commentCount = textFrom(container.querySelector("[data-e2e='comment-count']"), 40)
+  const shareCount = textFrom(container.querySelector("[data-e2e='share-count']"), 40)
+  if (likeCount) stats.Likes = likeCount
+  if (commentCount) stats.Comments = commentCount
+  if (shareCount) stats.Shares = shareCount
+
+  return {
+    advertiser,
+    platform: "tiktok",
+    source: "tiktok",
+    sourceUrl,
+    title: caption.slice(0, 90) || document.title,
+    caption,
+    format: sourceUrl.includes("/photo/") ? "carousel" : "video",
+    cta: "Inspect Swipe",
+    landingPageUrl: sourceUrl,
+    mediaUrl: bestVideo(container) || bestImage(container),
+    metadata: {
+      Source: "tiktok",
+      URL: location.href,
+      PostURL: sourceUrl,
+      ProfileURL: profileUrl,
+    },
+    stats,
     folder: "No Folder",
   }
 }
@@ -443,6 +554,9 @@ function swipeCandidateKeys(container) {
   if (currentPlatform === "tiktok" && tiktokPostLink(container)) {
     return swipeKeys({ platform: "tiktok", sourceUrl: tiktokPostLink(container), metadata: { PostURL: tiktokPostLink(container) } })
   }
+  if (currentPlatform === "tiktok" && isTikTokFeedVideoCard(container)) {
+    return swipeKeys({ platform: "tiktok", sourceUrl: isTikTokCanonicalPostPage() ? location.href : tiktokPostLink(container), metadata: { PostURL: isTikTokCanonicalPostPage() ? location.href : tiktokPostLink(container) } })
+  }
   if (currentPlatform === "tiktok-seller" && isTikTokSellerInspirationVideoCard(container)) {
     return swipeKeys({ platform: "tiktok-seller", metadata: { VideoID: tiktokSellerVideoId(container) } })
   }
@@ -452,6 +566,9 @@ function swipeCandidateKeys(container) {
   }
   if (currentPlatform === "facebook") {
     return swipeKeys({ platform: "facebook", metadata: { LibraryID: facebookLibraryId(container) } })
+  }
+  if (currentPlatform === "google" && isGoogleAdsTransparencyCreative(container)) {
+    return swipeKeys({ platform: "google", sourceUrl: googleAdsTransparencyCreativeUrl(container) })
   }
   return swipeKeys(buildPayload(container))
 }
@@ -992,6 +1109,54 @@ function tiktokTrendVideoInsertionPoint(card) {
   return media.closest?.("[class*='overflow-hidden'], [class*='rounded'], [class*='video'], [class*='Video'], a") || media.parentElement || media
 }
 
+function isGoogleAdsTransparencyCreative(element) {
+  if (!(element instanceof HTMLElement)) return false
+  if (element.matches("creative-preview")) {
+    return Boolean(googleAdsTransparencyCreativeUrl(element))
+  }
+  return Boolean(element.matches("a[href*='/advertiser/'][href*='/creative/'][aria-label^='Advertisement']"))
+}
+
+function googleAdsTransparencyCreativeCards() {
+  const cards = Array.from(document.querySelectorAll("creative-preview, a[href*='/advertiser/'][href*='/creative/'][aria-label^='Advertisement']"))
+    .map((element) => element.closest("creative-preview") || element)
+    .filter(isGoogleAdsTransparencyCreative)
+
+  return uniqueElements(cards).slice(0, 120)
+}
+
+function googleAdsTransparencyCreativeUrl(container) {
+  const link = container.matches?.("a[href*='/advertiser/'][href*='/creative/']") ? container : container.querySelector("a[href*='/advertiser/'][href*='/creative/']")
+  return absoluteUrl(link?.getAttribute("href") || "")
+}
+
+function googleAdsTransparencyPayload(container) {
+  const sourceUrl = googleAdsTransparencyCreativeUrl(container) || location.href
+  const caption = textFrom(container, 900)
+  const advertiser = caption.replace(/\bVerified\b/i, "").trim() || document.title.split("|")[0].trim() || "Google Ads Transparency"
+  const mediaUrl = bestVideo(container) || bestImage(container)
+
+  return {
+    advertiser,
+    platform: "google",
+    source: "google",
+    sourceUrl,
+    title: advertiser || "Google ad",
+    caption,
+    format: inferFormat(container),
+    cta: "Inspect Swipe",
+    landingPageUrl: sourceUrl,
+    mediaUrl,
+    metadata: {
+      Source: "google",
+      URL: location.href,
+      CreativeURL: sourceUrl,
+    },
+    stats: {},
+    folder: "No Folder",
+  }
+}
+
 function largestTikTokTrendMedia(card) {
   return Array.from(card.querySelectorAll("video,img"))
     .map((element) => {
@@ -1088,11 +1253,17 @@ function buildPayload(container) {
   if (platform() === "tiktok" && tiktokPostLink(container)) {
     return tiktokPostPayload(container)
   }
+  if (platform() === "tiktok" && isTikTokFeedVideoCard(container)) {
+    return tiktokFeedVideoPayload(container)
+  }
   if (platform() === "tiktok-seller" && isTikTokSellerInspirationVideoCard(container)) {
     return tiktokSellerInspirationVideoPayload(container)
   }
   if (platform() === "twitter") {
     return twitterPayload(container)
+  }
+  if (platform() === "google" && isGoogleAdsTransparencyCreative(container)) {
+    return googleAdsTransparencyPayload(container)
   }
 
   const format = inferFormat(container)
@@ -1166,13 +1337,11 @@ function makeButton(container, placement = "card") {
   const button = document.createElement("button")
   button.type = "button"
   button.className =
-    placement === "fixed"
-      ? "cfarm-swipe-button cfarm-swipe-fixed"
-      : placement === "meta"
-        ? "cfarm-swipe-button cfarm-swipe-meta-button"
-        : placement === "tiktok-grid"
-          ? "cfarm-swipe-button cfarm-swipe-tiktok-grid-button"
-          : "cfarm-swipe-button cfarm-swipe-card-button"
+    placement === "meta"
+      ? "cfarm-swipe-button cfarm-swipe-meta-button"
+      : placement === "tiktok-grid"
+        ? "cfarm-swipe-button cfarm-swipe-tiktok-grid-button"
+        : "cfarm-swipe-button cfarm-swipe-card-button"
   button.textContent = "✣ Swipe"
   button.setAttribute(CFARM_BUTTON_ATTR, "true")
   button.addEventListener("click", (event) => {
@@ -1184,27 +1353,31 @@ function makeButton(container, placement = "card") {
 }
 
 function cardCandidates() {
-  if (platform() === "tiktok-creative") {
+  const adapter = activePlatformAdapter()
+  if (!adapter || adapter.candidateMode === "none" || adapter.candidateMode === "backgroundCapture") {
+    return []
+  }
+  if (adapter?.candidateMode === "tiktokCreativeCenter") {
     if (isTikTokTrendVideoPage()) {
       return tiktokTrendVideoCardCandidates()
     }
     return tiktokTopAdsCardCandidates()
   }
-  if (platform() === "tiktok-seller") {
+  if (adapter?.candidateMode === "tiktokSeller") {
     return tiktokSellerInspirationVideoCardCandidates()
   }
-  if (platform() === "twitter") {
+  if (adapter?.candidateMode === "tiktokVideo") {
+    return [...tiktokPostCards(), ...tiktokFeedVideoCards()]
+  }
+  if (adapter?.candidateMode === "xTwitter") {
     return twitterCardCandidates()
   }
+  if (adapter?.candidateMode === "googleAdsTransparency") {
+    return googleAdsTransparencyCreativeCards()
+  }
 
-  const selectors = [
-    "[role='article']",
-    "[data-testid*='ad']",
-    "[class*='ad-card']",
-    "[class*='AdCard']",
-    "[class*='card']",
-    "article",
-  ]
+  const selectors = Array.isArray(adapter?.cardSelectors) ? adapter.cardSelectors : []
+  if (selectors.length === 0) return []
 
   return Array.from(document.querySelectorAll(selectors.join(",")))
     .filter((element) => element instanceof HTMLElement)
@@ -1253,6 +1426,28 @@ function injectTikTokPostButtons() {
   return count
 }
 
+function injectTikTokFeedVideoButtons() {
+  if (!ensureSwipedIndexReady()) return 0
+  let count = 0
+
+  for (const card of tiktokFeedVideoCards()) {
+    if (card.hasAttribute?.(CFARM_CARD_ATTR) || card.querySelector(`[${CFARM_BUTTON_ATTR}]`)) continue
+    if (isAlreadySwiped(card)) continue
+    card.setAttribute?.(CFARM_CARD_ATTR, "true")
+
+    const media = card.querySelector("section[data-e2e='feed-video']") || card
+    const button = makeButton(card, "tiktok-grid")
+    if (media === card) {
+      card.appendChild(button)
+    } else {
+      media.insertAdjacentElement("afterend", button)
+    }
+    count += 1
+  }
+
+  return count
+}
+
 function injectTikTokTrendVideoButtons() {
   if (!ensureSwipedIndexReady()) return 0
   let count = 0
@@ -1291,49 +1486,51 @@ function injectTikTokSellerInspirationVideoButtons() {
   return count
 }
 
-function injectGoogleButton() {
+function injectGoogleAdsTransparencyButtons() {
   if (!ensureSwipedIndexReady()) return
-  if (document.querySelector(".cfarm-swipe-fixed")) return
-  if (isAlreadySwiped(document.body)) return
-  document.body.appendChild(makeButton(document.body, "fixed"))
-}
-
-function injectTikTokButton() {
-  if (!ensureSwipedIndexReady()) return
-  if (document.querySelector(".cfarm-swipe-fixed")) return
-  if (isAlreadySwiped(document.querySelector("main") || document.body)) return
-  const main = document.querySelector("main") || document.body
-  document.body.appendChild(makeButton(main, "fixed"))
+  for (const card of googleAdsTransparencyCreativeCards()) {
+    if (card.hasAttribute?.(CFARM_CARD_ATTR) || card.querySelector(`[${CFARM_BUTTON_ATTR}]`)) continue
+    if (isAlreadySwiped(card)) continue
+    card.setAttribute?.(CFARM_CARD_ATTR, "true")
+    card.style.position ||= "relative"
+    card.appendChild(makeButton(card))
+  }
 }
 
 function injectButtons() {
-  const currentPlatform = platform()
+  const adapter = activePlatformAdapter()
+  const buttonMode = adapter?.buttonMode || "none"
 
-  if (currentPlatform === "facebook") {
+  if (buttonMode === "none") {
+    return
+  }
+
+  if (buttonMode === "metaDetails") {
     injectMetaAdButtons()
     return
   }
 
-  if (currentPlatform === "google") {
-    injectGoogleButton()
+  if (buttonMode === "googleAdsTransparency") {
+    injectGoogleAdsTransparencyButtons()
     return
   }
 
-  if (currentPlatform === "tiktok") {
+  if (buttonMode === "tiktokVideo") {
     if (injectTikTokPostButtons() > 0 || document.querySelector(".cfarm-swipe-tiktok-grid-button")) {
       return
     }
-    injectTikTokButton()
+    injectTikTokFeedVideoButtons()
+    return
   }
 
-  if (currentPlatform === "tiktok-seller") {
+  if (buttonMode === "tiktokSeller") {
     if (isTikTokSellerInspirationVideoPage()) {
       injectTikTokSellerInspirationVideoButtons()
     }
     return
   }
 
-  if (currentPlatform === "tiktok-creative" && isTikTokTrendVideoPage()) {
+  if (buttonMode === "tiktokCreativeCenter" && isTikTokTrendVideoPage()) {
     injectTikTokTrendVideoButtons()
     return
   }

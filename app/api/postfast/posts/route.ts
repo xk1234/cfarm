@@ -1,20 +1,17 @@
 import { NextResponse } from "next/server"
 
 import {
-  createPostFastPostPayload,
   postfastRequest,
   type PostFastCreatePostType,
   type PostFastMedia,
 } from "@/lib/postfast-client"
-import { defaultPostFastProviderControls } from "@/lib/postfast-provider-controls"
 import {
   listPostFastPostRecords,
-  upsertPostFastPostRecord,
   type PostFastPostRecord,
-  type PostFastPostStatus,
   type PostFastSourceType,
 } from "@/lib/postfast-posts"
 import { postfastRouteError } from "@/lib/postfast-route"
+import { publishPost } from "@/lib/publishing"
 
 export const dynamic = "force-dynamic"
 
@@ -72,61 +69,26 @@ export async function POST(request: Request) {
 
   const type = postTypeValue(payload?.type) ?? "draft"
   const media = mediaValue(payload?.media)
-  const controls = defaultPostFastProviderControls(
-    provider,
-    recordValue(payload?.settings)
-  )
-  const postPayload = createPostFastPostPayload({
+
+  const result = await publishPost({
     type,
     date: stringValue(payload?.date),
     integrationId,
     provider,
     content,
     media,
-    controls,
+    settings: recordValue(payload?.settings),
+    sourceType,
+    sourceId,
   })
 
-  try {
-    const postfastPosts = await postfastRequest<unknown>("/social-posts", {
-      body: postPayload,
-    })
-    const postIds = postFastPostIds(postfastPosts)
-    const record = await upsertPostFastPostRecord({
-      sourceType,
-      sourceId,
-      postfastPostId: postIds[0],
-      integrationId,
-      provider,
-      status: statusForType(type),
-      scheduledAt: type === "schedule" ? stringValue(payload?.date) : undefined,
-      content,
-      media,
-    })
-
-    return NextResponse.json({ postfastPosts, record }, { status: 201 })
-  } catch (error) {
-    await upsertPostFastPostRecord({
-      sourceType,
-      sourceId,
-      integrationId,
-      provider,
-      status: "failed",
-      content,
-      media,
-      error:
-        error instanceof Error
-          ? error.message
-          : "PostFast post creation failed",
-    })
-    return postfastRouteError(error)
+  if (result.ok) {
+    return NextResponse.json(
+      { postfastPosts: result.postfastPosts, record: result.record },
+      { status: 201 }
+    )
   }
-}
-
-function statusForType(type: PostFastCreatePostType): PostFastPostStatus {
-  if (type === "schedule") {
-    return "scheduled"
-  }
-  return type === "now" ? "published" : "draft"
+  return postfastRouteError(result.rawError)
 }
 
 function postTypeValue(value: unknown): PostFastCreatePostType | undefined {
@@ -217,13 +179,6 @@ function enrichPostFastPost(
       providerIdentifier: localPost.provider,
     },
   }
-}
-
-function postFastPostIds(value: unknown) {
-  const record = recordValue(value)
-  return Array.isArray(record.postIds)
-    ? record.postIds.map(stringValue).filter(Boolean)
-    : []
 }
 
 function mediaTypeValue(value: unknown) {
