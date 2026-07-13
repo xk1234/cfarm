@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { expandHook } from "@/lib/hook-expansion"
+import {
+  expandAllHookCombinations,
+  expandHook,
+} from "@/lib/hook-expansion"
 import type { WordCollectionRecord } from "@/lib/word-collections"
 
 describe("expandHook", () => {
@@ -77,6 +80,45 @@ describe("expandHook", () => {
         occasion: "birthday",
       },
     })
+  })
+
+  it("does not append a second s to pluralized slot values already ending in s", () => {
+    const collections: WordCollectionRecord[] = [
+      wordCollection("zodiac", ["aries", "pisces"]),
+    ]
+
+    expect(
+      expandHook("[[zodiac]]s are loyal", { zodiac: "zodiac" }, collections, () => 0)
+        .text
+    ).toBe("Aries are loyal")
+    expect(
+      expandAllHookCombinations(
+        "[[zodiac]]s are loyal",
+        { zodiac: "zodiac" },
+        collections
+      ).map((item) => item.text)
+    ).toEqual(["Aries are loyal", "Pisces are loyal"])
+  })
+
+  it("enumerates every possible multi-slot hook combination exactly once", () => {
+    const collections: WordCollectionRecord[] = [
+      wordCollection("occasion", ["wedding", "birthday"]),
+      wordCollection("style", ["minimal", "colorful"]),
+    ]
+
+    const combinations = expandAllHookCombinations(
+      "a [[style]] setup for a [[occasion]]",
+      { style: "style", occasion: "occasion" },
+      collections
+    )
+
+    expect(combinations.map((item) => item.text)).toEqual([
+      "a minimal setup for a wedding",
+      "a minimal setup for a birthday",
+      "a colorful setup for a wedding",
+      "a colorful setup for a birthday",
+    ])
+    expect(new Set(combinations.map((item) => item.text)).size).toBe(4)
   })
 })
 

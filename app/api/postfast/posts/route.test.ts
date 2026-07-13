@@ -1,16 +1,24 @@
-import { mkdir, mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
+
+// Appwrite-only: `data/postfast-posts.json` -> `postfast_posts`, run against
+// cfarm (forced by vitest.setup.ts), cleared between tests.
 let tempRoot: string
 
+const clearPosts = () => clearTestTables("postfast_posts")
+
 beforeEach(async () => {
+  await clearPosts()
   tempRoot = await mkdtemp(
     path.join(os.tmpdir(), "cfarm-postfast-posts-route-")
   )
-  await mkdir(path.join(tempRoot, "data"), { recursive: true })
   vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
 })
 
@@ -20,6 +28,8 @@ afterEach(async () => {
   vi.resetModules()
   await rm(tempRoot, { recursive: true, force: true })
 })
+
+afterAll(clearPosts)
 
 describe("GET /api/postfast/posts", () => {
   it("does not expose local scheduled posts when PostFast is not configured", async () => {

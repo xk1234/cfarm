@@ -1,19 +1,21 @@
-import { mkdtemp, rm } from "node:fs/promises"
-import os from "node:os"
 import path from "node:path"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { Query } from "node-appwrite"
+import { afterAll, beforeEach, describe, expect, it } from "vitest"
+
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
 import { listPostFastPostRecords, upsertPostFastPostRecord, updatePostFastPostAnalytics } from "@/lib/postfast-posts"
 
-let rootDir: string
+// Appwrite-only: `data/postfast-posts.json` -> the `postfast_posts` table, run
+// against cfarm (forced by vitest.setup.ts), cleared between tests.
+const rootDir = path.join(process.cwd(), "data")
+const TABLE = "postfast_posts"
 
-beforeEach(async () => {
-  rootDir = await mkdtemp(path.join(os.tmpdir(), "cfarm-postfast-"))
-})
+const clearPosts = () => clearTestTables(TABLE)
 
-afterEach(async () => {
-  await rm(rootDir, { recursive: true, force: true })
-})
+beforeEach(clearPosts)
+afterAll(clearPosts)
 
 describe("postfast post mapping persistence", () => {
   it("upserts records by local source and stores PostFast ids", async () => {

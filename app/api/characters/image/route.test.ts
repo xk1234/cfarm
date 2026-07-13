@@ -1,31 +1,66 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import {
+  deleteAssetFromAppwrite,
+  mirrorAssetToAppwrite,
+} from "@/lib/asset-storage"
+import { readJsonArrayStore } from "@/lib/json-store"
+
+// Appwrite-only, run against cfarm (forced by vitest.setup.ts):
+//   data/characters/images.json -> character_generations (record store)
+//   the headshot fixture lives in Storage (media is Storage-only).
 let tempRoot: string
 
+async function clearGenerations() {
+  const aw = getAppwrite()
+  if (!aw) throw new Error("Appwrite is not configured for tests.")
+  for (;;) {
+    const res = await aw.tables.listRows(
+      APPWRITE_DATABASE_ID,
+      "character_generations",
+      [Query.limit(100)]
+    )
+    for (const row of res.rows) {
+      await aw.tables.deleteRow(
+        APPWRITE_DATABASE_ID,
+        "character_generations",
+        String(row.$id)
+      )
+    }
+    if (res.rows.length < 100) break
+  }
+}
+
 beforeEach(async () => {
+  await clearGenerations()
   tempRoot = await mkdtemp(
     path.join(os.tmpdir(), "cfarm-character-image-route-")
   )
-  await mkdir(path.join(tempRoot, "data", "characters", "headshots"), {
-    recursive: true,
-  })
-  await writeFile(
+  vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
+  vi.stubEnv("KIE_KEY", "test-kie-key")
+  await mirrorAssetToAppwrite(
     path.join(tempRoot, "data", "characters", "headshots", "maya.png"),
     new Uint8Array([137, 80, 78, 71])
   )
-  vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
-  vi.stubEnv("KIE_KEY", "test-kie-key")
 })
 
 afterEach(async () => {
+  await deleteAssetFromAppwrite(
+    path.join(tempRoot, "data", "characters", "headshots", "maya.png")
+  )
   vi.unstubAllEnvs()
   vi.restoreAllMocks()
+  vi.resetModules()
   await rm(tempRoot, { recursive: true, force: true })
 })
+
+afterAll(clearGenerations)
 
 describe("POST /api/characters/image", () => {
   it("generates a character image with the selected aspect ratio and profile attachment", async () => {
@@ -113,14 +148,13 @@ describe("POST /api/characters/image", () => {
       imageUrl: payload.imageUrl,
     })
 
-    const stored = JSON.parse(
-      await readFile(
-        path.join(tempRoot, "data", "characters", "images.json"),
-        "utf8"
-      )
-    )
-    expect(stored.generations).toHaveLength(1)
-    expect(stored.generations[0]).toMatchObject({
+    const stored = await readJsonArrayStore<{ id: string; imageUrl: string }>({
+      rootDir: path.join(tempRoot, "data", "characters"),
+      fileName: "images.json",
+      key: "generations",
+    })
+    expect(stored).toHaveLength(1)
+    expect(stored[0]).toMatchObject({
       id: payload.generation.id,
       imageUrl: payload.imageUrl,
       status: "ready",

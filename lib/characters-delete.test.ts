@@ -1,102 +1,116 @@
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
-import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
-let tempRoot: string
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
+import { deleteCharacter } from "@/lib/characters"
+import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
-beforeEach(async () => {
-  tempRoot = path.join(os.tmpdir(), `cfarm-character-delete-${Date.now()}-${Math.random().toString(16).slice(2)}`)
-  await mkdir(path.join(tempRoot, "data", "characters", "headshots"), { recursive: true })
-  await mkdir(path.join(tempRoot, "data", "characters", "images"), { recursive: true })
-  await mkdir(path.join(tempRoot, "data", "characters", "videos"), { recursive: true })
-  vi.resetModules()
-  vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
-})
+// Appwrite-only, run against cfarm (forced by vitest.setup.ts):
+//   data/characters.json         -> characters
+//   data/characters/images.json  -> character_generations
+// Media lives in Storage, so deletion is asserted via counts + remaining rows.
+const dataDir = path.join(process.cwd(), "data")
+const charactersDir = path.join(process.cwd(), "data", "characters")
 
-afterEach(async () => {
-  vi.restoreAllMocks()
-  await rm(tempRoot, { recursive: true, force: true })
-})
 
-describe("deleteCharacter", () => {
-  it("removes the character record and deletes its unused local preview file", async () => {
-    await writeCharactersDb([
-      characterRecord(1, "Maya", "/api/local-assets/characters/headshots/maya.png"),
-      characterRecord(2, "Keep", "/api/local-assets/characters/headshots/keep.png"),
-    ])
-    await writeFile(path.join(tempRoot, "data", "characters", "headshots", "maya.png"), new Uint8Array([1, 2, 3]))
-    await writeFile(path.join(tempRoot, "data", "characters", "headshots", "keep.png"), new Uint8Array([4, 5, 6]))
+const clearAll = () => clearTestTables("characters", "character_generations", "character_video_generations")
 
-    const { deleteCharacter } = await import("./characters")
-    const result = await deleteCharacter(1)
+beforeEach(clearAll)
+afterAll(clearAll)
 
-    const stored = JSON.parse(await readFile(path.join(tempRoot, "data", "characters.json"), "utf8"))
-    expect(result).toEqual({ deleted: true, deletedFiles: 1 })
-    expect(stored.characters.map((character: { id: number }) => character.id)).toEqual([2])
-    await expect(stat(path.join(tempRoot, "data", "characters", "headshots", "maya.png"))).rejects.toThrow()
-    await expect(stat(path.join(tempRoot, "data", "characters", "headshots", "keep.png"))).resolves.toMatchObject({ size: 3 })
+async function seedCharacters(characters: unknown[]) {
+  await writeJsonArrayStore({
+    rootDir: dataDir,
+    fileName: "characters.json",
+    key: "characters",
+    records: characters,
   })
-
-  it("keeps a local preview file when another character still references it", async () => {
-    await writeCharactersDb([
-      characterRecord(1, "Maya", "/api/local-assets/characters/headshots/shared.png"),
-      characterRecord(2, "Keep", "/api/local-assets/characters/headshots/shared.png"),
-    ])
-    await writeFile(path.join(tempRoot, "data", "characters", "headshots", "shared.png"), new Uint8Array([1, 2, 3]))
-
-    const { deleteCharacter } = await import("./characters")
-    const result = await deleteCharacter(1)
-
-    expect(result).toEqual({ deleted: true, deletedFiles: 0 })
-    await expect(stat(path.join(tempRoot, "data", "characters", "headshots", "shared.png"))).resolves.toMatchObject({ size: 3 })
-  })
-
-  it("deletes generated character image records and local output files for the deleted character", async () => {
-    await writeCharactersDb([
-      characterRecord(1, "Maya", "/api/local-assets/characters/headshots/maya.png"),
-      characterRecord(2, "Keep", "/api/local-assets/characters/headshots/keep.png"),
-    ])
-    await writeFile(path.join(tempRoot, "data", "characters", "headshots", "maya.png"), new Uint8Array([1]))
-    await writeFile(path.join(tempRoot, "data", "characters", "headshots", "keep.png"), new Uint8Array([2]))
-    await writeFile(path.join(tempRoot, "data", "characters", "images", "maya.png"), new Uint8Array([3]))
-    await writeFile(path.join(tempRoot, "data", "characters", "videos", "maya.mp4"), new Uint8Array([4]))
-    await writeFile(path.join(tempRoot, "data", "characters", "images", "keep.png"), new Uint8Array([5]))
-    await writeFile(
-      path.join(tempRoot, "data", "characters", "images.json"),
-      `${JSON.stringify(
-        {
-          generations: [
-            characterGeneration("maya-generation", 1, "maya.png", "maya.mp4"),
-            characterGeneration("keep-generation", 2, "keep.png"),
-          ],
-        },
-        null,
-        2
-      )}\n`
-    )
-
-    const { deleteCharacter } = await import("./characters")
-    const result = await deleteCharacter(1)
-
-    const storedGenerations = JSON.parse(
-      await readFile(path.join(tempRoot, "data", "characters", "images.json"), "utf8")
-    )
-    expect(result).toEqual({ deleted: true, deletedFiles: 3 })
-    expect(storedGenerations.generations.map((generation: { id: string }) => generation.id)).toEqual(["keep-generation"])
-    await expect(stat(path.join(tempRoot, "data", "characters", "images", "maya.png"))).rejects.toThrow()
-    await expect(stat(path.join(tempRoot, "data", "characters", "videos", "maya.mp4"))).rejects.toThrow()
-    await expect(stat(path.join(tempRoot, "data", "characters", "images", "keep.png"))).resolves.toMatchObject({ size: 1 })
-  })
-})
-
-async function writeCharactersDb(characters: unknown[]) {
-  await mkdir(path.join(tempRoot, "data"), { recursive: true })
-  await writeFile(path.join(tempRoot, "data", "characters.json"), `${JSON.stringify({ characters }, null, 2)}\n`)
 }
 
-function characterRecord(id: number, name: string, preview_url: string) {
+async function seedGenerations(generations: unknown[]) {
+  await writeJsonArrayStore({
+    rootDir: charactersDir,
+    fileName: "images.json",
+    key: "generations",
+    records: generations,
+  })
+}
+
+async function seedVideos(videos: unknown[]) {
+  await writeJsonArrayStore({
+    rootDir: charactersDir,
+    fileName: "videos.json",
+    key: "videos",
+    records: videos,
+  })
+}
+
+async function remainingCharacterIds() {
+  const records = await readJsonArrayStore<{ id: string }>({
+    rootDir: dataDir,
+    fileName: "characters.json",
+    key: "characters",
+  })
+  return records.map((record) => record.id)
+}
+
+async function remainingGenerationIds() {
+  const records = await readJsonArrayStore<{ id: string }>({
+    rootDir: charactersDir,
+    fileName: "images.json",
+    key: "generations",
+  })
+  return records.map((record) => record.id)
+}
+
+describe("deleteCharacter", () => {
+  it("removes the character record and reports its unused preview file", async () => {
+    await seedCharacters([
+      characterRecord("1", "Maya", "/api/local-assets/characters/headshots/maya.png"),
+      characterRecord("2", "Keep", "/api/local-assets/characters/headshots/keep.png"),
+    ])
+
+    const result = await deleteCharacter("1")
+
+    expect(result).toEqual({ deleted: true, deletedFiles: 1 })
+    expect(await remainingCharacterIds()).toEqual(["2"])
+  })
+
+  it("keeps a preview file when another character still references it", async () => {
+    await seedCharacters([
+      characterRecord("1", "Maya", "/api/local-assets/characters/headshots/shared.png"),
+      characterRecord("2", "Keep", "/api/local-assets/characters/headshots/shared.png"),
+    ])
+
+    const result = await deleteCharacter("1")
+
+    expect(result).toEqual({ deleted: true, deletedFiles: 0 })
+    expect(await remainingCharacterIds()).toEqual(["2"])
+  })
+
+  it("deletes generated image records and reports output files for the deleted character", async () => {
+    await seedCharacters([
+      characterRecord("1", "Maya", "/api/local-assets/characters/headshots/maya.png"),
+      characterRecord("2", "Keep", "/api/local-assets/characters/headshots/keep.png"),
+    ])
+    await seedGenerations([
+      characterGeneration("maya-generation", "1", "maya.png"),
+      characterGeneration("keep-generation", "2", "keep.png"),
+    ])
+    await seedVideos([characterVideo("maya-generation", "1", "maya.mp4")])
+
+    const result = await deleteCharacter("1")
+
+    // preview headshots/maya.png + generation images/maya.png + video maya.mp4
+    expect(result).toEqual({ deleted: true, deletedFiles: 3 })
+    expect(await remainingGenerationIds()).toEqual(["keep-generation"])
+  })
+})
+
+function characterRecord(id: string, name: string, preview_url: string) {
   return {
     id,
     user_id: "103073708745629128582",
@@ -109,7 +123,7 @@ function characterRecord(id: number, name: string, preview_url: string) {
   }
 }
 
-function characterGeneration(id: string, characterId: number, imageFile: string, videoFile?: string) {
+function characterGeneration(id: string, characterId: string, imageFile: string) {
   return {
     id,
     characterId,
@@ -120,7 +134,19 @@ function characterGeneration(id: string, characterId: number, imageFile: string,
     aspectRatio: "9:16",
     status: "ready",
     imageUrl: `/api/local-assets/characters/images/${imageFile}`,
-    videoUrl: videoFile ? `/api/local-assets/characters/videos/${videoFile}` : undefined,
     progress: 100,
+  }
+}
+
+function characterVideo(generationId: string, characterId: string, videoFile: string) {
+  return {
+    id: generationId,
+    generationId,
+    characterId,
+    videoUrl: `/api/local-assets/characters/videos/${videoFile}`,
+    model: "Kling 2.6",
+    status: "ready",
+    progress: 100,
+    createdAt: "2026-07-03T00:00:00.000Z",
   }
 }

@@ -2,10 +2,17 @@ import { describe, expect, it } from "vitest"
 
 import type { AutomationTemplateRecord } from "@/lib/automation-templates"
 import {
+  automationFormatSection,
+  defaultAutomationSchema,
+  updateAutomationFormatSection,
+} from "@/lib/realfarm-automation"
+import {
+  automationSchemaToTempSlideTestingAutomation,
   automationTemplateToTempSlideTestingAutomation,
   buildTempSlideUserPrompt,
   buildTempSlideStructuredOutputSchema,
   defaultTempSlideUserInstructions,
+  defaultTempSlideSystemPrompt,
   getTempSlidePromptPlaceholders,
   promptPreviewHook,
   normalizeTempSlideStructuredOutput,
@@ -13,6 +20,72 @@ import {
 } from "@/lib/temp-slide-testing"
 
 describe("temp slide testing helpers", () => {
+  it("gives the hook and content direction priority over stale global style", () => {
+    expect(defaultTempSlideSystemPrompt).toContain(
+      "The selected hook defines the slideshow topic"
+    )
+    expect(defaultTempSlideSystemPrompt).toContain(
+      "outrank automation names, global style, tone, examples, and legacy template language"
+    )
+    expect(defaultTempSlideSystemPrompt).toContain(
+      "ignore any part that changes the topic"
+    )
+  })
+  it("keeps CTA disabled in a new automation until its section is enabled", () => {
+    const schema = defaultAutomationSchema({
+      id: "cta-default",
+      name: "CTA default",
+      status: "live",
+      account: "",
+      handle: "",
+      times: [],
+      favorite: false,
+      theme: "default",
+      socialIntegrations: [],
+    })
+    expect(schema.image_collection_ids.cta_slide.check).toBe(false)
+    expect(
+      automationSchemaToTempSlideTestingAutomation(schema).slides.some(
+        (slide) => slide.section === "cta"
+      )
+    ).toBe(false)
+  })
+
+  it("applies content direction and image overrides to the exact generated slide", () => {
+    const base = defaultAutomationSchema({
+      id: "1",
+      name: "Control audit",
+      status: "live",
+      account: "",
+      handle: "",
+      times: [],
+      favorite: false,
+      theme: "default",
+      socialIntegrations: [],
+    })
+    const body = automationFormatSection(base, "content")
+    const schema = updateAutomationFormatSection(base, "content", {
+      slideCount: 2,
+      slideOverrides: [
+        { slideIndex: 2, contentDirection: "second slide only" },
+      ],
+      imageOverrides: [{ slideIndex: 2, collectionId: "override-collection" }],
+      textItems: [
+        { ...body.textItems[0], id: "body-text", contentDirection: "default" },
+      ],
+    })
+
+    const automation = automationSchemaToTempSlideTestingAutomation(schema)
+    const contentSlides = automation.slides.filter(
+      (slide) => slide.section === "content"
+    )
+    expect(contentSlides[0].textItems[0].contentDirection).toBe("default")
+    expect(contentSlides[1].textItems[0].contentDirection).toBe(
+      "second slide only"
+    )
+    expect(contentSlides[1].collectionId).toBe("override-collection")
+  })
+
   it("maps automation templates into hook, content, and cta slide specs", () => {
     const automation =
       automationTemplateToTempSlideTestingAutomation(templateRecord)
@@ -92,6 +165,32 @@ describe("temp slide testing helpers", () => {
     expect(
       placeholders.map((placeholder) => placeholder.section)
     ).not.toContain("hook")
+  })
+
+  it("makes the selected hook the source of truth for every body placeholder", () => {
+    const automation =
+      automationTemplateToTempSlideTestingAutomation(templateRecord)
+    const prompt = buildTempSlideUserPrompt({
+      automationName: "Legacy automation title",
+      hook: "why capricorns never forget a broken promise",
+      tone: automation.tone,
+      style: "Use a generic numbered-list format.",
+      promptInstructions: defaultTempSlideUserInstructions,
+      placeholders: getTempSlidePromptPlaceholders(automation),
+    })
+
+    expect(prompt).toContain(
+      "The selected Hook above is the source of truth for this one slideshow"
+    )
+    expect(prompt).toContain(
+      "Every body slide must directly answer, explain, support, exemplify, or continue that exact hook"
+    )
+    expect(prompt).toContain(
+      "Text boxes sharing the same slide id are one unit"
+    )
+    expect(prompt).toContain(
+      "treat it as format—not as permission to change topics"
+    )
   })
 
   it("recovers fixed-hook image-only templates from imported style instructions", () => {

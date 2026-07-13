@@ -200,7 +200,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2025-08-28T23:02:33.367407+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-ugc-laptop-study-2026-07-03t00-01-04-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-ugc-laptop-study-2026-07-03t00-01-04-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-ugc-laptop-study-2026-07-03t00-01-04-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-ugc-laptop-study-2026-07-03t00-01-04-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-ugc-laptop-study-2026-07-03t00-01-04-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-ugc-laptop-study-2026-07-03t00-01-04-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -327,7 +327,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2025-09-09T16:41:47.864776+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-ugc-entrepreneur-2026-07-03t00-01-02-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-tumblr-1stclassdon-2026-07-03t00-01-08-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-tumblr-1stclassdon-2026-07-03t00-01-08-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-ugc-entrepreneur-2026-07-03t00-01-02-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-tumblr-1stclassdon-2026-07-03t00-01-08-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-tumblr-1stclassdon-2026-07-03t00-01-08-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -454,7 +454,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2025-09-11T15:46:36.826944+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-tumblr-oldpaintings-2026-07-03t00-01-18-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-tumblr-oldpaintings-2026-07-03t00-01-18-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-tumblr-oldpaintings-2026-07-03t00-01-18-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-tumblr-oldpaintings-2026-07-03t00-01-18-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-tumblr-oldpaintings-2026-07-03t00-01-18-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-tumblr-oldpaintings-2026-07-03t00-01-18-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -581,7 +581,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2025-09-11T21:15:22.298424+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-gym-2026-07-03t00-01-16-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-gym-2026-07-03t00-01-16-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-gym-2026-07-03t00-01-16-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-gym-2026-07-03t00-01-16-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-gym-2026-07-03t00-01-16-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-gym-2026-07-03t00-01-16-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -723,7 +723,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2025-09-12T16:13:39.504991+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-faceless-selfies-2026-07-03t00-01-10-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-tumblr-nar-r-2026-07-03t00-01-21-000z\",\"aspect_ratio\":\"4:5\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-tumblr-nar-r-2026-07-03t00-01-21-000z\",\"image_id\":\"77807\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-faceless-selfies-2026-07-03t00-01-10-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-tumblr-nar-r-2026-07-03t00-01-21-000z\",\"aspect_ratio\":\"4:5\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-tumblr-nar-r-2026-07-03t00-01-21-000z\",\"image_id\":\"77807\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "4:5",
@@ -850,7 +850,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2025-09-25T03:09:26.88254+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-fall-evening-2026-07-03t00-01-12-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-fall-evening-2026-07-03t00-01-12-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":\"collection-pinterest-love-texts-imessage-2026-07-03t00-00-52-000z\",\"image_id\":\"167389\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"background_opacity\":35,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-fall-evening-2026-07-03t00-01-12-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-fall-evening-2026-07-03t00-01-12-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":\"collection-pinterest-love-texts-imessage-2026-07-03t00-00-52-000z\",\"image_id\":\"167389\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -977,7 +977,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2025-12-18T20:24:50.842017+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-movie-watching-aesthetic-2026-07-03t00-01-01-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-movie-watching-aesthetic-2026-07-03t00-01-01-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":false,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_8900\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-movie-watching-aesthetic-2026-07-03t00-01-01-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-movie-watching-aesthetic-2026-07-03t00-01-01-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":false,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_8900\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -1089,7 +1089,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2025-12-19T17:27:23.200067+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-baseball-black-and-white-aesthetic-film-photos-2026-07-03t00-01-00-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-baseball-black-and-white-aesthetic-film-photos-2026-07-03t00-01-00-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -1156,7 +1156,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2025-12-20T02:38:22.029813+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-wolf-of-wall-street-aesthetic-2026-07-03t00-00-58-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-wolf-of-wall-street-aesthetic-2026-07-03t00-00-58-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -1220,7 +1220,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-01-02T21:12:18.780593+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-sunsets-iphone-photos-2026-07-03t00-00-57-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-sunsets-iphone-photos-2026-07-03t00-00-57-000z\",\"aspect_ratio\":\"1:1\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-sunsets-iphone-photos-2026-07-03t00-00-57-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":35,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-sunsets-iphone-photos-2026-07-03t00-00-57-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-sunsets-iphone-photos-2026-07-03t00-00-57-000z\",\"aspect_ratio\":\"1:1\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-sunsets-iphone-photos-2026-07-03t00-00-57-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "1:1",
@@ -1324,7 +1324,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-01-02T21:16:51.265005+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-nail-design-inspo-2026-07-03t00-00-56-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nail-design-inspo-2026-07-03t00-00-56-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":false,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nail-design-inspo-2026-07-03t00-00-56-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":35,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":true,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-nail-design-inspo-2026-07-03t00-00-56-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nail-design-inspo-2026-07-03t00-00-56-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":false,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nail-design-inspo-2026-07-03t00-00-56-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":true,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -1370,7 +1370,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-01-03T23:51:11.190944+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-healthy-meal-inspo-2026-07-03t00-00-53-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-high-protein-meal-cheat-sheet-2026-07-03t00-00-54-000z\",\"aspect_ratio\":\"4:5\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":false,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-high-protein-meal-cheat-sheet-2026-07-03t00-00-54-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":35,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":true,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-healthy-meal-inspo-2026-07-03t00-00-53-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-high-protein-meal-cheat-sheet-2026-07-03t00-00-54-000z\",\"aspect_ratio\":\"4:5\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":false,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-high-protein-meal-cheat-sheet-2026-07-03t00-00-54-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":true,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -1400,7 +1400,9 @@
           "tone": "Custom",
           "custom_tone": ""
         },
-        "hooks": ["literally the best high protein meal cheat sheet"]
+        "hooks": [
+          "literally the best high protein meal cheat sheet"
+        ]
       }
     },
     {
@@ -1413,7 +1415,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-01-05T21:35:21.843436+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-blurry-night-love-photos-2026-07-03t00-00-51-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-love-texts-imessage-2026-07-03t00-00-52-000z\",\"aspect_ratio\":\"4:5\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-love-texts-imessage-2026-07-03t00-00-52-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":35,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":true,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-blurry-night-love-photos-2026-07-03t00-00-51-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-love-texts-imessage-2026-07-03t00-00-52-000z\",\"aspect_ratio\":\"4:5\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-love-texts-imessage-2026-07-03t00-00-52-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":true,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "fit",
@@ -1513,7 +1515,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-01-24T18:12:06.858879+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-movie-watching-aesthetic-2026-07-03t00-01-01-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-movie-watching-aesthetic-2026-07-03t00-01-01-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -1641,7 +1643,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-01-24T18:37:50.092519+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-feminine-hollywood-aesthetic-2026-07-03t00-00-47-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-feminine-hollywood-aesthetic-2026-07-03t00-00-47-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -1756,7 +1758,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-01-29T00:19:11.841034+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-high-class-women-faceless-aesthetic-2026-07-03t00-00-45-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-classy-dark-nyc-pov-aesthetic-2026-07-03t00-00-44-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-classy-dark-nyc-pov-aesthetic-2026-07-03t00-00-44-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-high-class-women-faceless-aesthetic-2026-07-03t00-00-45-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-classy-dark-nyc-pov-aesthetic-2026-07-03t00-00-44-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-classy-dark-nyc-pov-aesthetic-2026-07-03t00-00-44-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -1891,7 +1893,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-03-10T04:24:18.533889+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-horizontal-hooks-2026-07-03t00-00-37-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":20,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-horizontal-hooks-2026-07-03t00-00-37-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "fit",
@@ -2058,7 +2060,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-03-19T20:51:17.15656+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-horizontal-hooks-2026-07-03t00-00-37-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"background_opacity\":20,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-horizontal-hooks-2026-07-03t00-00-37-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -2243,7 +2245,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-05-19T00:42:18.014195+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "4:5",
@@ -2388,7 +2390,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-05-19T02:27:36.891653+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -2518,7 +2520,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-05-19T04:42:43.292619+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-space-2026-07-03t00-00-15-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-space-2026-07-03t00-00-15-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":10,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-space-2026-07-03t00-00-15-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-space-2026-07-03t00-00-15-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -2624,7 +2626,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-06-09T18:21:49.884943+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_12468\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_12468\",\"aspect_ratio\":\"3:2\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"background_opacity\":20,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_12468\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_12468\",\"aspect_ratio\":\"3:2\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "3:2",
@@ -2746,7 +2748,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-05-27T17:40:39.597963+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11945\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11945\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_4932\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":20,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11945\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11945\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_4932\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "4:3",
@@ -2881,7 +2883,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-05-23T01:43:20.63364+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11759\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_11758\",\"aspect_ratio\":\"3:4\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"background_opacity\":35,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11759\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_11758\",\"aspect_ratio\":\"3:4\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "3:4",
@@ -2990,7 +2992,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-05-22T18:31:08.583329+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11750\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_11751\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"background_opacity\":35,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11750\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_11751\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -3122,7 +3124,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-05-21T19:09:15.151529+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11625\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11625\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11625\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":10,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\",\"autoImagesBody\":false}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11625\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11625\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11625\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\",\"autoImagesBody\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -3222,7 +3224,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-05-19T17:53:00.700484+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11507\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11501\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"background_opacity\":25,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11507\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11501\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
         "format": {
           "hook": {
             "aspect_ratio": "fit",

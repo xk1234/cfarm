@@ -24,6 +24,7 @@ import type { AutomationSchema } from "@/lib/realfarm-automation"
 import { cn } from "@/lib/utils"
 
 import {
+  automationGenerationIssue,
   cloneAutomationSchema,
   generationPlaceholderRun,
   wait,
@@ -53,6 +54,7 @@ export function AutomationSettingsDrawer({
   onGenerationRunUpdate,
   onGenerationRunRemove,
   onEditSocialAccounts,
+  onDuplicate,
   onDelete,
   onClose,
 }: {
@@ -68,6 +70,7 @@ export function AutomationSettingsDrawer({
   onGenerationRunUpdate: (run: AutomationRunApiRecord) => void
   onGenerationRunRemove: (runId: string) => void
   onEditSocialAccounts: () => void
+  onDuplicate: () => Promise<void>
   onDelete: () => void
   onClose: () => void
 }) {
@@ -78,6 +81,8 @@ export function AutomationSettingsDrawer({
     cloneAutomationSchema(config)
   )
   const [generating, setGenerating] = useState(false)
+  const [duplicating, setDuplicating] = useState(false)
+  const [generationError, setGenerationError] = useState<string>()
   const [recentRuns, setRecentRuns] = useState<AutomationRunApiRecord[]>([])
   const automationKind =
     draftConfig.automationKind === "video" ? "video" : "slideshow"
@@ -86,7 +91,7 @@ export function AutomationSettingsDrawer({
   useEffect(() => {
     let active = true
     void fetchJsonWithTimeout<{ runs?: AutomationRunApiRecord[] }>(
-      `/api/automations/runs?automationId=${encodeURIComponent(automation.id)}&limit=6`,
+      `/api/automations/runs?automationId=${encodeURIComponent(automation.id)}&limit=100`,
       {
         toastOnError: false,
       }
@@ -119,11 +124,18 @@ export function AutomationSettingsDrawer({
       return
     }
 
+    const preflightError = automationGenerationIssue(draftConfig, collections)
+    if (preflightError) {
+      setGenerationError(preflightError)
+      setActiveTab("overview")
+      return
+    }
+
     const loadingStartedAt = Date.now()
+    setGenerationError(undefined)
     const placeholderRun = generationPlaceholderRun({
       automation,
       config: draftConfig,
-      collections,
     })
     flushSync(() => {
       setGenerating(true)
@@ -137,14 +149,26 @@ export function AutomationSettingsDrawer({
     })
     onGenerationRunUpdate(placeholderRun)
     try {
+      // Persist the exact editor state first, then let the runner reload the
+      // canonical Appwrite row. Passing a client-side schema override here can
+      // resurrect stale prompt/style fields from a long-open drawer.
+      await fetchJsonWithTimeout("/api/automations", {
+        method: "PATCH",
+        timeoutMs: 30_000,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: automation.id,
+          schema: draftConfig,
+        }),
+      })
       const payload = await fetchJsonWithTimeout<AutomationRunApiPayload>(
         "/api/automations/run",
         {
           method: "POST",
+          timeoutMs: 10 * 60_000,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             automationId: automation.id,
-            schema: draftConfig,
             force: true,
             now: new Date().toISOString(),
           }),
@@ -152,10 +176,22 @@ export function AutomationSettingsDrawer({
       )
       const run = payload.created?.[0]
       if (!run || !run.plan?.slides?.length) {
-        window.alert(
+        const message =
           run?.error ||
-            "No slideshow slides were generated for this automation."
+          (payload.skipped?.some((item) => item.reason === "hooks_exhausted")
+            ? "No unused hook combinations remain for this automation."
+            : payload.skipped?.some(
+                  (item) => item.reason === "insufficient_unique_images"
+                )
+              ? "There are not enough unique images to generate every slide without duplicates."
+              : payload.skipped?.some((item) => item.reason === "no_images")
+                ? "Choose an image collection with at least one image before generating."
+                : "No slideshow slides were generated for this automation.")
+        setRecentRuns((current) =>
+          current.filter((item) => item.id !== placeholderRun.id)
         )
+        onGenerationRunRemove(placeholderRun.id)
+        setGenerationError(message)
         return
       }
 
@@ -169,13 +205,16 @@ export function AutomationSettingsDrawer({
       )
       onGenerationRunRemove(placeholderRun.id)
       onGenerationRunUpdate(run)
+      setGenerationError(undefined)
       setActiveTab("overview")
     } catch (error) {
       setRecentRuns((current) =>
         current.filter((item) => item.id !== placeholderRun.id)
       )
       onGenerationRunRemove(placeholderRun.id)
-      window.alert(getApiErrorMessage(error, "Failed to generate slideshow"))
+      setGenerationError(
+        getApiErrorMessage(error, "Failed to generate slideshow")
+      )
     } finally {
       const remainingLoadingMs = 450 - (Date.now() - loadingStartedAt)
       if (remainingLoadingMs > 0) {
@@ -260,9 +299,18 @@ export function AutomationSettingsDrawer({
             />
           </div>
           <div className="mt-auto space-y-4 pb-4 pl-3 text-[15px] font-semibold">
-            <button className="flex items-center gap-2 text-[#85847d]">
+            <button
+              type="button"
+              className="flex items-center gap-2 text-[#85847d] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={duplicating}
+              onClick={() => {
+                if (duplicating) return
+                setDuplicating(true)
+                void onDuplicate().finally(() => setDuplicating(false))
+              }}
+            >
               <Copy className="size-4" />
-              Duplicate
+              {duplicating ? "Duplicating..." : "Duplicate"}
             </button>
             <button
               className="flex items-center gap-2 text-[#c54b4b]"
@@ -290,7 +338,7 @@ export function AutomationSettingsDrawer({
             automation={automation}
             editingName={editingName}
             draftName={draftName}
-            generating={generating}
+            generationError={generationError}
             onDraftNameChange={setDraftName}
             onStartNameEdit={() => setEditingName(true)}
             onSaveName={saveName}

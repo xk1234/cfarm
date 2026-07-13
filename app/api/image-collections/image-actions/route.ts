@@ -1,6 +1,8 @@
 import { clean } from "@/lib/guards"
 import { NextResponse } from "next/server"
 
+import { providerFail } from "@/lib/api"
+
 import {
   editImageWithFluxKontext,
   getKieApiKey,
@@ -28,10 +30,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing KIE_KEY" }, { status: 500 })
     }
     if (!imageUrl) {
-      return NextResponse.json({ error: "Image URL is required" }, { status: 400 })
+      return NextResponse.json(
+        { error: "Image URL is required" },
+        { status: 400 }
+      )
     }
     if (mode === "edit" && !clean(payload.prompt)) {
-      return NextResponse.json({ error: "Edit prompt is required" }, { status: 400 })
+      return NextResponse.json(
+        { error: "Edit prompt is required" },
+        { status: 400 }
+      )
     }
 
     const result = await runImageAction(mode, {
@@ -43,10 +51,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result)
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Image action failed" },
-      { status: 500 }
-    )
+    return providerFail(error, "Image action failed", 500)
   }
 }
 

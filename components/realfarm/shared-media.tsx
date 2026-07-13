@@ -8,7 +8,7 @@ import {
 } from "@tabler/icons-react"
 import type { ReactNode } from "react"
 
-import { SelectLike } from "@/components/ui/form-controls"
+import { SelectLike, SwitchPill } from "@/components/ui/form-controls"
 import { Spinner } from "@/components/ui/spinner"
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { Video } from "@/lib/realfarm-data"
@@ -338,19 +338,7 @@ export function ControlToggle({
       onClick={onClick}
     >
       <span className="font-semibold text-[#66655f]">{label}</span>
-      <span
-        className={cn(
-          "h-5 w-8 rounded-full p-0.5 transition",
-          enabled ? "bg-app-action" : "bg-[#edede8]"
-        )}
-      >
-        <span
-          className={cn(
-            "block size-4 rounded-full bg-white transition",
-            enabled && "translate-x-3"
-          )}
-        />
-      </span>
+      <SwitchPill enabled={enabled} />
     </button>
   )
 }

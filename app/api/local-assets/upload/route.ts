@@ -2,6 +2,7 @@ import path from "node:path"
 
 import { NextResponse } from "next/server"
 
+import { withHandler } from "@/lib/api"
 import { persistAsset } from "@/lib/asset-storage"
 
 export const dynamic = "force-dynamic"
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic"
 const allowedAudioTypes = new Set(["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav"])
 const allowedExtensions = new Set([".mp3", ".wav"])
 
-export async function POST(request: Request) {
+export const POST = withHandler(async (request: Request) => {
   const formData = await request.formData()
   const file = formData.get("file")
 
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
       kind: "audio",
     },
   })
-}
+})
 
 function slugify(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")

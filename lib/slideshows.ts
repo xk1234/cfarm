@@ -1,20 +1,26 @@
 import { clean } from "@/lib/guards"
 import { randomUUID } from "node:crypto"
-import { execFile } from "node:child_process"
 import {
   copyFile,
   mkdir,
-  mkdtemp,
   readFile,
   rename,
   rm,
   writeFile,
 } from "node:fs/promises"
-import os from "node:os"
 import path from "node:path"
-import { promisify } from "node:util"
 
-import { mirrorAssetToAppwrite } from "@/lib/asset-storage"
+import { toDataUrl } from "@/lib/data-url"
+import {
+  mirrorAssetToAppwrite,
+  mirrorDirToAppwrite,
+  readAssetBytes,
+} from "@/lib/asset-storage"
+import {
+  getRendiApiKey,
+  runRendiFfmpegAndDownload,
+  uploadLocalFileToRendi,
+} from "@/lib/rendi-ffmpeg"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 import {
   createResultRecord,
@@ -48,7 +54,6 @@ export type SlideshowSettings = {
   background_color: string
   is_bg_overlay_on: boolean
   transition_style: string
-  background_opacity: number
   is_bg_overlay_on_hook_image: boolean
   export_as_video: boolean
   sound_id: string
@@ -56,27 +61,35 @@ export type SlideshowSettings = {
   sound_url: string
 }
 
-export type SlideshowRecord = {
+// Authoring inputs: everything that describes a slideshow independent of any
+// render. This is the shape a caller conceptually fills in before rendering.
+export type SlideshowDraft = {
+  ownerId?: string
   id: string
   automationId?: string
-  output_dir?: string
-  output_images: string[]
-  video_url?: string
-  thumbnail_url?: string
   title: string
   caption: string
   hashtags: string
-  status: SlideshowStatus
   prompt: string
   image_collection: string
   slideshow_type: string
   created_at: string
   updated_at: string
-  is_finished: boolean
-  is_failed: boolean
   settings: SlideshowSettings
   images: SlideshowSlide[]
 }
+
+// Products of rendering a draft: the exported media and the render status.
+export type SlideshowRenderOutputs = {
+  status: SlideshowStatus
+  output_dir?: string
+  output_images: string[]
+  video_url?: string
+  thumbnail_url?: string
+}
+
+// A persisted slideshow is a draft together with its render outputs.
+export type SlideshowRecord = SlideshowDraft & SlideshowRenderOutputs
 
 export type CreateSlideshowInput = {
   rootDir?: string
@@ -92,11 +105,8 @@ export type CreateSlideshowInput = {
   slideshow_type?: string
   settings?: Partial<SlideshowSettings>
   images?: Partial<SlideshowSlide>[]
-  slides?: Partial<SlideshowSlide>[]
   video_url?: string
   thumbnail_url?: string
-  is_finished?: boolean
-  is_failed?: boolean
 }
 
 type RawSlideshowRecord = Omit<Partial<SlideshowRecord>, "images"> & {
@@ -105,7 +115,6 @@ type RawSlideshowRecord = Omit<Partial<SlideshowRecord>, "images"> & {
 
 const defaultRootDir = path.join(process.cwd(), "data", "slideshows")
 const dbFileName = "slideshows.json"
-const execFileAsync = promisify(execFile)
 
 export async function listSlideshowRecords(
   input: {
@@ -159,13 +168,11 @@ export async function createSlideshowResultRecord(input: CreateSlideshowInput) {
     slideshow_type: clean(input.slideshow_type) || "educational",
     created_at: now,
     updated_at: now,
-    is_finished: input.is_finished ?? true,
-    is_failed: input.is_failed ?? false,
     settings: {
       ...defaultSlideshowSettings(),
       ...input.settings,
     },
-    images: input.images ?? input.slides ?? [],
+    images: input.images ?? [],
     video_url: clean(input.video_url) || undefined,
     thumbnail_url: clean(input.thumbnail_url) || undefined,
   })
@@ -291,7 +298,6 @@ export function defaultSlideshowSettings(
     background_color: "#000000",
     is_bg_overlay_on: false,
     transition_style: defaultSlideshowTransition,
-    background_opacity: 40,
     is_bg_overlay_on_hook_image: false,
     export_as_video: false,
     sound_id: "",
@@ -354,8 +360,6 @@ function resultRecordToSlideshowRecord(
     slideshow_type: payload.slideshowType,
     created_at: result.createdAt,
     updated_at: result.updatedAt,
-    is_finished: !isFailed,
-    is_failed: isFailed,
     settings: payload.settings,
     images: payload.slides,
   })
@@ -392,7 +396,6 @@ function normalizeSlideshowRecord(record: RawSlideshowRecord): SlideshowRecord {
   const id = clean(record.id) || `slideshow-${randomUUID()}`
   const images = Array.isArray(record.images) ? record.images : []
   const settings = normalizeSettings(record.settings)
-  const isFailed = Boolean(record.is_failed) || record.status === "failed"
 
   return {
     id,
@@ -412,9 +415,6 @@ function normalizeSlideshowRecord(record: RawSlideshowRecord): SlideshowRecord {
     slideshow_type: clean(record.slideshow_type) || "educational",
     created_at: normalizeDate(record.created_at, now),
     updated_at: normalizeDate(record.updated_at, now),
-    is_finished:
-      typeof record.is_finished === "boolean" ? record.is_finished : !isFailed,
-    is_failed: isFailed,
     settings,
     images: images.map((slide, index) =>
       normalizeSlide(slide, index, settings.duration)
@@ -433,6 +433,7 @@ function normalizeSlide(
     image_url: imageUrl,
     source_image_url: clean(slide.source_image_url) || undefined,
     overlayImage: normalizeOverlayImage(slide.overlayImage),
+    overlay: Boolean(slide.overlay),
     textItems: Array.isArray(slide.textItems)
       ? slide.textItems.map((item, textIndex) =>
           normalizeTextItem(item, textIndex)
@@ -472,6 +473,7 @@ function normalizeTextItem(
     textStyle: clean(item.textStyle) || "outline",
     textAlign: clean(item.textAlign) || "center",
     textAnchor: clean(item.textAnchor) || "padded",
+    textVerticalAnchor: clean(item.textVerticalAnchor) || "padded",
     textPlacement: item.textPlacement,
     textPosition: normalizeTextPosition(item.textPosition),
   }
@@ -486,7 +488,6 @@ function normalizeSettings(
     duration: normalizeNumber(settings?.duration, defaultSlideshowDuration),
     transition_style:
       clean(settings?.transition_style) || defaultSlideshowTransition,
-    background_opacity: normalizeNumber(settings?.background_opacity, 40),
     export_as_video: Boolean(settings?.export_as_video),
     sound_id: clean(settings?.sound_id),
     sound_name: clean(settings?.sound_name),
@@ -609,6 +610,10 @@ async function writeSlideshowOutputs(
     }),
   }
 
+  // Upload every generated output to Storage, then discard the local scratch dir.
+  await mirrorDirToAppwrite(outputDir)
+  await rm(outputDir, { recursive: true, force: true })
+
   return outputRecord
 }
 
@@ -687,7 +692,11 @@ async function materializeSlideshowVideo(input: {
   durationSeconds: number
   slideImagePaths: string[]
 }) {
-  if (input.slideImagePaths.length === 0 || process.platform !== "darwin") {
+  if (input.slideImagePaths.length === 0) {
+    return null
+  }
+  const apiKey = getRendiApiKey()
+  if (!apiKey) {
     return null
   }
 
@@ -696,12 +705,13 @@ async function materializeSlideshowVideo(input: {
   await copyFile(input.slideImagePaths[0], thumbnailPath).catch(() => undefined)
 
   try {
-    await encodePngSequenceToMp4({
+    await encodePngSequenceToMp4ViaRendi({
+      apiKey,
       outputPath,
       durationSeconds: input.durationSeconds,
       slideImagePaths: input.slideImagePaths,
     })
-    await mirrorAssetToAppwrite(outputPath).catch(() => undefined)
+    // runRendiFfmpegAndDownload persists the mp4 to Storage; mirror the thumbnail too.
     await mirrorAssetToAppwrite(thumbnailPath).catch(() => undefined)
     return {
       videoUrl: outputFileUrl(input.slideshowId, "slideshow-export.mp4"),
@@ -712,50 +722,58 @@ async function materializeSlideshowVideo(input: {
   }
 }
 
-async function encodePngSequenceToMp4(input: {
+// Encode the slide stills into an mp4 via the Rendi cloud ffmpeg API (no local
+// ffmpeg). Each still is looped for `durationSeconds`, then concatenated.
+async function encodePngSequenceToMp4ViaRendi(input: {
+  apiKey: string
   outputPath: string
   durationSeconds: number
   slideImagePaths: string[]
 }) {
-  const concatDir = await mkdtemp(path.join(os.tmpdir(), "cfarm-video-"))
-  const concatPath = path.join(concatDir, "slides.ffconcat")
-  await writeFile(
-    concatPath,
-    [
-      "ffconcat version 1.0",
-      ...input.slideImagePaths.flatMap((slidePath) => [
-        `file '${escapeFfconcatPath(slidePath)}'`,
-        `duration ${Math.max(1, input.durationSeconds || defaultSlideshowDuration)}`,
-      ]),
-      `file '${escapeFfconcatPath(input.slideImagePaths[input.slideImagePaths.length - 1])}'`,
-    ].join("\n")
+  const duration = Math.max(
+    1,
+    input.durationSeconds || defaultSlideshowDuration
   )
-  try {
-    await execFileAsync(
-      "ffmpeg",
-      [
-        "-y",
-        "-f",
-        "concat",
-        "-safe",
-        "0",
-        "-i",
-        concatPath,
-        "-vf",
-        "fps=12,format=yuv420p",
-        "-movflags",
-        "+faststart",
-        input.outputPath,
-      ],
-      { timeout: 120_000, maxBuffer: 1024 * 1024 }
-    )
-  } finally {
-    await rm(concatDir, { recursive: true, force: true })
+  const inputFiles: Record<string, string> = {}
+  const command: string[] = []
+  for (const [index, slidePath] of input.slideImagePaths.entries()) {
+    const stored = await uploadLocalFileToRendi({
+      filePath: slidePath,
+      apiKey: input.apiKey,
+    })
+    if (!stored.storage_url) {
+      throw new Error("Rendi did not accept a slide image")
+    }
+    const alias = `slide_${index + 1}`
+    inputFiles[alias] = stored.storage_url
+    command.push("-loop", "1", "-t", String(duration), "-i", `{{${alias}}}`)
   }
-}
 
-function escapeFfconcatPath(filePath: string) {
-  return filePath.replace(/'/g, "'\\''")
+  const count = input.slideImagePaths.length
+  if (count === 1) {
+    command.push("-vf", "fps=12,format=yuv420p")
+  } else {
+    const labels = Array.from({ length: count }, (_, i) => `[${i}:v]`).join("")
+    command.push(
+      "-filter_complex",
+      `${labels}concat=n=${count}:v=1:a=0,fps=12,format=yuv420p[v]`,
+      "-map",
+      "[v]"
+    )
+  }
+  command.push("-movflags", "+faststart", "{{out_video}}")
+
+  await runRendiFfmpegAndDownload({
+    apiKey: input.apiKey,
+    ffmpegCommand: command.join(" "),
+    inputFiles,
+    outputFiles: { out_video: "slideshow-export.mp4" },
+    outputAlias: "out_video",
+    outputPath: input.outputPath,
+    maxCommandRunSeconds: 300,
+    vcpuCount: 4,
+    metadata: { workflow: "slideshow_export" },
+  })
 }
 
 async function materializeSlideSource(input: {
@@ -843,7 +861,12 @@ async function normalizeMaterializedImageSource(input: {
 
 async function imageDataUri(filePath: string, extension: string) {
   const bytes = await readFile(filePath)
-  return `data:${imageMimeType(extension)};base64,${bytes.toString("base64")}`
+  if ([".avif", ".gif", ".webp"].includes(extension.toLowerCase())) {
+    const sharp = (await import("sharp")).default
+    const png = await sharp(bytes, { animated: false }).png().toBuffer()
+    return toDataUrl(png, "image/png")
+  }
+  return toDataUrl(bytes, imageMimeType(extension))
 }
 
 function imageMimeType(extension: string) {
@@ -872,7 +895,9 @@ async function copyLocalAsset(sourceUrl: string, filePath: string) {
   }
 
   try {
-    await copyFile(sourcePath, filePath)
+    // Source assets live in Appwrite Storage; stage the bytes into the scratch dir.
+    const bytes = await readAssetBytes(sourcePath)
+    await writeFile(filePath, bytes)
     return true
   } catch {
     return false
@@ -1018,103 +1043,4 @@ function outputDirUrl(slideshowId: string) {
 
 function outputFileUrl(slideshowId: string, fileName: string) {
   return `${outputDirUrl(slideshowId)}/${encodeURIComponent(fileName)}`
-}
-
-function slideshowVideoSwiftSource() {
-  return `
-import AVFoundation
-import CoreGraphics
-import Foundation
-import ImageIO
-
-let arguments = CommandLine.arguments
-guard arguments.count >= 4 else {
-  fatalError("usage: render.swift output.mp4 durationSeconds image1.png ...")
-}
-
-let outputURL = URL(fileURLWithPath: arguments[1])
-let durationSeconds = max(1.0, Double(arguments[2]) ?? 3.0)
-let imageURLs = arguments.dropFirst(3).map { URL(fileURLWithPath: $0) }
-guard let firstSource = CGImageSourceCreateWithURL(imageURLs[0] as CFURL, nil),
-      let firstImage = CGImageSourceCreateImageAtIndex(firstSource, 0, nil) else {
-  fatalError("could not load first image")
-}
-
-try? FileManager.default.removeItem(at: outputURL)
-
-let width = firstImage.width
-let height = firstImage.height
-let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mp4)
-let settings: [String: Any] = [
-  AVVideoCodecKey: AVVideoCodecType.h264,
-  AVVideoWidthKey: width,
-  AVVideoHeightKey: height,
-  AVVideoCompressionPropertiesKey: [
-    AVVideoAverageBitRateKey: 4_000_000,
-    AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
-  ]
-]
-let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
-input.expectsMediaDataInRealTime = false
-let attributes: [String: Any] = [
-  kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB,
-  kCVPixelBufferWidthKey as String: width,
-  kCVPixelBufferHeightKey as String: height
-]
-let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: attributes)
-guard writer.canAdd(input) else { fatalError("cannot add writer input") }
-writer.add(input)
-guard writer.startWriting() else { fatalError(writer.error?.localizedDescription ?? "writer failed") }
-writer.startSession(atSourceTime: .zero)
-
-let fps: Int32 = 12
-let framesPerSlide = max(1, Int(round(durationSeconds * Double(fps))))
-var frameIndex: Int64 = 0
-
-func pixelBuffer(from image: CGImage) -> CVPixelBuffer? {
-  var buffer: CVPixelBuffer?
-  let status = CVPixelBufferCreate(kCFAllocatorDefault, width, height, kCVPixelFormatType_32ARGB, nil, &buffer)
-  guard status == kCVReturnSuccess, let pixelBuffer = buffer else { return nil }
-  CVPixelBufferLockBaseAddress(pixelBuffer, [])
-  defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
-  guard let context = CGContext(
-    data: CVPixelBufferGetBaseAddress(pixelBuffer),
-    width: width,
-    height: height,
-    bitsPerComponent: 8,
-    bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
-    space: CGColorSpaceCreateDeviceRGB(),
-    bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue
-  ) else { return nil }
-  context.interpolationQuality = .high
-  context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-  return pixelBuffer
-}
-
-for imageURL in imageURLs {
-  guard let source = CGImageSourceCreateWithURL(imageURL as CFURL, nil),
-        let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
-        let buffer = pixelBuffer(from: image) else {
-    continue
-  }
-  for _ in 0..<framesPerSlide {
-    while !input.isReadyForMoreMediaData {
-      Thread.sleep(forTimeInterval: 0.01)
-    }
-    let time = CMTime(value: frameIndex, timescale: fps)
-    adaptor.append(buffer, withPresentationTime: time)
-    frameIndex += 1
-  }
-}
-
-input.markAsFinished()
-let semaphore = DispatchSemaphore(value: 0)
-writer.finishWriting {
-  semaphore.signal()
-}
-semaphore.wait()
-if writer.status != .completed {
-  fatalError(writer.error?.localizedDescription ?? "video export failed")
-}
-`
 }

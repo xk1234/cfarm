@@ -517,7 +517,7 @@ describe("RealFarm source contracts", () => {
         "No generated slideshows yet.",
       ])
       expectContains(workspaceSource, [
-        "fetchJsonWithTimeout(`/api/automations?id=${encodeURIComponent(id)}`",
+        "fetchJsonWithTimeout(`/api/automations/${encodeURIComponent(id)}`",
         'method: "DELETE"',
         "/api/automations/runs?limit=100",
         "toggleAutomationStatus",
@@ -722,14 +722,17 @@ describe("RealFarm source contracts", () => {
         "initialSlideshowId",
       ])
       expectContains(slideshowViewerSource, [
-        "CheckedDropdownButton",
-        "selectedSlideshowLabel",
+        "exportSlideshowAsPngZip",
+        "Export PNGs",
         "boundedActiveSlide - 1",
         "boundedActiveSlide + 1",
-        "onSelectSlideshow(nextIndex)",
         "initialSlideshowId",
         'aria-hidden="true"',
+      ])
+      expectNotContains(slideshowViewerSource, [
+        "CheckedDropdownButton",
         'slide.section !== "hook"',
+        "text-yellow-100",
       ])
       expectNotContains(workspaceSource, ["templates={data.automations}"])
       expectNotContains(templatesSource, [
@@ -859,13 +862,13 @@ describe("RealFarm source contracts", () => {
         'aria-label="Image aspect ratio"',
         "fetchJsonWithTimeout<{",
         "imageUrl?: string",
-        "generation?: CharacterImageGenerationRecord",
+        "generation?: CharacterGenerationView",
         '"/api/characters/image"',
         'status: "processing"',
         "setPreviewGeneration(generation)",
         'aria-label="Use as source image"',
         "setSelectedGeneration(generation)",
-        "generations?: CharacterImageGenerationRecord[]",
+        "generations?: CharacterGenerationView[]",
         "`/api/characters/images?characterId=${selectedCharacter.id}`",
         "setGenerations(payload.generations ?? [])",
         "characterId: input.selectedCharacter.id",
@@ -935,8 +938,11 @@ describe("RealFarm source contracts", () => {
         "[[{slot}]]",
       ])
       expectContains(automationSettingsSource, [
-        "generating={generating}",
-        "StandardGenerationLoadingScreen",
+        "generationPlaceholderRun",
+        "placeholder-generating",
+        "generatingSlidePlaceholderDataUrl",
+      ])
+      expectNotContains(automationSettingsSource, [
         "Selecting images, expanding dynamic tags",
         "Preview will update when ready.",
       ])
@@ -986,7 +992,7 @@ describe("RealFarm source contracts", () => {
         '"/api/postfast/upload"',
         '"/api/postfast/posts"',
         "datetime-local",
-        "/api/generated-videos?id=",
+        "/api/generated-videos/",
       ])
       expect(
         greenscreenFlow.indexOf("createGeneratedVideoExportRecord")

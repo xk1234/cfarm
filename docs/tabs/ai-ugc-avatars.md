@@ -35,11 +35,11 @@ Main actions:
 
 ## Persistence
 
-Backing file: `data/characters.json`
+Appwrite `characters` table (via `lib/json-store.ts`); working file `data/characters.json` (filesystem fallback)
 
 Headshots: `data/characters/headshots`
 
-Avatar assets metadata: `data/assets/assets.json`
+Avatar assets: Appwrite `assets` table (via `lib/json-store.ts`); working file `data/assets/assets.json` (filesystem fallback)
 
 Avatar asset files: `data/assets/files`
 

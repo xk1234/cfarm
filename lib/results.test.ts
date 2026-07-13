@@ -1,9 +1,10 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises"
-import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
 import {
   createResultRecord,
   deleteResultRecord,
@@ -11,15 +12,16 @@ import {
   listResultRecords,
 } from "@/lib/results"
 
-let rootDir: string
+// Appwrite-only: the store maps `data/results/results.json` -> the `results`
+// table, so tests use the real data root and run against cfarm (forced by
+// vitest.setup.ts). Rows are cleared between tests for isolation.
+const rootDir = path.join(process.cwd(), "data", "results")
+const TABLE = "results"
 
-beforeEach(async () => {
-  rootDir = await mkdtemp(path.join(os.tmpdir(), "cfarm-results-"))
-})
+const clearResults = () => clearTestTables(TABLE)
 
-afterEach(async () => {
-  await rm(rootDir, { recursive: true, force: true })
-})
+beforeEach(clearResults)
+afterAll(clearResults)
 
 describe("result persistence", () => {
   it("creates and lists canonical automation output results", async () => {
@@ -51,7 +53,6 @@ describe("result persistence", () => {
           background_color: "#000000",
           is_bg_overlay_on: false,
           transition_style: "fade",
-          background_opacity: 40,
           is_bg_overlay_on_hook_image: false,
           export_as_video: false,
           sound_id: "",
@@ -79,9 +80,6 @@ describe("result persistence", () => {
       automationId: "automation-1",
       runId: "automation-run-1",
     })
-    const db = JSON.parse(
-      await readFile(path.join(rootDir, "results.json"), "utf8")
-    )
 
     expect(result).toMatchObject({
       id: "result-automation-run-1",
@@ -103,7 +101,6 @@ describe("result persistence", () => {
     })
     expect(records).toHaveLength(1)
     expect(filtered).toHaveLength(1)
-    expect(db.results).toHaveLength(1)
   })
 
   it("deletes results by id and automation id", async () => {

@@ -1,8 +1,13 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
 import { describe, expect, it, vi } from "vitest"
+
+import {
+  deleteAssetFromAppwrite,
+  mirrorAssetToAppwrite,
+} from "@/lib/asset-storage"
 
 import {
   buildFluxKontextGeneratePayload,
@@ -111,20 +116,15 @@ describe("kie image helpers", () => {
     const tempRoot = await mkdtemp(
       path.join(os.tmpdir(), "cfarm-kie-image-asset-")
     )
-    await mkdir(path.join(tempRoot, "data", "characters", "headshots"), {
-      recursive: true,
-    })
-    await writeFile(
-      path.join(
-        tempRoot,
-        "data",
-        "characters",
-        "headshots",
-        "jade-homeysg-preview.png"
-      ),
-      new Uint8Array([0, 1, 2, 3])
-    )
     vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
+    const headshotPath = path.join(
+      tempRoot,
+      "data",
+      "characters",
+      "headshots",
+      "jade-homeysg-preview.png"
+    )
+    await mirrorAssetToAppwrite(headshotPath, new Uint8Array([0, 1, 2, 3]))
 
     const fetchImpl = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -173,6 +173,7 @@ describe("kie image helpers", () => {
     expect(requestBody.base64Data).toMatch(/^data:image\/png;base64,/)
     expect(requestBody.fileName).toContain("jade-homeysg-preview.png")
     expect(requestBody.uploadPath).toBe("images/realfarm")
+    await deleteAssetFromAppwrite(headshotPath)
     await rm(tempRoot, { recursive: true, force: true })
     vi.restoreAllMocks()
   })
@@ -181,14 +182,15 @@ describe("kie image helpers", () => {
     const tempRoot = await mkdtemp(
       path.join(os.tmpdir(), "cfarm-kie-video-asset-")
     )
-    await mkdir(path.join(tempRoot, "data", "assets", "demos"), {
-      recursive: true,
-    })
-    await writeFile(
-      path.join(tempRoot, "data", "assets", "demos", "motion.mp4"),
-      new Uint8Array([0, 1, 2, 3])
-    )
     vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
+    const motionPath = path.join(
+      tempRoot,
+      "data",
+      "assets",
+      "demos",
+      "motion.mp4"
+    )
+    await mirrorAssetToAppwrite(motionPath, new Uint8Array([0, 1, 2, 3]))
     const fetchImpl = vi.fn(
       async (_input: RequestInfo | URL, _init?: RequestInit) =>
         new Response(
@@ -220,6 +222,7 @@ describe("kie image helpers", () => {
     }
     expect(requestBody.base64Data).toMatch(/^data:video\/mp4;base64,/)
     expect(requestBody.uploadPath).toBe("videos/realfarm")
+    await deleteAssetFromAppwrite(motionPath)
     await rm(tempRoot, { recursive: true, force: true })
     vi.restoreAllMocks()
   })

@@ -41,7 +41,7 @@ import { SelectControl } from "@/components/ui/form-controls"
 import { UploadDropzone } from "@/components/ui/upload-dropzone"
 import type { AssetRecord } from "@/lib/assets"
 import type { CharacterRecord } from "@/lib/characters"
-import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
+import { fetchJsonWithTimeout, getApiErrorMessage, toastApiError } from "@/lib/client-api"
 import {
   buildCharacterPromptPackage,
   characterImageAspectRatios,
@@ -49,7 +49,7 @@ import {
   createCharacterImageGenerationRecord,
   defaultCharacterPreviewUrl,
   getCharacterWorkflowMode,
-  type CharacterImageGenerationRecord,
+  type CharacterGenerationView,
   type CharacterPromptAttachment,
   type CharacterWorkflowKey,
   type CharacterWorkflowMetadata,
@@ -71,10 +71,10 @@ export function CharactersView({
 }: {
   characters: CharacterRecord[]
   selectedCharacter: CharacterRecord
-  onSelect: (id: number) => void
+  onSelect: (id: string) => void
   onNew: () => void
   onEdit: (character: CharacterRecord) => void
-  onDelete: (id: number) => void | Promise<void>
+  onDelete: (id: string) => void | Promise<void>
   onRename: (character: CharacterRecord, name: string) => void | Promise<void>
 }) {
   const [prompt, setPrompt] = useState("")
@@ -125,15 +125,15 @@ export function CharactersView({
     (typeof characterImageAspectRatios)[number]
   >(characterImageAspectRatios[0])
   const [generations, setGenerations] = useState<
-    CharacterImageGenerationRecord[]
+    CharacterGenerationView[]
   >([])
   const [selectedGeneration, setSelectedGeneration] =
-    useState<CharacterImageGenerationRecord | null>(null)
+    useState<CharacterGenerationView | null>(null)
   const [generationDropActive, setGenerationDropActive] = useState(false)
   const [debugGeneration, setDebugGeneration] =
-    useState<CharacterImageGenerationRecord | null>(null)
+    useState<CharacterGenerationView | null>(null)
   const [previewGeneration, setPreviewGeneration] =
-    useState<CharacterImageGenerationRecord | null>(null)
+    useState<CharacterGenerationView | null>(null)
   const [nameEdit, setNameEdit] = useState({
     id: selectedCharacter.id,
     draft: selectedCharacter.name,
@@ -255,7 +255,7 @@ export function CharactersView({
   useEffect(() => {
     let active = true
     void fetchJsonWithTimeout<{
-      generations?: CharacterImageGenerationRecord[]
+      generations?: CharacterGenerationView[]
     }>(`/api/characters/images?characterId=${selectedCharacter.id}`, {
       cache: "no-store",
       timeoutMs: 12_000,
@@ -269,12 +269,8 @@ export function CharactersView({
       })
       .catch((error) => {
         if (active) {
-          toast.error(
-            getApiErrorMessage(
-              error,
-              "Failed to load generated character images"
-            )
-          )
+          toastApiError(
+              error, "Failed to load generated character images")
           setGenerations([])
           setSelectedGeneration(null)
         }
@@ -303,7 +299,7 @@ export function CharactersView({
     }
   }
 
-  async function deleteGeneration(generation: CharacterImageGenerationRecord) {
+  async function deleteGeneration(generation: CharacterGenerationView) {
     setGenerations((current) =>
       current.filter((item) => item.id !== generation.id)
     )
@@ -324,7 +320,7 @@ export function CharactersView({
         deleted?: boolean
         deletedFiles?: number
         error?: string
-      }>(`/api/characters/images?id=${encodeURIComponent(generation.id)}`, {
+      }>(`/api/characters/images/${encodeURIComponent(generation.id)}`, {
         method: "DELETE",
         timeoutMs: 20_000,
         toastOnError: false,
@@ -339,7 +335,7 @@ export function CharactersView({
       )
     } catch (error) {
       setGenerations((current) => [generation, ...current])
-      toast.error(getApiErrorMessage(error, "Failed to delete generation"))
+      toastApiError(error, "Failed to delete generation")
     }
   }
 
@@ -360,7 +356,7 @@ export function CharactersView({
         : "Adding source images..."
     )
     try {
-      const uploaded: CharacterImageGenerationRecord[] = []
+      const uploaded: CharacterGenerationView[] = []
       for (const file of imageFiles) {
         const formData = new FormData()
         formData.set("file", file)
@@ -368,7 +364,7 @@ export function CharactersView({
         formData.set("aspectRatio", selectedAspectRatio)
         formData.set("prompt", `Dropped source image: ${file.name}`)
         const payload = await fetchJsonWithTimeout<{
-          generation?: CharacterImageGenerationRecord
+          generation?: CharacterGenerationView
           error?: string
         }>("/api/characters/images", {
           method: "POST",
@@ -1092,7 +1088,7 @@ async function runCharacterWorkflowOrImageGeneration(input: {
     const payload = await fetchJsonWithTimeout<{
       imageUrl?: string
       videoUrl?: string
-      generation?: CharacterImageGenerationRecord
+      generation?: CharacterGenerationView
       error?: string
     }>("/api/characters/workflows", {
       method: "POST",
@@ -1121,7 +1117,7 @@ async function runCharacterWorkflowOrImageGeneration(input: {
   return fetchJsonWithTimeout<{
     imageUrl?: string
     videoUrl?: string
-    generation?: CharacterImageGenerationRecord
+    generation?: CharacterGenerationView
     error?: string
   }>("/api/characters/image", {
     method: "POST",

@@ -3,7 +3,6 @@
 import { useState, type ReactNode } from "react"
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react"
 
-import { AutomationThumb } from "@/components/realfarm/shared-media"
 import { cn } from "@/lib/utils"
 
 import { ratioToCss } from "./run-helpers"
@@ -21,8 +20,6 @@ export function GeneratedSlideshowFrame({
   statusLabel,
   statusClassName,
   footerText,
-  fallbackTheme = "blue",
-  fallbackIndex = 0,
   renderOverlay,
   onSlideChange,
 }: {
@@ -30,8 +27,6 @@ export function GeneratedSlideshowFrame({
   statusLabel?: string
   statusClassName?: string
   footerText?: string
-  fallbackTheme?: string
-  fallbackIndex?: number
   renderOverlay?: (input: {
     slide: GeneratedSlideshowFrameSlide
     index: number
@@ -73,7 +68,9 @@ export function GeneratedSlideshowFrame({
             draggable={false}
           />
         ) : (
-          <AutomationThumb theme={fallbackTheme} index={fallbackIndex} />
+          <div className="grid h-full w-full place-items-center bg-[#202020] px-6 text-center text-[12px] font-semibold text-white/65">
+            No rendered image
+          </div>
         )}
         {activeSlideRecord && renderOverlay
           ? renderOverlay({

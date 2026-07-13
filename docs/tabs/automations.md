@@ -31,7 +31,7 @@ Main actions:
 
 | Object | Source | Usage |
 | --- | --- | --- |
-| `AutomationRecord[]` | `data/automations/automations.json` via `/api/automations` | Imported/local persisted automation source of truth. |
+| `AutomationRecord[]` | Appwrite `automations` table via `/api/automations` | Imported/local persisted automation source of truth. |
 | `Automation[]` | Persisted automation summaries, falling back to `data.automations` plus local `createdAutomations` | Cards and template entries. |
 | `AutomationSchema` | Imported schema or `defaultAutomationSchema()` / `mergeAutomationSchema()` | Edit drawer settings. |
 | `ImageCollectionConfig` | `AutomationSchema.image_collection_ids` | Format/settings collection references. |
@@ -39,17 +39,11 @@ Main actions:
 
 ## Persistence
 
-Persisted imported automations live in `data/automations/automations.json`. The API supports:
+Persisted imported automations live in the Appwrite `automations` table (via `lib/json-store.ts`); working file `data/automations/automations.json` (filesystem fallback). The API supports:
 
 - `GET /api/automations`
 - `POST /api/automations`
 - `PATCH /api/automations`
-
-There is also a helper script:
-
-```bash
-node scripts/import-reelfarm-automations.mjs <reelfarm-automations.json>
-```
 
 Chrome extraction status: the app-side DB/import path exists, but direct structured extraction from the logged-in Chrome Reelfarm tab was blocked because Chrome has JavaScript execution from Apple Events disabled and the available accessibility tree did not expose page content.
 

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 
+import { withHandler } from "@/lib/api"
 import {
   createGeneratedVideoExport,
-  deleteGeneratedVideoExport,
   isGeneratedVideoType,
   listGeneratedVideoExports,
   updateGeneratedVideoExport,
@@ -11,7 +11,7 @@ import {
 
 export const dynamic = "force-dynamic"
 
-export async function GET(request: Request) {
+export const GET = withHandler(async (request: Request) => {
   const { searchParams } = new URL(request.url)
   const rawType = searchParams.get("type")
   const exports = await listGeneratedVideoExports({
@@ -19,9 +19,9 @@ export async function GET(request: Request) {
   })
 
   return NextResponse.json({ exports })
-}
+})
 
-export async function POST(request: Request) {
+export const POST = withHandler(async (request: Request) => {
   const payload = await request.json().catch(() => null)
 
   if (!payload || !isGeneratedVideoType(payload.type)) {
@@ -41,9 +41,9 @@ export async function POST(request: Request) {
   })
 
   return NextResponse.json({ export: generatedExport }, { status: 201 })
-}
+})
 
-export async function PATCH(request: Request) {
+export const PATCH = withHandler(async (request: Request) => {
   const payload = await request.json().catch(() => null)
 
   if (!payload?.id || !isGeneratedVideoStatus(payload.status)) {
@@ -63,24 +63,7 @@ export async function PATCH(request: Request) {
   }
 
   return NextResponse.json({ export: generatedExport })
-}
-
-export async function DELETE(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const id = searchParams.get("id")?.trim()
-
-  if (!id) {
-    return NextResponse.json({ error: "A generated video export id is required" }, { status: 400 })
-  }
-
-  const generatedExport = await deleteGeneratedVideoExport({ id })
-
-  if (!generatedExport) {
-    return NextResponse.json({ error: "Generated video export not found" }, { status: 404 })
-  }
-
-  return NextResponse.json({ export: generatedExport })
-}
+})
 
 function isGeneratedVideoStatus(value: unknown): value is GeneratedVideoStatus {
   return value === "queued" || value === "processing" || value === "ready" || value === "failed"

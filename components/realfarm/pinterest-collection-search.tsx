@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type * as React from "react"
-import { IconChevronRight, IconSearch } from "@tabler/icons-react"
+import { IconSearch } from "@tabler/icons-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -22,7 +22,10 @@ import {
   type StoredImageCollection,
 } from "@/lib/realfarm-collections"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
-import type { PinterestSearchResult } from "@/lib/pinterest-search"
+import {
+  isPinterestBoardUrl,
+  type PinterestSearchResult,
+} from "@/lib/pinterest-search"
 import { cn } from "@/lib/utils"
 
 export function PinterestCollectionSearch({
@@ -32,18 +35,25 @@ export function PinterestCollectionSearch({
   onCancel: () => void
   onCreateCollection: (collection: CreatedImageCollection) => void
 }) {
-  const [mode, setMode] = useState<"search" | "board">("search")
   const [query, setQuery] = useState("")
   const [searchedQuery, setSearchedQuery] = useState("")
   const [results, setResults] = useState<PinterestSearchResult[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [limit, setLimit] = useState(20)
-  const [searchSource, setSearchSource] = useState<"pinterest" | "pexels">("pinterest")
-  const [source, setSource] = useState<"pinterest" | "pexels" | "fallback" | "pexels-fallback" | "empty">("fallback")
-  const [searchStatus, setSearchStatus] = useState<"idle" | "searching" | "loadingMore">("idle")
+  const [searchSource, setSearchSource] = useState<"pinterest" | "pexels">(
+    "pinterest"
+  )
+  const [source, setSource] = useState<
+    "pinterest" | "pexels" | "fallback" | "pexels-fallback" | "empty"
+  >("fallback")
+  const [searchStatus, setSearchStatus] = useState<
+    "idle" | "searching" | "loadingMore"
+  >("idle")
   const [creatingCollection, setCreatingCollection] = useState(false)
   const [autoCaption, setAutoCaption] = useState(true)
-  const [recentSearches, setRecentSearches] = useState<string[]>(() => readRecentPinterestSearches())
+  const [recentSearches, setRecentSearches] = useState<string[]>(() =>
+    readRecentPinterestSearches()
+  )
 
   async function search(nextLimit = 20, queryOverride = query) {
     const trimmedQuery = queryOverride.trim()
@@ -51,7 +61,9 @@ export function PinterestCollectionSearch({
       return
     }
 
-    setSearchStatus(nextLimit > limit && results.length > 0 ? "loadingMore" : "searching")
+    setSearchStatus(
+      nextLimit > limit && results.length > 0 ? "loadingMore" : "searching"
+    )
     setSearchedQuery(trimmedQuery)
     setLimit(nextLimit)
 
@@ -64,7 +76,7 @@ export function PinterestCollectionSearch({
         headers: {
           "content-type": "application/json",
         },
-        body: JSON.stringify([{ query: trimmedQuery, apiKey: "", trim: true, mode }]),
+        body: JSON.stringify([{ query: trimmedQuery, apiKey: "", trim: true }]),
         toastOnError: false,
       })
 
@@ -73,7 +85,12 @@ export function PinterestCollectionSearch({
       saveRecentPinterestSearch(trimmedQuery)
       setSearchStatus("idle")
     } catch (searchError) {
-      toast.error(getApiErrorMessage(searchError, `${searchLabel(searchSource)} search failed`))
+      toast.error(
+        getApiErrorMessage(
+          searchError,
+          `${searchLabel(searchSource)} search failed`
+        )
+      )
       setSearchStatus("idle")
     }
   }
@@ -92,9 +109,15 @@ export function PinterestCollectionSearch({
   }
 
   function saveRecentPinterestSearch(value: string) {
-    const next = [value, ...recentSearches.filter((item) => item !== value)].slice(0, 6)
+    const next = [
+      value,
+      ...recentSearches.filter((item) => item !== value),
+    ].slice(0, 6)
     setRecentSearches(next)
-    window.localStorage.setItem("reelfarm:pinterest-recent", JSON.stringify(next))
+    window.localStorage.setItem(
+      "reelfarm:pinterest-recent",
+      JSON.stringify(next)
+    )
   }
 
   function toggleResult(id: string) {
@@ -114,6 +137,8 @@ export function PinterestCollectionSearch({
   const loadingMore = searchStatus === "loadingMore"
   const searching = searchStatus === "searching"
   const searchBusy = searchStatus !== "idle"
+  const isBoardQuery =
+    searchSource === "pinterest" && isPinterestBoardUrl(query)
 
   async function createCollection() {
     if (!canCreate) {
@@ -121,10 +146,20 @@ export function PinterestCollectionSearch({
     }
 
     setCreatingCollection(true)
-    const collectionName = pinterestCollectionTitle(searchedQuery || query.trim(), searchSource === "pexels" ? "pexels" : mode)
+    const collectionInput = searchedQuery || query.trim()
+    const collectionName = pinterestCollectionTitle(
+      collectionInput,
+      searchSource === "pexels"
+        ? "pexels"
+        : isPinterestBoardUrl(collectionInput)
+          ? "board"
+          : "search"
+    )
     const createdAt = new Date().toISOString()
     const createPayload: PinterestCollectionCreatePayload = {
-      image_urls: selectedResults.map((result) => result.imageUrl).filter(Boolean),
+      image_urls: selectedResults
+        .map((result) => result.imageUrl)
+        .filter(Boolean),
       user_id: "103073708745629128582",
       collection_name: collectionName,
       auto_caption: autoCaption,
@@ -132,7 +167,9 @@ export function PinterestCollectionSearch({
 
     try {
       toast.loading(
-        autoCaption ? `Importing and captioning ${selectedResults.length} images...` : `Importing ${selectedResults.length} images...`,
+        autoCaption
+          ? `Importing and captioning ${selectedResults.length} images...`
+          : `Importing ${selectedResults.length} images...`,
         { id: "pinterest-auto-caption" }
       )
       const collection = await importSelectedImages({
@@ -142,15 +179,24 @@ export function PinterestCollectionSearch({
         source,
         payload: createPayload,
       })
-      onCreateCollection(autoCaption ? await captionCollection(collection) : collection)
+      onCreateCollection(
+        autoCaption ? await captionCollection(collection) : collection
+      )
       if (autoCaption) {
         toast.success("Image captions ready", { id: "pinterest-auto-caption" })
       } else {
-        toast.success("Image collection imported", { id: "pinterest-auto-caption" })
+        toast.success("Image collection imported", {
+          id: "pinterest-auto-caption",
+        })
       }
     } catch (captionError) {
       toast.dismiss("pinterest-auto-caption")
-      toast.error(getApiErrorMessage(captionError, autoCaption ? "Auto-caption failed" : "Image import failed"))
+      toast.error(
+        getApiErrorMessage(
+          captionError,
+          autoCaption ? "Auto-caption failed" : "Image import failed"
+        )
+      )
       setCreatingCollection(false)
     }
   }
@@ -164,26 +210,35 @@ export function PinterestCollectionSearch({
           ariaLabel="Close Pinterest search"
         />
         <div className="border-b border-[#ecebe4] p-4 pb-3">
-          <form className="flex items-center gap-2 rounded-[9px] bg-white pr-9" onSubmit={submitSearch}>
+          <form
+            className="flex items-center gap-2 rounded-[9px] bg-white pr-9"
+            onSubmit={submitSearch}
+          >
             <IconSearch className="size-5 shrink-0 text-[#9a9991]" />
             <input
               className="h-10 min-w-0 flex-1 bg-transparent text-[18px] font-medium outline-none placeholder:text-[#77766f]"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               name="query"
-              placeholder={searchSource === "pexels" ? "Search Pexels..." : mode === "board" ? "Paste Pinterest board URL..." : "Search Pinterest..."}
+              placeholder={
+                searchSource === "pexels"
+                  ? "Search Pexels..."
+                  : "Search Pinterest or paste a board URL..."
+              }
               autoFocus
             />
             <SelectControl
               value={searchSource}
               onChange={(event) => {
-                const nextSource = event.target.value === "pexels" ? "pexels" : "pinterest"
+                const nextSource =
+                  event.target.value === "pexels" ? "pexels" : "pinterest"
                 setSearchSource(nextSource)
-                setMode("search")
                 setResults([])
                 setSelectedIds(new Set())
                 setSearchedQuery("")
-                setSource(nextSource === "pexels" ? "pexels-fallback" : "fallback")
+                setSource(
+                  nextSource === "pexels" ? "pexels-fallback" : "fallback"
+                )
               }}
               aria-label="Image search source"
             >
@@ -191,63 +246,48 @@ export function PinterestCollectionSearch({
               <option value="pexels">Pexels</option>
             </SelectControl>
             <Button
-              type="button"
-              variant="outline"
-              className="min-w-[112px] justify-between gap-2"
-              onClick={() => {
-                setMode((current) => current === "search" ? "board" : "search")
-                setQuery("")
-                setResults([])
-                setSelectedIds(new Set())
-                setSearchedQuery("")
-              }}
-              disabled={searchSource === "pexels"}
-            >
-              <span>{mode === "board" ? "Use Search" : "Import Board"}</span>
-              <IconChevronRight className={cn("size-4 text-[#77766f]", mode === "board" ? "-rotate-90" : "rotate-90")} />
-            </Button>
-            <Button
               type="submit"
 
               disabled={searchBusy || creatingCollection || !query.trim()}
             >
-              {searching ? (mode === "board" ? "Importing" : "Searching") : mode === "board" ? "Import Board" : "Search"}
+              {searching
+                ? isBoardQuery
+                  ? "Importing"
+                  : "Searching"
+                : isBoardQuery
+                  ? "Import Board"
+                  : "Search"}
             </Button>
           </form>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-3 px-4 text-[12px] text-[#77766f]">
           {results.length > 0 && <span>{results.length} results loaded</span>}
-          {(source === "fallback" || source === "pexels-fallback") && results.length > 0 && <span>Showing local preview results</span>}
+          {(source === "fallback" || source === "pexels-fallback") &&
+            results.length > 0 && <span>Showing local preview results</span>}
         </div>
         {results.length === 0 && !searchBusy ? (
-          <div className="min-h-[250px] px-5 pb-8 pt-2">
-            {mode === "search" ? (
-              <>
-                <div className="mb-3 text-[12px] font-semibold">Most recent</div>
-                {recentSearches.length > 0 ? (
-                  <div className="grid gap-3 text-[13px] text-[#62615b]">
-                    {recentSearches.map((suggestion) => (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        key={suggestion}
-                        className="justify-start px-2 text-left"
-                        onClick={() => {
-                          setQuery(suggestion)
-                        }}
-                      >
-                        {suggestion}
-                      </Button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-[13px] font-medium text-[#9a9991]">No recent searches yet</div>
-                )}
-              </>
+          <div className="min-h-[250px] px-5 pt-2 pb-8">
+            <div className="mb-3 text-[12px] font-semibold">Most recent</div>
+            {recentSearches.length > 0 ? (
+              <div className="grid gap-3 text-[13px] text-[#62615b]">
+                {recentSearches.map((suggestion) => (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    key={suggestion}
+                    className="justify-start px-2 text-left"
+                    onClick={() => {
+                      setQuery(suggestion)
+                    }}
+                  >
+                    {suggestion}
+                  </Button>
+                ))}
+              </div>
             ) : (
-              <div className="grid min-h-[210px] place-items-center text-center text-[13px] font-medium leading-5 text-[#77766f]">
-                Paste a Pinterest board URL, import it, then select the images to create a collection.
+              <div className="text-[13px] font-medium text-[#9a9991]">
+                No recent searches yet
               </div>
             )}
           </div>
@@ -264,13 +304,24 @@ export function PinterestCollectionSearch({
                 />
               ))}
             </div>
-            {searching && results.length === 0 && <PinterestResultSkeletonGrid />}
+            {searching && results.length === 0 && (
+              <PinterestResultSkeletonGrid />
+            )}
             {results.length > 0 && (
               <div className="flex justify-center py-4">
-                <Button variant="softControl" size="appDefault" onClick={loadMore} disabled={searchBusy || creatingCollection}>
+                <Button
+                  variant="softControl"
+                  size="appDefault"
+                  onClick={loadMore}
+                  disabled={searchBusy || creatingCollection}
+                >
                   {loadingMore ? (
                     <>
-                      <Spinner size={14} color="currentColor" className="mr-2" />
+                      <Spinner
+                        size={14}
+                        color="currentColor"
+                        className="mr-2"
+                      />
                       Loading
                     </>
                   ) : (
@@ -283,14 +334,21 @@ export function PinterestCollectionSearch({
         )}
         <div className="mt-auto flex items-center justify-between border-t border-app-panel-border px-5 py-4 text-[12px] font-medium">
           <div className="flex items-center gap-2">
-            <Button type="button" variant="ghost" size="compact" onClick={onCancel}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              onClick={onCancel}
+            >
               Cancel
             </Button>
             <Button
               type="button"
               variant="ghost"
               size="compact"
-              onClick={() => setSelectedIds(new Set(results.map((result) => result.id)))}
+              onClick={() =>
+                setSelectedIds(new Set(results.map((result) => result.id)))
+              }
               disabled={results.length === 0}
             >
               Select All
@@ -322,7 +380,11 @@ export function PinterestCollectionSearch({
                 disabled={!canCreate || creatingCollection}
                 onClick={() => void createCollection()}
               >
-                {creatingCollection ? (autoCaption ? "Captioning..." : "Adding...") : `Add ${selectedResults.length} images`}
+                {creatingCollection
+                  ? autoCaption
+                    ? "Captioning..."
+                    : "Adding..."
+                  : `Add ${selectedResults.length} images`}
               </Button>
             </div>
           ) : (
@@ -358,11 +420,16 @@ function PinterestResultCard({
   const height = result.height && result.height > 0 ? result.height : 980
 
   return (
-    <button className="group mb-2 inline-block w-full break-inside-avoid text-left" onClick={onClick}>
+    <button
+      className="group mb-2 inline-block w-full break-inside-avoid text-left"
+      onClick={onClick}
+    >
       <div
         className={cn(
           "relative overflow-hidden rounded-[6px] border-2 bg-[#d9d8d0] transition",
-          selected ? "border-[#32d982]" : "border-white group-hover:border-[#deddd5]",
+          selected
+            ? "border-[#32d982]"
+            : "border-white group-hover:border-[#deddd5]",
           !result.imageUrl && thumbTone("pinterest", index)
         )}
         style={
@@ -380,10 +447,15 @@ function PinterestResultCard({
               }
         }
       >
-        <span className={cn("absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full text-[12px] font-bold", selected ? "bg-[#32d982] text-white" : "bg-white text-[#55544e]")}>
+        <span
+          className={cn(
+            "absolute top-1.5 right-1.5 grid size-6 place-items-center rounded-full text-[12px] font-bold",
+            selected ? "bg-[#32d982] text-white" : "bg-white text-[#55544e]"
+          )}
+        >
           {selected ? "✓" : "+"}
         </span>
-        <div className="absolute inset-x-1.5 bottom-1.5 rounded bg-black/35 p-1.5 text-[10px] font-semibold leading-tight text-white">
+        <div className="absolute inset-x-1.5 bottom-1.5 rounded bg-black/35 p-1.5 text-[10px] leading-tight font-semibold text-white">
           {result.title}
         </div>
       </div>
@@ -398,7 +470,14 @@ function PinterestResultSkeletonGrid() {
         <div
           key={index}
           className="mb-2 inline-block w-full break-inside-avoid overflow-hidden rounded-[6px] border-2 border-white bg-[#e7e6df]"
-          style={{ aspectRatio: index % 5 === 0 ? "4 / 5.6" : index % 3 === 0 ? "4 / 6.2" : "4 / 5" }}
+          style={{
+            aspectRatio:
+              index % 5 === 0
+                ? "4 / 5.6"
+                : index % 3 === 0
+                  ? "4 / 6.2"
+                  : "4 / 5",
+          }}
         >
           <div className="h-full w-full animate-pulse bg-gradient-to-r from-[#e2e1da] via-[#f1f0eb] to-[#e2e1da]" />
         </div>
@@ -412,7 +491,9 @@ function readRecentPinterestSearches() {
     return []
   }
 
-  const storedSearches = window.localStorage.getItem("reelfarm:pinterest-recent")
+  const storedSearches = window.localStorage.getItem(
+    "reelfarm:pinterest-recent"
+  )
   if (!storedSearches) {
     return []
   }
@@ -420,7 +501,9 @@ function readRecentPinterestSearches() {
   try {
     const parsed = JSON.parse(storedSearches) as unknown
     return Array.isArray(parsed)
-      ? parsed.filter((item): item is string => typeof item === "string").slice(0, 6)
+      ? parsed
+          .filter((item): item is string => typeof item === "string")
+          .slice(0, 6)
       : []
   } catch {
     return []
@@ -428,7 +511,9 @@ function readRecentPinterestSearches() {
 }
 
 async function captionCollection(collection: CreatedImageCollection) {
-  const payload = await fetchJsonWithTimeout<{ collection?: StoredImageCollection }>("/api/image-collections/captions", {
+  const payload = await fetchJsonWithTimeout<{
+    collection?: StoredImageCollection
+  }>("/api/image-collections/captions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(collectionToStored(collection)),
@@ -446,7 +531,8 @@ async function captionCollection(collection: CreatedImageCollection) {
     createdAt: captioned.createdAt,
     images: collection.images.map((image, index) => ({
       ...image,
-      description: payload.collection?.images[index]?.caption ?? image.description,
+      description:
+        payload.collection?.images[index]?.caption ?? image.description,
     })),
   }
 }
@@ -458,7 +544,9 @@ async function importSelectedImages(input: {
   source: CreatedImageCollection["source"]
   payload: PinterestCollectionCreatePayload
 }) {
-  const payload = await fetchJsonWithTimeout<{ collection?: StoredImageCollection }>("/api/image-collections/import", {
+  const payload = await fetchJsonWithTimeout<{
+    collection?: StoredImageCollection
+  }>("/api/image-collections/import", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -490,7 +578,10 @@ function searchLabel(source: "pinterest" | "pexels") {
   return source === "pexels" ? "Pexels" : "Pinterest"
 }
 
-function pinterestCollectionTitle(input: string, mode: "search" | "board" | "pexels") {
+function pinterestCollectionTitle(
+  input: string,
+  mode: "search" | "board" | "pexels"
+) {
   const trimmed = input.trim()
   if (mode === "pexels") {
     return `Pexels - ${trimmed || "search"}`

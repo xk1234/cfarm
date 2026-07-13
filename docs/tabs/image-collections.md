@@ -38,7 +38,7 @@ Main actions:
 
 ## Persistence
 
-Backing file: `data/image-collections.json`
+Persistence: Appwrite `image_collections` table (via `lib/json-store.ts`); working file `data/image-collections.json` (filesystem fallback)
 
 API:
 

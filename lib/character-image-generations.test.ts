@@ -1,46 +1,72 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
-import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
-let tempRoot: string
-let charactersRoot: string
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
+import {
+  deleteCharacterImageGeneration,
+} from "@/lib/character-image-generations"
+import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
-beforeEach(async () => {
-  tempRoot = await mkdtemp(path.join(os.tmpdir(), "cfarm-generation-delete-"))
-  charactersRoot = path.join(tempRoot, "data", "characters")
-  await mkdir(path.join(charactersRoot, "images"), { recursive: true })
-  await mkdir(path.join(charactersRoot, "videos"), { recursive: true })
-  vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
-})
+// Appwrite-only: the store maps `data/characters/images.json` -> the
+// `character_generations` table, and the split-out video generation lives in
+// `character_video_generations` (`data/characters/videos.json`). Tests use the
+// real data root and run against cfarm (forced by vitest.setup.ts). Media
+// lives in Storage, so deletion is asserted via the returned `deletedFiles`
+// count and remaining records, not local disk state.
+const rootDir = path.join(process.cwd(), "data", "characters")
+const TABLE = "character_generations"
+const VIDEO_TABLE = "character_video_generations"
 
-afterEach(async () => {
-  vi.restoreAllMocks()
-  await rm(tempRoot, { recursive: true, force: true })
-})
+
+const clearGenerations = () => clearTestTables(TABLE, VIDEO_TABLE)
+
+async function seedGenerations(generations: unknown[]) {
+  await writeJsonArrayStore({
+    rootDir,
+    fileName: "images.json",
+    key: "generations",
+    records: generations,
+  })
+}
+
+async function seedVideos(videos: unknown[]) {
+  await writeJsonArrayStore({
+    rootDir,
+    fileName: "videos.json",
+    key: "videos",
+    records: videos,
+  })
+}
+
+async function remainingIds() {
+  const records = await readJsonArrayStore<{ id: string }>({
+    rootDir,
+    fileName: "images.json",
+    key: "generations",
+  })
+  return records.map((record) => record.id)
+}
+
+async function remainingVideoIds() {
+  const records = await readJsonArrayStore<{ generationId: string }>({
+    rootDir,
+    fileName: "videos.json",
+    key: "videos",
+  })
+  return records.map((record) => record.generationId)
+}
+
+beforeEach(clearGenerations)
+afterAll(clearGenerations)
 
 describe("deleteCharacterImageGeneration", () => {
-  it("removes one generation record and deletes its unused local image and video files", async () => {
-    await writeFile(
-      path.join(charactersRoot, "images", "delete.png"),
-      new Uint8Array([1])
-    )
-    await writeFile(
-      path.join(charactersRoot, "videos", "delete.mp4"),
-      new Uint8Array([2])
-    )
-    await writeFile(
-      path.join(charactersRoot, "videos", "delete-raw.mp4"),
-      new Uint8Array([4])
-    )
-    await writeFile(
-      path.join(charactersRoot, "images", "keep.png"),
-      new Uint8Array([3])
-    )
-    await writeGenerations([
+  it("removes one generation record and cascades its unused media + video", async () => {
+    await seedGenerations([
       {
-        ...generationRecord("delete-me", "delete.png", "delete.mp4"),
+        ...generationRecord("delete-me", "delete.png"),
         workflowMetadata: {
           workflow: "pose_variation_cut_video",
           workflowLabel: "Pose Cut Video",
@@ -53,70 +79,42 @@ describe("deleteCharacterImageGeneration", () => {
       },
       generationRecord("keep-me", "keep.png"),
     ])
+    await seedVideos([
+      videoRecord("delete-me", "delete.mp4"),
+      videoRecord("keep-me", "keep.mp4"),
+    ])
 
-    const { deleteCharacterImageGeneration } =
-      await import("./character-image-generations")
     const result = await deleteCharacterImageGeneration({
-      rootDir: charactersRoot,
+      rootDir,
       id: "delete-me",
     })
 
-    const stored = JSON.parse(
-      await readFile(path.join(charactersRoot, "images.json"), "utf8")
-    ) as { generations: Array<{ id: string }> }
+    // image (delete.png) + recipe rawVideoUrl + cascaded video (delete.mp4)
     expect(result).toEqual({ deleted: true, deletedFiles: 3 })
-    expect(stored.generations.map((generation) => generation.id)).toEqual([
-      "keep-me",
-    ])
-    await expect(
-      stat(path.join(charactersRoot, "images", "delete.png"))
-    ).rejects.toThrow()
-    await expect(
-      stat(path.join(charactersRoot, "videos", "delete.mp4"))
-    ).rejects.toThrow()
-    await expect(
-      stat(path.join(charactersRoot, "videos", "delete-raw.mp4"))
-    ).rejects.toThrow()
-    await expect(
-      stat(path.join(charactersRoot, "images", "keep.png"))
-    ).resolves.toMatchObject({ size: 1 })
+    expect(await remainingIds()).toEqual(["keep-me"])
+    expect(await remainingVideoIds()).toEqual(["keep-me"])
   })
 
-  it("keeps local files still referenced by another generation", async () => {
-    await writeFile(
-      path.join(charactersRoot, "images", "shared.png"),
-      new Uint8Array([1])
-    )
-    await writeGenerations([
+  it("keeps media still referenced by another generation", async () => {
+    await seedGenerations([
       generationRecord("delete-me", "shared.png"),
       generationRecord("keep-me", "shared.png"),
     ])
 
-    const { deleteCharacterImageGeneration } =
-      await import("./character-image-generations")
     const result = await deleteCharacterImageGeneration({
-      rootDir: charactersRoot,
+      rootDir,
       id: "delete-me",
     })
 
     expect(result).toEqual({ deleted: true, deletedFiles: 0 })
-    await expect(
-      stat(path.join(charactersRoot, "images", "shared.png"))
-    ).resolves.toMatchObject({ size: 1 })
+    expect(await remainingIds()).toEqual(["keep-me"])
   })
 })
 
-async function writeGenerations(generations: unknown[]) {
-  await writeFile(
-    path.join(charactersRoot, "images.json"),
-    `${JSON.stringify({ generations }, null, 2)}\n`
-  )
-}
-
-function generationRecord(id: string, imageFile: string, videoFile?: string) {
+function generationRecord(id: string, imageFile: string) {
   return {
     id,
-    characterId: 1,
+    characterId: "1",
     prompt: "Prompt",
     model: "Flux 2",
     createdAt: "2026-07-05T00:00:00.000Z",
@@ -124,9 +122,19 @@ function generationRecord(id: string, imageFile: string, videoFile?: string) {
     aspectRatio: "9:16",
     status: "ready",
     imageUrl: `/api/local-assets/characters/images/${imageFile}`,
-    videoUrl: videoFile
-      ? `/api/local-assets/characters/videos/${videoFile}`
-      : undefined,
     progress: 100,
+  }
+}
+
+function videoRecord(generationId: string, videoFile: string) {
+  return {
+    id: generationId,
+    generationId,
+    characterId: "1",
+    videoUrl: `/api/local-assets/characters/videos/${videoFile}`,
+    model: "Kling 2.6",
+    status: "ready",
+    progress: 100,
+    createdAt: "2026-07-05T00:00:00.000Z",
   }
 }

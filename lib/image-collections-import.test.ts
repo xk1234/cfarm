@@ -1,19 +1,45 @@
-import { mkdir, readFile, rm, stat } from "node:fs/promises"
-import { writeFile } from "node:fs/promises"
+import { rm } from "node:fs/promises"
 import { createHash } from "node:crypto"
 import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { deleteAssetFromAppwrite } from "@/lib/asset-storage"
+import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
+
+// Appwrite-only, run against cfarm (forced by vitest.setup.ts):
+//   data/image-collections.json -> image_collections; downloaded media -> Storage.
 let tempRoot: string
 
+async function clearCollections() {
+  const aw = getAppwrite()
+  if (!aw) throw new Error("Appwrite is not configured for tests.")
+  for (;;) {
+    const res = await aw.tables.listRows(
+      APPWRITE_DATABASE_ID,
+      "image_collections",
+      [Query.limit(100)]
+    )
+    for (const row of res.rows) {
+      await aw.tables.deleteRow(
+        APPWRITE_DATABASE_ID,
+        "image_collections",
+        String(row.$id)
+      )
+    }
+    if (res.rows.length < 100) break
+  }
+}
+
 beforeEach(async () => {
+  await clearCollections()
   tempRoot = path.join(
     os.tmpdir(),
     `cfarm-image-import-${Date.now()}-${Math.random().toString(16).slice(2)}`
   )
-  await mkdir(tempRoot, { recursive: true })
   vi.resetModules()
   vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
 })
@@ -23,8 +49,22 @@ afterEach(async () => {
   await rm(tempRoot, { recursive: true, force: true })
 })
 
+afterAll(clearCollections)
+
+async function storedCollections() {
+  return readJsonArrayStore<{
+    name: string
+    created_at: string
+    images: { image_link: string; caption: string; hash?: string }[]
+  }>({
+    rootDir: path.join(tempRoot, "data"),
+    fileName: "image-collections.json",
+    key: "collections",
+  })
+}
+
 describe("importRemoteImagesToCollection", () => {
-  it("downloads remote images into local collection storage and saves collection records", async () => {
+  it("downloads remote images into Storage and saves collection records", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response(new Uint8Array([1, 2, 3]), {
         headers: { "Content-Type": "image/jpeg" },
@@ -60,56 +100,42 @@ describe("importRemoteImagesToCollection", () => {
       /^\/api\/local-assets\/image-collections\/files\/.+\.jpg$/
     )
     expect(result.collection.images[0].hash).toBe(
-      createHash("sha256")
-        .update(Buffer.from([1, 2, 3]))
-        .digest("hex")
+      createHash("sha256").update(Buffer.from([1, 2, 3])).digest("hex")
     )
 
-    const stored = JSON.parse(
-      await readFile(
-        path.join(tempRoot, "data", "image-collections.json"),
-        "utf8"
-      )
-    )
-    expect(stored.collections[0].images[0].image_link).toBe(
+    const stored = await storedCollections()
+    expect(stored[0].images[0].image_link).toBe(
       result.collection.images[0].image_link
     )
-    expect(stored.collections[0].images[0].hash).toBe(
-      result.collection.images[0].hash
-    )
+    expect(stored[0].images[0].hash).toBe(result.collection.images[0].hash)
 
     const fileName = decodeURIComponent(
       result.collection.images[0].image_link.split("/").at(-1) ?? ""
     )
-    await expect(
-      stat(path.join(tempRoot, "data", "image-collections", "files", fileName))
-    ).resolves.toMatchObject({ size: 3 })
+    await deleteAssetFromAppwrite(
+      path.join(tempRoot, "data", "image-collections", "files", fileName)
+    )
   })
 
-  it("updates an existing collection with the same name instead of creating duplicate names", async () => {
-    await mkdir(path.join(tempRoot, "data"), { recursive: true })
-    await writeFile(
-      path.join(tempRoot, "data", "image-collections.json"),
-      `${JSON.stringify(
+  it("updates an existing collection with the same name instead of duplicating", async () => {
+    await writeJsonArrayStore({
+      rootDir: path.join(tempRoot, "data"),
+      fileName: "image-collections.json",
+      key: "collections",
+      records: [
         {
-          collections: [
+          name: "Pinterest - nature texture",
+          created_at: "2026-07-03T02:40:48.955Z",
+          images: [
             {
-              name: "Pinterest - nature texture",
-              created_at: "2026-07-03T02:40:48.955Z",
-              images: [
-                {
-                  image_link:
-                    "/api/local-assets/image-collections/files/existing.jpg",
-                  caption: "Existing",
-                },
-              ],
+              image_link:
+                "/api/local-assets/image-collections/files/existing.jpg",
+              caption: "Existing",
             },
           ],
         },
-        null,
-        2
-      )}\n`
-    )
+      ],
+    })
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response(new Uint8Array([1, 2, 3]), {
         headers: { "Content-Type": "image/jpeg" },
@@ -118,28 +144,29 @@ describe("importRemoteImagesToCollection", () => {
     const { importRemoteImagesToCollection } =
       await import("./image-collections")
 
-    await importRemoteImagesToCollection({
+    const result = await importRemoteImagesToCollection({
       collectionName: "Pinterest - nature texture",
       collectionCreatedAt: "2026-07-03T02:45:58.426Z",
       images: [{ url: "https://images.example.com/new.jpg", caption: "New" }],
       fetchImpl,
     })
 
-    const stored = JSON.parse(
-      await readFile(
-        path.join(tempRoot, "data", "image-collections.json"),
-        "utf8"
-      )
-    )
-    expect(stored.collections).toHaveLength(1)
-    expect(stored.collections[0]).toMatchObject({
+    const stored = await storedCollections()
+    expect(stored).toHaveLength(1)
+    expect(stored[0]).toMatchObject({
       name: "Pinterest - nature texture",
       created_at: "2026-07-03T02:40:48.955Z",
     })
-    expect(
-      stored.collections[0].images.map(
-        (image: { caption: string }) => image.caption
-      )
-    ).toEqual(["New", "Existing"])
+    expect(stored[0].images.map((image) => image.caption)).toEqual([
+      "New",
+      "Existing",
+    ])
+
+    const fileName = decodeURIComponent(
+      result.collection.images[0].image_link.split("/").at(-1) ?? ""
+    )
+    await deleteAssetFromAppwrite(
+      path.join(tempRoot, "data", "image-collections", "files", fileName)
+    )
   })
 })

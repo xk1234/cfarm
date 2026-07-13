@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 
+import { providerFail } from "@/lib/api"
+
 import {
   createFallbackPexelsResults,
   runPexelsSearch,
@@ -45,10 +47,7 @@ async function searchPexels(query: string, safeLimit: number) {
       results: await runPexelsSearch(query, safeLimit, apiKey),
     })
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Pexels search failed" },
-      { status: 502 }
-    )
+    return providerFail(error, "Pexels search failed", 502)
   }
 }
 

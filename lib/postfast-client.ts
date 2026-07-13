@@ -187,9 +187,7 @@ export function buildPostFastUrl(
   path: string,
   options: Pick<PostFastRequestOptions, "baseUrl" | "query"> = {}
 ) {
-  const baseUrl =
-    clean(options.baseUrl ?? process.env.POSTFAST_API_URL) ||
-    defaultPostFastBaseUrl
+  const baseUrl = clean(options.baseUrl) || defaultPostFastBaseUrl
   const url = new URL(
     `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`
   )

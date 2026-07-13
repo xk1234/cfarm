@@ -1,0 +1,64 @@
+{
+  "_source": "Derived from Knowledge Base/Content Calendar/Project1 (Homey Furnishing / blackout curtains / Jade) + Marketing/Copywriting. This is the canonical benchmark input+expected-output for the generative journeys.",
+
+  "brand": "Homey Furnishing (HomeySG)",
+  "service": "Blackout curtains for Singapore HDB/BTO rooms",
+  "audience": "Singapore HDB/BTO homeowners furnishing a bedroom",
+
+  "awareness": {
+    "selected": "Product Aware",
+    "distribution": { "unaware": 0.04, "problem": 0.12, "solution": 0.27, "product": 0.42, "most": 0.15 },
+    "copy_requirement": "Prove fit, value, and next step. Assume they know curtains/blackout exist and compare vendors; lead with proof + mechanism, not category education.",
+    "source": "Content Calendar/Project1/Curtains Market Awareness.md; Marketing/Copywriting/Research/Choose the Segment and Awareness Level for a Page.md"
+  },
+
+  "hook": {
+    "text": "why your blackout curtains are not making your room dark",
+    "format": "Niche Call Out",
+    "decode": {
+      "viewer": "HDB bedroom owner",
+      "pain": "room still bright after buying blackout curtains",
+      "false_belief": "darker fabric fixes blackout",
+      "real_cause": "light leaks around bad fit",
+      "desired_result": "darker bedroom",
+      "tension": "they may waste money on better fabric when the setup is wrong"
+    },
+    "mechanisms": ["niche call-out", "false-belief reversal", "loss aversion (wasting money)"]
+  },
+
+  "script_variables": {
+    "NICHE_IDENTITY": "HDB bedroom owner",
+    "COMMON_METHODS": "darker fabric, expensive fabric, S-fold pleats, ceiling track, blackout label",
+    "DESIRED_RESULT": "make the room dark",
+    "CORE_TRUTH": "blackout only works when the setup controls light leaks",
+    "COMMON_MISTAKE": "treating fabric as the whole solution",
+    "BRAND_DIFFERENCE": "HomeySG checks room, track, width, drop, side coverage, wall space, and light gaps before production",
+    "CTA_BENEFIT": "blackout curtains that make the bedroom darker"
+  },
+
+  "character": {
+    "name": "Jade",
+    "identity": "mid-20s Southeast Asian woman, long medium-brown loose hair, dark brown almond eyes, warm light-medium skin, petite/average build",
+    "wardrobe": "clean white fitted t-shirt with the Homey Furnishing logo on the left chest",
+    "voice": "warm, clear, conversational Singaporean UGC voice, lightly energetic",
+    "must_persist_across_scenes": ["face", "hair", "outfit + brand logo", "location (bright SG BTO bedroom)", "9:16 selfie framing"],
+    "source": "Content Calendar/Project1/Variables.md + Base Prompt.md"
+  },
+
+  "expected_slideshow_spec": {
+    "content_source": "curtains / blackout collection",
+    "slide_count": { "min": 1, "max": 10 },
+    "aspect_ratio": { "allowed": ["1:1", "3:2", "4:5", "9:16", "16:9"], "default": "9:16" },
+    "word_length_buckets": ["1-2 words", "3-5 words", "6-8 words", "9-12 words"],
+    "text_alignment": "randomized across top / center / bottom",
+    "per_slide": ["image_summary", "text"],
+    "source": "Knowledge Base/Workflows/Slideshow Workflow.md"
+  },
+
+  "image_prompt_quality_rules": {
+    "prefer": "quantified parameters (e.g. 90mm f/1.8) over adjectives; pro terminology / film stocks over 'cinematic vibe'",
+    "require": "negative constraints (no text, product not distorted, do not obscure face)",
+    "add": "sensory stacking (texture/temperature) where relevant",
+    "source": "Knowledge Base/Prompt styles.md"
+  }
+}

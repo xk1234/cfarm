@@ -7,10 +7,9 @@ import {
   type Character,
 } from "@/lib/character-model"
 import {
-  createFluxKontextTask,
   downloadRemoteImageToLocalAsset,
   getKieApiKey,
-  pollFluxKontextTask,
+  runFluxKontextTask,
   uploadKieBase64Image,
 } from "@/lib/kie-image"
 import { kieFluxKontextModel } from "@/lib/realfarm-generation-model-registry"
@@ -51,20 +50,14 @@ export async function POST(request: Request) {
     const inputImage = sourceImageDataUrl
       ? await uploadSourceImage(apiKey, sourceImageDataUrl, name)
       : undefined
-    const taskId = await createFluxKontextTask({
+    const { taskId, url: imageUrl } = await runFluxKontextTask({
       apiKey,
       prompt,
       inputImage,
       aspectRatio: "1:1",
       model: kieFluxKontextModel,
-    })
-    const imageUrl = await pollFluxKontextTask({
-      apiKey,
-      taskId,
       pollLimit: fluxPollLimit,
       pollDelayMs: fluxPollDelayMs,
-      failedMessage: "Flux task failed",
-      timeoutMessage: "Flux task timed out",
     })
     const previewUrl = await downloadHeadshot(taskId, imageUrl)
 

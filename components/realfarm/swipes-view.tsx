@@ -16,17 +16,20 @@ import {
 import { toast } from "sonner"
 
 import { SwipeDetailPage } from "@/components/realfarm/swipe-detail-page"
-import { toSwipeDisplayModel, type SwipeDisplayModel } from "@/components/realfarm/swipe-display-model"
+import {
+  toSwipeDisplayModel,
+  type SwipeDisplayModel,
+} from "@/components/realfarm/swipe-display-model"
 import { SwipeMedia } from "@/components/realfarm/swipe-media"
 import { Button } from "@/components/ui/button"
 import { useDismissableLayer } from "@/components/ui/dismissable"
 import { SelectLike } from "@/components/ui/form-controls"
 import { Spinner } from "@/components/ui/spinner"
-import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
+import { fetchJsonWithTimeout, toastApiError } from "@/lib/client-api"
 import type { SwipeRecord } from "@/lib/swipes"
 import { cn } from "@/lib/utils"
 
-export function SwipesView() {
+export function SwipesView({ currentUserId }: { currentUserId: string }) {
   const [swipes, setSwipes] = useState<SwipeRecord[]>([])
   const [selectedSwipeId, setSelectedSwipeId] = useState<string | null>(null)
   const [search, setSearch] = useState("")
@@ -40,11 +43,14 @@ export function SwipesView() {
 
     async function loadSwipes() {
       try {
-        const payload = await fetchJsonWithTimeout<{ swipes?: SwipeRecord[] }>("/api/swipes", {
-          cache: "no-store",
-          timeoutMs: 12_000,
-          toastOnError: false,
-        })
+        const payload = await fetchJsonWithTimeout<{ swipes?: SwipeRecord[] }>(
+          "/api/swipes",
+          {
+            cache: "no-store",
+            timeoutMs: 12_000,
+            toastOnError: false,
+          }
+        )
         if (!cancelled) {
           setSwipes(payload.swipes ?? [])
           setStatus("ready")
@@ -52,7 +58,7 @@ export function SwipesView() {
       } catch (error) {
         if (!cancelled) {
           setStatus("error")
-          toast.error(getApiErrorMessage(error, "Failed to load swipes"))
+          toastApiError(error, "Failed to load swipes")
         }
       }
     }
@@ -74,12 +80,18 @@ export function SwipesView() {
     return () => window.removeEventListener("hashchange", syncFromHash)
   }, [])
 
-  const displaySwipes = useMemo(() => swipes.map((swipe) => ({ swipe, model: toSwipeDisplayModel(swipe) })), [swipes])
-  const selectedSwipe = selectedSwipeId ? swipes.find((swipe) => swipe.id === selectedSwipeId) : undefined
+  const displaySwipes = useMemo(
+    () => swipes.map((swipe) => ({ swipe, model: toSwipeDisplayModel(swipe) })),
+    [swipes]
+  )
+  const selectedSwipe = selectedSwipeId
+    ? swipes.find((swipe) => swipe.id === selectedSwipeId)
+    : undefined
 
   const filteredSwipes = displaySwipes
     .filter(({ model }) => {
-      const haystack = `${model.advertiser} ${model.title} ${model.caption} ${model.platform}`.toLowerCase()
+      const haystack =
+        `${model.advertiser} ${model.title} ${model.caption} ${model.platform}`.toLowerCase()
       return haystack.includes(search.trim().toLowerCase())
     })
     .filter(({ model }) => platform === "All" || platform === model.platform)
@@ -92,13 +104,21 @@ export function SwipesView() {
     })
 
   function inspectSwipe(id: string) {
-    history.pushState({}, document.title, `${window.location.pathname}${window.location.search}#swipe=${encodeURIComponent(id)}`)
+    history.pushState(
+      {},
+      document.title,
+      `${window.location.pathname}${window.location.search}#swipe=${encodeURIComponent(id)}`
+    )
     setSelectedSwipeId(id)
   }
 
   function backToList() {
     if (window.location.hash.startsWith("#swipe=")) {
-      history.pushState({}, document.title, window.location.pathname + window.location.search)
+      history.pushState(
+        {},
+        document.title,
+        window.location.pathname + window.location.search
+      )
     }
     setSelectedSwipeId(null)
   }
@@ -115,7 +135,7 @@ export function SwipesView() {
     }
 
     try {
-      await fetchJsonWithTimeout(`/api/swipes?id=${encodeURIComponent(id)}`, {
+      await fetchJsonWithTimeout(`/api/swipes/${encodeURIComponent(id)}`, {
         method: "DELETE",
         timeoutMs: 12_000,
         toastOnError: false,
@@ -123,7 +143,7 @@ export function SwipesView() {
       toast.success("Swipe deleted")
     } catch (error) {
       setSwipes((current) => [deleted, ...current])
-      toast.error(getApiErrorMessage(error, "Failed to delete swipe"))
+      toastApiError(error, "Failed to delete swipe")
     }
   }
 
@@ -135,13 +155,17 @@ export function SwipesView() {
     <div className="mx-auto max-w-[1540px]">
       <div className="mb-5 grid gap-4 xl:grid-cols-[220px_1fr_auto]">
         <div>
-          <h1 className="text-[17px] font-semibold text-[#28255d]">Swipe File</h1>
-          <p className="mt-1 text-[13px] font-medium text-[#6d6b90]">All your private swipes</p>
+          <h1 className="text-[17px] font-semibold text-[#28255d]">
+            Swipe File
+          </h1>
+          <p className="mt-1 text-[13px] font-medium text-[#6d6b90]">
+            All your private swipes
+          </p>
         </div>
         <label className="relative block max-w-[430px]">
-          <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#aaa9c6]" />
+          <IconSearch className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#aaa9c6]" />
           <input
-            className="h-10 w-full rounded-[7px] border border-[#e4e3f4] bg-white pl-10 pr-3 text-[13px] font-medium outline-none placeholder:text-[#b5b4ca]"
+            className="h-10 w-full rounded-[7px] border border-[#e4e3f4] bg-white pr-3 pl-10 text-[13px] font-medium outline-none placeholder:text-[#b5b4ca]"
             placeholder="Search By Brand Name"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -157,7 +181,13 @@ export function SwipesView() {
           />
           <SelectLike
             value={`Format: ${format}`}
-            options={["Format: All", "Format: image", "Format: video", "Format: carousel", "Format: unknown"]}
+            options={[
+              "Format: All",
+              "Format: image",
+              "Format: video",
+              "Format: carousel",
+              "Format: unknown",
+            ]}
             onChange={(value) => setFormat(value.replace("Format: ", ""))}
             placement="bottom"
           />
@@ -166,7 +196,8 @@ export function SwipesView() {
 
       {status === "error" && (
         <div className="rounded-[8px] border border-[#f1c5bc] bg-[#fff3f0] px-4 py-3 text-[13px] font-semibold text-[#b44d38]">
-          Could not load local swipes. Make sure the dev server has access to data/swipes/swipes.json.
+          Could not load local swipes. Make sure the dev server has access to
+          data/swipes/swipes.json.
         </div>
       )}
 
@@ -178,20 +209,24 @@ export function SwipesView() {
       ) : filteredSwipes.length === 0 ? (
         <div className="grid min-h-[360px] place-items-center rounded-[10px] border border-dashed border-[#d6d4ee] bg-[#f6f5ff] text-center">
           <div>
-            <div className="text-[18px] font-semibold text-[#28255d]">No swipes yet</div>
+            <div className="text-[18px] font-semibold text-[#28255d]">
+              No swipes yet
+            </div>
             <p className="mt-2 max-w-[420px] text-[13px] leading-5 text-[#6d6b90]">
-              Load the extension, visit a supported ad platform, and click Swipe to save ads into this local file.
+              Load the extension, visit a supported ad platform, and click Swipe
+              to save ads into this local file.
             </p>
           </div>
         </div>
       ) : (
         <div className="columns-1 gap-5 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5">
-          {filteredSwipes.map(({ model }, index) => (
+          {filteredSwipes.map(({ swipe, model }, index) => (
             <SwipeCard
               key={model.id}
               swipe={model}
               index={index}
               onInspect={() => inspectSwipe(model.id)}
+              shared={Boolean(swipe.ownerId && swipe.ownerId !== currentUserId)}
               onDelete={() => void deleteSwipe(model.id)}
             />
           ))}
@@ -239,7 +274,7 @@ function PlatformSelect({
         <IconChevronDown className="size-4 text-[#77766f]" />
       </Button>
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-2 w-[190px] rounded-lg border border-app-panel-border bg-app-control-bg p-1 text-sm shadow-xl">
+        <div className="absolute top-full left-0 z-30 mt-2 w-[190px] rounded-lg border border-app-panel-border bg-app-control-bg p-1 text-sm shadow-xl">
           {platformOptions.map((option) => (
             <button
               key={option}
@@ -262,7 +297,11 @@ function PlatformSelect({
   )
 }
 
-function PlatformOptionContent({ platform }: { platform: SwipePlatformFilter }) {
+function PlatformOptionContent({
+  platform,
+}: {
+  platform: SwipePlatformFilter
+}) {
   return (
     <span className="flex min-w-0 items-center gap-2">
       <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[#111] text-white">
@@ -299,51 +338,92 @@ function platformLabel(platform: SwipePlatformFilter) {
 function SwipeCard({
   swipe,
   index,
+  shared,
   onInspect,
   onDelete,
 }: {
   swipe: SwipeDisplayModel
   index: number
+  shared: boolean
   onInspect: () => void
   onDelete: () => void
 }) {
   return (
-    <article className="relative mb-5 break-inside-avoid overflow-hidden rounded-[6px] border border-[#e6e4f7] bg-white shadow-[0_4px_16px_rgba(40,37,93,0.08)]">
-      <button
-        type="button"
-        className="absolute right-2 top-2 z-10 grid size-8 place-items-center rounded-full bg-white/95 text-[#b44d38] shadow-sm ring-1 ring-[#f1d6d2] transition hover:bg-[#fff0ed]"
-        onClick={onDelete}
-        aria-label={`Delete swipe ${swipe.title}`}
-        title="Delete swipe"
-      >
-        <IconTrash className="size-4" />
-      </button>
-      <div className="flex items-start gap-3 p-4 pb-3 pr-12">
+    <article
+      className={cn(
+        "relative mb-5 break-inside-avoid overflow-hidden rounded-[6px] border bg-white shadow-[0_4px_16px_rgba(40,37,93,0.08)]",
+        shared
+          ? "border-[#9b7bea] ring-2 ring-[#6d28d9]/15"
+          : "border-[#e6e4f7]"
+      )}
+    >
+      {shared ? (
+        <span className="absolute top-2 left-2 z-10 rounded-full bg-[#6d28d9] px-2 py-1 text-[10px] font-semibold text-white shadow-sm">
+          Shared
+        </span>
+      ) : null}
+      {!shared ? (
+        <button
+          type="button"
+          className="absolute top-2 right-2 z-10 grid size-8 place-items-center rounded-full bg-white/95 text-[#b44d38] shadow-sm ring-1 ring-[#f1d6d2] transition hover:bg-[#fff0ed]"
+          onClick={onDelete}
+          aria-label={`Delete swipe ${swipe.title}`}
+          title="Delete swipe"
+        >
+          <IconTrash className="size-4" />
+        </button>
+      ) : null}
+      <div className="flex items-start gap-3 p-4 pr-12 pb-3">
         <SwipeAvatar name={swipe.advertiser} index={index} />
         <div className="min-w-0">
-          <div className="truncate text-[14px] font-semibold text-[#28255d]">{swipe.advertiser}</div>
-          <div className="text-[11px] font-medium lowercase text-[#7d7aa6]">{swipe.platform}</div>
+          <div className="truncate text-[14px] font-semibold text-[#28255d]">
+            {swipe.advertiser}
+          </div>
+          <div className="text-[11px] font-medium text-[#7d7aa6] lowercase">
+            {swipe.platform}
+          </div>
         </div>
-        <span className="ml-auto text-[10px] font-bold uppercase tracking-[0.08em] text-[#9b99bd]">Swipe</span>
+        <span className="ml-auto text-[10px] font-bold tracking-[0.08em] text-[#9b99bd] uppercase">
+          Swipe
+        </span>
       </div>
-      <SwipeMedia swipe={swipe} className={cn(index % 5 === 1 ? "h-72" : index % 5 === 2 ? "h-56" : "h-64")} />
+      <SwipeMedia
+        swipe={swipe}
+        className={cn(
+          index % 5 === 1 ? "h-72" : index % 5 === 2 ? "h-56" : "h-64"
+        )}
+      />
       <div className="p-4 pt-3">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           {swipe.processingStatus === "processing" && (
-            <span className="rounded-full bg-[#fff5d6] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.06em] text-[#8a6400]">processing...</span>
+            <span className="rounded-full bg-[#fff5d6] px-2 py-1 text-[10px] font-bold tracking-[0.06em] text-[#8a6400] uppercase">
+              processing...
+            </span>
           )}
           {swipe.processingStatus === "failed" && (
-            <span className="rounded-full bg-[#fff0ed] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.06em] text-[#b44d38]">failed</span>
+            <span className="rounded-full bg-[#fff0ed] px-2 py-1 text-[10px] font-bold tracking-[0.06em] text-[#b44d38] uppercase">
+              failed
+            </span>
           )}
         </div>
-        <h2 className="line-clamp-2 text-[14px] font-semibold leading-5 text-[#28255d]">{swipe.title}</h2>
-        <p className="mt-2 line-clamp-3 text-[12px] font-medium leading-5 text-[#5f5d80]">{swipe.caption}</p>
+        <h2 className="line-clamp-2 text-[14px] leading-5 font-semibold text-[#28255d]">
+          {swipe.title}
+        </h2>
+        <p className="mt-2 line-clamp-3 text-[12px] leading-5 font-medium text-[#5f5d80]">
+          {swipe.caption}
+        </p>
         <div className="mt-4 grid grid-cols-2 gap-2 text-[11px] font-semibold text-[#7d7aa6]">
           <span>Swiped: {formatSwipeDate(swipe.swipedAt)}</span>
           <span>Format: {swipe.format}</span>
           <span className="col-span-2">{swipe.folder}</span>
         </div>
-        <Button type="button" variant="action" size="appDefault" className="mt-4 w-full min-w-0" onClick={onInspect}>
+        <Button
+          type="button"
+          variant="action"
+          size="appDefault"
+          className="mt-4 w-full min-w-0"
+          onClick={onInspect}
+        >
           Inspect Swipe
         </Button>
       </div>
@@ -353,7 +433,12 @@ function SwipeCard({
 
 function SwipeAvatar({ name, index }: { name: string; index: number }) {
   return (
-    <span className={cn("grid size-10 shrink-0 place-items-center rounded-full text-[12px] font-bold text-white", swipeAvatarTone(index))}>
+    <span
+      className={cn(
+        "grid size-10 shrink-0 place-items-center rounded-full text-[12px] font-bold text-white",
+        swipeAvatarTone(index)
+      )}
+    >
       {name.slice(0, 1).toUpperCase()}
     </span>
   )
@@ -364,10 +449,20 @@ function formatSwipeDate(value: string) {
   if (Number.isNaN(date.getTime())) {
     return "N/A"
   }
-  return date.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" })
+  return date.toLocaleDateString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "2-digit",
+  })
 }
 
 function swipeAvatarTone(index: number) {
-  const tones = ["bg-[#54b75d]", "bg-[#111111]", "bg-[#b5448e]", "bg-[#343197]", "bg-[#0b7a68]"]
+  const tones = [
+    "bg-[#54b75d]",
+    "bg-[#111111]",
+    "bg-[#b5448e]",
+    "bg-[#343197]",
+    "bg-[#0b7a68]",
+  ]
   return tones[index % tones.length]
 }

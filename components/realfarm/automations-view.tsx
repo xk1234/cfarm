@@ -17,6 +17,7 @@ import {
   SocialAccountStatusRow,
   type SocialAccountStatusItem,
 } from "@/components/realfarm/social-account-status"
+import { upcomingAutomationPosts } from "@/lib/automation-upcoming-posts"
 import type { Automation } from "@/lib/realfarm-data"
 import { cn } from "@/lib/utils"
 
@@ -110,8 +111,7 @@ function AutomationGridCard({
   onEditSocialAccounts: (automation: Automation) => void
   onEdit: (automation: Automation) => void
 }) {
-  const status =
-    automation.status.toLowerCase() === "paused" ? "paused" : "live"
+  const status = automation.status === "paused" ? "paused" : "live"
   const previewSlots = automationRunPreviewSlots(recentRuns, 3)
   const previewRuns = automationRunPreviewRuns(recentRuns, 3)
   const [viewerRun, setViewerRun] = useState<AutomationRunPreview | null>(null)
@@ -121,6 +121,7 @@ function AutomationGridCard({
     (integration) => !integration.disabled
   )
   const accountStatusItems = automationAccountStatusItems(automation)
+  const upcomingPosts = upcomingAutomationPosts(automation)
 
   return (
     <article className="relative overflow-hidden rounded-[8px] border border-[#eeeeee] bg-white shadow-sm">
@@ -199,11 +200,6 @@ function AutomationGridCard({
                   </span>
                 </div>
               )}
-              {generating && slot === 0 ? (
-                <div className="pointer-events-none absolute inset-x-2 bottom-2 rounded-full bg-black/65 px-2 py-1 text-center text-[10px] font-bold text-white shadow-sm">
-                  Generating
-                </div>
-              ) : null}
               <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/6 bg-gradient-to-b from-transparent to-black/10" />
             </div>
           )
@@ -241,30 +237,26 @@ function AutomationGridCard({
 
       <div className="mt-1 border-t border-[#eeeeee] px-4 py-2">
         <div className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap">
-          {automation.times.length > 0 ? (
-            automation.times.map((time, timeIndex) => {
-              const pastToday = isAutomationTimePastToday(automation, time)
-              return (
-                <span
-                  key={`${time}-${timeIndex}`}
-                  className={cn(
-                    "inline-flex items-center rounded-full px-2 py-1 text-[12px] font-medium text-[#191919]",
-                    "border border-[#eeeeee] shadow-sm",
-                    pastToday && "line-through opacity-35"
-                  )}
-                  title={
-                    pastToday
-                      ? `Passed today in ${automation.timezone || "local time"}`
-                      : undefined
-                  }
-                >
-                  {time}
-                </span>
-              )
-            })
+          {upcomingPosts.length > 0 ? (
+            upcomingPosts.map((post) => (
+              <span
+                key={post.key}
+                className={cn(
+                  "inline-flex items-center rounded-full border border-[#eeeeee] px-2 py-1 text-[12px] font-medium text-[#191919] shadow-sm",
+                  status === "paused" && "line-through opacity-35"
+                )}
+                title={
+                  status === "paused"
+                    ? "Cancelled while automation is paused"
+                    : post.scheduledAt
+                }
+              >
+                {post.label}
+              </span>
+            ))
           ) : (
             <span className="inline-flex items-center rounded-full border border-[#eeeeee] px-2 py-1 text-[12px] font-medium text-[#191919] shadow-sm">
-              11:00 AM
+              No upcoming posts
             </span>
           )}
         </div>
@@ -276,7 +268,11 @@ function AutomationGridCard({
           size="xs"
           onClick={() => onToggleStatus(automation)}
         >
-          <Pause className="size-3.5" />
+          {status === "live" ? (
+            <Pause className="size-3.5" />
+          ) : (
+            <IconPlayerPlay className="size-3.5" />
+          )}
           {status === "live" ? "Pause" : "Resume"}
         </Button>
         <Button
@@ -376,62 +372,6 @@ function slideImages(slides: AutomationRunPreviewSlide[] | undefined) {
 function runTimestamp(run: AutomationRunPreview) {
   const value = new Date(run.createdAt).getTime()
   return Number.isFinite(value) ? value : 0
-}
-
-function isAutomationTimePastToday(automation: Automation, time: string) {
-  const scheduledMinutes = minutesFromTimeLabel(time)
-  if (scheduledMinutes === null) {
-    return false
-  }
-  const currentMinutes = currentMinutesInTimezone(automation.timezone)
-  return currentMinutes !== null && currentMinutes > scheduledMinutes
-}
-
-function currentMinutesInTimezone(timezone: string | undefined) {
-  const timeZone =
-    timezone?.trim() || Intl.DateTimeFormat().resolvedOptions().timeZone
-  try {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    }).formatToParts(new Date())
-    const hour = Number(parts.find((part) => part.type === "hour")?.value)
-    const minute = Number(parts.find((part) => part.type === "minute")?.value)
-    if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
-      return null
-    }
-    return (hour % 24) * 60 + minute
-  } catch {
-    return null
-  }
-}
-
-function minutesFromTimeLabel(value: string) {
-  const match = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i.exec(value.trim())
-  if (!match) {
-    return null
-  }
-  let hour = Number(match[1])
-  const minute = Number(match[2] ?? 0)
-  const period = match[3]?.toUpperCase()
-  if (!Number.isFinite(hour) || !Number.isFinite(minute) || minute > 59) {
-    return null
-  }
-  if (period === "PM" && hour < 12) {
-    hour += 12
-  }
-  if (period === "AM" && hour === 12) {
-    hour = 0
-  }
-  if (!period && hour === 24) {
-    hour = 0
-  }
-  if (hour < 0 || hour > 23) {
-    return null
-  }
-  return hour * 60 + minute
 }
 
 export function automationAccountSummary(automation: Automation) {

@@ -112,6 +112,23 @@ export type CharacterWorkflowMetadata = {
   note?: string
 }
 
+export type CharacterVideoStatus = "idle" | "processing" | "ready" | "failed"
+
+/**
+ * A character video generation. Modeled as its own record (1:1 with the image
+ * generation it animates, referenced by `generationId`) rather than as inline
+ * fields on the image record. Stored separately in `character_video_generations`.
+ */
+export type CharacterVideoGeneration = {
+  generationId: string
+  videoUrl?: string
+  model?: string
+  status: CharacterVideoStatus
+  error?: string
+  progress?: number
+  createdAt: string
+}
+
 export type CharacterImageGenerationRecord = {
   id: string
   prompt: string
@@ -123,14 +140,44 @@ export type CharacterImageGenerationRecord = {
   imageUrl?: string
   error?: string
   progress?: number
-  videoUrl?: string
-  videoModel?: string
-  videoStatus?: "idle" | "processing" | "ready" | "failed"
-  videoError?: string
-  videoProgress?: number
   workflow?: CharacterWorkflowKey
   workflowLabel?: string
   workflowMetadata?: CharacterWorkflowMetadata
+}
+
+/**
+ * Composed view returned to the client and held in UI state: an image
+ * generation with its video generation flattened in. Storage keeps the two
+ * apart (`character_generations` + `character_video_generations`); the API
+ * composes this flat shape on read and splits it on write.
+ */
+export type CharacterGenerationView = CharacterImageGenerationRecord & {
+  videoUrl?: string
+  videoModel?: string
+  videoStatus?: CharacterVideoStatus
+  videoError?: string
+  videoProgress?: number
+}
+
+/** Flatten a stored video generation onto its image generation for the client. */
+export function composeCharacterGenerationView(
+  image: CharacterImageGenerationRecord,
+  video?: Pick<
+    CharacterVideoGeneration,
+    "videoUrl" | "model" | "status" | "error" | "progress"
+  >
+): CharacterGenerationView {
+  if (!video) {
+    return image
+  }
+  return {
+    ...image,
+    videoUrl: video.videoUrl,
+    videoModel: video.model,
+    videoStatus: video.status,
+    videoError: video.error,
+    videoProgress: video.progress,
+  }
 }
 
 export function createCharacterImageGenerationRecord(input: {
@@ -144,11 +191,6 @@ export function createCharacterImageGenerationRecord(input: {
   imageUrl?: string
   error?: string
   progress?: number
-  videoUrl?: string
-  videoModel?: string
-  videoStatus?: CharacterImageGenerationRecord["videoStatus"]
-  videoError?: string
-  videoProgress?: number
   workflow?: CharacterWorkflowKey
   workflowLabel?: string
   workflowMetadata?: CharacterWorkflowMetadata
@@ -164,23 +206,17 @@ export function createCharacterImageGenerationRecord(input: {
     imageUrl: input.imageUrl,
     error: input.error,
     progress: input.progress,
-    videoUrl: input.videoUrl,
-    videoModel: input.videoModel,
-    videoStatus: input.videoStatus,
-    videoError: input.videoError,
-    videoProgress: input.videoProgress,
     workflow: input.workflow,
     workflowLabel: input.workflowLabel,
     workflowMetadata: input.workflowMetadata,
   }
 }
 
-export function characterGenerationPrimaryMedia(
-  generation: Pick<
-    CharacterImageGenerationRecord,
-    "imageUrl" | "videoUrl" | "videoStatus"
-  >
-) {
+export function characterGenerationPrimaryMedia(generation: {
+  imageUrl?: string
+  videoUrl?: string
+  videoStatus?: CharacterVideoStatus
+}) {
   if (generation.videoUrl && generation.videoStatus !== "failed") {
     return { type: "video" as const, url: generation.videoUrl }
   }

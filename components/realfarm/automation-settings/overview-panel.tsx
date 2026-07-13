@@ -1,12 +1,14 @@
-import { useState } from "react"
-import { IconBug, IconChevronRight, IconX } from "@tabler/icons-react"
+import { useMemo, useState } from "react"
+import { IconAlertCircle, IconBug, IconChartBar, IconX } from "@tabler/icons-react"
 import { Pencil } from "lucide-react"
 
-import { AutomationThumb, AvatarDot } from "@/components/realfarm/shared-media"
-import { StandardGenerationLoadingScreen } from "@/components/realfarm/generation-loading"
+import { AvatarDot } from "@/components/realfarm/shared-media"
 import { SocialAccountStatusRow } from "@/components/realfarm/social-account-status"
+import { BenchmarkComparisonModal } from "@/components/realfarm/benchmark-comparison-modal"
 import { AppModal, AppModalPanel } from "@/components/ui/modal"
+import { CheckedDropdownButton } from "@/components/ui/form-controls"
 import type { Automation } from "@/lib/realfarm-data"
+import type { SlideshowBenchmarkComparison } from "@/lib/slideshow-benchmarks"
 import { cn } from "@/lib/utils"
 import { GeneratedSlideshowFrame } from "./generated-slideshow-frame"
 
@@ -19,16 +21,20 @@ import {
   runScheduleDurationLine,
   runStatusBadgeClass,
   runStatusLabel,
+  sortAutomationRuns,
   slideshowCaption,
   slideshowTitle,
 } from "./run-helpers"
 import type { AutomationRunApiRecord } from "./types"
+import type { AutomationRunSort } from "./run-helpers"
+
+const automationRunSortOptions: AutomationRunSort[] = ["Recent", "Most viewed"]
 
 export function AutomationOverviewPanel({
   automation,
   editingName,
   draftName,
-  generating,
+  generationError,
   recentRuns,
   onDraftNameChange,
   onStartNameEdit,
@@ -38,7 +44,7 @@ export function AutomationOverviewPanel({
   automation: Automation
   editingName: boolean
   draftName: string
-  generating?: boolean
+  generationError?: string
   recentRuns: AutomationRunApiRecord[]
   onDraftNameChange: (value: string) => void
   onStartNameEdit: () => void
@@ -49,6 +55,15 @@ export function AutomationOverviewPanel({
     null
   )
   const [debugRun, setDebugRun] = useState<AutomationRunApiRecord | null>(null)
+  const [runSort, setRunSort] = useState<AutomationRunSort>("Recent")
+  const sortedRuns = useMemo(
+    () => sortAutomationRuns(recentRuns, runSort),
+    [recentRuns, runSort]
+  )
+  const totalViews = recentRuns.reduce(
+    (total, run) => total + (run.views ?? 0),
+    0
+  )
 
   return (
     <div className="min-h-full bg-white">
@@ -96,7 +111,7 @@ export function AutomationOverviewPanel({
 
         <div className="mx-auto mt-4 grid max-w-[494px] grid-cols-4 overflow-hidden rounded-[10px] border border-[#e2e1da]">
           {[
-            ["0", "Views"],
+            [totalViews.toLocaleString(), "Views"],
             ["0", "Likes"],
             ["0", "Bookmarks"],
             ["0.0%", "Engagement"],
@@ -116,25 +131,40 @@ export function AutomationOverviewPanel({
         </div>
 
         <div className="mx-auto mt-5 max-w-[494px]">
-          {generating ? (
-            <StandardGenerationLoadingScreen
-              title="Generating slideshow"
-              description="Selecting images, expanding dynamic tags, writing slide text, and rendering the preview."
-              className="mb-4"
-            />
+          {generationError ? (
+            <div
+              className="mb-4 flex items-start gap-3 rounded-[10px] border border-[#efc9bd] bg-[#fff7f3] px-4 py-3 text-[#8f3e2d]"
+              role="alert"
+            >
+              <IconAlertCircle className="mt-0.5 size-4 shrink-0" />
+              <div>
+                <div className="text-[13px] font-bold">
+                  Slideshow wasn’t generated
+                </div>
+                <div className="mt-0.5 text-[12px] leading-5 font-medium">
+                  {generationError}
+                </div>
+              </div>
+            </div>
           ) : null}
-          <button className="mb-3 flex items-center gap-1 text-[14px] font-bold text-[#242421]">
-            Recent
-            <IconChevronRight className="size-4 rotate-90" />
-          </button>
+          <div className="mb-3 w-[148px]">
+            <CheckedDropdownButton
+              value={runSort}
+              options={automationRunSortOptions}
+              onChange={(value) => {
+                if (value === "Recent" || value === "Most viewed") {
+                  setRunSort(value)
+                }
+              }}
+              className="w-full"
+            />
+          </div>
           {recentRuns.length > 0 ? (
             <div className="flex gap-3 overflow-x-auto pb-2">
-              {recentRuns.slice(0, 3).map((run, index) => (
+              {sortedRuns.slice(0, 3).map((run) => (
                 <AutomationRecentRunCard
                   key={run.id}
                   run={run}
-                  theme={automation.theme}
-                  index={index}
                   onOpen={() => setViewerRun(run)}
                 />
               ))}
@@ -165,20 +195,15 @@ export function AutomationOverviewPanel({
 
 function AutomationRecentRunCard({
   run,
-  theme,
-  index,
   onOpen,
 }: {
   run: AutomationRunApiRecord
-  theme: string
-  index: number
   onOpen: () => void
 }) {
   const slides = automationRunSlides(run)
   const firstSlide = slides[0]
   const title = slideshowTitle(run)
   const thumbnailUrl = run.thumbnailUrl?.trim() || firstSlide?.imageUrl
-  const generating = run.status === "generating"
 
   return (
     <article className="w-[150px] shrink-0">
@@ -197,32 +222,26 @@ function AutomationRecentRunCard({
               className="absolute inset-0 h-full w-full bg-black object-contain"
             />
           ) : (
-            <AutomationThumb theme={theme} index={index} />
+            <span className="absolute inset-0 grid place-items-center bg-[#202020] px-3 text-center text-[11px] font-semibold text-white/65">
+              No rendered image
+            </span>
           )}
-          <span
-            className={cn(
-              "absolute top-2 right-2 rounded-full px-2 py-1 text-[10px] font-bold shadow-sm",
-              runStatusBadgeClass(run.status)
-            )}
-          >
-            {runStatusLabel(run.status)}
-          </span>
+          {run.status !== "generating" ? (
+            <span
+              className={cn(
+                "absolute top-2 right-2 rounded-full px-2 py-1 text-[10px] font-bold shadow-sm",
+                runStatusBadgeClass(run.status)
+              )}
+            >
+              {runStatusLabel(run.status)}
+            </span>
+          ) : null}
           {run.videoUrl ? (
             <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-1 text-[10px] font-bold text-white shadow-sm">
               Video
             </span>
           ) : null}
         </button>
-        {generating ? (
-          <div className="pointer-events-none absolute inset-x-2 bottom-2">
-            <StandardGenerationLoadingScreen
-              title="Generating"
-              description="Preview will update when ready."
-              compact
-              className="rounded-[8px] border-white/15 bg-white/92 p-2 shadow-lg backdrop-blur"
-            />
-          </div>
-        ) : null}
       </div>
       <SocialAccountStatusRow
         items={run.socialStatuses ?? []}
@@ -248,11 +267,46 @@ function AutomationGeneratedSlideshowViewer({
 }) {
   const slides = automationRunSlides(run)
   const [activeSlide, setActiveSlide] = useState(0)
+  const [benchmark, setBenchmark] =
+    useState<SlideshowBenchmarkComparison | null>(null)
+  const [benchmarkOpen, setBenchmarkOpen] = useState(false)
+  const [benchmarkLoading, setBenchmarkLoading] = useState(false)
+  const [benchmarkError, setBenchmarkError] = useState("")
   const activeSlideIndex = Math.min(activeSlide, Math.max(0, slides.length - 1))
 
+  async function openBenchmark() {
+    if (!run.slideshowId) return
+    setBenchmarkOpen(true)
+    if (benchmark) return
+    setBenchmarkLoading(true)
+    setBenchmarkError("")
+    try {
+      const response = await fetch(
+        `/api/benchmarks?slideshowId=${encodeURIComponent(run.slideshowId)}`
+      )
+      const payload = (await response.json()) as {
+        comparison?: SlideshowBenchmarkComparison | null
+        error?: string
+      }
+      if (!response.ok || !payload.comparison) {
+        throw new Error(
+          payload.error || "No benchmark is available for this slideshow."
+        )
+      }
+      setBenchmark(payload.comparison)
+    } catch (error) {
+      setBenchmarkError(
+        error instanceof Error ? error.message : "Benchmark could not be loaded."
+      )
+    } finally {
+      setBenchmarkLoading(false)
+    }
+  }
+
   return (
-    <AppModal onClose={onClose}>
-      <AppModalPanel className="h-[min(680px,90vh)] max-w-[920px] overflow-hidden rounded-[10px] bg-white">
+    <>
+      <AppModal onClose={onClose}>
+        <AppModalPanel className="h-[min(680px,90vh)] max-w-[920px] overflow-hidden rounded-[10px] bg-white">
         <header className="flex h-[60px] items-center justify-between border-b border-[#d7d6d0] bg-white px-3">
           <div className="min-w-0">
             <h2 className="truncate text-[18px] font-semibold text-[#242421]">
@@ -263,6 +317,17 @@ function AutomationGeneratedSlideshowViewer({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {run.slideshowId ? (
+              <button
+                type="button"
+                className="inline-flex h-8 items-center gap-2 rounded-[6px] border border-[#d8d7cf] bg-white px-3 text-[12px] font-semibold text-[#242421] hover:bg-[#f1f0eb] disabled:opacity-60"
+                onClick={() => void openBenchmark()}
+                disabled={benchmarkLoading}
+              >
+                <IconChartBar className="size-4" />
+                {benchmarkLoading ? "Loading…" : "Benchmark"}
+              </button>
+            ) : null}
             <button
               className="grid size-8 place-items-center rounded-[5px] text-[#77766f] hover:bg-[#f1f0eb]"
               onClick={onDebug}
@@ -404,8 +469,25 @@ function AutomationGeneratedSlideshowViewer({
             ) : null}
           </section>
         </main>
-      </AppModalPanel>
-    </AppModal>
+        </AppModalPanel>
+      </AppModal>
+      {benchmarkOpen && benchmark ? (
+        <BenchmarkComparisonModal
+          comparison={benchmark}
+          title={`${slideshowTitle(run)} benchmark`}
+          onClose={() => setBenchmarkOpen(false)}
+        />
+      ) : null}
+      {benchmarkOpen && benchmarkError ? (
+        <div className="fixed inset-0 z-[90] grid place-items-center bg-black/45 p-4">
+          <div role="alertdialog" aria-modal="true" className="w-full max-w-[440px] rounded-[10px] bg-white p-5 shadow-2xl">
+            <h2 className="text-[17px] font-bold text-[#242421]">Benchmark unavailable</h2>
+            <p className="mt-2 text-[13px] leading-5 font-medium text-[#77766f]">{benchmarkError}</p>
+            <button type="button" className="mt-4 h-9 rounded-[7px] bg-app-action px-4 text-[13px] font-semibold text-white" onClick={() => setBenchmarkOpen(false)}>Close</button>
+          </div>
+        </div>
+      ) : null}
+    </>
   )
 }
 

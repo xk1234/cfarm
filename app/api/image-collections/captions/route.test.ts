@@ -1,9 +1,16 @@
-import { mkdir, rm, writeFile } from "node:fs/promises"
+import { mkdir, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import {
+  deleteAssetFromAppwrite,
+  mirrorAssetToAppwrite,
+} from "@/lib/asset-storage"
+
+// Appwrite-only: local image fixtures are seeded into Storage (media lives in
+// Storage now, not disk). Run against cfarm via vitest.setup.ts.
 let tempRoot: string
 
 beforeEach(async () => {
@@ -13,6 +20,9 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  await deleteAssetFromAppwrite(
+    path.join(tempRoot, "data", "assets", "local.png")
+  )
   vi.unstubAllEnvs()
   vi.restoreAllMocks()
   vi.resetModules()
@@ -21,8 +31,10 @@ afterEach(async () => {
 
 describe("POST /api/image-collections/captions", () => {
   it("uses Gemini 2.5 Flash to caption every image, including images with existing captions", async () => {
-    await mkdir(path.join(tempRoot, "data", "assets"), { recursive: true })
-    await writeFile(path.join(tempRoot, "data", "assets", "local.png"), new Uint8Array([137, 80, 78, 71]))
+    await mirrorAssetToAppwrite(
+      path.join(tempRoot, "data", "assets", "local.png"),
+      new Uint8Array([137, 80, 78, 71])
+    )
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       void input

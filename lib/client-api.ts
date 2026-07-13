@@ -80,6 +80,11 @@ export function getApiErrorMessage(error: unknown, fallback = FALLBACK_ERROR_MES
   return fallback
 }
 
+/** Show an error toast for a failed API call using the parsed API error message. */
+export function toastApiError(error: unknown, fallback?: string) {
+  toast.error(getApiErrorMessage(error, fallback))
+}
+
 async function readJsonPayload(response: Response): Promise<JsonPayload> {
   const text = await response.text().catch(() => "")
   if (!text) {

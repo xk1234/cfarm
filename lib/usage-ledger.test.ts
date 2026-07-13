@@ -1,9 +1,8 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises"
-import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
+import { clearTestTables } from "@/lib/test-helpers"
 import {
   appendUsageRecords,
   recentUsageRecords,
@@ -11,15 +10,16 @@ import {
   usageKeyForHookCombination,
 } from "@/lib/usage-ledger"
 
-let rootDir: string
+// Appwrite-only: the store maps `data/usage-ledger.json` -> the `usage_ledger`
+// table, so tests use the real data root and run against the cfarm DB
+// (forced by vitest.setup.ts). Rows are cleared between tests for isolation.
+const rootDir = path.join(process.cwd(), "data")
+const TABLE = "usage_ledger"
 
-beforeEach(async () => {
-  rootDir = await mkdtemp(path.join(os.tmpdir(), "cfarm-usage-ledger-"))
-})
+const clearUsageLedger = () => clearTestTables(TABLE)
 
-afterEach(async () => {
-  await rm(rootDir, { recursive: true, force: true })
-})
+beforeEach(clearUsageLedger)
+afterAll(clearUsageLedger)
 
 describe("usage ledger", () => {
   it("tracks recent usage keys by automation and kind while pruning old records", async () => {
@@ -77,6 +77,27 @@ describe("usage ledger", () => {
     ).toBe("hello [[zodiac]] with [[charm]]::charm=jade ring|zodiac=taurus")
   })
 
+  it("keeps hook history permanently available after other usage is pruned", async () => {
+    await appendUsageRecords({
+      rootDir,
+      now: new Date("2026-07-07T10:00:00.000Z"),
+      pruneOlderThanDays: 14,
+      records: [
+        {
+          automation_id: "automation-a",
+          kind: "hook",
+          key: "an old hook",
+          run_id: "run-old",
+          used_at: "2025-01-01T00:00:00.000Z",
+        },
+      ],
+    })
+
+    await expect(
+      recentUsageKeys("hook", "automation-a", { rootDir, allTime: true })
+    ).resolves.toEqual(new Set(["an old hook"]))
+  })
+
   it("dedupes repeated records for the same run kind and key", async () => {
     await appendUsageRecords({
       rootDir,
@@ -99,11 +120,12 @@ describe("usage ledger", () => {
       ],
     })
 
-    const stored = JSON.parse(
-      await readFile(path.join(rootDir, "usage-ledger.json"), "utf8")
-    )
-    expect(stored.usage).toHaveLength(1)
-    expect(stored.usage[0]).toMatchObject({
+    const stored = await recentUsageRecords("image", "automation-a", {
+      rootDir,
+      now: new Date("2026-07-07T10:01:00.000Z"),
+    })
+    expect(stored).toHaveLength(1)
+    expect(stored[0]).toMatchObject({
       automation_id: "automation-a",
       kind: "image",
       key: "image-a",
@@ -160,10 +182,12 @@ describe("usage ledger", () => {
       ],
     })
 
-    const stored = JSON.parse(
-      await readFile(path.join(rootDir, "usage-ledger.json"), "utf8")
-    )
-    expect(stored.usage[0]).toMatchObject({
+    const stored = await recentUsageRecords("text", "automation-a", {
+      accountKey: "tiktok:main",
+      rootDir,
+      now: new Date("2026-07-07T10:01:00.000Z"),
+    })
+    expect(stored[0]).toMatchObject({
       automation_id: "automation-a",
       account_key: "tiktok:main",
       kind: "text",

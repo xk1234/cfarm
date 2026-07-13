@@ -40,7 +40,6 @@
             "cta_location": "last_slide"
           },
           "keepOriginalAspectRatio": true,
-          "background_opacity": 25,
           "is_bg_overlay_on_hook_image": true,
           "textOnFirstSlideOnly": false,
           "noTextOnSlides": false,
@@ -77,7 +76,6 @@
             "slideCount": 1,
             "noText": false,
             "overlay": true,
-            "overlayOpacity": 25,
             "slideOverrides": [],
             "imageOverrides": []
           },
@@ -123,7 +121,6 @@
             "slideCount": 5,
             "noText": false,
             "overlay": true,
-            "overlayOpacity": 25,
             "slideOverrides": [],
             "imageOverrides": []
           },
@@ -153,7 +150,6 @@
             "slideCount": 0,
             "noText": false,
             "overlay": false,
-            "overlayOpacity": 25,
             "slideOverrides": [],
             "imageOverrides": [],
             "ctaLocation": "last",
@@ -312,7 +308,6 @@
             "cta_location": "last_slide"
           },
           "keepOriginalAspectRatio": true,
-          "background_opacity": 25,
           "is_bg_overlay_on_hook_image": true,
           "textOnFirstSlideOnly": false,
           "noTextOnSlides": false,
@@ -349,7 +344,6 @@
             "slideCount": 1,
             "noText": false,
             "overlay": true,
-            "overlayOpacity": 25,
             "slideOverrides": [],
             "imageOverrides": []
           },
@@ -379,7 +373,6 @@
             "slideCount": 4,
             "noText": false,
             "overlay": true,
-            "overlayOpacity": 25,
             "slideOverrides": [],
             "imageOverrides": []
           },
@@ -409,7 +402,6 @@
             "slideCount": 0,
             "noText": false,
             "overlay": false,
-            "overlayOpacity": 25,
             "slideOverrides": [],
             "imageOverrides": [],
             "ctaLocation": "last",
@@ -532,7 +524,7 @@
     },
     {
       "id": "automation-astrology-born-to-forced-to",
-      "name": "Astrology — Born To / Forced To",
+      "name": "Astrology Informational",
       "status": "live",
       "account": "No social account",
       "handle": "Click to add account",
@@ -544,12 +536,12 @@
       "updatedAt": "2026-07-08T11:43:02Z",
       "schema": {
         "created_at": "2026-07-08T11:43:02.000Z",
-        "title": "Astrology — Born To / Forced To",
+        "title": "Astrology Informational",
         "status": "live",
         "social_integrations": [],
         "automationKind": "slideshow",
         "prompt_formatting": {
-          "style": "First slide is one strong 'born to X, forced to Y' hook. Body slides each land one escalating contrast line mixing celestial/goddess fantasy with mundane office and commute reality. The contrast is the engine — keep lines punchy, relatable, and native to TikTok slideshow memes.",
+          "style": "Treat the selected hook as the sole topic of each slideshow. Body slides directly explain, support, or answer that exact astrology hook with specific traits, behaviors, reasons, or examples about the sign or relationship named in it. Keep the progression punchy and informative. Never introduce office, commute, or born-to/forced-to themes unless the selected hook itself asks for them.",
           "narrative": "born to wear moonstone, forced to answer emails\nborn to be a [[sign]] femme fatale, forced to attend 9am standups\nborn to manifest under full moons, forced to manifest a parking spot\nborn to be draped in talismans, forced to dress office-appropriate\nborn for main character energy, forced into the group project",
           "num_of_slides": 7
         },
@@ -570,7 +562,6 @@
             "cta_location": "last_slide"
           },
           "keepOriginalAspectRatio": true,
-          "background_opacity": 25,
           "is_bg_overlay_on_hook_image": true,
           "textOnFirstSlideOnly": false,
           "noTextOnSlides": false,
@@ -607,7 +598,6 @@
             "slideCount": 1,
             "noText": false,
             "overlay": true,
-            "overlayOpacity": 25,
             "slideOverrides": [],
             "imageOverrides": []
           },
@@ -625,7 +615,7 @@
                 "textItemWidth": "80%",
                 "wordLengthMin": 5,
                 "wordLengthMax": 10,
-                "contentDirection": "Slides 2 to 5 each deliver one escalating 'born to [celestial fantasy], forced to [mundane office/commute reality]' contrast line. The final body slide before the CTA is the loophole: you can't quit the office, but you can smuggle the moonstone in — the charm is the fantasy you carry into real life.",
+                "contentDirection": "one concise, specific informational point that directly explains, supports, or answers the selected hook; keep the zodiac sign or relationship named in the hook as the subject, and make each slide add a different reason, trait, behavior, or example",
                 "textMode": "prompt",
                 "staticText": "",
                 "textAlign": "left",
@@ -637,7 +627,6 @@
             "slideCount": 5,
             "noText": false,
             "overlay": true,
-            "overlayOpacity": 25,
             "slideOverrides": [],
             "imageOverrides": []
           },
@@ -655,7 +644,7 @@
                 "textItemWidth": "70%",
                 "wordLengthMin": 5,
                 "wordLengthMax": 10,
-                "contentDirection": "comment your sign for your office-legal talisman",
+                "contentDirection": "a short call to action directly related to the selected astrology hook, such as asking viewers whether the description matches their sign",
                 "textMode": "prompt",
                 "staticText": "",
                 "textAlign": "center",
@@ -667,7 +656,6 @@
             "slideCount": 0,
             "noText": false,
             "overlay": false,
-            "overlayOpacity": 25,
             "slideOverrides": [],
             "imageOverrides": [],
             "ctaLocation": "last",
@@ -784,7 +772,8 @@
           "paused": false
         },
         "hook_slots": {
-          "sign": "zodiac sign"
+          "zodiac": "zodiac",
+          "Year": "year"
         }
       }
     },
@@ -828,7 +817,6 @@
             "cta_location": "last_slide"
           },
           "keepOriginalAspectRatio": true,
-          "background_opacity": 25,
           "is_bg_overlay_on_hook_image": true,
           "textOnFirstSlideOnly": false,
           "noTextOnSlides": false,
@@ -865,7 +853,6 @@
             "slideCount": 1,
             "noText": false,
             "overlay": true,
-            "overlayOpacity": 25,
             "slideOverrides": [],
             "imageOverrides": []
           },
@@ -895,7 +882,6 @@
             "slideCount": 5,
             "noText": false,
             "overlay": true,
-            "overlayOpacity": 25,
             "slideOverrides": [],
             "imageOverrides": []
           },
@@ -925,7 +911,6 @@
             "slideCount": 0,
             "noText": false,
             "overlay": false,
-            "overlayOpacity": 25,
             "slideOverrides": [],
             "imageOverrides": [],
             "ctaLocation": "last",

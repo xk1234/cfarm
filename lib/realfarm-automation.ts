@@ -21,6 +21,10 @@ import {
 } from "@/lib/slideshow-publishing-config"
 
 export type AutomationStatus = "paused" | "live"
+// Canonical persisted/lifecycle status. `unknown` covers records that predate
+// the enum. This is the single source of truth for automation status shared by
+// the stored record and the UI summary view.
+export type AutomationLifecycleStatus = AutomationStatus | "unknown"
 export type AutomationAspectRatio =
   "fit" | "9:16" | "4:5" | "3:4" | "3:2" | "1:1"
 export type AutomationImageGrid = "none" | "2x2" | "1x2" | "1x3"
@@ -59,7 +63,6 @@ export type ImageCollectionConfig = {
     cta_location: "last_slide" | string
   }
   keepOriginalAspectRatio?: boolean
-  background_opacity?: number
   is_bg_overlay_on_hook_image?: boolean
   textOnFirstSlideOnly?: boolean
   noTextOnSlides?: boolean
@@ -91,6 +94,7 @@ export type AutomationTextItem = {
   staticText: string
   textAlign: AutomationTextAlign
   textAnchor: AutomationTextAnchor
+  textVerticalAnchor?: AutomationTextAnchor
 }
 
 export type AutomationFormatSectionId = "hook" | "body" | "cta"
@@ -112,9 +116,12 @@ export type AutomationFormatSection = {
   aspect_ratio: AutomationAspectRatio
   imageGrid: AutomationImageGrid
   slideCount: number
+  slideCountMode?: "static" | "varying"
+  slideCountMin?: number
+  slideCountMax?: number
   noText: boolean
   overlay: boolean
-  overlayOpacity: number
+  aiImageSelection?: boolean
   overlayImage?: {
     enabled: boolean
     collectionId?: string
@@ -133,10 +140,25 @@ export type AutomationToneSection = {
   preset: string
 }
 
+export const automationTonePresetOptions = [
+  "Conversational & Relatable",
+  "Motivational & Empowering",
+  "Educational & Informative",
+  "Bold & Provocative",
+  "Calm & Reflective",
+  "Witty & Humorous",
+  "Witty & Relatable",
+  "Practical & Aspirational",
+  "Authoritative & Reassuring",
+] as const
+
+export type AutomationTonePresetOption =
+  (typeof automationTonePresetOptions)[number]
+
 export type AutomationFormattingItem =
   AutomationFormatSection | AutomationToneSection
 
-export type AutomationTemplate = Pick<
+export type RuntimeAutomationTemplate = Pick<
   AutomationSchema,
   | "automationKind"
   | "prompt_formatting"
@@ -222,6 +244,7 @@ export type AutomationSchema = {
   social_publish_as: AutomationSocialPublishAs
   schedule: AutomationSchedule
   hook_slots?: Record<string, string>
+  knowledge_base_ids?: string[]
   reuse_policy?: AutomationReusePolicy
 }
 
@@ -265,6 +288,7 @@ export function defaultAutomationTextItem(
     staticText: "",
     textAlign: "center",
     textAnchor: "padded",
+    textVerticalAnchor: "padded",
     ...overrides,
   }
 }
@@ -315,7 +339,7 @@ export function defaultAutomationSchema(
 
 export function defaultAutomationTemplate(
   automation: Automation
-): AutomationTemplate {
+): RuntimeAutomationTemplate {
   const themeTones = defaultAutomationTemplateDefaults.themeTones
   const tone =
     themeTones[automation.theme as keyof typeof themeTones] ??
@@ -345,7 +369,6 @@ export function defaultAutomationTemplate(
         slideCount: hookDefaults.slideCount,
         noText: hookDefaults.noText,
         overlay: hookDefaults.overlay,
-        overlayOpacity: hookDefaults.overlayOpacity,
       },
       {
         id: "body",
@@ -360,7 +383,6 @@ export function defaultAutomationTemplate(
         slideCount: bodyDefaults.slideCount,
         noText: bodyDefaults.noText,
         overlay: bodyDefaults.overlay,
-        overlayOpacity: bodyDefaults.overlayOpacity,
       },
       {
         id: "cta",
@@ -377,7 +399,6 @@ export function defaultAutomationTemplate(
         ctaStaticPosition: ctaDefaults.ctaStaticPosition,
         noText: ctaDefaults.noText,
         overlay: ctaDefaults.overlay,
-        overlayOpacity: ctaDefaults.overlayOpacity,
         imageMode: ctaDefaults.imageMode,
       },
       {
@@ -469,6 +490,7 @@ export function mergeAutomationSchema(
       ),
     },
     hook_slots: normalizeHookSlots(normalizedDraft.hook_slots),
+    knowledge_base_ids: normalizeIdList(normalizedDraft.knowledge_base_ids),
     reuse_policy: normalizeReusePolicy(normalizedDraft.reuse_policy),
   }
 }
@@ -529,8 +551,20 @@ export function normalizeAutomationSchema(
       interval: normalizeScheduleInterval(source.schedule?.interval),
     },
     hook_slots: normalizeHookSlots(source.hook_slots),
+    knowledge_base_ids: normalizeIdList(source.knowledge_base_ids),
     reuse_policy: normalizeReusePolicy(source.reuse_policy),
   }
+}
+
+function normalizeIdList(value: unknown) {
+  if (!Array.isArray(value)) return []
+  return [
+    ...new Set(
+      value
+        .map((item) => (typeof item === "string" ? item.trim() : ""))
+        .filter(Boolean)
+    ),
+  ]
 }
 
 export function automationFormatSection(
@@ -629,6 +663,7 @@ export function isAutomationHookInstruction(value: string) {
     return true
   }
   return (
+    normalized.startsWith("hook text") ||
     [
       "lowercase numbered list introduction",
       "numbered list concept introduction",
@@ -642,12 +677,9 @@ export function isAutomationHookInstruction(value: string) {
 
 function shouldUseNarrativeHooks(
   narrativeHooks: string[],
-  storedHooks: string[]
+  _storedHooks: string[]
 ) {
-  if (narrativeHooks.length === 0) {
-    return false
-  }
-  return narrativeHooks.length > 1 || storedHooks.length === 0
+  return narrativeHooks.length > 0
 }
 
 export function schemaWithAutomationHooks(
@@ -655,18 +687,9 @@ export function schemaWithAutomationHooks(
   hooks: string[]
 ): AutomationSchema {
   const nextHooks = hooks.filter(Boolean)
-  const textItems = nextHooks.map((hook, index) =>
-    defaultAutomationTextItem({
-      ...(automationFormatSection(schema, "hook").textItems[index] ?? {}),
-      contentDirection: hook,
-      text: "",
-      staticText: "",
-      textMode: "prompt",
-    })
-  )
 
   return {
-    ...updateAutomationFormatSection(schema, "hook", { textItems }),
+    ...schema,
     prompt_formatting: {
       ...schema.prompt_formatting,
       narrative: nextHooks.join("\n"),
@@ -685,25 +708,78 @@ export function schemaWithAutomationHookSlots(
 }
 
 export function automationTone(schema: Pick<AutomationSchema, "formatting">) {
-  const tone = schema.formatting.find(
-    (item): item is AutomationToneSection => item.id === "_tone"
-  )
+  const tone = automationToneSection(schema)
   return tone?.value || "Conversational & Relatable"
+}
+
+export function automationToneRawValue(
+  schema: Pick<AutomationSchema, "formatting">
+) {
+  return automationToneSection(schema)?.value ?? ""
+}
+
+export function automationToneSelection(
+  schema: Pick<AutomationSchema, "formatting">
+): AutomationTonePresetOption | "Custom" {
+  const tone = automationToneSection(schema)
+  const value = tone?.value.trim().toLowerCase()
+  const valueMatch = automationTonePresetOptions.find(
+    (option) => option.toLowerCase() === value
+  )
+  if (valueMatch) return valueMatch
+
+  const preset = tone?.preset.trim().toLowerCase()
+  return tonePresetLabelByKey[preset ?? ""] ?? "Custom"
 }
 
 export function schemaWithAutomationTone(
   schema: AutomationSchema,
-  value: string
+  value: string,
+  preset = tonePresetKey(value)
 ): AutomationSchema {
   const hasTone = schema.formatting.some((item) => item.id === "_tone")
   return {
     ...schema,
     formatting: hasTone
       ? schema.formatting.map((item) =>
-          item.id === "_tone" ? { ...item, value, preset: "custom" } : item
+          item.id === "_tone" ? { ...item, value, preset } : item
         )
-      : [...schema.formatting, { id: "_tone", value, preset: "custom" }],
+      : [...schema.formatting, { id: "_tone", value, preset }],
   }
+}
+
+function automationToneSection(
+  schema: Pick<AutomationSchema, "formatting">
+) {
+  return schema.formatting.find(
+    (item): item is AutomationToneSection => item.id === "_tone"
+  )
+}
+
+const tonePresetLabelByKey: Record<
+  string,
+  AutomationTonePresetOption | undefined
+> = {
+  conversational: "Conversational & Relatable",
+  motivational: "Motivational & Empowering",
+  educational: "Educational & Informative",
+  bold: "Bold & Provocative",
+  calm: "Calm & Reflective",
+  witty: "Witty & Humorous",
+  witty_relatable: "Witty & Relatable",
+  practical_aspirational: "Practical & Aspirational",
+  authoritative_reassuring: "Authoritative & Reassuring",
+}
+
+function tonePresetKey(value: string) {
+  const label = automationTonePresetOptions.find(
+    (option) => option.toLowerCase() === value.trim().toLowerCase()
+  )
+  if (!label) return "custom"
+  return (
+    Object.entries(tonePresetLabelByKey).find(([, option]) => option === label)?.[0] ??
+    "custom"
+  )
 }
 
 export function automationTotalSlideCount(
@@ -1023,9 +1099,10 @@ function defaultAutomationSection(
     aspect_ratio: id === "cta" ? "fit" : "4:5",
     imageGrid: "none",
     slideCount: id === "hook" ? 1 : id === "body" ? 3 : 0,
+    slideCountMode: "static",
     noText: false,
     overlay: id !== "cta",
-    overlayOpacity: 25,
+    aiImageSelection: false,
     slideOverrides: [],
     imageOverrides: [],
     ctaLocation: id === "cta" ? "last" : undefined,
@@ -1046,7 +1123,6 @@ function defaultImageCollectionConfig(): ImageCollectionConfig {
       ...defaults.cta_slide,
     },
     keepOriginalAspectRatio: defaults.keepOriginalAspectRatio,
-    background_opacity: defaults.background_opacity,
     is_bg_overlay_on_hook_image: defaults.is_bg_overlay_on_hook_image,
     textOnFirstSlideOnly: defaults.textOnFirstSlideOnly,
     noTextOnSlides: defaults.noTextOnSlides,
@@ -1124,10 +1200,6 @@ function normalizeImageCollectionConfig(
     keepOriginalAspectRatio: booleanValue(
       record.keepOriginalAspectRatio,
       fallback.keepOriginalAspectRatio ?? true
-    ),
-    background_opacity: numberValue(
-      record.background_opacity,
-      fallback.background_opacity ?? 25
     ),
     is_bg_overlay_on_hook_image: booleanValue(
       record.is_bg_overlay_on_hook_image,
@@ -1229,12 +1301,22 @@ function normalizeFormattingItem(value: unknown): AutomationFormattingItem[] {
         record.slideCount,
         defaultAutomationSection(id).slideCount
       ),
+      slideCountMode:
+        record.slideCountMode === "varying" ? "varying" : "static",
+      slideCountMin:
+        record.slideCountMin === undefined
+          ? undefined
+          : Math.max(1, numberValue(record.slideCountMin, 1)),
+      slideCountMax:
+        record.slideCountMax === undefined
+          ? undefined
+          : Math.max(1, numberValue(record.slideCountMax, 1)),
       noText: Boolean(record.noText),
       overlay:
         typeof record.overlay === "boolean"
           ? record.overlay
           : defaultAutomationSection(id).overlay,
-      overlayOpacity: numberValue(record.overlayOpacity, 25),
+      aiImageSelection: Boolean(record.aiImageSelection),
       overlayImage: normalizeOverlayImage(record.overlayImage),
       slideOverrides: normalizeSlideOverrides(record.slideOverrides),
       imageOverrides: normalizeImageOverrides(record.imageOverrides),
@@ -1360,6 +1442,8 @@ function normalizeTextItem(value: unknown): AutomationTextItem {
         ? record.textAlign
         : "center",
     textAnchor: record.textAnchor === "flush" ? "flush" : "padded",
+    textVerticalAnchor:
+      record.textVerticalAnchor === "flush" ? "flush" : "padded",
   })
 }
 

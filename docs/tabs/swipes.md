@@ -30,7 +30,7 @@ Main actions:
 
 ## Persistence
 
-Backing file: `data/swipes/swipes.json`
+Appwrite `swipes` table (via `lib/json-store.ts`); working file `data/swipes/swipes.json` (filesystem fallback). Swipe media/screenshots mirror to the `misc` Storage bucket.
 
 Assets: `data/swipes/assets`
 

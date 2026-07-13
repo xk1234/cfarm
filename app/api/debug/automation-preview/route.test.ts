@@ -1,28 +1,41 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
 import {
   createLocalAutomationRecord,
   upsertAutomationRecords,
 } from "@/lib/automations"
+import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
+// Appwrite-only, run against cfarm (forced by vitest.setup.ts). The preview
+// route is read-only, so automation_runs/results must stay empty afterward.
 let tempRoot: string
 
+
+const clearAll = () => clearTestTables("automations", "image_collections", "automation_runs", "results")
+
 beforeEach(async () => {
+  await clearAll()
   tempRoot = await mkdtemp(path.join(os.tmpdir(), "cfarm-debug-preview-"))
-  await mkdir(path.join(tempRoot, "data", "automations"), { recursive: true })
+  vi.resetModules()
   vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
+  // Preview builds its plan from the edited JSON; keep it off the live LLM.
+  vi.stubEnv("OPENROUTER_API_KEY", "")
 })
 
 afterEach(async () => {
   vi.unstubAllEnvs()
   vi.restoreAllMocks()
-  vi.resetModules()
   await rm(tempRoot, { recursive: true, force: true })
 })
+
+afterAll(clearAll)
 
 describe("POST /api/debug/automation-preview", () => {
   it("generates a read-only slide plan from edited automation JSON", async () => {
@@ -67,28 +80,24 @@ describe("POST /api/debug/automation-preview", () => {
       rootDir: path.join(tempRoot, "data", "automations"),
       records: [automation],
     })
-    await writeFile(
-      path.join(tempRoot, "data", "image-collections.json"),
-      `${JSON.stringify(
+    await writeJsonArrayStore({
+      rootDir: path.join(tempRoot, "data"),
+      fileName: "image-collections.json",
+      key: "collections",
+      records: [
         {
-          collections: [
+          name: "Debug scenes",
+          created_at: "2026-07-03T00:00:00.000Z",
+          images: [
             {
-              name: "Debug scenes",
-              created_at: "2026-07-03T00:00:00.000Z",
-              images: [
-                {
-                  image_link:
-                    "/api/local-assets/image-collections/files/debug.jpg",
-                  caption: "Debug image",
-                },
-              ],
+              image_link:
+                "/api/local-assets/image-collections/files/debug.jpg",
+              caption: "Debug image",
             },
           ],
         },
-        null,
-        2
-      )}\n`
-    )
+      ],
+    })
 
     const editedAutomation = {
       ...automation,
@@ -126,12 +135,21 @@ describe("POST /api/debug/automation-preview", () => {
         ]),
       },
     })
-    await expect(
-      readFile(path.join(tempRoot, "data", "automations", "runs.json"), "utf8")
-    ).rejects.toThrow()
-    await expect(
-      readFile(path.join(tempRoot, "data", "results", "results.json"), "utf8")
-    ).rejects.toThrow()
+    // Preview is read-only: no run or result rows should have been written.
+    expect(
+      await readJsonArrayStore({
+        rootDir: path.join(tempRoot, "data", "automations"),
+        fileName: "runs.json",
+        key: "runs",
+      })
+    ).toEqual([])
+    expect(
+      await readJsonArrayStore({
+        rootDir: path.join(tempRoot, "data", "results"),
+        fileName: "results.json",
+        key: "results",
+      })
+    ).toEqual([])
   })
 
   it("rejects JSON without an automation schema", async () => {

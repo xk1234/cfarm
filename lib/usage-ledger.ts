@@ -40,7 +40,12 @@ export async function appendUsageRecords(input: {
     update: (records) => {
       const next = dedupeUsageRecords(
         records
-          .filter((record) => Date.parse(record.used_at) >= cutoff.getTime())
+          .filter(
+            (record) =>
+              record.kind === "hook" ||
+              record.kind === "hook_combination" ||
+              Date.parse(record.used_at) >= cutoff.getTime()
+          )
           .concat(normalizedRecords)
       )
       return { records: next, result: next }
@@ -55,6 +60,7 @@ export async function recentUsageKeys(
     accountKey?: string
     rootDir?: string
     withinDays?: number
+    allTime?: boolean
     now?: Date
     limit?: number
   } = {}
@@ -70,12 +76,15 @@ export async function recentUsageRecords(
     accountKey?: string
     rootDir?: string
     withinDays?: number
+    allTime?: boolean
     now?: Date
     limit?: number
   } = {}
 ) {
   const now = input.now ?? new Date()
-  const cutoff = cutoffDate(now, input.withinDays ?? 45)
+  const cutoffTime = input.allTime
+    ? Number.NEGATIVE_INFINITY
+    : cutoffDate(now, input.withinDays ?? 45).getTime()
   const records = await readJsonArrayStore<UsageRecord>({
     rootDir: input.rootDir ?? defaultRootDir,
     fileName,
@@ -88,7 +97,7 @@ export async function recentUsageRecords(
       record.automation_id !== automationId ||
       (input.accountKey && record.account_key !== input.accountKey) ||
       record.kind !== kind ||
-      Date.parse(record.used_at) < cutoff.getTime()
+      Date.parse(record.used_at) < cutoffTime
     ) {
       continue
     }

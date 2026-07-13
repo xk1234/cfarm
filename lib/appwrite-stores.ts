@@ -8,6 +8,7 @@ export const STORE_TABLES: Record<string, string> = {
   "image-collections.json": "image_collections",
   "characters.json": "characters",
   "characters/images.json": "character_generations",
+  "characters/videos.json": "character_video_generations",
   "assets/assets.json": "assets",
   "automations/automations.json": "automations",
   "automations/runs.json": "automation_runs",
@@ -20,14 +21,28 @@ export const STORE_TABLES: Record<string, string> = {
   "postfast-posts.json": "postfast_posts",
   "swipes/swipes.json": "swipes",
   "generated-videos/exports.json": "generated_video_exports",
+  "knowledge-bases/knowledge-bases.json": "knowledge_bases",
+  "benchmarks/corpus.json": "benchmark_corpus",
+  "benchmarks/scores.json": "slideshow_benchmarks",
+  "product-collections/product-collections.json": "product_collections",
 }
+
+/** Tables that are intentionally shared between every authenticated user. */
+export const PUBLIC_STORE_TABLES = new Set([
+  "automation_templates",
+  "automation_template_runs",
+  "benchmark_corpus",
+])
 
 export function dataRoot(): string {
   return path.join(process.cwd(), "data")
 }
 
 /** Resolve (rootDir, fileName) to a table id, or null when the store isn't migrated. */
-export function tableForStore(rootDir: string, fileName: string): string | null {
+export function tableForStore(
+  rootDir: string,
+  fileName: string
+): string | null {
   const abs = path.resolve(rootDir, fileName)
   const rel = path.relative(dataRoot(), abs).split(path.sep).join("/")
   return STORE_TABLES[rel] ?? null
@@ -36,10 +51,27 @@ export function tableForStore(rootDir: string, fileName: string): string | null 
 const ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,35}$/
 
 /** Deterministic Appwrite row id from a record's own id (hash fallback), matching the migration. */
-export function rowIdFor(table: string, rid: string | null, index: number): string {
+export function rowIdFor(
+  table: string,
+  rid: string | null,
+  index: number
+): string {
   if (rid && ID_RE.test(rid)) return rid
   const basis = `${table}:${rid ?? "idx-" + index}`
-  return "r" + crypto.createHash("sha256").update(basis).digest("hex").slice(0, 35)
+  return (
+    "r" + crypto.createHash("sha256").update(basis).digest("hex").slice(0, 35)
+  )
+}
+
+/** User-scoped row id. Never reuse a domain id across different owners. */
+export function ownedRowIdFor(
+  table: string,
+  ownerId: string,
+  rid: string | null,
+  index: number
+): string {
+  const basis = `${table}:${ownerId}:${rid ?? `idx-${index}`}`
+  return `u${crypto.createHash("sha256").update(basis).digest("hex").slice(0, 35)}`
 }
 
 export function pickField(rec: unknown, keys: string[]): string | null {
@@ -55,7 +87,13 @@ export function pickField(rec: unknown, keys: string[]): string | null {
 export const ID_KEYS = ["id", "$id", "uuid", "slug", "key"]
 export const NAME_KEYS = ["name", "title", "label", "prompt", "slug"]
 export const STATUS_KEYS = ["status", "state"]
-export const CREATED_KEYS = ["createdAt", "created_at", "$createdAt", "created", "timestamp"]
+export const CREATED_KEYS = [
+  "createdAt",
+  "created_at",
+  "$createdAt",
+  "created",
+  "timestamp",
+]
 
 // ----- Storage asset helpers -----
 
@@ -63,15 +101,30 @@ export const CREATED_KEYS = ["createdAt", "created_at", "$createdAt", "created",
 export function bucketForPath(relPath: string): string {
   const top = relPath.split("/")[0]
   switch (top) {
-    case "music": return "music"
-    case "image-collections": return "image_collections"
-    case "greenscreen_memes": return "greenscreen"
-    case "characters": return "characters"
-    case "slideshows": return "slideshows"
-    case "ugc_avatar_videos": return "ugc_videos"
-    case "backgrounds": return "backgrounds"
-    case "assets": return "assets"
-    default: return "misc"
+    case "music":
+      return "music"
+    case "image-collections":
+      return "image_collections"
+    case "greenscreen_memes":
+      return "greenscreen"
+    case "characters":
+      return "characters"
+    case "slideshows":
+      return "slideshows"
+    case "ugc_avatar_videos":
+      return "ugc_videos"
+    case "backgrounds":
+      return "backgrounds"
+    case "assets":
+      return "assets"
+    case "knowledge-base-files":
+      return "knowledge_base_files"
+    case "benchmarks":
+      return "benchmark_images"
+    case "product-collections":
+      return "product_images"
+    default:
+      return "misc"
   }
 }
 

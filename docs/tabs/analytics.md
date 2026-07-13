@@ -26,7 +26,7 @@ Main actions:
 
 ## Persistence
 
-Platform analytics is fetched from PostFast. Local post mappings can be cached on `PostFastPostRecord` in `data/postfast-posts.json`.
+Platform analytics is fetched from PostFast. Local post mappings can be cached on `PostFastPostRecord`, persisted to the Appwrite `postfast_posts` table (via `lib/json-store.ts`); working file `data/postfast-posts.json` (filesystem fallback).
 
 ## Hardcoded / Demo Behavior
 

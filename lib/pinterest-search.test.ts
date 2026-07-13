@@ -2,14 +2,21 @@ import { describe, expect, it } from "vitest"
 
 import {
   PINTEREST_ACTOR_ID,
+  PINTEREST_BOARD_ACTOR_ID,
   buildPinterestActorInput,
+  buildPinterestBoardActorInput,
   createFallbackPinterestResults,
   normalizePinterestItems,
+  isPinterestBoardUrl,
 } from "./pinterest-search"
 
 describe("pinterest search helpers", () => {
   it("uses the API-resolvable all-in-one Pinterest scraper actor", () => {
     expect(PINTEREST_ACTOR_ID).toBe("fatihtahta/pinterest-scraper-search")
+  })
+
+  it("uses the working board-specific Pinterest actor", () => {
+    expect(PINTEREST_BOARD_ACTOR_ID).toBe("dltik/pinterest-scraper")
   })
 
   it("builds a bounded actor input for keyword pin search", () => {
@@ -27,13 +34,48 @@ describe("pinterest search helpers", () => {
   })
 
   it("builds a board URL input for direct Pinterest board imports", () => {
-    expect(buildPinterestActorInput("https://www.pinterest.com/neilross49/tree/?foo=bar", 20, "board")).toEqual({
+    expect(
+      buildPinterestActorInput(
+        "https://www.pinterest.com/neilross49/tree/?foo=bar",
+        20,
+        "board"
+      )
+    ).toEqual({
       startUrls: ["https://www.pinterest.com/neilross49/tree/"],
       type: "all-pins",
       limit: 20,
       content_analysis: false,
       sentinent_analysis: false,
       proxyConfiguration: {
+        useApifyProxy: true,
+        apifyProxyGroups: ["RESIDENTIAL"],
+      },
+    })
+  })
+
+  it("auto-detects Pinterest board URLs entered through search", () => {
+    expect(
+      isPinterestBoardUrl("https://www.pinterest.com/borsatochiara/bagno/")
+    ).toBe(true)
+    expect(isPinterestBoardUrl("https://www.pinterest.com/pin/123/")).toBe(
+      false
+    )
+    expect(isPinterestBoardUrl("bathroom inspiration")).toBe(false)
+  })
+
+  it("builds the board actor payload for the working provider", () => {
+    expect(
+      buildPinterestBoardActorInput(
+        "https://www.pinterest.com/borsatochiara/bagno/?foo=bar",
+        20
+      )
+    ).toEqual({
+      mode: "board",
+      inputs: ["https://www.pinterest.com/borsatochiara/bagno/"],
+      maxResults: 20,
+      scope: "pins",
+      includeAiAnalysis: false,
+      proxyConfig: {
         useApifyProxy: true,
         apifyProxyGroups: ["RESIDENTIAL"],
       },
@@ -112,6 +154,30 @@ describe("pinterest search helpers", () => {
         height: 981,
       },
     ])
+  })
+
+  it("normalizes board actor pin fields", () => {
+    const results = normalizePinterestItems([
+      {
+        type: "pin",
+        pin_id: "461337555600019159",
+        url: "https://www.pinterest.com/pin/461337555600019159/",
+        title: "",
+        description: "",
+        alt_text: "a bathroom with wooden shelves",
+        image_url: "https://i.pinimg.com/originals/b2/af/6b/example.jpg",
+        image_width: 474,
+        image_height: 710,
+        dominant_color: "#b7a38e",
+      },
+    ])
+
+    expect(results[0]).toMatchObject({
+      id: "461337555600019159",
+      description: "a bathroom with wooden shelves",
+      imageUrl: "https://i.pinimg.com/originals/b2/af/6b/example.jpg",
+      dominantColor: "#b7a38e",
+    })
   })
 
   it("creates deterministic fallback results for local testing", () => {

@@ -1,10 +1,13 @@
 export type GeneratedVideoType = "greenscreen" | "ugc_ad"
 export type GeneratedVideoStatus = "queued" | "processing" | "ready" | "failed"
 
-export const generatedVideoTypeConfig: Record<GeneratedVideoType, {
-  title: string
-  pendingLabel: string
-}> = {
+export const generatedVideoTypeConfig: Record<
+  GeneratedVideoType,
+  {
+    title: string
+    pendingLabel: string
+  }
+> = {
   greenscreen: {
     title: "Greenscreen meme export",
     pendingLabel: "Creating greenscreen video...",
@@ -16,6 +19,7 @@ export const generatedVideoTypeConfig: Record<GeneratedVideoType, {
 }
 
 export type GeneratedVideoExport = {
+  ownerId?: string
   id: string
   type: GeneratedVideoType
   status: GeneratedVideoStatus

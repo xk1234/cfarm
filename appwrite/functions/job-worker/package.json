@@ -5,6 +5,8 @@
   "main": "src/main.js",
   "description": "Appwrite cron function: drains the jobs queue with lease/retry/dead-letter",
   "dependencies": {
-    "node-appwrite": "^26.2.0"
+    "@fal-ai/client": "^1.6.2",
+    "node-appwrite": "^26.2.0",
+    "pdf-parse": "^1.1.1"
   }
 }

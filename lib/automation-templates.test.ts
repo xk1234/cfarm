@@ -1,6 +1,7 @@
+import { readFileSync } from "node:fs"
 import path from "node:path"
 
-import { describe, expect, it } from "vitest"
+import { beforeAll, describe, expect, it } from "vitest"
 
 import {
   automationTemplateRecordToSchema,
@@ -11,10 +12,29 @@ import {
   listAutomationTemplateExampleRuns,
   type AutomationTemplateRecord,
 } from "@/lib/automation-templates"
+import { writeJsonArrayStore } from "@/lib/json-store"
 import {
+  automationFormatSection,
   automationHooks,
   schemaWithAutomationHooks,
 } from "@/lib/realfarm-automation"
+
+// Templates read from the bundled seed file directly; example-runs read only
+// from the store, so seed cfarm's automation_template_runs from the shipped
+// example-runs.json (run against cfarm via vitest.setup.ts).
+const templatesRoot = path.join(process.cwd(), "data", "automation-templates")
+
+beforeAll(async () => {
+  const seed = JSON.parse(
+    readFileSync(path.join(templatesRoot, "example-runs.json"), "utf8")
+  ) as { runs?: unknown[] }
+  await writeJsonArrayStore({
+    rootDir: templatesRoot,
+    fileName: "example-runs.json",
+    key: "runs",
+    records: seed.runs ?? [],
+  })
+})
 
 describe("automation template persistence", () => {
   it("ships imported Reelfarm slideshow automations as compact templates", async () => {
@@ -174,7 +194,7 @@ describe("automation template persistence", () => {
       id: "template-reelfarm-33",
       name: "Study Tips",
       automationKind: "slideshow",
-      status: "Template",
+      status: "live",
       account: "",
       times: [],
     })
@@ -385,6 +405,36 @@ describe("automation template persistence", () => {
         ])
       )
     ).toEqual(["how to stop caring what people think"])
+    expect(
+      automationHooks({
+        ...schemaWithPlaceholder,
+        prompt_formatting: {
+          ...schemaWithPlaceholder.prompt_formatting,
+          narrative: "latest hdb resale trends buyers need to know",
+        },
+        formatting: schemaWithPlaceholder.formatting.map((section) =>
+          section.id === "hook"
+            ? {
+                ...section,
+                textItems: section.textItems.map((item) => ({
+                  ...item,
+                  contentDirection:
+                    "hook text, all lowercase. must be under 10 words total",
+                })),
+              }
+            : section
+        ),
+      })
+    ).toEqual(["latest hdb resale trends buyers need to know"])
+    expect(
+      automationFormatSection(
+        schemaWithAutomationHooks(schemaWithPlaceholder, [
+          "first hook alternative",
+          "second hook alternative",
+        ]),
+        "hook"
+      ).textItems
+    ).toHaveLength(1)
   })
 
   it("ships Reelfarm example slideshows separately from automation templates", async () => {
@@ -396,8 +446,9 @@ describe("automation template persistence", () => {
 
     expect(runs).toHaveLength(158)
     expect(Object.keys(runsByTemplateId)).toHaveLength(27)
-    expect(runsByTemplateId["template-reelfarm-33"]).toHaveLength(6)
-    expect(runsByTemplateId["template-reelfarm-57"]).toHaveLength(5)
+    expect(
+      Object.values(runsByTemplateId).every((runs) => runs.length === 3)
+    ).toBe(true)
     expect(runsByTemplateId["template-reelfarm-33"]?.[0]).toMatchObject({
       id: expect.stringContaining("template-example-reelfarm-33-"),
       automationId: "template-reelfarm-33",
@@ -412,7 +463,22 @@ describe("automation template persistence", () => {
         ]),
       },
     })
-    expect(runsByTemplateId["template-reelfarm-12379"]).toHaveLength(6)
+    expect(runsByTemplateId["template-reelfarm-13685"]?.[1]).toMatchObject({
+      id: "template-example-reelfarm-13685-646970",
+      automationId: "template-reelfarm-13685",
+      templateId: "template-reelfarm-13685",
+      sourceVideoId: "646970",
+      plan: {
+        slides: expect.arrayContaining([
+          expect.objectContaining({
+            imageUrl:
+              "https://slides.reel.farm/d2VsdGVyLm1AaWNsb3VkLmNvbQ==_1444278/image_0.jpg",
+            text: "high-level skills to acquire in your 20s",
+          }),
+        ]),
+      },
+    })
+    expect(runsByTemplateId["template-reelfarm-12379"]).toHaveLength(3)
     expect(runsByTemplateId["template-reelfarm-12379"]?.[0]).toMatchObject({
       automationId: "template-reelfarm-12379",
       templateId: "template-reelfarm-12379",

@@ -1,23 +1,53 @@
-import { mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises"
+import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { deleteAssetFromAppwrite } from "@/lib/asset-storage"
+import { readJsonArrayStore } from "@/lib/json-store"
+
+// Appwrite-only, run against cfarm (forced by vitest.setup.ts):
+//   data/characters/images.json -> character_generations; media -> Storage.
 let tempRoot: string
 
+async function clearGenerations() {
+  const aw = getAppwrite()
+  if (!aw) throw new Error("Appwrite is not configured for tests.")
+  for (;;) {
+    const res = await aw.tables.listRows(
+      APPWRITE_DATABASE_ID,
+      "character_generations",
+      [Query.limit(100)]
+    )
+    for (const row of res.rows) {
+      await aw.tables.deleteRow(
+        APPWRITE_DATABASE_ID,
+        "character_generations",
+        String(row.$id)
+      )
+    }
+    if (res.rows.length < 100) break
+  }
+}
+
 beforeEach(async () => {
+  await clearGenerations()
   tempRoot = await mkdtemp(
     path.join(os.tmpdir(), "cfarm-character-image-upload-")
   )
-  await mkdir(path.join(tempRoot, "data", "characters"), { recursive: true })
   vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
 })
 
 afterEach(async () => {
   vi.restoreAllMocks()
+  vi.resetModules()
   await rm(tempRoot, { recursive: true, force: true })
 })
+
+afterAll(clearGenerations)
 
 describe("POST /api/characters/images", () => {
   it("stores a dropped image file as a character generation", async () => {
@@ -42,7 +72,7 @@ describe("POST /api/characters/images", () => {
 
     expect(response.status).toBe(201)
     expect(payload.generation).toMatchObject({
-      characterId: 12,
+      characterId: "12",
       model: "Uploaded image",
       aspectRatio: "4:5",
       status: "ready",
@@ -51,25 +81,23 @@ describe("POST /api/characters/images", () => {
     expect(payload.imageUrl).toMatch(
       /^\/api\/local-assets\/characters\/images\/\d+-uploaded-source\.png$/
     )
-    await expect(
-      stat(
-        path.join(
-          tempRoot,
-          "data",
-          "characters",
-          "images",
-          path.basename(payload.imageUrl)
-        )
-      )
-    ).resolves.toMatchObject({ size: 4 })
 
-    const stored = JSON.parse(
-      await readFile(
-        path.join(tempRoot, "data", "characters", "images.json"),
-        "utf8"
+    const stored = await readJsonArrayStore<{ id: string; imageUrl: string }>({
+      rootDir: path.join(tempRoot, "data", "characters"),
+      fileName: "images.json",
+      key: "generations",
+    })
+    expect(stored).toHaveLength(1)
+    expect(stored[0]?.imageUrl).toBe(payload.imageUrl)
+
+    await deleteAssetFromAppwrite(
+      path.join(
+        tempRoot,
+        "data",
+        "characters",
+        "images",
+        path.basename(payload.imageUrl)
       )
-    ) as { generations: Array<{ id: string; imageUrl: string }> }
-    expect(stored.generations).toHaveLength(1)
-    expect(stored.generations[0]?.imageUrl).toBe(payload.imageUrl)
+    )
   })
 })

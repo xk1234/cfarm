@@ -3,10 +3,7 @@ import { randomUUID } from "node:crypto"
 import path from "node:path"
 
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
-import type {
-  SlideshowSettings,
-  SlideshowSlide,
-} from "@/lib/slideshows"
+import type { SlideshowSettings, SlideshowSlide } from "@/lib/slideshows"
 
 export type ResultWorkflowType = "slideshow" | "video"
 export type ResultStatus = "succeeded" | "failed"
@@ -39,6 +36,7 @@ export type ResultVideoPayload = {
 export type ResultPayload = ResultSlideshowPayload | ResultVideoPayload
 
 export type ResultRecord = {
+  ownerId?: string
   id: string
   automationId: string
   runId: string
@@ -67,10 +65,7 @@ export type CreateResultInput = {
   updatedAt?: string
 }
 
-type RawResultRecord = Omit<
-  Partial<ResultRecord>,
-  "artifacts" | "payload"
-> & {
+type RawResultRecord = Omit<Partial<ResultRecord>, "artifacts" | "payload"> & {
   artifacts?: Partial<ResultArtifacts>
   payload?: Partial<ResultPayload> & { type?: unknown }
 }
@@ -296,5 +291,3 @@ function normalizeDate(value: unknown, fallback: unknown) {
   }
   return new Date().toISOString()
 }
-
-

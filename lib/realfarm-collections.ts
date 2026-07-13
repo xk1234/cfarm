@@ -1,6 +1,11 @@
+import type { StoredImageCollection } from "@/lib/image-collections"
 import type { RealFarmData } from "@/lib/realfarm-data"
 import type { LocalAsset } from "@/lib/realfarm-data"
 import type { PinterestSearchResult } from "@/lib/pinterest-search"
+
+// Canonical persisted collection shape lives in image-collections; re-export
+// so existing `@/lib/realfarm-collections` importers keep working.
+export type { StoredImageCollection }
 
 export type CreatedImageCollection = {
   id: string
@@ -8,6 +13,7 @@ export type CreatedImageCollection = {
   mediaType?: "image" | "video"
   images: PinterestSearchResult[]
   createdAt: string
+  pinned?: boolean
   source:
     | "pinterest"
     | "pexels"
@@ -25,17 +31,6 @@ export type PinterestCollectionCreatePayload = {
   user_id: string
   collection_name: string
   auto_caption: boolean
-}
-
-export type StoredImageCollection = {
-  name: string
-  created_at: string
-  images: {
-    image_link: string
-    caption: string
-    hash?: string
-    last_used_at?: string
-  }[]
 }
 
 export function defaultImageCollections(
@@ -59,6 +54,7 @@ export function allImagesCollectionFrom(
 ): CreatedImageCollection {
   const seen = new Set<string>()
   const images = collections
+    .filter((collection) => collection.mediaType !== "video")
     .flatMap((collection) => collection.images)
     .filter((image) => {
       const key = image.id || image.imageUrl
@@ -109,6 +105,7 @@ export function collectionToStored(
   return {
     name: collection.title,
     created_at: normalizedCollectionDate(collection.createdAt),
+    pinned: collection.pinned === true,
     images: collection.images
       .filter((image) => image.imageUrl)
       .map((image) => ({
@@ -127,6 +124,7 @@ export function storedToCollection(
     title: collection.name,
     mediaType: "image",
     createdAt: normalizedCollectionDate(collection.created_at),
+    pinned: collection.pinned === true,
     source: "pinterest",
     images: collection.images.map((image, index) => ({
       id: image.hash || `stored-${slugify(collection.name)}-${index}`,
@@ -139,6 +137,19 @@ export function storedToCollection(
       dominantColor: "#d9d8d0",
     })),
   }
+}
+
+export function pinnedCollectionsFirst<T extends { pinned?: boolean }>(
+  collections: T[]
+): T[] {
+  return collections
+    .map((collection, index) => ({ collection, index }))
+    .sort(
+      (a, b) =>
+        Number(b.collection.pinned === true) -
+          Number(a.collection.pinned === true) || a.index - b.index
+    )
+    .map(({ collection }) => collection)
 }
 
 export function collectionAliases(

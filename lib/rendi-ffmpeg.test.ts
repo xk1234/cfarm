@@ -1,9 +1,13 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import {
+  deleteAssetFromAppwrite,
+  readAssetBytes,
+} from "@/lib/asset-storage"
 import {
   runRendiFfmpegAndDownload,
   uploadLocalFileToRendi,
@@ -13,6 +17,7 @@ let tempRoot: string
 
 beforeEach(async () => {
   tempRoot = await mkdtemp(path.join(os.tmpdir(), "cfarm-rendi-"))
+  vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
 })
 
 afterEach(async () => {
@@ -89,7 +94,13 @@ describe("rendi ffmpeg client", () => {
   })
 
   it("submits an FFmpeg command, polls completion, and downloads the selected output", async () => {
-    const outputPath = path.join(tempRoot, "out", "final.mp4")
+    const outputPath = path.join(
+      tempRoot,
+      "data",
+      "slideshows",
+      "out",
+      "final.mp4"
+    )
     const fetchMock = vi.fn(
       async (url: RequestInfo | URL, init?: RequestInit) => {
         const href = String(url)
@@ -133,6 +144,9 @@ describe("rendi ffmpeg client", () => {
       pollDelayMs: 0,
     })
 
-    await expect(readFile(outputPath, "utf8")).resolves.toBe("rendered-video")
+    // The download is persisted to Appwrite Storage (not local disk).
+    const bytes = await readAssetBytes(outputPath)
+    expect(Buffer.from(bytes).toString("utf8")).toBe("rendered-video")
+    await deleteAssetFromAppwrite(outputPath)
   })
 })

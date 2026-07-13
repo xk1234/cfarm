@@ -1,6 +1,7 @@
 import { mkdir, readdir } from "node:fs/promises"
 import path from "node:path"
 
+import { stageAssetToTmp } from "@/lib/asset-storage"
 import {
   getRendiApiKey,
   runRendiFfmpegAndDownload,
@@ -74,7 +75,8 @@ export async function findRandomMusicFile(
 
 export async function getVideoDuration(filePath: string) {
   const apiKey = getRendiApiKey()
-  const storedFile = await uploadLocalFileToRendi({ filePath, apiKey })
+  const staged = await stageAssetToTmp(filePath)
+  const storedFile = await uploadLocalFileToRendi({ filePath: staged, apiKey })
   const duration = Number(storedFile.duration)
   if (!Number.isFinite(duration) || duration <= 0) {
     throw new Error("Could not read generated video duration")
@@ -93,8 +95,9 @@ export async function postProcessCharacterVideo(input: {
     throw new Error("Missing RENDI_API_KEY")
   }
 
+  const stagedInputVideo = await stageAssetToTmp(input.inputVideoPath)
   const inputVideo = await uploadLocalFileToRendi({
-    filePath: input.inputVideoPath,
+    filePath: stagedInputVideo,
     apiKey,
   })
   const duration = Number(inputVideo.duration)
@@ -104,7 +107,7 @@ export async function postProcessCharacterVideo(input: {
 
   const musicFile = input.musicPath
     ? await uploadLocalFileToRendi({
-        filePath: input.musicPath,
+        filePath: await stageAssetToTmp(input.musicPath),
         apiKey,
       })
     : null

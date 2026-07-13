@@ -1,19 +1,31 @@
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
+import {
+  deleteAssetFromAppwrite,
+  mirrorAssetToAppwrite,
+} from "@/lib/asset-storage"
+import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
+
+// Appwrite-only, run against cfarm (forced by vitest.setup.ts):
+//   data/image-collections.json -> image_collections; media -> Storage.
 let tempRoot: string
 
+
+const clearAll = () => clearTestTables("image_collections", "usage_ledger")
+
 beforeEach(async () => {
+  await clearAll()
   tempRoot = path.join(
     os.tmpdir(),
     `cfarm-image-route-${Date.now()}-${Math.random().toString(16).slice(2)}`
   )
-  await mkdir(path.join(tempRoot, "data", "image-collections", "files"), {
-    recursive: true,
-  })
   vi.resetModules()
   vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
 })
@@ -23,9 +35,11 @@ afterEach(async () => {
   await rm(tempRoot, { recursive: true, force: true })
 })
 
+afterAll(clearAll)
+
 describe("DELETE /api/image-collections", () => {
-  it("deletes selected collection records and their local collection files", async () => {
-    await writeFile(
+  it("deletes selected collection records and their unused collection files", async () => {
+    await mirrorAssetToAppwrite(
       path.join(
         tempRoot,
         "data",
@@ -35,24 +49,24 @@ describe("DELETE /api/image-collections", () => {
       ),
       new Uint8Array([1, 2, 3])
     )
-    await writeFile(
-      path.join(tempRoot, "data", "image-collections.json"),
-      JSON.stringify({
-        collections: [
-          {
-            name: "Delete me",
-            created_at: "2026-07-03T01:00:00.000Z",
-            images: [
-              {
-                image_link:
-                  "/api/local-assets/image-collections/files/collection-image.jpg",
-                caption: "",
-              },
-            ],
-          },
-        ],
-      })
-    )
+    await writeJsonArrayStore({
+      rootDir: path.join(tempRoot, "data"),
+      fileName: "image-collections.json",
+      key: "collections",
+      records: [
+        {
+          name: "Delete me",
+          created_at: "2026-07-03T01:00:00.000Z",
+          images: [
+            {
+              image_link:
+                "/api/local-assets/image-collections/files/collection-image.jpg",
+              caption: "",
+            },
+          ],
+        },
+      ],
+    })
 
     const { DELETE } = await import("./route")
     const response = await DELETE(
@@ -66,51 +80,48 @@ describe("DELETE /api/image-collections", () => {
       })
     )
     const payload = await response.json()
-    const stored = JSON.parse(
-      await readFile(
-        path.join(tempRoot, "data", "image-collections.json"),
-        "utf8"
-      )
-    )
+    const stored = await readJsonArrayStore({
+      rootDir: path.join(tempRoot, "data"),
+      fileName: "image-collections.json",
+      key: "collections",
+    })
 
     expect(response.status).toBe(200)
     expect(payload).toEqual({ deleted: 1, deletedFiles: 1 })
-    expect(stored.collections).toEqual([])
-    await expect(
-      stat(
-        path.join(
-          tempRoot,
-          "data",
-          "image-collections",
-          "files",
-          "collection-image.jpg"
-        )
+    expect(stored).toEqual([])
+
+    await deleteAssetFromAppwrite(
+      path.join(
+        tempRoot,
+        "data",
+        "image-collections",
+        "files",
+        "collection-image.jpg"
       )
-    ).rejects.toThrow()
+    )
   })
 })
 
 describe("GET /api/image-collections", () => {
   it("includes per-image last-used dates from the usage ledger", async () => {
-    await writeFile(
-      path.join(tempRoot, "data", "image-collections.json"),
-      JSON.stringify({
-        collections: [
-          {
-            name: "Used images",
-            created_at: "2026-07-03T01:00:00.000Z",
-            images: [
-              {
-                image_link:
-                  "/api/local-assets/image-collections/files/used.jpg",
-                caption: "Used",
-                hash: "hash-used",
-              },
-            ],
-          },
-        ],
-      })
-    )
+    await writeJsonArrayStore({
+      rootDir: path.join(tempRoot, "data"),
+      fileName: "image-collections.json",
+      key: "collections",
+      records: [
+        {
+          name: "Used images",
+          created_at: "2026-07-03T01:00:00.000Z",
+          images: [
+            {
+              image_link: "/api/local-assets/image-collections/files/used.jpg",
+              caption: "Used",
+              hash: "hash-used",
+            },
+          ],
+        },
+      ],
+    })
     const { appendUsageRecords } = await import("@/lib/usage-ledger")
     await appendUsageRecords({
       rootDir: path.join(tempRoot, "data"),

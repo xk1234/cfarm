@@ -35,7 +35,7 @@ import {
   defaultImageGenerationModel,
   defaultImageToVideoModel,
   imageActionModels,
-  type CharacterImageGenerationRecord,
+  type CharacterGenerationView,
   type CharacterPromptAttachment,
 } from "@/lib/realfarm-character-ui"
 import { cn } from "@/lib/utils"
@@ -53,13 +53,13 @@ export function CharacterImageEditorModal({
   onNext,
   onClose,
 }: {
-  generation: CharacterImageGenerationRecord & { imageUrl: string }
+  generation: CharacterGenerationView & { imageUrl: string }
   title: string
   index: number
   total: number
   onCaptionChange: (caption: string) => void
   onImageReplace: (imageUrl: string) => void
-  onVideoUpdate: (update: Partial<CharacterImageGenerationRecord>) => void
+  onVideoUpdate: (update: Partial<CharacterGenerationView>) => void
   onPrevious: () => void
   onNext: () => void
   onClose: () => void
@@ -972,7 +972,7 @@ export function GenerationDebugModal({
   generation,
   onClose,
 }: {
-  generation: CharacterImageGenerationRecord
+  generation: CharacterGenerationView
   onClose: () => void
 }) {
   const debugPayload = {
@@ -1086,7 +1086,7 @@ export function GenerationImagePreviewModal({
   generation,
   onClose,
 }: {
-  generation: CharacterImageGenerationRecord
+  generation: CharacterGenerationView
   onClose: () => void
 }) {
   const primaryMedia = characterGenerationPrimaryMedia(generation)

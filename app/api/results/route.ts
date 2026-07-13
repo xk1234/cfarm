@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server"
 
+import { withHandler } from "@/lib/api"
 import { listResultRecords } from "@/lib/results"
 
 export const dynamic = "force-dynamic"
 
-export async function GET(request: Request) {
+export const GET = withHandler(async (request: Request) => {
   const { searchParams } = new URL(request.url)
   const automationId = searchParams.get("automationId")?.trim()
   const runId = searchParams.get("runId")?.trim()
@@ -21,4 +22,4 @@ export async function GET(request: Request) {
     results,
     resultsCount: results.length,
   })
-}
+})

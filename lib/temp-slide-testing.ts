@@ -52,6 +52,7 @@ export type TempSlideTextPlaceholder = {
   textItemWidth: string
   textAlign: string
   textAnchor: string
+  textVerticalAnchor: string
 }
 
 export type TempSlideSpec = {
@@ -62,6 +63,7 @@ export type TempSlideSpec = {
   aspectRatio: string
   imageGrid: string
   overlay: boolean
+  aiImageSelection?: boolean
   displayText: boolean
   collectionId: string
   overlayImage?: {
@@ -95,10 +97,10 @@ export type TempSlideStructuredOutput = {
 }
 
 export const defaultTempSlideSystemPrompt =
-  "You fill metadata and text placeholders for TikTok slideshow ads. Return only JSON that matches the provided schema. Do not add visual parameters, image prompts, commentary, markdown, or extra keys."
+  "You fill metadata and text placeholders for TikTok slideshow ads. The selected hook defines the slideshow topic, and each placeholder's content direction defines what that text box must say about the hook. These requirements outrank automation names, global style, tone, examples, and legacy template language. Use global style and tone only for voice or formatting; ignore any part that changes the topic or conflicts with the selected hook or content direction. Return only JSON that matches the provided schema. Do not add visual parameters, image prompts, commentary, markdown, or extra keys."
 
 export const defaultTempSlideUserInstructions =
-  "Generate a concise slideshow title, a short social caption, and broad niche hashtags. Fill every non-hook placeholder text box. Use the fixed hook as context only and do not rewrite it. Body slides should be specific to the automation, not generic. Return slide text only in the schema's text object."
+  "Generate a concise slideshow title, a short social caption, and broad niche hashtags. Fill every non-hook placeholder text box. Use the fixed hook as context only and do not rewrite it. Every body slide must directly develop the exact subject and claim in the selected hook while following its own content direction. Body slides should be specific to the hook, not merely the automation category. Return slide text only in the schema's text object."
 
 export type TempSlidePromptInput = {
   automationName: string
@@ -126,6 +128,13 @@ export function buildTempSlideUserPrompt(input: TempSlidePromptInput) {
     "- hashtags: give me 3-5 broad hashtags related to the topic/niche of the content, all lowercase, nothing else other than 3-5 hashtags.",
     "Prompt instructions:",
     input.promptInstructions,
+    "Hook-to-content coherence rules:",
+    "- The selected Hook above is the source of truth for this one slideshow. First identify its exact subject, people/sign/product, and claim or question.",
+    "- Every body slide must directly answer, explain, support, exemplify, or continue that exact hook. Reuse the hook's specific subject where needed so the connection is unmistakable.",
+    "- Do not switch to a different concept, stock framework, or theme just because it appears in the automation name, style, or an example inside a content direction.",
+    "- Follow each placeholder's content direction about the selected hook. If a direction specifies format (for example heading, explanation, list item), treat it as format—not as permission to change topics.",
+    "- Text boxes sharing the same slide id are one unit: later text boxes must explain or support the first text box on that slide, never introduce an unrelated point.",
+    "- Across body slides, create a logical progression without repeating the same point.",
     ...avoidSimilarOutputLines(input.avoidSimilarOutputs),
     ...strictOutputRuleLines(input.style),
     "Placeholders:",
@@ -240,8 +249,7 @@ export function automationSchemaToTempSlideTestingAutomation(
   const hook = automationFormatSection(schema, "hook")
   const content = automationFormatSection(schema, "content")
   const cta = automationFormatSection(schema, "cta")
-  const ctaEnabled =
-    cta.slideCount > 0 || schema.image_collection_ids.cta_slide.check
+  const ctaEnabled = cta.slideCount > 0
 
   return {
     id,
@@ -270,8 +278,11 @@ export function automationSchemaToTempSlideTestingAutomation(
           section: "content",
           index: index + 1,
           title: `Content ${index + 1}`,
-          collectionId: automationCollectionId(schema, "content"),
-          formatSection: content,
+          collectionId:
+            content.imageOverrides?.find(
+              (override) => override.slideIndex === index + 1
+            )?.collectionId || automationCollectionId(schema, "content"),
+          formatSection: contentSectionForSlide(content, index + 1),
         })
       ),
       ...(ctaEnabled
@@ -287,6 +298,24 @@ export function automationSchemaToTempSlideTestingAutomation(
         : []),
     ],
   }
+}
+
+function contentSectionForSlide(
+  section: AutomationFormatSection,
+  slideIndex: number
+): AutomationFormatSection {
+  const direction = clean(
+    section.slideOverrides?.find(
+      (override) => override.slideIndex === slideIndex
+    )?.contentDirection
+  )
+  if (!direction) return section
+  const textItems = section.textItems.length
+    ? section.textItems.map((item, index) =>
+        index === 0 ? { ...item, contentDirection: direction } : item
+      )
+    : section.textItems
+  return { ...section, textItems }
 }
 
 export function storedCollectionsToTempSlideCollections(
@@ -421,6 +450,7 @@ function buildAutomationSlideSpec(input: {
     aspectRatio: input.formatSection.aspect_ratio,
     imageGrid: input.formatSection.imageGrid,
     overlay: input.formatSection.overlay,
+    aiImageSelection: input.formatSection.aiImageSelection === true,
     displayText: !input.formatSection.noText,
     collectionId: input.collectionId,
     overlayImage: input.formatSection.overlayImage?.enabled
@@ -467,6 +497,7 @@ function automationTextItemToPlaceholder(input: {
     textItemWidth: input.textItem.textItemWidth,
     textAlign: input.textItem.textAlign,
     textAnchor: input.textItem.textAnchor,
+    textVerticalAnchor: input.textItem.textVerticalAnchor ?? "padded",
   }
 }
 
@@ -499,6 +530,7 @@ function buildSlideSpec(input: {
     aspectRatio: input.templateSection.aspect_ratio,
     imageGrid: input.templateSection.image_grid,
     overlay: input.templateSection.overlay,
+    aiImageSelection: false,
     displayText: input.templateSection.display_text,
     collectionId: input.collectionId,
     overlayImage: input.templateSection.overlay_image?.enabled
@@ -545,6 +577,7 @@ function templateTextItemToPlaceholder(input: {
     textItemWidth: input.textItem.text_item_width,
     textAlign: input.textItem.text_align,
     textAnchor: input.textItem.text_anchor,
+    textVerticalAnchor: "padded",
   }
 }
 

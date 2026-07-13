@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { DateTime } from "luxon"
+import { toast } from "sonner"
 import {
   Area,
   AreaChart,
@@ -20,6 +21,7 @@ import {
   IconHome,
   IconLayoutDashboard,
   IconList,
+  IconMail,
   IconMessage,
   IconPhoto,
   IconPhotoPlus,
@@ -64,6 +66,8 @@ import {
 import { AutomationSettingsDrawer } from "@/components/realfarm/automation-settings"
 import { AutomationsView } from "@/components/realfarm/automations-view"
 import { SocialAccountPickerModal } from "@/components/realfarm/social-account-picker"
+import { UserSettingsModal } from "@/components/realfarm/user-settings-modal"
+import { KnowledgeBasesPanel } from "@/components/realfarm/knowledge-bases-panel"
 import {
   BuilderStep,
   CreatorBuilderPanel,
@@ -127,8 +131,8 @@ import {
   type AutomationSchema,
   type AutomationSocialIntegration,
   type AutomationStatus,
-  type AutomationTemplate,
   type AutomationTextItem,
+  type RuntimeAutomationTemplate,
   type ImageCollectionConfig,
 } from "@/lib/realfarm-automation"
 import {
@@ -152,10 +156,12 @@ import {
 import type { CharacterPayload, CharacterRecord } from "@/lib/characters"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import type { PinterestSearchResult } from "@/lib/pinterest-search"
+import type { ProductCollection } from "@/lib/product-collections"
 import { isSlideshowSocialProvider } from "@/lib/slideshow-social-platforms"
 import { cn } from "@/lib/utils"
 
 export type AutomationRunSummary = {
+  ownerId?: string
   id: string
   automationId: string
   automationTitle?: string
@@ -206,15 +212,21 @@ const emptyInitialTemplateData: InitialTemplateData = {
 export function RealFarmWorkspace({
   data,
   initialTemplateData = emptyInitialTemplateData,
+  user,
 }: {
   data: RealFarmData
   initialTemplateData?: InitialTemplateData
+  user: { id: string; email: string; emailVerified: boolean }
 }) {
   const [view, setView] = useState<ViewKey>("home")
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [selectedSoundId, setSelectedSoundId] = useState("")
   const [collections, setCollections] = useState<CreatedImageCollection[]>(() =>
     defaultImageCollections(data)
   )
+  const [productCollections, setProductCollections] = useState<
+    ProductCollection[]
+  >([])
   const [selectedCollectionId, setSelectedCollectionId] = useState<
     string | null
   >(null)
@@ -359,6 +371,21 @@ export function RealFarmWorkspace({
 
   useEffect(() => {
     let active = true
+    void fetchJsonWithTimeout<{ collections?: ProductCollection[] }>(
+      "/api/product-collections"
+    )
+      .then((payload) => {
+        if (active) setProductCollections(payload.collections ?? [])
+      })
+      .catch(() => undefined)
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
     void fetchJsonWithTimeout<{
       automations?: Automation[]
       records?: AutomationRecord[]
@@ -444,6 +471,31 @@ export function RealFarmWorkspace({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(collectionToStored(collection)),
     }).catch(() => undefined)
+  }
+
+  function toggleCollectionPin(id: string) {
+    const previous = collections.find((collection) => collection.id === id)
+    if (!previous || previous.virtual) return
+
+    const nextCollection = { ...previous, pinned: !previous.pinned }
+    setCollections((current) =>
+      current.map((collection) =>
+        collection.id === id ? nextCollection : collection
+      )
+    )
+
+    void fetchJsonWithTimeout("/api/image-collections", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(collectionToStored(nextCollection)),
+    }).catch(() => {
+      setCollections((current) =>
+        current.map((collection) =>
+          collection.id === id ? previous : collection
+        )
+      )
+      toast.error("Could not update the collection pin")
+    })
   }
 
   function upsertRecentAutomationRun(run: AutomationRunSummary) {
@@ -537,7 +589,7 @@ export function RealFarmWorkspace({
     })
     setEditingAutomation(null)
 
-    void fetchJsonWithTimeout(`/api/automations?id=${encodeURIComponent(id)}`, {
+    void fetchJsonWithTimeout(`/api/automations/${encodeURIComponent(id)}`, {
       method: "DELETE",
       timeoutMs: 15_000,
       toastOnError: false,
@@ -586,7 +638,7 @@ export function RealFarmWorkspace({
     const nextConfig = { ...currentConfig, status: nextStatus }
     const nextAutomation = {
       ...automation,
-      status: nextStatus === "live" ? "Live" : "Paused",
+      status: nextStatus,
     }
 
     setAutomationConfigEdits((current) => ({
@@ -652,7 +704,7 @@ export function RealFarmWorkspace({
       name?: string
       automationKind?: Automation["automationKind"]
       schema?: AutomationSchema
-      template?: AutomationTemplate
+      template?: RuntimeAutomationTemplate
       overrides?: {
         status?: AutomationStatus
         social_integrations?: AutomationSocialIntegration[]
@@ -682,25 +734,42 @@ export function RealFarmWorkspace({
     return applyAutomationRecord(payload.record, payload.automation)
   }
 
+  function changeView(nextView: ViewKey) {
+    if (nextView === "automations") {
+      setEditingAutomation(null)
+    }
+    setView(nextView)
+  }
+
+  function showAutomationList() {
+    setEditingAutomation(null)
+    setView("automations")
+  }
+
   const fillsWorkspace = view === "automations" && Boolean(editingAutomation)
 
   return (
-    <main className="h-svh overflow-hidden bg-[#f6f6f2] text-[#242421]">
+    <main className="relative h-svh overflow-hidden bg-[#f7f7fa] text-[#111117]">
+      {view === "home" && !user.emailVerified ? (
+        <EmailVerificationBanner email={user.email} />
+      ) : null}
       <div className="flex h-svh">
         <Sidebar
           data={data}
           view={view}
-          onViewChange={setView}
+          onViewChange={changeView}
           onNewAutomation={() => setTemplateFolderOpen(true)}
+          onSettings={() => setSettingsOpen(true)}
         />
         <section
           className={cn(
             "min-w-0 flex-1 overflow-y-auto",
-            fillsWorkspace ? "p-0" : "px-5 py-5 lg:px-7"
+            fillsWorkspace ? "p-0" : "px-4 py-4 sm:px-5 sm:py-5 lg:px-7"
           )}
         >
           {view === "home" && (
             <HomeView
+              currentUserId={user.id}
               data={data}
               templates={templateAutomations}
               recentRunsByAutomationId={showcaseRunsByAutomationId}
@@ -727,10 +796,10 @@ export function RealFarmWorkspace({
                   })
                   .catch(() => undefined)
               }}
-              onAutomations={() => setView("automations")}
+              onAutomations={showAutomationList}
             />
           )}
-          {view === "swipes" && <SwipesView />}
+          {view === "swipes" && <SwipesView currentUserId={user.id} />}
           {view === "avatars" && <AvatarsView />}
           {view === "greenscreen" && (
             <GreenscreenMemesView
@@ -750,11 +819,22 @@ export function RealFarmWorkspace({
             />
           )}
           {view === "schedule" && (
-            <ContentCalendarView
-              onGoAutomations={() => setView("automations")}
-            />
+            <ContentCalendarView onGoAutomations={showAutomationList} />
           )}
           {view === "analytics" && <AnalyticsView />}
+          {view === "knowledge" && (
+            <div className="mx-auto max-w-[1540px]">
+              <div className="mb-6">
+                <h1 className="text-[24px] font-semibold tracking-normal">
+                  Knowledge Bases
+                </h1>
+                <p className="mt-1 text-[13px] font-medium text-app-muted-text">
+                  Build reusable research context for your automations.
+                </p>
+              </div>
+              <KnowledgeBasesPanel />
+            </div>
+          )}
           {view === "collections" &&
             (selectedCollection ? (
               <CollectionDetailView
@@ -838,6 +918,7 @@ export function RealFarmWorkspace({
             ) : (
               <CollectionsView
                 collections={visibleCollections}
+                productCollections={productCollections}
                 onCreateCollection={(collection) => {
                   setCollections((current) => [collection, ...current])
                   persistCollection(collection)
@@ -846,6 +927,7 @@ export function RealFarmWorkspace({
                   deleteCollections(ids)
                 }}
                 onOpenCollection={setSelectedCollectionId}
+                onToggleCollectionPin={toggleCollectionPin}
               />
             ))}
           {view === "automations" &&
@@ -917,6 +999,21 @@ export function RealFarmWorkspace({
                 onEditSocialAccounts={() =>
                   setSocialAccountAutomation(editingAutomation)
                 }
+                onDuplicate={async () => {
+                  const sourceConfig = mergeAutomationSchema(
+                    editingAutomation,
+                    automationConfigEdits[editingAutomation.id]
+                  )
+                  const duplicated = await createLocalAutomation({
+                    name: `${editingAutomation.name} Copy`,
+                    automationKind: editingAutomation.automationKind,
+                    schema: {
+                      ...sourceConfig,
+                      title: `${editingAutomation.name} Copy`,
+                    },
+                  })
+                  setEditingAutomation(duplicated)
+                }}
                 onDelete={() => deleteAutomation(editingAutomation.id)}
                 onClose={() => setEditingAutomation(null)}
               />
@@ -994,6 +1091,12 @@ export function RealFarmWorkspace({
           onClose={() => setSocialAccountAutomation(null)}
         />
       )}
+      {settingsOpen ? (
+        <UserSettingsModal
+          email={user.email}
+          onClose={() => setSettingsOpen(false)}
+        />
+      ) : null}
       {templateFolderOpen && (
         <TemplateFolderModal
           data={data}
@@ -1037,6 +1140,71 @@ export function RealFarmWorkspace({
         />
       )}
     </main>
+  )
+}
+
+function EmailVerificationBanner({ email }: { email: string }) {
+  const [pending, setPending] = useState(false)
+  const [message, setMessage] = useState("")
+
+  async function resendVerification() {
+    setPending(true)
+    setMessage("")
+    const response = await fetch("/api/auth/verification/resend", {
+      method: "POST",
+    })
+    const payload = (await response.json().catch(() => null)) as {
+      error?: string
+      alreadyVerified?: boolean
+    } | null
+
+    if (payload?.alreadyVerified) {
+      window.location.reload()
+      return
+    }
+
+    setMessage(
+      response.ok
+        ? "Verification email sent. Check your inbox."
+        : payload?.error || "Couldn't send the verification email."
+    )
+    setPending(false)
+  }
+
+  return (
+    <div className="absolute top-0 right-0 left-0 z-50 flex flex-col gap-3 border-b border-[#e4d7ff] bg-[#f4efff]/95 px-4 py-3 text-[#32205f] shadow-[0_8px_30px_rgba(55,32,105,0.12)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between md:left-56 md:px-7">
+      <div className="flex min-w-0 items-start gap-3 sm:items-center">
+        <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-white text-[#6d28d9] shadow-sm sm:mt-0">
+          <IconMail className="size-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">Verify your email</p>
+          <p className="truncate text-xs leading-5 text-[#66568a]">
+            Secure your account and make recovery easier for {email}.
+          </p>
+          {message ? (
+            <p className="mt-1 text-xs font-medium text-[#6d28d9]">{message}</p>
+          ) : null}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2 pl-11 sm:pl-0">
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="rounded-lg px-3 py-2 text-xs font-semibold text-[#66568a] hover:bg-white/70"
+        >
+          I verified
+        </button>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={resendVerification}
+          className="rounded-lg bg-[#6d28d9] px-3 py-2 text-xs font-semibold text-white hover:bg-[#5b21b6] disabled:opacity-60"
+        >
+          {pending ? "Sending…" : "Send verification email"}
+        </button>
+      </div>
+    </div>
   )
 }
 

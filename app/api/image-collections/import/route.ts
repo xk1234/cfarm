@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 
+import { providerFail } from "@/lib/api"
+
 import { importRemoteImagesToCollection } from "@/lib/image-collections"
 
 export const dynamic = "force-dynamic"
@@ -14,9 +16,6 @@ export async function POST(request: Request) {
     })
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to import images" },
-      { status: 400 }
-    )
+    return providerFail(error, "Failed to import images", 400)
   }
 }

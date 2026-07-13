@@ -545,8 +545,9 @@ export function CharacterCreateModal({
           </div>
 
           <div className="min-w-0">
-            <label className="text-[13px] font-bold text-[#777]">Name</label>
+            <label htmlFor="new-character-name" className="text-[13px] font-bold text-[#777]">Name</label>
             <input
+              id="new-character-name"
               className="mt-2 h-11 w-full rounded-[10px] border border-[#d8dce5] bg-white px-3 text-[16px] font-semibold text-[#111827] outline-none"
               value={name}
               onChange={(event) => setName(event.target.value)}

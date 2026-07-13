@@ -1,16 +1,24 @@
-import { mkdir, mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
+
+// Appwrite-only: `data/automations/automations.json` -> `automations`, run
+// against cfarm (forced by vitest.setup.ts), cleared between tests.
 let tempRoot: string
 
+const clearAutomations = () => clearTestTables("automations")
+
 beforeEach(async () => {
+  await clearAutomations()
   tempRoot = await mkdtemp(
     path.join(os.tmpdir(), "cfarm-automation-hooks-route-")
   )
-  await mkdir(path.join(tempRoot, "data", "automations"), { recursive: true })
   vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
 })
 
@@ -21,6 +29,8 @@ afterEach(async () => {
   vi.resetModules()
   await rm(tempRoot, { recursive: true, force: true })
 })
+
+afterAll(clearAutomations)
 
 describe("POST /api/automations/hooks", () => {
   it("generates ten hooks from a sampled user automation and persists them", async () => {

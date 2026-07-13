@@ -5,6 +5,17 @@ export type AutomationDrawerTab =
 
 export type AutomationRunApiPayload = {
   created?: AutomationRunApiRecord[]
+  skipped?: Array<{
+    automationId: string
+    reason:
+      | "not_live"
+      | "not_due"
+      | "already_ran"
+      | "no_images"
+      | "insufficient_unique_images"
+      | "hooks_exhausted"
+    scheduledFor?: string
+  }>
 }
 
 export type AutomationRunApiRecord = {
@@ -21,6 +32,9 @@ export type AutomationRunApiRecord = {
   socialStatuses?: SocialAccountStatusItem[]
   renderedSlides?: AutomationRunApiSlide[]
   createdAt: string
+  views?: number
+  benchmarkId?: string
+  benchmarkError?: string
   error?: string
   plan?: {
     title?: string

@@ -1,9 +1,16 @@
-import { mkdir, rm, writeFile } from "node:fs/promises"
+import { mkdir, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import {
+  deleteAssetFromAppwrite,
+  mirrorAssetToAppwrite,
+} from "@/lib/asset-storage"
+
+// Appwrite-only: media is served from Storage (range-sliced in-memory), so the
+// fixture is seeded into Storage. Run against cfarm via vitest.setup.ts.
 let tempRoot: string
 
 beforeEach(async () => {
@@ -12,14 +19,19 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  await deleteAssetFromAppwrite(
+    path.join(tempRoot, "data", "ugc_avatar_videos", "avatar.mp4")
+  )
   vi.restoreAllMocks()
   await rm(tempRoot, { recursive: true, force: true })
 })
 
 describe("GET /api/local-assets/[...assetPath]", () => {
   it("serves video byte ranges for browser media decoding", async () => {
-    await mkdir(path.join(tempRoot, "data", "ugc_avatar_videos"), { recursive: true })
-    await writeFile(path.join(tempRoot, "data", "ugc_avatar_videos", "avatar.mp4"), new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]))
+    await mirrorAssetToAppwrite(
+      path.join(tempRoot, "data", "ugc_avatar_videos", "avatar.mp4"),
+      new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7])
+    )
 
     const { GET } = await import("./route")
     const response = await GET(

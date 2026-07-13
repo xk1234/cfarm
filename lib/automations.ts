@@ -6,17 +6,21 @@ import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 import {
   defaultAutomationSchema,
   normalizeAutomationSchema,
+  type AutomationLifecycleStatus,
   type AutomationSchema,
   type AutomationSchedule,
   type AutomationSocialIntegration,
   type AutomationStatus,
-  type AutomationTemplate,
+  type RuntimeAutomationTemplate,
 } from "@/lib/realfarm-automation"
 import type { Automation } from "@/lib/realfarm-data"
 
-export type AutomationRecordStatus = "live" | "paused" | "unknown"
+// Alias of the canonical lifecycle status (defined in realfarm-automation),
+// kept for existing import sites.
+export type AutomationRecordStatus = AutomationLifecycleStatus
 
 export type AutomationRecord = {
+  ownerId?: string
   id: string
   sourceAutomationId?: string
   sourceUrl?: string
@@ -77,7 +81,7 @@ export function createLocalAutomationRecord(
     name?: string
     automationKind?: AutomationKind
     schema?: AutomationSchema
-    template?: AutomationTemplate
+    template?: RuntimeAutomationTemplate
     overrides?: Partial<
       Pick<AutomationSchema, "status" | "social_integrations" | "schedule">
     >
@@ -90,7 +94,7 @@ export function createLocalAutomationRecord(
   const summary = automationSummary({
     id,
     name,
-    status: "Live",
+    status: "live",
     account: "No social account",
     handle: "",
     times: [],
@@ -255,11 +259,12 @@ export function automationRecordToSummary(
   return {
     id: record.id,
     name: record.name,
-    status: statusLabel(record.status),
+    status: record.status,
     account: socialSummary.account,
     handle: socialSummary.handle,
     times: scheduleTimes.length > 0 ? scheduleTimes : record.times,
     timezone: record.schema.schedule.timezone,
+    schedule: record.schema.schedule,
     favorite: record.favorite,
     theme: record.theme,
     automationKind: record.schema.automationKind,
@@ -303,7 +308,7 @@ function normalizeAutomationRecord(
   const summary = automationSummary({
     id: record.id,
     name: record.name,
-    status: statusLabel(normalizeStatus(record.status)),
+    status: normalizeStatus(record.status),
     account: record.account,
     handle: record.handle,
     times: Array.isArray(record.times)
@@ -418,7 +423,7 @@ function mergeImportedSchema(
     {
       id: base.title,
       name: title,
-      status: statusLabel(status),
+      status,
       account: "",
       handle: "",
       times: [],
@@ -452,7 +457,9 @@ function cloneLocalSchema(
   }
 }
 
-function cloneTemplate(template: AutomationTemplate): AutomationTemplate {
+function cloneTemplate(
+  template: RuntimeAutomationTemplate
+): RuntimeAutomationTemplate {
   return {
     automationKind: template.automationKind === "video" ? "video" : "slideshow",
     prompt_formatting: structuredClone(template.prompt_formatting),
@@ -507,17 +514,6 @@ function normalizeStatus(value: unknown): AutomationRecordStatus {
     return "paused"
   }
   return normalized ? "unknown" : "live"
-}
-
-function statusLabel(status: AutomationRecordStatus) {
-  switch (status) {
-    case "live":
-      return "Live"
-    case "paused":
-      return "Paused"
-    default:
-      return "Unknown"
-  }
 }
 
 function normalizeTimes(value: unknown): string[] {

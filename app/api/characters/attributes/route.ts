@@ -4,6 +4,7 @@ import {
   normalizeCharacterAttributes,
   type Character,
 } from "@/lib/character-model"
+import { openRouterChatCompletion } from "@/lib/openrouter"
 import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-registry"
 
 export const dynamic = "force-dynamic"
@@ -74,60 +75,53 @@ async function extractCharacterAttributes({
   sourceImageDataUrl: string
   currentAttributes?: Partial<Character>
 }) {
-  const response = await fetch(
-    "https://openrouter.ai/api/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "http://localhost:3000",
-        "X-Title": "CFarm Character Attribute Extractor",
+  const { ok, status, payload } = await openRouterChatCompletion({
+    apiKey,
+    model: openRouterModelForUseCase("characterAttributes"),
+    headers: {
+      "HTTP-Referer": "http://localhost:3000",
+      "X-Title": "LumenClip Character Attribute Extractor",
+    },
+    messages: [
+      {
+        role: "system",
+        content: [
+          "Extract a UGC character attribute JSON object from the uploaded image.",
+          "Return only valid JSON, with no markdown fences and no commentary.",
+          "Use visible evidence from the image as the source of truth. Do not invent brand names or identity claims.",
+        ].join(" "),
       },
-      body: JSON.stringify({
-        model: openRouterModelForUseCase("characterAttributes"),
-        messages: [
+      {
+        role: "user",
+        content: [
           {
-            role: "system",
-            content: [
-              "Extract a UGC character attribute JSON object from the uploaded image.",
-              "Return only valid JSON, with no markdown fences and no commentary.",
-              "Use visible evidence from the image as the source of truth. Do not invent brand names or identity claims.",
-            ].join(" "),
+            type: "text",
+            text: [
+              "Create a complete character JSON object with these keys:",
+              "name, age, ethnicity, gender, hair, eyes, facial_features, skin, build, clothing, posture_and_mannerisms, emotional_baseline, accessories, voice.",
+              "Nested values should be concise visual descriptors suitable for generating a consistent photorealistic headshot.",
+              `Preferred name: ${name?.trim() || "New character"}.`,
+              currentAttributes
+                ? `Existing attributes to preserve only when not contradicted by the image: ${JSON.stringify(currentAttributes)}`
+                : "",
+            ]
+              .filter(Boolean)
+              .join("\n"),
           },
           {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: [
-                  "Create a complete character JSON object with these keys:",
-                  "name, age, ethnicity, gender, hair, eyes, facial_features, skin, build, clothing, posture_and_mannerisms, emotional_baseline, accessories, voice.",
-                  "Nested values should be concise visual descriptors suitable for generating a consistent photorealistic headshot.",
-                  `Preferred name: ${name?.trim() || "New character"}.`,
-                  currentAttributes
-                    ? `Existing attributes to preserve only when not contradicted by the image: ${JSON.stringify(currentAttributes)}`
-                    : "",
-                ]
-                  .filter(Boolean)
-                  .join("\n"),
-              },
-              {
-                type: "image_url",
-                image_url: { url: sourceImageDataUrl },
-              },
-            ],
+            type: "image_url",
+            image_url: { url: sourceImageDataUrl },
           },
         ],
-      }),
-    }
-  )
+      },
+    ],
+  })
 
-  const body = (await response.json().catch(() => ({}))) as OpenRouterResponse
-  if (!response.ok) {
+  const body = payload as OpenRouterResponse
+  if (!ok) {
     throw new Error(
       body.error?.message ||
-        `Character attribute extraction failed with ${response.status}`
+        `Character attribute extraction failed with ${status}`
     )
   }
 

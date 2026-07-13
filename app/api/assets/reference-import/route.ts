@@ -2,10 +2,12 @@ import { clean } from "@/lib/guards"
 import { NextResponse } from "next/server"
 
 import { createUploadedAssetRecord } from "@/lib/assets"
+import { toDataUrl } from "@/lib/data-url"
 import {
   buildReferenceAnalysisOpenRouterRequest,
   parseReferenceAnalysisContent,
 } from "@/lib/character-workflows"
+import { openRouterChatCompletion } from "@/lib/openrouter"
 
 export const dynamic = "force-dynamic"
 
@@ -79,7 +81,7 @@ async function readReferenceImageInput(request: Request): Promise<
       fileName: file.name || `reference.${extensionForMimeType(mimeType)}`,
       mimeType,
       bytes,
-      analysisImageUrl: `data:${mimeType};base64,${bytes.toString("base64")}`,
+      analysisImageUrl: toDataUrl(bytes, mimeType),
       name: clean(formData.get("name")) || "Reference image",
       sourceUpload: true,
     }
@@ -117,25 +119,23 @@ async function analyzeReferenceImage(referenceImageUrl: string) {
   if (!apiKey) {
     throw new Error("Missing OPENROUTER_API_KEY")
   }
-  const response = await fetch(
-    "https://openrouter.ai/api/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "http://localhost:3000",
-        "X-Title": "CFarm Reference Asset Import",
-      },
-      body: JSON.stringify(
-        buildReferenceAnalysisOpenRouterRequest({ referenceImageUrl })
-      ),
-    }
-  )
-  const body = (await response.json().catch(() => ({}))) as OpenRouterResponse
-  if (!response.ok) {
+  const analysisRequest = buildReferenceAnalysisOpenRouterRequest({
+    referenceImageUrl,
+  })
+  const { ok, status, payload } = await openRouterChatCompletion({
+    apiKey,
+    model: analysisRequest.model,
+    messages: analysisRequest.messages,
+    responseFormat: analysisRequest.response_format,
+    headers: {
+      "HTTP-Referer": "http://localhost:3000",
+      "X-Title": "LumenClip Reference Asset Import",
+    },
+  })
+  const body = payload as OpenRouterResponse
+  if (!ok) {
     throw new Error(
-      body.error?.message || `Reference analysis failed with ${response.status}`
+      body.error?.message || `Reference analysis failed with ${status}`
     )
   }
   return parseReferenceAnalysisContent(body.choices?.[0]?.message?.content)
@@ -166,4 +166,3 @@ function mimeTypeForFileName(fileName: string) {
   if (extension === "gif") return "image/gif"
   return "image/png"
 }
-

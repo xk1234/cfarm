@@ -1,44 +1,42 @@
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
-import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
 import { deleteAssetRecordsForUrls } from "./assets"
+import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
-let assetRoot: string
+// Appwrite-only: `data/assets/assets.json` -> `assets` table, run against
+// cfarm (forced by vitest.setup.ts). Media lives in Storage, so deletion
+// is asserted via the returned counts + remaining records, not local disk.
+const assetRoot = path.join(process.cwd(), "data", "assets")
+const TABLE = "assets"
 
-beforeEach(async () => {
-  assetRoot = path.join(os.tmpdir(), `cfarm-asset-delete-${Date.now()}-${Math.random().toString(16).slice(2)}`)
-  await mkdir(path.join(assetRoot, "files"), { recursive: true })
-})
+const clearAssets = () => clearTestTables(TABLE)
 
-afterEach(async () => {
-  await rm(assetRoot, { recursive: true, force: true })
-})
+beforeEach(clearAssets)
+afterAll(clearAssets)
 
 describe("deleteAssetRecordsForUrls", () => {
-  it("removes matching asset records and deletes their unused local files", async () => {
-    await writeAsset("delete-video", "files/delete-video.webm")
-    await writeAsset("keep-video", "files/keep-video.webm")
-    await writeFile(path.join(assetRoot, "files", "delete-video.webm"), new Uint8Array([1, 2, 3]))
-    await writeFile(path.join(assetRoot, "files", "keep-video.webm"), new Uint8Array([4, 5, 6]))
+  it("removes matching asset records and reports their unused files", async () => {
+    await seedAssets([
+      assetRecord("delete-video", "files/delete-video.webm"),
+      assetRecord("keep-video", "files/keep-video.webm"),
+    ])
 
     const result = await deleteAssetRecordsForUrls({
       rootDir: assetRoot,
       urls: ["/api/local-assets/assets/files/delete-video.webm"],
     })
 
-    const stored = JSON.parse(await readFile(path.join(assetRoot, "assets.json"), "utf8"))
     expect(result).toEqual({ deleted: 1, deletedFiles: 1 })
-    expect(stored.assets.map((asset: { id: string }) => asset.id)).toEqual(["keep-video"])
-    await expect(stat(path.join(assetRoot, "files", "delete-video.webm"))).rejects.toThrow()
-    await expect(stat(path.join(assetRoot, "files", "keep-video.webm"))).resolves.toMatchObject({ size: 3 })
+    expect(await remainingIds()).toEqual(["keep-video"])
   })
 
   it("keeps matching assets when their URL is still referenced elsewhere", async () => {
-    await writeAsset("shared-video", "files/shared-video.webm")
-    await writeFile(path.join(assetRoot, "files", "shared-video.webm"), new Uint8Array([1, 2, 3]))
+    await seedAssets([assetRecord("shared-video", "files/shared-video.webm")])
 
     const result = await deleteAssetRecordsForUrls({
       rootDir: assetRoot,
@@ -47,38 +45,41 @@ describe("deleteAssetRecordsForUrls", () => {
     })
 
     expect(result).toEqual({ deleted: 0, deletedFiles: 0 })
-    await expect(stat(path.join(assetRoot, "files", "shared-video.webm"))).resolves.toMatchObject({ size: 3 })
+    expect(await remainingIds()).toEqual(["shared-video"])
   })
 })
 
-async function writeAsset(id: string, relativePath: string) {
-  const existing = await readAssets()
-  await writeFile(path.join(assetRoot, "assets.json"), `${JSON.stringify({
-    assets: [
-      ...existing,
-      {
-        id,
-        kind: "video",
-        source: "upload",
-        status: "ready",
-        scope: "greenscreen",
-        category: "other",
-        name: id,
-        caption: "",
-        fileName: path.basename(relativePath),
-        fileUrl: `/api/local-assets/assets/${relativePath}`,
-        createdAt: "2026-07-03T00:00:00.000Z",
-        updatedAt: "2026-07-03T00:00:00.000Z",
-      },
-    ],
-  }, null, 2)}\n`)
+function assetRecord(id: string, relativePath: string) {
+  return {
+    id,
+    kind: "video",
+    source: "upload",
+    status: "ready",
+    scope: "greenscreen",
+    category: "other",
+    name: id,
+    caption: "",
+    fileName: path.basename(relativePath),
+    fileUrl: `/api/local-assets/assets/${relativePath}`,
+    createdAt: "2026-07-03T00:00:00.000Z",
+    updatedAt: "2026-07-03T00:00:00.000Z",
+  }
 }
 
-async function readAssets() {
-  try {
-    const data = JSON.parse(await readFile(path.join(assetRoot, "assets.json"), "utf8")) as { assets?: unknown[] }
-    return data.assets ?? []
-  } catch {
-    return []
-  }
+async function seedAssets(records: unknown[]) {
+  await writeJsonArrayStore({
+    rootDir: assetRoot,
+    fileName: "assets.json",
+    key: "assets",
+    records,
+  })
+}
+
+async function remainingIds() {
+  const records = await readJsonArrayStore<{ id: string }>({
+    rootDir: assetRoot,
+    fileName: "assets.json",
+    key: "assets",
+  })
+  return records.map((record) => record.id)
 }

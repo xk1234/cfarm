@@ -6,7 +6,9 @@ import { SelectControl, SwitchPill } from "@/components/ui/form-controls"
 import { fetchJsonWithTimeout } from "@/lib/client-api"
 import {
   automationHooks,
-  automationTone,
+  automationTonePresetOptions,
+  automationToneRawValue,
+  automationToneSelection,
   schemaWithAutomationHookSlots,
   schemaWithAutomationHooks,
   schemaWithAutomationTone,
@@ -14,9 +16,11 @@ import {
 } from "@/lib/realfarm-automation"
 import type { Automation } from "@/lib/realfarm-data"
 import type { WordCollectionRecord } from "@/lib/word-collections"
+import type { KnowledgeBaseRecord } from "@/lib/knowledge-bases"
 import { cn } from "@/lib/utils"
 
 import { SettingsFooter, SettingsPage, SettingsRow } from "./settings-layout"
+import { HookVariableEditor } from "./hook-variable-editor"
 
 const dynamicHookSlotPattern = /\[\[([a-zA-Z0-9_-]+)\]\]|\{([a-zA-Z0-9_-]+)\}/g
 
@@ -71,6 +75,7 @@ export function PromptConfigPanel({
   const [wordCollections, setWordCollections] = useState<
     WordCollectionRecord[]
   >([])
+  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseRecord[]>([])
 
   useEffect(() => {
     let active = true
@@ -83,6 +88,9 @@ export function PromptConfigPanel({
           setWordCollections(payload.collections ?? [])
         }
       })
+      .catch(() => undefined)
+    void fetchJsonWithTimeout<{ knowledgeBases?: KnowledgeBaseRecord[] }>("/api/knowledge-bases", { toastOnError: false })
+      .then((payload) => { if (active) setKnowledgeBases(payload.knowledgeBases ?? []) })
       .catch(() => undefined)
 
     return () => {
@@ -126,18 +134,8 @@ export function PromptConfigPanel({
     onConfigChange(schemaWithAutomationTone(config, value))
   }
 
-  const tonePresets = [
-    "Conversational & Relatable",
-    "Motivational & Empowering",
-    "Educational & Informative",
-    "Bold & Provocative",
-    "Calm & Reflective",
-    "Witty & Humorous",
-  ]
-  const currentTone = automationTone(config)
-  const selectedTone = tonePresets.includes(currentTone)
-    ? currentTone
-    : "Custom"
+  const rawToneValue = automationToneRawValue(config)
+  const selectedTone = automationToneSelection(config)
 
   return (
     <SettingsPage
@@ -153,14 +151,14 @@ export function PromptConfigPanel({
               value={selectedTone}
               onChange={(event) => {
                 const value = event.target.value
-                updateTone(
-                  value === "Custom"
-                    ? "Write in a custom tone for this automation."
-                    : value
-                )
+                if (value === "Custom") {
+                  onConfigChange(schemaWithAutomationTone(config, "", "custom"))
+                  return
+                }
+                updateTone(value)
               }}
             >
-              {[...tonePresets, "Custom"].map((tone) => (
+              {[...automationTonePresetOptions, "Custom"].map((tone) => (
                 <option key={tone} value={tone}>
                   {tone}
                 </option>
@@ -180,8 +178,12 @@ export function PromptConfigPanel({
             </div>
             <textarea
               className="h-44 w-full resize-none rounded-[8px] border border-[#deddd5] bg-white p-5 text-[14px] leading-6 font-medium outline-none focus:border-[#9f9e96]"
-              value={currentTone}
-              onChange={(event) => updateTone(event.target.value)}
+              value={rawToneValue}
+              onChange={(event) =>
+                onConfigChange(
+                  schemaWithAutomationTone(config, event.target.value, "custom")
+                )
+              }
             />
           </label>
         ) : null}
@@ -194,10 +196,11 @@ export function PromptConfigPanel({
               One hook per line. These feed the slideshow editor and runner.
             </div>
           </div>
-          <textarea
-            className="h-72 w-full resize-none rounded-[8px] border border-[#deddd5] bg-white p-5 text-[14px] leading-6 font-medium outline-none focus:border-[#9f9e96]"
+          <HookVariableEditor
             value={hooks.join("\n")}
-            onChange={(event) => updateHooks(event.target.value)}
+            collections={wordCollections}
+            hookSlots={config.hook_slots}
+            onChange={updateHooks}
           />
         </label>
         {dynamicSlots.length > 0 ? (
@@ -258,6 +261,19 @@ export function PromptConfigPanel({
             </div>
           </section>
         ) : null}
+        <section className="rounded-[10px] border border-[#deddd5] bg-[#fafaf7] p-4">
+          <h3 className="text-[16px] font-semibold text-[#242421]">Knowledge context</h3>
+          <p className="mt-1 text-[14px] font-medium text-[#77766f]">Selected knowledge bases are inserted into the final text-generation prompt.</p>
+          <div className="mt-4 space-y-2">
+            {knowledgeBases.length === 0 ? <div className="text-[13px] font-semibold text-[#77766f]">Create a knowledge base from Knowledge Bases first.</div> : knowledgeBases.map((item) => {
+              const selected = (config.knowledge_base_ids ?? []).includes(item.id)
+              return <button key={item.id} type="button" onClick={() => onConfigChange({ ...config, knowledge_base_ids: selected ? (config.knowledge_base_ids ?? []).filter((id) => id !== item.id) : [...(config.knowledge_base_ids ?? []), item.id] })} className="flex w-full items-center justify-between rounded-lg border border-[#e6e5de] bg-white px-4 py-3 text-left">
+                <span><span className="block text-[13px] font-semibold text-[#242421]">{item.name}</span><span className="mt-0.5 block text-[11px] font-medium text-[#77766f]">{item.compiledText.length.toLocaleString()} context characters · {item.status}</span></span>
+                <span className={cn("grid size-5 place-items-center rounded border text-[11px] font-bold", selected ? "border-app-action bg-app-action text-white" : "border-[#d8d7cf]")}>{selected ? "✓" : ""}</span>
+              </button>
+            })}
+          </div>
+        </section>
       </div>
       <SettingsFooter onCancel={onCancel} onSave={onSave} />
     </SettingsPage>

@@ -1,8 +1,10 @@
-import { mkdtempSync } from "node:fs"
-import { tmpdir } from "node:os"
 import path from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
 
+import { Query } from "node-appwrite"
+import { afterAll, beforeEach, describe, expect, it } from "vitest"
+
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
 import { listPostFastPostRecords } from "@/lib/postfast-posts"
 import type { PostFastSocialIntegration } from "@/lib/postfast-client"
 import {
@@ -12,9 +14,16 @@ import {
   type PublishRequest,
 } from "@/lib/publishing"
 
+// Appwrite-only: `data/postfast-posts.json` -> `postfast_posts`, run against
+// cfarm (forced by vitest.setup.ts), cleared between tests.
 function tempRoot() {
-  return mkdtempSync(path.join(tmpdir(), "publish-test-"))
+  return path.join(process.cwd(), "data")
 }
+
+const clearPosts = () => clearTestTables("postfast_posts")
+
+beforeEach(clearPosts)
+afterAll(clearPosts)
 
 const okRequest: PublishRequest = async () =>
   ({ postIds: ["pf-123"] }) as never

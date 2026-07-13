@@ -1,12 +1,24 @@
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises"
+import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
+import { deleteAssetFromAppwrite } from "@/lib/asset-storage"
+import { readJsonArrayStore } from "@/lib/json-store"
+
+// Appwrite-only: `data/assets/assets.json` -> `assets` table, media -> Storage.
+// Run against cfarm (forced by vitest.setup.ts). cwd is mocked so the
+// route's data-relative paths map to the same table this test reads.
 let tempRoot: string
 
+const clearAssets = () => clearTestTables("assets")
+
 beforeEach(async () => {
+  await clearAssets()
   tempRoot = await mkdtemp(path.join(os.tmpdir(), "cfarm-asset-upload-"))
   vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
 })
@@ -15,6 +27,8 @@ afterEach(async () => {
   vi.restoreAllMocks()
   await rm(tempRoot, { recursive: true, force: true })
 })
+
+afterAll(clearAssets)
 
 describe("POST /api/assets/upload", () => {
   it("stores uploaded avatar motion reference videos as assets", async () => {
@@ -52,28 +66,29 @@ describe("POST /api/assets/upload", () => {
       /^\/api\/local-assets\/assets\/files\/\d+-.*\.mp4$/
     )
 
-    const savedFile = path.join(
-      tempRoot,
-      "data",
-      "assets",
-      "files",
-      decodeURIComponent(path.basename(payload.asset.fileUrl))
-    )
-    await expect(stat(savedFile)).resolves.toMatchObject({ size: 4 })
-
-    const stored = JSON.parse(
-      await readFile(
-        path.join(tempRoot, "data", "assets", "assets.json"),
-        "utf8"
-      )
-    )
-    expect(stored.assets).toHaveLength(1)
-    expect(stored.assets[0]).toMatchObject({
+    const stored = await readJsonArrayStore<{ id: string; fileUrl: string }>({
+      rootDir: path.join(tempRoot, "data", "assets"),
+      fileName: "assets.json",
+      key: "assets",
+    })
+    expect(stored).toHaveLength(1)
+    expect(stored[0]).toMatchObject({
       id: payload.asset.id,
       fileUrl: payload.asset.fileUrl,
       kind: "video",
       scope: "ugc_avatar",
       category: "reference",
     })
+
+    // Clean up the uploaded Storage fixture.
+    await deleteAssetFromAppwrite(
+      path.join(
+        tempRoot,
+        "data",
+        "assets",
+        "files",
+        decodeURIComponent(path.basename(payload.asset.fileUrl))
+      )
+    )
   })
 })

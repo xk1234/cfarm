@@ -1,14 +1,3 @@
-import { randomUUID } from "node:crypto"
-import {
-  copyFile,
-  mkdir,
-  readFile,
-  rename,
-  rm,
-  writeFile,
-} from "node:fs/promises"
-import path from "node:path"
-
 import { Query } from "node-appwrite"
 
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
@@ -16,11 +5,15 @@ import {
   CREATED_KEYS,
   ID_KEYS,
   NAME_KEYS,
+  ownedRowIdFor,
+  PUBLIC_STORE_TABLES,
   STATUS_KEYS,
   pickField,
   rowIdFor,
   tableForStore,
 } from "@/lib/appwrite-stores"
+import { getCurrentUser } from "@/lib/auth"
+import { sharedOwnerIdsFor } from "@/lib/workspace-members"
 
 type JsonArrayStoreInput<T> = {
   rootDir: string
@@ -37,14 +30,16 @@ type JsonArrayStoreUpdate<T, R> = {
 const storeLocks = new Map<string, Promise<void>>()
 
 // ---------------------------------------------------------------------------
-// Public API (unchanged signatures). Mapped stores use Appwrite TablesDB;
-// everything else falls back to the original filesystem implementation.
+// Appwrite-only record store. There is no filesystem fallback: every mapped
+// store lives in Appwrite TablesDB. Unconfigured Appwrite or an unmapped store
+// is a hard error rather than a silent local write.
 // ---------------------------------------------------------------------------
 
 export async function readJsonArrayStore<T>(
   input: JsonArrayStoreInput<T>
 ): Promise<T[]> {
-  return readJsonArrayStoreUnlocked(input)
+  const table = requireTableFor(input)
+  return awReadTable<T>(table, input.normalize, await ownersForRead(table))
 }
 
 export async function writeJsonArrayStore<T>(input: {
@@ -53,10 +48,10 @@ export async function writeJsonArrayStore<T>(input: {
   key: string
   records: T[]
 }) {
-  const table = appwriteTableFor(input)
-  const lockKey = table ? `aw:${table}` : storeFilePath(input)
-  await withStoreFileLock(lockKey, async () => {
-    await writeJsonArrayStoreUnlocked(input)
+  const table = requireTableFor(input)
+  const ownerId = await ownerForTable(table)
+  await withStoreLock(`aw:${table}:${ownerId ?? "public"}`, async () => {
+    await awWriteTable(table, input.records, ownerId)
   })
 }
 
@@ -67,42 +62,37 @@ export async function withJsonArrayStore<T, R = void>(
     ) => JsonArrayStoreUpdate<T, R> | Promise<JsonArrayStoreUpdate<T, R>>
   }
 ): Promise<R> {
-  const table = appwriteTableFor(input)
-  const lockKey = table ? `aw:${table}` : storeFilePath(input)
-  return withStoreFileLock(lockKey, async () => {
-    const records = await readJsonArrayStoreUnlocked(input)
+  const table = requireTableFor(input)
+  const ownerId = await ownerForTable(table)
+  return withStoreLock(`aw:${table}:${ownerId ?? "public"}`, async () => {
+    const records = await awReadTable<T>(
+      table,
+      input.normalize,
+      ownerId ? [ownerId] : null
+    )
     const next = await input.update(records)
-    await writeJsonArrayStoreUnlocked({ ...input, records: next.records })
+    await awWriteTable(table, next.records, ownerId)
     return next.result as R
   })
 }
 
 // ---------------------------------------------------------------------------
-// Routing
+// Routing (Appwrite required)
 // ---------------------------------------------------------------------------
 
-function appwriteTableFor(input: { rootDir: string; fileName: string }): string | null {
-  if (!getAppwrite()) return null
-  return tableForStore(input.rootDir, input.fileName)
-}
-
-async function readJsonArrayStoreUnlocked<T>(
-  input: JsonArrayStoreInput<T>
-): Promise<T[]> {
-  const table = appwriteTableFor(input)
-  if (table) return awReadTable<T>(table, input.normalize)
-  return fsReadJsonArrayStoreUnlocked(input)
-}
-
-async function writeJsonArrayStoreUnlocked<T>(input: {
-  rootDir: string
-  fileName: string
-  key: string
-  records: T[]
-}) {
-  const table = appwriteTableFor(input)
-  if (table) return awWriteTable(table, input.records)
-  return fsWriteJsonArrayStoreUnlocked(input)
+function requireTableFor(input: { rootDir: string; fileName: string }): string {
+  if (!getAppwrite()) {
+    throw new Error(
+      "Appwrite is not configured. Set APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, and APPWRITE_API_KEY — this app is Appwrite-only and has no filesystem fallback."
+    )
+  }
+  const table = tableForStore(input.rootDir, input.fileName)
+  if (!table) {
+    throw new Error(
+      `No Appwrite table is mapped for store "${input.fileName}". Add it to STORE_TABLES in lib/appwrite-stores.ts.`
+    )
+  }
+  return table
 }
 
 // ---------------------------------------------------------------------------
@@ -113,14 +103,18 @@ const PAGE = 100
 
 async function awReadTable<T>(
   table: string,
-  normalize?: (record: T) => T | null
+  normalize: ((record: T) => T | null) | undefined,
+  ownerIds: string[] | null
 ): Promise<T[]> {
   const aw = getAppwrite()
-  if (!aw) return []
+  if (!aw) {
+    throw new Error("Appwrite is not configured.")
+  }
   const out: T[] = []
   let cursor: string | null = null
   for (;;) {
     const queries = [Query.limit(PAGE), Query.orderAsc("ord")]
+    if (ownerIds?.length) queries.unshift(Query.equal("owner_id", ownerIds))
     if (cursor) queries.push(Query.cursorAfter(cursor))
     const res = await aw.tables.listRows(APPWRITE_DATABASE_ID, table, queries)
     const rows = res.rows as Array<Record<string, unknown>>
@@ -146,21 +140,49 @@ async function awReadTable<T>(
   return out
 }
 
-async function awWriteTable<T>(table: string, records: T[]): Promise<void> {
+const SHAREABLE_TABLES = new Set([
+  "swipes",
+  "character_generations",
+  "character_video_generations",
+  "results",
+  "slideshows",
+  "generated_video_exports",
+  "slideshow_benchmarks",
+])
+
+async function ownersForRead(table: string): Promise<string[] | null> {
+  if (PUBLIC_STORE_TABLES.has(table)) return null
+  const user = await getCurrentUser()
+  if (!user) throw new Error(`Authentication is required to access ${table}.`)
+  if (!SHAREABLE_TABLES.has(table)) return [user.$id]
+  return [user.$id, ...(await sharedOwnerIdsFor(user))]
+}
+
+async function awWriteTable<T>(
+  table: string,
+  records: T[],
+  ownerId: string | null
+): Promise<void> {
   const aw = getAppwrite()
-  if (!aw) return
+  if (!aw) {
+    throw new Error("Appwrite is not configured.")
+  }
 
   const desired = records.map((rec, index) => {
     const rid = pickField(rec, ID_KEYS)
+    const ownedRecord = ownerId ? attachOwner(rec, ownerId) : rec
     return {
-      id: rowIdFor(table, rid, index),
+      id: ownerId
+        ? ownedRowIdFor(table, ownerId, rid, index)
+        : rowIdFor(table, rid, index),
       payload: {
         rid: (rid ?? `idx-${index}`).slice(0, 1024),
         name: pickField(rec, NAME_KEYS)?.slice(0, 2048) ?? null,
         status: pickField(rec, STATUS_KEYS)?.slice(0, 255) ?? null,
         created_raw: pickField(rec, CREATED_KEYS)?.slice(0, 64) ?? null,
         ord: index,
-        data: JSON.stringify(rec),
+        ...(ownerId ? { owner_id: ownerId } : {}),
+        data: JSON.stringify(ownedRecord),
       },
     }
   })
@@ -171,6 +193,7 @@ async function awWriteTable<T>(table: string, records: T[]): Promise<void> {
   let cursor: string | null = null
   for (;;) {
     const queries = [Query.limit(PAGE)]
+    if (ownerId) queries.unshift(Query.equal("owner_id", [ownerId]))
     if (cursor) queries.push(Query.cursorAfter(cursor))
     const res = await aw.tables.listRows(APPWRITE_DATABASE_ID, table, queries)
     const rows = res.rows as Array<Record<string, unknown>>
@@ -180,15 +203,63 @@ async function awWriteTable<T>(table: string, records: T[]): Promise<void> {
   }
 
   // Upsert desired rows (bounded concurrency).
-  await runPool(desired, 8, async (d) => {
-    await aw.tables.upsertRow(APPWRITE_DATABASE_ID, table, d.id, d.payload)
+  await runPool(desired, 3, async (d) => {
+    await retryTransient(() =>
+      aw.tables.upsertRow(APPWRITE_DATABASE_ID, table, d.id, d.payload)
+    )
   })
 
   // Delete rows no longer present.
   const toDelete = existingIds.filter((id) => !desiredIds.has(id))
-  await runPool(toDelete, 8, async (id) => {
-    await aw.tables.deleteRow(APPWRITE_DATABASE_ID, table, id)
+  await runPool(toDelete, 3, async (id) => {
+    await retryTransient(() =>
+      aw.tables.deleteRow(APPWRITE_DATABASE_ID, table, id)
+    )
   })
+}
+
+async function ownerForTable(table: string): Promise<string | null> {
+  if (PUBLIC_STORE_TABLES.has(table)) return null
+  try {
+    const user = await getCurrentUser()
+    if (user) return user.$id
+  } catch {
+    // Scripts and isolated store tests do not have a Next.js request context.
+  }
+  const systemOwner = process.env.LUMENCLIP_SYSTEM_OWNER_ID?.trim()
+  if (systemOwner) return systemOwner
+  throw new Error(`Authentication is required to access ${table}.`)
+}
+
+function attachOwner<T>(record: T, ownerId: string): T {
+  if (!record || typeof record !== "object" || Array.isArray(record)) {
+    return record
+  }
+  return { ...(record as Record<string, unknown>), ownerId } as T
+}
+
+async function retryTransient<T>(task: () => Promise<T>): Promise<T> {
+  let lastError: unknown
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await task()
+    } catch (error) {
+      lastError = error
+      const code = String(
+        (error as { code?: unknown; cause?: { code?: unknown } }).cause?.code ??
+          (error as { code?: unknown }).code ??
+          ""
+      )
+      if (
+        !/EADDRNOTAVAIL|ECONNRESET|ETIMEDOUT|UND_ERR/i.test(code) ||
+        attempt === 2
+      ) {
+        throw error
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt))
+    }
+  }
+  throw lastError
 }
 
 async function runPool<I>(
@@ -210,70 +281,10 @@ async function runPool<I>(
 }
 
 // ---------------------------------------------------------------------------
-// Filesystem implementation (fallback for unmapped stores + local dev)
+// In-process write serialization (per table)
 // ---------------------------------------------------------------------------
 
-async function fsReadJsonArrayStoreUnlocked<T>(
-  input: JsonArrayStoreInput<T>
-): Promise<T[]> {
-  const filePath = storeFilePath(input)
-  let contents: string
-  try {
-    contents = await readFile(filePath, "utf8")
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return []
-    }
-    throw error
-  }
-
-  let parsed: Record<string, unknown>
-  try {
-    parsed = JSON.parse(contents) as Record<string, unknown>
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`Failed to parse JSON store at ${filePath}: ${message}`)
-  }
-
-  const records = parsed[input.key]
-  if (!Array.isArray(records)) {
-    return []
-  }
-  return input.normalize
-    ? records
-        .map((record) => input.normalize!(record as T))
-        .flatMap((record) => (record ? [record] : []))
-    : (records as T[])
-}
-
-async function fsWriteJsonArrayStoreUnlocked<T>(input: {
-  rootDir: string
-  fileName: string
-  key: string
-  records: T[]
-}) {
-  await mkdir(input.rootDir, { recursive: true })
-  const filePath = storeFilePath(input)
-  const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`
-  const backupPath = `${filePath}.bak`
-  try {
-    await writeFile(
-      tempPath,
-      `${JSON.stringify({ [input.key]: input.records }, null, 2)}\n`
-    )
-    await copyFile(filePath, backupPath).catch(() => undefined)
-    await rename(tempPath, filePath)
-  } catch (error) {
-    await rm(tempPath, { force: true }).catch(() => undefined)
-    throw error
-  }
-}
-
-function storeFilePath(input: { rootDir: string; fileName: string }) {
-  return path.resolve(input.rootDir, input.fileName)
-}
-
-async function withStoreFileLock<T>(
+async function withStoreLock<T>(
   lockKey: string,
   task: () => Promise<T>
 ): Promise<T> {
@@ -290,8 +301,4 @@ async function withStoreFileLock<T>(
     }
   })
   return run
-}
-
-function isNodeError(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error && "code" in error
 }

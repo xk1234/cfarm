@@ -1,0 +1,129 @@
+import {
+  IconCheck,
+  IconDatabase,
+  IconFileSearch,
+  IconPlayerPlay,
+  IconRoute,
+  IconSparkles,
+} from "@tabler/icons-react"
+
+import {
+  CTASection,
+  MarketingFooter,
+  MarketingNav,
+  PageHero,
+} from "@/components/marketing/marketing-shell"
+
+const groups = [
+  {
+    icon: IconFileSearch,
+    title: "Research with context",
+    body: "Save the source URL, media, transcript, landing-page capture, notes, and the reason the creative mattered.",
+    bullets: [
+      "Keep proof beside the claim it supports",
+      "Organize sources into boards and tags",
+      "Return to the original angle before generating variants",
+    ],
+  },
+  {
+    icon: IconRoute,
+    title: "Workflows with visible inputs",
+    body: "Build an automation from named collections, templates, characters, schedules, and destination settings.",
+    bullets: [
+      "Inspect every input before a run",
+      "Persist run history and generated artifacts",
+      "Pause or revise without rebuilding the workflow",
+    ],
+  },
+  {
+    icon: IconSparkles,
+    title: "Reusable creator assets",
+    body: "Keep characters, headshots, captions, prompt attachments, references, and generated videos attached to a stable record.",
+    bullets: [
+      "Reduce prompt drift between campaigns",
+      "Reuse approved references and collections",
+      "Trace outputs back to their creative source",
+    ],
+  },
+]
+
+export default function ProductPage() {
+  return (
+    <main className="min-h-[100dvh] bg-[#f7f7fa] text-[#111117]">
+      <MarketingNav />
+      <PageHero
+        title="The operating layer around your creative tools."
+        description="LumenClip connects research, reusable media, generation workflows, review, and output history without replacing the tools you already trust."
+      />
+      <section className="border-y border-[#e7e7ee] bg-white py-24">
+        <div className="mx-auto max-w-[1280px] space-y-24 px-5 lg:px-8">
+          {groups.map((group, index) => (
+            <article
+              key={group.title}
+              className="grid items-center gap-12 lg:grid-cols-2"
+            >
+              <div className={index % 2 ? "lg:order-2" : ""}>
+                <group.icon className="size-8 text-[#6d28d9]" />
+                <h2 className="mt-8 max-w-[13ch] text-4xl leading-[1.02] font-semibold tracking-[-0.05em]">
+                  {group.title}
+                </h2>
+                <p className="mt-5 max-w-[55ch] text-base leading-7 text-[#686875]">
+                  {group.body}
+                </p>
+              </div>
+              <div className="rounded-[20px] bg-[#ececf2] p-7">
+                <div className="rounded-[14px] bg-white p-5 shadow-[0_12px_40px_rgba(35,24,67,0.08)]">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <IconDatabase className="size-5 text-[#6d28d9]" /> Saved
+                    record
+                  </div>
+                  <div className="mt-8 space-y-3">
+                    {group.bullets.map((bullet) => (
+                      <div
+                        key={bullet}
+                        className="flex gap-3 rounded-[10px] bg-[#f7f7fa] p-4 text-sm leading-6"
+                      >
+                        <IconCheck className="mt-0.5 size-4 shrink-0 text-[#168a55]" />
+                        {bullet}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+      <section className="mx-auto max-w-[1280px] px-5 py-24 lg:px-8 lg:py-32">
+        <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr]">
+          <div>
+            <IconPlayerPlay className="size-8 text-[#6d28d9]" />
+            <h2 className="mt-8 text-4xl font-semibold tracking-[-0.05em]">
+              How a run moves
+            </h2>
+          </div>
+          <div className="grid gap-px overflow-hidden rounded-[18px] bg-[#e7e7ee] sm:grid-cols-2">
+            {[
+              "Select a saved source or collection",
+              "Generate against a named template",
+              "Review artifacts and captions",
+              "Approve, export, or schedule",
+            ].map((item, index) => (
+              <div key={item} className="bg-white p-6">
+                <span className="font-mono text-xs text-[#6d28d9]">
+                  0{index + 1}
+                </span>
+                <p className="mt-10 font-semibold">{item}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+      <CTASection
+        title="Start with one workflow worth repeating."
+        body="The fastest way to understand LumenClip is to connect one source, one collection, and one output path."
+      />
+      <MarketingFooter />
+    </main>
+  )
+}

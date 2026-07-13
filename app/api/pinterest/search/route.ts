@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 
+import { providerFail } from "@/lib/api"
+
 import { runPinterestImport } from "@/lib/pinterest-search"
 
 export const dynamic = "force-dynamic"
@@ -51,12 +53,7 @@ async function searchPinterest(
       results,
     })
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Pinterest import failed",
-      },
-      { status: 502 }
-    )
+    return providerFail(error, "Pinterest import failed", 502)
   }
 }
 

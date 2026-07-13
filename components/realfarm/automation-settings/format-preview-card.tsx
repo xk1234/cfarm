@@ -1,5 +1,10 @@
-import { renderedSlideSvg } from "@/lib/slideshow-renderer"
+import {
+  renderedSlideSvg,
+  renderedTextItemBounds,
+  slideDimensions,
+} from "@/lib/slideshow-renderer"
 import { cn } from "@/lib/utils"
+import { Plus } from "lucide-react"
 
 import {
   formatAspectRatioCss,
@@ -21,29 +26,39 @@ export function AutomationFormatPreviewCard({
   index,
   active,
   slotWidth,
-  selectedText,
+  zoom,
+  compact,
+  selectedTextIndex,
   onSelect,
   onSelectText,
+  onAddText,
 }: {
   item: AutomationFormatPreviewItem
   index: number
   active: boolean
   slotWidth: number
-  selectedText: boolean
+  zoom: number
+  compact?: boolean
+  selectedTextIndex: number | null
   onSelect: () => void
-  onSelectText: () => void
+  onSelectText: (index: number) => void
+  onAddText?: () => void
 }) {
+  const previewBaseScale = 2.5
+  const displayScale = compact ? 1 : previewBaseScale * zoom
   const size = formatPreviewCardSize(item.section.aspect_ratio, item.image)
   const slide = previewSlideshowSlide(item, index)
   const overlayUrl = slide.overlayImage?.image_url
   const previewSvg = item.image
     ? renderedSlideSvg(slide, item.image.imageUrl, overlayUrl)
     : ""
+  const previewTextItems = slide.textItems
+  const selectionBoxes = textSelectionBoxes(slide)
 
   return (
     <div
       className={cn(
-        "shrink-0 cursor-pointer transition-opacity duration-300",
+        "group/slide shrink-0 cursor-pointer transition-opacity duration-300",
         active ? "opacity-100" : "opacity-65"
       )}
       style={{ width: slotWidth, minWidth: slotWidth, maxWidth: slotWidth }}
@@ -56,49 +71,115 @@ export function AutomationFormatPreviewCard({
         }
       }}
     >
-      <div className="mx-auto mb-2 w-[148px] text-left text-[12px] font-bold text-[#77766f]">
-        {item.label}
-      </div>
-      <div className="relative mx-auto grid h-[250px] w-[148px] place-items-center overflow-hidden rounded-[2px] bg-black shadow-sm">
+      <div
+        className="mx-auto"
+        style={{
+          width: size.width * displayScale,
+          height: (size.height + 28) * displayScale,
+        }}
+      >
         <div
-          className="relative overflow-hidden bg-black"
+          className="origin-top-left"
           style={{
             width: size.width,
-            height: size.height,
-            aspectRatio: formatAspectRatioCss(
-              item.section.aspect_ratio,
-              item.image
-            ),
+            transform: `scale(${displayScale})`,
           }}
         >
-          {item.image ? (
-            <div
-              className="h-full w-full [&>svg]:h-full [&>svg]:w-full"
-              dangerouslySetInnerHTML={{ __html: previewSvg }}
-            />
-          ) : (
-            <FormatEmptyCollectionTile />
-          )}
-          {!item.section.noText && item.text && (
-            <button
-              className={cn(
-                "absolute inset-0 cursor-text bg-transparent text-transparent",
-                selectedText && "outline outline-2 outline-[#4f91ff]"
-              )}
-              onClick={(event) => {
-                event.stopPropagation()
-                onSelectText()
-              }}
-              aria-label="Edit text element"
-            />
-          )}
-          {selectedText && (
-            <div className="absolute top-[58%] left-1/2 -translate-x-1/2 rounded-[4px] bg-white px-2 py-1 text-[11px] font-semibold text-[#242421] shadow-sm">
-              Editing Text
-            </div>
-          )}
+          <div
+            className="mb-2 text-left text-[12px] font-bold text-[#77766f]"
+            style={{ width: size.width }}
+          >
+            {item.label}
+          </div>
+          <div
+            className="relative overflow-hidden rounded-[2px] shadow-sm"
+            style={{
+              width: size.width,
+              height: size.height,
+              aspectRatio: formatAspectRatioCss(
+                item.section.aspect_ratio,
+                item.image
+              ),
+            }}
+          >
+            {item.image ? (
+              <div
+                className="h-full w-full [&>svg]:h-full [&>svg]:w-full"
+                dangerouslySetInnerHTML={{ __html: previewSvg }}
+              />
+            ) : (
+              <FormatEmptyCollectionTile />
+            )}
+            {!item.section.noText && item.text
+              ? previewTextItems.map((previewText, textIndex) => {
+                  const textItem = item.textItems[textIndex]
+                  const selected = selectedTextIndex === textIndex
+                  if (!textItem) return null
+                  return (
+                    <button
+                      key={previewText.id}
+                      className={cn(
+                        "absolute cursor-text bg-transparent text-transparent",
+                        selected &&
+                          "border-2 border-[#4f91ff] bg-[#4f91ff]/5 shadow-[0_0_0_1px_rgba(255,255,255,0.75)]"
+                      )}
+                      style={selectionBoxes[textIndex]}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onSelectText(textIndex)
+                      }}
+                      aria-label="Edit text element"
+                    >
+                      {selected
+                        ? [
+                            "-top-1 -left-1",
+                            "-top-1 -right-1",
+                            "-bottom-1 -left-1",
+                            "-right-1 -bottom-1",
+                          ].map((position) => (
+                            <span
+                              key={position}
+                              className={cn(
+                                "absolute size-1.5 rounded-[1px] border border-white bg-[#4f91ff]",
+                                position
+                              )}
+                            />
+                          ))
+                        : null}
+                    </button>
+                  )
+                })
+              : null}
+            {!item.section.noText && onAddText ? (
+              <button
+                type="button"
+                className="absolute right-2 bottom-2 left-2 z-20 flex items-center justify-center gap-1 rounded-md border border-dashed border-white/70 bg-black/20 py-1.5 text-[9px] font-semibold text-white opacity-0 backdrop-blur-sm transition-opacity group-hover/slide:opacity-100 focus:opacity-100"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onAddText()
+                }}
+              >
+                <Plus className="size-3" />
+                Add text
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>
   )
+}
+
+function textSelectionBoxes(slide: ReturnType<typeof previewSlideshowSlide>) {
+  const dimensions = slideDimensions(slide.aspect_ratio)
+  return renderedTextItemBounds(
+    slide.textItems,
+    dimensions.width,
+    dimensions.height
+  ).map((bounds) => ({
+    left: `${(bounds.left / dimensions.width) * 100}%`,
+    top: `${(bounds.top / dimensions.height) * 100}%`,
+    width: `${(bounds.width / dimensions.width) * 100}%`,
+    height: `${(bounds.height / dimensions.height) * 100}%`,
+  }))
 }

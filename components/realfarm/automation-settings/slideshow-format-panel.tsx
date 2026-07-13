@@ -1,20 +1,23 @@
-import { useState } from "react"
-import { IconChevronLeft, IconList } from "@tabler/icons-react"
-import { Grid2X2 } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import {
+  IconArrowBackUp,
+  IconArrowForwardUp,
+  IconChevronLeft,
+} from "@tabler/icons-react"
 
 import { CollectionSelector } from "@/components/realfarm/collection-selector"
-import { ControlSelect, ControlToggle } from "@/components/realfarm/shared-media"
+import {
+  ControlSelect,
+  ControlToggle,
+} from "@/components/realfarm/shared-media"
 import { Button } from "@/components/ui/button"
 import { SelectLike } from "@/components/ui/form-controls"
 import {
   aspectRatioLabel,
   automationAspectRatios,
   automationFormatSection,
-  automationImageGrids,
   defaultAutomationTextItem,
-  imageGridLabel,
   labelToAspectRatio,
-  labelToImageGrid,
   schemaWithAutomationCollectionId,
   updateAutomationFormatSection,
   type AutomationFormatSection,
@@ -23,16 +26,26 @@ import {
   type AutomationSlideOverride,
   type AutomationTextItem,
 } from "@/lib/realfarm-automation"
-import { findCollectionByIdOrAlias, type CreatedImageCollection } from "@/lib/realfarm-collections"
+import {
+  findCollectionByIdOrAlias,
+  type CreatedImageCollection,
+} from "@/lib/realfarm-collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
 import { cn } from "@/lib/utils"
 
-import { AutomationContentFormatEditor, AutomationCtaFormatEditor } from "./content-format-editor"
+import {
+  AutomationContentFormatEditor,
+  AutomationCtaFormatEditor,
+} from "./content-format-editor"
 import {
   buildFormatPreviewItems,
   clampPercent,
   clampSlideIndex,
   formatCollection,
+  formatPreviewCardSize,
+  newAutomationTextItemAfter,
+  previewTrackOffsetForWidths,
+  updateAutomationTextItemAt,
   type AutomationFormatRole,
 } from "./format-helpers"
 import { SlideshowFormatPreviewStage } from "./slideshow-format-preview-stage"
@@ -63,28 +76,74 @@ export function AutomationFormatPanel({
 }) {
   const [activeTab, setActiveTab] = useState<"Hook" | "Content" | "CTA">("Hook")
   const [activePreview, setActivePreview] = useState(0)
+  const [previewZoom, setPreviewZoom] = useState(1)
   const [selectedTextIndex, setSelectedTextIndex] = useState<number | null>(
     null
   )
+  const configRef = useRef(config)
+  const onConfigChangeRef = useRef(onConfigChange)
+  const undoStackRef = useRef<AutomationSchema[]>([])
+  const redoStackRef = useRef<AutomationSchema[]>([])
+  const [historyCounts, setHistoryCounts] = useState({ undo: 0, redo: 0 })
   const activeKey = activeTab.toLowerCase() as "hook" | "content" | "cta"
   const activeSection = automationFormatSection(config, activeKey)
+  const photoCollections = collections.filter(
+    (collection) => collection.mediaType !== "video"
+  )
   const activeTextItem =
     activeSection.textItems[selectedTextIndex ?? 0] ??
     defaultAutomationTextItem()
-  const activeCollection = formatCollection(config, collections, activeKey)
+  const activeCollection = formatCollection(config, photoCollections, activeKey)
   const activeOverlayCollection = findCollectionByIdOrAlias(
-    collections,
+    photoCollections,
     activeSection.overlayImage?.collectionId ?? ""
   )
   const previewItems = buildFormatPreviewItems(config, collections)
-  const previewSlotWidth = 176
-  const previewGap = 24
+  const previewBaseScale = 2.5
+  const previewSlotWidths = previewItems.map((item) => {
+    const size = formatPreviewCardSize(item.section.aspect_ratio, item.image)
+    return size.width * previewBaseScale * previewZoom
+  })
+  const previewGap = 50
   const activePreviewIndex = Math.min(
     activePreview,
     Math.max(0, previewItems.length - 1)
   )
-  const previewTrackOffset =
-    activePreviewIndex * (previewSlotWidth + previewGap) + previewSlotWidth / 2
+  const previewTrackOffset = previewTrackOffsetForWidths(
+    previewSlotWidths,
+    activePreviewIndex,
+    previewGap
+  )
+
+  useEffect(() => {
+    configRef.current = config
+    onConfigChangeRef.current = onConfigChange
+  }, [config, onConfigChange])
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const modifier = event.metaKey || event.ctrlKey
+      if (!modifier) return
+      const key = event.key.toLowerCase()
+      if (key === "z" && event.shiftKey) {
+        event.preventDefault()
+        applyHistoryStep("redo")
+        return
+      }
+      if (key === "z") {
+        event.preventDefault()
+        applyHistoryStep("undo")
+        return
+      }
+      if (key === "y") {
+        event.preventDefault()
+        applyHistoryStep("redo")
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [])
 
   if (config.automationKind === "video") {
     return (
@@ -117,7 +176,27 @@ export function AutomationFormatPanel({
   function updateSchema(
     updater: (current: AutomationSchema) => AutomationSchema
   ) {
-    onConfigChange(updater(config))
+    const current = configRef.current
+    const next = updater(current)
+    undoStackRef.current.push(structuredClone(current))
+    redoStackRef.current = []
+    configRef.current = next
+    setHistoryCounts({ undo: undoStackRef.current.length, redo: 0 })
+    onConfigChangeRef.current(next)
+  }
+
+  function applyHistoryStep(direction: "undo" | "redo") {
+    const source = direction === "undo" ? undoStackRef : redoStackRef
+    const destination = direction === "undo" ? redoStackRef : undoStackRef
+    const next = source.current.pop()
+    if (!next) return
+    destination.current.push(structuredClone(configRef.current))
+    configRef.current = next
+    setHistoryCounts({
+      undo: undoStackRef.current.length,
+      redo: redoStackRef.current.length,
+    })
+    onConfigChangeRef.current(next)
   }
 
   function updateFormatSection<K extends "hook" | "content" | "cta">(
@@ -150,19 +229,6 @@ export function AutomationFormatPanel({
         cta_slide: {
           ...current.image_collection_ids.cta_slide,
           check: enabled,
-        },
-      },
-    }))
-  }
-
-  function updateCtaPlacement(value: "last" | "static") {
-    updateSchema((current) => ({
-      ...updateAutomationFormatSection(current, "cta", { ctaLocation: value }),
-      image_collection_ids: {
-        ...current.image_collection_ids,
-        cta_slide: {
-          ...current.image_collection_ids.cta_slide,
-          cta_location: value === "last" ? "last_slide" : "static",
         },
       },
     }))
@@ -349,21 +415,14 @@ export function AutomationFormatPanel({
   }
 
   function updateTextItem(patch: Partial<AutomationTextItem>) {
-    updateSchema((current) => {
-      const section = automationFormatSection(current, activeKey)
-      const textIndex = selectedTextIndex ?? 0
-      const textItems =
-        section.textItems.length > 0
-          ? [...section.textItems]
-          : [defaultAutomationTextItem()]
-      textItems[textIndex] = {
-        ...defaultAutomationTextItem(),
-        ...textItems[textIndex],
-        ...patch,
-      }
-
-      return updateAutomationFormatSection(current, activeKey, { textItems })
-    })
+    updateSchema((current) =>
+      updateAutomationTextItemAt(
+        current,
+        activeKey,
+        selectedTextIndex ?? 0,
+        patch
+      )
+    )
   }
 
   function deleteSelectedTextItem() {
@@ -384,18 +443,22 @@ export function AutomationFormatPanel({
   function addTextItem() {
     updateSchema((current) => {
       const section = automationFormatSection(current, activeKey)
+      const previous = section.textItems.at(-1)
       const textItems =
         section.textItems.length > 0
-          ? [...section.textItems, defaultAutomationTextItem()]
-          : [defaultAutomationTextItem(), defaultAutomationTextItem()]
+          ? [...section.textItems, newAutomationTextItemAfter(previous)]
+          : [
+              defaultAutomationTextItem(),
+              newAutomationTextItemAfter(defaultAutomationTextItem()),
+            ]
       return updateAutomationFormatSection(current, activeKey, { textItems })
     })
     setSelectedTextIndex(activeSection.textItems.length)
   }
 
   return (
-    <div className="grid h-full min-h-0 bg-[#b9b9b6] md:grid-cols-[335px_1fr]">
-      <aside className="flex min-h-0 flex-col bg-[#f7f7f4]">
+    <div className="grid h-full min-h-0 min-w-0 bg-[#b9b9b6] md:grid-cols-[340px_minmax(0,1fr)]">
+      <aside className="flex min-h-0 w-[340px] min-w-[340px] flex-col bg-[#f7f7f4]">
         <div className="flex h-12 items-center justify-between border-b border-[#deddd5] px-3">
           <button
             className="flex items-center gap-2 text-[13px] font-semibold text-[#5d5c56]"
@@ -404,9 +467,29 @@ export function AutomationFormatPanel({
             <IconChevronLeft className="size-4" />
             Back
           </button>
-          <div className="flex gap-2 text-[#8c8b84]">
-            <IconList className="size-4" />
-            <Grid2X2 className="size-4" />
+          <div className="flex items-center gap-1">
+            <div className="flex items-center rounded-lg bg-[#efefeb] p-0.5">
+              <button
+                type="button"
+                className="rounded-md p-1.5 text-[#5d5c56] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-30"
+                disabled={historyCounts.undo === 0}
+                onClick={() => applyHistoryStep("undo")}
+                aria-label="Undo format change"
+                title="Undo (Cmd/Ctrl+Z)"
+              >
+                <IconArrowBackUp className="size-4" />
+              </button>
+              <button
+                type="button"
+                className="rounded-md p-1.5 text-[#5d5c56] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-30"
+                disabled={historyCounts.redo === 0}
+                onClick={() => applyHistoryStep("redo")}
+                aria-label="Redo format change"
+                title="Redo (Cmd/Ctrl+Shift+Z)"
+              >
+                <IconArrowForwardUp className="size-4" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -432,10 +515,9 @@ export function AutomationFormatPanel({
               config={config}
               section={activeSection}
               collection={activeCollection}
-              collections={collections}
+              collections={photoCollections}
               onCreateCollection={onCreateCollection}
               onEnabledChange={updateCtaEnabled}
-              onPlacementChange={updateCtaPlacement}
               onImageModeChange={updateCtaImageMode}
               onCollectionChange={(collectionId) =>
                 updateImageCollectionId("cta", collectionId)
@@ -450,7 +532,7 @@ export function AutomationFormatPanel({
               <CollectionSelector
                 label={activeTab}
                 collection={activeCollection}
-                collections={collections}
+                collections={photoCollections}
                 onChange={(collectionId) =>
                   updateImageCollectionId(activeKey, collectionId)
                 }
@@ -458,35 +540,100 @@ export function AutomationFormatPanel({
               />
 
               {activeTab === "Content" && (
-                <div className="mb-3 grid grid-cols-[1fr_72px] gap-2">
+                <div
+                  className={cn(
+                    "mb-3 grid gap-2",
+                    activeSection.slideCountMode === "varying"
+                      ? "grid-cols-1"
+                      : "grid-cols-[1fr_72px]"
+                  )}
+                >
                   <SelectLike
-                    value="Static"
-                    options={["Static"]}
+                    value={
+                      activeSection.slideCountMode === "varying"
+                        ? "Varying"
+                        : "Static"
+                    }
+                    options={["Static", "Varying"]}
                     placement="bottom"
-                    onChange={() => undefined}
+                    onChange={(value) =>
+                      updateFormatSection("content", {
+                        slideCountMode:
+                          value === "Varying" ? "varying" : "static",
+                        slideCountMin:
+                          activeSection.slideCountMin ??
+                          activeSection.slideCount,
+                        slideCountMax:
+                          activeSection.slideCountMax ??
+                          activeSection.slideCount,
+                      })
+                    }
                   />
-                  <input
-                    className="h-8 rounded-[7px] border border-[#ebeae3] bg-white px-2 text-center text-[12px] font-semibold outline-none"
-                    value={activeSection.slideCount}
-                    onChange={(event) => {
-                      const value = Number(event.target.value) || 1
-                      updateSchema((current) => ({
-                        ...updateAutomationFormatSection(current, "content", {
-                          slideCount: value,
-                        }),
-                        prompt_formatting: {
-                          ...current.prompt_formatting,
-                          num_of_slides: Math.max(
-                            1,
-                            value +
-                              automationFormatSection(current, "hook")
-                                .slideCount
-                          ),
-                        },
-                      }))
-                    }}
-                    aria-label="Slide count"
-                  />
+                  {activeSection.slideCountMode !== "varying" ? (
+                    <input
+                      className="h-8 rounded-[7px] border border-[#ebeae3] bg-white px-2 text-center text-[12px] font-semibold outline-none"
+                      value={activeSection.slideCount}
+                      onChange={(event) => {
+                        const value = Number(event.target.value) || 1
+                        updateSchema((current) => ({
+                          ...updateAutomationFormatSection(current, "content", {
+                            slideCount: value,
+                          }),
+                          prompt_formatting: {
+                            ...current.prompt_formatting,
+                            num_of_slides: Math.max(
+                              1,
+                              value +
+                                automationFormatSection(current, "hook")
+                                  .slideCount
+                            ),
+                          },
+                        }))
+                      }}
+                      aria-label="Slide count"
+                    />
+                  ) : null}
+                  {activeSection.slideCountMode === "varying" ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <SlideCountRangeInput
+                        label="Minimum"
+                        value={
+                          activeSection.slideCountMin ??
+                          activeSection.slideCount
+                        }
+                        onChange={(value) =>
+                          updateFormatSection("content", {
+                            slideCount: value,
+                            slideCountMin: value,
+                            slideCountMax: Math.max(
+                              value,
+                              activeSection.slideCountMax ?? value
+                            ),
+                          })
+                        }
+                      />
+                      <SlideCountRangeInput
+                        label="Maximum"
+                        value={
+                          activeSection.slideCountMax ??
+                          activeSection.slideCount
+                        }
+                        onChange={(value) =>
+                          updateFormatSection("content", {
+                            slideCount: Math.min(
+                              activeSection.slideCountMin ?? value,
+                              value
+                            ),
+                            slideCountMin: Math.min(
+                              activeSection.slideCountMin ?? value,
+                              value
+                            ),
+                            slideCountMax: value,
+                          })
+                        }
+                      />
+                    </div>
+                  ) : null}
                 </div>
               )}
 
@@ -497,16 +644,6 @@ export function AutomationFormatPanel({
                 onChange={(value) =>
                   updateFormatSection(activeKey, {
                     aspect_ratio: labelToAspectRatio(value),
-                  })
-                }
-              />
-              <ControlSelect
-                label="Image Grid"
-                value={imageGridLabel(activeSection.imageGrid)}
-                options={automationImageGrids.map(imageGridLabel)}
-                onChange={(value) =>
-                  updateFormatSection(activeKey, {
-                    imageGrid: labelToImageGrid(value),
                   })
                 }
               />
@@ -523,7 +660,7 @@ export function AutomationFormatPanel({
                 <AutomationContentFormatEditor
                   section={activeSection}
                   overlayCollection={activeOverlayCollection}
-                  collections={collections}
+                  collections={photoCollections}
                   onCreateCollection={onCreateCollection}
                   onOverlayImageChange={updateSectionOverlayImage}
                   onOverlayCollectionChange={updateSectionOverlayCollection}
@@ -551,6 +688,15 @@ export function AutomationFormatPanel({
               )}
             </>
           )}
+          <ControlToggle
+            label="AI image matching"
+            enabled={activeSection.aiImageSelection === true}
+            onClick={() =>
+              updateFormatSection(activeKey, {
+                aiImageSelection: !activeSection.aiImageSelection,
+              })
+            }
+          />
         </div>
 
         <div className="border-t border-[#deddd5] p-3">
@@ -571,18 +717,20 @@ export function AutomationFormatPanel({
         activeTextItem={activeTextItem}
         selectedTextIndex={selectedTextIndex}
         activePreviewIndex={activePreviewIndex}
-        previewSlotWidth={previewSlotWidth}
+        previewSlotWidths={previewSlotWidths}
         previewGap={previewGap}
         previewTrackOffset={previewTrackOffset}
+        zoom={previewZoom}
+        onZoomChange={setPreviewZoom}
         onSelectPreview={(index, tab) => {
           setActivePreview(index)
           setActiveTab(tab)
           setSelectedTextIndex(null)
         }}
-        onSelectPreviewText={(index, tab) => {
+        onSelectPreviewText={(index, tab, textIndex) => {
           setActivePreview(index)
           setActiveTab(tab)
-          setSelectedTextIndex(0)
+          setSelectedTextIndex(textIndex)
         }}
         updateTextItem={updateTextItem}
         onDeleteTextItem={deleteSelectedTextItem}
@@ -592,3 +740,28 @@ export function AutomationFormatPanel({
   )
 }
 
+function SlideCountRangeInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: number
+  onChange: (value: number) => void
+}) {
+  return (
+    <label className="space-y-1 text-[11px] font-semibold text-[#77766f]">
+      <span>{label}</span>
+      <input
+        type="number"
+        min={1}
+        max={20}
+        value={value}
+        className="h-8 w-full rounded-[7px] border border-[#ebeae3] bg-white px-2 text-center text-[12px] font-semibold outline-none"
+        onChange={(event) =>
+          onChange(Math.max(1, Number(event.target.value) || 1))
+        }
+      />
+    </label>
+  )
+}

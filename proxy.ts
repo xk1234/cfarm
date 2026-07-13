@@ -1,43 +1,34 @@
-import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
 
-export function proxy(request: NextRequest) {
-  const appApiKey = process.env.APP_API_KEY
-  const hostname = request.nextUrl.hostname
+import { getUserFromSession, SESSION_COOKIE } from "@/lib/auth"
 
-  if (!appApiKey) {
-    if (isLocalhost(hostname)) {
-      return NextResponse.next()
+export async function proxy(request: NextRequest) {
+  const user = await getUserFromSession(
+    request.cookies.get(SESSION_COOKIE)?.value
+  )
+  if (user) {
+    if (request.nextUrl.pathname === "/login") {
+      return NextResponse.redirect(new URL("/app", request.url))
     }
-
-    return unauthorized()
-  }
-
-  if (request.headers.get("x-api-key") === appApiKey) {
     return NextResponse.next()
   }
 
-  const cronSecret = process.env.CRON_SECRET
-  if (
-    cronSecret &&
-    request.headers.get("authorization") === `Bearer ${cronSecret}`
-  ) {
+  if (request.nextUrl.pathname === "/login") {
     return NextResponse.next()
   }
 
-  return unauthorized()
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json(
+      { error: "Authentication required" },
+      { status: 401 }
+    )
+  }
+
+  const login = new URL("/login", request.url)
+  login.searchParams.set("next", request.nextUrl.pathname)
+  return NextResponse.redirect(login)
 }
 
-function isLocalhost(hostname: string) {
-  return hostname === "localhost" || hostname === "127.0.0.1"
-}
-
-function unauthorized() {
-  return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-}
-
-// Production browser clients must provision APP_API_KEY and update lib/client-api.ts
-// to send it with same-origin API requests.
 export const config = {
-  matcher: "/api/:path*",
+  matcher: ["/login", "/app/:path*", "/api/((?!auth/).*)"],
 }

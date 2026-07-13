@@ -11,30 +11,29 @@ afterEach(() => {
 
 describe("POST /api/temp/testing-center/generate", () => {
   it("generates metadata for hook-only templates with no model-fillable slide text", async () => {
-    vi.stubEnv("OPENROUTER_API_KEY", "test-openrouter-key")
-    const fetchMock = vi.fn(
-      async () =>
-        new Response(
-          JSON.stringify({
-            choices: [
-              {
-                message: {
-                  content: JSON.stringify({
-                    title: "Cute Nail Ideas",
-                    caption: "",
-                    hashtags: "#nails #beauty #style",
-                    text: {},
-                  }),
-                },
-              },
-            ],
-          }),
-          { status: 200 }
-        )
-    )
-    vi.stubGlobal("fetch", fetchMock)
+    const result = {
+      title: "Cute Nail Ideas",
+      caption: "",
+      hashtags: "#nails #beauty #style",
+      text: {},
+    }
+    const plan = {
+      textModel: "anthropic/claude-sonnet-4.5",
+      hook: "cute nail designs i found on pinterest",
+      debug: { textGenerationResult: result },
+    }
+    const previewAutomationRunPlan = vi.fn(async () => ({
+      status: "succeeded",
+      plan,
+    }))
+    vi.doMock("@/lib/automation-runner", () => ({
+      previewAutomationRunPlan,
+    }))
     vi.doMock("@/lib/automation-templates", () => ({
       listAutomationTemplateRecords: vi.fn(async () => [hookOnlyTemplate]),
+      automationTemplateRecordToSchema: vi.fn(() => ({
+        title: hookOnlyTemplate.name,
+      })),
     }))
 
     const { POST } = await import("./route")
@@ -50,17 +49,21 @@ describe("POST /api/temp/testing-center/generate", () => {
     const payload = await response.json()
 
     expect(response.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(payload).toEqual({
+    expect(previewAutomationRunPlan).toHaveBeenCalledWith(
+      { title: hookOnlyTemplate.name },
+      expect.objectContaining({
+        automationId: "template-hook-only",
+        textModel: "anthropic/claude-sonnet-4.5",
+        includeTextGenerationResult: true,
+      })
+    )
+    expect(payload).toMatchObject({
       automationId: "template-hook-only",
       model: "anthropic/claude-sonnet-4.5",
       selectedHook: "cute nail designs i found on pinterest",
-      result: {
-        title: "Cute Nail Ideas",
-        caption: "",
-        hashtags: "#nails #beauty #style",
-        text: {},
-      },
+      result,
+      status: "succeeded",
+      plan,
     })
   })
 })

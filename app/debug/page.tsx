@@ -1,13 +1,39 @@
-import { DebugAutomationEditor } from "@/components/debug/debug-automation-editor"
-import { listAutomationRecords } from "@/lib/automations"
+import { SlideTestingCenter } from "@/components/temp/slide-testing-center"
+import {
+  groupAutomationTemplateExampleRunsByTemplateId,
+  listAutomationTemplateExampleRuns,
+  listAutomationTemplateRecords,
+} from "@/lib/automation-templates"
+import { listImageCollections } from "@/lib/image-collections"
+import {
+  automationTemplateToTempSlideTestingAutomation,
+  storedCollectionsToTempSlideCollections,
+} from "@/lib/temp-slide-testing"
+import { listBenchmarkCorpus } from "@/lib/slideshow-benchmarks"
 
 export const dynamic = "force-dynamic"
 
 export default async function DebugPage() {
-  const records = await listAutomationRecords()
-  const serializableRecords = JSON.parse(JSON.stringify(records)) as Awaited<
-    ReturnType<typeof listAutomationRecords>
-  >
+  const [templateRecords, imageCollections, exampleRuns, benchmarkCorpus] = await Promise.all([
+    listAutomationTemplateRecords(),
+    listImageCollections(),
+    listAutomationTemplateExampleRuns(),
+    listBenchmarkCorpus(),
+  ])
 
-  return <DebugAutomationEditor records={serializableRecords} />
+  return (
+    <SlideTestingCenter
+      automations={templateRecords.map(
+        automationTemplateToTempSlideTestingAutomation
+      )}
+      automationJsonById={Object.fromEntries(
+        templateRecords.map((record) => [record.id, record])
+      )}
+      collections={storedCollectionsToTempSlideCollections(imageCollections)}
+      exampleRunsByAutomationId={groupAutomationTemplateExampleRunsByTemplateId(
+        exampleRuns
+      )}
+      benchmarkCorpus={benchmarkCorpus}
+    />
+  )
 }

@@ -48,11 +48,13 @@ export function AppModalPanel({ children, className }: { children: ReactNode; cl
 export function AppModalHeader({
   title,
   description,
+  actions,
   onClose,
   closeLabel = "Close modal",
 }: {
   title: string
   description?: string
+  actions?: ReactNode
   onClose: () => void
   closeLabel?: string
 }) {
@@ -62,7 +64,10 @@ export function AppModalHeader({
         <h2 className="text-[22px] font-bold text-[#333]">{title}</h2>
         {description && <p className="mt-1 text-[13px] font-semibold text-app-muted-text">{description}</p>}
       </div>
-      <AppModalCloseButton onClick={onClose} ariaLabel={closeLabel} />
+      <div className="flex items-center gap-2">
+        {actions}
+        <AppModalCloseButton onClick={onClose} ariaLabel={closeLabel} />
+      </div>
     </div>
   )
 }

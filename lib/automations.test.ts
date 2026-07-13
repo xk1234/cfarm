@@ -1,8 +1,10 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
-import os from "node:os"
 import path from "node:path"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { Query } from "node-appwrite"
+import { afterAll, beforeEach, describe, expect, it } from "vitest"
+
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
 import { upsertAutomationTemplateRecords } from "@/lib/automation-templates"
 import {
   automationRecordToSummary,
@@ -12,21 +14,24 @@ import {
   normalizeReelfarmAutomation,
   upsertAutomationRecords,
 } from "@/lib/automations"
+import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 import {
   automationCollectionIds,
   defaultAutomationSchema,
 } from "@/lib/realfarm-automation"
 import { defaultAutomationTemplateDefaults } from "@/lib/automation-template-defaults"
 
-let rootDir: string
+// Appwrite-only, run against cfarm (forced by vitest.setup.ts):
+//   data/automations/automations.json          -> automations
+//   data/automation-templates/templates.json    -> automation_templates
+const rootDir = path.join(process.cwd(), "data", "automations")
+const templatesRoot = path.join(process.cwd(), "data", "automation-templates")
 
-beforeEach(async () => {
-  rootDir = await mkdtemp(path.join(os.tmpdir(), "cfarm-automations-"))
-})
 
-afterEach(async () => {
-  await rm(rootDir, { recursive: true, force: true })
-})
+const clearAll = () => clearTestTables("automations", "automation_templates")
+
+beforeEach(clearAll)
+afterAll(clearAll)
 
 describe("automation import persistence", () => {
   it("normalizes Reelfarm automation payloads into persisted automation records", async () => {
@@ -72,7 +77,6 @@ describe("automation import persistence", () => {
             slideCount: 1,
             noText: false,
             overlay: true,
-            overlayOpacity: 25,
           },
           {
             id: "body",
@@ -82,7 +86,6 @@ describe("automation import persistence", () => {
             slideCount: 5,
             noText: false,
             overlay: true,
-            overlayOpacity: 25,
             overlayImage: {
               enabled: true,
               collectionId: "overlay-collection",
@@ -146,7 +149,6 @@ describe("automation import persistence", () => {
             cta_location: "last_slide",
           },
           keepOriginalAspectRatio: true,
-          background_opacity: 25,
           is_bg_overlay_on_hook_image: true,
           textOnFirstSlideOnly: false,
           noTextOnSlides: false,
@@ -183,7 +185,6 @@ describe("automation import persistence", () => {
           image_url: "",
           imageGrid: "none",
           slideCount: 1,
-          overlayOpacity: 25,
           textItems: [
             expect.objectContaining({
               id: "text-hook",
@@ -247,7 +248,6 @@ describe("automation import persistence", () => {
         cta_location: "last_slide",
       },
       keepOriginalAspectRatio: true,
-      background_opacity: 25,
       is_bg_overlay_on_hook_image: true,
       textOnFirstSlideOnly: false,
       noTextOnSlides: false,
@@ -359,7 +359,6 @@ describe("automation import persistence", () => {
         aspect_ratio: "9:16",
         is_bg_overlay_on: true,
         keepOriginalAspectRatio: true,
-        background_opacity: 25,
         is_bg_overlay_on_hook_image: true,
         textOnFirstSlideOnly: false,
         noTextOnSlides: false,
@@ -576,7 +575,7 @@ describe("automation import persistence", () => {
 
   it("keeps imported automation templates out of the runnable automation database", async () => {
     await upsertAutomationTemplateRecords({
-      rootDir: path.join(rootDir, "automation-templates"),
+      rootDir: templatesRoot,
       records: [
         {
           id: "template-imported",
@@ -628,29 +627,25 @@ describe("automation import persistence", () => {
   })
 
   it("removes the selected automation record from the automation database", async () => {
-    await writeFile(
-      path.join(rootDir, "automations.json"),
-      `${JSON.stringify(
-        {
-          automations: [
-            automationRecordFixture("delete-me"),
-            automationRecordFixture("keep-me"),
-          ],
-        },
-        null,
-        2
-      )}\n`
-    )
+    await writeJsonArrayStore({
+      rootDir,
+      fileName: "automations.json",
+      key: "automations",
+      records: [
+        automationRecordFixture("delete-me"),
+        automationRecordFixture("keep-me"),
+      ],
+    })
 
     const result = await deleteAutomationRecord({ rootDir, id: "delete-me" })
 
-    const stored = JSON.parse(
-      await readFile(path.join(rootDir, "automations.json"), "utf8")
-    )
+    const stored = await readJsonArrayStore<{ id: string }>({
+      rootDir,
+      fileName: "automations.json",
+      key: "automations",
+    })
     expect(result?.id).toBe("delete-me")
-    expect(
-      stored.automations.map((record: { id: string }) => record.id)
-    ).toEqual(["keep-me"])
+    expect(stored.map((record) => record.id)).toEqual(["keep-me"])
   })
 })
 
@@ -658,7 +653,7 @@ function automationRecordFixture(id: string) {
   const summary = {
     id,
     name: id,
-    status: "Paused",
+    status: "paused" as const,
     account: "No social account",
     handle: "Click to add account",
     times: [],

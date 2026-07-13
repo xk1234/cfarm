@@ -22,9 +22,15 @@ if (!ENDPOINT || !PROJECT_ID || !API_KEY) throw new Error("APPWRITE_ENDPOINT/PRO
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const RUNTIME = "node-22", ENTRY = "src/main.js", COMMANDS = "npm install"
+const optionalProviderVars = Object.fromEntries([
+  "APIFY_KEY", "OPENROUTER_API_KEY", "DATAFORSEO_LOGIN", "DATAFORSEO_PASSWORD",
+  "OPENAI_API_KEY", "OPENAI_TRANSCRIPTION_MODEL", "KNOWLEDGE_SUMMARY_MODEL",
+  "FAL_KEY", "FAL_API_KEY", "FAL_WHISPER_MODEL",
+  "APIFY_YOUTUBE_ACTOR", "APIFY_REDDIT_ACTOR", "APIFY_TWITTER_ACTOR", "APIFY_TIKTOK_ACTOR",
+].filter((key) => process.env[key]).map((key) => [key, process.env[key]]))
 const FUNCTIONS = [
   { id: "automation-scheduler", schedule: "*/5 * * * *", timeout: 120, vars: { APPWRITE_API_KEY: API_KEY, APPWRITE_DATABASE_ID: DATABASE_ID, LOOKBACK_MINUTES: "10" } },
-  { id: "job-worker", schedule: "* * * * *", timeout: 300, vars: { APPWRITE_API_KEY: API_KEY, APPWRITE_DATABASE_ID: DATABASE_ID, BATCH: "10", LEASE_MS: "120000" } },
+  { id: "job-worker", schedule: "* * * * *", timeout: 300, vars: { APPWRITE_API_KEY: API_KEY, APPWRITE_DATABASE_ID: DATABASE_ID, BATCH: "10", LEASE_MS: "360000", ...optionalProviderVars } },
 ]
 
 const fx = new Functions(new Client().setEndpoint(ENDPOINT).setProject(PROJECT_ID).setKey(API_KEY))
@@ -44,13 +50,28 @@ async function setVars(f) {
 async function deployFn(f) {
   const src = path.join(here, f.id)
   const tar = path.join(here, `${f.id}.tar.gz`)
-  execSync(`tar -czf ${tar} -C ${src} .`)
+  // Exclude local node_modules (Appwrite runs `npm install` server-side during
+  // the build) and any stray archive, so a stray local install never bloats the
+  // upload.
+  execSync(
+    `tar --exclude='./node_modules' --exclude='./*.tar.gz' -czf ${tar} -C ${src} .`
+  )
   const dep = await fx.createDeployment(f.id, InputFile.fromPath(tar, "code.tar.gz"), true, ENTRY, COMMANDS)
   try { fs.rmSync(tar, { force: true }) } catch { /* ignore */ }
   process.stdout.write(`  building ${f.id} `)
   for (let i = 0; i < 72; i++) {
     const d = await fx.getDeployment(f.id, dep.$id)
-    if (d.status === "ready") { console.log("-> ready"); return }
+    if (d.status === "ready") {
+      // Some Appwrite releases leave a ready deployment as `latest` without
+      // promoting it, even when createDeployment received activate=true.
+      await fx.updateFunctionDeployment({ functionId: f.id, deploymentId: dep.$id })
+      const active = await fx.get(f.id)
+      if (active.deploymentId !== dep.$id) {
+        throw new Error(`deployment ${dep.$id} built but was not activated`)
+      }
+      console.log("-> ready + active")
+      return
+    }
     if (d.status === "failed") { console.log("-> FAILED\n", (d.buildLogs || "").slice(-2500)); process.exit(1) }
     process.stdout.write("."); await new Promise((r) => setTimeout(r, 5000))
   }

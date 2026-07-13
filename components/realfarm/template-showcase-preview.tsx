@@ -15,6 +15,7 @@ export type GeneratedShowcaseSlide = {
 }
 
 export type GeneratedShowcaseRun = {
+  ownerId?: string
   id: string
   automationTitle?: string
   scheduledFor?: string
@@ -117,8 +118,7 @@ export function generatedExampleSlideshows(
         }
       })
       .filter(
-        (slideshow): slideshow is TemplateExampleSlideshow =>
-          slideshow !== null
+        (slideshow): slideshow is TemplateExampleSlideshow => slideshow !== null
       ) ?? []
   )
 }
@@ -197,13 +197,7 @@ export function TemplateGeneratedPreview({
             ) : (
               <div className="h-full w-full bg-[linear-gradient(135deg,#e9e8e1_0%,#d7d6cf_48%,#c8c7c0_100%)]" />
             )}
-            <div className="absolute inset-0 bg-black/20" />
-            {slide?.text && slide.section !== "hook" ? (
-              <div className="absolute inset-x-3 top-[38%] text-center font-tiktok text-[10px] leading-tight font-bold text-yellow-100 drop-shadow">
-                {slide.text}
-              </div>
-            ) : !hasGeneratedSlides &&
-              tileIndex === Math.floor(tileCount / 2) ? (
+            {!hasGeneratedSlides && tileIndex === Math.floor(tileCount / 2) ? (
               <div className="absolute inset-x-2 top-1/2 -translate-y-1/2 text-center text-[10px] leading-tight font-semibold text-[#77766f]">
                 No example slideshow yet
               </div>

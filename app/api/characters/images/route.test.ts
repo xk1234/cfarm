@@ -1,75 +1,61 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
-import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
-let tempRoot: string
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
+import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
-beforeEach(async () => {
-  tempRoot = await mkdtemp(
-    path.join(os.tmpdir(), "cfarm-character-images-route-")
-  )
-  await mkdir(path.join(tempRoot, "data", "characters", "images"), {
-    recursive: true,
-  })
-  vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
-})
+// Appwrite-only: `data/characters/images.json` -> `character_generations`, run
+// against cfarm (forced by vitest.setup.ts). Media lives in Storage, so
+// deletion is asserted via the response payload + remaining records.
+const rootDir = path.join(process.cwd(), "data", "characters")
+const TABLE = "character_generations"
 
-afterEach(async () => {
-  vi.restoreAllMocks()
-  await rm(tempRoot, { recursive: true, force: true })
-})
+const clearGenerations = () => clearTestTables(TABLE)
+
+beforeEach(clearGenerations)
+afterAll(clearGenerations)
 
 describe("DELETE /api/characters/images", () => {
-  it("deletes a generation record and its local file", async () => {
-    await writeFile(
-      path.join(tempRoot, "data", "characters", "images", "delete.png"),
-      new Uint8Array([1])
-    )
-    await writeFile(
-      path.join(tempRoot, "data", "characters", "images.json"),
-      `${JSON.stringify(
+  it("deletes a generation record and reports its unused media file", async () => {
+    await writeJsonArrayStore({
+      rootDir,
+      fileName: "images.json",
+      key: "generations",
+      records: [
         {
-          generations: [
-            {
-              id: "delete-me",
-              characterId: 1,
-              prompt: "Prompt",
-              model: "Flux 2",
-              createdAt: "2026-07-05T00:00:00.000Z",
-              attachments: [],
-              aspectRatio: "9:16",
-              status: "ready",
-              imageUrl: "/api/local-assets/characters/images/delete.png",
-              progress: 100,
-            },
-          ],
+          id: "delete-me",
+          characterId: "1",
+          prompt: "Prompt",
+          model: "Flux 2",
+          createdAt: "2026-07-05T00:00:00.000Z",
+          attachments: [],
+          aspectRatio: "9:16",
+          status: "ready",
+          imageUrl: "/api/local-assets/characters/images/delete.png",
+          progress: 100,
         },
-        null,
-        2
-      )}\n`
-    )
+      ],
+    })
 
-    const { DELETE } = await import("./route")
+    const { DELETE } = await import("./[id]/route")
     const response = await DELETE(
-      new Request("http://localhost/api/characters/images?id=delete-me", {
+      new Request("http://localhost/api/characters/images/delete-me", {
         method: "DELETE",
-      })
+      }),
+      { params: Promise.resolve({ id: "delete-me" }) }
     )
     const payload = await response.json()
 
-    const stored = JSON.parse(
-      await readFile(
-        path.join(tempRoot, "data", "characters", "images.json"),
-        "utf8"
-      )
-    ) as { generations: unknown[] }
+    const remaining = await readJsonArrayStore({
+      rootDir,
+      fileName: "images.json",
+      key: "generations",
+    })
     expect(response.status).toBe(200)
     expect(payload).toEqual({ deleted: true, deletedFiles: 1 })
-    expect(stored.generations).toEqual([])
-    await expect(
-      stat(path.join(tempRoot, "data", "characters", "images", "delete.png"))
-    ).rejects.toThrow()
+    expect(remaining).toEqual([])
   })
 })

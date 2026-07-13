@@ -24,23 +24,26 @@ import {
   postProcessCharacterVideo,
 } from "@/lib/character-video-postprocess"
 import { upsertCharacterImageGeneration } from "@/lib/character-image-generations"
+import { upsertCharacterVideoGeneration } from "@/lib/character-video-generations"
 import {
-  createKieMarketTask,
+  runKieMarketTask,
   downloadRemoteImageToLocalAsset,
   getKieApiKey,
-  pollKieMarketTask,
   prepareKieInputFileUrl,
 } from "@/lib/kie-image"
 import {
+  composeCharacterGenerationView,
+  type CharacterGenerationView,
   type CharacterWorkflowKey,
   type CharacterWorkflowMetadata,
 } from "@/lib/realfarm-character-ui"
+import { openRouterChatCompletion } from "@/lib/openrouter"
 
 export const dynamic = "force-dynamic"
 
 type CharacterWorkflowRequest = {
   workflow?: string
-  characterId?: number
+  characterId?: string
   characterName?: string
   characterAttributes?: unknown
   characterImageUrl?: string
@@ -52,17 +55,6 @@ type CharacterWorkflowRequest = {
   aspectRatio?: string
   breastSize?: string
   selfieTemplate?: BedroomSelfieTemplateId
-}
-
-type OpenRouterResponse = {
-  choices?: {
-    message?: {
-      content?: string
-    }
-  }[]
-  error?: {
-    message?: string
-  }
 }
 
 const characterImagesFolder = path.join(
@@ -116,7 +108,7 @@ export async function POST(request: Request) {
         error:
           error instanceof Error
             ? error.message
-            : "Character workflow generation failed",
+            : "Failed to run character workflow",
       },
       { status: 500 }
     )
@@ -153,17 +145,13 @@ async function runReferenceRecreation(
     analysis,
     userPrompt: payload.prompt,
   })
-  const taskId = await createKieMarketTask({
+  const { taskId, url: remoteImageUrl } = await runKieMarketTask({
     apiKey: kieApiKey,
     body: buildNanoBananaProPayload({
       prompt,
       imageUrls: [preparedCharacterUrl],
       aspectRatio: payload.aspectRatio,
     }),
-  })
-  const remoteImageUrl = await pollKieMarketTask({
-    apiKey: kieApiKey,
-    taskId,
     pollLimit: 80,
     pollDelayMs: 3000,
   })
@@ -256,17 +244,13 @@ async function runMotionControl(
   const prompt =
     clean(payload.prompt) ||
     "Same girl as reference image, identical face and features. Follow the movement and facial expressions in the video precisely. Smooth realistic animation, natural physics, stable camera."
-  const taskId = await createKieMarketTask({
+  const { taskId, url: remoteVideoUrl } = await runKieMarketTask({
     apiKey: kieApiKey,
     body: buildKlingMotionControlPayload({
       prompt,
       characterImageUrl: preparedCharacterUrl,
       motionVideoUrl: preparedMotionUrl,
     }),
-  })
-  const remoteVideoUrl = await pollKieMarketTask({
-    apiKey: kieApiKey,
-    taskId,
     pollLimit: 120,
     pollDelayMs: 5000,
   })
@@ -313,16 +297,12 @@ async function runSeedreamSelfie(
   ]
     .filter(Boolean)
     .join("\n")
-  const taskId = await createKieMarketTask({
+  const { taskId, url: remoteImageUrl } = await runKieMarketTask({
     apiKey: kieApiKey,
     body: buildSeedreamV4EditPayload({
       prompt,
       imageUrls: [preparedCharacterUrl],
     }),
-  })
-  const remoteImageUrl = await pollKieMarketTask({
-    apiKey: kieApiKey,
-    taskId,
     pollLimit: 80,
     pollDelayMs: 3000,
   })
@@ -381,10 +361,9 @@ async function runOutfitTransfer(
     clothingImageUrl: preparedClothingUrl,
   })
   const prompt = body.input.prompt
-  const taskId = await createKieMarketTask({ apiKey: kieApiKey, body })
-  const remoteImageUrl = await pollKieMarketTask({
+  const { taskId, url: remoteImageUrl } = await runKieMarketTask({
     apiKey: kieApiKey,
-    taskId,
+    body,
     pollLimit: 80,
     pollDelayMs: 3000,
   })
@@ -431,20 +410,17 @@ async function runPoseVariationCutVideo(
   const posePrompt = [buildPoseVariationPrompt(), clean(payload.prompt)]
     .filter(Boolean)
     .join("\n")
-  const imageTaskId = await createKieMarketTask({
-    apiKey: kieApiKey,
-    body: buildNanoBananaProPayload({
-      prompt: posePrompt,
-      imageUrls: [preparedOriginalUrl],
-      aspectRatio: payload.aspectRatio,
-    }),
-  })
-  const remoteEndImageUrl = await pollKieMarketTask({
-    apiKey: kieApiKey,
-    taskId: imageTaskId,
-    pollLimit: 80,
-    pollDelayMs: 3000,
-  })
+  const { taskId: imageTaskId, url: remoteEndImageUrl } =
+    await runKieMarketTask({
+      apiKey: kieApiKey,
+      body: buildNanoBananaProPayload({
+        prompt: posePrompt,
+        imageUrls: [preparedOriginalUrl],
+        aspectRatio: payload.aspectRatio,
+      }),
+      pollLimit: 80,
+      pollDelayMs: 3000,
+    })
   const endImageUrl = await downloadRemoteImageToLocalAsset({
     imageUrl: remoteEndImageUrl,
     taskId: imageTaskId,
@@ -460,21 +436,18 @@ async function runPoseVariationCutVideo(
   })
   const videoPrompt =
     "Generate a smooth handheld selfie transition from image 1 to image 2. Preserve identity, face structure, hairstyle, and outfit. The movement should emphasize a stronger head tilt, face leaning closer to camera, and a downward sideways tilted selfie angle. Natural realistic motion, stable face, no identity drift."
-  const videoTaskId = await createKieMarketTask({
-    apiKey: kieApiKey,
-    body: buildKlingV25StartEndFramePayload({
-      prompt: videoPrompt,
-      startImageUrl: preparedOriginalUrl,
-      endImageUrl: preparedEndImageUrl,
-      duration: "5",
-    }),
-  })
-  const remoteVideoUrl = await pollKieMarketTask({
-    apiKey: kieApiKey,
-    taskId: videoTaskId,
-    pollLimit: 120,
-    pollDelayMs: 5000,
-  })
+  const { taskId: videoTaskId, url: remoteVideoUrl } =
+    await runKieMarketTask({
+      apiKey: kieApiKey,
+      body: buildKlingV25StartEndFramePayload({
+        prompt: videoPrompt,
+        startImageUrl: preparedOriginalUrl,
+        endImageUrl: preparedEndImageUrl,
+        duration: "5",
+      }),
+      pollLimit: 120,
+      pollDelayMs: 5000,
+    })
   const rawVideo = await downloadRemoteVideoFile({
     taskId: videoTaskId,
     videoUrl: remoteVideoUrl,
@@ -530,30 +503,25 @@ async function analyzeReferenceImage(input: {
   apiKey: string
   referenceImageUrl: string
 }): Promise<ReferenceRecreationAnalysis> {
-  const response = await fetch(
-    "https://openrouter.ai/api/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${input.apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "http://localhost:3000",
-        "X-Title": "CFarm Reference Recreation",
-      },
-      body: JSON.stringify(
-        buildReferenceAnalysisOpenRouterRequest({
-          referenceImageUrl: input.referenceImageUrl,
-        })
-      ),
-    }
-  )
-  const body = (await response.json().catch(() => ({}))) as OpenRouterResponse
-  if (!response.ok) {
+  const request = buildReferenceAnalysisOpenRouterRequest({
+    referenceImageUrl: input.referenceImageUrl,
+  })
+  const { ok, status, payload } = await openRouterChatCompletion({
+    apiKey: input.apiKey,
+    model: request.model,
+    messages: request.messages,
+    responseFormat: request.response_format,
+    headers: {
+      "HTTP-Referer": "http://localhost:3000",
+      "X-Title": "LumenClip Reference Recreation",
+    },
+  })
+  if (!ok) {
     throw new Error(
-      body.error?.message || `Reference analysis failed with ${response.status}`
+      payload.error?.message || `Reference analysis failed with ${status}`
     )
   }
-  return parseReferenceAnalysisContent(body.choices?.[0]?.message?.content)
+  return parseReferenceAnalysisContent(payload.choices?.[0]?.message?.content)
 }
 
 async function storeWorkflowGeneration(input: {
@@ -566,10 +534,14 @@ async function storeWorkflowGeneration(input: {
   workflow: CharacterWorkflowKey
   workflowLabel: string
   metadata: CharacterWorkflowMetadata
-}) {
-  return upsertCharacterImageGeneration({
+}): Promise<CharacterGenerationView> {
+  const characterId =
+    input.payload.characterId != null
+      ? String(input.payload.characterId)
+      : undefined
+  const image = await upsertCharacterImageGeneration({
     id: input.taskId,
-    characterId: numberValue(input.payload.characterId),
+    characterId,
     prompt: input.prompt,
     model: input.model,
     createdAt: new Date().toISOString(),
@@ -578,13 +550,25 @@ async function storeWorkflowGeneration(input: {
     status: "ready",
     imageUrl: input.imageUrl,
     progress: 100,
-    videoUrl: input.videoUrl,
-    videoStatus: input.videoUrl ? "ready" : undefined,
-    videoProgress: input.videoUrl ? 100 : undefined,
     workflow: input.workflow,
     workflowLabel: input.workflowLabel,
     workflowMetadata: input.metadata,
   })
+
+  // The video generation is persisted separately, keyed by the image
+  // generation id, and composed back into the response for the client.
+  const video = input.videoUrl
+    ? await upsertCharacterVideoGeneration({
+        generationId: image.id,
+        characterId,
+        videoUrl: input.videoUrl,
+        model: input.model,
+        status: "ready",
+        progress: 100,
+        createdAt: new Date().toISOString(),
+      })
+    : undefined
+  return composeCharacterGenerationView(image, video)
 }
 
 async function downloadRemoteVideoToLocalAsset(
@@ -630,9 +614,5 @@ function requiredUrl(value: unknown, label: string) {
     throw new Error(`Missing ${label}`)
   }
   return url
-}
-
-function numberValue(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 

@@ -22,7 +22,9 @@ function client() {
 }
 
 function rowId(basis) {
-  return "j" + crypto.createHash("sha256").update(basis).digest("hex").slice(0, 35)
+  return (
+    "j" + crypto.createHash("sha256").update(basis).digest("hex").slice(0, 35)
+  )
 }
 
 // ---- ported due-slot logic (luxon) ----
@@ -30,9 +32,18 @@ function parseLocalSlot(nowLocal, time) {
   const formats = ["h:mm a", "h a", "H:mm", "HH:mm"]
   const zone = nowLocal.zoneName || "UTC"
   for (const format of formats) {
-    const parsed = DateTime.fromFormat(String(time).trim().toUpperCase(), format, { zone })
+    const parsed = DateTime.fromFormat(
+      String(time).trim().toUpperCase(),
+      format,
+      { zone }
+    )
     if (parsed.isValid) {
-      return nowLocal.set({ hour: parsed.hour, minute: parsed.minute, second: 0, millisecond: 0 })
+      return nowLocal.set({
+        hour: parsed.hour,
+        minute: parsed.minute,
+        second: 0,
+        millisecond: 0,
+      })
     }
   }
   return null
@@ -42,7 +53,8 @@ function slotForDays({ nowLocal, earliest, time, days }) {
   if (!Array.isArray(days) || !days.includes(day)) return []
   const base = parseLocalSlot(nowLocal, time)
   if (!base || base > nowLocal || base < earliest) return []
-  const iso = base.toUTC().toISO({ suppressMilliseconds: false }) ?? base.toUTC().toISO()
+  const iso =
+    base.toUTC().toISO({ suppressMilliseconds: false }) ?? base.toUTC().toISO()
   return iso ? [iso] : []
 }
 function dueSlots(schema, now, lookbackMinutes) {
@@ -54,17 +66,26 @@ function dueSlots(schema, now, lookbackMinutes) {
   const slots = []
   for (const pt of sch.posting_times || []) {
     if (pt.enabled === false) continue
-    slots.push(...slotForDays({ nowLocal, earliest, time: pt.time, days: pt.days }))
+    slots.push(
+      ...slotForDays({ nowLocal, earliest, time: pt.time, days: pt.days })
+    )
   }
   const iv = sch.interval
-  if (iv && iv.enabled !== false && Array.isArray(iv.days) && iv.days.includes(nowLocal.toFormat("ccc"))) {
+  if (
+    iv &&
+    iv.enabled !== false &&
+    Array.isArray(iv.days) &&
+    iv.days.includes(nowLocal.toFormat("ccc"))
+  ) {
     const start = parseLocalSlot(nowLocal, iv.start_time)
     const end = parseLocalSlot(nowLocal, iv.end_time)
     if (start && end && end >= start) {
       let slot = start
       while (slot <= end) {
         if (slot <= nowLocal && slot >= earliest) {
-          const iso = slot.toUTC().toISO({ suppressMilliseconds: false }) ?? slot.toUTC().toISO()
+          const iso =
+            slot.toUTC().toISO({ suppressMilliseconds: false }) ??
+            slot.toUTC().toISO()
           if (iso) slots.push(iso)
         }
         slot = slot.plus({ hours: Number(iv.every_n_hours) || 24 })
@@ -82,7 +103,14 @@ async function listAutomations(db) {
     if (cursor) q.push(Query.cursorAfter(cursor))
     const res = await db.listRows(DB, "automations", q)
     for (const row of res.rows) {
-      try { out.push(JSON.parse(row.data)) } catch { /* skip */ }
+      try {
+        out.push({
+          ...JSON.parse(row.data),
+          ownerId: row.owner_id || JSON.parse(row.data).ownerId,
+        })
+      } catch {
+        /* skip */
+      }
     }
     if (res.rows.length < 100) break
     cursor = res.rows[res.rows.length - 1].$id
@@ -90,7 +118,10 @@ async function listAutomations(db) {
   return out
 }
 
-async function enqueue(db, { type, payload, dedupeKey, maxAttempts = 3 }) {
+async function enqueue(
+  db,
+  { type, payload, dedupeKey, ownerId, maxAttempts = 3 }
+) {
   const nowIso = new Date().toISOString()
   const id = rowId(dedupeKey)
   try {
@@ -105,6 +136,7 @@ async function enqueue(db, { type, payload, dedupeKey, maxAttempts = 3 }) {
       dedupe_key: dedupeKey,
       created_at: nowIso,
       updated_at: nowIso,
+      owner_id: ownerId,
     })
     return "enqueued"
   } catch (e) {
@@ -118,7 +150,9 @@ export default async ({ log, error }) => {
     const db = client()
     const now = new Date()
     const automations = await listAutomations(db)
-    let enqueued = 0, dup = 0, considered = 0
+    let enqueued = 0,
+      dup = 0,
+      considered = 0
     for (const a of automations) {
       if (a?.schema?.status !== "live") continue
       considered++
@@ -127,13 +161,22 @@ export default async ({ log, error }) => {
           type: "run-automation",
           payload: { automationId: a.id, scheduledFor: slot },
           dedupeKey: `auto:${a.id}:${slot}`,
+          ownerId: a.ownerId,
         })
         if (res === "enqueued") enqueued++
         else dup++
       }
     }
-    log(`scheduler: ${automations.length} automations, ${considered} live, enqueued ${enqueued}, dedup ${dup}`)
-    return { ok: true, automations: automations.length, live: considered, enqueued, duplicates: dup }
+    log(
+      `scheduler: ${automations.length} automations, ${considered} live, enqueued ${enqueued}, dedup ${dup}`
+    )
+    return {
+      ok: true,
+      automations: automations.length,
+      live: considered,
+      enqueued,
+      duplicates: dup,
+    }
   } catch (e) {
     error(`scheduler failed: ${e instanceof Error ? e.message : String(e)}`)
     return { ok: false, error: String(e) }

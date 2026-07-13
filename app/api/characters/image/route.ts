@@ -6,13 +6,11 @@ import { NextResponse } from "next/server"
 import { buildNanoBananaProPayload } from "@/lib/character-workflows"
 import { upsertCharacterImageGeneration } from "@/lib/character-image-generations"
 import {
-  createFluxKontextTask,
-  createKieMarketTask,
   downloadRemoteImageToLocalAsset,
   getKieApiKey,
-  pollFluxKontextTask,
-  pollKieMarketTask,
   prepareKieInputFileUrl,
+  runFluxKontextTask,
+  runKieMarketTask,
 } from "@/lib/kie-image"
 import {
   characterImageAspectRatios,
@@ -37,7 +35,7 @@ const kieMarketPollLimit = 80
 const kieMarketPollDelayMs = 3000
 
 type CharacterImageRequest = {
-  characterId?: number
+  characterId?: string
   prompt?: string
   model?: string
   aspectRatio?: string
@@ -87,7 +85,8 @@ export async function POST(request: Request) {
     const imageUrl = await downloadCharacterImage(taskId, remoteImageUrl)
     const generation = await upsertCharacterImageGeneration({
       id: taskId,
-      characterId: numberValue(payload.characterId),
+      characterId:
+        payload.characterId != null ? String(payload.characterId) : undefined,
       prompt,
       model,
       createdAt: new Date().toISOString(),
@@ -127,17 +126,13 @@ async function generateNanoBananaProImage(input: {
   aspectRatio: string
   inputImages: string[]
 }) {
-  const taskId = await createKieMarketTask({
+  const { taskId, url: remoteImageUrl } = await runKieMarketTask({
     apiKey: input.apiKey,
     body: buildNanoBananaProPayload({
       prompt: input.prompt,
       imageUrls: input.inputImages,
       aspectRatio: input.aspectRatio,
     }),
-  })
-  const remoteImageUrl = await pollKieMarketTask({
-    apiKey: input.apiKey,
-    taskId,
     pollLimit: kieMarketPollLimit,
     pollDelayMs: kieMarketPollDelayMs,
   })
@@ -151,20 +146,14 @@ async function generateFluxImage(input: {
   inputImage?: string
   model: string
 }) {
-  const taskId = await createFluxKontextTask({
+  const { taskId, url: remoteImageUrl } = await runFluxKontextTask({
     apiKey: input.apiKey,
     prompt: input.prompt,
     inputImage: input.inputImage,
     aspectRatio: input.aspectRatio,
     model: input.model,
-  })
-  const remoteImageUrl = await pollFluxKontextTask({
-    apiKey: input.apiKey,
-    taskId,
     pollLimit: fluxPollLimit,
     pollDelayMs: fluxPollDelayMs,
-    failedMessage: "Flux task failed",
-    timeoutMessage: "Flux task timed out",
   })
   return { taskId, remoteImageUrl }
 }
@@ -218,10 +207,6 @@ function allowedAspectRatio(value: unknown) {
 
 function isNanoBananaProModel(value: unknown) {
   return clean(value).toLowerCase() === "nano banana pro"
-}
-
-function numberValue(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 
 function normalizeAttachments(

@@ -34,6 +34,7 @@ export function GeneratedSlideshowViewerModal({
       title={run.automationTitle || slideshowTitle(run)}
       slideshows={slideshows}
       initialSlideshowId={run.id}
+      benchmarkSlideshowId={run.slideshowId}
       onClose={onClose}
     />
   )

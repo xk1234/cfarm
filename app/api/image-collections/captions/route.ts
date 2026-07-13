@@ -1,12 +1,14 @@
-import { readFile } from "node:fs/promises"
 import path from "node:path"
 
 import { NextResponse } from "next/server"
 
+import { readAssetBytes } from "@/lib/asset-storage"
+import { toDataUrl } from "@/lib/data-url"
 import {
   updateImageCollectionCaptions,
   type StoredImageCollection,
 } from "@/lib/image-collections"
+import { openRouterChatCompletion } from "@/lib/openrouter"
 import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-registry"
 
 export const dynamic = "force-dynamic"
@@ -111,48 +113,39 @@ async function captionImageWithRetry(imageUrl: string, apiKey: string) {
 }
 
 async function captionImage(imageUrl: string, apiKey: string) {
-  const response = await fetch(
-    "https://openrouter.ai/api/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "http://localhost:3000",
-        "X-Title": "CFarm Image Captioner",
+  const { ok, status, payload: raw } = await openRouterChatCompletion({
+    apiKey,
+    model: openRouterModelForUseCase("imageCaptioning"),
+    headers: {
+      "HTTP-Referer": "http://localhost:3000",
+      "X-Title": "LumenClip Image Captioner",
+    },
+    messages: [
+      {
+        role: "system",
+        content:
+          "Caption images for a slideshow image collection. Return one concise factual caption only. No markdown, no quotes, no hashtags.",
       },
-      body: JSON.stringify({
-        model: openRouterModelForUseCase("imageCaptioning"),
-        messages: [
+      {
+        role: "user",
+        content: [
           {
-            role: "system",
-            content:
-              "Caption images for a slideshow image collection. Return one concise factual caption only. No markdown, no quotes, no hashtags.",
+            type: "text",
+            text: "Write a natural one-sentence caption describing this image. Mention the main subject, setting, mood, and useful visual details in under 24 words.",
           },
           {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Write a natural one-sentence caption describing this image. Mention the main subject, setting, mood, and useful visual details in under 24 words.",
-              },
-              {
-                type: "image_url",
-                image_url: { url: imageUrl },
-              },
-            ],
+            type: "image_url",
+            image_url: { url: imageUrl },
           },
         ],
-      }),
-    }
-  )
+      },
+    ],
+  })
 
-  const payload = (await response
-    .json()
-    .catch(() => ({}))) as CaptionResponse & { error?: { message?: string } }
-  if (!response.ok) {
+  const payload = raw as CaptionResponse & { error?: { message?: string } }
+  if (!ok) {
     throw new Error(
-      payload.error?.message || `Image caption failed with ${response.status}`
+      payload.error?.message || `Image caption failed with ${status}`
     )
   }
 
@@ -190,8 +183,8 @@ async function localAssetDataUrl(assetPath: string) {
     throw new Error("Invalid local image path")
   }
 
-  const file = await readFile(filePath)
-  return `data:${imageMimeType(path.extname(filePath).toLowerCase())};base64,${file.toString("base64")}`
+  const file = await readAssetBytes(filePath)
+  return toDataUrl(file, imageMimeType(path.extname(filePath).toLowerCase()))
 }
 
 function imageMimeType(extension: string) {

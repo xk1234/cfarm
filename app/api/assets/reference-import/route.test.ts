@@ -1,13 +1,25 @@
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises"
+import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
+import { deleteAssetFromAppwrite, readAssetBytes } from "@/lib/asset-storage"
+import { readJsonArrayStore } from "@/lib/json-store"
+
+// Appwrite-only, run against cfarm (forced by vitest.setup.ts):
+//   data/assets/assets.json -> assets; uploaded media -> Storage.
 let tempRoot: string
 
+const clearAssets = () => clearTestTables("assets")
+
 beforeEach(async () => {
+  await clearAssets()
   tempRoot = await mkdtemp(path.join(os.tmpdir(), "cfarm-reference-import-"))
+  vi.resetModules()
   vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
   vi.stubEnv("OPENROUTER_API_KEY", "test-openrouter-key")
 })
@@ -17,6 +29,8 @@ afterEach(async () => {
   vi.restoreAllMocks()
   await rm(tempRoot, { recursive: true, force: true })
 })
+
+afterAll(clearAssets)
 
 describe("POST /api/assets/reference-import", () => {
   it("uploads, analyzes, stores, and marks reference image files ready", async () => {
@@ -93,19 +107,25 @@ describe("POST /api/assets/reference-import", () => {
       "files",
       decodeURIComponent(path.basename(payload.asset.fileUrl))
     )
-    await expect(stat(savedFile)).resolves.toMatchObject({ size: 4 })
+    const bytes = await readAssetBytes(savedFile)
+    expect(bytes.byteLength).toBe(4)
 
-    const stored = JSON.parse(
-      await readFile(
-        path.join(tempRoot, "data", "assets", "assets.json"),
-        "utf8"
-      )
-    )
-    expect(stored.assets[0]).toMatchObject({
+    const stored = await readJsonArrayStore<{
+      id: string
+      fileUrl: string
+      metadata: Record<string, unknown>
+    }>({
+      rootDir: path.join(tempRoot, "data", "assets"),
+      fileName: "assets.json",
+      key: "assets",
+    })
+    expect(stored[0]).toMatchObject({
       id: payload.asset.id,
       fileUrl: payload.asset.fileUrl,
       metadata: { analysisStatus: "ready", sourceUpload: true },
     })
+
+    await deleteAssetFromAppwrite(savedFile)
   })
 })
 

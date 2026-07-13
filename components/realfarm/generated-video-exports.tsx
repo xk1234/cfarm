@@ -198,7 +198,7 @@ function GeneratedVideoCard({
     setDeleting(true)
     try {
       await toast.promise(
-        fetchJsonWithTimeout<{ export?: GeneratedVideoExport }>(`/api/generated-videos?id=${encodeURIComponent(item.id)}`, {
+        fetchJsonWithTimeout<{ export?: GeneratedVideoExport }>(`/api/generated-videos/${encodeURIComponent(item.id)}`, {
           method: "DELETE",
           timeoutMs: 15_000,
           toastOnError: false,

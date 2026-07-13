@@ -41,7 +41,6 @@ export type DefaultAutomationFormatSectionConfig = {
   slideCount: number
   noText: boolean
   overlay: boolean
-  overlayOpacity: number
   ctaLocation?: "last" | "static"
   ctaStaticPosition?: string
   imageMode?: AutomationImageMode
@@ -81,14 +80,13 @@ export const defaultAutomationTemplateDefaults = {
     aspect_ratio: "9:16",
     is_bg_overlay_on: true,
     cta_slide: {
-      check: true,
-      cta_collection_check: true,
+      check: false,
+      cta_collection_check: false,
       cta_collection_id: "",
       image_id: null,
       cta_location: "last_slide",
     },
     keepOriginalAspectRatio: true,
-    background_opacity: 25,
     is_bg_overlay_on_hook_image: true,
     textOnFirstSlideOnly: false,
     noTextOnSlides: false,
@@ -120,7 +118,6 @@ export const defaultAutomationTemplateDefaults = {
       slideCount: 1,
       noText: false,
       overlay: true,
-      overlayOpacity: 25,
     },
     body: {
       image_url: "",
@@ -143,7 +140,6 @@ export const defaultAutomationTemplateDefaults = {
       slideCount: 3,
       noText: false,
       overlay: true,
-      overlayOpacity: 25,
     },
     cta: {
       image_url: "",
@@ -168,7 +164,6 @@ export const defaultAutomationTemplateDefaults = {
       ctaStaticPosition: undefined,
       noText: false,
       overlay: false,
-      overlayOpacity: 25,
       imageMode: "collection",
     },
   } satisfies Record<

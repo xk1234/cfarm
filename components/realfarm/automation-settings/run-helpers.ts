@@ -1,17 +1,34 @@
 import {
   automationFormatSection,
-  automationHooks,
   automationPublishType,
-  type AutomationFormatSection,
   type AutomationSchema,
 } from "@/lib/realfarm-automation"
 import type { Automation } from "@/lib/realfarm-data"
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
-import type { PinterestSearchResult } from "@/lib/pinterest-search"
 import { defaultAutomationLanguage } from "@/lib/slideshow-publishing-config"
 
-import { formatCollectionImages, formatPreviewText } from "./format-helpers"
+import { formatCollectionImages } from "./format-helpers"
 import type { AutomationRunApiRecord, AutomationRunApiSlide } from "./types"
+
+export type AutomationRunSort = "Recent" | "Most viewed"
+
+export function sortAutomationRuns(
+  runs: AutomationRunApiRecord[],
+  sort: AutomationRunSort
+) {
+  return [...runs].sort((first, second) => {
+    const recentDifference = runTimestamp(second) - runTimestamp(first)
+    if (sort === "Most viewed") {
+      return (second.views ?? 0) - (first.views ?? 0) || recentDifference
+    }
+    return recentDifference
+  })
+}
+
+function runTimestamp(run: AutomationRunApiRecord) {
+  const timestamp = Date.parse(run.createdAt || run.scheduledFor)
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
 
 export function formatRunDate(value: string) {
   const date = new Date(value)
@@ -122,15 +139,12 @@ export function automationRunSlides(run: AutomationRunApiRecord) {
 export function generationPlaceholderRun({
   automation,
   config,
-  collections,
 }: {
   automation: Automation
   config: AutomationSchema
-  collections: CreatedImageCollection[]
 }): AutomationRunApiRecord {
   const now = new Date().toISOString()
-  const hook = automationHooks(config)[0] || config.title || automation.name
-  const slides = generationPlaceholderSlides(config, collections, hook)
+  const slides = generationPlaceholderSlides(config)
 
   return {
     id: `generation-placeholder-${automation.id}`,
@@ -142,10 +156,10 @@ export function generationPlaceholderRun({
     socialStatuses: [],
     renderedSlides: slides,
     plan: {
-      title: "Generating slideshow",
+      title: automation.name,
       caption: "",
       hashtags: "",
-      hook,
+      hook: "",
       publishType: automationPublishType(config),
       language:
         config.image_collection_ids.language || defaultAutomationLanguage,
@@ -154,67 +168,52 @@ export function generationPlaceholderRun({
   }
 }
 
-export function generationPlaceholderSlides(
+export function automationGenerationIssue(
   config: AutomationSchema,
-  collections: CreatedImageCollection[],
-  hook: string
-): AutomationRunApiSlide[] {
-  const hookSection = automationFormatSection(config, "hook")
-  const contentSection = automationFormatSection(config, "content")
+  collections: CreatedImageCollection[]
+) {
   const hookImages = formatCollectionImages(config, collections, "hook")
   const contentImages = formatCollectionImages(config, collections, "content")
-  const slides = [
-    generationPlaceholderSlide({
-      id: "placeholder-hook",
-      role: "hook",
-      image: hookImages[0] ?? contentImages[0],
-      text: hook,
-      section: hookSection,
-    }),
-    ...[0, 1].map((index) =>
-      generationPlaceholderSlide({
-        id: `placeholder-content-${index + 1}`,
-        role: "content",
-        image:
-          contentImages[index % Math.max(1, contentImages.length)] ??
-          hookImages[0],
-        text: formatPreviewText(config, "content", index),
-        section: contentSection,
-      })
-    ),
-  ]
-
-  return slides.filter((slide): slide is AutomationRunApiSlide =>
-    Boolean(slide)
-  )
+  if (hookImages.length === 0 && contentImages.length === 0) {
+    return "Choose an image collection with at least one image before generating."
+  }
+  return undefined
 }
 
-export function generationPlaceholderSlide({
-  id,
-  role,
-  image,
-  text,
-  section,
-}: {
-  id: string
-  role: "hook" | "content"
-  image: PinterestSearchResult | undefined
-  text: string
-  section: AutomationFormatSection
-}): AutomationRunApiSlide | null {
-  if (!image?.imageUrl) {
-    return null
-  }
+export function generationPlaceholderSlides(
+  config: AutomationSchema
+): AutomationRunApiSlide[] {
+  const hookSection = automationFormatSection(config, "hook")
 
-  return {
-    id,
-    role,
-    imageUrl: image.imageUrl,
-    sourceImageUrl: image.sourceUrl,
-    imageCaption: image.description ?? image.title ?? "",
-    text,
+  return [{
+    id: "placeholder-generating",
+    role: "hook",
+    imageUrl: generatingSlidePlaceholderDataUrl(hookSection.aspect_ratio),
+    imageCaption: "",
+    text: "",
     durationMs: 0,
-    aspectRatio: section.aspect_ratio,
+    aspectRatio: hookSection.aspect_ratio,
+  }]
+}
+
+export function generatingSlidePlaceholderDataUrl(aspectRatio?: string) {
+  const [width, height] = placeholderDimensions(aspectRatio)
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#000"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif" font-size="${Math.round(width * 0.075)}" font-weight="700">Generating...</text></svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+function placeholderDimensions(aspectRatio?: string): [number, number] {
+  switch (aspectRatio) {
+    case "4:5":
+      return [1080, 1350]
+    case "3:4":
+      return [1080, 1440]
+    case "3:2":
+      return [1080, 720]
+    case "1:1":
+      return [1080, 1080]
+    default:
+      return [1080, 1920]
   }
 }
 
@@ -240,8 +239,8 @@ export function wait(ms: number) {
   })
 }
 
-export function cloneAutomationSchema(config: AutomationSchema): AutomationSchema {
+export function cloneAutomationSchema(
+  config: AutomationSchema
+): AutomationSchema {
   return structuredClone(config)
 }
-
-

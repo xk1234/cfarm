@@ -1,5 +1,8 @@
 # dependencies
 /node_modules
+# nested node_modules too (e.g. appwrite/functions/*/node_modules)
+node_modules/
+.pnpm-store/
 /.pnp
 .pnp.*
 .yarn/*
@@ -52,6 +55,7 @@ pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # typescript
 *.tsbuildinfo

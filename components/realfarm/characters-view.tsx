@@ -11,14 +11,14 @@ import {
 } from "@/components/realfarm/character-create"
 import { Button } from "@/components/ui/button"
 import type { CharacterPayload, CharacterRecord } from "@/lib/characters"
-import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
+import { fetchJsonWithTimeout, getApiErrorMessage, toastApiError } from "@/lib/client-api"
 
 export function AvatarsView() {
   const [characterOpen, setCharacterOpen] = useState(false)
   const [editingCharacter, setEditingCharacter] =
     useState<CharacterRecord | null>(null)
   const [characters, setCharacters] = useState<CharacterRecord[]>([])
-  const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(
     null
   )
 
@@ -45,7 +45,7 @@ export function AvatarsView() {
       } catch (error) {
         if (active) {
           setCharacters([])
-          toast.error(getApiErrorMessage(error, "Failed to load characters"))
+          toastApiError(error, "Failed to load characters")
         }
       }
     }
@@ -97,10 +97,10 @@ export function AvatarsView() {
     setCharacterOpen(false)
   }
 
-  async function deleteCharacterById(id: number) {
+  async function deleteCharacterById(id: string) {
     await toast
       .promise(
-        fetchJsonWithTimeout(`/api/characters?id=${id}`, {
+        fetchJsonWithTimeout(`/api/characters/${encodeURIComponent(id)}`, {
           method: "DELETE",
           timeoutMs: 15_000,
           toastOnError: false,

@@ -1,40 +1,133 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
 import { DateTime } from "luxon"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { Query } from "node-appwrite"
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { VITEST_OWNER_ID } from "@/lib/test-helpers"
 import {
   createLocalAutomationRecord,
+  listAutomationRecords,
   upsertAutomationRecords,
 } from "@/lib/automations"
 import { runDueAutomations } from "@/lib/automation-runner"
+import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 import { appendUsageRecords } from "@/lib/usage-ledger"
 
+// Appwrite-only, run against cfarm (forced by vitest.setup.ts). Every
+// injected rootDir points under <cwd>/data so the stores map to their tables.
 let rootDir: string
+let dataDir: string
 let automationRootDir: string
 let runRootDir: string
 let imageCollectionDbPath: string
 let wordCollectionRootDir: string
 let usageLedgerRootDir: string
 
+type StoredTestResult = {
+  artifacts: { slideshowId?: string }
+  payload: {
+    settings: Record<string, unknown>
+    slides: Array<{
+      textItems: Array<{ text: string }>
+      time_length_ms?: number
+      overlayImage?: { image_url?: string; padding?: number }
+    }>
+  }
+}
+
+async function clearTable(table: string) {
+  const aw = getAppwrite()
+  if (!aw) throw new Error("Appwrite is not configured for tests.")
+  for (;;) {
+    const res = await aw.tables.listRows(APPWRITE_DATABASE_ID, table, [
+      Query.equal("owner_id", [VITEST_OWNER_ID]),
+      Query.limit(100),
+    ])
+    for (const row of res.rows) {
+      await aw.tables.deleteRow(APPWRITE_DATABASE_ID, table, String(row.$id))
+    }
+    if (res.rows.length < 100) break
+  }
+}
+
+async function clearAll() {
+  for (const table of [
+    "automations",
+    "automation_runs",
+    "image_collections",
+    "word_collections",
+    "usage_ledger",
+    "slideshows",
+    "results",
+    "postfast_posts",
+  ]) {
+    await clearTable(table)
+  }
+}
+
+async function readRuns() {
+  return readJsonArrayStore<Record<string, unknown>>({
+    rootDir: runRootDir,
+    fileName: "runs.json",
+    key: "runs",
+  })
+}
+
+async function readResults() {
+  return readJsonArrayStore<StoredTestResult>({
+    rootDir: path.join(dataDir, "results"),
+    fileName: "results.json",
+    key: "results",
+  })
+}
+
+async function readUsage() {
+  return readJsonArrayStore<Record<string, unknown>>({
+    rootDir: usageLedgerRootDir,
+    fileName: "usage-ledger.json",
+    key: "usage",
+  })
+}
+
 beforeEach(async () => {
+  await clearAll()
   rootDir = await mkdtemp(path.join(os.tmpdir(), "cfarm-automation-runner-"))
-  automationRootDir = path.join(rootDir, "automations")
-  runRootDir = path.join(rootDir, "automation-runs")
-  imageCollectionDbPath = path.join(rootDir, "image-collections.json")
-  wordCollectionRootDir = path.join(rootDir, "word-collections")
-  usageLedgerRootDir = path.join(rootDir, "usage-ledger")
-  await mkdir(automationRootDir, { recursive: true })
+  dataDir = path.join(rootDir, "data")
+  automationRootDir = path.join(dataDir, "automations")
+  runRootDir = path.join(dataDir, "automations")
+  imageCollectionDbPath = path.join(dataDir, "image-collections.json")
+  wordCollectionRootDir = path.join(dataDir, "word-collections")
+  usageLedgerRootDir = dataDir
+  vi.resetModules()
+  vi.spyOn(process, "cwd").mockReturnValue(rootDir)
+  // Sourcing .env exposes real service keys; default tests to the no-LLM
+  // fallback path. Tests that exercise a provider stub their own key/fetch.
+  vi.stubEnv("OPENROUTER_API_KEY", "")
+  vi.stubEnv("DEEPL_API_KEY", "")
+  vi.stubEnv("KIE_KEY", "")
 })
 
 afterEach(async () => {
   vi.unstubAllEnvs()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
+  vi.resetModules()
   await rm(rootDir, { recursive: true, force: true })
 })
+
+afterAll(clearAll)
 
 describe("runDueAutomations", () => {
   it("expands hook slots from word collections and records template substitutions", async () => {
@@ -89,10 +182,10 @@ describe("runDueAutomations", () => {
     const result = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
-      imageCollectionDbPath,
-      wordCollectionRootDir,
+      postfastRootDir: dataDir,
       usageLedgerRootDir,
+      wordCollectionRootDir,
+      imageCollectionDbPath,
       now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
       random: () => 0.6,
     })
@@ -170,10 +263,10 @@ describe("runDueAutomations", () => {
     const first = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
-      imageCollectionDbPath,
-      wordCollectionRootDir,
+      postfastRootDir: dataDir,
       usageLedgerRootDir,
+      wordCollectionRootDir,
+      imageCollectionDbPath,
       automationId: automation.id,
       force: true,
       now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
@@ -182,13 +275,25 @@ describe("runDueAutomations", () => {
     const second = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
-      imageCollectionDbPath,
-      wordCollectionRootDir,
+      postfastRootDir: dataDir,
       usageLedgerRootDir,
+      wordCollectionRootDir,
+      imageCollectionDbPath,
       automationId: automation.id,
       force: true,
       now: DateTime.fromISO("2026-07-03T16:05:00.000Z").toJSDate(),
+      random: () => 0,
+    })
+    const third = await runDueAutomations({
+      automationRootDir,
+      runRootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
+      imageCollectionDbPath,
+      automationId: automation.id,
+      force: true,
+      now: DateTime.fromISO("2026-07-03T17:05:00.000Z").toJSDate(),
       random: () => 0,
     })
 
@@ -202,11 +307,36 @@ describe("runDueAutomations", () => {
       "/api/local-assets/image-collections/files/balloon-a.jpg"
     )
     expect(second.created[0].plan.slides[0].imageUrl).toBe(
-      "/api/local-assets/image-collections/files/balloon-d.jpg"
+      "/api/local-assets/image-collections/files/balloon-c.jpg"
     )
+    for (const run of [first.created[0], second.created[0]]) {
+      const imageUrls = run.plan.slides.map((slide) => slide.imageUrl)
+      expect(new Set(imageUrls).size).toBe(imageUrls.length)
+    }
+    expect(third.created[0]).toMatchObject({
+      status: "failed",
+      error: "No unused hook combinations remain for this automation.",
+    })
+    expect(third.skipped).toEqual([
+      expect.objectContaining({
+        automationId: automation.id,
+        reason: "hooks_exhausted",
+      }),
+    ])
+    const storedAutomation = (await listAutomationRecords({
+      rootDir: automationRootDir,
+    })).find((record) => record.id === automation.id)
+    const storedHookSection = storedAutomation?.schema.formatting.find(
+      (section) => section.id === "hook" && "textItems" in section
+    )
+    expect(
+      storedHookSection && "textItems" in storedHookSection
+        ? storedHookSection.textItems[0]?.contentDirection
+        : undefined
+    ).toBe("[[occasion]] balloon setups that broke our group chat")
   })
 
-  it("falls back to least-recently-used images and records reuse warnings when the fresh pool is exhausted", async () => {
+  it("refuses to generate when the slideshow needs more unique images than are available", async () => {
     const automation = createLocalAutomationRecord({
       name: "Reuse warning",
       overrides: {
@@ -234,11 +364,6 @@ describe("runDueAutomations", () => {
         caption: "Old scene",
         hash: "hash-old",
       },
-      {
-        image_link: "/api/local-assets/image-collections/files/new.jpg",
-        caption: "New scene",
-        hash: "hash-new",
-      },
     ])
     await appendUsageRecords({
       rootDir: usageLedgerRootDir,
@@ -250,13 +375,6 @@ describe("runDueAutomations", () => {
           run_id: "run-old",
           used_at: "2026-07-01T10:00:00.000Z",
         },
-        {
-          automation_id: automation.id,
-          kind: "image",
-          key: "hash-new",
-          run_id: "run-new",
-          used_at: "2026-07-06T10:00:00.000Z",
-        },
       ],
       now: new Date("2026-07-07T10:00:00.000Z"),
     })
@@ -264,31 +382,26 @@ describe("runDueAutomations", () => {
     const result = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
-      imageCollectionDbPath,
+      postfastRootDir: dataDir,
       usageLedgerRootDir,
+      wordCollectionRootDir,
+      imageCollectionDbPath,
       automationId: automation.id,
       force: true,
       now: DateTime.fromISO("2026-07-07T10:00:00.000Z").toJSDate(),
       random: () => 0.9,
     })
 
-    expect(result.created[0].plan.slides[0]).toMatchObject({
-      imageKey: "hash-old",
-      imageUrl: "/api/local-assets/image-collections/files/old.jpg",
+    expect(result.created[0]).toMatchObject({
+      status: "failed",
+      error: expect.stringMatching(
+        /needs \d+ unique images, but only 1 (?:is|are) available/
+      ),
     })
-    expect(result.created[0].plan.reuseWarnings).toEqual([
+    expect(result.skipped).toEqual([
       expect.objectContaining({
-        kind: "image",
-        key: "hash-old",
-        slideId: "slide-1",
-        lastUsedAt: "2026-07-01T10:00:00.000Z",
-      }),
-      expect.objectContaining({
-        kind: "image",
-        key: "hash-new",
-        slideId: "slide-2",
-        lastUsedAt: "2026-07-06T10:00:00.000Z",
+        automationId: automation.id,
+        reason: "insufficient_unique_images",
       }),
     ])
   })
@@ -325,17 +438,14 @@ describe("runDueAutomations", () => {
     await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
     })
 
-    await expect(
-      readFile(
-        path.join(runRootDir, "usage-ledger", "usage-ledger.json"),
-        "utf8"
-      )
-    ).resolves.toContain("temp-a.jpg")
+    expect(JSON.stringify(await readUsage())).toContain("temp-a.jpg")
   })
 
   it("does not record placeholder narrative instructions as hook usage", async () => {
@@ -373,15 +483,14 @@ describe("runDueAutomations", () => {
     await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
-      imageCollectionDbPath,
+      postfastRootDir: dataDir,
       usageLedgerRootDir,
+      wordCollectionRootDir,
+      imageCollectionDbPath,
       now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
     })
 
-    const stored = JSON.parse(
-      await readFile(path.join(usageLedgerRootDir, "usage-ledger.json"), "utf8")
-    )
+    const stored = { usage: await readUsage() }
     expect(stored.usage).not.toContainEqual(
       expect.objectContaining({
         kind: "hook",
@@ -426,7 +535,9 @@ describe("runDueAutomations", () => {
     const result = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       now: DateTime.fromISO("2026-07-03T16:10:00.000Z").toJSDate(),
       lookbackMinutes: 10,
@@ -472,17 +583,15 @@ describe("runDueAutomations", () => {
     const result = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
     })
 
-    const runs = JSON.parse(
-      await readFile(path.join(runRootDir, "runs.json"), "utf8")
-    )
-    const results = JSON.parse(
-      await readFile(path.join(rootDir, "results", "results.json"), "utf8")
-    )
+    const runs = { runs: await readRuns() }
+    const results = { results: await readResults() }
 
     expect(result.created).toHaveLength(1)
     expect(result.created[0]).toMatchObject({
@@ -508,7 +617,7 @@ describe("runDueAutomations", () => {
     )
   })
 
-  it("builds local slideshow slides from configured image collections with top text", async () => {
+  it("builds local slideshow slides using the configured text placement", async () => {
     const automation = createLocalAutomationRecord({
       name: "Daily hooks",
       overrides: {
@@ -570,40 +679,38 @@ describe("runDueAutomations", () => {
       rootDir: automationRootDir,
       records: [automation],
     })
-    await writeFile(
-      imageCollectionDbPath,
-      `${JSON.stringify(
+    await writeJsonArrayStore({
+      rootDir: dataDir,
+      fileName: "image-collections.json",
+      key: "collections",
+      records: [
         {
-          collections: [
+          name: "Brand scenes",
+          created_at: "2026-07-03T00:00:00.000Z",
+          images: [
             {
-              name: "Brand scenes",
-              created_at: "2026-07-03T00:00:00.000Z",
-              images: [
-                {
-                  image_link: "/api/local-assets/image-collections/files/a.jpg",
-                  caption: "Scene A",
-                },
-                {
-                  image_link: "/api/local-assets/image-collections/files/b.jpg",
-                  caption: "Scene B",
-                },
-                {
-                  image_link: "/api/local-assets/image-collections/files/c.jpg",
-                  caption: "Scene C",
-                },
-              ],
+              image_link: "/api/local-assets/image-collections/files/a.jpg",
+              caption: "Scene A",
+            },
+            {
+              image_link: "/api/local-assets/image-collections/files/b.jpg",
+              caption: "Scene B",
+            },
+            {
+              image_link: "/api/local-assets/image-collections/files/c.jpg",
+              caption: "Scene C",
             },
           ],
         },
-        null,
-        2
-      )}\n`
-    )
+      ],
+    })
 
     const result = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
       random: () => 0,
@@ -614,17 +721,17 @@ describe("runDueAutomations", () => {
         imageUrl: "/api/local-assets/image-collections/files/a.jpg",
         imageCaption: "Scene A",
         text: "top hook text",
-        textPlacement: "top",
+        textPlacement: "center",
       }),
       expect.objectContaining({
         imageUrl: "/api/local-assets/image-collections/files/b.jpg",
         imageCaption: "Scene B",
-        textPlacement: "top",
+        textPlacement: "center",
       }),
       expect.objectContaining({
         imageUrl: "/api/local-assets/image-collections/files/c.jpg",
         imageCaption: "Scene C",
-        textPlacement: "top",
+        textPlacement: "center",
       }),
       expect.objectContaining({
         role: "cta",
@@ -730,36 +837,34 @@ describe("runDueAutomations", () => {
       rootDir: automationRootDir,
       records: [automation],
     })
-    await writeFile(
-      imageCollectionDbPath,
-      `${JSON.stringify(
+    await writeJsonArrayStore({
+      rootDir: dataDir,
+      fileName: "image-collections.json",
+      key: "collections",
+      records: [
         {
-          collections: [
+          name: "Brand scenes",
+          created_at: "2026-07-03T00:00:00.000Z",
+          images: [
             {
-              name: "Brand scenes",
-              created_at: "2026-07-03T00:00:00.000Z",
-              images: [
-                {
-                  image_link: "/api/local-assets/image-collections/files/a.jpg",
-                  caption: "Scene A",
-                },
-                {
-                  image_link: "/api/local-assets/image-collections/files/b.jpg",
-                  caption: "Scene B",
-                },
-              ],
+              image_link: "/api/local-assets/image-collections/files/a.jpg",
+              caption: "Scene A",
+            },
+            {
+              image_link: "/api/local-assets/image-collections/files/b.jpg",
+              caption: "Scene B",
             },
           ],
         },
-        null,
-        2
-      )}\n`
-    )
+      ],
+    })
 
     const result = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
       random: () => 0,
@@ -793,9 +898,7 @@ describe("runDueAutomations", () => {
     expect(result.created[0].plan.hashtags).toBe(
       "#studytips #learning #productivity"
     )
-    const results = JSON.parse(
-      await readFile(path.join(rootDir, "results", "results.json"), "utf8")
-    )
+    const results = { results: await readResults() }
     expect(results.results[0]).toMatchObject({
       title: "Generated Study Tips",
       payload: {
@@ -885,7 +988,9 @@ describe("runDueAutomations", () => {
     const result = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
       random: () => 0,
@@ -1021,7 +1126,9 @@ describe("runDueAutomations", () => {
     const result = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
       random: () => 0.75,
@@ -1101,7 +1208,9 @@ describe("runDueAutomations", () => {
     const result = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
       random: () => 0.75,
@@ -1202,36 +1311,34 @@ describe("runDueAutomations", () => {
       rootDir: automationRootDir,
       records: [automation],
     })
-    await writeFile(
-      imageCollectionDbPath,
-      `${JSON.stringify(
+    await writeJsonArrayStore({
+      rootDir: dataDir,
+      fileName: "image-collections.json",
+      key: "collections",
+      records: [
         {
-          collections: [
+          name: "Brand scenes",
+          created_at: "2026-07-03T00:00:00.000Z",
+          images: [
             {
-              name: "Brand scenes",
-              created_at: "2026-07-03T00:00:00.000Z",
-              images: [
-                {
-                  image_link: "/api/local-assets/image-collections/files/a.jpg",
-                  caption: "Scene A",
-                },
-                {
-                  image_link: "/api/local-assets/image-collections/files/b.jpg",
-                  caption: "Scene B",
-                },
-              ],
+              image_link: "/api/local-assets/image-collections/files/a.jpg",
+              caption: "Scene A",
+            },
+            {
+              image_link: "/api/local-assets/image-collections/files/b.jpg",
+              caption: "Scene B",
             },
           ],
         },
-        null,
-        2
-      )}\n`
-    )
+      ],
+    })
 
     const result = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       slideshowRootDir,
       imageCollectionDbPath,
       now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
@@ -1252,9 +1359,7 @@ describe("runDueAutomations", () => {
       "gancho traducido",
       "cuerpo traducido",
     ])
-    const results = JSON.parse(
-      await readFile(path.join(rootDir, "results", "results.json"), "utf8")
-    )
+    const results = { results: await readResults() }
     expect(
       results.results[0].payload.slides.map(
         (slide: { textItems: { text: string }[] }) => slide.textItems[0].text
@@ -1330,16 +1435,16 @@ describe("runDueAutomations", () => {
     const result = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       slideshowRootDir,
       imageCollectionDbPath,
       now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
       random: () => 0,
     })
 
-    const results = JSON.parse(
-      await readFile(path.join(rootDir, "results", "results.json"), "utf8")
-    )
+    const results = { results: await readResults() }
     expect(result.created[0].plan.publishType).toBe("video")
     expect(results.results[0].payload.settings).toMatchObject({
       export_as_video: true,
@@ -1396,44 +1501,42 @@ describe("runDueAutomations", () => {
       rootDir: automationRootDir,
       records: [automation],
     })
-    await writeFile(
-      imageCollectionDbPath,
-      `${JSON.stringify(
+    await writeJsonArrayStore({
+      rootDir: dataDir,
+      fileName: "image-collections.json",
+      key: "collections",
+      records: [
         {
-          collections: [
+          name: "Fallback scenes",
+          created_at: "2026-07-03T00:00:00.000Z",
+          images: [
             {
-              name: "Fallback scenes",
-              created_at: "2026-07-03T00:00:00.000Z",
-              images: [
-                {
-                  image_link:
-                    "/api/local-assets/image-collections/files/fallback-scene.jpg",
-                  caption: "Fallback scene",
-                },
-              ],
-            },
-            {
-              name: "YouTube videos (NDEs) (Overlays)",
-              created_at: "2026-07-03T00:00:00.000Z",
-              images: [
-                {
-                  image_link:
-                    "/api/local-assets/image-collections/files/youtube-videos-ndes-overlays-11436-0000-366568-d4580138c2.jpg",
-                  caption: "NDE overlay",
-                },
-              ],
+              image_link:
+                "/api/local-assets/image-collections/files/fallback-scene.jpg",
+              caption: "Fallback scene",
             },
           ],
         },
-        null,
-        2
-      )}\n`
-    )
+        {
+          name: "YouTube videos (NDEs) (Overlays)",
+          created_at: "2026-07-03T00:00:00.000Z",
+          images: [
+            {
+              image_link:
+                "/api/local-assets/image-collections/files/youtube-videos-ndes-overlays-11436-0000-366568-d4580138c2.jpg",
+              caption: "NDE overlay",
+            },
+          ],
+        },
+      ],
+    })
 
     const result = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
       random: () => 0,
@@ -1518,49 +1621,47 @@ describe("runDueAutomations", () => {
       rootDir: automationRootDir,
       records: [automation],
     })
-    await writeFile(
-      imageCollectionDbPath,
-      `${JSON.stringify(
+    await writeJsonArrayStore({
+      rootDir: dataDir,
+      fileName: "image-collections.json",
+      key: "collections",
+      records: [
         {
-          collections: [
+          name: "Base scenes",
+          created_at: "2026-07-03T00:00:00.000Z",
+          images: [
             {
-              name: "Base scenes",
-              created_at: "2026-07-03T00:00:00.000Z",
-              images: [
-                {
-                  image_link:
-                    "/api/local-assets/image-collections/files/base-a.jpg",
-                  caption: "Base A",
-                },
-                {
-                  image_link:
-                    "/api/local-assets/image-collections/files/base-b.jpg",
-                  caption: "Base B",
-                },
-              ],
+              image_link:
+                "/api/local-assets/image-collections/files/base-a.jpg",
+              caption: "Base A",
             },
             {
-              name: "Overlay cards",
-              created_at: "2026-07-03T00:00:00.000Z",
-              images: [
-                {
-                  image_link:
-                    "/api/local-assets/image-collections/files/overlay-card.jpg",
-                  caption: "Overlay card",
-                },
-              ],
+              image_link:
+                "/api/local-assets/image-collections/files/base-b.jpg",
+              caption: "Base B",
             },
           ],
         },
-        null,
-        2
-      )}\n`
-    )
+        {
+          name: "Overlay cards",
+          created_at: "2026-07-03T00:00:00.000Z",
+          images: [
+            {
+              image_link:
+                "/api/local-assets/image-collections/files/overlay-card.jpg",
+              caption: "Overlay card",
+            },
+          ],
+        },
+      ],
+    })
 
     const result = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
       random: () => 0,
@@ -1574,9 +1675,7 @@ describe("runDueAutomations", () => {
         padding: 8,
       },
     })
-    const results = JSON.parse(
-      await readFile(path.join(rootDir, "results", "results.json"), "utf8")
-    )
+    const results = { results: await readResults() }
     expect(results.results[0].payload.slides[1]).toMatchObject({
       overlayImage: {
         image_url: "/api/local-assets/image-collections/files/overlay-card.jpg",
@@ -1620,21 +1719,23 @@ describe("runDueAutomations", () => {
     await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       now,
     })
     const result = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       now,
     })
 
-    const runs = JSON.parse(
-      await readFile(path.join(runRootDir, "runs.json"), "utf8")
-    )
+    const runs = { runs: await readRuns() }
     expect(result.created).toEqual([])
     expect(result.skipped).toEqual([
       {
@@ -1712,15 +1813,15 @@ describe("runDueAutomations", () => {
     const firstPromise = runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       now,
     })
     await generationStartedPromise
 
-    const claimedRuns = JSON.parse(
-      await readFile(path.join(runRootDir, "runs.json"), "utf8")
-    )
+    const claimedRuns = { runs: await readRuns() }
     expect(claimedRuns.runs).toHaveLength(1)
     expect(claimedRuns.runs[0]).toMatchObject({
       automationId: automation.id,
@@ -1731,15 +1832,15 @@ describe("runDueAutomations", () => {
     const second = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       now,
     })
     releaseGeneration()
     const first = await firstPromise
-    const runs = JSON.parse(
-      await readFile(path.join(runRootDir, "runs.json"), "utf8")
-    )
+    const runs = { runs: await readRuns() }
 
     expect(second.created).toEqual([])
     expect(second.skipped).toEqual([
@@ -1792,7 +1893,9 @@ describe("runDueAutomations", () => {
     const first = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       automationId: automation.id,
       force: true,
@@ -1801,15 +1904,15 @@ describe("runDueAutomations", () => {
     const second = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       automationId: automation.id,
       force: true,
       now,
     })
-    const runs = JSON.parse(
-      await readFile(path.join(runRootDir, "runs.json"), "utf8")
-    )
+    const runs = { runs: await readRuns() }
 
     expect(first.created[0]).toMatchObject({
       automationId: automation.id,
@@ -1886,33 +1989,31 @@ describe("runDueAutomations", () => {
       rootDir: automationRootDir,
       records: [automation],
     })
-    await writeFile(
-      imageCollectionDbPath,
-      `${JSON.stringify(
+    await writeJsonArrayStore({
+      rootDir: dataDir,
+      fileName: "image-collections.json",
+      key: "collections",
+      records: [
         {
-          collections: [
+          name: "Override scenes",
+          created_at: "2026-07-03T00:00:00.000Z",
+          images: [
             {
-              name: "Override scenes",
-              created_at: "2026-07-03T00:00:00.000Z",
-              images: [
-                {
-                  image_link:
-                    "/api/local-assets/image-collections/files/override.jpg",
-                  caption: "Override scene",
-                },
-              ],
+              image_link:
+                "/api/local-assets/image-collections/files/override.jpg",
+              caption: "Override scene",
             },
           ],
         },
-        null,
-        2
-      )}\n`
-    )
+      ],
+    })
 
     const result = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       automationId: automation.id,
       schemaOverride,
@@ -1969,7 +2070,9 @@ describe("runDueAutomations", () => {
     const result = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
     })
 
@@ -1983,7 +2086,7 @@ describe("runDueAutomations", () => {
     expect(result.skipped).toHaveLength(2)
   })
 
-  it("records a failed run when no collection images are available", async () => {
+  it("does not claim a run when no collection images are available", async () => {
     const automation = createLocalAutomationRecord({
       name: "No images",
       overrides: {
@@ -2006,25 +2109,24 @@ describe("runDueAutomations", () => {
       rootDir: automationRootDir,
       records: [automation],
     })
-    await writeFile(
-      imageCollectionDbPath,
-      `${JSON.stringify({ collections: [] }, null, 2)}\n`
-    )
+    await writeJsonArrayStore({
+      rootDir: dataDir,
+      fileName: "image-collections.json",
+      key: "collections",
+      records: [],
+    })
 
     const result = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
     })
 
-    expect(result.created[0]).toMatchObject({
-      automationId: automation.id,
-      status: "failed",
-      error: "No images available for automation collections",
-      plan: expect.objectContaining({ slides: [] }),
-    })
+    expect(result.created).toEqual([])
     expect(result.skipped).toEqual([
       {
         automationId: automation.id,
@@ -2035,7 +2137,7 @@ describe("runDueAutomations", () => {
     expect(result.results).toEqual([])
   })
 
-  it("does not fall back to unrelated images when the configured collection is missing", async () => {
+  it("does not claim a run or fall back when the configured collection is missing", async () => {
     const automation = createLocalAutomationRecord({
       name: "Invalid collection",
       overrides: {
@@ -2069,20 +2171,14 @@ describe("runDueAutomations", () => {
     const result = await runDueAutomations({
       automationRootDir,
       runRootDir,
-      postfastRootDir: rootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
       imageCollectionDbPath,
       now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
     })
 
-    expect(result.created[0]).toMatchObject({
-      automationId: automation.id,
-      status: "failed",
-      error: "No images available for automation collections",
-      plan: expect.objectContaining({
-        imageCollectionIds: ["missing-import-placeholder"],
-        slides: [],
-      }),
-    })
+    expect(result.created).toEqual([])
     expect(result.skipped).toEqual([
       {
         automationId: automation.id,
@@ -2096,22 +2192,18 @@ describe("runDueAutomations", () => {
 async function writeImageCollections(
   images: { image_link: string; caption: string; hash?: string }[]
 ) {
-  await writeFile(
-    imageCollectionDbPath,
-    `${JSON.stringify(
+  await writeJsonArrayStore({
+    rootDir: dataDir,
+    fileName: "image-collections.json",
+    key: "collections",
+    records: [
       {
-        collections: [
-          {
-            name: "Daily scenes",
-            created_at: "2026-07-03T00:00:00.000Z",
-            images,
-          },
-        ],
+        name: "Daily scenes",
+        created_at: "2026-07-03T00:00:00.000Z",
+        images,
       },
-      null,
-      2
-    )}\n`
-  )
+    ],
+  })
 }
 
 function selectDailyScenesCollection(
@@ -2131,22 +2223,17 @@ function selectDailyScenesCollection(
 async function writeWordCollections(
   collections: { id: string; words: string[] }[]
 ) {
-  await mkdir(wordCollectionRootDir, { recursive: true })
-  await writeFile(
-    path.join(wordCollectionRootDir, "word-collections.json"),
-    `${JSON.stringify(
-      {
-        collections: collections.map((collection) => ({
-          id: collection.id,
-          name: collection.id,
-          words: collection.words,
-          source: "manual",
-          created_at: "2026-07-07T00:00:00.000Z",
-          updated_at: "2026-07-07T00:00:00.000Z",
-        })),
-      },
-      null,
-      2
-    )}\n`
-  )
+  await writeJsonArrayStore({
+    rootDir: wordCollectionRootDir,
+    fileName: "word-collections.json",
+    key: "collections",
+    records: collections.map((collection) => ({
+      id: collection.id,
+      name: collection.id,
+      words: collection.words,
+      source: "manual",
+      created_at: "2026-07-07T00:00:00.000Z",
+      updated_at: "2026-07-07T00:00:00.000Z",
+    })),
+  })
 }

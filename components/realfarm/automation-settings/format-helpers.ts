@@ -2,6 +2,7 @@ import {
   automationCollectionId,
   automationFormatSection,
   defaultAutomationTextItem,
+  updateAutomationFormatSection,
   type AutomationAspectRatio,
   type AutomationFormatSection,
   type AutomationSchema,
@@ -13,7 +14,11 @@ import {
 } from "@/lib/realfarm-collections"
 import { previewTextForTextItem } from "@/lib/realfarm-preview-text"
 import type { PinterestSearchResult } from "@/lib/pinterest-search"
-import type { SlideshowSlide, SlideshowTextItem } from "@/lib/slideshow-renderer"
+import type {
+  SlideshowSlide,
+  SlideshowTextItem,
+} from "@/lib/slideshow-renderer"
+import { slideshowTextPositionX } from "@/lib/slideshow-renderer"
 
 export function previewSlideshowSlide(
   item: AutomationFormatPreviewItem,
@@ -34,6 +39,7 @@ export function previewSlideshowSlide(
         }
       : undefined,
     aspect_ratio: item.section.aspect_ratio || "9:16",
+    overlay: item.section.overlay,
     time_length_ms: 3000,
     textItems: previewSlideshowTextItems(item),
   }
@@ -46,43 +52,37 @@ export function previewSlideshowTextItems(
     return []
   }
 
-  return [
-    {
-      id: item.textItem.id || `${item.id}-text`,
-      text: item.text,
-      font: item.textItem.font || "TikTok Display Medium",
-      fontSize: item.textItem.fontSize || "10px",
+  return item.textItems.map((textItem, index) => {
+    const text = previewTextForTextItem(textItem) || item.text
+    return {
+      id: textItem.id || `${item.id}-text-${index}`,
+      text,
+      font: textItem.font || "TikTok Display Medium",
+      fontSize: textItem.fontSize || "10px",
       textSize: {
-        width: previewTextItemWidth(item.textItem.textItemWidth, item.text),
+        width: previewTextItemWidth(textItem.textItemWidth, text),
         height: 18,
       },
-      textStyle: item.textItem.textStyle || "outline",
-      textAlign: item.textItem.textAlign || "center",
-      textAnchor: item.textItem.textAnchor || "padded",
-      textPosition: previewTextItemPosition(
-        item.textItem,
-        item.role === "hook"
-      ),
-    },
-  ]
+      textStyle: textItem.textStyle || "outline",
+      textAlign: textItem.textAlign || "center",
+      textAnchor: textItem.textAnchor || "padded",
+      textVerticalAnchor: textItem.textVerticalAnchor || "padded",
+      textPlacement: textItem.textPosition,
+      textPosition: previewTextItemPosition(textItem),
+    }
+  })
 }
 
 export function previewTextItemPosition(
-  textItem: AutomationTextItem | undefined,
-  preferTop: boolean
+  textItem: AutomationTextItem | undefined
 ) {
   const y =
     textItem?.textPosition === "bottom"
       ? 82
-      : textItem?.textPosition === "center" && !preferTop
+      : textItem?.textPosition === "center"
         ? 45
         : 16
-  const x =
-    textItem?.textAlign === "left"
-      ? 28
-      : textItem?.textAlign === "right"
-        ? 72
-        : 50
+  const x = slideshowTextPositionX(textItem?.textAlign, textItem?.textAnchor)
   return { x, y }
 }
 
@@ -107,6 +107,7 @@ export type AutomationFormatPreviewItem = {
   overlayImages: PinterestSearchResult[]
   text: string
   textItem: AutomationTextItem
+  textItems: AutomationTextItem[]
 }
 
 export function clampPercent(value: number) {
@@ -117,14 +118,64 @@ export function clampSlideIndex(value: number) {
   return Math.max(1, Math.round(Number.isFinite(value) ? value : 1))
 }
 
+export function updateAutomationTextItemAt(
+  schema: AutomationSchema,
+  role: "hook" | "content" | "cta",
+  index: number,
+  patch: Partial<AutomationTextItem>
+) {
+  const section = automationFormatSection(schema, role)
+  const textItems =
+    section.textItems.length > 0
+      ? [...section.textItems]
+      : [defaultAutomationTextItem()]
+  const boundedIndex = Math.max(0, Math.min(index, textItems.length - 1))
+  textItems[boundedIndex] = {
+    ...defaultAutomationTextItem(),
+    ...textItems[boundedIndex],
+    ...patch,
+  }
+  return updateAutomationFormatSection(schema, role, { textItems })
+}
+
+export function newAutomationTextItemAfter(
+  previous: AutomationTextItem | undefined
+) {
+  if (!previous) {
+    return defaultAutomationTextItem()
+  }
+
+  return defaultAutomationTextItem({
+    fontSize: previous.fontSize,
+    textStyle: previous.textStyle,
+    font: previous.font,
+    textPosition: previous.textPosition,
+    textItemWidth: previous.textItemWidth,
+    textAlign: previous.textAlign,
+    textAnchor: previous.textAnchor,
+    textVerticalAnchor: previous.textVerticalAnchor,
+  })
+}
+
+export function previewTrackOffsetForWidths(
+  widths: number[],
+  activeIndex: number,
+  gap: number
+) {
+  const boundedIndex = Math.max(0, Math.min(activeIndex, widths.length - 1))
+  return (
+    widths
+      .slice(0, boundedIndex)
+      .reduce((total, width) => total + width + gap, 0) +
+    (widths[boundedIndex] ?? 0) / 2
+  )
+}
+
 export function ctaEnabled(
-  config: AutomationSchema,
+  _config: AutomationSchema,
   section: AutomationFormatSection
 ) {
-  return (
-    Boolean(config.image_collection_ids.cta_slide.check) ||
-    section.slideCount > 0
-  )
+  return section.slideCount > 0
 }
 
 export function buildFormatPreviewItems(
@@ -229,6 +280,7 @@ export function formatPreviewItem({
     overlayImages,
     text: formatPreviewText(config, role, index),
     textItem,
+    textItems,
   }
 }
 
@@ -349,4 +401,3 @@ export function formatPreviewText(
 
   return previewTextForTextItem(textItem)
 }
-

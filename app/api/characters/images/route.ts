@@ -3,13 +3,15 @@ import path from "node:path"
 
 import { NextResponse } from "next/server"
 
+import { withHandler } from "@/lib/api"
 import { persistAsset } from "@/lib/asset-storage"
 
 import {
-  deleteCharacterImageGeneration,
   listCharacterImageGenerations,
   upsertCharacterImageGeneration,
 } from "@/lib/character-image-generations"
+import { listCharacterVideoGenerations } from "@/lib/character-video-generations"
+import { composeCharacterGenerationView } from "@/lib/realfarm-character-ui"
 
 export const dynamic = "force-dynamic"
 
@@ -23,98 +25,69 @@ const allowedImageTypes = new Set([
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const characterId = Number(searchParams.get("characterId"))
-  const generations = await listCharacterImageGenerations({
-    characterId: Number.isFinite(characterId) ? characterId : undefined,
-  })
+  const characterId = searchParams.get("characterId")?.trim() || undefined
+  const [images, videos] = await Promise.all([
+    listCharacterImageGenerations({ characterId }),
+    listCharacterVideoGenerations({ characterId }),
+  ])
+  const videosByGeneration = new Map(
+    videos.map((video) => [video.generationId, video])
+  )
+  const generations = images.map((image) =>
+    composeCharacterGenerationView(image, videosByGeneration.get(image.id))
+  )
 
   return NextResponse.json({ generations })
 }
 
-export async function POST(request: Request) {
-  try {
-    const formData = await request.formData()
-    const file = formData.get("file")
-    if (!(file instanceof File)) {
-      return NextResponse.json(
-        { error: "Image file is required" },
-        { status: 400 }
-      )
-    }
-    if (file.type && !allowedImageTypes.has(file.type)) {
-      return NextResponse.json(
-        { error: "Only image files are supported" },
-        { status: 400 }
-      )
-    }
-
-    const characterId = numberValue(formData.get("characterId"))
-    const aspectRatio = clean(formData.get("aspectRatio")) || "9:16"
-    const extension = imageExtension(file)
-    const safeBaseName = safeFileBaseName(file.name)
-    const fileName = `${Date.now()}-uploaded-${safeBaseName}${extension}`
-    const folder = path.join(process.cwd(), "data", "characters", "images")
-    await persistAsset(
-      path.join(folder, fileName),
-      Buffer.from(await file.arrayBuffer())
-    )
-
-    const imageUrl = `/api/local-assets/characters/images/${encodeURIComponent(fileName)}`
-    const generation = await upsertCharacterImageGeneration({
-      id: `uploaded-${path.basename(fileName, extension)}`,
-      characterId,
-      prompt:
-        clean(formData.get("prompt")) || `Uploaded source image: ${file.name}`,
-      model: "Uploaded image",
-      createdAt: new Date().toISOString(),
-      attachments: [],
-      aspectRatio,
-      status: "ready",
-      imageUrl,
-      progress: 100,
-      workflowLabel: "Uploaded Source",
-      workflowMetadata: {
-        workflow: "free_generate",
-        workflowLabel: "Uploaded Source",
-        recipe: { source: "drag_drop_upload", originalFileName: file.name },
-      },
-    })
-
-    return NextResponse.json({ imageUrl, generation }, { status: 201 })
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to upload character image",
-      },
-      { status: 500 }
-    )
+export const POST = withHandler(async (request: Request) => {
+  const formData = await request.formData()
+  const file = formData.get("file")
+  if (!(file instanceof File)) {
+    return NextResponse.json({ error: "Image file is required" }, { status: 400 })
   }
-}
-
-export async function DELETE(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const id = searchParams.get("id")?.trim()
-  if (!id) {
+  if (file.type && !allowedImageTypes.has(file.type)) {
     return NextResponse.json(
-      { error: "Missing generation id" },
+      { error: "Only image files are supported" },
       { status: 400 }
     )
   }
 
-  const result = await deleteCharacterImageGeneration({ id })
-  return NextResponse.json(result)
-}
+  const characterId = clean(formData.get("characterId")) || undefined
+  const aspectRatio = clean(formData.get("aspectRatio")) || "9:16"
+  const extension = imageExtension(file)
+  const safeBaseName = safeFileBaseName(file.name)
+  const fileName = `${Date.now()}-uploaded-${safeBaseName}${extension}`
+  const folder = path.join(process.cwd(), "data", "characters", "images")
+  await persistAsset(
+    path.join(folder, fileName),
+    Buffer.from(await file.arrayBuffer())
+  )
 
-function numberValue(value: FormDataEntryValue | null) {
-  if (typeof value !== "string") {
-    return undefined
-  }
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : undefined
-}
+  const imageUrl = `/api/local-assets/characters/images/${encodeURIComponent(fileName)}`
+  const generation = await upsertCharacterImageGeneration({
+    id: `uploaded-${path.basename(fileName, extension)}`,
+    characterId,
+    prompt:
+      clean(formData.get("prompt")) || `Uploaded source image: ${file.name}`,
+    model: "Uploaded image",
+    createdAt: new Date().toISOString(),
+    attachments: [],
+    aspectRatio,
+    status: "ready",
+    imageUrl,
+    progress: 100,
+    workflowLabel: "Uploaded Source",
+    workflowMetadata: {
+      workflow: "free_generate",
+      workflowLabel: "Uploaded Source",
+      recipe: { source: "drag_drop_upload", originalFileName: file.name },
+    },
+  })
+
+  return NextResponse.json({ imageUrl, generation }, { status: 201 })
+})
+
 
 function imageExtension(file: File) {
   const extension = path.extname(file.name).toLowerCase()

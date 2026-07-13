@@ -8,14 +8,29 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  --lc-ink: #111117;
+  --lc-cloud: #f7f7fa;
+  --lc-white: #ffffff;
+  --lc-line: #e7e7ee;
+  --lc-muted: #686875;
+  --lc-violet: #6d28d9;
+  --lc-violet-strong: #5b21b6;
+  --lc-magenta: #e92a9a;
+  --lc-amber: #ff9f1c;
+  --lc-spectrum: linear-gradient(
+    120deg,
+    var(--lc-violet) 0%,
+    var(--lc-magenta) 54%,
+    var(--lc-amber) 100%
+  );
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.841 0.238 128.85);
-  --primary-foreground: oklch(0.405 0.101 131.063);
+  --primary: #6d28d9;
+  --primary-foreground: #ffffff;
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
   --muted: oklch(0.97 0 0);
@@ -25,7 +40,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --ring: #6d28d9;
   --chart-1: oklch(0.785 0.115 274.713);
   --chart-2: oklch(0.585 0.233 277.117);
   --chart-3: oklch(0.511 0.262 276.966);
@@ -34,33 +49,33 @@
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.648 0.2 131.684);
-  --sidebar-primary-foreground: oklch(0.986 0.031 120.757);
+  --sidebar-primary: #6d28d9;
+  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --app-action: #ff5626;
-  --app-action-hover: #ed4d22;
+  --app-action: #6d28d9;
+  --app-action-hover: #5b21b6;
   --app-control-bg: #ffffff;
-  --app-control-hover: #f4f4f2;
-  --app-panel-border: #e5e4dc;
-  --app-muted-text: #77766f;
+  --app-control-hover: #f0eef8;
+  --app-panel-border: #e7e7ee;
+  --app-muted-text: #686875;
   --app-surface: #ffffff;
-  --app-surface-subtle: #f8f8f4;
+  --app-surface-subtle: #f7f7fa;
   --app-surface-raised: #ffffff;
-  --app-media-placeholder: #d8d6ce;
-  --app-media-empty: #d9d9d4;
-  --app-text: #242421;
-  --app-text-soft: #4d4c47;
-  --app-text-faint: #a9a8a1;
+  --app-media-placeholder: #dedde8;
+  --app-media-empty: #e8e7ef;
+  --app-text: #111117;
+  --app-text-soft: #454551;
+  --app-text-faint: #91909d;
   --app-danger: #d94444;
   --app-danger-surface: #fff1f1;
   --app-danger-muted: #ad3434;
   --app-danger-text: #8d5c5c;
-  --app-radius-card: 7px;
-  --app-radius-panel: 8px;
-  --app-shadow-card: 0 1px 2px rgb(30 30 25 / 0.06);
+  --app-radius-card: 14px;
+  --app-radius-panel: 16px;
+  --app-shadow-card: 0 12px 36px rgb(35 24 67 / 0.08);
 }
 
 .dark {
@@ -190,9 +205,53 @@
   }
   body {
     @apply bg-background font-sans text-foreground;
+    background: var(--lc-cloud);
   }
   html {
     @apply font-sans;
+  }
+}
+
+::selection {
+  background: color-mix(in srgb, var(--lc-violet) 22%, white);
+  color: var(--lc-ink);
+}
+
+.lc-spectrum {
+  background: var(--lc-spectrum);
+}
+
+.lc-focus-ring:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--lc-violet) 28%, transparent);
+  outline-offset: 2px;
+}
+
+.lc-placeholder-studio {
+  background-image:
+    linear-gradient(180deg, transparent 45%, rgb(17 17 23 / 0.2)),
+    url("/brand/lumenclip-brandkit.png");
+}
+
+.lc-placeholder-product {
+  background-image:
+    linear-gradient(180deg, transparent 50%, rgb(17 17 23 / 0.22)),
+    url("https://picsum.photos/seed/lumenclip-product-frame/700/520");
+}
+
+.lc-placeholder-creator {
+  background-image:
+    linear-gradient(180deg, transparent 50%, rgb(17 17 23 / 0.22)),
+    url("https://picsum.photos/seed/lumenclip-camera-set/700/520");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
@@ -214,6 +273,22 @@
     border-radius: var(--app-radius-panel);
     background: var(--app-surface-subtle);
     color: var(--app-muted-text);
+  }
+
+  .app-input {
+    height: 2.25rem;
+    border: 1px solid var(--app-panel-border);
+    border-radius: 0.5rem;
+    background: var(--app-control-bg);
+    padding: 0 0.75rem;
+    color: var(--app-text);
+    font-size: 0.875rem;
+    font-weight: 500;
+    outline: none;
+  }
+
+  .app-input:focus {
+    border-color: var(--app-muted-text);
   }
 
   .app-media-frame {

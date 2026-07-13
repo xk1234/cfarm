@@ -10,8 +10,18 @@ import { cn } from "@/lib/utils"
 
 export function SwitchPill({ enabled }: { enabled?: boolean }) {
   return (
-    <span className={cn("inline-flex h-7 w-12 shrink-0 rounded-full p-1", enabled ? "bg-app-action" : "bg-[#ececea]")}>
-      <span className={cn("size-5 rounded-full bg-white shadow-sm transition", enabled && "translate-x-5")} />
+    <span
+      className={cn(
+        "inline-flex h-7 w-12 shrink-0 rounded-full p-1",
+        enabled ? "bg-app-action" : "bg-[#ececea]"
+      )}
+    >
+      <span
+        className={cn(
+          "size-5 rounded-full bg-white shadow-sm transition",
+          enabled && "translate-x-5"
+        )}
+      />
     </span>
   )
 }
@@ -43,12 +53,14 @@ export function ToggleRow({
   onToggle: () => void
 }) {
   return (
-    <button className="flex h-9 w-full items-center justify-between border-b border-[#ecebe4] text-left text-[13px] font-semibold" onClick={onToggle}>
+    <div className="flex h-9 w-full items-center justify-between border-b border-[#ecebe4] text-left text-[13px] font-semibold">
       <span>{label}</span>
-      <span className={cn("relative h-6 w-10 rounded-full transition", enabled ? "bg-app-action" : "bg-[#ecebea]")}>
-        <span className={cn("absolute top-1 size-4 rounded-full bg-white shadow transition", enabled ? "left-5" : "left-1")} />
-      </span>
-    </button>
+      <SwitchPillButton
+        enabled={enabled}
+        onClick={onToggle}
+        aria-label={`Toggle ${label}`}
+      />
+    </div>
   )
 }
 
@@ -67,7 +79,12 @@ export function SelectLike({
   const ref = useDismissableLayer<HTMLDivElement>(() => setOpen(false), open)
   return (
     <div ref={ref} className="relative">
-      <Button variant="softControl" size="appDefault" className="w-full justify-start text-left" onClick={() => setOpen((current) => !current)}>
+      <Button
+        variant="softControl"
+        size="appDefault"
+        className="w-full justify-start text-left"
+        onClick={() => setOpen((current) => !current)}
+      >
         {value}
       </Button>
       {open && (
@@ -141,7 +158,7 @@ export function CheckedDropdownButton({
         <ChevronDown className="size-4 text-[#77766f]" />
       </Button>
       {open && (
-        <div className="absolute right-0 top-full z-30 mt-1 min-w-[142px] overflow-hidden rounded-lg border border-app-panel-border bg-app-control-bg py-1 text-sm shadow-xl">
+        <div className="absolute top-full right-0 z-30 mt-1 min-w-[142px] overflow-hidden rounded-lg border border-app-panel-border bg-app-control-bg py-1 text-sm shadow-xl">
           {options.map((option) => (
             <button
               key={option}
@@ -152,7 +169,9 @@ export function CheckedDropdownButton({
               }}
             >
               <span>{option}</span>
-              {option === value && <Check className="size-3.5 text-[#242421]" />}
+              {option === value && (
+                <Check className="size-3.5 text-[#242421]" />
+              )}
             </button>
           ))}
         </div>
@@ -161,10 +180,16 @@ export function CheckedDropdownButton({
   )
 }
 
-export function SelectControl({ className, ...props }: ComponentProps<"select">) {
+export function SelectControl({
+  className,
+  ...props
+}: ComponentProps<"select">) {
   return (
     <select
-      className={cn("h-9 rounded-lg border border-app-panel-border bg-app-control-bg px-4 text-sm font-medium outline-none", className)}
+      className={cn(
+        "h-9 rounded-lg border border-app-panel-border bg-app-control-bg px-4 text-sm font-medium outline-none",
+        className
+      )}
       {...props}
     />
   )
@@ -196,14 +221,24 @@ export function SearchControl({
   )
 }
 
-export function FormatSelect({ value, options, onChange }: { value: string; options: string[]; onChange?: (value: string) => void }) {
+export function FormatSelect({
+  value,
+  options,
+  onChange,
+}: {
+  value: string
+  options: string[]
+  onChange?: (value: string) => void
+}) {
   return (
     <SelectControl
       value={value}
       onChange={(event) => onChange?.(event.target.value)}
     >
       {options.map((option) => (
-        <option key={option} value={option}>{option}</option>
+        <option key={option} value={option}>
+          {option}
+        </option>
       ))}
     </SelectControl>
   )
@@ -222,7 +257,9 @@ export function FormatLabeledSelect({
 }) {
   return (
     <label>
-      <div className="mb-1 text-[11px] font-semibold text-[#6b6a64]">{label}</div>
+      <div className="mb-1 text-[11px] font-semibold text-[#6b6a64]">
+        {label}
+      </div>
       <FormatSelect value={value} options={options} onChange={onChange} />
     </label>
   )

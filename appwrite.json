@@ -31,12 +31,12 @@
       "enabled": true,
       "logging": true,
       "execute": [],
-      "scopes": ["databases.read", "databases.write", "tables.read", "tables.write", "documents.read", "documents.write"],
+      "scopes": ["databases.read", "databases.write", "tables.read", "tables.write", "documents.read", "documents.write", "files.read"],
       "path": "appwrite/functions/job-worker",
       "variables": {
         "APPWRITE_DATABASE_ID": "cfarm",
         "BATCH": "10",
-        "LEASE_MS": "120000"
+        "LEASE_MS": "360000"
       }
     }
   ]

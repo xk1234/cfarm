@@ -1,18 +1,25 @@
 "use client"
 
 import {
+  BarChart3,
+  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Info,
   Pencil,
   Play,
   RefreshCcw,
+  Search,
   X,
 } from "lucide-react"
 import { useEffect, useMemo, useState, type CSSProperties } from "react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import {
+  BenchmarkComparisonModal,
+  BenchmarkCorpusModal,
+} from "@/components/realfarm/benchmark-comparison-modal"
+import { useDismissableLayer } from "@/components/ui/dismissable"
 import type { AutomationTemplateExampleRun } from "@/lib/automation-templates"
 import type { OpenRouterModelSummary } from "@/lib/openrouter-models"
 import { tempTestingCenterFallbackModels } from "@/lib/realfarm-generation-model-registry"
@@ -26,9 +33,12 @@ import type {
   TempSlideTestingAutomation,
   TempSlideTextPlaceholder,
 } from "@/lib/temp-slide-testing"
+import type {
+  BenchmarkCorpusRecord,
+  SlideshowBenchmarkComparison,
+} from "@/lib/slideshow-benchmarks"
 import {
   buildTempSlideStructuredOutputSchema,
-  buildTempSlideUserPrompt,
   defaultTempSlideSystemPrompt,
   defaultTempSlideUserInstructions,
   getTempSlidePromptPlaceholders,
@@ -48,18 +58,24 @@ type GenerationRun = {
   selectedHook?: string
   result?: TempSlideStructuredOutput
   error?: string
+  benchmarkComparison?: SlideshowBenchmarkComparison
+  benchmarkError?: string
 }
 
 type SlideTestingCenterProps = {
   automations: TempSlideTestingAutomation[]
+  automationJsonById: Record<string, unknown>
   collections: TempSlideImageCollection[]
   exampleRunsByAutomationId: Record<string, AutomationTemplateExampleRun[]>
+  benchmarkCorpus: BenchmarkCorpusRecord[]
 }
 
 export function SlideTestingCenter({
   automations,
+  automationJsonById,
   collections,
   exampleRunsByAutomationId,
+  benchmarkCorpus,
 }: SlideTestingCenterProps) {
   const [selectedAutomationId, setSelectedAutomationId] = useState(
     automations[0]?.id ?? ""
@@ -85,6 +101,13 @@ export function SlideTestingCenter({
   )
   const [promptModalOpen, setPromptModalOpen] = useState(false)
   const [automationModalOpen, setAutomationModalOpen] = useState(false)
+  const [benchmarkCorpusOpen, setBenchmarkCorpusOpen] = useState(false)
+  const [benchmarkComparison, setBenchmarkComparison] =
+    useState<SlideshowBenchmarkComparison | null>(null)
+  const [automationDetailsTab, setAutomationDetailsTab] = useState<
+    "info" | "json"
+  >("info")
+  const [activeHookIndex, setActiveHookIndex] = useState(0)
   const [activeSlideByRunId, setActiveSlideByRunId] = useState<
     Record<string, number>
   >({})
@@ -125,16 +148,6 @@ export function SlideTestingCenter({
   const promptPreviewSelectedHook = selectedAutomation
     ? promptPreviewHook(selectedAutomation)
     : ""
-  const promptPreviewUserPrompt = selectedAutomation
-    ? buildTempSlideUserPrompt({
-        automationName: selectedAutomation.name,
-        hook: promptPreviewSelectedHook,
-        tone: selectedAutomation.tone,
-        style: selectedAutomation.style,
-        promptInstructions: draftPromptInstructions,
-        placeholders: promptPreviewPlaceholders,
-      })
-    : ""
   const promptPreviewSchema = buildTempSlideStructuredOutputSchema(
     promptPreviewPlaceholders
   )
@@ -159,6 +172,13 @@ export function SlideTestingCenter({
             },
           },
         },
+    null,
+    2
+  )
+  const selectedAutomationJson = JSON.stringify(
+    selectedAutomation
+      ? (automationJsonById[selectedAutomation.id] ?? selectedAutomation)
+      : {},
     null,
     2
   )
@@ -251,6 +271,8 @@ export function SlideTestingCenter({
         selectedHook?: string
         result?: TempSlideStructuredOutput
         error?: string
+        benchmarkComparison?: SlideshowBenchmarkComparison
+        benchmarkError?: string
       }
 
       if (!response.ok || !payload.result) {
@@ -265,6 +287,8 @@ export function SlideTestingCenter({
                 status: "success",
                 selectedHook: payload.selectedHook,
                 result: payload.result,
+                benchmarkComparison: payload.benchmarkComparison,
+                benchmarkError: payload.benchmarkError,
               }
             : run
         )
@@ -340,7 +364,20 @@ export function SlideTestingCenter({
 
   function selectAutomation(automationId: string) {
     setSelectedAutomationId(automationId)
+    setActiveHookIndex(0)
     setAutomationModalOpen(false)
+  }
+
+  function showAdjacentHook(direction: "previous" | "next") {
+    const count = selectedAutomation?.hooks.length ?? 0
+    if (count <= 1) {
+      return
+    }
+    setActiveHookIndex((current) =>
+      direction === "next"
+        ? (current + 1) % count
+        : (current - 1 + count) % count
+    )
   }
 
   function navigateAutomationExample(
@@ -371,19 +408,28 @@ export function SlideTestingCenter({
         <header className="flex flex-wrap items-end justify-between gap-4 border-b border-[#dfded7] pb-5">
           <div className="space-y-2">
             <div className="inline-flex rounded-md border border-[#d6d4c9] bg-white px-2 py-1 text-xs font-semibold text-[#6f6d64]">
-              Temp zone
+              Debug workspace
             </div>
             <div>
               <h1 className="text-2xl font-semibold tracking-normal">
-                Slide Testing Center
+                Slideshow Debug &amp; Testing Center
               </h1>
               <p className="max-w-3xl text-sm text-[#69675f]">
-                Test automation slide text strategies across OpenRouter models
-                without touching app workflows.
+                Inspect template JSON and compare slideshow generation across
+                OpenRouter models without touching live workflows.
               </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="softControl"
+              size="sm"
+              onClick={() => setBenchmarkCorpusOpen(true)}
+            >
+              <BarChart3 aria-hidden="true" />
+              Benchmark corpus ({benchmarkCorpus.length})
+            </Button>
             <Button
               type="button"
               variant="softControl"
@@ -427,31 +473,53 @@ export function SlideTestingCenter({
               </div>
 
               {selectedAutomation ? (
-                <div className="rounded-md border border-[#ecebe4] bg-[#fbfbf8] p-3 text-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-semibold">
-                      {selectedAutomation.name}
-                    </span>
-                    <span className="rounded bg-[#ecebe4] px-2 py-1 text-xs text-[#6f6d64]">
-                      {selectedAutomation.slides.length} slides
-                    </span>
+                <div className="overflow-hidden rounded-md border border-[#d8d6cc] bg-white">
+                  <div
+                    className="grid grid-cols-2 border-b border-[#e4e2d9] bg-[#f1f0ea] p-1"
+                    role="tablist"
+                    aria-label="Automation details"
+                  >
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={automationDetailsTab === "info"}
+                      onClick={() => setAutomationDetailsTab("info")}
+                      className={cn(
+                        "h-8 rounded text-xs font-semibold",
+                        automationDetailsTab === "info"
+                          ? "bg-white text-[#22221f] shadow-sm"
+                          : "text-[#77766f]"
+                      )}
+                    >
+                      Key info
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={automationDetailsTab === "json"}
+                      onClick={() => setAutomationDetailsTab("json")}
+                      className={cn(
+                        "h-8 rounded text-xs font-semibold",
+                        automationDetailsTab === "json"
+                          ? "bg-[#22221f] text-white shadow-sm"
+                          : "text-[#77766f]"
+                      )}
+                    >
+                      Template JSON
+                    </button>
                   </div>
-                  <dl className="mt-3 grid gap-2 text-xs text-[#6f6d64]">
-                    <div>
-                      <dt className="font-semibold uppercase">Tone</dt>
-                      <dd>{selectedAutomation.tone}</dd>
-                    </div>
-                    <div>
-                      <dt className="font-semibold uppercase">Style</dt>
-                      <dd>{selectedAutomation.style}</dd>
-                    </div>
-                    <div>
-                      <dt className="font-semibold uppercase">
-                        First hook option
-                      </dt>
-                      <dd>{selectedAutomation.hooks[0] ?? "No hook stored"}</dd>
-                    </div>
-                  </dl>
+                  {automationDetailsTab === "info" ? (
+                    <AutomationTemplateInfo
+                      automation={selectedAutomation}
+                      activeHookIndex={activeHookIndex}
+                      onPreviousHook={() => showAdjacentHook("previous")}
+                      onNextHook={() => showAdjacentHook("next")}
+                    />
+                  ) : (
+                    <pre className="max-h-[520px] overflow-auto bg-[#22221f] p-3 font-mono text-[11px] leading-5 whitespace-pre-wrap text-white/85">
+                      {selectedAutomationJson}
+                    </pre>
+                  )}
                 </div>
               ) : null}
 
@@ -471,29 +539,11 @@ export function SlideTestingCenter({
                     {modelsError}. Using fallback shortlist.
                   </p>
                 ) : null}
-                <div className="space-y-2">
-                  {modelOptions.map((model) => (
-                    <label
-                      key={model.id}
-                      className="flex cursor-pointer items-center gap-2 rounded-md border border-[#e1dfd5] bg-white px-3 py-2 text-sm hover:bg-[#f6f5ef]"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedModels.includes(model.id)}
-                        onChange={() => toggleModel(model.id)}
-                        className="size-4 accent-[#22221f]"
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-xs font-semibold">
-                          {model.name}
-                        </span>
-                        <span className="block truncate font-mono text-[11px] text-[#6f6d64]">
-                          {model.id}
-                        </span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
+                <ModelMultiSelect
+                  models={modelOptions}
+                  selectedModels={selectedModels}
+                  onToggle={toggleModel}
+                />
                 <input
                   value={customModel}
                   onChange={(event) => setCustomModel(event.target.value)}
@@ -548,6 +598,11 @@ export function SlideTestingCenter({
                         "next"
                       )
                     }
+                    onOpenBenchmark={() =>
+                      run.benchmarkComparison
+                        ? setBenchmarkComparison(run.benchmarkComparison)
+                        : undefined
+                    }
                   />
                 ))}
               </div>
@@ -581,7 +636,289 @@ export function SlideTestingCenter({
           onNavigateExample={navigateAutomationExample}
         />
       ) : null}
+      {benchmarkCorpusOpen ? (
+        <BenchmarkCorpusModal
+          records={benchmarkCorpus}
+          onClose={() => setBenchmarkCorpusOpen(false)}
+        />
+      ) : null}
+      {benchmarkComparison ? (
+        <BenchmarkComparisonModal
+          comparison={benchmarkComparison}
+          title="Debug generation benchmark"
+          onClose={() => setBenchmarkComparison(null)}
+        />
+      ) : null}
     </main>
+  )
+}
+
+function AutomationTemplateInfo({
+  automation,
+  activeHookIndex,
+  onPreviousHook,
+  onNextHook,
+}: {
+  automation: TempSlideTestingAutomation
+  activeHookIndex: number
+  onPreviousHook: () => void
+  onNextHook: () => void
+}) {
+  const hookCount = automation.hooks.length
+  const normalizedHookIndex = hookCount > 0 ? activeHookIndex % hookCount : 0
+  const activeHook = automation.hooks[normalizedHookIndex]
+
+  return (
+    <div className="space-y-4 bg-[#fbfbf8] p-3 text-xs text-[#6f6d64]">
+      <div className="flex items-center justify-between gap-3">
+        <span className="truncate text-sm font-semibold text-[#22221f]">
+          {automation.name}
+        </span>
+        <span className="shrink-0 rounded bg-[#ecebe4] px-2 py-1 text-xs">
+          {automation.slides.length} slides
+        </span>
+      </div>
+
+      <dl className="grid gap-2">
+        <div>
+          <dt className="font-semibold uppercase">Tone</dt>
+          <dd>{automation.tone}</dd>
+        </div>
+        <div>
+          <dt className="font-semibold uppercase">Style</dt>
+          <dd>{automation.style}</dd>
+        </div>
+      </dl>
+
+      <section>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="font-semibold uppercase">Hooks</h3>
+          <span className="font-mono text-[10px] text-[#8a887f]">
+            {hookCount > 0 ? normalizedHookIndex + 1 : 0}/{hookCount}
+          </span>
+        </div>
+        <div className="mt-1.5 grid grid-cols-[28px_minmax(0,1fr)_28px] items-stretch gap-1.5">
+          <button
+            type="button"
+            onClick={onPreviousHook}
+            disabled={hookCount <= 1}
+            className="grid place-items-center rounded border border-[#dfddd3] bg-white text-[#5f5e57] hover:bg-[#f1f0ea] disabled:cursor-default disabled:opacity-35"
+            aria-label="Previous hook"
+          >
+            <ChevronLeft aria-hidden="true" className="size-3.5" />
+          </button>
+          <div className="min-h-16 rounded border border-[#e4e2d9] bg-white px-2.5 py-2 leading-4 text-[#4f4e48]">
+            {activeHook || "No hooks stored"}
+          </div>
+          <button
+            type="button"
+            onClick={onNextHook}
+            disabled={hookCount <= 1}
+            className="grid place-items-center rounded border border-[#dfddd3] bg-white text-[#5f5e57] hover:bg-[#f1f0ea] disabled:cursor-default disabled:opacity-35"
+            aria-label="Next hook"
+          >
+            <ChevronRight aria-hidden="true" className="size-3.5" />
+          </button>
+        </div>
+      </section>
+
+      <section>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="font-semibold uppercase">Template slides</h3>
+          <span className="font-mono text-[10px] text-[#8a887f]">
+            {automation.slides.length}
+          </span>
+        </div>
+        <div className="mt-1.5 max-h-[430px] space-y-2 overflow-y-auto pr-1">
+          {automation.slides.map((slide, index) => (
+            <TemplateSlideInfo key={slide.id} slide={slide} index={index} />
+          ))}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function TemplateSlideInfo({
+  slide,
+  index,
+}: {
+  slide: TempSlideSpec
+  index: number
+}) {
+  const directions = slide.textItems.map((item) =>
+    item.textMode === "static"
+      ? item.staticText || "Static text"
+      : item.contentDirection || "No content direction"
+  )
+
+  return (
+    <article className="rounded border border-[#e4e2d9] bg-white p-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate font-semibold text-[#22221f]">
+            {index + 1}. {slide.title}
+          </div>
+          <div className="mt-0.5 text-[10px] font-semibold text-[#8a887f] uppercase">
+            {slide.section}
+          </div>
+        </div>
+        <span className="shrink-0 rounded bg-[#f1f0ea] px-1.5 py-0.5 font-mono text-[10px]">
+          {slide.aspectRatio}
+        </span>
+      </div>
+      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] leading-4">
+        <div>
+          <dt className="font-semibold text-[#8a887f]">Grid</dt>
+          <dd>{slide.imageGrid}</dd>
+        </div>
+        <div>
+          <dt className="font-semibold text-[#8a887f]">Overlay</dt>
+          <dd>{slide.overlay ? "On" : "Off"}</dd>
+        </div>
+        <div className="col-span-2">
+          <dt className="font-semibold text-[#8a887f]">Collection</dt>
+          <dd className="truncate font-mono">{slide.collectionId || "None"}</dd>
+        </div>
+      </dl>
+      <div className="mt-2 border-t border-[#ecebe4] pt-2">
+        <div className="text-[10px] font-semibold text-[#8a887f]">
+          Content direction
+        </div>
+        {directions.length > 0 ? (
+          <ul className="mt-1 space-y-1 text-[10px] leading-4 text-[#5f5e57]">
+            {directions.map((direction, directionIndex) => (
+              <li key={`${direction}-${directionIndex}`}>{direction}</li>
+            ))}
+          </ul>
+        ) : (
+          <div className="mt-1 text-[10px] text-[#9a988f]">No text</div>
+        )}
+      </div>
+    </article>
+  )
+}
+
+function ModelMultiSelect({
+  models,
+  selectedModels,
+  onToggle,
+}: {
+  models: OpenRouterModelSummary[]
+  selectedModels: string[]
+  onToggle: (modelId: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState("")
+  const menuRef = useDismissableLayer<HTMLDivElement>(
+    () => setOpen(false),
+    open
+  )
+  const normalizedQuery = query.trim().toLowerCase()
+  const visibleModels = normalizedQuery
+    ? models.filter((model) =>
+        `${model.name} ${model.id}`.toLowerCase().includes(normalizedQuery)
+      )
+    : models
+  const selectedNames = selectedModels
+    .map(
+      (modelId) => models.find((model) => model.id === modelId)?.name ?? modelId
+    )
+    .slice(0, 2)
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex min-h-11 w-full items-center justify-between gap-3 rounded-md border border-[#d8d6cc] bg-white px-3 py-2 text-left outline-none hover:bg-[#f6f5ef] focus:border-[#22221f]"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className="min-w-0">
+          <span className="block text-xs font-semibold text-[#22221f]">
+            {selectedModels.length === 0
+              ? "Choose models"
+              : `${selectedModels.length} model${selectedModels.length === 1 ? "" : "s"} selected`}
+          </span>
+          {selectedNames.length > 0 ? (
+            <span className="mt-0.5 block truncate text-[11px] text-[#6f6d64]">
+              {selectedNames.join(", ")}
+              {selectedModels.length > selectedNames.length ? "…" : ""}
+            </span>
+          ) : null}
+        </span>
+        <ChevronDown
+          aria-hidden="true"
+          className={cn(
+            "size-4 shrink-0 text-[#77766f] transition",
+            open && "rotate-180"
+          )}
+        />
+      </button>
+
+      {open ? (
+        <div className="absolute top-[calc(100%+6px)] left-0 z-40 w-full min-w-[320px] overflow-hidden rounded-md border border-[#d8d6cc] bg-white shadow-xl">
+          <label className="flex items-center gap-2 border-b border-[#ecebe4] px-3">
+            <Search aria-hidden="true" className="size-4 text-[#8a887f]" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search OpenRouter models"
+              className="h-10 min-w-0 flex-1 bg-transparent text-xs outline-none"
+              autoFocus
+            />
+          </label>
+          <div
+            className="max-h-72 overflow-y-auto p-1.5"
+            role="listbox"
+            aria-multiselectable="true"
+          >
+            {visibleModels.length > 0 ? (
+              visibleModels.map((model) => {
+                const selected = selectedModels.includes(model.id)
+                return (
+                  <button
+                    key={model.id}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    onClick={() => onToggle(model.id)}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded px-2.5 py-2 text-left hover:bg-[#f3f2ec]",
+                      selected && "bg-[#f3f2ec]"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "grid size-4 shrink-0 place-items-center rounded border",
+                        selected
+                          ? "border-[#22221f] bg-[#22221f] text-white"
+                          : "border-[#c9c7bd] bg-white"
+                      )}
+                    >
+                      {selected ? <Check className="size-3" /> : null}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs font-semibold">
+                        {model.name}
+                      </span>
+                      <span className="block truncate font-mono text-[10px] text-[#77766f]">
+                        {model.id}
+                      </span>
+                    </span>
+                  </button>
+                )
+              })
+            ) : (
+              <div className="px-3 py-6 text-center text-xs text-[#77766f]">
+                No models match “{query}”.
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -844,6 +1181,7 @@ function RunResult({
   activeSlideIndex,
   onPreviousSlide,
   onNextSlide,
+  onOpenBenchmark,
 }: {
   run: GenerationRun
   automation: TempSlideTestingAutomation
@@ -852,6 +1190,7 @@ function RunResult({
   activeSlideIndex: number
   onPreviousSlide: () => void
   onNextSlide: () => void
+  onOpenBenchmark: () => void
 }) {
   const normalizedSlideIndex =
     activeSlideIndex % Math.max(1, automation.slides.length)
@@ -879,57 +1218,111 @@ function RunResult({
       ) : null}
 
       {run.status === "success" && run.result && activeSlide ? (
-        <div className="relative">
-          <SlidePreview
-            slide={activeSlide}
-            run={run}
-            text={run.result.text}
-            fixedHook={run.selectedHook ?? promptPreviewHook(automation)}
-            images={imagesForSlide(
-              activeSlide,
-              collectionMap,
-              allImages,
-              run.imageSeed
-            )}
-            overlayImages={imagesForCollectionId(
-              activeSlide.overlayImage?.collectionId,
-              collectionMap
-            )}
-            compact
-          />
-          <span className="absolute top-2 right-2 z-20 rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-[#22221f] shadow">
-            {normalizedSlideIndex + 1}/{automation.slides.length}
-          </span>
-          <span className="absolute bottom-2 left-2 z-20 max-w-[78%] truncate rounded-full bg-[#22221f]/88 px-2 py-1 text-[10px] font-semibold text-white shadow">
-            Model {run.model}
-          </span>
-          <button
-            type="button"
-            onClick={() => showSlideInfoToast(activeSlide)}
-            className="absolute top-2 left-2 z-20 grid size-8 place-items-center rounded-full bg-white/90 text-[#22221f] shadow hover:bg-white focus-visible:ring-3 focus-visible:ring-[#22221f]/25 focus-visible:outline-none"
-            aria-label="Show slide parameters"
-          >
-            <Info aria-hidden="true" className="size-4" />
-          </button>
-          <button
-            type="button"
-            onClick={onPreviousSlide}
-            className="absolute top-1/2 left-2 z-20 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-[#22221f] shadow hover:bg-white focus-visible:ring-3 focus-visible:ring-[#22221f]/25 focus-visible:outline-none"
-            aria-label="Previous generated slide"
-          >
-            <ChevronLeft aria-hidden="true" className="size-4" />
-          </button>
-          <button
-            type="button"
-            onClick={onNextSlide}
-            className="absolute top-1/2 right-2 z-20 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-[#22221f] shadow hover:bg-white focus-visible:ring-3 focus-visible:ring-[#22221f]/25 focus-visible:outline-none"
-            aria-label="Next generated slide"
-          >
-            <ChevronRight aria-hidden="true" className="size-4" />
-          </button>
+        <div>
+          <div className="relative">
+            <SlidePreview
+              slide={activeSlide}
+              run={run}
+              text={run.result.text}
+              fixedHook={run.selectedHook ?? promptPreviewHook(automation)}
+              images={imagesForSlide(
+                activeSlide,
+                collectionMap,
+                allImages,
+                run.imageSeed
+              )}
+              overlayImages={imagesForCollectionId(
+                activeSlide.overlayImage?.collectionId,
+                collectionMap
+              )}
+              compact
+            />
+            <span className="absolute top-2 right-2 z-20 rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-[#22221f] shadow">
+              {normalizedSlideIndex + 1}/{automation.slides.length}
+            </span>
+            <span className="absolute bottom-2 left-2 z-20 max-w-[78%] truncate rounded-full bg-[#22221f]/88 px-2 py-1 text-[10px] font-semibold text-white shadow">
+              Model {run.model}
+            </span>
+            <button
+              type="button"
+              onClick={onPreviousSlide}
+              className="absolute top-1/2 left-2 z-20 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-[#22221f] shadow hover:bg-white focus-visible:ring-3 focus-visible:ring-[#22221f]/25 focus-visible:outline-none"
+              aria-label="Previous generated slide"
+            >
+              <ChevronLeft aria-hidden="true" className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onNextSlide}
+              className="absolute top-1/2 right-2 z-20 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-[#22221f] shadow hover:bg-white focus-visible:ring-3 focus-visible:ring-[#22221f]/25 focus-visible:outline-none"
+              aria-label="Next generated slide"
+            >
+              <ChevronRight aria-hidden="true" className="size-4" />
+            </button>
+          </div>
+          <SlideContentDirection slide={activeSlide} />
+          {run.benchmarkComparison ? (
+            <div className="border-t border-[#ecebe4] p-3">
+              <button
+                type="button"
+                onClick={onOpenBenchmark}
+                className="flex h-9 w-full items-center justify-center gap-2 rounded-[6px] bg-[#242421] px-3 text-[12px] font-bold text-white hover:bg-[#34342f]"
+              >
+                <BarChart3 className="size-4" />
+                Benchmark {run.benchmarkComparison.subject.scores.overall}/10
+              </button>
+            </div>
+          ) : null}
+          {run.benchmarkError ? (
+            <p className="border-t border-[#ecebe4] px-3 py-2 text-[10px] font-medium text-amber-700">
+              Benchmark unavailable: {run.benchmarkError}
+            </p>
+          ) : null}
         </div>
       ) : null}
     </article>
+  )
+}
+
+function SlideContentDirection({ slide }: { slide: TempSlideSpec }) {
+  const directions = slide.textItems.map((item) =>
+    item.textMode === "static"
+      ? item.staticText || "Static text"
+      : item.contentDirection || "Write concise text for this box."
+  )
+
+  return (
+    <div className="border-t border-[#ecebe4] bg-[#fbfbf8] px-3 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[10px] font-bold tracking-[0.08em] text-[#8a887f] uppercase">
+          Content direction
+        </span>
+        <span className="text-[10px] font-semibold text-[#9a988f]">
+          {slide.title}
+        </span>
+      </div>
+      {directions.length > 0 ? (
+        <ol className="mt-2 space-y-1.5">
+          {directions.map((direction, index) => (
+            <li
+              key={`${direction}-${index}`}
+              className="flex gap-2 text-[11px] leading-4 font-medium text-[#5f5e57]"
+            >
+              {directions.length > 1 ? (
+                <span className="shrink-0 font-mono text-[#9a988f]">
+                  {index + 1}.
+                </span>
+              ) : null}
+              <span>{direction}</span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="mt-2 text-[11px] text-[#8a887f]">
+          No text content direction for this slide.
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -1201,41 +1594,6 @@ function exampleSlidePreviews(
       ]
     })
   })
-}
-
-function showSlideInfoToast(slide: TempSlideSpec) {
-  toast.info(`${slide.title} parameters`, {
-    description: slideInfoDescription(slide),
-    duration: 9000,
-  })
-}
-
-function slideInfoDescription(slide: TempSlideSpec) {
-  const textItems = slide.textItems
-    .map((item, index) => {
-      const direction =
-        item.textMode === "static"
-          ? `static: ${item.staticText || "(empty)"}`
-          : item.contentDirection || "Write concise text for this box."
-      return `${index + 1}. ${direction} (${item.wordLengthMin}-${item.wordLengthMax} words, ${item.textPosition}, ${item.textStyle}, ${item.textAlign})`
-    })
-    .join("\n")
-
-  return [
-    `section: ${slide.section}`,
-    `aspect ratio: ${slide.aspectRatio}`,
-    `image grid: ${slide.imageGrid}`,
-    `overlay: ${slide.overlay ? "on" : "off"}`,
-    `overlay image: ${
-      slide.overlayImage?.enabled
-        ? `${slide.overlayImage.collectionId || "none"} (${slide.overlayImage.height})`
-        : "off"
-    }`,
-    `display text: ${slide.displayText ? "on" : "off"}`,
-    `collection: ${slide.collectionId || "none"}`,
-    "text boxes:",
-    textItems || "none",
-  ].join("\n")
 }
 
 function pickImages(images: TempSlideImage[], count: number, seed: string) {

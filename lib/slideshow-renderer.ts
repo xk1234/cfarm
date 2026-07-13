@@ -13,6 +13,7 @@ export type SlideshowTextItem = {
   textStyle: string
   textAlign?: string
   textAnchor?: string
+  textVerticalAnchor?: string
   textPlacement?: "top" | "center" | "bottom"
   textPosition: {
     x: number
@@ -31,9 +32,30 @@ export type SlideshowSlide = {
   image_url: string
   source_image_url?: string
   overlayImage?: SlideshowOverlayImage
+  overlay?: boolean
   textItems: SlideshowTextItem[]
   aspect_ratio: string
   time_length_ms: number
+}
+
+export const slideshowOverlayOpacity = 0.2
+
+export type SlideshowTextBounds = {
+  id: string
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
+export function slideshowTextPositionX(
+  textAlign: string | undefined,
+  textAnchor: string | undefined
+) {
+  const flush = textAnchor === "flush"
+  if (textAlign === "left") return flush ? 1.5 : 10
+  if (textAlign === "right") return flush ? 98.5 : 90
+  return 50
 }
 
 export function renderedSlideSvg(
@@ -47,12 +69,15 @@ export function renderedSlideSvg(
     slide.overlayImage && overlayUrl
       ? renderedOverlayImageSvg(slide.overlayImage, overlayUrl, width, height)
       : null
+  const overlayAlpha = slide.overlay ? slideshowOverlayOpacity : 0
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
     `<rect width="${width}" height="${height}" fill="#111"/>`,
     `<image href="${escapeXml(sourceUrl)}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>`,
-    `<rect width="${width}" height="${height}" fill="#000" opacity="0.08"/>`,
+    overlayAlpha > 0
+      ? `<rect data-layer="overlay" width="${width}" height="${height}" fill="#000" opacity="${overlayAlpha}"/>`
+      : null,
     overlayImageSvg,
     ...renderedTextItemsSvg(textItems, width, height),
     `</svg>`,
@@ -112,21 +137,66 @@ function renderedTextItemsSvg(
   width: number,
   height: number
 ) {
+  return layoutRenderedTextItems(items, width, height).map(renderedTextItemSvg)
+}
+
+function layoutRenderedTextItems(
+  items: SlideshowTextItem[],
+  width: number,
+  height: number
+) {
   const groups = new Map<string, RenderedTextItem[]>()
 
   for (const item of items) {
     const prepared = prepareRenderedTextItem(item, width, height)
-    const key = [
-      Math.round(prepared.x),
-      Math.round(prepared.y),
-      item.textAlign || "center",
-    ].join(":")
+    const key = item.textPlacement
+      ? `placement:${item.textPlacement}`
+      : `position:${Math.round(prepared.y)}`
     groups.set(key, [...(groups.get(key) ?? []), prepared])
   }
 
   return Array.from(groups.values()).flatMap((group) =>
-    stackedTextGroup(group, height).map(renderedTextItemSvg)
+    stackedTextGroup(group, height)
   )
+}
+
+export function renderedTextItemBounds(
+  items: SlideshowTextItem[],
+  width: number,
+  height: number
+): SlideshowTextBounds[] {
+  return layoutRenderedTextItems(items, width, height).map((rendered) => {
+    const { item, x, y, fontSize, lineHeight, lines } = rendered
+    const strokePadding = needsTextStroke(item.textStyle)
+      ? Math.max(6, fontSize * 0.13) / 2
+      : 0
+    const horizontalPadding = strokePadding + 4
+    const verticalPadding = strokePadding + 3
+    const textWidth = Math.max(
+      fontSize * 0.55,
+      ...lines.map((line) => textDisplayUnits(line) * fontSize)
+    )
+    const firstLineTop = y - fontSize * 0.52
+    const lastLineBottom =
+      y + Math.max(0, lines.length - 1) * lineHeight + fontSize * 0.52
+    const left =
+      item.textAlign === "left"
+        ? x
+        : item.textAlign === "right"
+          ? x - textWidth
+          : x - textWidth / 2
+
+    return {
+      id: item.id,
+      left: Math.max(0, left - horizontalPadding),
+      top: Math.max(0, firstLineTop - verticalPadding),
+      width: Math.min(width, textWidth + horizontalPadding * 2),
+      height: Math.min(
+        height,
+        lastLineBottom - firstLineTop + verticalPadding * 2
+      ),
+    }
+  })
 }
 
 function prepareRenderedTextItem(
@@ -158,16 +228,18 @@ function stackedTextGroup(group: RenderedTextItem[], slideHeight: number) {
   }
 
   const gap = Math.max(
-    10,
-    Math.min(...group.map((item) => item.fontSize)) * 0.35
+    20,
+    Math.min(...group.map((item) => item.fontSize)) * 1.1
   )
   const totalHeight =
     group.reduce((total, item) => total + item.blockHeight, 0) +
     gap * (group.length - 1)
-  const midpoint = group[0].y
   const minTop = 20
   const maxTop = Math.max(minTop, slideHeight - totalHeight - 20)
-  let cursor = Math.min(maxTop, Math.max(minTop, midpoint - totalHeight / 2))
+  let cursor = Math.min(
+    maxTop,
+    Math.max(minTop, group[0].y - group[0].blockHeight / 2)
+  )
 
   return group.map((item) => {
     const y = cursor + item.blockHeight / 2
@@ -190,7 +262,34 @@ function renderedTextItemSvg(rendered: RenderedTextItem) {
     })
     .join("")
 
-  return `<text id="${escapeXml(item.id)}" x="${x}" y="${y}" text-anchor="${textAnchor}" dominant-baseline="middle" font-family="Inter, Arial, sans-serif" font-size="${fontSize}" font-weight="800" fill="${fill}"${stroke}>${tspans}</text>`
+  const fontFamily = escapeXml(item.font || "TikTok Display Medium")
+  const background = renderedTextBackgroundSvg(rendered)
+  return `${background}<text id="${escapeXml(item.id)}" x="${x}" y="${y}" text-anchor="${textAnchor}" dominant-baseline="middle" font-family="${fontFamily}, Inter, Arial, sans-serif" font-size="${fontSize}" font-weight="800" fill="${fill}"${stroke}>${tspans}</text>`
+}
+
+function renderedTextBackgroundSvg(rendered: RenderedTextItem) {
+  const color = textStyleToEditorColor(rendered.item.textStyle)
+  if (color !== "White Background" && color !== "Black Background") return ""
+
+  const paddingX = rendered.fontSize * 0.28
+  const paddingY = rendered.fontSize * 0.2
+  const textWidth = Math.max(
+    rendered.fontSize * 0.55,
+    ...rendered.lines.map((line) => textDisplayUnits(line) * rendered.fontSize)
+  )
+  const width = textWidth + paddingX * 2
+  const height =
+    Math.max(rendered.fontSize, rendered.lines.length * rendered.lineHeight) +
+    paddingY * 2
+  const left =
+    rendered.item.textAlign === "left"
+      ? rendered.x - paddingX
+      : rendered.item.textAlign === "right"
+        ? rendered.x - textWidth - paddingX
+        : rendered.x - width / 2
+  const top = rendered.y - rendered.fontSize * 0.55 - paddingY
+  const fill = color === "White Background" ? "#ffffff" : "#111111"
+  return `<rect data-text-background="${escapeXml(rendered.item.id)}" x="${left}" y="${top}" width="${width}" height="${height}" rx="${Math.max(4, rendered.fontSize * 0.12)}" fill="${fill}" fill-opacity="0.9"/>`
 }
 
 function textItemY(
@@ -198,7 +297,10 @@ function textItemY(
   slideHeight: number,
   blockHeight: number
 ) {
-  const safeMargin = Math.max(32, slideHeight * 0.16)
+  const safeMargin =
+    item.textVerticalAnchor === "flush"
+      ? Math.max(20, slideHeight * 0.05)
+      : Math.max(32, slideHeight * 0.16)
   if (item.textPlacement === "top") {
     return Math.round(safeMargin)
   }
@@ -219,7 +321,10 @@ function textItemX(
   slideWidth: number,
   textBoxWidth: number
 ) {
-  const safeMargin = Math.max(20, slideWidth * 0.05)
+  const safeMargin =
+    item.textAnchor === "flush"
+      ? Math.max(8, slideWidth * 0.015)
+      : Math.max(20, slideWidth * 0.1)
   const raw = clampPercent(item.textPosition.x) * slideWidth
   if (item.textAlign === "left") {
     const max = Math.max(safeMargin, slideWidth - textBoxWidth - safeMargin)
@@ -247,7 +352,7 @@ function parseFontSize(value: string) {
 
 function clampPercent(value: number) {
   const normalized = Number.isFinite(value) ? value : 50
-  return Math.min(0.95, Math.max(0.05, normalized / 100))
+  return Math.min(1, Math.max(0, normalized / 100))
 }
 
 function svgTextAnchor(value: string | undefined) {
@@ -259,7 +364,8 @@ function svgTextAnchor(value: string | undefined) {
 function textFill(style: string) {
   const editorColor = textStyleToEditorColor(style)
   if (editorColor === "Yellow Text") return "#fff176"
-  if (editorColor === "Black Text") return "#111111"
+  if (editorColor === "Black Text" || editorColor === "White Background")
+    return "#111111"
   return "#ffffff"
 }
 

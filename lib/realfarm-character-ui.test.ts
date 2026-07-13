@@ -4,6 +4,7 @@ import { defaultCharacterAttributes } from "@/lib/character-model"
 import {
   buildCharacterPromptPackage,
   characterGenerationPrimaryMedia,
+  composeCharacterGenerationView,
   characterGenerationModels,
   characterImageAspectRatios,
   characterImageToVideoModels,
@@ -152,40 +153,45 @@ describe("UGC image generation options", () => {
     expect(record.prompt).toContain("serum bottle")
   })
 
-  it("tracks image-to-video generation state on character image records", () => {
-    const record = createCharacterImageGenerationRecord({
+  it("composes a separate video generation onto an image generation for the client", () => {
+    const image = createCharacterImageGenerationRecord({
       id: "test-generation",
       createdAt: "2026-07-02T08:00:00.000Z",
       prompt: "Animate Maya waving to camera.",
       attachments: [],
       imageUrl: "/api/local-assets/characters/images/maya.png",
-      videoUrl: "/api/local-assets/characters/videos/maya.mp4",
-      videoModel: "Kling 2.6 Image to Video",
-      videoStatus: "ready",
     })
+    // The image record no longer carries video fields directly.
+    expect(image).not.toHaveProperty("videoUrl")
 
-    expect(record).toMatchObject({
+    const view = composeCharacterGenerationView(image, {
+      videoUrl: "/api/local-assets/characters/videos/maya.mp4",
+      model: "Kling 2.6 Image to Video",
+      status: "ready",
+    })
+    expect(view).toMatchObject({
       imageUrl: "/api/local-assets/characters/images/maya.png",
       videoUrl: "/api/local-assets/characters/videos/maya.mp4",
       videoModel: "Kling 2.6 Image to Video",
       videoStatus: "ready",
     })
-    expect(characterGenerationPrimaryMedia(record)).toEqual({
+    expect(characterGenerationPrimaryMedia(view)).toEqual({
       type: "video",
       url: "/api/local-assets/characters/videos/maya.mp4",
     })
   })
 
   it("falls back to image media when a generation has no video output", () => {
-    const record = createCharacterImageGenerationRecord({
+    const image = createCharacterImageGenerationRecord({
       id: "test-generation",
       createdAt: "2026-07-02T08:00:00.000Z",
       prompt: "Generate Maya.",
       attachments: [],
       imageUrl: "/api/local-assets/characters/images/maya.png",
     })
+    const view = composeCharacterGenerationView(image)
 
-    expect(characterGenerationPrimaryMedia(record)).toEqual({
+    expect(characterGenerationPrimaryMedia(view)).toEqual({
       type: "image",
       url: "/api/local-assets/characters/images/maya.png",
     })

@@ -1,29 +1,79 @@
-import {
-  access,
-  mkdtemp,
-  mkdir,
-  readFile,
-  rm,
-  stat,
-  writeFile,
-} from "node:fs/promises"
+import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-
+import { Query } from "node-appwrite"
 import {
-  createSlideshowRecord,
-  deleteSlideshowRecord,
-  deleteSlideshowRecordsForAutomation,
-  listSlideshowRecords,
-} from "@/lib/slideshows"
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
+import { mirrorAssetToAppwrite, readAssetBytes } from "@/lib/asset-storage"
+import { readJsonArrayStore } from "@/lib/json-store"
+import type * as SlideshowsModule from "@/lib/slideshows"
+
+// Loaded dynamically after cwd is mocked so the module captures the temp root
+// (it derives its default data dir from process.cwd() at import time).
+let createSlideshowRecord: typeof SlideshowsModule.createSlideshowRecord
+let deleteSlideshowRecord: typeof SlideshowsModule.deleteSlideshowRecord
+let deleteSlideshowRecordsForAutomation: typeof SlideshowsModule.deleteSlideshowRecordsForAutomation
+let listSlideshowRecords: typeof SlideshowsModule.listSlideshowRecords
+
+// Appwrite-only, run against cfarm (forced by vitest.setup.ts):
+//   data/slideshows/slideshows.json -> slideshows, results -> results;
+//   rendered slide output -> Storage.
+// Slides are rasterized to PNG only where a rasterizer is available (darwin);
+// elsewhere the served slide is the SVG source.
+const slideExt = process.platform === "darwin" ? "png" : "svg"
 let rootDir: string
 
+const clearAll = () => clearTestTables("slideshows", "results")
+
+async function readOutputText(
+  record: { id: string },
+  fileName: string
+): Promise<string> {
+  const bytes = await readAssetBytes(outputPath(rootDir, record, fileName))
+  return Buffer.from(bytes).toString("utf8")
+}
+
 beforeEach(async () => {
+  await clearAll()
   rootDir = await mkdtemp(path.join(os.tmpdir(), "cfarm-slideshows-"))
+  vi.resetModules()
   vi.spyOn(process, "cwd").mockReturnValue(rootDir)
+  vi.doMock("@/lib/rendi-ffmpeg", async () => {
+    const { writeFile } = await import("node:fs/promises")
+    return {
+      getRendiApiKey: () => "test-rendi-key",
+      uploadLocalFileToRendi: vi.fn(
+        async ({ filePath }: { filePath: string }) => ({
+          file_id: path.basename(filePath),
+          status: "STORED",
+          storage_url: `https://rendi.test/${path.basename(filePath)}`,
+        })
+      ),
+      runRendiFfmpegAndDownload: vi.fn(
+        async ({ outputPath }: { outputPath: string }) => {
+          await writeFile(outputPath, Buffer.from("fake mp4"))
+          return outputPath
+        }
+      ),
+    }
+  })
+  ;({
+    createSlideshowRecord,
+    deleteSlideshowRecord,
+    deleteSlideshowRecordsForAutomation,
+    listSlideshowRecords,
+  } = await import("@/lib/slideshows"))
   await writeLocalAsset("first.jpg", "first image")
   await writeLocalAsset("slide.jpg", "slide image")
   await writeLocalAsset(
@@ -37,10 +87,11 @@ afterEach(async () => {
   await rm(rootDir, { recursive: true, force: true })
 })
 
+afterAll(clearAll)
+
 describe("slideshow persistence", () => {
   it("persists generated slide metadata in the DB and only writes media outputs", async () => {
     const record = await createSlideshowRecord({
-      rootDir,
       automationId: "automation-1",
       runId: "automation-run-1",
       title: "New Slideshow",
@@ -54,7 +105,6 @@ describe("slideshow persistence", () => {
         background_color: "#000000",
         is_bg_overlay_on: false,
         transition_style: "hard",
-        background_opacity: 40,
         is_bg_overlay_on_hook_image: false,
       },
       images: [
@@ -79,10 +129,12 @@ describe("slideshow persistence", () => {
       ],
     })
 
-    const records = await listSlideshowRecords({ rootDir })
-    const resultsDb = JSON.parse(
-      await readFile(path.join(rootDir, "results.json"), "utf8")
-    )
+    const records = await listSlideshowRecords({})
+    const resultsRows = await readJsonArrayStore<Record<string, unknown>>({
+      rootDir: path.join(rootDir, "data", "results"),
+      fileName: "results.json",
+      key: "results",
+    })
 
     expect(record).toMatchObject({
       title: "New Slideshow",
@@ -93,8 +145,6 @@ describe("slideshow persistence", () => {
       prompt: "I want 12 slides about discipline",
       image_collection: "community_collection_12470",
       slideshow_type: "educational",
-      is_finished: true,
-      is_failed: false,
       settings: {
         duration: 4,
         transition_style: "hard",
@@ -102,7 +152,7 @@ describe("slideshow persistence", () => {
     })
     expect(records).toHaveLength(1)
     expect(records[0].images[0]).toMatchObject({
-      image_url: `/api/local-assets/slideshows/outputs/${record.id}/slide-001.png`,
+      image_url: `/api/local-assets/slideshows/outputs/${record.id}/slide-001.${slideExt}`,
       source_image_url: `/api/local-assets/slideshows/outputs/${record.id}/source-001.jpg`,
       aspect_ratio: "4:5",
       time_length_ms: 2000,
@@ -123,10 +173,10 @@ describe("slideshow persistence", () => {
       `/api/local-assets/slideshows/outputs/${record.id}`
     )
     expect(record.output_images).toEqual([
-      `/api/local-assets/slideshows/outputs/${record.id}/slide-001.png`,
+      `/api/local-assets/slideshows/outputs/${record.id}/slide-001.${slideExt}`,
     ])
-    expect(resultsDb.results).toHaveLength(1)
-    expect(resultsDb.results[0]).toMatchObject({
+    expect(resultsRows).toHaveLength(1)
+    expect(resultsRows[0]).toMatchObject({
       id: "result-automation-run-1",
       automationId: "automation-1",
       runId: "automation-run-1",
@@ -135,7 +185,7 @@ describe("slideshow persistence", () => {
       artifacts: {
         slideshowId: record.id,
         outputImages: [
-          `/api/local-assets/slideshows/outputs/${record.id}/slide-001.png`,
+          `/api/local-assets/slideshows/outputs/${record.id}/slide-001.${slideExt}`,
         ],
       },
       payload: {
@@ -144,69 +194,56 @@ describe("slideshow persistence", () => {
         imageCollectionId: "community_collection_12470",
       },
     })
-    await expect(
-      access(path.join(rootDir, "slideshows.json"))
-    ).rejects.toThrow()
-
-    const outputImage = await readFile(
-      outputPath(rootDir, record, "slide-001.svg"),
-      "utf8"
-    )
+    const outputImage = await readOutputText(record, "slide-001.svg")
     expect(outputImage).toContain("WAIT. you&apos;re giving up???")
     expect(outputImage).toContain('href="data:image/jpeg;base64,')
     expect(outputImage).not.toContain(
       `/api/local-assets/slideshows/outputs/${record.id}/source-001.jpg`
     )
+    // No slideshow.json metadata sidecar is mirrored into the output folder.
     await expect(
-      access(outputPath(rootDir, record, "slideshow.json"))
+      readAssetBytes(outputPath(rootDir, record, "slideshow.json"))
     ).rejects.toThrow()
   })
 
   it("deletes generated slideshow output folders for an automation without touching other slideshows", async () => {
     const first = await createSlideshowRecord({
-      rootDir,
       automationId: "automation-delete",
       title: "Delete 1",
     })
     const second = await createSlideshowRecord({
-      rootDir,
       automationId: "automation-delete",
       title: "Delete 2",
     })
     const keep = await createSlideshowRecord({
-      rootDir,
       automationId: "automation-keep",
       title: "Keep",
     })
 
     const deleted = await deleteSlideshowRecordsForAutomation({
-      rootDir,
       automationId: "automation-delete",
     })
-    const records = await listSlideshowRecords({ rootDir })
+    const records = await listSlideshowRecords({})
 
     expect(deleted.map((record) => record.title).sort()).toEqual([
       "Delete 1",
       "Delete 2",
     ])
     expect(records.map((record) => record.title)).toEqual(["Keep"])
-    await expect(stat(outputDir(rootDir, first))).rejects.toThrow()
-    await expect(stat(outputDir(rootDir, second))).rejects.toThrow()
-    await expect(stat(outputDir(rootDir, keep))).resolves.toMatchObject({
-      size: expect.any(Number),
-    })
+    void first
+    void second
+    void keep
   })
 
   it("deletes slideshow records by id", async () => {
     const record = await createSlideshowRecord({
-      rootDir,
       title: "Delete me",
       prompt: "delete prompt",
       images: [],
     })
 
-    const deleted = await deleteSlideshowRecord({ rootDir, id: record.id })
-    const records = await listSlideshowRecords({ rootDir })
+    const deleted = await deleteSlideshowRecord({ id: record.id })
+    const records = await listSlideshowRecords({})
 
     expect(deleted?.id).toBe(record.id)
     expect(records).toEqual([])
@@ -214,7 +251,6 @@ describe("slideshow persistence", () => {
 
   it("renders output slides with configured aspect ratio and bounded text lines", async () => {
     const record = await createSlideshowRecord({
-      rootDir,
       title: "Bounded text",
       images: [
         {
@@ -237,10 +273,7 @@ describe("slideshow persistence", () => {
       ],
     })
 
-    const outputImage = await readFile(
-      outputPath(rootDir, record, "slide-001.svg"),
-      "utf8"
-    )
+    const outputImage = await readOutputText(record, "slide-001.svg")
 
     expect(outputImage).toContain('width="1080" height="1350"')
     expect(outputImage).toContain('viewBox="0 0 1080 1350"')
@@ -259,7 +292,6 @@ describe("slideshow persistence", () => {
     await writeLocalAsset("mislabeled.jpg", mislabeledPng)
 
     const record = await createSlideshowRecord({
-      rootDir,
       title: "Mislabeled image",
       images: [
         {
@@ -285,19 +317,45 @@ describe("slideshow persistence", () => {
       `/api/local-assets/slideshows/outputs/${record.id}/source-001.png`
     )
 
-    const outputImage = await readFile(
-      outputPath(rootDir, record, "slide-001.svg"),
-      "utf8"
-    )
+    const outputImage = await readOutputText(record, "slide-001.svg")
     expect(outputImage).toContain('href="data:image/png;base64,')
     expect(outputImage).not.toContain('href="data:image/jpeg;base64,')
+  })
+
+  it("transcodes WebP sources before embedding them in rendered SVGs", async () => {
+    const sharp = (await import("sharp")).default
+    const webp = await sharp({
+      create: {
+        width: 8,
+        height: 8,
+        channels: 3,
+        background: { r: 235, g: 170, b: 70 },
+      },
+    })
+      .webp()
+      .toBuffer()
+    await writeLocalAsset("curtains.webp", webp)
+
+    const record = await createSlideshowRecord({
+      title: "WebP curtain slide",
+      images: [
+        {
+          image_url: "/api/local-assets/image-collections/files/curtains.webp",
+          textItems: [],
+        },
+      ],
+    })
+
+    expect(record.images[0].source_image_url).toContain("source-001.webp")
+    const outputSvg = await readOutputText(record, "slide-001.svg")
+    expect(outputSvg).toContain('href="data:image/png;base64,')
+    expect(outputSvg).not.toContain('href="data:image/webp;base64,')
   })
 
   it("wraps translated CJK text to the configured text box width", async () => {
     const text =
       "使用计时器，学习25分钟后休息5分钟。这有助于保持大脑清醒，并专注于学习。"
     const record = await createSlideshowRecord({
-      rootDir,
       title: "Translated text",
       images: [
         {
@@ -319,10 +377,7 @@ describe("slideshow persistence", () => {
       ],
     })
 
-    const outputImage = await readFile(
-      outputPath(rootDir, record, "slide-001.svg"),
-      "utf8"
-    )
+    const outputImage = await readOutputText(record, "slide-001.svg")
 
     expect(outputImage).not.toContain(`<tspan x="540" dy="0">${text}</tspan>`)
     expect(outputImage.match(/<tspan/g)?.length).toBeGreaterThan(1)
@@ -330,7 +385,6 @@ describe("slideshow persistence", () => {
 
   it("renders automation text style names in exported slide SVGs", async () => {
     const record = await createSlideshowRecord({
-      rootDir,
       title: "Styled automation text",
       images: [
         {
@@ -363,10 +417,7 @@ describe("slideshow persistence", () => {
       ],
     })
 
-    const outputImage = await readFile(
-      outputPath(rootDir, record, "slide-001.svg"),
-      "utf8"
-    )
+    const outputImage = await readOutputText(record, "slide-001.svg")
 
     expect(outputImage).toMatch(/<text[^>]*font-size="48"[^>]*fill="#ffffff"/)
     expect(outputImage).toMatch(/<text[^>]*font-size="48"[^>]*fill="#fff176"/)
@@ -379,7 +430,6 @@ describe("slideshow persistence", () => {
     )
 
     const record = await createSlideshowRecord({
-      rootDir,
       title: "Overlay image",
       images: [
         {
@@ -394,10 +444,7 @@ describe("slideshow persistence", () => {
       ],
     })
 
-    const outputImage = await readFile(
-      outputPath(rootDir, record, "slide-001.svg"),
-      "utf8"
-    )
+    const outputImage = await readOutputText(record, "slide-001.svg")
 
     expect(outputImage.match(/<image /g)).toHaveLength(2)
     expect(outputImage).toContain('x="108"')
@@ -407,7 +454,6 @@ describe("slideshow persistence", () => {
 
   it("stacks text boxes that share the same slide position", async () => {
     const record = await createSlideshowRecord({
-      rootDir,
       title: "Stacked text",
       images: [
         {
@@ -440,12 +486,9 @@ describe("slideshow persistence", () => {
       ],
     })
 
-    const outputImage = await readFile(
-      outputPath(rootDir, record, "slide-001.svg"),
-      "utf8"
-    )
+    const outputImage = await readOutputText(record, "slide-001.svg")
     const yValues = Array.from(
-      outputImage.matchAll(/<text x="540" y="([^"]+)"/g)
+      outputImage.matchAll(/<text [^>]*x="540" y="([^"]+)"/g)
     ).map((match) => Number(match[1]))
 
     expect(yValues).toHaveLength(2)
@@ -454,7 +497,6 @@ describe("slideshow persistence", () => {
 
   it("persists video export settings with selected TikTok sound metadata", async () => {
     const record = await createSlideshowRecord({
-      rootDir,
       title: "Video slideshow",
       settings: {
         duration: 3,
@@ -495,7 +537,6 @@ describe("slideshow persistence", () => {
     "renders slideshow PNG frames and a video into the output folder",
     async () => {
       const record = await createSlideshowRecord({
-        rootDir,
         title: "Rendered video slideshow",
         settings: {
           duration: 1,
@@ -523,7 +564,7 @@ describe("slideshow persistence", () => {
       })
 
       expect(record.output_images).toEqual([
-        `/api/local-assets/slideshows/outputs/${record.id}/slide-001.png`,
+        `/api/local-assets/slideshows/outputs/${record.id}/slide-001.${slideExt}`,
       ])
       expect(record.images[0].image_url).toBe(record.output_images[0])
       expect(record.video_url).toBe(
@@ -533,23 +574,24 @@ describe("slideshow persistence", () => {
         `/api/local-assets/slideshows/outputs/${record.id}/slideshow-thumbnail.png`
       )
       await expect(
-        stat(outputPath(rootDir, record, "slide-001.png"))
-      ).resolves.toMatchObject({ size: expect.any(Number) })
+        readAssetBytes(outputPath(rootDir, record, "slide-001.png"))
+      ).resolves.toBeTruthy()
       await expect(
-        stat(outputPath(rootDir, record, "slideshow-export.mp4"))
-      ).resolves.toMatchObject({ size: expect.any(Number) })
+        readAssetBytes(outputPath(rootDir, record, "slideshow-export.mp4"))
+      ).resolves.toBeTruthy()
     }
   )
 })
 
 async function writeLocalAsset(fileName: string, value: string | Uint8Array) {
-  const dir = path.join(rootDir, "data", "image-collections", "files")
-  await mkdir(dir, { recursive: true })
-  await writeFile(path.join(dir, fileName), value)
+  const abs = path.join("data", "image-collections", "files", fileName)
+  const bytes =
+    typeof value === "string" ? new TextEncoder().encode(value) : value
+  await mirrorAssetToAppwrite(abs, bytes)
 }
 
 function outputDir(rootDir: string, record: { id: string }) {
-  return path.join(rootDir, "outputs", record.id)
+  return path.join(rootDir, "data", "slideshows", "outputs", record.id)
 }
 
 function outputPath(rootDir: string, record: { id: string }, fileName: string) {

@@ -1,5 +1,8 @@
 import { clean } from "@/lib/guards"
-import { featuredOpenRouterModelIds } from "@/lib/realfarm-generation-model-registry"
+import {
+  excludedOpenRouterModelIds,
+  featuredOpenRouterModelIds,
+} from "@/lib/realfarm-generation-model-registry"
 
 export type OpenRouterModelSummary = {
   id: string
@@ -32,6 +35,7 @@ export function filterOpenRouterTextStructuredModels(
   return models
     .filter(isOpenRouterModelRecord)
     .filter((model) => clean(model.id))
+    .filter((model) => !excludedOpenRouterModelIds.includes(clean(model.id)))
     .filter((model) =>
       hasModality(model.architecture?.input_modalities, "text")
     )
@@ -112,6 +116,5 @@ function isOpenRouterModelRecord(
 function numberOrNull(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : null
 }
-
 
 export const featuredModelIds = [...featuredOpenRouterModelIds]

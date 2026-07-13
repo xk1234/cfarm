@@ -26,6 +26,7 @@ afterEach(() => {
 
 describe("POST /api/pinterest/search", () => {
   it("returns a configuration error when APIFY_KEY is missing", async () => {
+    vi.stubEnv("APIFY_KEY", "")
     const response = await POST(
       new Request("http://localhost/api/pinterest/search", {
         method: "POST",

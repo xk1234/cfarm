@@ -1,6 +1,86 @@
 {
   "collections": [
     {
+      "id": "month",
+      "name": "month",
+      "description": "Calendar months",
+      "words": [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December"
+      ],
+      "source": "manual",
+      "created_at": "2026-07-12T00:00:00.000Z",
+      "updated_at": "2026-07-12T00:00:00.000Z"
+    },
+    {
+      "id": "days",
+      "name": "days",
+      "description": "Days of the week",
+      "words": [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday"
+      ],
+      "source": "manual",
+      "created_at": "2026-07-12T00:00:00.000Z",
+      "updated_at": "2026-07-12T00:00:00.000Z"
+    },
+    {
+      "id": "singapore_areas",
+      "name": "singapore_areas",
+      "description": "Major Singapore neighborhoods and towns",
+      "words": [
+        "Ang Mo Kio",
+        "Bedok",
+        "Bishan",
+        "Bukit Batok",
+        "Bukit Merah",
+        "Bukit Panjang",
+        "Bukit Timah",
+        "Central Business District",
+        "Changi",
+        "Choa Chu Kang",
+        "Clementi",
+        "Geylang",
+        "Hougang",
+        "Jurong East",
+        "Jurong West",
+        "Kallang",
+        "Marine Parade",
+        "Novena",
+        "Orchard",
+        "Pasir Ris",
+        "Paya Lebar",
+        "Punggol",
+        "Queenstown",
+        "Sembawang",
+        "Sengkang",
+        "Serangoon",
+        "Tampines",
+        "Tanjong Pagar",
+        "Toa Payoh",
+        "Woodlands",
+        "Yishun"
+      ],
+      "source": "manual",
+      "created_at": "2026-07-12T00:00:00.000Z",
+      "updated_at": "2026-07-12T00:00:00.000Z"
+    },
+    {
       "id": "market",
       "name": "market",
       "words": [
@@ -76,6 +156,16 @@
       "source": "manual",
       "created_at": "2026-07-07T13:44:31.802Z",
       "updated_at": "2026-07-08T13:13:41Z"
+    },
+    {
+      "id": "year",
+      "name": "year",
+      "words": [
+        "2026"
+      ],
+      "source": "system",
+      "created_at": "2026-07-12T00:00:00.000Z",
+      "updated_at": "2026-07-12T00:00:00.000Z"
     }
   ]
 }

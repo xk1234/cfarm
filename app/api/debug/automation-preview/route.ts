@@ -76,7 +76,7 @@ function automationSummaryFromInput(
   return {
     id,
     name,
-    status: stringValue(automationInput?.status) || "Live",
+    status: automationInput?.status === "paused" ? "paused" : "live",
     account: stringValue(automationInput?.account) || "No social account",
     handle: stringValue(automationInput?.handle),
     times: Array.isArray(automationInput?.times)

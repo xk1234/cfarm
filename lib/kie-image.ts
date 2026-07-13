@@ -1,6 +1,7 @@
-import { readFile } from "node:fs/promises"
 import path from "node:path"
 
+import { readAssetBytes } from "@/lib/asset-storage"
+import { toDataUrl } from "@/lib/data-url"
 import {
   kieFluxKontextModel,
   kieTopazImageUpscaleModel,
@@ -236,11 +237,11 @@ export async function prepareKieInputImageUrl(input: {
     return imageUrl
   }
 
-  const bytes = await readFile(localAssetPath)
+  const bytes = await readAssetBytes(localAssetPath)
   const fileName = `${Date.now()}-${path.basename(localAssetPath)}`
   return uploadKieBase64Image({
     apiKey: input.apiKey,
-    base64Data: `data:${contentTypeFor(localAssetPath)};base64,${bytes.toString("base64")}`,
+    base64Data: toDataUrl(bytes, contentTypeFor(localAssetPath)),
     fileName,
     uploadPath: "images/realfarm",
     fetchImpl: input.fetchImpl,
@@ -259,11 +260,11 @@ export async function prepareKieInputFileUrl(input: {
     return fileUrl
   }
 
-  const bytes = await readFile(localAssetPath)
+  const bytes = await readAssetBytes(localAssetPath)
   const fileName = `${Date.now()}-${path.basename(localAssetPath)}`
   return uploadKieBase64Image({
     apiKey: input.apiKey,
-    base64Data: `data:${contentTypeFor(localAssetPath)};base64,${bytes.toString("base64")}`,
+    base64Data: toDataUrl(bytes, contentTypeFor(localAssetPath)),
     fileName,
     uploadPath: input.uploadPath,
     fetchImpl: input.fetchImpl,
@@ -580,4 +581,62 @@ function fluxKontextModelSlug(value: unknown) {
   const model = clean(value).toLowerCase()
   if (model.includes("flux")) return kieFluxKontextModel
   return kieFluxKontextModel
+}
+
+// --- Combined create+poll helpers -------------------------------------------
+// The character routes all follow the same "create a task, then poll it to
+// completion" shape; these collapse the pair so callers only pass inputs +
+// poll cadence and get back the finished asset URL.
+
+/** Create a KIE market task and poll it to completion, returning the result URL. */
+export async function runKieMarketTask(input: {
+  apiKey: string
+  body: unknown
+  pollLimit: number
+  pollDelayMs: number
+  fetchImpl?: FetchLike
+}): Promise<{ taskId: string; url: string }> {
+  const taskId = await createKieMarketTask({
+    apiKey: input.apiKey,
+    body: input.body,
+    fetchImpl: input.fetchImpl,
+  })
+  const url = await pollKieMarketTask({
+    apiKey: input.apiKey,
+    taskId,
+    pollLimit: input.pollLimit,
+    pollDelayMs: input.pollDelayMs,
+    fetchImpl: input.fetchImpl,
+  })
+  return { taskId, url }
+}
+
+/** Create a Flux Kontext task and poll it to completion, returning the image URL. */
+export async function runFluxKontextTask(input: {
+  apiKey: string
+  prompt: string
+  inputImage?: string
+  aspectRatio: string
+  model?: string
+  pollLimit: number
+  pollDelayMs: number
+  fetchImpl?: FetchLike
+}): Promise<{ taskId: string; url: string }> {
+  const taskId = await createFluxKontextTask({
+    apiKey: input.apiKey,
+    prompt: input.prompt,
+    inputImage: input.inputImage,
+    aspectRatio: input.aspectRatio,
+    model: input.model,
+    fetchImpl: input.fetchImpl,
+  })
+  const url = await pollFluxKontextTask({
+    apiKey: input.apiKey,
+    taskId,
+    pollLimit: input.pollLimit,
+    pollDelayMs: input.pollDelayMs,
+    failedMessage: "Flux task failed",
+    timeoutMessage: "Flux task timed out",
+  })
+  return { taskId, url }
 }

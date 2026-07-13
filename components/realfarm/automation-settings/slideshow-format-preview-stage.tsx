@@ -12,9 +12,11 @@ export function SlideshowFormatPreviewStage({
   activeTextItem,
   selectedTextIndex,
   activePreviewIndex,
-  previewSlotWidth,
+  previewSlotWidths,
   previewGap,
   previewTrackOffset,
+  zoom,
+  onZoomChange,
   onSelectPreview,
   onSelectPreviewText,
   updateTextItem,
@@ -26,25 +28,49 @@ export function SlideshowFormatPreviewStage({
   activeTextItem: AutomationTextItem
   selectedTextIndex: number | null
   activePreviewIndex: number
-  previewSlotWidth: number
+  previewSlotWidths: number[]
   previewGap: number
   previewTrackOffset: number
+  zoom: number
+  onZoomChange: (zoom: number) => void
   onSelectPreview: (index: number, tab: SlideshowFormatTab) => void
-  onSelectPreviewText: (index: number, tab: SlideshowFormatTab) => void
+  onSelectPreviewText: (
+    index: number,
+    tab: SlideshowFormatTab,
+    textIndex: number
+  ) => void
   updateTextItem: (patch: Partial<AutomationTextItem>) => void
   onDeleteTextItem: () => void
   onAddTextItem: () => void
 }) {
   return (
-    <main className="relative min-h-0 overflow-hidden bg-[#b9b9b6]">
+    <main className="relative isolate min-h-0 min-w-0 overflow-hidden bg-[#b9b9b6]">
       <div
-        className={cn(
-          "overflow-hidden",
-          selectedTextIndex !== null
-            ? "h-[315px] pt-[92px]"
-            : "h-full pt-[168px]"
-        )}
+        className="absolute top-4 right-4 z-20 flex items-center rounded-[9px] border border-black/10 bg-white/92 p-1 shadow-sm backdrop-blur"
       >
+        <button
+          type="button"
+          className="grid size-8 place-items-center rounded-[6px] text-[#565663] hover:bg-[#f0eef8] disabled:opacity-35"
+          disabled={zoom <= 1}
+          onClick={() => onZoomChange(Math.max(1, zoom - 0.25))}
+          aria-label="Zoom out slideshow preview"
+        >
+          <IconMinus className="size-4" />
+        </button>
+        <span className="w-12 text-center text-xs font-semibold text-[#30303a] tabular-nums">
+          {zoom.toFixed(2).replace(/\.00$/, "").replace(/0$/, "")}×
+        </span>
+        <button
+          type="button"
+          className="grid size-8 place-items-center rounded-[6px] text-[#565663] hover:bg-[#f0eef8] disabled:opacity-35"
+          disabled={zoom >= 2}
+          onClick={() => onZoomChange(Math.min(2, zoom + 0.25))}
+          aria-label="Zoom in slideshow preview"
+        >
+          <IconPlus className="size-4" />
+        </button>
+      </div>
+      <div className="h-full overflow-x-hidden overflow-y-auto pt-[168px]">
         <div
           className="flex items-start transition-transform duration-500 ease-[cubic-bezier(.22,1,.36,1)]"
           style={{
@@ -58,12 +84,19 @@ export function SlideshowFormatPreviewStage({
               item={item}
               index={index}
               active={activePreviewIndex === index}
-              slotWidth={previewSlotWidth}
-              selectedText={
-                selectedTextIndex !== null && activePreviewIndex === index
+              slotWidth={previewSlotWidths[index]}
+              zoom={zoom}
+              compact={false}
+              selectedTextIndex={
+                activePreviewIndex === index ? selectedTextIndex : null
               }
               onSelect={() => onSelectPreview(index, item.tab)}
-              onSelectText={() => onSelectPreviewText(index, item.tab)}
+              onSelectText={(textIndex) =>
+                onSelectPreviewText(index, item.tab, textIndex)
+              }
+              onAddText={
+                activePreviewIndex === index ? onAddTextItem : undefined
+              }
             />
           ))}
         </div>
@@ -94,3 +127,4 @@ export function SlideshowFormatPreviewStage({
     </main>
   )
 }
+import { IconMinus, IconPlus } from "@tabler/icons-react"

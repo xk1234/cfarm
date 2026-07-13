@@ -88,6 +88,34 @@ describe("OpenRouter model filtering", () => {
     ])
   })
 
+  it("uses Kimi 2.7, MiMo 2.5, and Grok 4.5 instead of the retired shortlist models", () => {
+    const ids = [
+      "nvidia/nemotron-3-super-120b-a12b:free",
+      "ai21/jamba-large-1.7",
+      "x-ai/grok-4.3",
+      "moonshotai/kimi-k2.7",
+      "xiaomi/mimo-v2.5",
+      "x-ai/grok-4.5",
+    ]
+    const models = filterOpenRouterTextStructuredModels(
+      ids.map((id) =>
+        model({
+          id,
+          name: id,
+          input: ["text"],
+          output: ["text"],
+          params: ["response_format"],
+        })
+      )
+    )
+
+    expect(models.map((item) => item.id)).toEqual([
+      "moonshotai/kimi-k2.7",
+      "x-ai/grok-4.5",
+      "xiaomi/mimo-v2.5",
+    ])
+  })
+
   it("limits the shortlist to 10 models and max 2 per provider", () => {
     const models = filterOpenRouterTextStructuredModels([
       ...Array.from({ length: 5 }, (_, index) =>

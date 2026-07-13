@@ -17,8 +17,8 @@ import {
   type AutomationImageGrid,
   type AutomationImageMode,
   type AutomationSchema,
-  type AutomationTemplate as RuntimeAutomationTemplate,
   type AutomationTextItem,
+  type RuntimeAutomationTemplate,
 } from "@/lib/realfarm-automation"
 import type { Automation } from "@/lib/realfarm-data"
 import { defaultAutomationPublishType } from "@/lib/slideshow-publishing-config"
@@ -30,6 +30,9 @@ export type AutomationTemplateTone =
   | "Bold & Provocative"
   | "Calm & Reflective"
   | "Witty & Humorous"
+  | "Witty & Relatable"
+  | "Practical & Aspirational"
+  | "Authoritative & Reassuring"
   | "Custom"
 
 export type AutomationTemplateTextItem = {
@@ -154,12 +157,55 @@ export async function listAutomationTemplateRecords(
 export async function listAutomationTemplateExampleRuns(
   options: { rootDir?: string } = {}
 ) {
-  return await readJsonArrayStore({
-    rootDir: options.rootDir ?? defaultRootDir,
+  const rootDir = options.rootDir ?? defaultRootDir
+  const records = await readJsonArrayStore({
+    rootDir,
     fileName: exampleRunsFileName,
     key: "runs",
     normalize: normalizeAutomationTemplateExampleRun,
   })
+
+  if (path.resolve(rootDir) !== path.resolve(defaultRootDir)) {
+    return records
+  }
+
+  const seedRecords = await readAutomationTemplateExampleRunSeeds(rootDir)
+  return appendMissingAutomationTemplateExampleRunSeeds(records, seedRecords)
+}
+
+async function readAutomationTemplateExampleRunSeeds(rootDir: string) {
+  try {
+    const contents = await readFile(
+      path.join(rootDir, exampleRunsFileName),
+      "utf8"
+    )
+    const parsed = JSON.parse(contents) as Record<string, unknown>
+    const runs = parsed.runs
+    if (!Array.isArray(runs)) return []
+    return runs.flatMap((run) => {
+      const normalized = normalizeAutomationTemplateExampleRun(
+        run as AutomationTemplateExampleRun
+      )
+      return normalized ? [normalized] : []
+    })
+  } catch {
+    return []
+  }
+}
+
+function appendMissingAutomationTemplateExampleRunSeeds(
+  records: AutomationTemplateExampleRun[],
+  seedRecords: AutomationTemplateExampleRun[]
+) {
+  const ids = new Set(records.map((record) => record.id))
+  return [
+    ...records,
+    ...seedRecords.filter((record) => {
+      if (ids.has(record.id)) return false
+      ids.add(record.id)
+      return true
+    }),
+  ]
 }
 
 async function readAutomationTemplateSeedRecords(rootDir: string) {
@@ -207,12 +253,19 @@ function automationTemplateIdentityKey(record: AutomationTemplateRecord) {
 export function groupAutomationTemplateExampleRunsByTemplateId(
   runs: AutomationTemplateExampleRun[]
 ) {
-  return runs.reduce<Record<string, AutomationTemplateExampleRun[]>>(
+  const groups = runs.reduce<Record<string, AutomationTemplateExampleRun[]>>(
     (groups, run) => {
       groups[run.templateId] = [...(groups[run.templateId] ?? []), run]
       return groups
     },
     {}
+  )
+
+  return Object.fromEntries(
+    Object.entries(groups).map(([templateId, templateRuns]) => [
+      templateId,
+      templateRuns.slice(0, 3),
+    ])
   )
 }
 
@@ -268,7 +321,8 @@ export function automationTemplateRecordToSummary(
     id: record.id,
     automationKind: automationTemplateKind(record),
     name: record.name,
-    status: "Template",
+    // Templates are not lifecycle automations; the view type requires a status.
+    status: "live",
     account: "",
     handle: "",
     times: [],
@@ -409,8 +463,10 @@ function automationSchemaToTemplateFormat(
     content: {
       aspect_ratio: content.aspect_ratio,
       image_grid: content.imageGrid,
-      slide_count_mode: "static",
+      slide_count_mode: content.slideCountMode ?? "static",
       slide_count: content.slideCount,
+      slide_count_min: content.slideCountMin,
+      slide_count_max: content.slideCountMax,
       overlay: content.overlay,
       overlay_image: content.overlayImage
         ? {
@@ -450,7 +506,6 @@ function templateFormatToRuntime(
       slideCount: 1,
       noText: !format.hook.display_text,
       overlay: format.hook.overlay,
-      overlayOpacity: 25,
       textItems: format.hook.text_items.map(templateTextItemToRuntime),
     },
     {
@@ -462,9 +517,11 @@ function templateFormatToRuntime(
         format.content.slide_count_mode === "varying"
           ? (format.content.slide_count_min ?? format.content.slide_count ?? 1)
           : (format.content.slide_count ?? 1),
+      slideCountMode: format.content.slide_count_mode,
+      slideCountMin: format.content.slide_count_min,
+      slideCountMax: format.content.slide_count_max,
       noText: !format.content.display_text,
       overlay: format.content.overlay,
-      overlayOpacity: 25,
       overlayImage: format.content.overlay_image
         ? {
             enabled: format.content.overlay_image.enabled,
@@ -482,7 +539,6 @@ function templateFormatToRuntime(
       slideCount: format.cta.enabled ? 1 : 0,
       noText: !format.cta.display_text,
       overlay: format.cta.overlay,
-      overlayOpacity: 25,
       imageMode: format.cta.image_mode,
       textItems: format.cta.text_items.map(templateTextItemToRuntime),
     },
@@ -718,6 +774,11 @@ function toneLabel(value: string): AutomationTemplateTone {
   if (normalized === "bold & provocative") return "Bold & Provocative"
   if (normalized === "calm & reflective") return "Calm & Reflective"
   if (normalized === "witty & humorous") return "Witty & Humorous"
+  if (normalized === "witty & relatable") return "Witty & Relatable"
+  if (normalized === "practical & aspirational")
+    return "Practical & Aspirational"
+  if (normalized === "authoritative & reassuring")
+    return "Authoritative & Reassuring"
   if (normalized === "conversational & relatable")
     return "Conversational & Relatable"
   return "Custom"

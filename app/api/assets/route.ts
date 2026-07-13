@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { withHandler } from "@/lib/api"
 import {
   listAssetRecords,
   parseAssetCategory,
@@ -9,7 +10,7 @@ import {
 
 export const dynamic = "force-dynamic"
 
-export async function GET(request: Request) {
+export const GET = withHandler(async (request: Request) => {
   const { searchParams } = new URL(request.url)
   const assets = await listAssetRecords({
     scope: parseAssetScope(searchParams.get("scope")),
@@ -18,4 +19,4 @@ export async function GET(request: Request) {
   })
 
   return NextResponse.json({ assets })
-}
+})

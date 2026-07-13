@@ -28,9 +28,23 @@ const loremWords = [
 
 export function previewTextForTextItem(
   textItem:
-    | Partial<Pick<AutomationTextItem, "wordLengthMin" | "contentDirection">>
+    | Partial<
+        Pick<
+          AutomationTextItem,
+          | "wordLengthMin"
+          | "contentDirection"
+          | "textMode"
+          | "staticText"
+          | "text"
+        >
+      >
     | undefined
 ) {
+  if (textItem?.textMode === "static") {
+    const staticText = (textItem.staticText || textItem.text || "").trim()
+    if (staticText) return staticText
+  }
+
   const wordCount = Math.max(
     1,
     Math.min(

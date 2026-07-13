@@ -137,7 +137,7 @@ describe("template showcase generated previews", () => {
     ])
   })
 
-  it("does not paint an extra text overlay on hook slide previews", () => {
+  it("does not paint extra text over any already-rendered slide preview", () => {
     const markup = TemplateGeneratedPreview({
       exampleSlides: [
         {
@@ -149,7 +149,7 @@ describe("template showcase generated previews", () => {
         {
           id: "content-slide",
           imageUrl: "https://example.com/content.jpg",
-          text: "content overlay",
+          text: "content already in image",
           section: "content",
         },
       ],
@@ -159,6 +159,6 @@ describe("template showcase generated previews", () => {
     const rendered = JSON.stringify(markup)
 
     expect(rendered.match(/hook already in image/g)?.length).toBe(1)
-    expect(rendered.match(/content overlay/g)?.length).toBe(2)
+    expect(rendered.match(/content already in image/g)?.length).toBe(1)
   })
 })

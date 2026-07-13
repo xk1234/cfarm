@@ -1,7 +1,11 @@
-import { mkdir, readFile, rm } from "node:fs/promises"
+import { mkdir } from "node:fs/promises"
 import path from "node:path"
 
-import { deleteAssetFromAppwrite, persistAsset } from "@/lib/asset-storage"
+import {
+  deleteAssetFromAppwrite,
+  persistAsset,
+  readAssetBytes,
+} from "@/lib/asset-storage"
 import { cleanCollapsedWhitespace as clean } from "@/lib/guards"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 import { fetchWithTimeout } from "@/lib/http"
@@ -96,7 +100,14 @@ export type IndustryBenchmark = {
   comparison: string
 }
 
-export type SwipeRecord = {
+// --- SwipeRecord field groups -------------------------------------------------
+// SwipeRecord is a wide record; it is composed from these named groups by
+// intersection so the persisted (flat) JSON shape is unchanged while the model
+// documents which fields belong together.
+
+/** Identity + where the ad came from. */
+export type SwipeIdentity = {
+  ownerId?: string
   id: string
   advertiser: string
   platform: SwipePlatform
@@ -107,11 +118,25 @@ export type SwipeRecord = {
   format: SwipeFormat
   cta?: string
   landingPageUrl?: string
+  swipedAt: string
+  uploaded_at?: string
+  time?: number
+}
+
+/** Downloaded media + landing-page capture artifacts. */
+export type SwipeMediaFields = {
   mediaUrl?: string
   mediaUrls?: string[]
   source_video_url?: string
-  uploaded_at?: string
-  time?: number
+  screenshotPath?: string
+  landingPageMobileScreenshotPath?: string
+  landingPageDesktopScreenshotPath?: string
+  landingPageCapturedAt?: string
+  landingPageCaptureError?: string
+}
+
+/** Engagement counts + performance-rank signals. */
+export type SwipeEngagement = {
   likes?: number
   comments?: number
   shares?: number
@@ -122,34 +147,52 @@ export type SwipeRecord = {
   remain_rank?: string
   budget_level?: BudgetLevel
   industry_benchmark?: IndustryBenchmark
+  metadata: Record<string, string>
+  stats: Record<string, string>
+}
+
+/** AI-derived analysis of the ad. */
+export type SwipeAnalysis = {
   full_script_transcription?: FullScriptTranscription
   core_ugc_aesthetic_analysis?: CoreUgcAestheticAnalysis
-  screenshotPath?: string
-  landingPageMobileScreenshotPath?: string
-  landingPageDesktopScreenshotPath?: string
-  landingPageCapturedAt?: string
-  landingPageCaptureError?: string
+}
+
+/** Async processing lifecycle for analysis/capture. */
+export type SwipeProcessing = {
   processingStatus?: SwipeProcessingStatus
   processingStartedAt?: string
   processingCompletedAt?: string
   processingError?: string
-  swipedAt: string
-  metadata: Record<string, string>
-  stats: Record<string, string>
+}
+
+/**
+ * B1 organization (additive, optional): boards replace the single folder,
+ * free-form tags/notes/rating, and where the swipe was saved from.
+ */
+export type SwipeOrganization = {
   folder: string
-  // B1 organization (additive, optional): boards replace the single folder,
-  // free-form tags/notes/rating, and where the swipe was saved from.
   boards?: string[]
   tags?: string[]
   notes?: string
   rating?: number
   saved_from_url?: string
   suggested_tags?: string[]
-  // B2 longevity tracking (additive, optional).
+}
+
+/** B2 longevity tracking (additive, optional). */
+export type SwipeLongevity = {
   first_seen_at?: string
   last_seen_at?: string
   times_seen?: number
 }
+
+export type SwipeRecord = SwipeIdentity &
+  SwipeMediaFields &
+  SwipeEngagement &
+  SwipeAnalysis &
+  SwipeProcessing &
+  SwipeOrganization &
+  SwipeLongevity
 
 export type SwipePayload = Partial<
   Omit<SwipeRecord, "id" | "swipedAt" | "screenshotPath">
@@ -203,21 +246,30 @@ export async function createSwipe(payload: SwipePayload): Promise<SwipeRecord> {
   const shouldDownloadMediaUrls =
     inputMediaUrls.length > 1 || (!inputMediaUrl && inputMediaUrls.length === 1)
   const savedMediaItems = shouldDownloadMediaUrls
-    ? (await Promise.all(
-        inputMediaUrls.map((url, index) =>
-          isRemoteUrl(url)
-            ? saveRemoteMedia(id, url, `media-${index + 1}`)
-            : Promise.resolve(undefined)
+    ? (
+        await Promise.all(
+          inputMediaUrls.map((url, index) =>
+            isRemoteUrl(url)
+              ? saveRemoteMedia(id, url, `media-${index + 1}`)
+              : Promise.resolve(undefined)
+          )
         )
-      )).filter((value): value is SavedSwipeMedia => Boolean(value))
+      ).filter((value): value is SavedSwipeMedia => Boolean(value))
     : []
-  const savedMedia = savedMediaItems[0] ??
-    (isRemoteUrl(inputMediaUrl) ? await saveRemoteMedia(id, inputMediaUrl) : undefined)
+  const savedMedia =
+    savedMediaItems[0] ??
+    (isRemoteUrl(inputMediaUrl)
+      ? await saveRemoteMedia(id, inputMediaUrl)
+      : undefined)
   const localMediaUrls = savedMediaItems.map((media) => media.publicUrl)
   const localMediaUrl = savedMedia?.publicUrl ?? ""
   const mediaUrl = localMediaUrl || localAppUrl(inputMediaUrl) || undefined
   const sourceVideoUrl = localMediaUrl || localAppUrl(payload.source_video_url)
-  const shouldProcess = payload.format === "video"
+  // Only start asynchronous transcription when a video was actually persisted.
+  // A failed download has nothing to transcribe and should settle immediately
+  // with the metadata fallback instead of leaving a transient processing row.
+  const shouldProcess =
+    payload.format === "video" && Boolean(savedMedia?.filePath)
   const fallback = fallbackAnalysis(payload)
   const processingStatus: SwipeProcessingStatus = shouldProcess
     ? "processing"
@@ -312,7 +364,9 @@ export async function updateSwipe(
   return updated
 }
 
-export async function deleteSwipe(id: string): Promise<SwipeRecord | undefined> {
+export async function deleteSwipe(
+  id: string
+): Promise<SwipeRecord | undefined> {
   const cleanId = clean(id)
   if (!cleanId) {
     return undefined
@@ -421,10 +475,9 @@ async function deleteSwipeAssets(swipe: SwipeRecord) {
     .filter((value): value is string => Boolean(value))
 
   await Promise.all(
-    Array.from(new Set(paths)).map(async (filePath) => {
-      await rm(filePath, { force: true }).catch(() => undefined)
-      await deleteAssetFromAppwrite(filePath)
-    })
+    Array.from(new Set(paths)).map((filePath) =>
+      deleteAssetFromAppwrite(filePath)
+    )
   )
 }
 
@@ -518,9 +571,7 @@ function normalizeStoredMediaUrls(value: unknown) {
   if (!Array.isArray(value)) {
     return undefined
   }
-  const urls = Array.from(
-    new Set(value.map(localAppUrl).filter(Boolean))
-  )
+  const urls = Array.from(new Set(value.map(localAppUrl).filter(Boolean)))
   return urls.length ? urls : undefined
 }
 
@@ -681,7 +732,7 @@ async function transcribeSwipeMedia(
   }
 
   try {
-    const audioBytes = await readFile(media.filePath)
+    const audioBytes = await readAssetBytes(media.filePath)
     if (audioBytes.byteLength === 0) {
       return fallback
     }

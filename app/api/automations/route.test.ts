@@ -1,23 +1,28 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
-import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
+import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 import { createResultRecord } from "@/lib/results"
 
-let tempRoot: string
+// Appwrite-only, run against cfarm (forced by vitest.setup.ts). The real
+// cwd's data-relative paths map to the same tables the routes + seeds use.
+const tempRoot = process.cwd()
 
-beforeEach(async () => {
-  tempRoot = await mkdtemp(path.join(os.tmpdir(), "cfarm-automations-route-"))
-  vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
-})
 
-afterEach(async () => {
+const clearAll = () => clearTestTables("automations", "results", "automation_runs", "postfast_posts")
+
+beforeEach(clearAll)
+
+afterEach(() => {
   vi.restoreAllMocks()
   vi.resetModules()
-  await rm(tempRoot, { recursive: true, force: true })
 })
+
+afterAll(clearAll)
 
 describe("/api/automations", () => {
   it("deletes generated slideshows when deleting their automation", async () => {
@@ -63,41 +68,34 @@ describe("/api/automations", () => {
         }),
       })
     )
-    await mkdir(path.join(tempRoot, "data", "automations"), {
-      recursive: true,
-    })
-    await writeFile(
-      path.join(tempRoot, "data", "automations", "runs.json"),
-      `${JSON.stringify(
+    await writeJsonArrayStore({
+      rootDir: path.join(tempRoot, "data", "automations"),
+      fileName: "runs.json",
+      key: "runs",
+      records: [
         {
-          runs: [
-            {
-              id: "automation-run-legacy",
-              automationId,
-              automationTitle: "Cascade automation",
-              scheduledFor: "2026-07-04T12:00:00.000Z",
-              status: "succeeded",
-              slideshowId: legacySlideshowPayload.slideshow.id,
-              plan: {
-                title: "Cascade automation",
-                hook: "Legacy hook",
-                imageCollectionIds: [],
-                slides: [],
-                slideCount: { mode: "static", count: 1 },
-                publishType: "slideshow",
-                autoMusic: true,
-                autoPost: false,
-                language: "English",
-              },
-              createdAt: "2026-07-04T12:00:00.000Z",
-              updatedAt: "2026-07-04T12:00:00.000Z",
-            },
-          ],
+          id: "automation-run-legacy",
+          automationId,
+          automationTitle: "Cascade automation",
+          scheduledFor: "2026-07-04T12:00:00.000Z",
+          status: "succeeded",
+          slideshowId: legacySlideshowPayload.slideshow.id,
+          plan: {
+            title: "Cascade automation",
+            hook: "Legacy hook",
+            imageCollectionIds: [],
+            slides: [],
+            slideCount: { mode: "static", count: 1 },
+            publishType: "slideshow",
+            autoMusic: true,
+            autoPost: false,
+            language: "English",
+          },
+          createdAt: "2026-07-04T12:00:00.000Z",
+          updatedAt: "2026-07-04T12:00:00.000Z",
         },
-        null,
-        2
-      )}\n`
-    )
+      ],
+    })
     await slideshowsRoute.POST(
       new Request("http://localhost/api/slideshows", {
         method: "POST",
@@ -109,10 +107,12 @@ describe("/api/automations", () => {
       })
     )
 
-    const deleteResponse = await automationsRoute.DELETE(
-      new Request(`http://localhost/api/automations?id=${automationId}`, {
+    const automationsIdRoute = await import("./[id]/route")
+    const deleteResponse = await automationsIdRoute.DELETE(
+      new Request(`http://localhost/api/automations/${automationId}`, {
         method: "DELETE",
-      })
+      }),
+      { params: Promise.resolve({ id: automationId }) }
     )
     const deletePayload = await deleteResponse.json()
     const listResponse = await slideshowsRoute.GET(
@@ -166,66 +166,50 @@ describe("/api/automations", () => {
       },
     })
 
-    await mkdir(path.join(tempRoot, "data", "automations"), {
-      recursive: true,
+    await writeJsonArrayStore({
+      rootDir: path.join(tempRoot, "data", "automations"),
+      fileName: "runs.json",
+      key: "runs",
+      records: [
+        automationRun("delete-run", automationId, slideshowId),
+        automationRun("keep-run", "automation-keep", "slideshow-keep"),
+      ],
     })
-    await writeFile(
-      path.join(tempRoot, "data", "automations", "runs.json"),
-      `${JSON.stringify(
-        {
-          runs: [
-            automationRun("delete-run", automationId, slideshowId),
-            automationRun("keep-run", "automation-keep", "slideshow-keep"),
-          ],
-        },
-        null,
-        2
-      )}\n`
-    )
-    await writeFile(
-      path.join(tempRoot, "data", "postfast-posts.json"),
-      `${JSON.stringify(
-        {
-          posts: [
-            postfastPost(
-              "delete-post",
-              `${slideshowId}:tiktok:draft-v2`,
-              "tiktok"
-            ),
-            postfastPost("keep-post", "slideshow-keep:tiktok:draft-v2", "tiktok"),
-          ],
-        },
-        null,
-        2
-      )}\n`
-    )
+    await writeJsonArrayStore({
+      rootDir: path.join(tempRoot, "data"),
+      fileName: "postfast-posts.json",
+      key: "posts",
+      records: [
+        postfastPost("delete-post", `${slideshowId}:tiktok:draft-v2`, "tiktok"),
+        postfastPost("keep-post", "slideshow-keep:tiktok:draft-v2", "tiktok"),
+      ],
+    })
 
-    const deleteResponse = await automationsRoute.DELETE(
-      new Request(`http://localhost/api/automations?id=${automationId}`, {
+    const automationsIdRoute = await import("./[id]/route")
+    const deleteResponse = await automationsIdRoute.DELETE(
+      new Request(`http://localhost/api/automations/${automationId}`, {
         method: "DELETE",
-      })
+      }),
+      { params: Promise.resolve({ id: automationId }) }
     )
     const deletePayload = await deleteResponse.json()
-    const storedRuns = JSON.parse(
-      await readFile(
-        path.join(tempRoot, "data", "automations", "runs.json"),
-        "utf8"
-      )
-    )
-    const storedPosts = JSON.parse(
-      await readFile(path.join(tempRoot, "data", "postfast-posts.json"), "utf8")
-    )
+    const storedRuns = await readJsonArrayStore<{ id: string }>({
+      rootDir: path.join(tempRoot, "data", "automations"),
+      fileName: "runs.json",
+      key: "runs",
+    })
+    const storedPosts = await readJsonArrayStore<{ id: string }>({
+      rootDir: path.join(tempRoot, "data"),
+      fileName: "postfast-posts.json",
+      key: "posts",
+    })
 
     expect(deleteResponse.status).toBe(200)
     expect(deletePayload.deletedResultsCount).toBe(1)
     expect(deletePayload.deletedRunsCount).toBe(1)
     expect(deletePayload.deletedPostFastPostsCount).toBe(1)
-    expect(storedRuns.runs.map((run: { id: string }) => run.id)).toEqual([
-      "keep-run",
-    ])
-    expect(storedPosts.posts.map((post: { id: string }) => post.id)).toEqual([
-      "keep-post",
-    ])
+    expect(storedRuns.map((run) => run.id)).toEqual(["keep-run"])
+    expect(storedPosts.map((post) => post.id)).toEqual(["keep-post"])
   })
 })
 

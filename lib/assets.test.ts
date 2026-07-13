@@ -1,9 +1,10 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
-import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
 import {
   assetCategories,
   assetKinds,
@@ -16,16 +17,19 @@ import {
   parseAssetScope,
   type AssetRecord,
 } from "@/lib/assets"
+import { writeJsonArrayStore } from "@/lib/json-store"
 
-let assetRoot: string
+// Appwrite-only: the store maps `data/assets/assets.json` -> the `assets` table.
+// Tests use the real data root and run against cfarm (forced by
+// vitest.setup.ts). Media bytes live in project-level Storage buckets (shared,
+// not per-database), so these tests assert record persistence, not raw bytes.
+const rootDir = path.join(process.cwd(), "data", "assets")
+const TABLE = "assets"
 
-beforeEach(async () => {
-  assetRoot = await mkdtemp(path.join(os.tmpdir(), "cfarm-assets-"))
-})
+const clearAssets = () => clearTestTables(TABLE)
 
-afterEach(async () => {
-  await rm(assetRoot, { recursive: true, force: true })
-})
+beforeEach(clearAssets)
+afterAll(clearAssets)
 
 describe("asset records", () => {
   it("exports canonical asset option lists and parsers", () => {
@@ -40,9 +44,9 @@ describe("asset records", () => {
     expect(parseAssetCategory("bad")).toBeUndefined()
   })
 
-  it("stores uploaded file bytes and metadata under the asset root", async () => {
+  it("persists an uploaded image asset record", async () => {
     const asset = await createUploadedAssetRecord({
-      rootDir: assetRoot,
+      rootDir,
       fileName: "Product Shot.PNG",
       mimeType: "image/png",
       bytes: Buffer.from("image-bytes"),
@@ -63,17 +67,14 @@ describe("asset records", () => {
     })
     expect(asset.fileUrl).toMatch(/^\/api\/local-assets\/assets\/files\//)
 
-    const storedBytes = await readFile(path.join(assetRoot, "files", asset.fileName!))
-    expect(storedBytes.toString()).toBe("image-bytes")
-
-    const listed = await listAssetRecords({ rootDir: assetRoot, scope: "ugc_avatar", category: "product" })
+    const listed = await listAssetRecords({ rootDir, scope: "ugc_avatar", category: "product" })
     expect(listed).toHaveLength(1)
     expect(listed[0].id).toBe(asset.id)
   })
 
-  it("stores uploaded demo videos in their own folder and scope", async () => {
+  it("persists uploaded demo videos in their own scope", async () => {
     const asset = await createUploadedAssetRecord({
-      rootDir: assetRoot,
+      rootDir,
       fileName: "Founder Demo.mp4",
       mimeType: "video/mp4",
       bytes: Buffer.from("video-bytes"),
@@ -89,16 +90,13 @@ describe("asset records", () => {
       mimeType: "video/mp4",
     })
     expect(asset.fileUrl).toMatch(/^\/api\/local-assets\/assets\/demos\//)
-
-    const storedBytes = await readFile(path.join(assetRoot, "demos", asset.fileName!))
-    expect(storedBytes.toString()).toBe("video-bytes")
-    expect(await listAssetRecords({ rootDir: assetRoot, scope: "ugc_demo", kind: "video" })).toHaveLength(1)
-    expect(await listAssetRecords({ rootDir: assetRoot, scope: "ugc_ad", kind: "video" })).toHaveLength(0)
+    expect(await listAssetRecords({ rootDir, scope: "ugc_demo", kind: "video" })).toHaveLength(1)
+    expect(await listAssetRecords({ rootDir, scope: "ugc_ad", kind: "video" })).toHaveLength(0)
   })
 
   it("creates a generated placeholder asset with prompt and model metadata", async () => {
     const asset = await createGeneratedAssetRecord({
-      rootDir: assetRoot,
+      rootDir,
       kind: "image",
       scope: "ugc_avatar",
       category: "background",
@@ -121,14 +119,16 @@ describe("asset records", () => {
     })
     expect(asset.fileName).toMatch(/\.svg$/)
 
-    const listed = await listAssetRecords({ rootDir: assetRoot, scope: "ugc_avatar" })
+    const listed = await listAssetRecords({ rootDir, scope: "ugc_avatar" })
     expect(listed.map((item) => item.id)).toEqual([asset.id])
   })
 
   it("normalizes remote asset metadata media URLs to local file references", async () => {
-    await mkdir(assetRoot, { recursive: true })
-    await writeFile(path.join(assetRoot, "assets.json"), `${JSON.stringify({
-      assets: [
+    await writeJsonArrayStore({
+      rootDir,
+      fileName: "assets.json",
+      key: "assets",
+      records: [
         {
           id: "background-1",
           kind: "image",
@@ -150,9 +150,9 @@ describe("asset records", () => {
           },
         },
       ],
-    }, null, 2)}\n`)
+    })
 
-    const [asset] = await listAssetRecords({ rootDir: assetRoot })
+    const [asset] = await listAssetRecords({ rootDir })
 
     expect(asset.metadata).toEqual({
       originalImageUrl: "/api/local-assets/backgrounds/reddit-travel/background.jpg",

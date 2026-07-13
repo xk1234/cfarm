@@ -7,11 +7,8 @@ import {
   anchorLabel,
   automationAlignments,
   automationAnchors,
-  automationWordLengths,
   labelToAlignment,
   labelToAnchor,
-  labelToWordLength,
-  wordLengthLabel,
   type AutomationTextItem,
 } from "@/lib/realfarm-automation"
 import { cn } from "@/lib/utils"
@@ -84,11 +81,12 @@ export function AutomationFormatTextToolbar({
           <div className="flex items-start gap-2">
             <CompactTextSelect
               label="Word length"
-              value={wordLengthLabel(textItem.wordLengthMin)}
-              options={automationWordLengths.map(wordLengthLabel)}
-              onChange={(value) =>
-                updateTextItem({ wordLengthMin: labelToWordLength(value) })
-              }
+              value={wordRangeLabel(textItem)}
+              options={automationWordRanges.map(wordRangeLabelFromTuple)}
+              onChange={(value) => {
+                const [wordLengthMin, wordLengthMax] = parseWordRange(value)
+                updateTextItem({ wordLengthMin, wordLengthMax })
+              }}
             />
             <CompactTextSelect
               label="Alignment"
@@ -102,12 +100,21 @@ export function AutomationFormatTextToolbar({
           </div>
           <div className="flex gap-2">
             <CompactTextSelect
-              label="Top/Bottom Padding"
+              label="Left/Right Padding"
               value={anchorLabel(textItem.textAnchor ?? "padded")}
               options={automationAnchors.map(anchorLabel)}
               icon={<MapPin className="size-3.5" />}
               onChange={(value) =>
                 updateTextItem({ textAnchor: labelToAnchor(value) })
+              }
+            />
+            <CompactTextSelect
+              label="Top/Bottom Padding"
+              value={anchorLabel(textItem.textVerticalAnchor ?? "padded")}
+              options={automationAnchors.map(anchorLabel)}
+              icon={<MapPin className="size-3.5" />}
+              onChange={(value) =>
+                updateTextItem({ textVerticalAnchor: labelToAnchor(value) })
               }
             />
           </div>
@@ -156,7 +163,25 @@ const automationFontLabels = [
   "Inter",
   "Arial",
 ]
-const automationFontSizes = ["8px", "10px", "12px", "14px", "16px", "18px"]
+const automationFontSizes = [
+  "8px",
+  "10px",
+  "12px",
+  "14px",
+  "16px",
+  "18px",
+  "20px",
+  "22px",
+  "24px",
+]
+const automationWordRanges: Array<[number, number]> = [
+  [2, 3],
+  [5, 10],
+  [10, 15],
+  [15, 20],
+  [20, 25],
+  [25, 30],
+]
 const automationTextStyleOptions = [
   { label: "White Text", value: "whiteText" },
   { label: "Yellow Text", value: "yellowText" },
@@ -175,6 +200,19 @@ const automationTextPositions: AutomationTextItem["textPosition"][] = [
 const automationTextPositionLabels =
   automationTextPositions.map(textPositionLabel)
 const automationTextWidths = ["40%", "50%", "60%", "70%", "80%", "90%", "100%"]
+
+function wordRangeLabel(textItem: AutomationTextItem) {
+  return `${textItem.wordLengthMin}-${textItem.wordLengthMax} words`
+}
+
+function wordRangeLabelFromTuple([minimum, maximum]: [number, number]) {
+  return `${minimum}-${maximum} words`
+}
+
+function parseWordRange(value: string): [number, number] {
+  const [minimum, maximum] = value.match(/\d+/g)?.map(Number) ?? [5, 10]
+  return [minimum || 5, maximum || minimum || 10]
+}
 
 function fontLabel(value: string) {
   return value && value !== "TikTok Display Medium" ? value : "Default"
@@ -250,5 +288,3 @@ function alignmentIcon(alignment: AutomationTextItem["textAlign"]) {
       return <AlignCenter className="size-3.5" />
   }
 }
-
-

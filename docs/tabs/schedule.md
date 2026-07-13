@@ -22,11 +22,11 @@ Main actions:
 | --- | --- | --- |
 | `DateTime` | `luxon` | Calendar month/week/day calculation. |
 | `PostFastListedPost[]` | `/api/postfast/posts` | Real scheduled/published posts for the visible month. |
-| `PostFastPostRecord[]` | `data/postfast-posts.json` | Local mapping/cache records for posts created through the explicit PostFast scheduling flow. Not used to populate the calendar. |
+| `PostFastPostRecord[]` | Appwrite `postfast_posts` table (via `/api/postfast/posts`) | Local mapping/cache records for posts created through the explicit PostFast scheduling flow. Not used to populate the calendar. |
 
 ## Persistence
 
-PostFast post mappings are persisted in `data/postfast-posts.json`. Calendar schedule data comes from PostFast on each month load; local mapping records do not appear unless PostFast itself returns the post.
+PostFast post mappings persist to the Appwrite `postfast_posts` table (via `lib/json-store.ts`); working file `data/postfast-posts.json` (filesystem fallback). Calendar schedule data comes from PostFast on each month load; local mapping records do not appear unless PostFast itself returns the post.
 
 ## Hardcoded / Demo Behavior
 

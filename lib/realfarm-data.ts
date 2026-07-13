@@ -4,9 +4,15 @@ import path from "node:path"
 import realfarmData from "../data/realfarm.json"
 import demoSeedData from "../data/seeds/demo-realfarm.json"
 
+import type {
+  AutomationLifecycleStatus,
+  AutomationSchedule,
+} from "@/lib/realfarm-automation"
+import type { MediaKind } from "@/lib/media-kind"
 import type { PostFastSocialIntegration } from "@/lib/postfast-client"
 
-type LocalAssetKind = "audio" | "video" | "text"
+// Bundled local assets are never images; derive from the canonical MediaKind.
+type LocalAssetKind = Exclude<MediaKind, "image">
 
 export type LocalAsset = {
   id: string
@@ -29,11 +35,12 @@ export type Automation = {
   id: string
   name: string
   automationKind?: "slideshow" | "video"
-  status: string
+  status: AutomationLifecycleStatus
   account: string
   handle: string
   times: string[]
   timezone?: string
+  schedule?: AutomationSchedule
   favorite: boolean
   theme: string
   socialIntegrations: PostFastSocialIntegration[]

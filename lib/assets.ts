@@ -1,12 +1,12 @@
 import { clean } from "@/lib/guards"
-import { rm } from "node:fs/promises"
 import path from "node:path"
 import { randomUUID } from "node:crypto"
 
-import { persistAsset } from "@/lib/asset-storage"
+import { deleteAssetFromAppwrite, persistAsset } from "@/lib/asset-storage"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
+import type { MediaKind } from "@/lib/media-kind"
 
-export type AssetKind = "image" | "video" | "audio" | "text"
+export type AssetKind = MediaKind
 export type AssetSource = "upload" | "ai_generated"
 export type AssetStatus = "processing" | "ready" | "failed"
 export type AssetScope =
@@ -39,6 +39,7 @@ export const assetCategories: AssetCategory[] = [
 ]
 
 export type AssetRecord = {
+  ownerId?: string
   id: string
   kind: AssetKind
   source: AssetSource
@@ -316,7 +317,7 @@ async function deleteUnusedAssetFiles(
   }
 
   for (const filePath of filePaths.keys()) {
-    await rm(filePath, { force: true })
+    await deleteAssetFromAppwrite(filePath)
   }
 
   return filePaths.size
@@ -520,4 +521,3 @@ function escapeXml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
 }
-

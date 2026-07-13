@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { withHandler } from "@/lib/api"
 import {
   automationSchemaToTemplateRecord,
   automationTemplateRecordToSchema,
@@ -13,7 +14,7 @@ import { normalizeReelfarmAutomation } from "@/lib/automations"
 
 export const dynamic = "force-dynamic"
 
-export async function GET() {
+export const GET = withHandler(async () => {
   const records = await listAutomationTemplateRecords()
   const exampleRuns = await listAutomationTemplateExampleRuns()
   const templates = records.map(automationTemplateRecordToSummary)
@@ -31,9 +32,9 @@ export async function GET() {
       ])
     ),
   })
-}
+})
 
-export async function POST(request: Request) {
+export const POST = withHandler(async (request: Request) => {
   const payload = await request.json().catch(() => null)
   const rawTemplates: unknown[] = Array.isArray(payload?.templates)
     ? payload.templates
@@ -83,7 +84,7 @@ export async function POST(request: Request) {
     },
     { status: 201 }
   )
-}
+})
 
 function sourceTemplateName(
   name: string,

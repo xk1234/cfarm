@@ -6,7 +6,9 @@
       "status": "live",
       "account": "No social account",
       "handle": "Click to add account",
-      "times": ["9:00 AM"],
+      "times": [
+        "9:00 AM"
+      ],
       "favorite": false,
       "theme": "ugc",
       "updatedAt": "2026-07-08T11:43:02Z",
@@ -38,7 +40,6 @@
             "cta_location": "last_slide"
           },
           "keepOriginalAspectRatio": true,
-          "background_opacity": 25,
           "is_bg_overlay_on_hook_image": true,
           "textOnFirstSlideOnly": false,
           "noTextOnSlides": false,
@@ -74,8 +75,7 @@
             "imageGrid": "none",
             "slideCount": 1,
             "noText": false,
-            "overlay": true,
-            "overlayOpacity": 25
+            "overlay": true
           },
           {
             "id": "body",
@@ -102,8 +102,7 @@
             "imageGrid": "none",
             "slideCount": 4,
             "noText": false,
-            "overlay": true,
-            "overlayOpacity": 25
+            "overlay": true
           },
           {
             "id": "cta",
@@ -132,7 +131,6 @@
             "ctaLocation": "last",
             "noText": false,
             "overlay": false,
-            "overlayOpacity": 25,
             "imageMode": "collection"
           },
           {
@@ -234,7 +232,13 @@
           "posting_times": [
             {
               "time": "9:00 AM",
-              "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+              "days": [
+                "Mon",
+                "Tue",
+                "Wed",
+                "Thu",
+                "Fri"
+              ]
             }
           ]
         },
@@ -249,7 +253,9 @@
       "status": "live",
       "account": "No social account",
       "handle": "Click to add account",
-      "times": ["12:00 PM"],
+      "times": [
+        "12:00 PM"
+      ],
       "favorite": false,
       "theme": "ugc",
       "updatedAt": "2026-07-08T11:43:02Z",
@@ -281,7 +287,6 @@
             "cta_location": "last_slide"
           },
           "keepOriginalAspectRatio": true,
-          "background_opacity": 25,
           "is_bg_overlay_on_hook_image": true,
           "textOnFirstSlideOnly": false,
           "noTextOnSlides": false,
@@ -317,8 +322,7 @@
             "imageGrid": "none",
             "slideCount": 1,
             "noText": false,
-            "overlay": true,
-            "overlayOpacity": 25
+            "overlay": true
           },
           {
             "id": "body",
@@ -345,8 +349,7 @@
             "imageGrid": "none",
             "slideCount": 5,
             "noText": false,
-            "overlay": true,
-            "overlayOpacity": 25
+            "overlay": true
           },
           {
             "id": "cta",
@@ -375,7 +378,6 @@
             "ctaLocation": "last",
             "noText": false,
             "overlay": false,
-            "overlayOpacity": 25,
             "imageMode": "collection"
           },
           {
@@ -477,7 +479,13 @@
           "posting_times": [
             {
               "time": "12:00 PM",
-              "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+              "days": [
+                "Mon",
+                "Tue",
+                "Wed",
+                "Thu",
+                "Fri"
+              ]
             }
           ]
         },
@@ -492,7 +500,9 @@
       "status": "live",
       "account": "No social account",
       "handle": "Click to add account",
-      "times": ["6:00 PM"],
+      "times": [
+        "6:00 PM"
+      ],
       "favorite": false,
       "theme": "ugc",
       "updatedAt": "2026-07-08T11:43:02Z",
@@ -524,7 +534,6 @@
             "cta_location": "last_slide"
           },
           "keepOriginalAspectRatio": true,
-          "background_opacity": 25,
           "is_bg_overlay_on_hook_image": true,
           "textOnFirstSlideOnly": false,
           "noTextOnSlides": false,
@@ -560,8 +569,7 @@
             "imageGrid": "none",
             "slideCount": 1,
             "noText": false,
-            "overlay": true,
-            "overlayOpacity": 25
+            "overlay": true
           },
           {
             "id": "body",
@@ -588,8 +596,7 @@
             "imageGrid": "none",
             "slideCount": 5,
             "noText": false,
-            "overlay": true,
-            "overlayOpacity": 25
+            "overlay": true
           },
           {
             "id": "cta",
@@ -618,7 +625,6 @@
             "ctaLocation": "last",
             "noText": false,
             "overlay": false,
-            "overlayOpacity": 25,
             "imageMode": "collection"
           },
           {
@@ -720,7 +726,13 @@
           "posting_times": [
             {
               "time": "6:00 PM",
-              "days": ["Mon", "Tue", "Wed", "Thu", "Fri"]
+              "days": [
+                "Mon",
+                "Tue",
+                "Wed",
+                "Thu",
+                "Fri"
+              ]
             }
           ]
         },

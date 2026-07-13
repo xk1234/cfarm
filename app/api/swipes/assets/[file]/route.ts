@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises"
 import path from "node:path"
 
 import { NextResponse } from "next/server"
@@ -23,7 +22,7 @@ export async function GET(_request: Request, context: { params: Promise<{ file: 
   const contentType = contentTypeFor(safeFile)
   const relPath = `swipes/assets/${safeFile}`
 
-  // Serve from Appwrite Storage when configured; fall back to the filesystem.
+  // Appwrite-only: serve from Storage, no filesystem fallback.
   const aw = getAppwrite()
   if (aw) {
     try {
@@ -38,20 +37,9 @@ export async function GET(_request: Request, context: { params: Promise<{ file: 
         },
       })
     } catch {
-      // Not in Appwrite -> fall back to fs.
+      // fall through to 404
     }
   }
 
-  const assetPath = path.join(process.cwd(), "data", "swipes", "assets", safeFile)
-  try {
-    const body = await readFile(assetPath)
-    return new NextResponse(body, {
-      headers: {
-        "Cache-Control": "no-store",
-        "Content-Type": contentType,
-      },
-    })
-  } catch {
-    return NextResponse.json({ error: "Swipe asset not found" }, { status: 404 })
-  }
+  return NextResponse.json({ error: "Swipe asset not found" }, { status: 404 })
 }

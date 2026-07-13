@@ -1,6 +1,8 @@
 # Data Objects
 
-This project has one main seed object plus several mutable local stores. The UI mostly receives `RealFarmData` from the server page, then individual tabs either use that object directly or fetch/save local JSON through API routes.
+This project has one main seed object plus several mutable stores. The UI mostly receives `RealFarmData` from the server page, then individual tabs either use that object directly or fetch/save records through API routes.
+
+**Persistence model.** Mutable stores read/write Appwrite Cloud TablesDB via `lib/json-store.ts` (`readJsonArrayStore` / `writeJsonArrayStore` / `withJsonArrayStore`), with row order preserved by the `ord` column and a **filesystem fallback** to `data/...json` when a store is unmapped or Appwrite is unconfigured. See `docs/appwrite-migration-report.md` for the table list and `lib/appwrite-stores.ts` for the store→table map. `RealFarmData` (`data/realfarm.json`) is a static config seed compiled in via `import`, not a mutable store, and stays on the filesystem by design.
 
 ## RealFarmData
 
@@ -64,7 +66,7 @@ export type LocalAsset = {
 
 Type source: `lib/assets.ts`
 
-Backing file: `data/assets/assets.json`
+Persistence: Appwrite `assets` table (via `lib/json-store.ts`); working file `data/assets/assets.json` (filesystem fallback)
 
 File storage: `data/assets/files`
 
@@ -102,13 +104,13 @@ API routes:
 - `POST /api/assets/generate`
 - `POST /api/assets/caption`
 
-Binary files under `data/assets/files` and `data/assets/demos` are ignored by git. The JSON metadata remains trackable and is the local stand-in for a future Supabase table plus Storage bucket.
+Binary files under `data/assets/files` and `data/assets/demos` are ignored by git. Metadata persists to the Appwrite `assets` table (via `lib/json-store.ts`) and binaries mirror to the `assets` Storage bucket; the local copies are kept as working files.
 
 ## GeneratedVideoExport
 
 Type source: `lib/generated-videos.ts`
 
-Backing file: `data/generated-videos/exports.json`
+Persistence: Appwrite `generated_video_exports` table (via `lib/json-store.ts`); working file `data/generated-videos/exports.json` (filesystem fallback)
 
 Used by video automation UGC ad exports and Greenscreen Memes export queues.
 
@@ -247,7 +249,7 @@ Type sources:
 - `lib/image-collections.ts`
 - `lib/realfarm-collections.ts`
 
-Backing file: `data/image-collections.json`
+Persistence: Appwrite `image_collections` table (via `lib/json-store.ts`); working file `data/image-collections.json` (filesystem fallback)
 
 API routes:
 
@@ -300,7 +302,7 @@ Built-in automations are fallback/demo cards. Persisted imported automations are
 
 Type source: `lib/automations.ts`
 
-Backing file: `data/automations/automations.json`
+Persistence: Appwrite `automations` table (via `lib/json-store.ts`); working file `data/automations/automations.json` (filesystem fallback)
 
 API routes:
 
@@ -377,7 +379,6 @@ type ImageCollectionConfig = {
     cta_location: string
   }
   keepOriginalAspectRatio?: boolean
-  background_opacity?: number
   is_bg_overlay_on_hook_image?: boolean
   textOnFirstSlideOnly?: boolean
   noTextOnSlides?: boolean
@@ -394,7 +395,7 @@ For imported automations, `AutomationSchema` is persisted inside `AutomationReco
 
 Type source: `lib/postfast-posts.ts`
 
-Backing file: `data/postfast-posts.json`
+Persistence: Appwrite `postfast_posts` table (via `lib/json-store.ts`); working file `data/postfast-posts.json` (filesystem fallback)
 
 API routes:
 
@@ -460,7 +461,7 @@ export type Character = {
 
 Type source: `lib/characters.ts`
 
-Backing file: `data/characters.json`
+Persistence: Appwrite `characters` table (via `lib/json-store.ts`); working file `data/characters.json` (filesystem fallback)
 
 API routes:
 
@@ -502,7 +503,7 @@ export type CharacterPayload = {
 
 Type source: `lib/swipes.ts`
 
-Backing file: `data/swipes/swipes.json`
+Persistence: Appwrite `swipes` table (via `lib/json-store.ts`); working file `data/swipes/swipes.json` (filesystem fallback). Screenshots/media mirror to the `misc` Storage bucket and serve via `/api/swipes/assets/[file]` (Storage-first with filesystem fallback).
 
 API routes:
 
@@ -546,7 +547,7 @@ export type SwipeRecord = {
 }
 ```
 
-`listSwipes()` sorts by `swipedAt` and filters out records without captured media. This means records can exist in `data/swipes/swipes.json` but not show in the Swipes tab if they have no usable screenshot/media.
+`listSwipes()` sorts by `swipedAt` and filters out records without captured media. This means records can exist in the `swipes` table but not show in the Swipes tab if they have no usable screenshot/media.
 
 ## SwipePayload
 

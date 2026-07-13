@@ -1,8 +1,20 @@
 import { NextResponse } from "next/server"
+import { z } from "zod"
 
-import { deleteCharacter, listCharacters, saveCharacter, type CharacterPayload } from "@/lib/characters"
+import { validate, providerFail } from "@/lib/api"
+import type { Character } from "@/lib/character-model"
+import { listCharacters, saveCharacter } from "@/lib/characters"
 
 export const dynamic = "force-dynamic"
+
+// `attributes` is normalized/defaulted downstream, so it is only shape-checked
+// as an object here; `name` is the one field the store depends on being present.
+const characterPayloadSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().trim().min(1, "name is required"),
+  attributes: z.record(z.string(), z.unknown()).default({}),
+  preview_url: z.string().optional(),
+})
 
 export async function GET() {
   const characters = await listCharacters()
@@ -11,24 +23,19 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const payload = (await request.json()) as CharacterPayload
-    const character = await saveCharacter(payload)
+    const parsed = validate(
+      characterPayloadSchema,
+      await request.json().catch(() => null)
+    )
+    const character = await saveCharacter({
+      id: parsed.id,
+      name: parsed.name,
+      preview_url: parsed.preview_url,
+      attributes: parsed.attributes as Character,
+    })
     return NextResponse.json({ character }, { status: 201 })
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to save character" },
-      { status: 400 }
-    )
+    return providerFail(error, "Failed to save character", 400)
   }
 }
 
-export async function DELETE(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const id = Number(searchParams.get("id"))
-  if (!Number.isFinite(id)) {
-    return NextResponse.json({ error: "Missing character id" }, { status: 400 })
-  }
-
-  const result = await deleteCharacter(id)
-  return NextResponse.json(result)
-}

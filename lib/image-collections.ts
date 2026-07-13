@@ -1,14 +1,19 @@
 import { clean } from "@/lib/guards"
 import { createHash, randomUUID } from "node:crypto"
-import { readFile, rm } from "node:fs/promises"
 import path from "node:path"
 
-import { persistAsset } from "@/lib/asset-storage"
+import {
+  deleteAssetFromAppwrite,
+  persistAsset,
+  readAssetBytes,
+} from "@/lib/asset-storage"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
 export type StoredImageCollection = {
+  ownerId?: string
   name: string
   created_at: string
+  pinned?: boolean
   images: {
     image_link: string
     caption: string
@@ -196,6 +201,7 @@ function normalizeCollection(
   return {
     name: clean(collection.name) || "Untitled collection",
     created_at: clean(collection.created_at) || new Date().toISOString(),
+    pinned: collection.pinned === true,
     images: Array.isArray(collection.images)
       ? collection.images.flatMap((image) => {
           const imageLink = clean(image.image_link)
@@ -232,7 +238,7 @@ async function collectionWithLocalImageHashes(
         return image
       }
       try {
-        const bytes = await readFile(filePath)
+        const bytes = await readAssetBytes(filePath)
         return {
           ...image,
           hash: createHash("sha256").update(bytes).digest("hex"),
@@ -276,7 +282,7 @@ async function deleteUnusedLocalCollectionFiles(
   }
 
   for (const filePath of filesToDelete.keys()) {
-    await rm(filePath, { force: true })
+    await deleteAssetFromAppwrite(filePath)
   }
 
   return filesToDelete.size

@@ -1,7 +1,12 @@
 import { clean } from "@/lib/guards"
 import path from "node:path"
-import { rm } from "node:fs/promises"
 
+import { deleteAssetFromAppwrite } from "@/lib/asset-storage"
+import { localCharacterGenerationFilePath } from "@/lib/character-generation-paths"
+import {
+  deleteCharacterVideoGenerationForGeneration,
+  deleteCharacterVideoGenerationsForCharacter,
+} from "@/lib/character-video-generations"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 import {
   characterWorkflowOptions,
@@ -13,7 +18,8 @@ import {
 
 export type StoredCharacterImageGenerationRecord =
   CharacterImageGenerationRecord & {
-    characterId?: number
+    ownerId?: string
+    characterId?: string
   }
 
 const defaultRootDir = path.join(process.cwd(), "data", "characters")
@@ -22,7 +28,7 @@ const dbFileName = "images.json"
 export async function listCharacterImageGenerations(
   input: {
     rootDir?: string
-    characterId?: number
+    characterId?: string
   } = {}
 ) {
   const records = await readCharacterImageGenerations(input.rootDir)
@@ -48,7 +54,7 @@ export async function upsertCharacterImageGeneration(
 
 export async function deleteCharacterImageGenerationsForCharacter(input: {
   rootDir?: string
-  characterId: number
+  characterId: string
 }) {
   const rootDir = input.rootDir ?? defaultRootDir
   const records = await readCharacterImageGenerations(rootDir)
@@ -64,7 +70,14 @@ export async function deleteCharacterImageGenerationsForCharacter(input: {
   )
   await writeCharacterImageGenerations(rootDir, next)
   const deletedFiles = await deleteUnusedGenerationFiles(rootDir, deleted, next)
-  return { deleted: deleted.length, deletedFiles }
+  const videoCleanup = await deleteCharacterVideoGenerationsForCharacter({
+    rootDir,
+    characterId: input.characterId,
+  })
+  return {
+    deleted: deleted.length,
+    deletedFiles: deletedFiles + videoCleanup.deletedFiles,
+  }
 }
 
 export async function deleteCharacterImageGeneration(input: {
@@ -85,7 +98,14 @@ export async function deleteCharacterImageGeneration(input: {
   const next = records.filter((record) => record.id !== id)
   await writeCharacterImageGenerations(rootDir, next)
   const deletedFiles = await deleteUnusedGenerationFiles(rootDir, deleted, next)
-  return { deleted: true, deletedFiles }
+  const videoCleanup = await deleteCharacterVideoGenerationForGeneration({
+    rootDir,
+    generationIds: [id],
+  })
+  return {
+    deleted: true,
+    deletedFiles: deletedFiles + videoCleanup.deletedFiles,
+  }
 }
 
 async function readCharacterImageGenerations(
@@ -120,9 +140,8 @@ function normalizeGeneration(
   return {
     id: clean(record.id) || `${Date.now()}`,
     characterId:
-      typeof record.characterId === "number" &&
-      Number.isFinite(record.characterId)
-        ? record.characterId
+      record.characterId != null && String(record.characterId).trim()
+        ? String(record.characterId)
         : undefined,
     prompt: clean(record.prompt),
     model: clean(record.model) || "Unknown model",
@@ -136,11 +155,6 @@ function normalizeGeneration(
     imageUrl: clean(record.imageUrl) || undefined,
     error: clean(record.error) || undefined,
     progress: numberValue(record.progress),
-    videoUrl: clean(record.videoUrl) || undefined,
-    videoModel: clean(record.videoModel) || undefined,
-    videoStatus: record.videoStatus,
-    videoError: clean(record.videoError) || undefined,
-    videoProgress: numberValue(record.videoProgress),
     workflow: normalizeWorkflow(record.workflow),
     workflowLabel: clean(record.workflowLabel) || undefined,
     workflowMetadata: normalizeWorkflowMetadata(record.workflowMetadata),
@@ -170,7 +184,6 @@ function normalizeAttachments(value: unknown): CharacterPromptAttachment[] {
 function numberValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
-
 
 function normalizeWorkflow(value: unknown): CharacterWorkflowKey | undefined {
   const workflow = clean(value)
@@ -228,17 +241,13 @@ async function deleteUnusedGenerationFiles(
   }
 
   await Promise.all(
-    [...filePaths].map((filePath) => rm(filePath, { force: true }))
+    [...filePaths].map((filePath) => deleteAssetFromAppwrite(filePath))
   )
   return filePaths.size
 }
 
 function generationOutputUrls(record: StoredCharacterImageGenerationRecord) {
-  return [
-    record.imageUrl,
-    record.videoUrl,
-    generatedWorkflowRecipeUrl(record, "rawVideoUrl"),
-  ]
+  return [record.imageUrl, generatedWorkflowRecipeUrl(record, "rawVideoUrl")]
     .map(clean)
     .filter(Boolean)
 }
@@ -253,29 +262,4 @@ function generatedWorkflowRecipeUrl(
   }
   const value = recipe[key]
   return typeof value === "string" ? value : ""
-}
-
-function localCharacterGenerationFilePath(rootDir: string, assetUrl: string) {
-  const prefix = "/api/local-assets/characters/"
-  if (!assetUrl.startsWith(prefix)) {
-    return null
-  }
-
-  const encodedRelativePath = assetUrl.slice(prefix.length).split(/[?#]/)[0]
-  let relativePath = ""
-  try {
-    relativePath = encodedRelativePath
-      .split("/")
-      .map((part) => decodeURIComponent(part))
-      .join(path.sep)
-  } catch {
-    return null
-  }
-  if (!relativePath || path.isAbsolute(relativePath)) {
-    return null
-  }
-
-  const dataRoot = path.resolve(rootDir)
-  const filePath = path.resolve(dataRoot, relativePath)
-  return filePath.startsWith(`${dataRoot}${path.sep}`) ? filePath : null
 }

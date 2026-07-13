@@ -7,6 +7,8 @@ import {
 
 export const PINTEREST_ACTOR_ID = "fatihtahta/pinterest-scraper-search"
 const PINTEREST_ACTOR_PATH = "fatihtahta~pinterest-scraper-search"
+export const PINTEREST_BOARD_ACTOR_ID = "dltik/pinterest-scraper"
+const PINTEREST_BOARD_ACTOR_PATH = "dltik~pinterest-scraper"
 
 export type PinterestSearchResult = {
   id: string
@@ -29,6 +31,18 @@ export type PinterestActorInput = {
   content_analysis: false
   sentinent_analysis: false
   proxyConfiguration: {
+    useApifyProxy: true
+    apifyProxyGroups: ["RESIDENTIAL"]
+  }
+}
+
+export type PinterestBoardActorInput = {
+  mode: "board"
+  inputs: string[]
+  maxResults: number
+  scope: "pins"
+  includeAiAnalysis: false
+  proxyConfig: {
     useApifyProxy: true
     apifyProxyGroups: ["RESIDENTIAL"]
   }
@@ -69,6 +83,39 @@ export function buildPinterestActorInput(
   }
 }
 
+export function buildPinterestBoardActorInput(
+  query: string,
+  limit: number
+): PinterestBoardActorInput {
+  return {
+    mode: "board",
+    inputs: [normalizePinterestBoardUrl(query)],
+    maxResults: Math.max(1, Math.min(limit, 100)),
+    scope: "pins",
+    includeAiAnalysis: false,
+    proxyConfig: {
+      useApifyProxy: true,
+      apifyProxyGroups: ["RESIDENTIAL"],
+    },
+  }
+}
+
+export function isPinterestBoardUrl(value: string) {
+  try {
+    const url = new URL(value.trim())
+    const hostname = url.hostname.toLowerCase()
+    const parts = url.pathname.split("/").filter(Boolean)
+    return (
+      (hostname === "pinterest.com" || hostname.endsWith(".pinterest.com")) &&
+      parts.length >= 2 &&
+      parts[0] !== "pin" &&
+      parts[0] !== "search"
+    )
+  } catch {
+    return false
+  }
+}
+
 export function normalizePinterestItems(
   items: unknown[]
 ): PinterestSearchResult[] {
@@ -84,11 +131,16 @@ export function normalizePinterestItems(
 
     const pin = readRecord(item.pin)
     const media = readRecord(item.media)
-    const id = readString(item.id) || readString(pin?.id) || `pin-${index + 1}`
+    const id =
+      readString(item.id) ||
+      readString(item.pin_id) ||
+      readString(pin?.id) ||
+      `pin-${index + 1}`
     const title =
       readString(item.title) || readString(pin?.title) || "Untitled pin"
     const description =
       readString(item.description) ||
+      readString(item.alt_text) ||
       readString(pin?.description) ||
       readString(pin?.closeup_unified_description) ||
       readString(pin?.closeup_user_note) ||
@@ -106,6 +158,7 @@ export function normalizePinterestItems(
           readString(item.source_url) ||
           `https://www.pinterest.com/pin/${id}/`,
         dominantColor:
+          readString(item.dominant_color) ||
           readString(pin?.dominant_color) ||
           readString(media?.dominant_color) ||
           "#d8d6ce",
@@ -153,14 +206,23 @@ export async function runPinterestImport(
   token: string,
   mode: "search" | "board" = "search"
 ): Promise<PinterestSearchResult[]> {
+  const effectiveMode = isPinterestBoardUrl(query) ? "board" : mode
+  const actorPath =
+    effectiveMode === "board"
+      ? PINTEREST_BOARD_ACTOR_PATH
+      : PINTEREST_ACTOR_PATH
+  const input =
+    effectiveMode === "board"
+      ? buildPinterestBoardActorInput(query, limit)
+      : buildPinterestActorInput(query, limit, "search")
   const items = await fetchJson<unknown[]>(
-    `https://api.apify.com/v2/acts/${PINTEREST_ACTOR_PATH}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}`,
+    `https://api.apify.com/v2/acts/${actorPath}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}`,
     {
       method: "POST",
       headers: {
         "content-type": "application/json",
       },
-      body: JSON.stringify(buildPinterestActorInput(query, limit, mode)),
+      body: JSON.stringify(input),
     },
     {
       timeoutMs: 30_000,
@@ -168,7 +230,10 @@ export async function runPinterestImport(
         `Pinterest import failed with ${response.status}`,
     }
   )
-  return normalizePinterestItems(items)
+  return normalizePinterestItems(items).slice(
+    0,
+    Math.max(1, Math.min(limit, 100))
+  )
 }
 
 function normalizePinterestBoardUrl(input: string) {
@@ -197,8 +262,8 @@ function readImage(item: UnknownRecord) {
   if (directUrl) {
     return {
       url: directUrl,
-      width: readNumber(item.width),
-      height: readNumber(item.height),
+      width: readNumber(item.width) ?? readNumber(item.image_width),
+      height: readNumber(item.height) ?? readNumber(item.image_height),
     }
   }
 

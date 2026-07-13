@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useEffect, useRef, useState } from "react"
 import {
   IconChevronLeft,
@@ -41,6 +42,7 @@ export function CreatorsView() {
 }
 
 export function HomeView({
+  currentUserId,
   templates,
   recentRunsByAutomationId,
   generatedRunsByAutomationId,
@@ -48,6 +50,7 @@ export function HomeView({
   onUseTemplate,
   onAutomations,
 }: {
+  currentUserId: string
   data: RealFarmData
   templates: Automation[]
   recentRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
@@ -66,12 +69,11 @@ export function HomeView({
     automation: Automation
     slideshowId?: string
   } | null>(null)
-  const [selectedGeneratedSlideshow, setSelectedGeneratedSlideshow] =
-    useState<{
-      title: string
-      runs: GeneratedShowcaseRun[]
-      slideshowId: string
-    } | null>(null)
+  const [selectedGeneratedSlideshow, setSelectedGeneratedSlideshow] = useState<{
+    title: string
+    runs: GeneratedShowcaseRun[]
+    slideshowId: string
+  } | null>(null)
   const quickStartTemplates = templates
   const generatedSlideshowCards = generatedHomeSlideshowCards(
     generatedRunsByAutomationId
@@ -134,39 +136,57 @@ export function HomeView({
   }
 
   return (
-    <div className="mx-auto max-w-[1260px] pb-12">
-      <section className="py-16 text-center">
-        <h1 className="text-[24px] font-semibold tracking-normal text-[#30302e]">
-          Welcome, UU odi
-        </h1>
-        <p className="mt-2 text-[14px] leading-5 font-medium text-[#888883]">
-          use AI to generate TikTok videos that don&apos;t feel like AI
-        </p>
-        <div className="mt-5 flex justify-center gap-3">
-          <Button variant="action" size="appDefault" onClick={onCreate}>
-            <IconPlus className="size-5" />
-            New Automation
-          </Button>
-          <Button
-            variant="softControl"
-            size="appDefault"
-            onClick={onAutomations}
-          >
-            <IconPlayerPlay className="size-5" />
-            Automations
-          </Button>
+    <div className="mx-auto max-w-[1280px] pb-16">
+      <div className="flex items-center gap-2.5 py-2 md:hidden">
+        <span className="flex size-8 items-center justify-center overflow-hidden rounded-[9px]">
+          <Image
+            src="/brand/lumenclip-mark.png"
+            alt=""
+            width={32}
+            height={32}
+            className="size-8 object-contain"
+          />
+        </span>
+        <span className="text-[16px] font-semibold tracking-[-0.03em] text-[#111117]">
+          LumenClip
+        </span>
+      </div>
+      <section className="py-10 text-center lg:py-14">
+        <div className="mx-auto max-w-[980px]">
+          <div className="lc-spectrum mx-auto mb-5 h-1 w-14 rounded-full" />
+          <h1 className="mx-auto max-w-[17ch] text-[42px] leading-[0.98] font-semibold tracking-[-0.05em] text-[#111117] sm:text-[56px]">
+            Turn creative sources into content that ships.
+          </h1>
+          <p className="mx-auto mt-5 max-w-[52ch] text-[16px] leading-6 font-medium text-[#686875]">
+            Save what works, build repeatable workflows, and keep every output
+            ready for review.
+          </p>
+          <div className="mt-7 flex flex-wrap justify-center gap-3">
+            <Button variant="action" size="appDefault" onClick={onCreate}>
+              <IconPlus className="size-5" />
+              New automation
+            </Button>
+            <Button
+              variant="softControl"
+              size="appDefault"
+              onClick={onAutomations}
+            >
+              <IconPlayerPlay className="size-5" />
+              View workflows
+            </Button>
+          </div>
         </div>
       </section>
 
-      <section className="mx-auto mt-20 max-w-[1210px]">
+      <section className="mx-auto mt-12 max-w-[1210px]">
         <div className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-1">
             <button
               className={cn(
                 "rounded-[7px] px-4 py-2 text-[14px] font-semibold transition",
                 activeTab === "slideshows"
-                  ? "bg-[#242421] text-white"
-                  : "text-[#6f7888] hover:bg-[#ecebe4]"
+                  ? "bg-[#111117] text-white"
+                  : "text-[#686875] hover:bg-[#f0eef8]"
               )}
               onClick={() => switchTab("slideshows")}
             >
@@ -176,8 +196,8 @@ export function HomeView({
               className={cn(
                 "rounded-[7px] px-4 py-2 text-[14px] font-semibold transition",
                 activeTab === "videos"
-                  ? "bg-[#242421] text-white"
-                  : "text-[#6f7888] hover:bg-[#ecebe4]"
+                  ? "bg-[#111117] text-white"
+                  : "text-[#686875] hover:bg-[#f0eef8]"
               )}
               onClick={() => switchTab("videos")}
             >
@@ -213,6 +233,7 @@ export function HomeView({
               <GeneratedSlideshowCard
                 key={item.slideshow.id}
                 item={item}
+                shared={Boolean(item.ownerId && item.ownerId !== currentUserId)}
                 onOpen={() =>
                   setSelectedGeneratedSlideshow({
                     title: item.title,
@@ -231,7 +252,11 @@ export function HomeView({
         ) : pagedVideos.length > 0 ? (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
             {pagedVideos.map((item) => (
-              <VideoCard key={item.id} item={item} />
+              <VideoCard
+                key={item.id}
+                item={item}
+                shared={Boolean(item.ownerId && item.ownerId !== currentUserId)}
+              />
             ))}
           </div>
         ) : (
@@ -244,7 +269,9 @@ export function HomeView({
 
       <section className="mx-auto mt-24 max-w-[1210px]">
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-[19px] font-bold text-[#30302e]">Quick start</h2>
+          <h2 className="text-[20px] font-semibold tracking-[-0.025em] text-[#111117]">
+            Start from a proven workflow
+          </h2>
           <div className="flex items-center gap-3 text-[14px] font-semibold text-[#6f7888]">
             <Button
               variant="iconControl"
@@ -313,6 +340,7 @@ export function HomeView({
 }
 
 type GeneratedHomeSlideshowCard = {
+  ownerId?: string
   title: string
   runs: GeneratedShowcaseRun[]
   slideshow: TemplateExampleSlideshow
@@ -320,45 +348,50 @@ type GeneratedHomeSlideshowCard = {
 
 function GeneratedSlideshowCard({
   item,
+  shared,
   onOpen,
 }: {
   item: GeneratedHomeSlideshowCard
+  shared: boolean
   onOpen: () => void
 }) {
-  const coverSlides = item.slideshow.slides.slice(0, 3)
-  const generatedAt = formatGeneratedSlideshowDate(
-    item.slideshow.createdAt || item.slideshow.scheduledFor
-  )
+  const firstSlide = item.slideshow.slides[0]
 
   return (
-    <MediaCardShell>
-      <button
-        type="button"
-        className="block w-full text-left"
-        onClick={onOpen}
-        aria-label={`Open ${item.title} generated slideshow`}
-      >
-        <div className="h-[172px] w-full">
-          <TemplateGeneratedPreview
-            exampleSlides={coverSlides}
-            className="h-full"
-            selectLabel={`Open ${item.title} slideshow`}
-          />
-        </div>
-        <div className="px-3 py-3">
-          <div className="truncate text-[15px] font-bold text-[#30302e]">
-            <span className="inline-flex min-w-0 items-center gap-1.5">
-              <IconSlideshow className="size-4 shrink-0 text-[#67665f]" />
-              <span className="truncate">{item.title}</span>
-            </span>
-          </div>
-          <div className="mt-0.5 flex items-center gap-1 text-[12px] font-semibold text-[#8a8a83]">
-            <IconPhoto className="size-3.5" />
-            {generatedAt || item.slideshow.slides.length + " slides"}
-          </div>
-        </div>
-      </button>
-    </MediaCardShell>
+    <div
+      className={cn(
+        "relative rounded-[10px]",
+        shared && "ring-2 ring-[#6d28d9]/45 ring-offset-2"
+      )}
+    >
+      {shared ? (
+        <span className="absolute top-2 left-2 z-20 rounded-full bg-[#6d28d9] px-2 py-1 text-[10px] font-semibold text-white">
+          Shared
+        </span>
+      ) : null}
+      <MediaCardShell>
+        <button
+          type="button"
+          className="block w-full text-left"
+          onClick={onOpen}
+          aria-label={`Open ${item.title} generated slideshow`}
+        >
+          <MediaFrame>
+            {firstSlide ? (
+              /* eslint-disable-next-line @next/next/no-img-element -- Generated slides are already rendered image artifacts. */
+              <img
+                src={firstSlide.imageUrl}
+                alt={firstSlide.text || `${item.title} first slide`}
+                className="absolute inset-0 h-full w-full object-cover"
+                draggable={false}
+              />
+            ) : (
+              <div className="app-media-poster-fallback absolute inset-0" />
+            )}
+          </MediaFrame>
+        </button>
+      </MediaCardShell>
+    </div>
   )
 }
 
@@ -369,9 +402,11 @@ function generatedHomeSlideshowCards(
     .flatMap<GeneratedHomeSlideshowCard>(([, runs]) => {
       const slideshows = generatedExampleSlideshows(runs)
       return slideshows.map((slideshow) => ({
+        ownerId: runs.find((run) => run.id === slideshow.id)?.ownerId,
         title:
-          runs.find((run) => run.id === slideshow.id)?.automationTitle?.trim() ||
-          slideshow.title,
+          runs
+            .find((run) => run.id === slideshow.id)
+            ?.automationTitle?.trim() || slideshow.title,
         runs,
         slideshow,
       }))
@@ -387,22 +422,6 @@ function slideshowTimestamp(slideshow: TemplateExampleSlideshow) {
   const value = slideshow.createdAt || slideshow.scheduledFor
   const time = value ? new Date(value).getTime() : 0
   return Number.isFinite(time) ? time : 0
-}
-
-function formatGeneratedSlideshowDate(value?: string) {
-  if (!value) {
-    return ""
-  }
-
-  const date = new Date(value)
-  if (!Number.isFinite(date.getTime())) {
-    return ""
-  }
-
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  })
 }
 
 function QuickStartTemplateCard({
@@ -467,7 +486,13 @@ function QuickStartTemplateCard({
   )
 }
 
-function VideoCard({ item }: { item: GeneratedVideoExport }) {
+function VideoCard({
+  item,
+  shared,
+}: {
+  item: GeneratedVideoExport
+  shared: boolean
+}) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [playing, setPlaying] = useState(false)
   const isPending =
@@ -487,47 +512,74 @@ function VideoCard({ item }: { item: GeneratedVideoExport }) {
 
   if (isPending) {
     return (
-      <MediaCardShell>
-        <MediaPendingState label="Creating hook video..." />
-      </MediaCardShell>
+      <div
+        className={cn(
+          "relative rounded-[10px]",
+          shared && "ring-2 ring-[#6d28d9]/45 ring-offset-2"
+        )}
+      >
+        {shared ? (
+          <span className="absolute top-2 left-2 z-20 rounded-full bg-[#6d28d9] px-2 py-1 text-[10px] font-semibold text-white">
+            Shared
+          </span>
+        ) : null}
+        <MediaCardShell>
+          <MediaPendingState label="Creating hook video..." />
+        </MediaCardShell>
+      </div>
     )
   }
 
   return (
-    <MediaCardShell>
-      <MediaFrame>
-        {item.videoUrl ? (
-          <>
-            <video
-              ref={videoRef}
-              className="absolute inset-0 h-full w-full object-cover"
-              src={item.videoUrl}
-              muted
-              playsInline
-              preload="metadata"
-              onEnded={() => setPlaying(false)}
+    <div
+      className={cn(
+        "relative rounded-[10px]",
+        shared && "ring-2 ring-[#6d28d9]/45 ring-offset-2"
+      )}
+    >
+      {shared ? (
+        <span className="absolute top-2 left-2 z-20 rounded-full bg-[#6d28d9] px-2 py-1 text-[10px] font-semibold text-white">
+          Shared
+        </span>
+      ) : null}
+      <MediaCardShell>
+        <MediaFrame>
+          {item.videoUrl ? (
+            <>
+              <video
+                ref={videoRef}
+                className="absolute inset-0 h-full w-full object-cover"
+                src={item.videoUrl}
+                muted
+                playsInline
+                preload="metadata"
+                onEnded={() => setPlaying(false)}
+              />
+              <button
+                className="absolute inset-0 z-10 flex items-center justify-center"
+                onClick={togglePlay}
+                aria-label={playing ? "Pause video" : "Play video"}
+              >
+                {!playing && (
+                  <div className="grid size-14 place-items-center rounded-full bg-black/50 backdrop-blur-sm transition hover:bg-black/60">
+                    <IconPlayerPlay
+                      className="size-7 text-white"
+                      fill="white"
+                    />
+                  </div>
+                )}
+              </button>
+            </>
+          ) : item.previewUrl ? (
+            <div
+              className="absolute inset-0 bg-cover bg-center"
+              style={{ backgroundImage: `url(${item.previewUrl})` }}
             />
-            <button
-              className="absolute inset-0 z-10 flex items-center justify-center"
-              onClick={togglePlay}
-              aria-label={playing ? "Pause video" : "Play video"}
-            >
-              {!playing && (
-                <div className="grid size-14 place-items-center rounded-full bg-black/50 backdrop-blur-sm transition hover:bg-black/60">
-                  <IconPlayerPlay className="size-7 text-white" fill="white" />
-                </div>
-              )}
-            </button>
-          </>
-        ) : item.previewUrl ? (
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${item.previewUrl})` }}
-          />
-        ) : (
-          <div className="app-media-poster-fallback absolute inset-0" />
-        )}
-      </MediaFrame>
-    </MediaCardShell>
+          ) : (
+            <div className="app-media-poster-fallback absolute inset-0" />
+          )}
+        </MediaFrame>
+      </MediaCardShell>
+    </div>
   )
 }

@@ -1,28 +1,29 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
-import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
 import {
   createGeneratedVideoExport,
   deleteGeneratedVideoExport,
   listGeneratedVideoExports,
   updateGeneratedVideoExport,
 } from "@/lib/generated-videos"
+import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
-let videoRoot: string
-let assetRoot: string
+// Appwrite-only, run against cfarm (forced by vitest.setup.ts):
+//   data/generated-videos/exports.json -> generated_video_exports
+//   data/assets/assets.json            -> assets
+const videoRoot = path.join(process.cwd(), "data", "generated-videos")
+const assetRoot = path.join(process.cwd(), "data", "assets")
 
-beforeEach(async () => {
-  videoRoot = await mkdtemp(path.join(os.tmpdir(), "cfarm-generated-videos-"))
-  assetRoot = await mkdtemp(path.join(os.tmpdir(), "cfarm-generated-video-assets-"))
-})
 
-afterEach(async () => {
-  await rm(videoRoot, { recursive: true, force: true })
-  await rm(assetRoot, { recursive: true, force: true })
-})
+const clearAll = () => clearTestTables("generated_video_exports", "assets")
+
+beforeEach(clearAll)
+afterAll(clearAll)
 
 describe("generated video exports", () => {
   it("creates processing exports and lists newest first", async () => {
@@ -206,16 +207,16 @@ describe("generated video exports", () => {
     expect(listed.map((item) => item.id)).toEqual([second.id])
   })
 
-  it("deletes generated output asset records and files that no remaining export references", async () => {
-    await mkdir(path.join(assetRoot, "files"), { recursive: true })
-    await writeFile(path.join(assetRoot, "files", "output.webm"), new Uint8Array([1, 2, 3]))
-    await writeFile(path.join(assetRoot, "files", "output-thumbnail.jpg"), new Uint8Array([4, 5, 6]))
-    await writeFile(path.join(assetRoot, "assets.json"), `${JSON.stringify({
-      assets: [
+  it("deletes generated output asset records that no remaining export references", async () => {
+    await writeJsonArrayStore({
+      rootDir: assetRoot,
+      fileName: "assets.json",
+      key: "assets",
+      records: [
         assetRecord("output-video", "files/output.webm"),
         assetRecord("output-thumbnail", "files/output-thumbnail.jpg"),
       ],
-    }, null, 2)}\n`)
+    })
     const first = await createGeneratedVideoExport({
       rootDir: videoRoot,
       type: "ugc_ad",
@@ -231,11 +232,13 @@ describe("generated video exports", () => {
       id: first.id,
     })
 
-    const assets = JSON.parse(await readFile(path.join(assetRoot, "assets.json"), "utf8"))
+    const remainingAssets = await readJsonArrayStore({
+      rootDir: assetRoot,
+      fileName: "assets.json",
+      key: "assets",
+    })
     expect(deleted?.id).toBe(first.id)
-    expect(assets.assets).toEqual([])
-    await expect(stat(path.join(assetRoot, "files", "output.webm"))).rejects.toThrow()
-    await expect(stat(path.join(assetRoot, "files", "output-thumbnail.jpg"))).rejects.toThrow()
+    expect(remainingAssets).toEqual([])
   })
 })
 

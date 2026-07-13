@@ -1,22 +1,29 @@
 import type { ReactNode } from "react"
-import { Blend, Expand, Grid3X3, Image as ImageIcon, Layers, MapPin, Plus, Type } from "lucide-react"
+import {
+  Blend,
+  Expand,
+  Image as ImageIcon,
+  Layers,
+  Plus,
+  Type,
+} from "lucide-react"
 
 import { CollectionSelector } from "@/components/realfarm/collection-selector"
 import { PinterestPreviewTile } from "@/components/realfarm/shared-media"
-import { SelectLike } from "@/components/ui/form-controls"
+import { SelectLike, SwitchPillButton } from "@/components/ui/form-controls"
 import {
   aspectRatioLabel,
   automationAspectRatios,
-  automationImageGrids,
-  imageGridLabel,
   labelToAspectRatio,
-  labelToImageGrid,
   type AutomationFormatSection,
   type AutomationImageOverride,
   type AutomationSchema,
   type AutomationSlideOverride,
 } from "@/lib/realfarm-automation"
-import { findCollectionByIdOrAlias, type CreatedImageCollection } from "@/lib/realfarm-collections"
+import {
+  findCollectionByIdOrAlias,
+  type CreatedImageCollection,
+} from "@/lib/realfarm-collections"
 import { cn } from "@/lib/utils"
 
 import { ctaEnabled } from "./format-helpers"
@@ -270,7 +277,6 @@ export function AutomationCtaFormatEditor({
   collections,
   onCreateCollection,
   onEnabledChange,
-  onPlacementChange,
   onImageModeChange,
   onCollectionChange,
   onSingleImageChange,
@@ -284,7 +290,6 @@ export function AutomationCtaFormatEditor({
   collections: CreatedImageCollection[]
   onCreateCollection: (collection: CreatedImageCollection) => void
   onEnabledChange: (enabled: boolean) => void
-  onPlacementChange: (placement: "last" | "static") => void
   onImageModeChange: (mode: "collection" | "single_image") => void
   onCollectionChange: (collectionId: string) => void
   onSingleImageChange: (imageId: string) => void
@@ -295,11 +300,6 @@ export function AutomationCtaFormatEditor({
   const enabled = ctaEnabled(config, section)
   const imageMode =
     section.imageMode === "single_image" ? "single_image" : "collection"
-  const placement =
-    section.ctaLocation === "static" ||
-    config.image_collection_ids.cta_slide.cta_location === "static"
-      ? "static"
-      : "last"
   const selectedImageId = config.image_collection_ids.cta_slide.image_id ?? ""
   const overlayCollection = findCollectionByIdOrAlias(
     collections,
@@ -312,15 +312,6 @@ export function AutomationCtaFormatEditor({
         label="Enable CTA"
         enabled={enabled}
         onClick={() => onEnabledChange(!enabled)}
-      />
-      <CtaSelectRow
-        icon={<MapPin className="size-3.5 text-[#999]" />}
-        label="Slide Placement"
-        value={placement === "last" ? "Last Slide" : "Static Position"}
-        options={["Last Slide", "Static Position"]}
-        onChange={(value) =>
-          onPlacementChange(value === "Last Slide" ? "last" : "static")
-        }
       />
       <CtaSelectRow
         icon={<ImageIcon className="size-3.5 text-[#999]" />}
@@ -363,15 +354,6 @@ export function AutomationCtaFormatEditor({
           options={automationAspectRatios.map(aspectRatioLabel)}
           onChange={(value) =>
             onSectionChange({ aspect_ratio: labelToAspectRatio(value) })
-          }
-        />
-        <CtaSelectRow
-          icon={<Grid3X3 className="size-3.5 text-[#999]" />}
-          label="Image Grid"
-          value={imageGridLabel(section.imageGrid)}
-          options={automationImageGrids.map(imageGridLabel)}
-          onChange={(value) =>
-            onSectionChange({ imageGrid: labelToImageGrid(value) })
           }
         />
       </div>
@@ -456,23 +438,11 @@ function CtaToggleRow({
         {icon}
         {label}
       </label>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={enabled}
-        className={cn(
-          "inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent p-0.5 shadow-sm transition-colors",
-          enabled ? "bg-[#388EFF]" : "bg-[#e5e7eb]"
-        )}
+      <SwitchPillButton
+        enabled={enabled}
         onClick={onClick}
-      >
-        <span
-          className={cn(
-            "block size-4 rounded-full bg-white shadow transition-transform",
-            enabled && "translate-x-4"
-          )}
-        />
-      </button>
+        aria-label={`Toggle ${label}`}
+      />
     </div>
   )
 }
@@ -541,5 +511,3 @@ function CtaSingleImagePicker({
 function CtaDivider() {
   return <hr className="border-t border-[#E5E7EB]" />
 }
-
-

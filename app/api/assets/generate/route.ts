@@ -1,6 +1,8 @@
 import { clean } from "@/lib/guards"
 import { NextResponse } from "next/server"
 
+import { providerFail } from "@/lib/api"
+
 import {
   createGeneratedAssetRecord,
   parseAssetCategory,
@@ -43,10 +45,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ asset }, { status: 201 })
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to generate asset" },
-      { status: 500 }
-    )
+    return providerFail(error, "Failed to generate asset", 500)
   }
 }
 

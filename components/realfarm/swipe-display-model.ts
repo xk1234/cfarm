@@ -122,11 +122,11 @@ function displayUgcSummary(swipe: SwipeRecord) {
   }
 
   const entries: SwipeDisplayEntry[] = []
-  addEntry(entries, "Device", analysis.implied_device_and_capture.inferred_device)
-  addEntry(entries, "Scenario", analysis.social_context_and_scenario.scenario)
-  addEntry(entries, "Setting", analysis.social_context_and_scenario.setting)
-  addEntry(entries, "Speaking style", analysis.subject_and_performance.delivery_and_kinesics.speaking_style)
-  addEntry(entries, "Tone", analysis.subject_and_performance.delivery_and_kinesics.tone)
+  addEntry(entries, "Device", analysis.implied_device_and_capture?.inferred_device)
+  addEntry(entries, "Scenario", analysis.social_context_and_scenario?.scenario)
+  addEntry(entries, "Setting", analysis.social_context_and_scenario?.setting)
+  addEntry(entries, "Speaking style", analysis.subject_and_performance?.delivery_and_kinesics?.speaking_style)
+  addEntry(entries, "Tone", analysis.subject_and_performance?.delivery_and_kinesics?.tone)
   return entries.filter((entry) => entry.value !== "unknown")
 }
 

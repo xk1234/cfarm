@@ -1,4 +1,3 @@
-import { readFile, stat } from "node:fs/promises"
 import path from "node:path"
 
 import { NextResponse } from "next/server"
@@ -50,39 +49,8 @@ export async function GET(
   )
   if (appwriteResponse) return appwriteResponse
 
-  try {
-    const fileStat = await stat(requestedPath)
-    const range = parseRangeHeader(request.headers.get("range"), fileStat.size)
-
-    if (range) {
-      const body = await readFile(requestedPath)
-      const chunk = body.subarray(range.start, range.end + 1)
-
-      return new NextResponse(chunk, {
-        status: 206,
-        headers: {
-          "Accept-Ranges": "bytes",
-          "Cache-Control": "no-store",
-          "Content-Length": String(chunk.byteLength),
-          "Content-Range": `bytes ${range.start}-${range.end}/${fileStat.size}`,
-          "Content-Type": contentType,
-        },
-      })
-    }
-
-    const body = await readFile(requestedPath)
-
-    return new NextResponse(body, {
-      headers: {
-        "Accept-Ranges": "bytes",
-        "Cache-Control": "no-store",
-        "Content-Length": String(fileStat.size),
-        "Content-Type": contentType,
-      },
-    })
-  } catch {
-    return NextResponse.json({ error: "Asset not found" }, { status: 404 })
-  }
+  // Appwrite-only: no filesystem fallback. If it isn't in Storage, it's a 404.
+  return NextResponse.json({ error: "Asset not found" }, { status: 404 })
 }
 
 async function serveFromAppwrite(

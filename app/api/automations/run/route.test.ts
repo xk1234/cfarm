@@ -1,83 +1,111 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
+import { mirrorAssetToAppwrite } from "@/lib/asset-storage"
 import {
   createLocalAutomationRecord,
   upsertAutomationRecords,
 } from "@/lib/automations"
+import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
+// Appwrite-only, run against cfarm (forced by vitest.setup.ts).
+// Slides rasterize to PNG only where a rasterizer exists (darwin), else SVG.
+const slideExt = process.platform === "darwin" ? "png" : "svg"
 let tempRoot: string
 
+
+const clearAll = () => clearTestTables("automations", "automation_runs", "image_collections", "slideshows", "results")
+
 beforeEach(async () => {
+  await clearAll()
   tempRoot = await mkdtemp(
     path.join(os.tmpdir(), "cfarm-automation-run-route-")
   )
-  await mkdir(path.join(tempRoot, "data", "automations"), { recursive: true })
+  vi.resetModules()
   vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
+  // Deterministic LLM: the runner reads media via Appwrite (undici), so the
+  // only global-fetch caller is OpenRouter for hook/caption generation.
+  vi.stubEnv("OPENROUTER_API_KEY", "test-openrouter-key")
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    title: "Generated Hook Run",
+                    caption: "A relatable hook caption.",
+                    hashtags: "#hooks #content #growth",
+                    text: { "content-2__text-0": "generated body text" },
+                  }),
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+    )
+  )
 })
 
 afterEach(async () => {
   vi.unstubAllEnvs()
+  vi.doUnmock("@/lib/automation-runner")
   vi.restoreAllMocks()
   vi.resetModules()
   await rm(tempRoot, { recursive: true, force: true })
 })
 
+afterAll(clearAll)
+
 describe("POST /api/automations/run", () => {
-  it("fails closed for non-localhost requests when the cron secret is not configured", async () => {
-    const { POST } = await import("./route")
-    const response = await POST(
-      new Request("https://cfarm.example.com/api/automations/run", {
-        method: "POST",
-        headers: {
-          authorization: "Bearer secret-1",
-        },
-        body: JSON.stringify({ force: true }),
-      })
-    )
-    const payload = await response.json()
-
-    expect(response.status).toBe(500)
-    expect(payload.error).toBe("CRON_SECRET is not configured")
-  })
-
-  it("allows localhost requests without a secret for local development", async () => {
-    const { POST } = await import("./route")
-    const response = await POST(
-      new Request("http://localhost/api/automations/run", {
-        method: "POST",
-        body: JSON.stringify({ now: "2026-07-03T15:05:00.000Z" }),
-      })
-    )
-    const payload = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(payload.created).toEqual([])
-  })
-
-  it("requires the cron secret bearer token", async () => {
-    vi.stubEnv("CRON_SECRET", "secret-1")
+  it("runs browser requests without additional API credentials", async () => {
+    const runDueAutomations = vi.fn(async (_input: Record<string, unknown>) => ({
+      created: [],
+      results: [],
+      skipped: [],
+    }))
+    vi.doMock("@/lib/automation-runner", () => ({
+      runDueAutomations,
+    }))
 
     const { POST } = await import("./route")
     const response = await POST(
       new Request("http://localhost/api/automations/run", {
         method: "POST",
         body: JSON.stringify({
+          now: "2026-07-03T15:05:00.000Z",
+          automationId: "automation-1",
+          schema: { title: "stale client schema" },
           force: true,
-          schema: { social_integrations: [] },
         }),
       })
     )
+    const payload = await response.json()
 
-    expect(response.status).toBe(401)
+    expect(response.status).toBe(200)
+    expect(payload.created).toEqual([])
+    expect(runDueAutomations).toHaveBeenCalledWith(
+      expect.objectContaining({
+        automationId: "automation-1",
+        force: true,
+      })
+    )
+    expect(runDueAutomations.mock.calls[0]?.[0]).not.toHaveProperty(
+      "schemaOverride"
+    )
   })
 
   it("runs due automations through the local runner", async () => {
-    vi.stubEnv("CRON_SECRET", "secret-1")
-
     const automation = createLocalAutomationRecord({
       name: "Daily hooks",
       overrides: {
@@ -96,36 +124,38 @@ describe("POST /api/automations/run", () => {
         },
       },
     })
+    automation.schema.image_collection_ids = {
+      ...automation.schema.image_collection_ids,
+      first_slide: {
+        collection: "collection-daily-scenes-2026-07-03t00-00-00-000z",
+        mode: "collection",
+        single_image: null,
+      },
+      all_slides: "collection-daily-scenes-2026-07-03t00-00-00-000z",
+    }
     await upsertAutomationRecords({
       rootDir: path.join(tempRoot, "data", "automations"),
       records: [automation],
     })
-    await writeFile(
-      path.join(tempRoot, "data", "image-collections.json"),
-      `${JSON.stringify(
+    await writeJsonArrayStore({
+      rootDir: path.join(tempRoot, "data"),
+      fileName: "image-collections.json",
+      key: "collections",
+      records: [
         {
-          collections: [
+          name: "Daily scenes",
+          created_at: "2026-07-03T00:00:00.000Z",
+          images: [
             {
-              name: "Daily scenes",
-              created_at: "2026-07-03T00:00:00.000Z",
-              images: [
-                {
-                  image_link:
-                    "/api/local-assets/image-collections/files/daily-scene.jpg",
-                  caption: "Daily scene",
-                },
-              ],
+              image_link:
+                "/api/local-assets/image-collections/files/daily-scene.jpg",
+              caption: "Daily scene",
             },
           ],
         },
-        null,
-        2
-      )}\n`
-    )
-    await mkdir(path.join(tempRoot, "data", "image-collections", "files"), {
-      recursive: true,
+      ],
     })
-    await writeFile(
+    await mirrorAssetToAppwrite(
       path.join(
         tempRoot,
         "data",
@@ -133,7 +163,7 @@ describe("POST /api/automations/run", () => {
         "files",
         "daily-scene.jpg"
       ),
-      "daily scene image"
+      new TextEncoder().encode("daily scene image")
     )
 
     const { POST } = await import("./route")
@@ -175,14 +205,13 @@ describe("POST /api/automations/run", () => {
         slideshowId: payload.created[0].slideshowId,
       },
     })
-    const results = JSON.parse(
-      await readFile(
-        path.join(tempRoot, "data", "results", "results.json"),
-        "utf8"
-      )
-    )
-    expect(results.results).toHaveLength(1)
-    expect(results.results[0]).toMatchObject({
+    const resultsRows = await readJsonArrayStore<Record<string, any>>({
+      rootDir: path.join(tempRoot, "data", "results"),
+      fileName: "results.json",
+      key: "results",
+    })
+    expect(resultsRows).toHaveLength(1)
+    expect(resultsRows[0]).toMatchObject({
       id: `result-${payload.created[0].id}`,
       automationId: automation.id,
       runId: payload.created[0].id,
@@ -196,13 +225,15 @@ describe("POST /api/automations/run", () => {
       },
     })
 
-    expect(results.results[0].payload).toMatchObject({
+    expect(resultsRows[0].payload).toMatchObject({
       type: "slideshow",
       slideshowType: "automation",
     })
-    expect(results.results[0].payload.slides[0]).toMatchObject({
+    expect(resultsRows[0].payload.slides[0]).toMatchObject({
       image_url: expect.stringMatching(
-        /^\/api\/local-assets\/slideshows\/outputs\/slideshow-.+\/slide-001\.png$/
+        new RegExp(
+          `^/api/local-assets/slideshows/outputs/slideshow-.+/slide-001\\.${slideExt}$`
+        )
       ),
       source_image_url: expect.stringMatching(
         /^\/api\/local-assets\/slideshows\/outputs\/slideshow-.+\/source-001\.jpg$/
@@ -219,38 +250,8 @@ describe("POST /api/automations/run", () => {
   })
 })
 
-describe("GET /api/automations/run", () => {
-  it("fails closed for non-localhost requests when the cron secret is not configured", async () => {
-    const { GET } = await import("./route")
-    const response = await GET(
-      new Request("https://cfarm.example.com/api/automations/run", {
-        headers: {
-          authorization: "Bearer secret-1",
-        },
-      })
-    )
-    const payload = await response.json()
-
-    expect(response.status).toBe(500)
-    expect(payload.error).toBe("CRON_SECRET is not configured")
-  })
-
-  it("requires the cron secret when configured", async () => {
-    vi.stubEnv("CRON_SECRET", "secret-1")
-
-    const { GET } = await import("./route")
-    const response = await GET(
-      new Request("http://localhost/api/automations/run")
-    )
-
-    expect(response.status).toBe(401)
-  })
-})
-
 describe("GET /api/automations/runs", () => {
   it("returns persisted recent runs for an automation", async () => {
-    vi.stubEnv("CRON_SECRET", "secret-1")
-
     const automation = createLocalAutomationRecord({
       name: "Recent hooks",
       overrides: {
@@ -261,36 +262,38 @@ describe("GET /api/automations/runs", () => {
         },
       },
     })
+    automation.schema.image_collection_ids = {
+      ...automation.schema.image_collection_ids,
+      first_slide: {
+        collection: "collection-recent-scenes-2026-07-03t00-00-00-000z",
+        mode: "collection",
+        single_image: null,
+      },
+      all_slides: "collection-recent-scenes-2026-07-03t00-00-00-000z",
+    }
     await upsertAutomationRecords({
       rootDir: path.join(tempRoot, "data", "automations"),
       records: [automation],
     })
-    await writeFile(
-      path.join(tempRoot, "data", "image-collections.json"),
-      `${JSON.stringify(
+    await writeJsonArrayStore({
+      rootDir: path.join(tempRoot, "data"),
+      fileName: "image-collections.json",
+      key: "collections",
+      records: [
         {
-          collections: [
+          name: "Recent scenes",
+          created_at: "2026-07-03T00:00:00.000Z",
+          images: [
             {
-              name: "Recent scenes",
-              created_at: "2026-07-03T00:00:00.000Z",
-              images: [
-                {
-                  image_link:
-                    "/api/local-assets/image-collections/files/recent-scene.jpg",
-                  caption: "Recent scene",
-                },
-              ],
+              image_link:
+                "/api/local-assets/image-collections/files/recent-scene.jpg",
+              caption: "Recent scene",
             },
           ],
         },
-        null,
-        2
-      )}\n`
-    )
-    await mkdir(path.join(tempRoot, "data", "image-collections", "files"), {
-      recursive: true,
+      ],
     })
-    await writeFile(
+    await mirrorAssetToAppwrite(
       path.join(
         tempRoot,
         "data",
@@ -298,7 +301,7 @@ describe("GET /api/automations/runs", () => {
         "files",
         "recent-scene.jpg"
       ),
-      "recent scene image"
+      new TextEncoder().encode("recent scene image")
     )
 
     const runRoute = await import("./route")
@@ -334,7 +337,9 @@ describe("GET /api/automations/runs", () => {
     })
     expect(createPayload.created[0].renderedSlides[0]).toMatchObject({
       imageUrl: expect.stringMatching(
-        /^\/api\/local-assets\/slideshows\/outputs\/slideshow-.+\/slide-001\.png$/
+        new RegExp(
+          `^/api/local-assets/slideshows/outputs/slideshow-.+/slide-001\\.${slideExt}$`
+        )
       ),
       sourceImageUrl: expect.stringMatching(
         /^\/api\/local-assets\/slideshows\/outputs\/slideshow-.+\/source-001\.jpg$/
@@ -342,7 +347,9 @@ describe("GET /api/automations/runs", () => {
     })
     expect(payload.runs[0].renderedSlides[0]).toMatchObject({
       imageUrl: expect.stringMatching(
-        /^\/api\/local-assets\/slideshows\/outputs\/slideshow-.+\/slide-001\.png$/
+        new RegExp(
+          `^/api/local-assets/slideshows/outputs/slideshow-.+/slide-001\\.${slideExt}$`
+        )
       ),
       sourceImageUrl: expect.stringMatching(
         /^\/api\/local-assets\/slideshows\/outputs\/slideshow-.+\/source-001\.jpg$/

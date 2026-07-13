@@ -2,7 +2,7 @@ import { StandardGenerationLoadingScreen } from "@/components/realfarm/generatio
 
 export default function Loading() {
   return (
-    <div className="grid min-h-svh place-items-center bg-[#f6f6f2] p-6">
+    <div className="grid min-h-svh place-items-center bg-[#f7f7fa] p-6">
       <StandardGenerationLoadingScreen
         title="Loading workspace"
         description="Preparing the latest workspace state."

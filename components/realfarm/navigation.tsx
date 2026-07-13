@@ -1,11 +1,16 @@
 "use client"
 
+import Image from "next/image"
+
 import {
   IconBolt,
+  IconBook2,
   IconCalendar,
   IconHome,
+  IconLogout,
   IconPhoto,
   IconPlus,
+  IconSettings,
   IconSparkles,
 } from "@tabler/icons-react"
 
@@ -21,6 +26,7 @@ export type ViewKey =
   | "schedule"
   | "analytics"
   | "collections"
+  | "knowledge"
   | "automations"
 
 type NavItem = {
@@ -40,7 +46,8 @@ const topNav: NavItem[] = [
 
 const slideshowNav: NavItem[] = [
   { key: "automations", label: "Automations", icon: IconBolt },
-  { key: "collections", label: "Image Collections", icon: IconPhoto },
+  { key: "collections", label: "Collections", icon: IconPhoto },
+  { key: "knowledge", label: "Knowledge Bases", icon: IconBook2 },
 ]
 
 export function Sidebar({
@@ -48,17 +55,25 @@ export function Sidebar({
   view,
   onViewChange,
   onNewAutomation,
+  onSettings,
 }: {
   data: RealFarmData
   view: ViewKey
   onViewChange: (view: ViewKey) => void
   onNewAutomation: () => void
+  onSettings: () => void
 }) {
   return (
-    <aside className="hidden h-svh w-[214px] shrink-0 overflow-y-auto border-r border-[#e5e4dc] bg-[#fbfbf7] px-2 py-4 md:flex md:flex-col">
-      <button className="mb-5 flex items-center gap-2 px-2 text-left text-[15px] font-semibold">
-        <span className="flex size-6 items-center justify-center rounded-[5px] bg-[#111] text-white">
-          <IconSparkles className="size-4" />
+    <aside className="hidden h-svh w-56 shrink-0 overflow-y-auto border-r border-[#e7e7ee] bg-[#fbfbfd] px-3 py-5 md:flex md:flex-col">
+      <button className="lc-focus-ring mb-6 flex items-center gap-2.5 rounded-lg px-2 text-left text-[15px] font-semibold tracking-[-0.025em] text-[#111117]">
+        <span className="flex size-7 items-center justify-center overflow-hidden rounded-lg">
+          <Image
+            src="/brand/lumenclip-mark.png"
+            alt=""
+            width={28}
+            height={28}
+            className="size-7 object-contain"
+          />
         </span>
         {data.brand.name}
       </button>
@@ -88,8 +103,8 @@ export function Sidebar({
           />
         ))}
       </nav>
-      <div className="mt-4 text-[11px] font-medium text-[#a09f98]">
-        Slideshows
+      <div className="mt-5 px-3 text-[11px] font-medium text-[#91909d]">
+        Create and ship
       </div>
       <nav className="mt-1 space-y-1">
         {slideshowNav.map((item) => (
@@ -101,7 +116,25 @@ export function Sidebar({
           />
         ))}
       </nav>
-      <div className="mt-auto" />
+      <div className="mt-auto border-t border-[#e7e7ee] pt-3">
+        <button
+          onClick={onSettings}
+          className="lc-focus-ring flex h-9 w-full items-center gap-2.5 rounded-[10px] px-3 text-left text-xs font-medium text-[#686875] hover:bg-[#f0eef8] hover:text-[#111117]"
+        >
+          <IconSettings className="size-4" />
+          <span className="truncate">{data.brand.owner}</span>
+        </button>
+        <button
+          className="lc-focus-ring mt-1 flex h-9 w-full items-center gap-2.5 rounded-[10px] px-3 text-left text-xs font-medium text-[#686875] hover:bg-[#f0eef8] hover:text-[#111117]"
+          onClick={async () => {
+            await fetch("/api/auth/logout", { method: "POST" })
+            window.location.assign("/")
+          }}
+        >
+          <IconLogout className="size-4" />
+          Log out
+        </button>
+      </div>
     </aside>
   )
 }
@@ -119,8 +152,10 @@ function SidebarButton({
   return (
     <button
       className={cn(
-        "flex h-8 w-full items-center gap-2 rounded-[6px] px-3 text-left text-[12px] font-medium text-[#4d4c47] transition",
-        active ? "bg-app-action text-white shadow-sm" : "hover:bg-[#efeee8]"
+        "lc-focus-ring relative flex h-9 w-full items-center gap-2.5 overflow-hidden rounded-[10px] px-3 text-left text-[12px] font-medium text-[#454551] transition duration-200 active:translate-y-px",
+        active
+          ? "bg-[#111117] text-white shadow-[0_8px_24px_rgba(25,18,45,0.16)] before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-[linear-gradient(180deg,#6d28d9,#e92a9a,#ff9f1c)]"
+          : "hover:bg-[#f0eef8] hover:text-[#111117]"
       )}
       onClick={onClick}
     >

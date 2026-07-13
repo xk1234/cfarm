@@ -7,10 +7,12 @@ import crypto from "node:crypto"
 import { Query } from "node-appwrite"
 
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { getCurrentUser } from "@/lib/auth"
 
 const JOBS_TABLE = "jobs"
 
-export type JobStatus = "queued" | "processing" | "completed" | "failed" | "dead"
+export type JobStatus =
+  "queued" | "processing" | "completed" | "failed" | "dead"
 
 export type EnqueueInput = {
   type: string
@@ -34,10 +36,13 @@ export type Job = {
   availableAt: string | null
   createdAt: string | null
   updatedAt: string | null
+  ownerId: string
 }
 
 function jobId(basis: string): string {
-  return "j" + crypto.createHash("sha256").update(basis).digest("hex").slice(0, 35)
+  return (
+    "j" + crypto.createHash("sha256").update(basis).digest("hex").slice(0, 35)
+  )
 }
 
 function safeParse(value: unknown): unknown {
@@ -62,6 +67,7 @@ function mapJob(row: Record<string, unknown>): Job {
     availableAt: (row.available_at as string) ?? null,
     createdAt: (row.created_at as string) ?? null,
     updatedAt: (row.updated_at as string) ?? null,
+    ownerId: String(row.owner_id ?? ""),
   }
 }
 
@@ -71,9 +77,11 @@ export async function enqueueJob(
 ): Promise<{ id: string; status: "enqueued" | "duplicate" } | null> {
   const aw = getAppwrite()
   if (!aw) return null
+  const user = await getCurrentUser()
+  if (!user) throw new Error("Authentication is required to enqueue jobs.")
   const nowIso = new Date().toISOString()
   const dedupe = input.dedupeKey ?? `${input.type}:${crypto.randomUUID()}`
-  const id = jobId(dedupe)
+  const id = jobId(`${user.$id}:${dedupe}`)
   try {
     await aw.tables.createRow(APPWRITE_DATABASE_ID, JOBS_TABLE, id, {
       type: input.type,
@@ -86,10 +94,12 @@ export async function enqueueJob(
       dedupe_key: dedupe,
       created_at: nowIso,
       updated_at: nowIso,
+      owner_id: user.$id,
     })
     return { id, status: "enqueued" }
   } catch (error) {
-    if ((error as { code?: number }).code === 409) return { id, status: "duplicate" }
+    if ((error as { code?: number }).code === 409)
+      return { id, status: "duplicate" }
     throw error
   }
 }
@@ -100,18 +110,33 @@ export async function listJobs(
 ): Promise<Job[]> {
   const aw = getAppwrite()
   if (!aw) return []
+  const user = await getCurrentUser()
+  if (!user) return []
   const queries = [Query.orderDesc("$createdAt"), Query.limit(opts.limit ?? 50)]
+  queries.push(Query.equal("owner_id", [user.$id]))
   if (opts.status) queries.push(Query.equal("status", [opts.status]))
   if (opts.type) queries.push(Query.equal("type", [opts.type]))
-  const res = await aw.tables.listRows(APPWRITE_DATABASE_ID, JOBS_TABLE, queries)
+  const res = await aw.tables.listRows(
+    APPWRITE_DATABASE_ID,
+    JOBS_TABLE,
+    queries
+  )
   return (res.rows as Array<Record<string, unknown>>).map(mapJob)
 }
 
 export async function getJob(id: string): Promise<Job | null> {
   const aw = getAppwrite()
   if (!aw) return null
+  const user = await getCurrentUser()
+  if (!user) return null
   try {
-    return mapJob((await aw.tables.getRow(APPWRITE_DATABASE_ID, JOBS_TABLE, id)) as Record<string, unknown>)
+    const job = mapJob(
+      (await aw.tables.getRow(APPWRITE_DATABASE_ID, JOBS_TABLE, id)) as Record<
+        string,
+        unknown
+      >
+    )
+    return job.ownerId === user.$id ? job : null
   } catch {
     return null
   }
@@ -120,13 +145,25 @@ export async function getJob(id: string): Promise<Job | null> {
 /** Count of jobs per status (for a queue dashboard). */
 export async function queueStats(): Promise<Record<JobStatus, number>> {
   const aw = getAppwrite()
-  const statuses: JobStatus[] = ["queued", "processing", "completed", "failed", "dead"]
-  const empty = Object.fromEntries(statuses.map((s) => [s, 0])) as Record<JobStatus, number>
+  const statuses: JobStatus[] = [
+    "queued",
+    "processing",
+    "completed",
+    "failed",
+    "dead",
+  ]
+  const empty = Object.fromEntries(statuses.map((s) => [s, 0])) as Record<
+    JobStatus,
+    number
+  >
   if (!aw) return empty
+  const user = await getCurrentUser()
+  if (!user) return empty
   await Promise.all(
     statuses.map(async (status) => {
       const res = await aw.tables.listRows(APPWRITE_DATABASE_ID, JOBS_TABLE, [
         Query.equal("status", [status]),
+        Query.equal("owner_id", [user.$id]),
         Query.limit(1),
       ])
       empty[status] = res.total

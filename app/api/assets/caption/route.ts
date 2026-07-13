@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 
+import { providerFail } from "@/lib/api"
+
 import { updateAssetCaption } from "@/lib/assets"
 
 export const dynamic = "force-dynamic"
@@ -27,9 +29,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ asset })
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to caption asset" },
-      { status: 500 }
-    )
+    return providerFail(error, "Failed to caption asset", 500)
   }
 }

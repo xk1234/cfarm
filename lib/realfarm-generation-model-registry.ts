@@ -49,12 +49,18 @@ export const generationModelRegistry = {
         "deepseek/deepseek-v4",
         "google/gemini-3.1-flash-lite",
         "moonshotai/kimi-k2.7",
-        "x-ai/grok-4.3",
+        "x-ai/grok-4.5",
+        "xiaomi/mimo-v2.5",
         "qwen/qwen3.7-plus",
         "z-ai/glm-5.2",
         "deepseek/deepseek-v4-flash",
         "minimax/minimax-m3",
+      ],
+      excludedModelIds: [
         "nvidia/nemotron-3-super-120b-a12b:free",
+        "ai21/jamba-large-1.7",
+        "ai21/jamba-1.6-large",
+        "x-ai/grok-4.3",
       ],
       fallbackModels: [
         {
@@ -68,7 +74,7 @@ export const generationModelRegistry = {
           name: "Google: Gemini 3.1 Flash Lite",
         },
         { id: "moonshotai/kimi-k2.7", name: "Moonshot AI: Kimi 2.7" },
-        { id: "x-ai/grok-4.3", name: "xAI: Grok 4.3" },
+        { id: "x-ai/grok-4.5", name: "xAI: Grok 4.5" },
         { id: "qwen/qwen3.7-plus", name: "Qwen: Qwen3.7 Plus" },
         { id: "z-ai/glm-5.2", name: "Z.ai: GLM 5.2" },
         {
@@ -76,10 +82,7 @@ export const generationModelRegistry = {
           name: "DeepSeek: DeepSeek V4 Flash",
         },
         { id: "minimax/minimax-m3", name: "MiniMax: MiniMax M3" },
-        {
-          id: "nvidia/nemotron-3-super-120b-a12b:free",
-          name: "NVIDIA: Nemotron 3 Super (free)",
-        },
+        { id: "xiaomi/mimo-v2.5", name: "Xiaomi: MiMo 2.5" },
       ],
     },
   },
@@ -158,6 +161,9 @@ export const defaultSlideshowTextModel =
 
 export const featuredOpenRouterModelIds: readonly string[] =
   generationModelRegistry.openRouter.tempTestingCenter.featuredModelIds
+
+export const excludedOpenRouterModelIds: readonly string[] =
+  generationModelRegistry.openRouter.tempTestingCenter.excludedModelIds
 
 export const tempTestingCenterFallbackModels =
   generationModelRegistry.openRouter.tempTestingCenter.fallbackModels.map(

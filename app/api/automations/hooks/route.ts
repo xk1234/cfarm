@@ -1,6 +1,8 @@
 import { clean, isRecord } from "@/lib/guards"
 import { NextResponse } from "next/server"
 
+import { withHandler } from "@/lib/api"
+import { openRouterChatCompletion } from "@/lib/openrouter"
 import {
   automationRecordToSummary,
   listAutomationRecords,
@@ -15,18 +17,7 @@ import { recentUsageKeys, usageKeyForHook } from "@/lib/usage-ledger"
 
 export const dynamic = "force-dynamic"
 
-type OpenRouterHooksResponse = {
-  choices?: {
-    message?: {
-      content?: unknown
-    }
-  }[]
-  error?: {
-    message?: string
-  }
-}
-
-export async function POST(request: Request) {
+export const POST = withHandler(async (request: Request) => {
   const payload = await request.json().catch(() => null)
   const automationId = clean(payload?.automationId)
 
@@ -66,67 +57,56 @@ export async function POST(request: Request) {
   const recentHookKeys = await recentUsageKeys("hook", record.id, {
     withinDays: record.schema.reuse_policy?.hook_exclusion_days ?? 45,
   })
-  const response = await fetch(
-    "https://openrouter.ai/api/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: openRouterModelForUseCase("automationHooks"),
-        messages: [
-          {
-            role: "system",
-            content:
-              "You write TikTok slideshow hooks. Return only JSON that matches the schema. Do not number the hooks. Do not repeat the provided examples.",
-          },
-          {
-            role: "user",
-            content: [
-              `Automation: ${record.name}`,
-              `Generate 10 new hooks in the same niche and style as these existing hooks.`,
-              `Existing hooks:`,
-              ...sampleHooks.map((hook) => `- ${hook}`),
-              "Keep each hook short, specific, and usable as the first slide of a TikTok slideshow.",
-            ].join("\n"),
-          },
-        ],
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "automation_hook_generation",
-            strict: true,
-            schema: {
-              type: "object",
-              additionalProperties: false,
-              required: ["hooks"],
-              properties: {
-                hooks: {
-                  type: "array",
-                  minItems: 10,
-                  maxItems: 10,
-                  items: {
-                    type: "string",
-                    minLength: 3,
-                  },
+  const { ok, status, payload: openRouterPayload } =
+    await openRouterChatCompletion({
+      apiKey,
+      model: openRouterModelForUseCase("automationHooks"),
+      messages: [
+        {
+          role: "system",
+          content:
+            "You write TikTok slideshow hooks. Return only JSON that matches the schema. Do not number the hooks. Do not repeat the provided examples.",
+        },
+        {
+          role: "user",
+          content: [
+            `Automation: ${record.name}`,
+            `Generate 10 new hooks in the same niche and style as these existing hooks.`,
+            `Existing hooks:`,
+            ...sampleHooks.map((hook) => `- ${hook}`),
+            "Keep each hook short, specific, and usable as the first slide of a TikTok slideshow.",
+          ].join("\n"),
+        },
+      ],
+      responseFormat: {
+        type: "json_schema",
+        json_schema: {
+          name: "automation_hook_generation",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            required: ["hooks"],
+            properties: {
+              hooks: {
+                type: "array",
+                minItems: 10,
+                maxItems: 10,
+                items: {
+                  type: "string",
+                  minLength: 3,
                 },
               },
             },
           },
         },
-      }),
-    }
-  )
+      },
+    })
 
-  const openRouterPayload = (await response
-    .json()
-    .catch(() => ({}))) as OpenRouterHooksResponse
-  if (!response.ok) {
+  if (!ok) {
     return NextResponse.json(
       { error: openRouterPayload.error?.message || "Failed to generate hooks" },
-      { status: response.status }
+      { status }
     )
   }
 
@@ -162,7 +142,7 @@ export async function POST(request: Request) {
     generatedHooks,
     schema,
   })
-}
+})
 
 function parseGeneratedHooks(content: unknown) {
   const parsed = parseOpenRouterContent(content)

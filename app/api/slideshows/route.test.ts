@@ -1,13 +1,28 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
+import { mirrorAssetToAppwrite } from "@/lib/asset-storage"
+import { readJsonArrayStore } from "@/lib/json-store"
+
+// Appwrite-only, run against cfarm (forced by vitest.setup.ts):
+//   slideshows -> slideshows table, results -> results; media -> Storage.
+// Slides rasterize to PNG only where a rasterizer exists (darwin), else SVG.
+const slideExt = process.platform === "darwin" ? "png" : "svg"
 let tempRoot: string
 
+
+const clearAll = () => clearTestTables("slideshows", "results")
+
 beforeEach(async () => {
+  await clearAll()
   tempRoot = await mkdtemp(path.join(os.tmpdir(), "cfarm-slideshows-route-"))
+  vi.resetModules()
   vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
   await writeLocalAsset("focus.jpg", "focus image")
   await writeLocalAsset("a.jpg", "video image")
@@ -15,9 +30,10 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.restoreAllMocks()
-  vi.resetModules()
   await rm(tempRoot, { recursive: true, force: true })
 })
+
+afterAll(clearAll)
 
 describe("/api/slideshows", () => {
   it("creates and lists persisted slideshow output records", async () => {
@@ -49,12 +65,11 @@ describe("/api/slideshows", () => {
       })
     )
     const createPayload = await createResponse.json()
-    const resultsDb = JSON.parse(
-      await readFile(
-        path.join(tempRoot, "data", "results", "results.json"),
-        "utf8"
-      )
-    )
+    const resultsRows = await readJsonArrayStore({
+      rootDir: path.join(tempRoot, "data", "results"),
+      fileName: "results.json",
+      key: "results",
+    })
 
     const listResponse = await GET(
       new Request("http://localhost/api/slideshows")
@@ -80,14 +95,16 @@ describe("/api/slideshows", () => {
         slideshowId: createPayload.slideshow.id,
       },
     })
-    expect(resultsDb.results).toHaveLength(1)
+    expect(resultsRows).toHaveLength(1)
     expect(listResponse.status).toBe(200)
     expect(listPayload.slideshowsCount).toBe(1)
     expect(listPayload.videosCount).toBe(0)
     expect(listPayload.slideshows).toHaveLength(1)
     expect(listPayload.slideshows[0].images[0]).toMatchObject({
       image_url: expect.stringMatching(
-        /^\/api\/local-assets\/slideshows\/outputs\/slideshow-.+\/slide-001\.png$/
+        new RegExp(
+          `^/api/local-assets/slideshows/outputs/slideshow-.+/slide-001\\.${slideExt}$`
+        )
       ),
       source_image_url: expect.stringMatching(
         /^\/api\/local-assets\/slideshows\/outputs\/slideshow-.+\/source-001\.jpg$/
@@ -205,7 +222,12 @@ describe("/api/slideshows", () => {
 })
 
 async function writeLocalAsset(fileName: string, value: string) {
-  const dir = path.join(tempRoot, "data", "image-collections", "files")
-  await mkdir(dir, { recursive: true })
-  await writeFile(path.join(dir, fileName), value)
+  const abs = path.join(
+    tempRoot,
+    "data",
+    "image-collections",
+    "files",
+    fileName
+  )
+  await mirrorAssetToAppwrite(abs, new TextEncoder().encode(value))
 }

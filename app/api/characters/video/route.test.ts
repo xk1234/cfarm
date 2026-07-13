@@ -1,22 +1,35 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import {
+  deleteAssetFromAppwrite,
+  mirrorAssetToAppwrite,
+} from "@/lib/asset-storage"
+
+// Appwrite-only: the source image lives in Storage (media is Storage-only).
+// Run against cfarm via vitest.setup.ts.
 let tempRoot: string
 
 beforeEach(async () => {
   tempRoot = await mkdtemp(path.join(os.tmpdir(), "cfarm-character-video-route-"))
-  await mkdir(path.join(tempRoot, "data", "characters", "images"), { recursive: true })
-  await writeFile(path.join(tempRoot, "data", "characters", "images", "maya.png"), new Uint8Array([137, 80, 78, 71]))
   vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
   vi.stubEnv("KIE_KEY", "test-kie-key")
+  await mirrorAssetToAppwrite(
+    path.join(tempRoot, "data", "characters", "images", "maya.png"),
+    new Uint8Array([137, 80, 78, 71])
+  )
 })
 
 afterEach(async () => {
+  await deleteAssetFromAppwrite(
+    path.join(tempRoot, "data", "characters", "images", "maya.png")
+  )
   vi.unstubAllEnvs()
   vi.restoreAllMocks()
+  vi.resetModules()
   await rm(tempRoot, { recursive: true, force: true })
 })
 

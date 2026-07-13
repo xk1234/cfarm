@@ -1,29 +1,58 @@
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises"
+import { mkdtemp } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { afterEach, describe, expect, test, vi } from "vitest"
+import { Query } from "node-appwrite"
+import { afterAll, afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
+import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import { clearTestTables } from "@/lib/test-helpers"
+import {
+  mirrorAssetToAppwrite,
+  readAssetBytes,
+} from "@/lib/asset-storage"
+import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 import type { SwipePayload } from "./swipes"
 
+// Appwrite-only, run against cfarm (forced by vitest.setup.ts):
+//   data/swipes/swipes.json -> swipes; downloaded media -> Storage.
 const originalFetch = globalThis.fetch
 const originalOpenRouterKey = process.env.OPENROUTER_API_KEY
-const originalCwd = process.cwd()
+
+const clearSwipes = () => clearTestTables("swipes")
+
+function readSwipeRecords(tempDir: string) {
+  return readJsonArrayStore<Record<string, unknown>>({
+    rootDir: path.join(tempDir, "data", "swipes"),
+    fileName: "swipes.json",
+    key: "swipes",
+  })
+}
+
+async function readAssetText(assetPath: string) {
+  const bytes = await readAssetBytes(assetPath)
+  return Buffer.from(bytes).toString("utf8")
+}
+
+beforeEach(clearSwipes)
 
 afterEach(() => {
   globalThis.fetch = originalFetch
   process.env.OPENROUTER_API_KEY = originalOpenRouterKey
-  process.chdir(originalCwd)
   vi.restoreAllMocks()
   vi.resetModules()
 })
 
+afterAll(clearSwipes)
+
 describe("enrichSwipeAnalysis", () => {
   test("uses Whisper for transcript and Gemini only for analysis", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "swipe-media-"))
+    vi.spyOn(process, "cwd").mockReturnValue(tempDir)
+    vi.resetModules()
     const { enrichSwipeAnalysis } = await import("./swipes")
     process.env.OPENROUTER_API_KEY = "test-openrouter-key"
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "swipe-media-"))
-    const mediaPath = path.join(tempDir, "ad.mp4")
-    await writeFile(mediaPath, Buffer.from("fake mp4 bytes"))
+    const mediaPath = path.join(tempDir, "data", "swipes", "assets", "ad.mp4")
+    await mirrorAssetToAppwrite(mediaPath, Buffer.from("fake mp4 bytes"))
 
     const payload = {
       format: "video",
@@ -135,7 +164,7 @@ describe("enrichSwipeAnalysis", () => {
 
   test("createSwipe inserts a processing record before video analysis finishes", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "swipe-store-"))
-    process.chdir(tempDir)
+    vi.spyOn(process, "cwd").mockReturnValue(tempDir)
     process.env.OPENROUTER_API_KEY = "test-openrouter-key"
     vi.resetModules()
     const { createSwipe } = await import("./swipes")
@@ -176,8 +205,7 @@ describe("enrichSwipeAnalysis", () => {
     })
 
     expect(swipe.processingStatus).toBe("processing")
-    const dbPath = path.join(tempDir, "data", "swipes", "swipes.json")
-    const initialRecords = JSON.parse(await readFile(dbPath, "utf8")).swipes
+    const initialRecords = await readSwipeRecords(tempDir)
     expect(initialRecords[0]).toMatchObject({
       id: swipe.id,
       processingStatus: "processing",
@@ -193,7 +221,7 @@ describe("enrichSwipeAnalysis", () => {
     )
 
     await waitFor(async () => {
-      const records = JSON.parse(await readFile(dbPath, "utf8")).swipes
+      const records = await readSwipeRecords(tempDir)
       expect(records[0]).toMatchObject({
         id: swipe.id,
         processingStatus: "complete",
@@ -206,7 +234,7 @@ describe("enrichSwipeAnalysis", () => {
 
   test("persists landing page screenshots separately from the source screenshot", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "swipe-store-"))
-    process.chdir(tempDir)
+    vi.spyOn(process, "cwd").mockReturnValue(tempDir)
     vi.resetModules()
     const { createSwipe } = await import("./swipes")
 
@@ -231,14 +259,14 @@ describe("enrichSwipeAnalysis", () => {
     expect(swipe.landingPageDesktopScreenshotPath).toMatch(/^\/api\/swipes\/assets\/swipe-.+-landing-desktop\.png$/)
     expect(swipe.processingStatus).toBe("complete")
 
-    const records = JSON.parse(await readFile(path.join(tempDir, "data", "swipes", "swipes.json"), "utf8")).swipes
+    const records = await readSwipeRecords(tempDir)
     expect(records[0].landingPageMobileScreenshotPath).toBe(swipe.landingPageMobileScreenshotPath)
     expect(records[0].landingPageDesktopScreenshotPath).toBe(swipe.landingPageDesktopScreenshotPath)
   })
 
   test("does not persist duplicate remote URL metadata fields", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "swipe-store-"))
-    process.chdir(tempDir)
+    vi.spyOn(process, "cwd").mockReturnValue(tempDir)
     vi.resetModules()
     const { createSwipe } = await import("./swipes")
 
@@ -263,13 +291,13 @@ describe("enrichSwipeAnalysis", () => {
     expect(swipe.sourceUrl).toBe("https://www.facebook.com/ads/library/")
     expect(swipe.landingPageUrl).toBe("https://example.com/landing")
     expect(swipe.metadata).toEqual({ Format: "image" })
-    const records = JSON.parse(await readFile(path.join(tempDir, "data", "swipes", "swipes.json"), "utf8")).swipes
+    const records = await readSwipeRecords(tempDir)
     expect(records[0].metadata).toEqual({ Format: "image" })
   })
 
   test("does not persist remote media fields when media download fails", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "swipe-store-"))
-    process.chdir(tempDir)
+    vi.spyOn(process, "cwd").mockReturnValue(tempDir)
     vi.resetModules()
     const { createSwipe } = await import("./swipes")
     globalThis.fetch = vi.fn().mockResolvedValue(new Response("missing", { status: 404 }))
@@ -291,45 +319,39 @@ describe("enrichSwipeAnalysis", () => {
 
     expect(swipe.mediaUrl).toBeUndefined()
     expect(swipe.source_video_url).toBeUndefined()
-    const records = JSON.parse(await readFile(path.join(tempDir, "data", "swipes", "swipes.json"), "utf8")).swipes
+    const records = await readSwipeRecords(tempDir)
     expect(records[0].mediaUrl).toBeUndefined()
     expect(records[0].source_video_url).toBeUndefined()
   })
 
   test("listSwipes does not expose legacy remote media URLs", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "swipe-store-"))
-    process.chdir(tempDir)
+    vi.spyOn(process, "cwd").mockReturnValue(tempDir)
     vi.resetModules()
-    const dbDir = path.join(tempDir, "data", "swipes")
-    await mkdir(dbDir, { recursive: true })
-    await writeFile(
-      path.join(dbDir, "swipes.json"),
-      JSON.stringify(
+    await writeJsonArrayStore({
+      rootDir: path.join(tempDir, "data", "swipes"),
+      fileName: "swipes.json",
+      key: "swipes",
+      records: [
         {
-          swipes: [
-            {
-              id: "legacy-remote-swipe",
-              advertiser: "Legacy",
-              platform: "tiktok",
-              source: "tiktok",
-              sourceUrl: "https://www.tiktok.com/@creator/video/123",
-              title: "Legacy remote",
-              caption: "Caption",
-              format: "video",
-              mediaUrl: "https://cdn.tiktok.com/video.mp4",
-              source_video_url: "https://cdn.tiktok.com/source.mp4",
-              screenshotPath: "/api/swipes/assets/local.png",
-              swipedAt: new Date().toISOString(),
-              metadata: {},
-              stats: {},
-              folder: "No Folder",
-            },
-          ],
+          id: "legacy-remote-swipe",
+          advertiser: "Legacy",
+          platform: "tiktok",
+          source: "tiktok",
+          sourceUrl: "https://www.tiktok.com/@creator/video/123",
+          title: "Legacy remote",
+          caption: "Caption",
+          format: "video",
+          mediaUrl: "https://cdn.tiktok.com/video.mp4",
+          source_video_url: "https://cdn.tiktok.com/source.mp4",
+          screenshotPath: "/api/swipes/assets/local.png",
+          swipedAt: new Date().toISOString(),
+          metadata: {},
+          stats: {},
+          folder: "No Folder",
         },
-        null,
-        2
-      )
-    )
+      ],
+    })
     const { listSwipes } = await import("./swipes")
 
     const swipes = await listSwipes()
@@ -342,7 +364,7 @@ describe("enrichSwipeAnalysis", () => {
 
   test("deleteSwipe removes the record and downloaded swipe asset", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "swipe-store-"))
-    process.chdir(tempDir)
+    vi.spyOn(process, "cwd").mockReturnValue(tempDir)
     vi.resetModules()
     const { createSwipe, deleteSwipe, listSwipes } = await import("./swipes")
     globalThis.fetch = vi.fn().mockResolvedValue(
@@ -375,22 +397,20 @@ describe("enrichSwipeAnalysis", () => {
       "assets",
       path.basename(swipe.mediaUrl ?? "")
     )
-    expect(await readFile(mediaPath, "utf8")).toBe("fake jpg bytes")
+    expect(await readAssetText(mediaPath)).toBe("fake jpg bytes")
 
     const deleted = await deleteSwipe(swipe.id)
 
     expect(deleted?.id).toBe(swipe.id)
     expect(await listSwipes()).toEqual([])
-    await expect(readFile(mediaPath)).rejects.toThrow()
-    const records = JSON.parse(
-      await readFile(path.join(tempDir, "data", "swipes", "swipes.json"), "utf8")
-    ).swipes
+    await expect(readAssetBytes(mediaPath)).rejects.toThrow()
+    const records = await readSwipeRecords(tempDir)
     expect(records).toEqual([])
   })
 
   test("createSwipe downloads every mediaUrls entry and stores only local paths", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "swipe-store-"))
-    process.chdir(tempDir)
+    vi.spyOn(process, "cwd").mockReturnValue(tempDir)
     vi.resetModules()
     const { createSwipe, listSwipes } = await import("./swipes")
     globalThis.fetch = vi
@@ -441,13 +461,13 @@ describe("enrichSwipeAnalysis", () => {
 
     const firstPath = path.join(tempDir, "data", "swipes", "assets", path.basename(swipe.mediaUrls?.[0] ?? ""))
     const secondPath = path.join(tempDir, "data", "swipes", "assets", path.basename(swipe.mediaUrls?.[1] ?? ""))
-    expect(await readFile(firstPath, "utf8")).toBe("first jpg bytes")
-    expect(await readFile(secondPath, "utf8")).toBe("second png bytes")
+    expect(await readAssetText(firstPath)).toBe("first jpg bytes")
+    expect(await readAssetText(secondPath)).toBe("second png bytes")
   })
 
   test("deleteSwipe removes every downloaded mediaUrls asset", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "swipe-store-"))
-    process.chdir(tempDir)
+    vi.spyOn(process, "cwd").mockReturnValue(tempDir)
     vi.resetModules()
     const { createSwipe, deleteSwipe } = await import("./swipes")
     globalThis.fetch = vi.fn().mockImplementation(() =>
@@ -484,7 +504,7 @@ describe("enrichSwipeAnalysis", () => {
     await deleteSwipe(swipe.id)
 
     for (const mediaPath of mediaPaths) {
-      await expect(readFile(mediaPath)).rejects.toThrow()
+      await expect(readAssetBytes(mediaPath)).rejects.toThrow()
     }
   })
 })
