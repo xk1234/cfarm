@@ -254,6 +254,18 @@ async function awWriteTable<T>(
     cursor = String(rows[rows.length - 1].$id)
   }
 
+  // Refuse catastrophic shrink BEFORE touching any row: a bulk write that
+  // removes most of a table almost always means the caller's list came from a
+  // stale or wrongly-scoped read (hot reload mid-refactor, owner mismatch),
+  // not real intent. Explicit removals go through deleteJsonArrayRecord.
+  const toDelete = existingIds.filter((id) => !desiredIds.has(id))
+  if (toDelete.length > 10 && toDelete.length > existingIds.length / 2) {
+    throw new Error(
+      `Refusing bulk write to ${table}: it would delete ${toDelete.length} of ${existingIds.length} rows. ` +
+        "If this shrink is intentional, remove records explicitly via deleteJsonArrayRecord."
+    )
+  }
+
   // Upsert desired rows (bounded concurrency).
   await runPool(desired, 3, async (d) => {
     await retryTransient(() =>
@@ -262,7 +274,6 @@ async function awWriteTable<T>(
   })
 
   // Delete rows no longer present.
-  const toDelete = existingIds.filter((id) => !desiredIds.has(id))
   await runPool(toDelete, 3, async (id) => {
     await retryTransient(() =>
       aw.tables.deleteRow(APPWRITE_DATABASE_ID, table, id)
