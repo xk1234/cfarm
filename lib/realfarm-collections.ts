@@ -106,6 +106,7 @@ export function collectionToStored(
     name: collection.title,
     created_at: normalizedCollectionDate(collection.createdAt),
     pinned: collection.pinned === true,
+    ...(collection.mediaType === "video" ? { mediaType: "video" as const } : {}),
     images: collection.images
       .filter((image) => image.imageUrl)
       .map((image) => ({
@@ -122,7 +123,7 @@ export function storedToCollection(
   return {
     id: `collection-${slugify(`${collection.name}-${collection.created_at}`)}`,
     title: collection.name,
-    mediaType: "image",
+    mediaType: collection.mediaType === "video" ? "video" : "image",
     createdAt: normalizedCollectionDate(collection.created_at),
     pinned: collection.pinned === true,
     source: "pinterest",

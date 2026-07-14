@@ -527,6 +527,173 @@ async function updateKnowledgeSource(
   return kb.sources[index]
 }
 
+async function xAutomationRecord(t, automationId, ownerId) {
+  const response = await t.listRows(DB, "x_automations", [
+    Query.equal("rid", [automationId]),
+    Query.equal("owner_id", [ownerId]),
+    Query.limit(1),
+  ])
+  const automation = safeJson(response.rows[0]?.data)
+  if (!automation) throw new Error("run-x-automation: automation not found")
+  return automation
+}
+
+async function openRouterObject({ model, system, user }) {
+  const apiKey = process.env.OPENROUTER_API_KEY
+  if (!apiKey)
+    throw new Error("run-x-automation: OPENROUTER_API_KEY is not configured")
+  const response = await fetch(
+    "https://openrouter.ai/api/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        response_format: { type: "json_object" },
+      }),
+      signal: AbortSignal.timeout(90000),
+    }
+  )
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok)
+    throw new Error(
+      payload?.error?.message || `OpenRouter failed (${response.status})`
+    )
+  const raw = payload?.choices?.[0]?.message?.content || "{}"
+  const parsed = safeJson(
+    String(raw)
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/, "")
+  )
+  if (!parsed) throw new Error("OpenRouter returned invalid JSON")
+  return parsed
+}
+
+function xStringList(value) {
+  return Array.isArray(value)
+    ? value.map((item) => String(item || "").trim()).filter(Boolean)
+    : []
+}
+
+async function generateScheduledXDraft(automation, scheduledFor) {
+  const pillars = xStringList(automation?.niche?.pillars)
+  const seed = crypto
+    .createHash("sha256")
+    .update(`${automation.id}:${scheduledFor}`)
+    .digest()
+  const topic =
+    pillars[seed[0] % Math.max(1, pillars.length)] || automation.niche?.label
+  const model = automation?.generation?.model || "google/gemini-3.1-flash-lite"
+  const shared = [
+    `Write native social content for ${(automation?.output?.platforms || ["x"]).join(" and ")}.`,
+    `Niche: ${automation?.niche?.label || ""}.`,
+    `Audience: ${automation?.niche?.audience || ""}.`,
+    `Account promise: ${automation?.niche?.promise || ""}.`,
+    `Topic: ${topic}.`,
+    `Voice: ${automation?.generation?.voice || "specific and tactical"}.`,
+    "Never invent metrics, testimonials, personal experience, studies, or product-version claims.",
+  ].join("\n")
+  const hookPayload = await openRouterObject({
+    model,
+    system: `${shared}\nYou are the hook writer only. ${automation?.generation?.hookPrompt || ""}`,
+    user: 'Return {"candidates":[...],"selected":"..."} with five hooks and one selection.',
+  })
+  const hook =
+    String(hookPayload.selected || "").trim() ||
+    xStringList(hookPayload.candidates)[0]
+  if (!hook) throw new Error("Scheduled hook generation returned no hook")
+  const contentType = automation?.output?.contentType || "thread"
+  const minPosts = Math.max(
+    1,
+    Number(automation?.output?.threadPostCount?.min || 7) - 2
+  )
+  const maxPosts = Math.max(
+    minPosts,
+    Number(automation?.output?.threadPostCount?.max || 10) - 2
+  )
+  const contentPayload = await openRouterObject({
+    model,
+    system: `${shared}\nYou are the body writer only. ${automation?.generation?.contentPrompt || ""}`,
+    user:
+      contentType === "thread"
+        ? `Hook: ${hook}\nReturn {"sections":[...]} with ${minPosts}-${maxPosts} body posts under ${automation?.output?.maxCharacters || 280} characters each.`
+        : contentType === "article"
+          ? `Hook: ${hook}\nReturn {"title":"...","sections":[...]} for an ${automation?.output?.articleWordCount?.min || 800}-${automation?.output?.articleWordCount?.max || 1200} word article.`
+          : `Hook: ${hook}\nReturn {"sections":["..."]} for a single post that leaves room for the hook and CTA within ${automation?.output?.maxCharacters || 280} characters.`,
+  })
+  const content = xStringList(
+    contentPayload.sections || contentPayload.posts || contentPayload.paragraphs
+  )
+  if (!content.length)
+    throw new Error("Scheduled content generation returned no body")
+  const ctaPayload = await openRouterObject({
+    model,
+    system: `${shared}\nYou are the CTA writer only. ${automation?.generation?.ctaPrompt || ""}`,
+    user: `Hook: ${hook}\nContent: ${content.join("\n\n")}\nReturn {"options":[...],"selected":"..."}.`,
+  })
+  const cta =
+    String(ctaPayload.selected || "").trim() ||
+    xStringList(ctaPayload.options)[0]
+  const rawPosts =
+    contentType === "thread"
+      ? [hook, ...content, cta].filter(Boolean)
+      : [[hook, ...content, cta].filter(Boolean).join("\n\n")]
+  const posts = rawPosts.map((text, index) => ({
+    id: `post-${index + 1}`,
+    text,
+    characterCount: text.length,
+    role:
+      contentType !== "thread"
+        ? "content"
+        : index === 0
+          ? "hook"
+          : index === rawPosts.length - 1
+            ? "cta"
+            : "content",
+  }))
+  const maxCharacters = Number(automation?.output?.maxCharacters || 280)
+  const overflows = posts.filter((post) => post.characterCount > maxCharacters)
+  const formatFit = Math.max(0, 100 - overflows.length * 25)
+  return {
+    topic,
+    contentType,
+    platforms: automation?.output?.platforms || ["x"],
+    hook,
+    content,
+    cta,
+    posts,
+    articleTitle: contentPayload.title,
+    articleBody:
+      contentType === "article"
+        ? [hook, ...content, cta].filter(Boolean).join("\n\n")
+        : undefined,
+    imagePrompt:
+      automation?.media?.mode === "generate"
+        ? `${automation.media.prompt || "Editorial social visual"}\nTopic: ${topic}\nCore idea: ${hook}`
+        : undefined,
+    benchmark: {
+      total: Math.round(
+        (formatFit + (hook.length <= maxCharacters ? 90 : 40)) / 2
+      ),
+      hook: hook.length <= maxCharacters ? 90 : 40,
+      specificity: 75,
+      readability: 80,
+      cta: cta ? 85 : 20,
+      formatFit,
+      notes: overflows.length
+        ? [`${overflows.length} post(s) exceed the character limit.`]
+        : [],
+    },
+  }
+}
+
 // ---------- handlers ----------
 const handlers = {
   // verification handler
@@ -693,6 +860,55 @@ const handlers = {
       if (e.code === 409)
         return { runId, created: false, note: "run already recorded (dedup)" }
       throw e
+    }
+  },
+
+  async ["run-x-automation"](payload, t, job) {
+    const { automationId, scheduledFor } = payload || {}
+    if (!automationId) throw new Error("run-x-automation: missing automationId")
+    const runId =
+      "xrun" +
+      crypto
+        .createHash("sha256")
+        .update(`${automationId}:${scheduledFor}`)
+        .digest("hex")
+        .slice(0, 32)
+    const ownerId = job?.owner_id || payload.ownerId
+    if (!ownerId) throw new Error("run-x-automation: missing ownerId")
+    const automation = await xAutomationRecord(t, automationId, ownerId)
+    const draft = await generateScheduledXDraft(automation, scheduledFor)
+    const record = {
+      id: runId,
+      automationId,
+      automationName: automation.name || automationId,
+      ...draft,
+      reactionMode: "none",
+      imageUrls: [],
+      status: "draft",
+      scheduledFor,
+      ownerId,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    }
+    try {
+      await t.createRow(DB, "x_automation_runs", runId, {
+        rid: runId,
+        name: automationId,
+        status: record.status,
+        created_raw: record.createdAt,
+        ord: Math.floor(Date.now() / 1000),
+        data: JSON.stringify(record),
+        owner_id: ownerId,
+      })
+      return {
+        runId,
+        created: true,
+        note: "scheduled X draft generated",
+      }
+    } catch (cause) {
+      if (cause.code === 409)
+        return { runId, created: false, note: "run already recorded" }
+      throw cause
     }
   },
 }

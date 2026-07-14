@@ -99,6 +99,7 @@ function postTypeValue(value: unknown): PostFastCreatePostType | undefined {
 
 function sourceTypeValue(value: unknown): PostFastSourceType | undefined {
   return value === "automation" ||
+    value === "x_automation" ||
     value === "generated_video" ||
     value === "asset" ||
     value === "greenscreen" ||

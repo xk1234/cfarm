@@ -1,10 +1,12 @@
 import { clean } from "@/lib/guards"
-import { textStyleToEditorColor } from "@/lib/realfarm-slideshow-text-style-config"
+import {
+  textStyleToEditorColor,
+  textStyleUsesStroke,
+} from "@/lib/realfarm-slideshow-text-style-config"
 
 export type SlideshowTextItem = {
   id: string
   text: string
-  font: string
   fontSize: string
   textSize: {
     width: number
@@ -33,9 +35,8 @@ export type SlideshowSlide = {
   source_image_url?: string
   overlayImage?: SlideshowOverlayImage
   overlay?: boolean
+  imageFit?: "cover" | "contain" | "fit"
   textItems: SlideshowTextItem[]
-  aspect_ratio: string
-  time_length_ms: number
 }
 
 export const slideshowOverlayOpacity = 0.2
@@ -58,12 +59,19 @@ export function slideshowTextPositionX(
   return 50
 }
 
+export const defaultSlideshowAspectRatio = "9:16"
+export const defaultSlideshowFont = "TikTok Display Medium"
+
 export function renderedSlideSvg(
   slide: SlideshowSlide,
   sourceUrl: string,
-  overlayUrl?: string
+  overlayUrl?: string,
+  opts?: { aspectRatio?: string; font?: string }
 ) {
-  const { width, height } = slideDimensions(slide.aspect_ratio)
+  const { width, height } = slideDimensions(
+    opts?.aspectRatio || defaultSlideshowAspectRatio
+  )
+  const font = opts?.font || defaultSlideshowFont
   const textItems = slide.textItems
   const overlayImageSvg =
     slide.overlayImage && overlayUrl
@@ -74,12 +82,12 @@ export function renderedSlideSvg(
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
     `<rect width="${width}" height="${height}" fill="#111"/>`,
-    `<image href="${escapeXml(sourceUrl)}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>`,
+    `<image href="${escapeXml(sourceUrl)}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="${slide.imageFit === "fit" ? "none" : `xMidYMid ${slide.imageFit === "cover" ? "slice" : "meet"}`}"/>`,
     overlayAlpha > 0
       ? `<rect data-layer="overlay" width="${width}" height="${height}" fill="#000" opacity="${overlayAlpha}"/>`
       : null,
     overlayImageSvg,
-    ...renderedTextItemsSvg(textItems, width, height),
+    ...renderedTextItemsSvg(textItems, width, height, font),
     `</svg>`,
   ]
     .filter(Boolean)
@@ -91,8 +99,6 @@ export function slideDimensions(aspectRatio: string) {
     case "4:5":
       return { width: 1080, height: 1350 }
     case "1:1":
-      return { width: 1080, height: 1080 }
-    case "fit":
       return { width: 1080, height: 1080 }
     case "9:16":
     default:
@@ -130,14 +136,18 @@ type RenderedTextItem = {
   lineHeight: number
   lines: string[]
   blockHeight: number
+  textBoxWidth: number
 }
 
 function renderedTextItemsSvg(
   items: SlideshowTextItem[],
   width: number,
-  height: number
+  height: number,
+  font: string
 ) {
-  return layoutRenderedTextItems(items, width, height).map(renderedTextItemSvg)
+  return layoutRenderedTextItems(items, width, height).map((rendered) =>
+    renderedTextItemSvg(rendered, font)
+  )
 }
 
 function layoutRenderedTextItems(
@@ -219,11 +229,15 @@ function prepareRenderedTextItem(
     lineHeight,
     lines,
     blockHeight,
+    textBoxWidth,
   }
 }
 
 function stackedTextGroup(group: RenderedTextItem[], slideHeight: number) {
   if (group.length <= 1) {
+    return group
+  }
+  if (!hasHorizontalOverlap(group)) {
     return group
   }
 
@@ -248,7 +262,24 @@ function stackedTextGroup(group: RenderedTextItem[], slideHeight: number) {
   })
 }
 
-function renderedTextItemSvg(rendered: RenderedTextItem) {
+function hasHorizontalOverlap(group: RenderedTextItem[]) {
+  const ranges = group.map((item) => {
+    const left =
+      item.item.textAlign === "right"
+        ? item.x - item.textBoxWidth
+        : item.item.textAlign === "left"
+          ? item.x
+          : item.x - item.textBoxWidth / 2
+    return { left, right: left + item.textBoxWidth }
+  })
+  return ranges.some((range, index) =>
+    ranges
+      .slice(index + 1)
+      .some((other) => range.left < other.right && other.left < range.right)
+  )
+}
+
+function renderedTextItemSvg(rendered: RenderedTextItem, font: string) {
   const { item, x, y, fontSize, lineHeight, lines } = rendered
   const textAnchor = svgTextAnchor(item.textAlign)
   const fill = textFill(item.textStyle)
@@ -262,34 +293,40 @@ function renderedTextItemSvg(rendered: RenderedTextItem) {
     })
     .join("")
 
-  const fontFamily = escapeXml(item.font || "TikTok Display Medium")
+  const fontFamily = escapeXml(font || defaultSlideshowFont)
   const background = renderedTextBackgroundSvg(rendered)
   return `${background}<text id="${escapeXml(item.id)}" x="${x}" y="${y}" text-anchor="${textAnchor}" dominant-baseline="middle" font-family="${fontFamily}, Inter, Arial, sans-serif" font-size="${fontSize}" font-weight="800" fill="${fill}"${stroke}>${tspans}</text>`
 }
 
 function renderedTextBackgroundSvg(rendered: RenderedTextItem) {
   const color = textStyleToEditorColor(rendered.item.textStyle)
-  if (color !== "White Background" && color !== "Black Background") return ""
+  if (!color.endsWith("Background")) return ""
 
   const paddingX = rendered.fontSize * 0.28
-  const paddingY = rendered.fontSize * 0.2
-  const textWidth = Math.max(
-    rendered.fontSize * 0.55,
-    ...rendered.lines.map((line) => textDisplayUnits(line) * rendered.fontSize)
-  )
-  const width = textWidth + paddingX * 2
-  const height =
-    Math.max(rendered.fontSize, rendered.lines.length * rendered.lineHeight) +
-    paddingY * 2
-  const left =
-    rendered.item.textAlign === "left"
-      ? rendered.x - paddingX
-      : rendered.item.textAlign === "right"
-        ? rendered.x - textWidth - paddingX
-        : rendered.x - width / 2
-  const top = rendered.y - rendered.fontSize * 0.55 - paddingY
-  const fill = color === "White Background" ? "#ffffff" : "#111111"
-  return `<rect data-text-background="${escapeXml(rendered.item.id)}" x="${left}" y="${top}" width="${width}" height="${height}" rx="${Math.max(4, rendered.fontSize * 0.12)}" fill="${fill}" fill-opacity="0.9"/>`
+  const paddingY = rendered.fontSize * 0.1
+  const height = rendered.fontSize * 1.1 + paddingY * 2
+  const fill = color.startsWith("White") ? "#ffffff" : "#111111"
+  const opacity = color.includes("50%") ? 0.56 : 0.9
+
+  return rendered.lines
+    .map((line, index) => {
+      const textWidth = Math.max(
+        rendered.fontSize * 0.55,
+        textDisplayUnits(line) * rendered.fontSize
+      )
+      const width = textWidth + paddingX * 2
+      const left =
+        rendered.item.textAlign === "left"
+          ? rendered.x - paddingX
+          : rendered.item.textAlign === "right"
+            ? rendered.x - textWidth - paddingX
+            : rendered.x - width / 2
+      const lineY = rendered.y + index * rendered.lineHeight
+      const top = lineY - rendered.fontSize * 0.55 - paddingY
+
+      return `<rect data-text-background="${escapeXml(rendered.item.id)}" data-text-background-line="${index}" x="${left}" y="${top}" width="${width}" height="${height}" rx="${Math.max(3, rendered.fontSize * 0.06)}" fill="${fill}" fill-opacity="${opacity}"/>`
+    })
+    .join("")
 }
 
 function textItemY(
@@ -370,7 +407,7 @@ function textFill(style: string) {
 }
 
 function needsTextStroke(style: string) {
-  return textStyleToEditorColor(style) !== "Black Text"
+  return textStyleUsesStroke(style)
 }
 
 function wrapText(text: string, maxLineUnits: number) {

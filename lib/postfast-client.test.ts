@@ -22,6 +22,7 @@ describe("postfastRequest", () => {
       apiKey: "pf_key_123",
       baseUrl: "https://postfast.example.com/",
       fetcher,
+      retry: { minRequestGapMs: 0 },
     })
 
     expect(data).toEqual([{ id: "account-1", platform: "TIKTOK" }])
@@ -42,20 +43,74 @@ describe("postfastRequest", () => {
     ).rejects.toBeInstanceOf(PostFastConfigError)
   })
 
-  it("normalizes retryable api errors", async () => {
+  it("retries retryable api errors with bounded exponential backoff", async () => {
+    let calls = 0
     const fetcher = async () =>
-      new Response(JSON.stringify({ message: "Too many requests" }), {
-        status: 429,
-      })
+      ++calls < 3
+        ? new Response(JSON.stringify({ message: "Too many requests" }), {
+            status: 429,
+          })
+        : Response.json({ id: "post-1" })
 
     await expect(
-      postfastRequest("/social-posts", { apiKey: "pf_key_123", fetcher })
+      postfastRequest("/social-posts", {
+        apiKey: "pf_key_123",
+        fetcher,
+        retry: { baseDelayMs: 0, minRequestGapMs: 0 },
+      })
+    ).resolves.toEqual({ id: "post-1" })
+    expect(calls).toBe(3)
+  })
+
+  it("throws the normalized error after the retry limit", async () => {
+    let calls = 0
+    const fetcher = async () => {
+      calls += 1
+      return new Response(JSON.stringify({ message: "Too many requests" }), {
+        status: 429,
+      })
+    }
+
+    await expect(
+      postfastRequest("/social-posts", {
+        apiKey: "pf_key_123",
+        fetcher,
+        retry: { maxAttempts: 2, baseDelayMs: 0, minRequestGapMs: 0 },
+      })
     ).rejects.toMatchObject({
       name: "PostFastApiError",
       status: 429,
       code: "rate_limited",
       retryable: true,
     } satisfies Partial<PostFastApiError>)
+    expect(calls).toBe(2)
+  })
+
+  it("serializes concurrent requests", async () => {
+    let active = 0
+    let maxActive = 0
+    const fetcher = async () => {
+      active += 1
+      maxActive = Math.max(maxActive, active)
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      active -= 1
+      return Response.json({ ok: true })
+    }
+
+    await Promise.all([
+      postfastRequest("/first", {
+        apiKey: "pf_key_123",
+        fetcher,
+        retry: { minRequestGapMs: 0 },
+      }),
+      postfastRequest("/second", {
+        apiKey: "pf_key_123",
+        fetcher,
+        retry: { minRequestGapMs: 0 },
+      }),
+    ])
+
+    expect(maxActive).toBe(1)
   })
 })
 

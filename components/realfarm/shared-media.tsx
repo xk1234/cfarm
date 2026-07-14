@@ -311,8 +311,8 @@ export function ControlSelect({
   onChange: (value: string) => void
 }) {
   return (
-    <div className="mb-3 grid grid-cols-[1fr_92px] items-center gap-3 rounded-[8px] bg-[#f8f8f4] px-3 py-2 text-[12px]">
-      <span className="font-semibold">{label}</span>
+    <div className="mb-3 grid grid-cols-[1fr_92px] items-center gap-3 rounded-[8px] bg-[#f8f8f4] px-3 py-2 text-sm">
+      <span className="font-medium text-[#242421]">{label}</span>
       <SelectLike
         value={value}
         options={options}
@@ -334,10 +334,12 @@ export function ControlToggle({
 }) {
   return (
     <button
-      className="mb-3 flex w-full items-center justify-between px-1 text-[12px]"
+      type="button"
+      className="mb-3 flex min-h-8 w-full items-center justify-between px-1 text-sm font-medium text-[#242421]"
       onClick={onClick}
+      aria-pressed={enabled}
     >
-      <span className="font-semibold text-[#66655f]">{label}</span>
+      <span>{label}</span>
       <SwitchPill enabled={enabled} />
     </button>
   )

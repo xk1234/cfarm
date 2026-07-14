@@ -29,7 +29,6 @@ export type PinterestActorInput = {
   type: "all-pins"
   limit: number
   content_analysis: false
-  sentinent_analysis: false
   proxyConfiguration: {
     useApifyProxy: true
     apifyProxyGroups: ["RESIDENTIAL"]
@@ -55,14 +54,15 @@ export function buildPinterestActorInput(
   limit: number,
   mode: "search" | "board" = "search"
 ): PinterestActorInput {
-  const boundedLimit = Math.max(1, Math.min(limit, 100))
+  // This actor often returns fewer usable image records than requested. Ask it
+  // for a small minimum batch, then slice back to the caller's requested size.
+  const boundedLimit = Math.max(10, Math.min(limit, 100))
   if (mode === "board") {
     return {
       startUrls: [normalizePinterestBoardUrl(query)],
       type: "all-pins",
       limit: boundedLimit,
       content_analysis: false,
-      sentinent_analysis: false,
       proxyConfiguration: {
         useApifyProxy: true,
         apifyProxyGroups: ["RESIDENTIAL"],
@@ -75,7 +75,6 @@ export function buildPinterestActorInput(
     type: "all-pins",
     limit: boundedLimit,
     content_analysis: false,
-    sentinent_analysis: false,
     proxyConfiguration: {
       useApifyProxy: true,
       apifyProxyGroups: ["RESIDENTIAL"],
@@ -296,7 +295,30 @@ function readImage(item: UnknownRecord) {
     }
   }
 
+  const fallbackUrl = findPinimgUrl(item)
+  if (fallbackUrl) {
+    return { url: fallbackUrl }
+  }
+
   return undefined
+}
+
+function findPinimgUrl(value: unknown) {
+  const serialized = JSON.stringify(value)
+    .replace(/\\+\//g, "/")
+    .replace(/\\u0026/gi, "&")
+  const matches = serialized.match(/https?:\/\/i\.pinimg\.com\/[^"'\s,}]+/gi)
+  if (!matches) return undefined
+
+  const urls = matches.filter((url) => {
+    try {
+      return new URL(url).hostname === "i.pinimg.com"
+    } catch {
+      return false
+    }
+  })
+
+  return urls.find((url) => url.includes("/originals/")) ?? urls[0]
 }
 
 function readNumber(value: unknown): number | undefined {

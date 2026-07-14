@@ -57,7 +57,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_12468\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_12468\",\"aspect_ratio\":\"3:2\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_12468\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_12468\",\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -385,7 +385,9 @@
           "created_at": "2026-06-13T15:41:19.753878+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "cover",
+      "language": "English"
     },
     {
       "id": 12713,
@@ -447,7 +449,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11945\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11945\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_4932\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11945\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11945\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_4932\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -586,7 +588,7 @@
           ],
           "slideCount": 0,
           "ctaLocation": "last",
-          "aspect_ratio": "fit"
+          "aspect_ratio": "4:5"
         },
         {
           "id": "_tone",
@@ -698,7 +700,9 @@
           "created_at": "2026-05-27T18:07:19.712687+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 12401,
@@ -748,7 +752,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11759\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_11758\",\"aspect_ratio\":\"3:4\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11759\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_11758\",\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -1021,7 +1025,9 @@
           "created_at": "2026-06-22T03:37:08.419403+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "cover",
+      "language": "English"
     },
     {
       "id": 12379,
@@ -1071,7 +1077,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11750\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_11751\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11750\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_11751\",\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -1408,7 +1414,9 @@
           "created_at": "2026-06-14T03:11:15.119449+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "cover",
+      "language": "English"
     },
     {
       "id": 12277,
@@ -1470,7 +1478,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11625\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11625\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11625\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\",\"autoImagesBody\":false}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11625\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11625\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11625\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"autoImagesBody\":false}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -1566,7 +1574,7 @@
           ],
           "slideCount": 0,
           "ctaLocation": "last",
-          "aspect_ratio": "fit"
+          "aspect_ratio": "4:5"
         },
         {
           "id": "_tone",
@@ -1750,7 +1758,9 @@
           "created_at": "2026-06-17T15:14:10.366359+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 12104,
@@ -1808,7 +1818,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11507\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11501\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11507\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11501\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -1862,7 +1872,7 @@
             }
           ],
           "slideCount": 1,
-          "aspect_ratio": "fit"
+          "aspect_ratio": "4:5"
         },
         {
           "id": "body",
@@ -1948,7 +1958,7 @@
           ],
           "slideCount": 0,
           "ctaLocation": "last",
-          "aspect_ratio": "fit"
+          "aspect_ratio": "4:5"
         },
         {
           "id": "_tone",
@@ -2156,7 +2166,9 @@
           "created_at": "2026-07-01T15:14:20.730889+00:00",
           "post_id": "7657578082265550094"
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 12029,
@@ -2218,7 +2230,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11621\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11621\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\",\"autoImagesBody\":false}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11621\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11621\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"autoImagesBody\":false}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -2323,7 +2335,7 @@
           ],
           "slideCount": 0,
           "ctaLocation": "last",
-          "aspect_ratio": "fit"
+          "aspect_ratio": "4:5"
         },
         {
           "id": "_tone",
@@ -2495,7 +2507,9 @@
           "created_at": "2026-06-17T15:13:15.423764+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 12022,
@@ -2557,7 +2571,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11430\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11430\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11430\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11430\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -2686,7 +2700,7 @@
           ],
           "slideCount": 0,
           "ctaLocation": "last",
-          "aspect_ratio": "fit"
+          "aspect_ratio": "4:5"
         },
         {
           "id": "_tone",
@@ -2894,7 +2908,9 @@
           "created_at": "2026-06-17T15:13:21.461701+00:00",
           "post_id": "7652382666997665037"
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 12017,
@@ -2956,7 +2972,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11430\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11430\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11430\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11430\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -3101,7 +3117,7 @@
           ],
           "slideCount": 0,
           "ctaLocation": "last",
-          "aspect_ratio": "fit"
+          "aspect_ratio": "4:5"
         },
         {
           "id": "_tone",
@@ -3309,7 +3325,9 @@
           "created_at": "2026-06-17T05:04:20.053251+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 6178,
@@ -3368,7 +3386,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_5191\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_4932\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_4932\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\",\"bodyGridFormat\":\"1:3\",\"hookGridFormat\":\"1:3\"}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_5191\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_4932\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_4932\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"bodyGridFormat\":\"1:3\",\"hookGridFormat\":\"1:3\"}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -3774,7 +3792,9 @@
           "created_at": "2026-03-19T22:44:56.137491+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "cover",
+      "language": "English"
     },
     {
       "id": 4860,
@@ -3836,7 +3856,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_5191\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_4932\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_4932\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_5191\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_4932\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_4932\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
       "timezone": null,
       "public": true,
       "is_favorite": true,
@@ -3931,7 +3951,7 @@
             }
           ],
           "slideCount": 1,
-          "aspect_ratio": "fit"
+          "aspect_ratio": "4:5"
         },
         {
           "id": "body",
@@ -3972,7 +3992,7 @@
             }
           ],
           "slideCount": 5,
-          "aspect_ratio": "fit",
+          "aspect_ratio": "4:5",
           "slideOverrides": {
             "0": {
               "contentDirection": ""
@@ -4004,7 +4024,7 @@
           ],
           "slideCount": 0,
           "ctaLocation": "last",
-          "aspect_ratio": "fit"
+          "aspect_ratio": "4:5"
         },
         {
           "id": "_tone",
@@ -4236,7 +4256,9 @@
           "created_at": "2026-07-02T05:04:59.744244+00:00",
           "post_id": "7657792209240018189"
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 2610,
@@ -4290,7 +4312,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_4696\",\"mode\":\"collection\",\"single_image\":\"76113\"},\"all_slides\":\"community_collection_4697\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_4697\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"is_bg_overlay_on_hook_image\":true,\"autoPullImagesNotCollections\":false,\"disableAutoImageForFirstSlide\":false,\"textOnFirstSlideOnly\":false,\"slideDuration\":4}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_4696\",\"mode\":\"collection\",\"single_image\":\"76113\"},\"all_slides\":\"community_collection_4697\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_4697\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"autoPullImagesNotCollections\":false,\"disableAutoImageForFirstSlide\":false,\"textOnFirstSlideOnly\":false,\"slideDuration\":4}",
       "timezone": null,
       "public": true,
       "is_favorite": true,
@@ -4615,7 +4637,9 @@
           "created_at": "2026-06-28T13:27:26.6881+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 2530,
@@ -4669,7 +4693,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"community_collection_4600\",\"mode\":\"collection\",\"single_image\":75871},\"all_slides\":\"community_collection_1234\",\"autoPullImagesNotCollections\":true,\"disableAutoImageForFirstSlide\":true,\"is_bg_overlay_on\":true,\"is_bg_overlay_on_hook_image\":true,\"bodyGridFormat\":\"2:2\",\"autoImagesBody\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_1234\",\"image_id\":null,\"cta_location\":\"last_slide\"}}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"community_collection_4600\",\"mode\":\"collection\",\"single_image\":75871},\"all_slides\":\"community_collection_1234\",\"autoPullImagesNotCollections\":true,\"disableAutoImageForFirstSlide\":true,\"bodyGridFormat\":\"2:2\",\"autoImagesBody\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_1234\",\"image_id\":null,\"cta_location\":\"last_slide\"}}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -4979,7 +5003,9 @@
           "created_at": "2026-03-14T18:18:45.955526+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 2529,
@@ -5037,7 +5063,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"community_collection_4003\",\"mode\":\"collection\",\"single_image\":75871},\"all_slides\":\"community_collection_1234\",\"autoPullImagesNotCollections\":true,\"disableAutoImageForFirstSlide\":true,\"is_bg_overlay_on\":true,\"is_bg_overlay_on_hook_image\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_1234\",\"image_id\":null,\"cta_location\":\"last_slide\"}}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"community_collection_4003\",\"mode\":\"collection\",\"single_image\":75871},\"all_slides\":\"community_collection_1234\",\"autoPullImagesNotCollections\":true,\"disableAutoImageForFirstSlide\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_1234\",\"image_id\":null,\"cta_location\":\"last_slide\"}}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -5414,7 +5440,9 @@
           "created_at": "2026-02-13T13:09:10.274074+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 2222,
@@ -5468,7 +5496,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_4258\",\"mode\":\"collection\",\"single_image\":\"55317\"},\"all_slides\":\"user_collection_4257\",\"cta_slide\":{\"check\":true,\"collection_id\":\"user_collection_1415\",\"image_id\":\"74717\",\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_4257\",\"cta_location\":\"last_slide\"},\"is_bg_overlay_on\":false,\"background_color\":\"#000000\",\"aspect_ratio\":\"4:5\",\"autoPullImagesNotCollections\":false,\"textOnFirstSlideOnly\":true,\"keepOriginalAspectRatio\":true,\"noTextOnSlides\":false}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_4258\",\"mode\":\"collection\",\"single_image\":\"55317\"},\"all_slides\":\"user_collection_4257\",\"cta_slide\":{\"check\":true,\"collection_id\":\"user_collection_1415\",\"image_id\":\"74717\",\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_4257\",\"cta_location\":\"last_slide\"},\"background_color\":\"#000000\",\"autoPullImagesNotCollections\":false,\"textOnFirstSlideOnly\":true,\"noTextOnSlides\":false}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -5510,7 +5538,7 @@
             }
           ],
           "slideCount": 1,
-          "aspect_ratio": "fit"
+          "aspect_ratio": "4:5"
         },
         {
           "id": "body",
@@ -5535,7 +5563,7 @@
             }
           ],
           "slideCount": 1,
-          "aspect_ratio": "fit"
+          "aspect_ratio": "4:5"
         },
         {
           "id": "cta",
@@ -5561,7 +5589,7 @@
           ],
           "slideCount": 0,
           "ctaLocation": "last",
-          "aspect_ratio": "fit"
+          "aspect_ratio": "4:5"
         },
         {
           "id": "_tone",
@@ -5676,7 +5704,9 @@
           "created_at": "2026-02-13T23:56:21.494722+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 2196,
@@ -5730,7 +5760,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_4228\",\"mode\":\"collection\",\"single_image\":\"55317\"},\"all_slides\":\"user_collection_4226\",\"cta_slide\":{\"check\":false,\"collection_id\":\"user_collection_1415\",\"image_id\":\"74717\"},\"is_bg_overlay_on\":false,\"background_color\":\"#000000\",\"aspect_ratio\":\"4:5\",\"autoPullImagesNotCollections\":false,\"textOnFirstSlideOnly\":true,\"keepOriginalAspectRatio\":true}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_4228\",\"mode\":\"collection\",\"single_image\":\"55317\"},\"all_slides\":\"user_collection_4226\",\"cta_slide\":{\"check\":false,\"collection_id\":\"user_collection_1415\",\"image_id\":\"74717\"},\"background_color\":\"#000000\",\"autoPullImagesNotCollections\":false,\"textOnFirstSlideOnly\":true}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -5846,7 +5876,9 @@
           "created_at": "2026-03-20T00:19:25.675623+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 2184,
@@ -5896,7 +5928,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_4217\",\"mode\":\"collection\",\"single_image\":\"55317\"},\"all_slides\":\"user_collection_4217\",\"cta_slide\":{\"check\":false,\"collection_id\":\"user_collection_1415\",\"image_id\":\"74717\"},\"is_bg_overlay_on\":false,\"background_color\":\"#000000\",\"aspect_ratio\":\"9:16\",\"autoPullImagesNotCollections\":false,\"textOnFirstSlideOnly\":true,\"hookGridFormat\":\"2:2\",\"bodyGridFormat\":\"2:2\"}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_4217\",\"mode\":\"collection\",\"single_image\":\"55317\"},\"all_slides\":\"user_collection_4217\",\"cta_slide\":{\"check\":false,\"collection_id\":\"user_collection_1415\",\"image_id\":\"74717\"},\"background_color\":\"#000000\",\"autoPullImagesNotCollections\":false,\"textOnFirstSlideOnly\":true,\"hookGridFormat\":\"2:2\",\"bodyGridFormat\":\"2:2\"}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -6134,7 +6166,9 @@
           "created_at": "2026-03-20T17:25:37.393036+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 2182,
@@ -6188,7 +6222,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_4216\",\"mode\":\"collection\",\"single_image\":\"55317\"},\"all_slides\":\"user_collection_4216\",\"cta_slide\":{\"check\":true,\"collection_id\":\"user_collection_1415\",\"image_id\":\"74717\",\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_4216\",\"cta_location\":\"last_slide\"},\"is_bg_overlay_on\":false,\"background_color\":\"#000000\",\"aspect_ratio\":\"1:1\",\"autoPullImagesNotCollections\":false}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_4216\",\"mode\":\"collection\",\"single_image\":\"55317\"},\"all_slides\":\"user_collection_4216\",\"cta_slide\":{\"check\":true,\"collection_id\":\"user_collection_1415\",\"image_id\":\"74717\",\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_4216\",\"cta_location\":\"last_slide\"},\"background_color\":\"#000000\",\"autoPullImagesNotCollections\":false}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -6492,7 +6526,9 @@
           "created_at": "2026-03-12T04:12:35.664502+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 2049,
@@ -6546,7 +6582,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_4022\",\"mode\":\"collection\",\"single_image\":75871},\"all_slides\":\"community_collection_1234\",\"autoPullImagesNotCollections\":true,\"disableAutoImageForFirstSlide\":true,\"is_bg_overlay_on\":true,\"is_bg_overlay_on_hook_image\":true}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_4022\",\"mode\":\"collection\",\"single_image\":75871},\"all_slides\":\"community_collection_1234\",\"autoPullImagesNotCollections\":true,\"disableAutoImageForFirstSlide\":true}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -6765,7 +6801,9 @@
           "created_at": "2026-02-09T17:26:46.798924+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 2035,
@@ -6819,7 +6857,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_4007\",\"mode\":\"collection\",\"single_image\":75871},\"all_slides\":\"community_collection_1234\",\"autoPullImagesNotCollections\":true,\"disableAutoImageForFirstSlide\":true,\"is_bg_overlay_on\":true}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_4007\",\"mode\":\"collection\",\"single_image\":75871},\"all_slides\":\"community_collection_1234\",\"autoPullImagesNotCollections\":true,\"disableAutoImageForFirstSlide\":true}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -7065,7 +7103,9 @@
           "created_at": "2026-02-09T17:51:36.900436+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 2024,
@@ -7123,7 +7163,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"community_collection_4003\",\"mode\":\"collection\",\"single_image\":75871},\"all_slides\":\"community_collection_4003\",\"autoPullImagesNotCollections\":true,\"disableAutoImageForFirstSlide\":true,\"is_bg_overlay_on\":true,\"autoImagesNoTextOnImages\":false,\"autoImagesBody\":true,\"cta_slide\":{\"check\":false,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_8900\",\"image_id\":null,\"cta_location\":\"last_slide\"}}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"community_collection_4003\",\"mode\":\"collection\",\"single_image\":75871},\"all_slides\":\"community_collection_4003\",\"autoPullImagesNotCollections\":true,\"disableAutoImageForFirstSlide\":true,\"autoImagesNoTextOnImages\":false,\"autoImagesBody\":true,\"cta_slide\":{\"check\":false,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_8900\",\"image_id\":null,\"cta_location\":\"last_slide\"}}",
       "timezone": null,
       "public": true,
       "is_favorite": true,
@@ -7483,7 +7523,9 @@
           "created_at": "2026-04-16T22:49:16.519281+00:00",
           "post_id": "7629492971984981262"
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 440,
@@ -7544,7 +7586,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_955\",\"mode\":\"collection\",\"single_image\":\"55317\"},\"all_slides\":\"community_collection_955\",\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":\"user_collection_4257\",\"image_id\":\"167389\"},\"is_bg_overlay_on\":true,\"background_color\":\"#000000\",\"aspect_ratio\":\"9:16\",\"autoPullImagesNotCollections\":false,\"keepOriginalAspectRatio\":false}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_955\",\"mode\":\"collection\",\"single_image\":\"55317\"},\"all_slides\":\"community_collection_955\",\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":\"user_collection_4257\",\"image_id\":\"167389\"},\"background_color\":\"#000000\",\"autoPullImagesNotCollections\":false}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -7856,7 +7898,9 @@
           "created_at": "2026-02-14T01:24:48.355458+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "cover",
+      "language": "English"
     },
     {
       "id": 58,
@@ -7918,7 +7962,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_1223\",\"single_image\":\"66719\",\"mode\":\"single_image\"},\"all_slides\":\"community_collection_35\",\"cta_slide\":{\"check\":true,\"collection_id\":\"user_collection_1420\",\"image_id\":\"77807\",\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_35\",\"cta_location\":\"last_slide\"},\"aspect_ratio\":\"4:5\",\"textOnFirstSlideOnly\":false}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_1223\",\"single_image\":\"66719\",\"mode\":\"single_image\"},\"all_slides\":\"community_collection_35\",\"cta_slide\":{\"check\":true,\"collection_id\":\"user_collection_1420\",\"image_id\":\"77807\",\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_35\",\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -8234,7 +8278,9 @@
           "created_at": "2026-02-13T20:14:10.596994+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 57,
@@ -8604,7 +8650,9 @@
           "created_at": "2025-09-11T22:48:48.056642+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 50,
@@ -8662,7 +8710,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"community_collection_657\",\"single_image\":null},\"all_slides\":\"community_collection_657\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_657\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"aspect_ratio\":\"9:16\"}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"community_collection_657\",\"single_image\":null},\"all_slides\":\"community_collection_657\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_657\",\"image_id\":null,\"cta_location\":\"last_slide\"}}",
       "timezone": null,
       "public": true,
       "is_favorite": true,
@@ -9049,7 +9097,9 @@
           "created_at": "2026-07-02T14:46:21.749027+00:00",
           "post_id": "7657942089275067661"
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 44,
@@ -9110,7 +9160,7 @@
         "disclose_video_content": false,
         "disclose_branded_content": false
       },
-      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_1417\",\"single_image\":\"76113\",\"mode\":\"single_image\"},\"all_slides\":\"community_collection_1226\",\"aspect_ratio\":\"9:16\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_1226\",\"image_id\":null,\"cta_location\":\"last_slide\"}}",
+      "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_1417\",\"single_image\":\"76113\",\"mode\":\"single_image\"},\"all_slides\":\"community_collection_1226\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_1226\",\"image_id\":null,\"cta_location\":\"last_slide\"}}",
       "timezone": null,
       "public": true,
       "is_favorite": false,
@@ -9450,7 +9500,9 @@
           "created_at": "2025-09-11T21:50:29.07686+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     },
     {
       "id": 33,
@@ -9908,7 +9960,9 @@
           "created_at": "2025-12-16T20:01:27.05586+00:00",
           "post_id": null
         }
-      ]
+      ],
+      "image_fit": "contain",
+      "language": "English"
     }
   ]
 }

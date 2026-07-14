@@ -6,6 +6,7 @@ import {
 import type { Automation } from "@/lib/realfarm-data"
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import { defaultAutomationLanguage } from "@/lib/slideshow-publishing-config"
+import { slideshowStageForRunStatus } from "@/lib/slideshow-lifecycle"
 
 import { formatCollectionImages } from "./format-helpers"
 import type { AutomationRunApiRecord, AutomationRunApiSlide } from "./types"
@@ -60,21 +61,15 @@ export function formatRunSchedule(value: string | undefined) {
 }
 
 export function runStatusLabel(status: AutomationRunApiRecord["status"]) {
-  switch (status) {
-    case "generating":
-      return "Generating"
-    case "succeeded":
-      return "Succeeded"
-    case "failed":
-      return "Failed"
-    default:
-      return "Succeeded"
-  }
+  const stage = slideshowStageForRunStatus(status)
+  if (stage === "generating") return "Generating"
+  if (stage === "completed") return "Completed"
+  return "Failed"
 }
 
 export function runStatusBadgeClass(status: AutomationRunApiRecord["status"]) {
   switch (status) {
-    case "generating":
+    case "running":
       return "bg-[#ff4d2d] text-white"
     case "succeeded":
       return "bg-emerald-600 text-white"
@@ -83,6 +78,24 @@ export function runStatusBadgeClass(status: AutomationRunApiRecord["status"]) {
     default:
       return "bg-white/90 text-[#242421]"
   }
+}
+
+export function isCompletedSlideshowRun(run: AutomationRunApiRecord) {
+  return slideshowStageForRunStatus(run.status) === "completed"
+}
+
+export function isSlideshowLifecycleRun(run: AutomationRunApiRecord) {
+  return slideshowStageForRunStatus(run.status) !== null
+}
+
+export function canDeleteCompletedSlideshow(run: AutomationRunApiRecord) {
+  return Boolean(
+    run.slideshowId &&
+    isCompletedSlideshowRun(run) &&
+    !(run.socialStatuses ?? []).some(
+      (item) => item.status === "published" || item.status === "scheduled"
+    )
+  )
 }
 
 export function runDurationSeconds(run: AutomationRunApiRecord) {
@@ -151,7 +164,7 @@ export function generationPlaceholderRun({
     automationId: automation.id,
     automationTitle: automation.name,
     scheduledFor: now,
-    status: "generating",
+    status: "running",
     createdAt: now,
     socialStatuses: [],
     renderedSlides: slides,
@@ -161,8 +174,7 @@ export function generationPlaceholderRun({
       hashtags: "",
       hook: "",
       publishType: automationPublishType(config),
-      language:
-        config.image_collection_ids.language || defaultAutomationLanguage,
+      language: config.language || defaultAutomationLanguage,
       slides,
     },
   }
@@ -185,15 +197,17 @@ export function generationPlaceholderSlides(
 ): AutomationRunApiSlide[] {
   const hookSection = automationFormatSection(config, "hook")
 
-  return [{
-    id: "placeholder-generating",
-    role: "hook",
-    imageUrl: generatingSlidePlaceholderDataUrl(hookSection.aspect_ratio),
-    imageCaption: "",
-    text: "",
-    durationMs: 0,
-    aspectRatio: hookSection.aspect_ratio,
-  }]
+  return [
+    {
+      id: "placeholder-generating",
+      role: "hook",
+      imageUrl: generatingSlidePlaceholderDataUrl(hookSection.aspect_ratio),
+      imageCaption: "",
+      text: "",
+      durationMs: 0,
+      aspectRatio: hookSection.aspect_ratio,
+    },
+  ]
 }
 
 export function generatingSlidePlaceholderDataUrl(aspectRatio?: string) {

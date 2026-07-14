@@ -22,6 +22,11 @@ type JsonArrayStoreInput<T> = {
   normalize?: (record: T) => T | null
 }
 
+type JsonRecordStoreInput<T> = JsonArrayStoreInput<T> & {
+  record: T
+  position?: "first" | "last"
+}
+
 type JsonArrayStoreUpdate<T, R> = {
   records: T[]
   result?: R
@@ -53,6 +58,53 @@ export async function writeJsonArrayStore<T>(input: {
   await withStoreLock(`aw:${table}:${ownerId ?? "public"}`, async () => {
     await awWriteTable(table, input.records, ownerId)
   })
+}
+
+/**
+ * Upsert one domain record without rewriting every row in the table. New rows
+ * sort first by default, matching the historical array-store prepend behavior.
+ */
+export async function upsertJsonArrayRecord<T>(
+  input: JsonRecordStoreInput<T>
+): Promise<void> {
+  const table = requireTableFor(input)
+  const ownerId = await ownerForTable(table)
+  const rid = pickField(input.record, ID_KEYS)
+  if (!rid) {
+    throw new Error(`A record id is required to upsert into ${table}.`)
+  }
+  await awUpsertRecord(
+    table,
+    input.record,
+    rid,
+    ownerId,
+    input.position ?? "first"
+  )
+}
+
+/** Delete one domain record by id without synchronizing the rest of the table. */
+export async function deleteJsonArrayRecord(input: {
+  rootDir: string
+  fileName: string
+  key: string
+  id: string
+}): Promise<boolean> {
+  const table = requireTableFor(input)
+  const ownerId = await ownerForTable(table)
+  const rowId = ownerId
+    ? ownedRowIdFor(table, ownerId, input.id, 0)
+    : rowIdFor(table, input.id, 0)
+  const aw = getAppwrite()
+  if (!aw) throw new Error("Appwrite is not configured.")
+  try {
+    await retryTransient(() =>
+      aw.tables.deleteRow(APPWRITE_DATABASE_ID, table, rowId)
+    )
+    return true
+  } catch (error) {
+    if (appwriteStatus(error) === 404) return false
+    throw error
+  }
 }
 
 export async function withJsonArrayStore<T, R = void>(
@@ -216,6 +268,53 @@ async function awWriteTable<T>(
       aw.tables.deleteRow(APPWRITE_DATABASE_ID, table, id)
     )
   })
+}
+
+async function awUpsertRecord<T>(
+  table: string,
+  record: T,
+  rid: string,
+  ownerId: string | null,
+  position: "first" | "last"
+) {
+  const aw = getAppwrite()
+  if (!aw) throw new Error("Appwrite is not configured.")
+  const rowId = ownerId
+    ? ownedRowIdFor(table, ownerId, rid, 0)
+    : rowIdFor(table, rid, 0)
+  let existingOrd: number | null = null
+  try {
+    const existing = (await aw.tables.getRow(
+      APPWRITE_DATABASE_ID,
+      table,
+      rowId
+    )) as Record<string, unknown>
+    existingOrd =
+      typeof existing.ord === "number" && Number.isFinite(existing.ord)
+        ? existing.ord
+        : null
+  } catch (error) {
+    if (appwriteStatus(error) !== 404) throw error
+  }
+  const ownedRecord = ownerId ? attachOwner(record, ownerId) : record
+  const ord = existingOrd ?? (position === "first" ? -Date.now() : Date.now())
+  await retryTransient(() =>
+    aw.tables.upsertRow(APPWRITE_DATABASE_ID, table, rowId, {
+      rid: rid.slice(0, 1024),
+      name: pickField(record, NAME_KEYS)?.slice(0, 2048) ?? null,
+      status: pickField(record, STATUS_KEYS)?.slice(0, 255) ?? null,
+      created_raw: pickField(record, CREATED_KEYS)?.slice(0, 64) ?? null,
+      ord,
+      ...(ownerId ? { owner_id: ownerId } : {}),
+      data: JSON.stringify(ownedRecord),
+    })
+  )
+}
+
+function appwriteStatus(error: unknown) {
+  if (!error || typeof error !== "object") return null
+  const value = (error as { code?: unknown }).code
+  return typeof value === "number" ? value : Number(value) || null
 }
 
 async function ownerForTable(table: string): Promise<string | null> {

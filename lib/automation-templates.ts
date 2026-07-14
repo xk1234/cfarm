@@ -2,7 +2,11 @@ import { clean, isRecord } from "@/lib/guards"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 
-import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
+import {
+  readJsonArrayStore,
+  upsertJsonArrayRecord,
+  writeJsonArrayStore,
+} from "@/lib/json-store"
 import { defaultAutomationTemplateDefaults } from "@/lib/automation-template-defaults"
 import {
   findCollectionByIdOrAlias,
@@ -18,6 +22,7 @@ import {
   type AutomationImageMode,
   type AutomationSchema,
   type AutomationTextItem,
+  type AutomationVideoFormat,
   type RuntimeAutomationTemplate,
 } from "@/lib/realfarm-automation"
 import type { Automation } from "@/lib/realfarm-data"
@@ -35,6 +40,8 @@ export type AutomationTemplateTone =
   | "Authoritative & Reassuring"
   | "Custom"
 
+// Persistence DTO only. Runtime code converts this legacy snake_case shape to
+// the canonical TextItem at the template boundary.
 export type AutomationTemplateTextItem = {
   id: string
   font: string
@@ -93,6 +100,8 @@ export type AutomationTemplateDefinition = {
   image_collection_ids: string
   format: AutomationTemplateFormat
   hooks: string[]
+  web_search_enabled?: boolean
+  video_format?: AutomationVideoFormat
 }
 
 export type AutomationTemplateRecord = {
@@ -289,6 +298,7 @@ export async function upsertAutomationTemplateRecords(input: {
     rootDir: input.rootDir,
   })
   const next = [...current]
+  const changed: AutomationTemplateRecord[] = []
 
   for (const record of input.records) {
     const index = next.findIndex((item) =>
@@ -297,20 +307,30 @@ export async function upsertAutomationTemplateRecords(input: {
         : item.id === record.id
     )
     if (index >= 0) {
-      next[index] = {
+      const updated = {
         ...record,
         id: next[index].id,
         createdAt: next[index].createdAt || record.createdAt,
       }
+      next[index] = updated
+      changed.push(updated)
     } else {
       next.unshift(record)
+      changed.push(record)
     }
   }
 
-  await writeAutomationTemplateRecords({
-    rootDir: input.rootDir,
-    records: next,
-  })
+  await Promise.all(
+    changed.map((record) =>
+      upsertJsonArrayRecord({
+        rootDir: input.rootDir ?? defaultRootDir,
+        fileName: dbFileName,
+        key: "templates",
+        record,
+        position: "first",
+      })
+    )
+  )
   return next
 }
 
@@ -354,6 +374,13 @@ export function automationTemplateRecordToSchema(
         record.template.image_collection_ids,
         base.image_collection_ids
       ),
+      tone: {
+        value:
+          record.template.format.tone === "Custom"
+            ? record.template.format.custom_tone
+            : tonePrompt(record.template.format.tone),
+        preset: record.template.format.tone ?? "Custom",
+      },
       formatting: templateFormatToRuntime(record.template.format),
       tiktok_post_settings: {
         ...base.tiktok_post_settings,
@@ -362,6 +389,8 @@ export function automationTemplateRecordToSchema(
             ? "video"
             : defaultAutomationPublishType,
       },
+      web_search_enabled: Boolean(record.template.web_search_enabled),
+      video_format: record.template.video_format,
       schedule: {
         timezone:
           Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Singapore",
@@ -407,10 +436,17 @@ export function automationTemplateRecordToRuntimeTemplate(
   const schema = automationTemplateRecordToSchema(record)
   return {
     automationKind: schema.automationKind,
+    aspect_ratio: schema.aspect_ratio,
+    font: schema.font,
+    image_fit: schema.image_fit,
+    language: schema.language,
     prompt_formatting: schema.prompt_formatting,
     image_collection_ids: schema.image_collection_ids,
+    tone: schema.tone,
     formatting: schema.formatting,
     tiktok_post_settings: schema.tiktok_post_settings,
+    web_search_enabled: schema.web_search_enabled,
+    video_format: schema.video_format,
   }
 }
 
@@ -427,7 +463,7 @@ export function automationSchemaToTemplateRecord(input: {
 }): AutomationTemplateRecord {
   return {
     id: input.id,
-    automationKind: "slideshow",
+    automationKind: input.schema.automationKind,
     sourceAutomationId: input.sourceAutomationId,
     sourceUrl: input.sourceUrl,
     name: input.name,
@@ -439,6 +475,10 @@ export function automationSchemaToTemplateRecord(input: {
       image_collection_ids: JSON.stringify(input.schema.image_collection_ids),
       format: automationSchemaToTemplateFormat(input.schema),
       hooks: input.hooks?.filter(Boolean) ?? [],
+      web_search_enabled: Boolean(input.schema.web_search_enabled),
+      video_format: input.schema.video_format
+        ? structuredClone(input.schema.video_format)
+        : undefined,
     },
   }
 }
@@ -542,12 +582,6 @@ function templateFormatToRuntime(
       imageMode: format.cta.image_mode,
       textItems: format.cta.text_items.map(templateTextItemToRuntime),
     },
-    {
-      id: "_tone",
-      value:
-        format.tone === "Custom" ? format.custom_tone : tonePrompt(format.tone),
-      preset: format.tone ?? "Custom",
-    },
   ]
 }
 
@@ -625,6 +659,11 @@ function normalizeAutomationTemplateRecord(
       hooks: Array.isArray(template.hooks)
         ? template.hooks.map(clean).filter(Boolean)
         : [],
+      web_search_enabled: Boolean(template.web_search_enabled),
+      video_format:
+        record.automationKind === "video" && template.video_format
+          ? structuredClone(template.video_format)
+          : undefined,
     },
   }
 }

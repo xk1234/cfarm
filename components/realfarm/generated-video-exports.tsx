@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import {
   IconBrandBluesky,
   IconBrandFacebookFilled,
@@ -20,11 +20,13 @@ import {
   IconTrash,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
+import useSWR from "swr"
 
 import { Button } from "@/components/ui/button"
+import { GeneratedVideoExportViewer } from "@/components/realfarm/automation-settings/generated-video-export-viewer"
+import { AccountGridSkeleton } from "@/components/ui/loading-skeleton"
 import { SelectControl } from "@/components/ui/form-controls"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
-import { Spinner } from "@/components/ui/spinner"
 import {
   MediaCardShell,
   MediaErrorState,
@@ -32,7 +34,11 @@ import {
   MediaPendingState,
 } from "@/components/realfarm/shared-media"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
-import { generatedVideoTypeConfig, type GeneratedVideoExport } from "@/lib/generated-video-types"
+import { clientSWRFetcher } from "@/lib/client-swr"
+import {
+  generatedVideoTypeConfig,
+  type GeneratedVideoExport,
+} from "@/lib/generated-video-types"
 import {
   normalizePostFastIntegration,
   type PostFastCreatePostType,
@@ -41,6 +47,8 @@ import {
   type PostFastSocialProvider,
 } from "@/lib/postfast-client"
 import { cn } from "@/lib/utils"
+
+import { useVideoThumbnailFrame } from "./use-video-thumbnail-frame"
 
 export function GeneratedVideoExports({
   title,
@@ -53,7 +61,12 @@ export function GeneratedVideoExports({
   emptyMessage: string
   onDeleted?: (id: string) => void
 }) {
-  const [scheduleItem, setScheduleItem] = useState<GeneratedVideoExport | null>(null)
+  const [scheduleItem, setScheduleItem] = useState<GeneratedVideoExport | null>(
+    null
+  )
+  const [viewerItem, setViewerItem] = useState<GeneratedVideoExport | null>(
+    null
+  )
 
   return (
     <section className="mt-6">
@@ -66,6 +79,7 @@ export function GeneratedVideoExports({
             <GeneratedVideoCard
               key={item.id}
               item={item}
+              onOpen={() => setViewerItem(item)}
               onSchedule={() => setScheduleItem(item)}
               onDeleted={() => onDeleted?.(item.id)}
             />
@@ -82,66 +96,32 @@ export function GeneratedVideoExports({
           onClose={() => setScheduleItem(null)}
         />
       )}
+      {viewerItem ? (
+        <GeneratedVideoExportViewer
+          item={viewerItem}
+          onClose={() => setViewerItem(null)}
+        />
+      ) : null}
     </section>
   )
 }
 
 function GeneratedVideoCard({
   item,
+  onOpen,
   onSchedule,
   onDeleted,
 }: {
   item: GeneratedVideoExport
+  onOpen: () => void
   onSchedule: () => void
   onDeleted: () => void
 }) {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const [playing, setPlaying] = useState(false)
+  const { videoRef, thumbnailReady } = useVideoThumbnailFrame(item.videoUrl)
   const [deleting, setDeleting] = useState(false)
-  const isPending = !item.videoUrl && (item.status === "queued" || item.status === "processing")
+  const isPending =
+    !item.videoUrl && (item.status === "queued" || item.status === "processing")
   const isFailed = !item.videoUrl && item.status === "failed"
-
-  useEffect(() => {
-    if (!item.videoUrl || item.previewUrl) {
-      return
-    }
-
-    const video = videoRef.current
-    if (!video) {
-      return
-    }
-
-    let stopped = false
-    const prime = () => {
-      if (!stopped) {
-        primeVideoThumbnail(video, false)
-      }
-    }
-    const timeouts = [0, 250, 1000, 2500].map((delay) => window.setTimeout(prime, delay))
-
-    video.addEventListener("loadedmetadata", prime)
-    video.addEventListener("loadeddata", prime)
-    video.load()
-
-    return () => {
-      stopped = true
-      timeouts.forEach((timeout) => window.clearTimeout(timeout))
-      video.removeEventListener("loadedmetadata", prime)
-      video.removeEventListener("loadeddata", prime)
-    }
-  }, [item.videoUrl, item.previewUrl])
-
-  function togglePlay() {
-    const video = videoRef.current
-    if (!video) return
-    if (video.paused) {
-      video.play()
-      setPlaying(true)
-    } else {
-      video.pause()
-      setPlaying(false)
-    }
-  }
 
   function saveVideo() {
     if (!item.videoUrl) {
@@ -160,7 +140,9 @@ function GeneratedVideoCard({
   if (isPending) {
     return (
       <MediaCardShell>
-        <MediaPendingState label={generatedVideoTypeConfig[item.type].pendingLabel} />
+        <MediaPendingState
+          label={generatedVideoTypeConfig[item.type].pendingLabel}
+        />
       </MediaCardShell>
     )
   }
@@ -176,7 +158,7 @@ function GeneratedVideoCard({
               type="button"
               variant="iconControl"
               size="icon-control-sm"
-              className="absolute right-2 top-2 bg-white/90 text-app-danger-muted shadow-sm hover:bg-white"
+              className="absolute top-2 right-2 bg-white/90 text-app-danger-muted shadow-sm hover:bg-white"
               onClick={deleteOutput}
               disabled={deleting}
               aria-label="Delete output"
@@ -198,16 +180,20 @@ function GeneratedVideoCard({
     setDeleting(true)
     try {
       await toast.promise(
-        fetchJsonWithTimeout<{ export?: GeneratedVideoExport }>(`/api/generated-videos/${encodeURIComponent(item.id)}`, {
-          method: "DELETE",
-          timeoutMs: 15_000,
-          toastOnError: false,
-        }),
+        fetchJsonWithTimeout<{ export?: GeneratedVideoExport }>(
+          `/api/generated-videos/${encodeURIComponent(item.id)}`,
+          {
+            method: "DELETE",
+            timeoutMs: 15_000,
+            toastOnError: false,
+          }
+        ),
         {
           loading: "Deleting output...",
           success: "Output deleted",
-          error: (error) => getApiErrorMessage(error, "Failed to delete output"),
-        },
+          error: (error) =>
+            getApiErrorMessage(error, "Failed to delete output"),
+        }
       )
       onDeleted()
     } finally {
@@ -224,24 +210,21 @@ function GeneratedVideoCard({
               ref={videoRef}
               className="absolute inset-0 h-full w-full object-cover"
               src={item.videoUrl}
-              poster={item.previewUrl}
               muted
               playsInline
-              preload={item.previewUrl ? "metadata" : "auto"}
-              onLoadedMetadata={(event) => primeVideoThumbnail(event.currentTarget, Boolean(item.previewUrl))}
-              onLoadedData={(event) => primeVideoThumbnail(event.currentTarget, Boolean(item.previewUrl))}
-              onEnded={() => setPlaying(false)}
+              preload="auto"
             />
+            {!thumbnailReady ? (
+              <div className="app-media-poster-fallback pointer-events-none absolute inset-0" />
+            ) : null}
             <button
               className="absolute inset-0 z-10 flex items-center justify-center"
-              onClick={togglePlay}
-              aria-label={playing ? "Pause video" : "Play video"}
+              onClick={onOpen}
+              aria-label="Open video viewer"
             >
-              {!playing && (
-                <div className="grid size-14 place-items-center rounded-full bg-black/50 backdrop-blur-sm transition hover:bg-black/60">
-                  <IconPlayerPlay className="size-7 text-white" fill="white" />
-                </div>
-              )}
+              <div className="grid size-14 place-items-center rounded-full bg-black/50 backdrop-blur-sm transition hover:bg-black/60">
+                <IconPlayerPlay className="size-7 text-white" fill="white" />
+              </div>
             </button>
           </>
         ) : item.previewUrl ? (
@@ -252,7 +235,7 @@ function GeneratedVideoCard({
         ) : (
           <div className="app-media-poster-fallback absolute inset-0" />
         )}
-        <div className="absolute right-2 top-2 z-20 flex gap-1">
+        <div className="absolute top-2 right-2 z-20 flex gap-1">
           <Button
             type="button"
             variant="iconControl"
@@ -295,26 +278,6 @@ function GeneratedVideoCard({
   )
 }
 
-function primeVideoThumbnail(video: HTMLVideoElement, hasPoster: boolean) {
-  if (hasPoster || !video.paused || video.currentTime > 0.05) {
-    return
-  }
-
-  const duration = Number.isFinite(video.duration) ? video.duration : 0
-  if (duration <= 0 || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-    return
-  }
-
-  const targetTime = Math.min(0.35, duration / 2)
-
-  try {
-    video.currentTime = targetTime
-    video.dataset.thumbnailPrimed = "true"
-  } catch {
-    // Some browsers reject seeks before enough data is loaded; the poster path covers new renders.
-  }
-}
-
 function ScheduleGeneratedVideoModal({
   item,
   onClose,
@@ -322,54 +285,35 @@ function ScheduleGeneratedVideoModal({
   item: GeneratedVideoExport
   onClose: () => void
 }) {
-  const [integrations, setIntegrations] = useState<PostFastSocialIntegration[]>([])
-  const [selectedIntegrationIds, setSelectedIntegrationIds] = useState<string[]>([])
+  const {
+    data,
+    error: integrationsError,
+    isLoading: loadingIntegrations,
+  } = useSWR<{
+    integrations?: unknown[]
+  }>("/api/postfast/integrations", clientSWRFetcher)
+  const integrations = (data?.integrations ?? []).flatMap((integration) => {
+    const normalized = normalizePostFastIntegration(integration)
+    return normalized && !normalized.disabled ? [normalized] : []
+  })
+  const [selectedIntegrationIdsState, setSelectedIntegrationIds] = useState<
+    string[] | null
+  >(null)
+  const selectedIntegrationIds =
+    selectedIntegrationIdsState ?? integrations.map(integrationKey)
   const [postType, setPostType] = useState<PostFastCreatePostType>("draft")
   const [scheduledAt, setScheduledAt] = useState(defaultScheduleDateTime)
-  const [loadingIntegrations, setLoadingIntegrations] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
 
-  useEffect(() => {
-    let active = true
-
-    void fetchJsonWithTimeout<{ integrations?: unknown[] }>("/api/postfast/integrations", {
-      toastOnError: false,
-    })
-      .then((payload) => {
-        if (!active) {
-          return
-        }
-        const nextIntegrations = (payload.integrations ?? []).flatMap((integration) => {
-          const normalized = normalizePostFastIntegration(integration)
-          return normalized && !normalized.disabled ? [normalized] : []
-        })
-        setIntegrations(nextIntegrations)
-        setSelectedIntegrationIds(nextIntegrations.map(integrationKey))
-      })
-      .catch((integrationsError) => {
-        if (active) {
-          setError(getApiErrorMessage(integrationsError, "Failed to load social accounts"))
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setLoadingIntegrations(false)
-        }
-      })
-
-    return () => {
-      active = false
-    }
-  }, [])
-
   function toggleIntegration(integration: PostFastSocialIntegration) {
     const key = integrationKey(integration)
-    setSelectedIntegrationIds((current) =>
-      current.includes(key)
+    setSelectedIntegrationIds((currentState) => {
+      const current = currentState ?? integrations.map(integrationKey)
+      return current.includes(key)
         ? current.filter((id) => id !== key)
         : [...current, key]
-    )
+    })
   }
 
   async function submitPost() {
@@ -388,7 +332,10 @@ function ScheduleGeneratedVideoModal({
       setError("Select a date and time.")
       return
     }
-    if (postType === "schedule" && Number.isNaN(new Date(scheduledAt).getTime())) {
+    if (
+      postType === "schedule" &&
+      Number.isNaN(new Date(scheduledAt).getTime())
+    ) {
       setError("Select a valid date and time.")
       return
     }
@@ -397,16 +344,26 @@ function ScheduleGeneratedVideoModal({
     setError("")
 
     try {
-      await toast.promise(createPostsForIntegrations({
-        item,
-        integrations: selectedIntegrations,
-        type: postType,
-        scheduledAt: postType === "schedule" ? scheduledAt : undefined,
-      }), {
-        loading: postSubmitLoadingLabel(postType, selectedIntegrations.length),
-        success: postSubmitSuccessLabel(postType, selectedIntegrations.length),
-        error: (submitError) => getApiErrorMessage(submitError, postSubmitErrorLabel(postType)),
-      })
+      await toast.promise(
+        createPostsForIntegrations({
+          item,
+          integrations: selectedIntegrations,
+          type: postType,
+          scheduledAt: postType === "schedule" ? scheduledAt : undefined,
+        }),
+        {
+          loading: postSubmitLoadingLabel(
+            postType,
+            selectedIntegrations.length
+          ),
+          success: postSubmitSuccessLabel(
+            postType,
+            selectedIntegrations.length
+          ),
+          error: (submitError) =>
+            getApiErrorMessage(submitError, postSubmitErrorLabel(postType)),
+        }
+      )
       onClose()
     } catch (submitError) {
       setError(getApiErrorMessage(submitError, postSubmitErrorLabel(postType)))
@@ -425,9 +382,13 @@ function ScheduleGeneratedVideoModal({
           onClose={onClose}
         />
         <div className="space-y-5 p-5">
-          {error && (
+          {(error || integrationsError) && (
             <div className="rounded-lg border border-[#f0d8d8] bg-[#fff8f8] px-3 py-2 text-sm font-semibold text-[#a8464f]">
-              {error}
+              {error ||
+                getApiErrorMessage(
+                  integrationsError,
+                  "Failed to load social accounts"
+                )}
             </div>
           )}
           <section>
@@ -445,17 +406,16 @@ function ScheduleGeneratedVideoModal({
               </span>
             </div>
             {loadingIntegrations ? (
-              <div className="flex min-h-[172px] flex-col items-center justify-center gap-3 rounded-[8px] border border-app-panel-border bg-white text-sm font-semibold text-app-muted-text">
-                <Spinner size={24} aria-label="Loading accounts" />
-                Loading accounts...
-              </div>
+              <AccountGridSkeleton />
             ) : integrations.length > 0 ? (
               <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
                 {integrations.map((integration) => (
                   <GeneratedVideoAccountTile
                     key={integrationKey(integration)}
                     integration={integration}
-                    selected={selectedIntegrationIds.includes(integrationKey(integration))}
+                    selected={selectedIntegrationIds.includes(
+                      integrationKey(integration)
+                    )}
                     onClick={() => toggleIntegration(integration)}
                   />
                 ))}
@@ -467,11 +427,15 @@ function ScheduleGeneratedVideoModal({
             )}
           </section>
           <label className="block">
-            <span className="mb-1 block text-[12px] font-bold uppercase tracking-[0.08em] text-[#77766f]">Action</span>
+            <span className="mb-1 block text-[12px] font-bold tracking-[0.08em] text-[#77766f] uppercase">
+              Action
+            </span>
             <SelectControl
               className="h-10 w-full rounded-[7px] bg-white px-3 text-[14px] font-semibold text-[#333] focus:border-[#9f9e96]"
               value={postType}
-              onChange={(event) => setPostType(postTypeValue(event.target.value))}
+              onChange={(event) =>
+                setPostType(postTypeValue(event.target.value))
+              }
             >
               <option value="draft">Draft</option>
               <option value="now">Publish now</option>
@@ -480,7 +444,9 @@ function ScheduleGeneratedVideoModal({
           </label>
           {postType === "schedule" && (
             <label className="block">
-              <span className="mb-1 block text-[12px] font-bold uppercase tracking-[0.08em] text-[#77766f]">Date and time</span>
+              <span className="mb-1 block text-[12px] font-bold tracking-[0.08em] text-[#77766f] uppercase">
+                Date and time
+              </span>
               <input
                 className="h-10 w-full rounded-[7px] border border-[#d6d5ce] bg-white px-3 text-[14px] font-semibold text-[#333] outline-none focus:border-[#9f9e96]"
                 type="datetime-local"
@@ -495,9 +461,16 @@ function ScheduleGeneratedVideoModal({
             size="appDefault"
             className="w-full justify-center"
             onClick={submitPost}
-            disabled={submitting || loadingIntegrations || integrations.length === 0 || selectedIntegrationIds.length === 0}
+            disabled={
+              submitting ||
+              loadingIntegrations ||
+              integrations.length === 0 ||
+              selectedIntegrationIds.length === 0
+            }
           >
-            {submitting ? postSubmittingLabel(postType) : postCtaLabel(postType, selectedIntegrationIds.length)}
+            {submitting
+              ? postSubmittingLabel(postType)
+              : postCtaLabel(postType, selectedIntegrationIds.length)}
           </Button>
         </div>
       </AppModalPanel>
@@ -511,10 +484,10 @@ async function createPostsForIntegrations({
   type,
   scheduledAt,
 }: {
-  item: GeneratedVideoExport,
-  integrations: PostFastSocialIntegration[],
-  type: PostFastCreatePostType,
-  scheduledAt?: string,
+  item: GeneratedVideoExport
+  integrations: PostFastSocialIntegration[]
+  type: PostFastCreatePostType
+  scheduledAt?: string
 }) {
   const media = await uploadGeneratedVideoToPostFast(item)
   for (const integration of integrations) {
@@ -529,13 +502,16 @@ async function createPostsForIntegrations({
 }
 
 async function uploadGeneratedVideoToPostFast(item: GeneratedVideoExport) {
-  const uploadPayload = await fetchJsonWithTimeout<{ upload?: unknown }>("/api/postfast/upload", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url: item.videoUrl }),
-    timeoutMs: 60_000,
-    toastOnError: false,
-  })
+  const uploadPayload = await fetchJsonWithTimeout<{ upload?: unknown }>(
+    "/api/postfast/upload",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: item.videoUrl }),
+      timeoutMs: 60_000,
+      toastOnError: false,
+    }
+  )
   const media = postfastMediaFromUpload(uploadPayload.upload)
 
   if (!media) {
@@ -594,7 +570,8 @@ function postfastMediaFromUpload(upload: unknown): PostFastMedia | null {
   const record = upload as Record<string, unknown>
   const key = stringValue(record.key)
   const type = mediaTypeValue(record.type)
-  const sortOrder = typeof record.sortOrder === "number" ? record.sortOrder : undefined
+  const sortOrder =
+    typeof record.sortOrder === "number" ? record.sortOrder : undefined
 
   if (key && type) {
     return { key, type, sortOrder }
@@ -742,11 +719,18 @@ function providerLabel(provider: PostFastSocialProvider) {
 }
 
 function postTypeValue(value: string): PostFastCreatePostType {
-  return value === "draft" || value === "now" || value === "schedule" ? value : "draft"
+  return value === "draft" || value === "now" || value === "schedule"
+    ? value
+    : "draft"
 }
 
 function postContent(item: GeneratedVideoExport) {
-  return item.caption || item.title || generatedVideoTypeConfig[item.type].title
+  const description =
+    item.description ||
+    item.caption ||
+    item.title ||
+    generatedVideoTypeConfig[item.type].title
+  return [description, item.hashtags.join(" ")].filter(Boolean).join("\n\n")
 }
 
 function postCtaLabel(type: PostFastCreatePostType, count: number) {
@@ -817,18 +801,27 @@ function defaultScheduleDateTime() {
 }
 
 function toDateTimeLocalValue(date: Date) {
-  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+  const offsetDate = new Date(
+    date.getTime() - date.getTimezoneOffset() * 60_000
+  )
   return offsetDate.toISOString().slice(0, 16)
 }
 
 function downloadFileName(item: GeneratedVideoExport) {
-  const pathname = item.videoUrl ? new URL(item.videoUrl, window.location.href).pathname : ""
+  const pathname = item.videoUrl
+    ? new URL(item.videoUrl, window.location.href).pathname
+    : ""
   const extension = pathname.match(/\.[a-z0-9]+$/i)?.[0] ?? ".mp4"
   return `${slugify(item.title || item.type)}${extension}`
 }
 
 function slugify(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "generated-video"
+  return (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "generated-video"
+  )
 }
 
 function stringValue(value: unknown) {

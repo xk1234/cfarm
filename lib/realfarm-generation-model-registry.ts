@@ -16,6 +16,7 @@ export type CharacterImageToVideoModel = {
 
 export type OpenRouterModelUseCase =
   | "slideshowText"
+  | "webResearch"
   | "automationHooks"
   | "imageCaptioning"
   | "characterAttributes"
@@ -25,7 +26,13 @@ export type OpenRouterModelUseCase =
 export const generationModelRegistry = {
   openRouter: {
     slideshowText: {
-      model: "google/gemini-3.1-flash-lite",
+      // Model shootout 2026-07-14: claude-sonnet-5 scored 8.95/10 overall
+      // (vs 7.75 for gemini-3.1-flash-lite) with the best latency of the top
+      // tier and zero structured-output failures. ~$0.011 per slideshow.
+      model: "anthropic/claude-sonnet-5",
+    },
+    webResearch: {
+      model: "openai/gpt-5.4-mini",
     },
     automationHooks: {
       model: "google/gemini-3.1-flash-lite",

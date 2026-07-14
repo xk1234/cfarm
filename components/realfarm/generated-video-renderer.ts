@@ -6,6 +6,7 @@ import {
   editorFontSizeToCanvasPx,
   textFillColor,
   textStrokeColor,
+  textStyleUsesStroke,
   textStyleToEditorColor,
 } from "@/lib/realfarm-slideshow-text-style-config"
 
@@ -41,6 +42,7 @@ type UGCAdTextItem = {
   textPosition?: TextPlacement | "center"
   textItemWidth?: string
   textAlign?: "left" | "center" | "right"
+  wordLengthMax?: number
 }
 
 type GreenscreenRenderInput = {
@@ -72,6 +74,23 @@ type SlideshowRenderInput = {
   title: string
   slides: SlideshowRenderSlide[]
   transition: string
+}
+
+export type TemplateVideoText = UGCAdTextItem & { text: string }
+
+export type TemplateVideoSegmentInput = {
+  clips: { url: string; kind: "video" | "image"; texts?: TemplateVideoText[] }[]
+  clipDurationMs: number
+  playFullVideo?: boolean
+  transition: "cut" | "fade"
+  texts: TemplateVideoText[]
+}
+
+export type TemplateVideoRenderInput = {
+  templateId: string
+  segments: TemplateVideoSegmentInput[]
+  globalTexts: TemplateVideoText[]
+  soundUrl?: string | null
 }
 
 const CANVAS_WIDTH = 720
@@ -164,6 +183,157 @@ export async function renderAndUploadUgcAdVideo(input: UGCAdRenderInput) {
     recording.thumbnailBlob,
     "ugc-ad",
     "ugc_ad"
+  )
+}
+
+const TEMPLATE_MAX_DURATION_MS = 60_000
+const TEMPLATE_FADE_MS = 380
+const TEMPLATE_CLIP_LOAD_TIMEOUT_MS = 20_000
+
+type TemplateTimelineClip = {
+  media: HTMLVideoElement | HTMLImageElement | null
+  kind: "video" | "image"
+  startMs: number
+  durationMs: number
+  sourceOffsetMs: number
+  fadeOut: boolean
+  texts: TemplateVideoText[]
+}
+
+export async function renderAndUploadTemplateVideo(
+  input: TemplateVideoRenderInput
+) {
+  const sound = input.soundUrl ? await loadAudio(input.soundUrl) : null
+  const pendingClips = input.segments.flatMap((segment) =>
+    segment.clips.map((clip) => ({
+      segment,
+      clip,
+      mediaPromise:
+        clip.kind === "video"
+          ? loadVideo(clip.url, TEMPLATE_CLIP_LOAD_TIMEOUT_MS)
+          : loadSafeImage(clip.url),
+    }))
+  )
+  const clips: TemplateTimelineClip[] = []
+  let cursorMs = 0
+
+  for (const pending of pendingClips) {
+    if (cursorMs >= TEMPLATE_MAX_DURATION_MS) break
+    const media = await pending.mediaPromise
+    if (!media) {
+      throw new Error(
+        `A template clip could not be loaded (${pending.clip.kind}: ${pending.clip.url})`
+      )
+    }
+    const sourceDurationMs =
+      pending.segment.playFullVideo && media instanceof HTMLVideoElement
+        ? Math.round(media.duration * 1000)
+        : pending.segment.clipDurationMs
+    const durationMs = Math.min(
+      sourceDurationMs,
+      TEMPLATE_MAX_DURATION_MS - cursorMs
+    )
+    clips.push({
+      media,
+      kind: pending.clip.kind,
+      startMs: cursorMs,
+      durationMs,
+      sourceOffsetMs: pending.segment.playFullVideo
+        ? 0
+        : videoSourceOffsetMs(media, durationMs),
+      fadeOut: pending.segment.transition === "fade",
+      texts: pending.clip.texts ?? pending.segment.texts,
+    })
+    cursorMs += durationMs
+  }
+
+  if (clips.length === 0) {
+    throw new Error("Add at least one clip before creating a video")
+  }
+  await primeVideoClip(clips[0])
+  const totalDurationMs = cursorMs
+  const startedVideos = new Set<HTMLVideoElement>()
+
+  function ensurePlaying(clip: TemplateTimelineClip) {
+    if (clip.kind !== "video") return
+    const video = clip.media as HTMLVideoElement
+    if (startedVideos.has(video)) return
+    startedVideos.add(video)
+    video.currentTime = clip.sourceOffsetMs / 1000
+    void video.play().catch(() => undefined)
+  }
+
+  function drawClip(
+    context: CanvasRenderingContext2D,
+    clip: TemplateTimelineClip
+  ) {
+    if (
+      clip.kind === "video" &&
+      (clip.media as HTMLVideoElement).readyState <
+        HTMLMediaElement.HAVE_CURRENT_DATA
+    ) {
+      drawVerticalBackdrop(context, "#b7b7b2", "#7f858f")
+      return
+    }
+    drawCoverImage(
+      context,
+      clip.media as CanvasImageSource,
+      0,
+      0,
+      CANVAS_WIDTH,
+      CANVAS_HEIGHT
+    )
+  }
+
+  const recording = await recordCanvasVideo(
+    async ({ context }) => {
+      ensurePlaying(clips[0])
+
+      return (elapsedMs) => {
+        const progressMs = Math.min(elapsedMs, totalDurationMs - 1)
+        let index = clips.length - 1
+        for (let i = 0; i < clips.length; i += 1) {
+          if (progressMs < clips[i].startMs + clips[i].durationMs) {
+            index = i
+            break
+          }
+        }
+        const clip = clips[index]
+        const next = clips[index + 1]
+        ensurePlaying(clip)
+
+        drawClip(context, clip)
+        const remainingMs = clip.startMs + clip.durationMs - progressMs
+        if (clip.fadeOut && next && remainingMs < TEMPLATE_FADE_MS) {
+          ensurePlaying(next)
+          context.save()
+          context.globalAlpha = 1 - remainingMs / TEMPLATE_FADE_MS
+          drawClip(context, next)
+          context.restore()
+        } else if (next && remainingMs < 250) {
+          // Pre-start the upcoming video so the cut lands on a live frame.
+          ensurePlaying(next)
+        }
+
+        drawVignette(context)
+        clip.texts.forEach((text) => drawUgcAdTextItem(context, text))
+        input.globalTexts.forEach((text) => drawUgcAdTextItem(context, text))
+      }
+    },
+    totalDurationMs,
+    sound
+  )
+
+  clips.forEach((clip) => {
+    if (clip.kind === "video") (clip.media as HTMLVideoElement).pause()
+  })
+  sound?.pause()
+  const prefix = input.templateId.replace(/_/g, "-")
+  return uploadGeneratedVideo(
+    recording.videoBlob,
+    recording.thumbnailBlob,
+    prefix,
+    "global"
   )
 }
 
@@ -336,7 +506,7 @@ async function uploadGeneratedAsset(
     {
       method: "POST",
       body: formData,
-      timeoutMs: 30_000,
+      timeoutMs: 120_000,
       toastOnError: false,
     }
   )
@@ -528,9 +698,11 @@ function drawPositionedText(
   context.lineJoin = "round"
   lines.forEach((line, index) => {
     const lineY = y + index * lineHeight
-    context.strokeStyle = textStrokeColor(item.color)
-    context.lineWidth = Math.max(6, Math.round(fontSize * 0.16))
-    context.strokeText(line, x, lineY)
+    if (textStyleUsesStroke(item.color)) {
+      context.strokeStyle = textStrokeColor(item.color)
+      context.lineWidth = Math.max(6, Math.round(fontSize * 0.16))
+      context.strokeText(line, x, lineY)
+    }
     context.fillStyle = textFillColor(item.color)
     context.fillText(line, x, lineY)
   })
@@ -573,7 +745,8 @@ function drawUgcAdTextItem(
     context,
     item.text || "Generated video",
     maxWidth,
-    `900 ${fontSize}px sans-serif`
+    `900 ${fontSize}px sans-serif`,
+    (item.wordLengthMax ?? 10) > 30 ? 18 : 5
   )
   const lineHeight = Math.round(fontSize * 1.16)
   const x = textX(item.textAlign)
@@ -583,19 +756,37 @@ function drawUgcAdTextItem(
   context.font = `900 ${fontSize}px sans-serif`
   context.textAlign = item.textAlign || "center"
   context.lineJoin = "round"
-  if (editorColor === "White Background") {
-    const blockHeight = lines.length * lineHeight + 24
-    context.fillStyle = "rgba(255,255,255,0.92)"
-    context.fillRect(
-      x - maxWidth / 2,
-      y - lineHeight * 0.85,
-      maxWidth,
-      blockHeight
-    )
+  const backgroundFill = textBackgroundFill(editorColor)
+  if (backgroundFill) {
+    context.fillStyle = backgroundFill
+    lines.forEach((line, index) => {
+      const lineY = y + index * lineHeight
+      const metrics = context.measureText(line)
+      const paddingX = Math.round(fontSize * 0.18)
+      const paddingY = Math.round(fontSize * 0.07)
+      const lineWidth = metrics.width
+      const ascent =
+        metrics.actualBoundingBoxAscent || Math.round(fontSize * 0.8)
+      const descent =
+        metrics.actualBoundingBoxDescent || Math.round(fontSize * 0.2)
+      const left =
+        context.textAlign === "left"
+          ? x - paddingX
+          : context.textAlign === "right"
+            ? x - lineWidth - paddingX
+            : x - lineWidth / 2 - paddingX
+
+      context.fillRect(
+        left,
+        lineY - ascent - paddingY,
+        lineWidth + paddingX * 2,
+        ascent + descent + paddingY * 2
+      )
+    })
   }
   lines.forEach((line, index) => {
     const lineY = y + index * lineHeight
-    if (editorColor !== "Black Text") {
+    if (textStyleUsesStroke(editorColor)) {
       context.strokeStyle = textStrokeColor(editorColor)
       context.lineWidth = Math.max(7, Math.round(fontSize * 0.15))
       context.strokeText(line, x, lineY)
@@ -603,6 +794,53 @@ function drawUgcAdTextItem(
     context.fillStyle = textFillColor(editorColor)
     context.fillText(line, x, lineY)
   })
+}
+
+// Start a clip somewhere inside its source footage (instead of always at 0)
+// so stock clips land on motion rather than their slow fade-ins.
+function videoSourceOffsetMs(
+  media: HTMLVideoElement | HTMLImageElement,
+  clipDurationMs: number
+) {
+  if (!(media instanceof HTMLVideoElement)) return 0
+  const sourceMs = Number.isFinite(media.duration) ? media.duration * 1000 : 0
+  const headroom = sourceMs - clipDurationMs - 250
+  if (headroom <= 0) return 0
+  return Math.round(Math.random() * headroom)
+}
+
+// Decode the first clip's opening frame before recording starts so the video
+// (and its thumbnail) never open on an empty gray frame.
+async function primeVideoClip(clip: TemplateTimelineClip | undefined) {
+  if (!clip || clip.kind !== "video") return
+  const video = clip.media as HTMLVideoElement
+  await new Promise<void>((resolve) => {
+    const timeout = window.setTimeout(() => resolve(), 1500)
+    video.addEventListener(
+      "seeked",
+      () => {
+        window.clearTimeout(timeout)
+        resolve()
+      },
+      { once: true }
+    )
+    video.currentTime = clip.sourceOffsetMs / 1000
+  })
+}
+
+function textBackgroundFill(editorColor: string) {
+  switch (editorColor) {
+    case "White Background":
+      return "rgba(255,255,255,0.92)"
+    case "White 50% Background":
+      return "rgba(255,255,255,0.55)"
+    case "Black Background":
+      return "rgba(0,0,0,0.92)"
+    case "Black 50% Background":
+      return "rgba(0,0,0,0.55)"
+    default:
+      return ""
+  }
 }
 
 function ugcTextValue(item: UGCAdTextItem) {
@@ -708,10 +946,10 @@ function safeCanvasImageSrc(src?: string | null) {
   return ""
 }
 
-async function loadVideo(src: string) {
+async function loadVideo(src: string, timeoutMs = 5000) {
   return new Promise<HTMLVideoElement | null>((resolve) => {
     const video = document.createElement("video")
-    const timeout = window.setTimeout(() => resolve(null), 5000)
+    const timeout = window.setTimeout(() => resolve(null), timeoutMs)
     video.muted = true
     video.loop = true
     video.playsInline = true
@@ -915,7 +1153,8 @@ function wrapText(
   context: CanvasRenderingContext2D,
   text: string,
   maxWidth: number,
-  font: string
+  font: string,
+  maxLines = 5
 ) {
   context.font = font
   const words = text.trim().split(/\s+/)
@@ -934,7 +1173,7 @@ function wrapText(
   if (current) {
     lines.push(current)
   }
-  return lines.slice(0, 5)
+  return lines.slice(0, maxLines)
 }
 
 function textY(placement: TextPlacement) {

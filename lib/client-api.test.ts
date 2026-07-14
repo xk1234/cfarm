@@ -16,13 +16,32 @@ afterEach(() => {
 })
 
 describe("client API helpers", () => {
+  it("includes the Appwrite session cookie on API requests", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ ok: true }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    await fetchJsonWithTimeout("/api/benchmarks", { method: "POST" })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/benchmarks",
+      expect.objectContaining({
+        credentials: "same-origin",
+        method: "POST",
+      })
+    )
+  })
+
   it("uses API error payloads for visible error messages", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => Response.json({ error: "Image generation timed out" }, { status: 504 })),
+      vi.fn(async () =>
+        Response.json({ error: "Image generation timed out" }, { status: 504 })
+      )
     )
 
-    await expect(fetchJsonWithTimeout("/api/characters/headshot")).rejects.toMatchObject({
+    await expect(
+      fetchJsonWithTimeout("/api/characters/headshot")
+    ).rejects.toMatchObject({
       message: "Image generation timed out",
       status: 504,
       timedOut: false,
@@ -33,24 +52,39 @@ describe("client API helpers", () => {
   it("shows provider API errors as floating alerts by default", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => Response.json({
-        error: "Credits insufficient : Your current balance isn't enough to run this request. Please top up to continue.",
-      }, { status: 500 })),
+      vi.fn(async () =>
+        Response.json(
+          {
+            error:
+              "Credits insufficient : Your current balance isn't enough to run this request. Please top up to continue.",
+          },
+          { status: 500 }
+        )
+      )
     )
 
-    await expect(fetchJsonWithTimeout("/api/image-collections/image-actions")).rejects.toMatchObject({
-      message: "Credits insufficient : Your current balance isn't enough to run this request. Please top up to continue.",
+    await expect(
+      fetchJsonWithTimeout("/api/image-collections/image-actions")
+    ).rejects.toMatchObject({
+      message:
+        "Credits insufficient : Your current balance isn't enough to run this request. Please top up to continue.",
     })
-    expect(toast.error).toHaveBeenCalledWith("Credits insufficient : Your current balance isn't enough to run this request. Please top up to continue.")
+    expect(toast.error).toHaveBeenCalledWith(
+      "Credits insufficient : Your current balance isn't enough to run this request. Please top up to continue."
+    )
   })
 
   it("allows callers with managed loading toasts to suppress the default alert", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => Response.json({ error: "Upload failed" }, { status: 500 })),
+      vi.fn(async () =>
+        Response.json({ error: "Upload failed" }, { status: 500 })
+      )
     )
 
-    await expect(fetchJsonWithTimeout("/api/assets/upload", { toastOnError: false })).rejects.toMatchObject({
+    await expect(
+      fetchJsonWithTimeout("/api/assets/upload", { toastOnError: false })
+    ).rejects.toMatchObject({
       message: "Upload failed",
     })
     expect(toast.error).not.toHaveBeenCalled()
@@ -60,11 +94,18 @@ describe("client API helpers", () => {
     vi.useFakeTimers()
     vi.stubGlobal(
       "fetch",
-      vi.fn((_input: RequestInfo | URL, init?: RequestInit) => new Promise((_resolve, reject) => {
-        init?.signal?.addEventListener("abort", () => {
-          reject(Object.assign(new Error("The operation was aborted."), { name: "AbortError" }))
-        })
-      })),
+      vi.fn(
+        (_input: RequestInfo | URL, init?: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => {
+              reject(
+                Object.assign(new Error("The operation was aborted."), {
+                  name: "AbortError",
+                })
+              )
+            })
+          })
+      )
     )
 
     const request = fetchJsonWithTimeout("/api/slow", { timeoutMs: 15 })
@@ -79,6 +120,8 @@ describe("client API helpers", () => {
 
   it("normalizes unknown caught values for toast notifications", () => {
     expect(getApiErrorMessage("nope", "Fallback")).toBe("Fallback")
-    expect(getApiErrorMessage(new Error("Specific failure"), "Fallback")).toBe("Specific failure")
+    expect(getApiErrorMessage(new Error("Specific failure"), "Fallback")).toBe(
+      "Specific failure"
+    )
   })
 })

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 
 import {
   SlideshowViewerModal,
@@ -10,7 +10,9 @@ import {
 
 import {
   automationRunSlides,
+  canDeleteCompletedSlideshow,
   formatRunDate,
+  slideshowCaption,
   slideshowTitle,
 } from "./run-helpers"
 import type { AutomationRunApiRecord, AutomationRunApiSlide } from "./types"
@@ -18,16 +20,77 @@ import type { AutomationRunApiRecord, AutomationRunApiSlide } from "./types"
 export function GeneratedSlideshowViewerModal({
   run,
   runs,
+  onDeleted,
+  onRunChanged,
   onClose,
 }: {
   run: AutomationRunApiRecord
   runs?: AutomationRunApiRecord[]
+  onDeleted?: (runId: string) => void
+  onRunChanged?: (run: AutomationRunApiRecord) => void
   onClose: () => void
 }) {
-  const slideshows = useMemo(
-    () => automationRunsToViewerSlideshows(runs?.length ? runs : [run]),
-    [run, runs]
+  // Local copy so slide deletions reflect immediately even when the parent
+  // does not re-render its runs prop.
+  const [localRuns, setLocalRuns] = useState<AutomationRunApiRecord[]>(() =>
+    runs?.length ? runs : [run]
   )
+  const slideshows = useMemo(
+    () => automationRunsToViewerSlideshows(localRuns),
+    [localRuns]
+  )
+
+  async function deleteSlide(slideshowItemId: string, slideIndex: number) {
+    const target = localRuns.find((item) => item.id === slideshowItemId)
+    if (!target?.slideshowId) {
+      throw new Error("This slideshow has no editable record.")
+    }
+    const response = await fetch(
+      `/api/slideshows/${encodeURIComponent(target.slideshowId)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "removeSlide", slideIndex }),
+      }
+    )
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string
+      run?: AutomationRunApiRecord
+    }
+    if (!response.ok) {
+      throw new Error(payload.error || "The slide could not be deleted.")
+    }
+    const dropSlide = <T,>(items: T[] | undefined) =>
+      items?.filter((_, index) => index !== slideIndex)
+    const updated: AutomationRunApiRecord = payload.run ?? {
+      ...target,
+      renderedSlides: dropSlide(target.renderedSlides),
+      outputImages: dropSlide(target.outputImages),
+      plan: target.plan
+        ? { ...target.plan, slides: dropSlide(target.plan.slides) }
+        : target.plan,
+    }
+    setLocalRuns((current) =>
+      current.map((item) => (item.id === updated.id ? updated : item))
+    )
+    onRunChanged?.(updated)
+  }
+
+  async function deleteSlideshow() {
+    if (!run.slideshowId) return
+    const response = await fetch(
+      `/api/slideshows/${encodeURIComponent(run.slideshowId)}`,
+      { method: "DELETE" }
+    )
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string
+    }
+    if (!response.ok) {
+      throw new Error(payload.error || "The slideshow could not be deleted.")
+    }
+    onDeleted?.(run.id)
+    onClose()
+  }
 
   return (
     <SlideshowViewerModal
@@ -35,6 +98,8 @@ export function GeneratedSlideshowViewerModal({
       slideshows={slideshows}
       initialSlideshowId={run.id}
       benchmarkSlideshowId={run.slideshowId}
+      onDelete={canDeleteCompletedSlideshow(run) ? deleteSlideshow : undefined}
+      onDeleteSlide={deleteSlide}
       onClose={onClose}
     />
   )
@@ -55,8 +120,15 @@ function automationRunsToViewerSlideshows(runs: AutomationRunApiRecord[]) {
 
       return {
         id: run.id,
-        label: formatRunDate(run.createdAt || run.scheduledFor) || `Slideshow ${runIndex + 1}`,
-        title: slideshowTitle(run) || run.automationTitle || `Slideshow ${runIndex + 1}`,
+        label:
+          formatRunDate(run.createdAt || run.scheduledFor) ||
+          `Slideshow ${runIndex + 1}`,
+        title:
+          slideshowTitle(run) ||
+          run.automationTitle ||
+          `Slideshow ${runIndex + 1}`,
+        caption: slideshowCaption(run),
+        hashtags: run.plan?.hashtags,
         slides,
       }
     })
@@ -79,7 +151,9 @@ function automationSlideToViewerSlide(
     text: slide.text?.trim() || slide.imageCaption?.trim() || "",
     section: automationSlideSection(slide, index),
     durationSeconds:
-      typeof slide.durationMs === "number" ? Math.max(1, slide.durationMs / 1000) : undefined,
+      typeof slide.durationMs === "number"
+        ? Math.max(1, slide.durationMs / 1000)
+        : undefined,
   }
 }
 

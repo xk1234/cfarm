@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { sortAutomationRuns } from "./run-helpers"
+import {
+  canDeleteCompletedSlideshow,
+  runStatusLabel,
+  sortAutomationRuns,
+} from "./run-helpers"
 import type { AutomationRunApiRecord } from "./types"
 
 describe("automation overview run sorting", () => {
@@ -23,6 +27,32 @@ describe("automation overview run sorting", () => {
         "Most viewed"
       ).map((item) => item.id)
     ).toEqual(["popular", "newest", "newer"])
+  })
+
+  it("labels successful output as completed and only allows unpublished deletion", () => {
+    expect(runStatusLabel("running")).toBe("Generating")
+    expect(runStatusLabel("succeeded")).toBe("Completed")
+    expect(
+      canDeleteCompletedSlideshow({
+        ...newerQuiet,
+        slideshowId: "slideshow-1",
+        socialStatuses: [],
+      })
+    ).toBe(true)
+    expect(
+      canDeleteCompletedSlideshow({
+        ...newerQuiet,
+        slideshowId: "slideshow-1",
+        socialStatuses: [
+          {
+            provider: "tiktok",
+            integrationId: "account-1",
+            name: "TikTok",
+            status: "published",
+          },
+        ],
+      })
+    ).toBe(false)
   })
 })
 

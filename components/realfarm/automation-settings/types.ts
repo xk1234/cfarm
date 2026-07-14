@@ -1,4 +1,8 @@
 import type { SocialAccountStatusItem } from "@/components/realfarm/social-account-status"
+import type {
+  AutomationRunSlideView,
+  AutomationRunStatus,
+} from "@/lib/automation-run-contract"
 
 export type AutomationDrawerTab =
   "overview" | "format" | "hooks" | "schedule" | "tiktok" | "settings"
@@ -23,7 +27,12 @@ export type AutomationRunApiRecord = {
   automationId: string
   automationTitle: string
   scheduledFor: string
-  status: "succeeded" | "failed" | "generating"
+  status: AutomationRunStatus
+  progress?: {
+    stage: string
+    detail?: string
+    updatedAt: string
+  }
   slideshowId?: string
   videoUrl?: string
   thumbnailUrl?: string
@@ -60,13 +69,4 @@ export type AutomationRunApiRecord = {
   }
 }
 
-export type AutomationRunApiSlide = {
-  id?: string
-  role?: "hook" | "content" | "cta"
-  imageUrl?: string
-  sourceImageUrl?: string
-  imageCaption?: string
-  text?: string
-  durationMs?: number
-  aspectRatio?: string
-}
+export type AutomationRunApiSlide = AutomationRunSlideView

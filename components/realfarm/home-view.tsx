@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -30,6 +30,8 @@ import type { GeneratedVideoExport } from "@/lib/generated-video-types"
 import type { Automation, RealFarmData } from "@/lib/realfarm-data"
 import { cn } from "@/lib/utils"
 
+import { useVideoThumbnailFrame } from "./use-video-thumbnail-frame"
+
 const ITEMS_PER_PAGE = 5
 const QUICK_START_ITEMS_PER_PAGE = 6
 
@@ -46,23 +48,28 @@ export function HomeView({
   templates,
   recentRunsByAutomationId,
   generatedRunsByAutomationId,
+  generatedRunsLoading,
   onCreate,
   onUseTemplate,
   onAutomations,
+  onGenerationRunRemove,
 }: {
   currentUserId: string
   data: RealFarmData
   templates: Automation[]
   recentRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
   generatedRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
+  generatedRunsLoading?: boolean
   onCreate: () => void
   onUseTemplate: (automation: Automation) => void
   onAutomations: () => void
+  onGenerationRunRemove: (runId: string) => void
 }) {
   const [activeTab, setActiveTab] = useState<"slideshows" | "videos">(
     "slideshows"
   )
   const [videos, setVideos] = useState<GeneratedVideoExport[]>([])
+  const [videosLoading, setVideosLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [quickStartPage, setQuickStartPage] = useState(1)
   const [selectedExample, setSelectedExample] = useState<{
@@ -119,6 +126,10 @@ export function HomeView({
       } catch {
         if (active) {
           setVideos([])
+        }
+      } finally {
+        if (active) {
+          setVideosLoading(false)
         }
       }
     }
@@ -244,6 +255,8 @@ export function HomeView({
               />
             ))}
           </div>
+        ) : activeTab === "slideshows" && generatedRunsLoading ? (
+          <HomeCardSkeletonRow />
         ) : activeTab === "slideshows" ? (
           <div className="grid min-h-[86px] place-items-center text-[16px] font-medium text-[#667085]">
             No generated slideshows yet. Run a slideshow automation to create
@@ -259,6 +272,8 @@ export function HomeView({
               />
             ))}
           </div>
+        ) : videosLoading ? (
+          <HomeCardSkeletonRow />
         ) : (
           <div className="grid min-h-[86px] place-items-center text-[16px] font-medium text-[#667085]">
             No videos yet. Generate a video from the Greenscreen or UGC Ads
@@ -324,6 +339,7 @@ export function HomeView({
           title={selectedExample.automation.name}
           runs={recentRunsByAutomationId[selectedExample.automation.id]}
           initialSlideshowId={selectedExample.slideshowId}
+          onDeleted={onGenerationRunRemove}
           onClose={() => setSelectedExample(null)}
         />
       ) : null}
@@ -332,6 +348,7 @@ export function HomeView({
           title={selectedGeneratedSlideshow.title}
           runs={selectedGeneratedSlideshow.runs}
           initialSlideshowId={selectedGeneratedSlideshow.slideshowId}
+          onDeleted={onGenerationRunRemove}
           onClose={() => setSelectedGeneratedSlideshow(null)}
         />
       ) : null}
@@ -344,6 +361,20 @@ type GeneratedHomeSlideshowCard = {
   title: string
   runs: GeneratedShowcaseRun[]
   slideshow: TemplateExampleSlideshow
+}
+
+function HomeCardSkeletonRow() {
+  return (
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+      {Array.from({ length: 5 }, (_, index) => (
+        <div
+          key={index}
+          className="aspect-[4/5] animate-pulse rounded-[9px] bg-[#e8e7e1]"
+          aria-hidden="true"
+        />
+      ))}
+    </div>
+  )
 }
 
 function GeneratedSlideshowCard({
@@ -369,6 +400,9 @@ function GeneratedSlideshowCard({
           Shared
         </span>
       ) : null}
+      <span className="absolute top-2 right-2 z-20 rounded-full bg-black/75 px-2 py-1 text-[10px] font-semibold text-white">
+        {item.slideshow.status === "generating" ? "Generating" : "Completed"}
+      </span>
       <MediaCardShell>
         <button
           type="button"
@@ -493,7 +527,7 @@ function VideoCard({
   item: GeneratedVideoExport
   shared: boolean
 }) {
-  const videoRef = useRef<HTMLVideoElement>(null)
+  const { videoRef, thumbnailReady } = useVideoThumbnailFrame(item.videoUrl)
   const [playing, setPlaying] = useState(false)
   const isPending =
     !item.videoUrl && (item.status === "queued" || item.status === "processing")
@@ -552,9 +586,12 @@ function VideoCard({
                 src={item.videoUrl}
                 muted
                 playsInline
-                preload="metadata"
+                preload="auto"
                 onEnded={() => setPlaying(false)}
               />
+              {!thumbnailReady && !playing ? (
+                <div className="app-media-poster-fallback pointer-events-none absolute inset-0" />
+              ) : null}
               <button
                 className="absolute inset-0 z-10 flex items-center justify-center"
                 onClick={togglePlay}

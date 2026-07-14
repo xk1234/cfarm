@@ -25,8 +25,8 @@ export type AutomationStatus = "paused" | "live"
 // the enum. This is the single source of truth for automation status shared by
 // the stored record and the UI summary view.
 export type AutomationLifecycleStatus = AutomationStatus | "unknown"
-export type AutomationAspectRatio =
-  "fit" | "9:16" | "4:5" | "3:4" | "3:2" | "1:1"
+export type AutomationAspectRatio = "9:16" | "4:5" | "3:4" | "3:2" | "1:1"
+export type AutomationImageFit = "cover" | "contain" | "fit"
 export type AutomationImageGrid = "none" | "2x2" | "1x2" | "1x3"
 export type AutomationImageMode = "collection" | "single_image"
 export type AutomationTextAlign = "left" | "center" | "right"
@@ -44,6 +44,7 @@ export type PromptFormatting = {
   style: string
   narrative: string
   num_of_slides: number
+  hook_case?: import("@/lib/hook-casing").HookCaseMode
 }
 
 export type ImageCollectionConfig = {
@@ -53,8 +54,6 @@ export type ImageCollectionConfig = {
     single_image: string | null
   }
   all_slides: string
-  aspect_ratio?: AutomationAspectRatio
-  is_bg_overlay_on?: boolean
   cta_slide: {
     check: boolean
     cta_collection_check: boolean
@@ -62,15 +61,7 @@ export type ImageCollectionConfig = {
     image_id: string | null
     cta_location: "last_slide" | string
   }
-  keepOriginalAspectRatio?: boolean
-  is_bg_overlay_on_hook_image?: boolean
-  textOnFirstSlideOnly?: boolean
-  noTextOnSlides?: boolean
-  autoPullImagesNotCollections?: boolean
-  autoImagesNoTextOnImages?: boolean
-  disableAutoImageForFirstSlide?: boolean
   video_demo_asset_id?: string
-  language?: string
 }
 
 export type PostTextSetting = {
@@ -79,7 +70,7 @@ export type PostTextSetting = {
   prompt_text: string
 }
 
-export type AutomationTextItem = {
+export type TextItem = {
   id: string
   text: string
   fontSize: string
@@ -96,6 +87,9 @@ export type AutomationTextItem = {
   textAnchor: AutomationTextAnchor
   textVerticalAnchor?: AutomationTextAnchor
 }
+
+/** @deprecated Use TextItem; kept as a source-compatible alias. */
+export type AutomationTextItem = TextItem
 
 export type AutomationFormatSectionId = "hook" | "body" | "cta"
 
@@ -135,7 +129,6 @@ export type AutomationFormatSection = {
 }
 
 export type AutomationToneSection = {
-  id: "_tone"
   value: string
   preset: string
 }
@@ -155,16 +148,22 @@ export const automationTonePresetOptions = [
 export type AutomationTonePresetOption =
   (typeof automationTonePresetOptions)[number]
 
-export type AutomationFormattingItem =
-  AutomationFormatSection | AutomationToneSection
+export type AutomationFormattingItem = AutomationFormatSection
 
 export type RuntimeAutomationTemplate = Pick<
   AutomationSchema,
   | "automationKind"
+  | "aspect_ratio"
+  | "font"
   | "prompt_formatting"
+  | "tone"
   | "formatting"
   | "tiktok_post_settings"
   | "image_collection_ids"
+  | "image_fit"
+  | "language"
+  | "web_search_enabled"
+  | "video_format"
 > & {
   social_post_settings?: AutomationSocialPostSettings
   social_publish_as?: AutomationSocialPublishAs
@@ -193,13 +192,14 @@ export type AutomationSchedule = {
   paused?: boolean
   jitter_minutes?: number
   min_gap_minutes?: number
-  interval?: {
-    every_n_hours: number
-    start_time: Time
-    end_time: Time
-    days: AutomationDay[]
-    enabled?: boolean
-  }
+}
+
+type LegacyAutomationScheduleInterval = {
+  every_n_hours: number
+  start_time: Time
+  end_time: Time
+  days: AutomationDay[]
+  enabled?: boolean
 }
 
 export type AutomationReusePolicy = {
@@ -211,14 +211,81 @@ export type AutomationReusePolicy = {
   text_similarity_threshold?: number
 }
 
+export type AutomationContentFormat =
+  "visual_decision" | "mistake_replacement" | "designer_recommendation"
+
+export type AutomationCtaStrategy =
+  "comment_prompt" | "save_prompt" | "customer_prompt"
+
+export type AutomationContentRoute = {
+  id: string
+  format: AutomationContentFormat
+  hook_patterns: string[]
+  collection_ids: string[]
+  cta_strategy: AutomationCtaStrategy
+}
+
+export type AutomationContentStrategy = {
+  routes: AutomationContentRoute[]
+}
+
+export type AutomationVideoTemplateId =
+  | "ugc_ad"
+  | "react_reveal"
+  | "compilation"
+  | "birdseye_pov"
+  | "screen_record"
+  | "screenshot_pictures"
+  | "aesthetic"
+
+export const automationVideoTemplateIds: AutomationVideoTemplateId[] = [
+  "ugc_ad",
+  "react_reveal",
+  "compilation",
+  "birdseye_pov",
+  "screen_record",
+  "screenshot_pictures",
+  "aesthetic",
+]
+
+export type AutomationVideoTransition = "cut" | "fade"
+
+export type AutomationVideoSegment = {
+  id: string
+  label: string
+  guidance: string
+  mediaSource: "collection" | "demo_asset" | "slideshow_automation"
+  mediaKind: "video" | "image"
+  collectionId: string
+  demoAssetId: string
+  slideshowAutomationId?: string
+  clipCount: number
+  clipDurationMs: number
+  playFullVideo?: boolean
+  transition: AutomationVideoTransition
+  textItems: AutomationTextItem[]
+}
+
+export type AutomationVideoFormat = {
+  template: AutomationVideoTemplateId
+  hookPlacement: "global" | "first_segment"
+  globalTextItems: AutomationTextItem[]
+  segments: AutomationVideoSegment[]
+}
+
 export type AutomationSchema = {
   automationKind: "slideshow" | "video"
+  aspect_ratio: AutomationAspectRatio
+  font: string
+  image_fit: AutomationImageFit
+  language: string
   created_at: Date
   title: string
   status: AutomationStatus
   social_integrations: AutomationSocialIntegration[]
   prompt_formatting: PromptFormatting
   image_collection_ids: ImageCollectionConfig
+  tone: AutomationToneSection
   formatting: AutomationFormattingItem[]
   tiktok_post_settings: {
     caption: PostTextSetting
@@ -244,12 +311,15 @@ export type AutomationSchema = {
   social_publish_as: AutomationSocialPublishAs
   schedule: AutomationSchedule
   hook_slots?: Record<string, string>
+  hook_no_duplicate_slots?: boolean
   knowledge_base_ids?: string[]
+  web_search_enabled?: boolean
   reuse_policy?: AutomationReusePolicy
+  content_strategy?: AutomationContentStrategy
+  video_format?: AutomationVideoFormat
 }
 
 export const automationAspectRatios: AutomationAspectRatio[] = [
-  "fit",
   "9:16",
   "4:5",
   "3:4",
@@ -351,10 +421,15 @@ export function defaultAutomationTemplate(
   return {
     automationKind:
       automation.automationKind === "video" ? "video" : "slideshow",
+    aspect_ratio: bodyDefaults.aspect_ratio,
+    font: bodyDefaults.textItem.font,
+    image_fit: defaultAutomationTemplateDefaults.image_fit,
+    language: defaultAutomationTemplateDefaults.language,
     prompt_formatting: {
       ...defaultAutomationTemplateDefaults.prompt_formatting,
     },
     image_collection_ids: defaultImageCollectionConfig(),
+    tone: { value: tone, preset: "custom" },
     formatting: [
       {
         id: "hook",
@@ -401,11 +476,6 @@ export function defaultAutomationTemplate(
         overlay: ctaDefaults.overlay,
         imageMode: ctaDefaults.imageMode,
       },
-      {
-        id: "_tone",
-        value: tone,
-        preset: "custom",
-      },
     ],
     tiktok_post_settings: {
       ...defaultAutomationTemplateDefaults.tiktok_post_settings,
@@ -422,6 +492,7 @@ export function defaultAutomationTemplate(
     },
     social_post_settings: defaultSocialPostSettings(),
     social_publish_as: {},
+    web_search_enabled: false,
   }
 }
 
@@ -448,6 +519,7 @@ export function mergeAutomationSchema(
       normalizedDraft.image_collection_ids,
       defaults.image_collection_ids
     ),
+    tone: normalizeAutomationTone(normalizedDraft.tone, defaults.tone),
     formatting: normalizeFormatting(
       normalizedDraft.formatting,
       defaults.formatting
@@ -484,14 +556,16 @@ export function mergeAutomationSchema(
         normalizedDraft.schedule.posting_times,
         defaults.schedule.posting_times
       ),
-      interval: normalizeScheduleInterval(
-        normalizedDraft.schedule.interval,
-        defaults.schedule.interval
-      ),
     },
     hook_slots: normalizeHookSlots(normalizedDraft.hook_slots),
+    hook_no_duplicate_slots: Boolean(normalizedDraft.hook_no_duplicate_slots),
     knowledge_base_ids: normalizeIdList(normalizedDraft.knowledge_base_ids),
+    web_search_enabled: Boolean(normalizedDraft.web_search_enabled),
     reuse_policy: normalizeReusePolicy(normalizedDraft.reuse_policy),
+    content_strategy: normalizeContentStrategy(
+      normalizedDraft.content_strategy
+    ),
+    video_format: normalizeVideoFormat(normalizedDraft.video_format),
   }
 }
 
@@ -501,11 +575,33 @@ export function normalizeAutomationSchema(
 ): AutomationSchema {
   const defaults = defaultAutomationSchema(automation)
   const source = schema
+  const sourceRecord = source as unknown as Record<string, unknown>
+  const sourceSchedule = source.schedule as AutomationSchedule & {
+    interval?: LegacyAutomationScheduleInterval
+  }
+  const normalizedFormatting = normalizeFormatting(
+    source.formatting,
+    defaults.formatting
+  )
+  const normalizedContent = normalizedFormatting.find(
+    (item) => item.id === "body"
+  )
 
   return {
     ...defaults,
     ...source,
     automationKind: source.automationKind === "video" ? "video" : "slideshow",
+    aspect_ratio: automationAspectRatios.includes(
+      sourceRecord.aspect_ratio as AutomationAspectRatio
+    )
+      ? (sourceRecord.aspect_ratio as AutomationAspectRatio)
+      : (normalizedContent?.aspect_ratio ?? defaults.aspect_ratio),
+    font:
+      clean(sourceRecord.font) ||
+      normalizedContent?.textItems[0]?.font ||
+      defaults.font,
+    image_fit: normalizeAutomationImageFit(sourceRecord.image_fit),
+    language: clean(sourceRecord.language) || defaultAutomationLanguage,
     created_at: toDate(source.created_at),
     title: source.title || automation.name,
     status: source.status === "paused" ? "paused" : "live",
@@ -520,11 +616,18 @@ export function normalizeAutomationSchema(
       source.image_collection_ids,
       defaults.image_collection_ids
     ),
-    formatting: normalizeFormatting(source.formatting, defaults.formatting),
-    tiktok_post_settings: normalizeTikTokPostSettings(
-      source.tiktok_post_settings,
-      defaults.tiktok_post_settings
+    tone: normalizeAutomationTone(
+      source.tone ?? legacyToneFromFormatting(source.formatting),
+      defaults.tone
     ),
+    formatting: normalizedFormatting,
+    tiktok_post_settings: {
+      ...normalizeTikTokPostSettings(
+        source.tiktok_post_settings,
+        defaults.tiktok_post_settings
+      ),
+      ...(source.automationKind === "video" ? { publish_type: "video" } : {}),
+    },
     social_post_settings: normalizeSocialPostSettings(
       source.social_post_settings,
       defaults.social_post_settings,
@@ -536,24 +639,156 @@ export function normalizeAutomationSchema(
       defaults.social_publish_as
     ),
     schedule: {
-      timezone: source.schedule?.timezone ?? defaults.schedule.timezone,
-      posting_times: normalizePostingTimes(
-        source.schedule?.posting_times,
+      timezone: sourceSchedule?.timezone ?? defaults.schedule.timezone,
+      posting_times: normalizeSchedulePostingTimes(
+        sourceSchedule,
         defaults.schedule.posting_times
       ),
-      paused: Boolean(source.schedule?.paused),
+      paused: Boolean(sourceSchedule?.paused),
       jitter_minutes: normalizeNonNegativeNumber(
-        source.schedule?.jitter_minutes
+        sourceSchedule?.jitter_minutes
       ),
       min_gap_minutes: normalizeNonNegativeNumber(
-        source.schedule?.min_gap_minutes
+        sourceSchedule?.min_gap_minutes
       ),
-      interval: normalizeScheduleInterval(source.schedule?.interval),
     },
     hook_slots: normalizeHookSlots(source.hook_slots),
+    hook_no_duplicate_slots: Boolean(source.hook_no_duplicate_slots),
     knowledge_base_ids: normalizeIdList(source.knowledge_base_ids),
+    web_search_enabled: Boolean(source.web_search_enabled),
     reuse_policy: normalizeReusePolicy(source.reuse_policy),
+    content_strategy: normalizeContentStrategy(source.content_strategy),
+    video_format: normalizeVideoFormat(source.video_format),
   }
+}
+
+export function normalizeVideoFormat(
+  value: unknown
+): AutomationVideoFormat | undefined {
+  if (!isRecord(value)) return undefined
+  const template = automationVideoTemplateIds.includes(
+    value.template as AutomationVideoTemplateId
+  )
+    ? (value.template as AutomationVideoTemplateId)
+    : "ugc_ad"
+  const segments = Array.isArray(value.segments)
+    ? value.segments.flatMap(normalizeVideoSegment)
+    : []
+  if (template === "ugc_ad" && segments.length === 0) {
+    return undefined
+  }
+  const templateSegments =
+    template === "react_reveal"
+      ? segments.map((segment) => {
+          if (segment.id === "react-anticipation") {
+            return {
+              ...segment,
+              mediaSource: "collection" as const,
+              mediaKind: "video" as const,
+              clipCount: 1,
+              playFullVideo: true,
+              transition: "cut" as const,
+            }
+          }
+          if (segment.id === "react-reveal") {
+            return {
+              ...segment,
+              mediaSource: "demo_asset" as const,
+              mediaKind: "video" as const,
+              clipCount: 1,
+              playFullVideo: true,
+              transition: "cut" as const,
+            }
+          }
+          return segment
+        })
+      : segments
+  return {
+    template,
+    hookPlacement:
+      value.hookPlacement === "global" ? "global" : "first_segment",
+    globalTextItems: Array.isArray(value.globalTextItems)
+      ? value.globalTextItems.map(normalizeTextItem)
+      : [],
+    segments: templateSegments,
+  }
+}
+
+function normalizeVideoSegment(value: unknown): AutomationVideoSegment[] {
+  if (!isRecord(value)) return []
+  return [
+    {
+      id:
+        clean(value.id) || `segment-${Math.random().toString(36).slice(2, 10)}`,
+      label: clean(value.label) || "Segment",
+      guidance: clean(value.guidance),
+      mediaSource:
+        value.mediaSource === "demo_asset" ||
+        value.mediaSource === "slideshow_automation"
+          ? value.mediaSource
+          : "collection",
+      mediaKind: value.mediaKind === "image" ? "image" : "video",
+      collectionId: clean(value.collectionId),
+      demoAssetId: clean(value.demoAssetId),
+      slideshowAutomationId: clean(value.slideshowAutomationId),
+      clipCount: Math.max(
+        1,
+        Math.min(12, Math.round(numberValue(value.clipCount, 1)))
+      ),
+      clipDurationMs: Math.max(
+        800,
+        Math.min(60_000, Math.round(numberValue(value.clipDurationMs, 2500)))
+      ),
+      playFullVideo: value.playFullVideo === true,
+      transition: value.transition === "fade" ? "fade" : "cut",
+      textItems: Array.isArray(value.textItems)
+        ? value.textItems.map(normalizeTextItem)
+        : [],
+    },
+  ]
+}
+
+function normalizeContentStrategy(
+  value: unknown
+): AutomationContentStrategy | undefined {
+  if (!isRecord(value) || !Array.isArray(value.routes)) return undefined
+  const formats = new Set<AutomationContentFormat>([
+    "visual_decision",
+    "mistake_replacement",
+    "designer_recommendation",
+  ])
+  const ctaStrategies = new Set<AutomationCtaStrategy>([
+    "comment_prompt",
+    "save_prompt",
+    "customer_prompt",
+  ])
+  const routes = value.routes.flatMap((item) => {
+    if (!isRecord(item)) return []
+    const id = clean(item.id)
+    const format = clean(item.format) as AutomationContentFormat
+    const ctaStrategy = clean(item.cta_strategy) as AutomationCtaStrategy
+    const hookPatterns = normalizeIdList(item.hook_patterns)
+    const collectionIds = normalizeIdList(item.collection_ids)
+    if (
+      !id ||
+      !formats.has(format) ||
+      !ctaStrategies.has(ctaStrategy) ||
+      hookPatterns.length === 0 ||
+      collectionIds.length === 0
+    ) {
+      return []
+    }
+    return [
+      {
+        id,
+        format,
+        hook_patterns: hookPatterns,
+        collection_ids: collectionIds,
+        cta_strategy: ctaStrategy,
+      },
+    ]
+  })
+  return routes.length > 0 ? { routes } : undefined
 }
 
 function normalizeIdList(value: unknown) {
@@ -697,6 +932,16 @@ export function schemaWithAutomationHooks(
   }
 }
 
+export function schemaWithAutomationHookCase(
+  schema: AutomationSchema,
+  hookCase: import("@/lib/hook-casing").HookCaseMode
+): AutomationSchema {
+  return {
+    ...schema,
+    prompt_formatting: { ...schema.prompt_formatting, hook_case: hookCase },
+  }
+}
+
 export function schemaWithAutomationHookSlots(
   schema: AutomationSchema,
   hookSlots: Record<string, string>
@@ -707,21 +952,19 @@ export function schemaWithAutomationHookSlots(
   }
 }
 
-export function automationTone(schema: Pick<AutomationSchema, "formatting">) {
-  const tone = automationToneSection(schema)
+export function automationTone(schema: Pick<AutomationSchema, "tone">) {
+  const tone = schema.tone
   return tone?.value || "Conversational & Relatable"
 }
 
-export function automationToneRawValue(
-  schema: Pick<AutomationSchema, "formatting">
-) {
-  return automationToneSection(schema)?.value ?? ""
+export function automationToneRawValue(schema: Pick<AutomationSchema, "tone">) {
+  return schema.tone.value ?? ""
 }
 
 export function automationToneSelection(
-  schema: Pick<AutomationSchema, "formatting">
+  schema: Pick<AutomationSchema, "tone">
 ): AutomationTonePresetOption | "Custom" {
-  const tone = automationToneSection(schema)
+  const tone = schema.tone
   const value = tone?.value.trim().toLowerCase()
   const valueMatch = automationTonePresetOptions.find(
     (option) => option.toLowerCase() === value
@@ -737,23 +980,10 @@ export function schemaWithAutomationTone(
   value: string,
   preset = tonePresetKey(value)
 ): AutomationSchema {
-  const hasTone = schema.formatting.some((item) => item.id === "_tone")
   return {
     ...schema,
-    formatting: hasTone
-      ? schema.formatting.map((item) =>
-          item.id === "_tone" ? { ...item, value, preset } : item
-        )
-      : [...schema.formatting, { id: "_tone", value, preset }],
+    tone: { value, preset },
   }
-}
-
-function automationToneSection(
-  schema: Pick<AutomationSchema, "formatting">
-) {
-  return schema.formatting.find(
-    (item): item is AutomationToneSection => item.id === "_tone"
-  )
 }
 
 const tonePresetLabelByKey: Record<
@@ -777,8 +1007,9 @@ function tonePresetKey(value: string) {
   )
   if (!label) return "custom"
   return (
-    Object.entries(tonePresetLabelByKey).find(([, option]) => option === label)?.[0] ??
-    "custom"
+    Object.entries(tonePresetLabelByKey).find(
+      ([, option]) => option === label
+    )?.[0] ?? "custom"
   )
 }
 
@@ -790,8 +1021,7 @@ export function automationTotalSlideCount(
     return Math.max(1, Math.round(configured))
   }
   const total = schema.formatting.reduce(
-    (sum, item) =>
-      item.id === "_tone" ? sum : sum + Math.max(0, item.slideCount || 0),
+    (sum, item) => sum + Math.max(0, item.slideCount || 0),
     0
   )
   return Math.max(
@@ -836,9 +1066,15 @@ export function automationProviderPublishAs(
 }
 
 export function automationProviderPublishesVideo(
-  schema: Pick<AutomationSchema, "social_publish_as" | "tiktok_post_settings">,
+  schema: Pick<
+    AutomationSchema,
+    "automationKind" | "social_publish_as" | "tiktok_post_settings"
+  >,
   provider: AutomationSocialProvider
 ) {
+  if (schema.automationKind === "video") {
+    return true
+  }
   return (
     automationPublishType(schema) === "video" &&
     automationProviderPublishAs(schema, provider) === "video"
@@ -915,6 +1151,42 @@ export function schemaWithAutomationCollectionId(
   }
 }
 
+export function automationSharedSlideStyle(schema: AutomationSchema) {
+  const content = automationFormatSection(schema, "content")
+  return {
+    aspectRatio: schema.aspect_ratio || content.aspect_ratio || "9:16",
+    font: schema.font || content.textItems[0]?.font || "TikTok Display Medium",
+    imageFit: schema.image_fit,
+    overlay: content.overlay,
+  }
+}
+
+export function schemaWithAutomationSharedSlideStyle(
+  schema: AutomationSchema,
+  patch: Partial<{
+    aspectRatio: AutomationAspectRatio
+    font: string
+    imageFit: AutomationImageFit
+    overlay: boolean
+  }>
+): AutomationSchema {
+  return {
+    ...schema,
+    aspect_ratio: patch.aspectRatio ?? schema.aspect_ratio,
+    font: patch.font ?? schema.font,
+    image_fit: patch.imageFit ?? schema.image_fit,
+    formatting: schema.formatting.map((item) => ({
+      ...item,
+      aspect_ratio: patch.aspectRatio ?? item.aspect_ratio,
+      overlay: patch.overlay ?? item.overlay,
+      textItems: item.textItems.map((textItem) => ({
+        ...textItem,
+        font: patch.font ?? textItem.font,
+      })),
+    })),
+  }
+}
+
 export function normalizePostingTimes(
   value: unknown,
   fallback: AutomationSchedule["posting_times"]
@@ -952,8 +1224,8 @@ export function normalizePostingTimes(
 
 function normalizeScheduleInterval(
   value: unknown,
-  fallback?: AutomationSchedule["interval"]
-): AutomationSchedule["interval"] {
+  fallback?: LegacyAutomationScheduleInterval
+): LegacyAutomationScheduleInterval | undefined {
   const record =
     typeof value === "object" && value !== null
       ? (value as {
@@ -981,6 +1253,68 @@ function normalizeScheduleInterval(
         : ["Mon", "Tue", "Wed", "Thu", "Fri"],
     enabled: record.enabled === false ? false : undefined,
   }
+}
+
+function normalizeSchedulePostingTimes(
+  schedule: (AutomationSchedule & { interval?: unknown }) | undefined,
+  fallback: AutomationSchedule["posting_times"]
+) {
+  const interval = normalizeScheduleInterval(schedule?.interval)
+  const explicit = normalizePostingTimes(
+    schedule?.posting_times,
+    interval ? [] : fallback
+  )
+  if (!interval || interval.enabled === false) return explicit
+
+  const startMinutes = clockTimeMinutes(interval.start_time)
+  const endMinutes = clockTimeMinutes(interval.end_time)
+  if (
+    startMinutes === undefined ||
+    endMinutes === undefined ||
+    endMinutes < startMinutes
+  ) {
+    return explicit
+  }
+
+  const generated: AutomationSchedule["posting_times"] = []
+  const step = interval.every_n_hours * 60
+  for (let minutes = startMinutes; minutes <= endMinutes; minutes += step) {
+    generated.push({
+      time: minutesToClockTime(minutes),
+      days: interval.days,
+    })
+  }
+
+  const seen = new Set<string>()
+  return [...explicit, ...generated]
+    .filter((slot) => {
+      const key = `${slot.time}|${slot.days.join(",")}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .slice(0, 5)
+}
+
+function clockTimeMinutes(value: string) {
+  const match = clean(value).match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i)
+  if (!match) return undefined
+  let hour = Number(match[1])
+  const minute = Number(match[2])
+  if (minute > 59 || hour > (match[3] ? 12 : 23)) return undefined
+  if (match[3]) {
+    hour %= 12
+    if (match[3].toUpperCase() === "PM") hour += 12
+  }
+  return hour * 60 + minute
+}
+
+function minutesToClockTime(value: number) {
+  const hours = Math.floor(value / 60) % 24
+  const minutes = value % 60
+  const suffix = hours >= 12 ? "PM" : "AM"
+  const displayHour = hours % 12 || 12
+  return `${displayHour}:${String(minutes).padStart(2, "0")} ${suffix}`
 }
 
 function normalizeNonNegativeNumber(value: unknown) {
@@ -1050,11 +1384,11 @@ export function automationCreatedAt(automation: Automation, index: number) {
 }
 
 export function labelToAspectRatio(value: string): AutomationAspectRatio {
-  return value === "Fit" ? "fit" : (value as AutomationAspectRatio)
+  return value as AutomationAspectRatio
 }
 
 export function aspectRatioLabel(value: AutomationAspectRatio) {
-  return value === "fit" ? "Fit" : value
+  return value
 }
 
 export function labelToImageGrid(value: string): AutomationImageGrid {
@@ -1096,7 +1430,7 @@ function defaultAutomationSection(
     id,
     image_url: "",
     textItems: [defaultAutomationTextItem()],
-    aspect_ratio: id === "cta" ? "fit" : "4:5",
+    aspect_ratio: "4:5",
     imageGrid: "none",
     slideCount: id === "hook" ? 1 : id === "body" ? 3 : 0,
     slideCountMode: "static",
@@ -1117,20 +1451,10 @@ function defaultImageCollectionConfig(): ImageCollectionConfig {
       ...defaults.first_slide,
     },
     all_slides: defaults.all_slides,
-    aspect_ratio: defaults.aspect_ratio,
-    is_bg_overlay_on: defaults.is_bg_overlay_on,
     cta_slide: {
       ...defaults.cta_slide,
     },
-    keepOriginalAspectRatio: defaults.keepOriginalAspectRatio,
-    is_bg_overlay_on_hook_image: defaults.is_bg_overlay_on_hook_image,
-    textOnFirstSlideOnly: defaults.textOnFirstSlideOnly,
-    noTextOnSlides: defaults.noTextOnSlides,
-    autoPullImagesNotCollections: defaults.autoPullImagesNotCollections,
-    autoImagesNoTextOnImages: defaults.autoImagesNoTextOnImages,
-    disableAutoImageForFirstSlide: defaults.disableAutoImageForFirstSlide,
     video_demo_asset_id: defaults.video_demo_asset_id,
-    language: defaults.language,
   }
 }
 
@@ -1155,6 +1479,14 @@ function normalizePromptFormatting(
         ? record.narrative.trim()
         : fallback.narrative,
     num_of_slides: numberValue(record.num_of_slides, fallback.num_of_slides),
+    hook_case:
+      record.hook_case === "lowercase" ||
+      record.hook_case === "uppercase" ||
+      record.hook_case === "title" ||
+      record.hook_case === "sentence" ||
+      record.hook_case === "mixed"
+        ? record.hook_case
+        : fallback.hook_case,
   }
 }
 
@@ -1175,15 +1507,6 @@ function normalizeImageCollectionConfig(
       single_image: clean(firstSlide.single_image) || null,
     },
     all_slides: clean(record.all_slides) || fallback.all_slides,
-    aspect_ratio: automationAspectRatios.includes(
-      record.aspect_ratio as AutomationAspectRatio
-    )
-      ? (record.aspect_ratio as AutomationAspectRatio)
-      : fallback.aspect_ratio,
-    is_bg_overlay_on: booleanValue(
-      record.is_bg_overlay_on,
-      fallback.is_bg_overlay_on ?? true
-    ),
     cta_slide: {
       check: booleanValue(ctaSlide.check, fallback.cta_slide.check),
       cta_collection_check: booleanValue(
@@ -1197,39 +1520,16 @@ function normalizeImageCollectionConfig(
       cta_location:
         clean(ctaSlide.cta_location) || fallback.cta_slide.cta_location,
     },
-    keepOriginalAspectRatio: booleanValue(
-      record.keepOriginalAspectRatio,
-      fallback.keepOriginalAspectRatio ?? true
-    ),
-    is_bg_overlay_on_hook_image: booleanValue(
-      record.is_bg_overlay_on_hook_image,
-      fallback.is_bg_overlay_on_hook_image ?? true
-    ),
-    textOnFirstSlideOnly: booleanValue(
-      record.textOnFirstSlideOnly,
-      fallback.textOnFirstSlideOnly ?? false
-    ),
-    noTextOnSlides: booleanValue(
-      record.noTextOnSlides,
-      fallback.noTextOnSlides ?? false
-    ),
-    autoPullImagesNotCollections: booleanValue(
-      record.autoPullImagesNotCollections,
-      fallback.autoPullImagesNotCollections ?? false
-    ),
-    autoImagesNoTextOnImages: booleanValue(
-      record.autoImagesNoTextOnImages,
-      fallback.autoImagesNoTextOnImages ?? false
-    ),
-    disableAutoImageForFirstSlide: booleanValue(
-      record.disableAutoImageForFirstSlide,
-      fallback.disableAutoImageForFirstSlide ?? false
-    ),
     video_demo_asset_id:
       clean(record.video_demo_asset_id) || fallback.video_demo_asset_id || "",
-    language:
-      clean(record.language) || fallback.language || defaultAutomationLanguage,
   }
+}
+
+function normalizeAutomationImageFit(value: unknown): AutomationImageFit {
+  if (value === "cover" || value === "contain" || value === "fit") {
+    return value
+  }
+  return defaultAutomationTemplateDefaults.image_fit
 }
 
 function normalizeFormatting(
@@ -1245,33 +1545,11 @@ function normalizeFormatting(
       normalized.push(defaultAutomationSection(role))
     }
   }
-  if (!normalized.some((item) => item.id === "_tone")) {
-    const fallbackTone = fallback.find(
-      (item): item is AutomationToneSection => item.id === "_tone"
-    )
-    normalized.push(
-      fallbackTone ?? {
-        id: "_tone",
-        value: "Conversational & Relatable",
-        preset: "custom",
-      }
-    )
-  }
-
   return normalized
 }
 
 function normalizeFormattingItem(value: unknown): AutomationFormattingItem[] {
   const record = isRecord(value) ? value : {}
-  if (record.id === "_tone") {
-    return [
-      {
-        id: "_tone",
-        value: clean(record.value) || "Conversational & Relatable",
-        preset: clean(record.preset) || "custom",
-      },
-    ]
-  }
   const id =
     record.id === "hook" || record.id === "body" || record.id === "cta"
       ? record.id
@@ -1335,6 +1613,23 @@ function normalizeFormattingItem(value: unknown): AutomationFormattingItem[] {
             : defaultAutomationSection(id).imageMode,
     },
   ]
+}
+
+function normalizeAutomationTone(
+  value: unknown,
+  fallback: AutomationToneSection
+): AutomationToneSection {
+  const record = isRecord(value) ? value : {}
+  return {
+    value: clean(record.value) || fallback.value,
+    preset: clean(record.preset) || fallback.preset,
+  }
+}
+
+function legacyToneFromFormatting(value: unknown) {
+  return Array.isArray(value)
+    ? value.find((item) => isRecord(item) && item.id === "_tone")
+    : undefined
 }
 
 function normalizeSlideOverrides(value: unknown): AutomationSlideOverride[] {

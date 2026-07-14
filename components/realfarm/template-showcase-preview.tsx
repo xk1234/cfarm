@@ -1,6 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
+import { slideshowStageForRunStatus } from "@/lib/slideshow-lifecycle"
 
 export type GeneratedShowcaseSlide = {
   id?: string
@@ -20,6 +21,8 @@ export type GeneratedShowcaseRun = {
   automationTitle?: string
   scheduledFor?: string
   status?: string
+  slideshowId?: string
+  socialStatuses?: Array<{ status?: string }>
   createdAt?: string
   error?: string
   plan?: {
@@ -72,6 +75,10 @@ export function generatedExampleSlideshows(
   return (
     runs
       ?.map<TemplateExampleSlideshow | null>((run, runIndex) => {
+        const stage = slideshowStageForRunStatus(run.status ?? "completed")
+        if (!stage) {
+          return null
+        }
         const slides = showcaseRunSlides(run)
           .map<TemplateExampleSlide | null>((slide, index) => {
             const imageUrl =
@@ -106,7 +113,7 @@ export function generatedExampleSlideshows(
             run.plan?.hook?.trim() ||
             run.automationTitle?.trim() ||
             `Slideshow ${runIndex + 1}`,
-          status: run.status?.trim() || "succeeded",
+          status: stage,
           scheduledFor: run.scheduledFor,
           createdAt: run.createdAt,
           durationSeconds: slideshowDurationSeconds(slides),

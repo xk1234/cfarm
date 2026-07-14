@@ -19,19 +19,18 @@ describe("slideshow renderer", () => {
       {
         id: "slide-controls",
         image_url: "/image.jpg",
-        aspect_ratio: "4:5",
-        time_length_ms: 3000,
         overlay: true,
         textItems: [
           {
             ...textItem("controls", "bottom"),
-            font: "Arial",
             textAnchor: "flush",
             textVerticalAnchor: "flush",
           },
         ],
       },
-      "/image.jpg"
+      "/image.jpg",
+      undefined,
+      { aspectRatio: "4:5", font: "Arial" }
     )
 
     expect(svg).toContain('data-layer="overlay"')
@@ -45,8 +44,6 @@ describe("slideshow renderer", () => {
       {
         id: "slide-no-overlay",
         image_url: "/image.jpg",
-        aspect_ratio: "9:16",
-        time_length_ms: 3000,
         overlay: false,
         textItems: [],
       },
@@ -55,13 +52,39 @@ describe("slideshow renderer", () => {
     expect(svg).not.toContain('data-layer="overlay"')
   })
 
+  it("supports containing an original image without cropping", () => {
+    const svg = renderedSlideSvg(
+      {
+        id: "slide-contained",
+        image_url: "/image.jpg",
+        imageFit: "contain",
+        textItems: [],
+      },
+      "/image.jpg"
+    )
+
+    expect(svg).toContain('preserveAspectRatio="xMidYMid meet"')
+  })
+
+  it("supports fitting an image exactly to the frame", () => {
+    const svg = renderedSlideSvg(
+      {
+        id: "slide-fitted",
+        image_url: "/image.jpg",
+        imageFit: "fit",
+        textItems: [],
+      },
+      "/image.jpg"
+    )
+
+    expect(svg).toContain('preserveAspectRatio="none"')
+  })
+
   it("renders a visible background when the Background text style is selected", () => {
     const svg = renderedSlideSvg(
       {
         id: "slide-background-text",
         image_url: "/image.jpg",
-        aspect_ratio: "9:16",
-        time_length_ms: 3000,
         textItems: [
           {
             ...textItem("background", "center"),
@@ -76,6 +99,56 @@ describe("slideshow renderer", () => {
     expect(svg).toContain('fill="#ffffff"')
     expect(svg).toContain('id="text-background"')
     expect(svg).toContain('fill="#111111"')
+    expect(svg).not.toContain('stroke="#000000"')
+    expect(svg).not.toContain('paint-order="stroke"')
+  })
+
+  it("wraps background highlights to each rendered line width", () => {
+    const svg = renderedSlideSvg(
+      {
+        id: "slide-highlight-text",
+        image_url: "/image.jpg",
+        textItems: [
+          {
+            ...textItem(
+              "a deliberately long first line followed by short words",
+              "center"
+            ),
+            textSize: { width: 32, height: 18 },
+            textStyle: "whiteBackground",
+          },
+        ],
+      },
+      "/image.jpg"
+    )
+
+    const highlights = Array.from(
+      svg.matchAll(
+        /data-text-background="[^"]+" data-text-background-line="(\d+)"[^>]* width="([\d.]+)"/g
+      )
+    )
+
+    expect(highlights.length).toBeGreaterThan(1)
+    expect(new Set(highlights.map((match) => match[2])).size).toBeGreaterThan(1)
+  })
+
+  it("renders the translucent black panel used by editorial slides", () => {
+    const svg = renderedSlideSvg(
+      {
+        id: "slide-translucent-text",
+        image_url: "/image.jpg",
+        textItems: [
+          {
+            ...textItem("translucent", "center"),
+            textStyle: "black50Background",
+          },
+        ],
+      },
+      "/image.jpg"
+    )
+
+    expect(svg).toContain('fill="#111111" fill-opacity="0.56"')
+    expect(svg).not.toContain('paint-order="stroke"')
   })
 
   it("wraps unspaced text and stacks text items in the shared SVG renderer", () => {
@@ -83,13 +156,10 @@ describe("slideshow renderer", () => {
       {
         id: "slide-1",
         image_url: "/image.jpg",
-        aspect_ratio: "9:16",
-        time_length_ms: 3000,
         textItems: [
           {
             id: "title",
             text: "学习25分钟后休息5分钟定这有助于保持大脑清醒",
-            font: "TikTok Display Medium",
             fontSize: "10px",
             textSize: { width: 30, height: 18 },
             textStyle: "outline",
@@ -99,7 +169,6 @@ describe("slideshow renderer", () => {
           {
             id: "body",
             text: "use the same rules in preview and final output",
-            font: "TikTok Display Medium",
             fontSize: "8px",
             textSize: { width: 30, height: 18 },
             textStyle: "whiteText",
@@ -123,8 +192,6 @@ describe("slideshow renderer", () => {
       {
         id: "slide-1",
         image_url: "/image.jpg",
-        aspect_ratio: "9:16",
-        time_length_ms: 3000,
         textItems: [
           textItem("top", "top"),
           textItem("center", "center"),
@@ -147,8 +214,6 @@ describe("slideshow renderer", () => {
       {
         id: "slide-padding",
         image_url: "/image.jpg",
-        aspect_ratio: "4:5",
-        time_length_ms: 3000,
         textItems: [
           {
             ...textItem("padding", "bottom"),
@@ -160,7 +225,9 @@ describe("slideshow renderer", () => {
           },
         ],
       },
-      "/image.jpg"
+      "/image.jpg",
+      undefined,
+      { aspectRatio: "4:5" }
     )
 
     expect(svg).toContain('id="text-padding" x="54" y="1134"')
@@ -171,8 +238,6 @@ describe("slideshow renderer", () => {
       {
         id: "slide-flush-left",
         image_url: "/image.jpg",
-        aspect_ratio: "9:16",
-        time_length_ms: 3000,
         textItems: [
           {
             ...textItem("flush-left", "center"),
@@ -193,13 +258,10 @@ describe("slideshow renderer", () => {
       {
         id: "slide-1",
         image_url: "/image.jpg",
-        aspect_ratio: "4:5",
-        time_length_ms: 3000,
         textItems: [
           {
             id: "wide-left",
             text: "this renter curtain fix should wrap without leaving the slide",
-            font: "TikTok Display Medium",
             fontSize: "8px",
             textSize: { width: 80, height: 18 },
             textStyle: "whiteText",
@@ -208,7 +270,9 @@ describe("slideshow renderer", () => {
           },
         ],
       },
-      "/image.jpg"
+      "/image.jpg",
+      undefined,
+      { aspectRatio: "4:5" }
     )
 
     expect(svg).toContain('id="wide-left" x="108" y="608" text-anchor="start"')
@@ -289,13 +353,35 @@ describe("slideshow renderer", () => {
     expect(first.top + first.height).toBeLessThan(second.top)
     expect(first.left).toBeLessThan(second.left)
   })
+
+  it("keeps non-overlapping debate quotes side by side", () => {
+    const items = [
+      {
+        ...textItem("left", "top"),
+        textSize: { width: 42, height: 18 },
+        textAlign: "left",
+        textAnchor: "flush",
+        textPosition: { x: 1.5, y: 16 },
+      },
+      {
+        ...textItem("right", "top"),
+        textSize: { width: 42, height: 18 },
+        textAlign: "right",
+        textAnchor: "flush",
+        textPosition: { x: 98.5, y: 16 },
+      },
+    ]
+
+    const [left, right] = renderedTextItemBounds(items, 1080, 1350)
+    expect(Math.abs(left.top - right.top)).toBeLessThan(2)
+    expect(left.left + left.width).toBeLessThan(right.left)
+  })
 })
 
 function textItem(id: string, textPlacement: "top" | "center" | "bottom") {
   return {
     id: `text-${id}`,
     text: id,
-    font: "TikTok Display Medium",
     fontSize: "10px",
     textSize: { width: 50, height: 18 },
     textStyle: "whiteText",

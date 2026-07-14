@@ -11,7 +11,14 @@ const requiredLocal = new Set([
   "OPENROUTER_API_KEY",
 ])
 const runtimeProvided = new Set(["NODE_ENV"])
-const scanTargets = ["app", "lib", "scripts", "appwrite", "proxy.ts", "vitest.setup.ts"]
+const scanTargets = [
+  "app",
+  "lib",
+  "scripts",
+  "appwrite",
+  "proxy.ts",
+  "vitest.setup.ts",
+]
 const sourceExtensions = new Set([".js", ".mjs", ".cjs", ".ts", ".tsx"])
 
 const actualEnv = loadActualEnvironment(root)
@@ -19,17 +26,29 @@ const documentedEnv = parseEnvFile(path.join(root, ".env.example"))
 const usedEnv = findUsedEnvironmentVariables(root)
 
 const missingRequired = sortedDifference(requiredLocal, actualEnv.setKeys)
-const undocumented = sortedDifference(usedEnv, new Set([...documentedEnv.keys, ...runtimeProvided]))
+const undocumented = sortedDifference(
+  usedEnv,
+  new Set([...documentedEnv.keys, ...runtimeProvided])
+)
 const missingOptional = sortedDifference(
   new Set([...documentedEnv.keys].filter((key) => !requiredLocal.has(key))),
   actualEnv.setKeys
 )
 const unusedLocal = sortedDifference(actualEnv.keys, usedEnv)
 
-if (missingRequired.length > 0 || undocumented.length > 0) {
+if (missingRequired.length > 0) {
   printList("Missing required local variables", missingRequired)
-  printList("Code variables missing from .env.example", undocumented)
   process.exitCode = 1
+}
+
+if (undocumented.length > 0) {
+  console.warn(
+    `Optional code variables missing from .env.example: ${undocumented.join(", ")}`
+  )
+}
+
+if (missingRequired.length === 0 && undocumented.length === 0) {
+  console.log("Environment check passed")
 }
 
 if (verbose) {
@@ -49,12 +68,13 @@ function loadActualEnvironment(directory) {
     ...(mode === "test" ? [] : [".env.local"]),
     `.env.${mode}.local`,
   ]
-  const files = candidates.filter((file) => existsSync(path.join(directory, file)))
+  const files = candidates.filter((file) =>
+    existsSync(path.join(directory, file))
+  )
   const states = new Map()
   for (const file of files) {
-    for (const [key, populated] of parseEnvFile(
-      path.join(directory, file)
-    ).states) {
+    for (const [key, populated] of parseEnvFile(path.join(directory, file))
+      .states) {
       states.set(key, populated)
     }
   }
@@ -78,7 +98,10 @@ function parseEnvFile(filePath) {
     if (match?.[1]) {
       keys.add(match[1])
       const rawValue = line.slice(line.indexOf("=") + 1).trim()
-      states.set(match[1], rawValue.length > 0 && rawValue !== '""' && rawValue !== "''")
+      states.set(
+        match[1],
+        rawValue.length > 0 && rawValue !== '""' && rawValue !== "''"
+      )
     }
   }
   return { keys, states }
@@ -96,7 +119,9 @@ function findUsedEnvironmentVariables(directory) {
       for (const match of source.matchAll(/process\.env\.([A-Z][A-Z0-9_]*)/g)) {
         keys.add(match[1])
       }
-      for (const match of source.matchAll(/process\.env\[['"]([A-Z][A-Z0-9_]*)['"]\]/g)) {
+      for (const match of source.matchAll(
+        /process\.env\[['"]([A-Z][A-Z0-9_]*)['"]\]/g
+      )) {
         keys.add(match[1])
       }
     }

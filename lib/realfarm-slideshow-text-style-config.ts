@@ -53,8 +53,18 @@ export function editorColorToTextStyle(color: string) {
       return "blackText"
     case "White Background":
       return "whiteBackground"
+    case "White 50% Background":
+      return "white50Background"
     case "Black Background":
       return "blackBackground"
+    case "Black 50% Background":
+      return "black50Background"
+    case "Light Pink":
+      return "lightPink"
+    case "Muted Red":
+      return "mutedRed"
+    case "Navy Blue":
+      return "navyBlue"
     case "Outline":
       return "outline"
     case "White Text":
@@ -75,9 +85,24 @@ export function textStyleToEditorColor(style: string) {
     case "whiteBackground":
     case "white-background":
       return "White Background"
+    case "white50Background":
+    case "white-50-background":
+      return "White 50% Background"
     case "blackBackground":
     case "black-background":
       return "Black Background"
+    case "black50Background":
+    case "black-50-background":
+      return "Black 50% Background"
+    case "lightPink":
+    case "light-pink":
+      return "Light Pink"
+    case "mutedRed":
+    case "muted-red":
+      return "Muted Red"
+    case "navyBlue":
+    case "navy-blue":
+      return "Navy Blue"
     case "outline":
       return "Outline"
     case "whiteText":
@@ -160,12 +185,29 @@ export function editorFontSizeToCanvasPx(value?: string) {
 export function textFillColor(color?: string) {
   switch (color) {
     case "Black Text":
+    case "White Background":
+    case "White 50% Background":
       return "#111"
     case "Yellow Text":
       return "#fef08a"
+    case "Light Pink":
+      return "#fbcfe8"
+    case "Muted Red":
+      return "#f87171"
+    case "Navy Blue":
+      return "#1e3a5f"
     default:
       return "#fff"
   }
+}
+
+export function textStyleUsesStroke(style?: string) {
+  const editorColor = slideshowTextColorOptions.includes(
+    style as (typeof slideshowTextColorOptions)[number]
+  )
+    ? (style ?? "White Text")
+    : textStyleToEditorColor(style || "")
+  return editorColor !== "Black Text" && !editorColor.endsWith("Background")
 }
 
 export function textStrokeColor(color?: string) {

@@ -48,6 +48,8 @@ export type DefaultAutomationFormatSectionConfig = {
 
 export const defaultAutomationTemplateDefaults = {
   version: "default-automation-template-v1",
+  image_fit: "contain" as const,
+  language: defaultAutomationLanguage,
   schedule: {
     defaultPostingTime: "11:00 AM",
   },
@@ -77,8 +79,6 @@ export const defaultAutomationTemplateDefaults = {
       single_image: null,
     },
     all_slides: "",
-    aspect_ratio: "9:16",
-    is_bg_overlay_on: true,
     cta_slide: {
       check: false,
       cta_collection_check: false,
@@ -86,15 +86,7 @@ export const defaultAutomationTemplateDefaults = {
       image_id: null,
       cta_location: "last_slide",
     },
-    keepOriginalAspectRatio: true,
-    is_bg_overlay_on_hook_image: true,
-    textOnFirstSlideOnly: false,
-    noTextOnSlides: false,
-    autoPullImagesNotCollections: false,
-    autoImagesNoTextOnImages: false,
-    disableAutoImageForFirstSlide: false,
     video_demo_asset_id: "",
-    language: defaultAutomationLanguage,
   } satisfies ImageCollectionConfig,
   formatting: {
     hook: {
@@ -157,7 +149,7 @@ export const defaultAutomationTemplateDefaults = {
         textAlign: "center",
         textAnchor: "padded",
       },
-      aspect_ratio: "fit",
+      aspect_ratio: "4:5",
       imageGrid: "none",
       slideCount: 0,
       ctaLocation: "last",

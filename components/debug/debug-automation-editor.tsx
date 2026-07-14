@@ -877,7 +877,6 @@ function isRecordValue(value: unknown): value is Record<string, unknown> {
 
 function hideNonOutputFormattingFields(schema: Record<string, unknown>) {
   if (isRecordValue(schema.image_collection_ids)) {
-    delete schema.image_collection_ids.aspect_ratio
   }
 }
 

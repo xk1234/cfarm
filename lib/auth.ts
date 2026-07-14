@@ -16,6 +16,10 @@ export type AuthUser = Pick<
   "$id" | "email" | "name" | "emailVerification"
 >
 
+export type LumenClipUserPreferences = Models.Preferences & {
+  postfastDisconnectedIntegrationIds?: string[]
+}
+
 function baseClient() {
   return new Client()
     .setEndpoint(APPWRITE_ENDPOINT)
@@ -54,6 +58,23 @@ export async function getUserFromSession(
 export async function getCurrentUser(): Promise<AuthUser | null> {
   const cookieStore = await cookies()
   return getUserFromSession(cookieStore.get(SESSION_COOKIE)?.value)
+}
+
+export async function getUserPreferences(
+  userId: string
+): Promise<LumenClipUserPreferences> {
+  return adminUsers().getPrefs<LumenClipUserPreferences>({ userId })
+}
+
+export async function updateUserPreferences(
+  userId: string,
+  patch: Partial<LumenClipUserPreferences>
+) {
+  const current = await getUserPreferences(userId)
+  return adminUsers().updatePrefs<LumenClipUserPreferences>({
+    userId,
+    prefs: { ...current, ...patch },
+  })
 }
 
 export async function createUser(input: {

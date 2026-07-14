@@ -10,16 +10,16 @@ import {
   Play,
   RefreshCcw,
   Search,
-  X,
 } from "lucide-react"
 import { useEffect, useMemo, useState, type CSSProperties } from "react"
+import { Popover } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
+import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import {
   BenchmarkComparisonModal,
   BenchmarkCorpusModal,
 } from "@/components/realfarm/benchmark-comparison-modal"
-import { useDismissableLayer } from "@/components/ui/dismissable"
 import type { AutomationTemplateExampleRun } from "@/lib/automation-templates"
 import type { OpenRouterModelSummary } from "@/lib/openrouter-models"
 import { tempTestingCenterFallbackModels } from "@/lib/realfarm-generation-model-registry"
@@ -810,10 +810,6 @@ function ModelMultiSelect({
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
-  const menuRef = useDismissableLayer<HTMLDivElement>(
-    () => setOpen(false),
-    open
-  )
   const normalizedQuery = query.trim().toLowerCase()
   const visibleModels = normalizedQuery
     ? models.filter((model) =>
@@ -827,38 +823,40 @@ function ModelMultiSelect({
     .slice(0, 2)
 
   return (
-    <div ref={menuRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        className="flex min-h-11 w-full items-center justify-between gap-3 rounded-md border border-[#d8d6cc] bg-white px-3 py-2 text-left outline-none hover:bg-[#f6f5ef] focus:border-[#22221f]"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-      >
-        <span className="min-w-0">
-          <span className="block text-xs font-semibold text-[#22221f]">
-            {selectedModels.length === 0
-              ? "Choose models"
-              : `${selectedModels.length} model${selectedModels.length === 1 ? "" : "s"} selected`}
-          </span>
-          {selectedNames.length > 0 ? (
-            <span className="mt-0.5 block truncate text-[11px] text-[#6f6d64]">
-              {selectedNames.join(", ")}
-              {selectedModels.length > selectedNames.length ? "…" : ""}
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger asChild>
+        <button
+          type="button"
+          className="flex min-h-11 w-full items-center justify-between gap-3 rounded-md border border-[#d8d6cc] bg-white px-3 py-2 text-left outline-none hover:bg-[#f6f5ef] focus:border-[#22221f]"
+        >
+          <span className="min-w-0">
+            <span className="block text-xs font-semibold text-[#22221f]">
+              {selectedModels.length === 0
+                ? "Choose models"
+                : `${selectedModels.length} model${selectedModels.length === 1 ? "" : "s"} selected`}
             </span>
-          ) : null}
-        </span>
-        <ChevronDown
-          aria-hidden="true"
-          className={cn(
-            "size-4 shrink-0 text-[#77766f] transition",
-            open && "rotate-180"
-          )}
-        />
-      </button>
-
-      {open ? (
-        <div className="absolute top-[calc(100%+6px)] left-0 z-40 w-full min-w-[320px] overflow-hidden rounded-md border border-[#d8d6cc] bg-white shadow-xl">
+            {selectedNames.length > 0 ? (
+              <span className="mt-0.5 block truncate text-[11px] text-[#6f6d64]">
+                {selectedNames.join(", ")}
+                {selectedModels.length > selectedNames.length ? "…" : ""}
+              </span>
+            ) : null}
+          </span>
+          <ChevronDown
+            aria-hidden="true"
+            className={cn(
+              "size-4 shrink-0 text-[#77766f] transition",
+              open && "rotate-180"
+            )}
+          />
+        </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          sideOffset={6}
+          align="start"
+          className="z-50 w-[var(--radix-popover-trigger-width)] min-w-[320px] overflow-hidden rounded-md border border-[#d8d6cc] bg-white shadow-xl outline-none"
+        >
           <label className="flex items-center gap-2 border-b border-[#ecebe4] px-3">
             <Search aria-hidden="true" className="size-4 text-[#8a887f]" />
             <input
@@ -916,9 +914,9 @@ function ModelMultiSelect({
               </div>
             )}
           </div>
-        </div>
-      ) : null}
-    </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   )
 }
 
@@ -943,24 +941,14 @@ function AutomationPickerModal({
   ) => void
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
-      <div className="flex h-[min(820px,92vh)] w-full max-w-6xl flex-col rounded-lg border border-[#dfded7] bg-white shadow-xl">
-        <div className="flex items-center justify-between gap-3 border-b border-[#ecebe4] px-5 py-4">
-          <div>
-            <h2 className="text-base font-semibold">Choose automation</h2>
-            <p className="text-sm text-[#6f6d64]">
-              Browse example slideshows, then click a preview to switch.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid size-8 place-items-center rounded-md text-[#6f6d64] hover:bg-[#f1f0ea]"
-            aria-label="Close automation picker"
-          >
-            <X aria-hidden="true" className="size-4" />
-          </button>
-        </div>
+    <AppModal onClose={onClose}>
+      <AppModalPanel className="flex h-[min(820px,92vh)] max-w-6xl flex-col rounded-lg border border-[#dfded7] shadow-xl">
+        <AppModalHeader
+          title="Choose automation"
+          description="Browse example slideshows, then click a preview to switch."
+          onClose={onClose}
+          closeLabel="Close automation picker"
+        />
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {automations.map((automation) => {
@@ -1058,8 +1046,8 @@ function AutomationPickerModal({
             })}
           </div>
         </div>
-      </div>
-    </div>
+      </AppModalPanel>
+    </AppModal>
   )
 }
 
@@ -1083,25 +1071,14 @@ function PromptModal({
   onReset: () => void
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
-      <div className="flex h-[min(820px,92vh)] w-full max-w-5xl flex-col rounded-lg border border-[#dfded7] bg-white shadow-xl">
-        <div className="flex items-center justify-between gap-3 border-b border-[#ecebe4] px-5 py-4">
-          <div>
-            <h2 className="text-base font-semibold">Generation prompt</h2>
-            <p className="text-sm text-[#6f6d64]">
-              Edit the system prompt and instruction block. The full request
-              payload updates on the right.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid size-8 place-items-center rounded-md text-[#6f6d64] hover:bg-[#f1f0ea]"
-            aria-label="Close prompt editor"
-          >
-            <X aria-hidden="true" className="size-4" />
-          </button>
-        </div>
+    <AppModal onClose={onClose}>
+      <AppModalPanel className="flex h-[min(820px,92vh)] max-w-5xl flex-col rounded-lg border border-[#dfded7] shadow-xl">
+        <AppModalHeader
+          title="Generation prompt"
+          description="Edit the system prompt and instruction block. The full request payload updates on the right."
+          onClose={onClose}
+          closeLabel="Close prompt editor"
+        />
         <div className="grid min-h-0 flex-1 gap-4 overflow-hidden px-5 py-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           <div className="flex min-h-0 flex-col gap-3">
             <label className="flex min-h-0 flex-1 flex-col gap-2">
@@ -1168,8 +1145,8 @@ function PromptModal({
             </Button>
           </div>
         </div>
-      </div>
-    </div>
+      </AppModalPanel>
+    </AppModal>
   )
 }
 

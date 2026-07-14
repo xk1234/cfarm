@@ -6,18 +6,12 @@ import {
 } from "@tabler/icons-react"
 
 import { CollectionSelector } from "@/components/realfarm/collection-selector"
-import {
-  ControlSelect,
-  ControlToggle,
-} from "@/components/realfarm/shared-media"
+import { ControlToggle } from "@/components/realfarm/shared-media"
 import { Button } from "@/components/ui/button"
 import { SelectLike } from "@/components/ui/form-controls"
 import {
-  aspectRatioLabel,
-  automationAspectRatios,
   automationFormatSection,
   defaultAutomationTextItem,
-  labelToAspectRatio,
   schemaWithAutomationCollectionId,
   updateAutomationFormatSection,
   type AutomationFormatSection,
@@ -50,6 +44,7 @@ import {
 } from "./format-helpers"
 import { SlideshowFormatPreviewStage } from "./slideshow-format-preview-stage"
 import { VideoAutomationFormatPanel } from "./video-format-panel"
+import { VideoTemplateFormatPanel } from "./video-template-panel"
 
 export function AutomationFormatPanel({
   automation,
@@ -146,6 +141,23 @@ export function AutomationFormatPanel({
   }, [])
 
   if (config.automationKind === "video") {
+    const videoTemplate = config.video_format?.template ?? "ugc_ad"
+    if (videoTemplate !== "ugc_ad") {
+      return (
+        <VideoTemplateFormatPanel
+          automation={automation}
+          config={config}
+          collections={collections}
+          selectedSound={selectedSound}
+          music={music}
+          demoVideos={demoVideos}
+          onCreateCollection={onCreateCollection}
+          onConfigChange={onConfigChange}
+          onBack={onBack}
+          onSave={onSave}
+        />
+      )
+    }
     return (
       <VideoAutomationFormatPanel
         automation={automation}
@@ -637,25 +649,6 @@ export function AutomationFormatPanel({
                 </div>
               )}
 
-              <ControlSelect
-                label="Aspect Ratio"
-                value={aspectRatioLabel(activeSection.aspect_ratio)}
-                options={automationAspectRatios.map(aspectRatioLabel)}
-                onChange={(value) =>
-                  updateFormatSection(activeKey, {
-                    aspect_ratio: labelToAspectRatio(value),
-                  })
-                }
-              />
-              <ControlToggle
-                label="Overlay"
-                enabled={activeSection.overlay}
-                onClick={() =>
-                  updateFormatSection(activeKey, {
-                    overlay: !activeSection.overlay,
-                  })
-                }
-              />
               {activeTab === "Content" ? (
                 <AutomationContentFormatEditor
                   section={activeSection}
@@ -688,15 +681,17 @@ export function AutomationFormatPanel({
               )}
             </>
           )}
-          <ControlToggle
-            label="AI image matching"
-            enabled={activeSection.aiImageSelection === true}
-            onClick={() =>
-              updateFormatSection(activeKey, {
-                aiImageSelection: !activeSection.aiImageSelection,
-              })
-            }
-          />
+          {activeTab !== "CTA" ? (
+            <ControlToggle
+              label="AI image matching"
+              enabled={activeSection.aiImageSelection === true}
+              onClick={() =>
+                updateFormatSection(activeKey, {
+                  aiImageSelection: !activeSection.aiImageSelection,
+                })
+              }
+            />
+          ) : null}
         </div>
 
         <div className="border-t border-[#deddd5] p-3">

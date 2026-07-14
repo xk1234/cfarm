@@ -29,8 +29,10 @@ function readAutomationSettingsSource() {
     "components/realfarm/automation-settings/social-settings-helpers.ts",
     "components/realfarm/automation-settings/social-settings.tsx",
     "components/realfarm/automation-settings/types.ts",
+    "components/realfarm/automation-settings/automation-video-generation.ts",
     "components/realfarm/automation-settings/video-format-panel.tsx",
     "components/realfarm/automation-settings/video-format-helpers.ts",
+    "components/realfarm/automation-settings/video-template-panel.tsx",
   ]
     .map(src)
     .join("\n")
@@ -104,28 +106,39 @@ describe("RealFarm source contracts", () => {
       ])
     })
 
-    it("moves AI UGC ad creation into video automation settings", () => {
+    it("generates automation videos from the drawer and shows them in overview", () => {
       const automationSettingsSource = readAutomationSettingsSource()
-      const videoPanelSource = section(
-        automationSettingsSource,
-        "function VideoAutomationFormatPanel",
-        "function textPlacementFromItem"
+      const videoPanelSource = src(
+        "components/realfarm/automation-settings/video-format-panel.tsx"
+      )
+      const overviewSource = src(
+        "components/realfarm/automation-settings/overview-panel.tsx"
+      )
+      const generationSource = src(
+        "components/realfarm/automation-settings/automation-video-generation.ts"
       )
       const rendererSource = src(
         "components/realfarm/generated-video-renderer.ts"
       )
       const realfarmDataSource = src("lib/realfarm-data.ts")
 
-      expectContains(automationSettingsSource, [
+      expectContains(generationSource, [
         "renderAndUploadUgcAdVideo",
-        "GeneratedVideoExports",
-        "useGeneratedVideoExports(",
         '"ugc_ad"',
         "createGeneratedVideoExportRecord",
         "updateGeneratedVideoExportRecord",
-        "Avatar video collection",
-        "Demo video",
-        "createUgcAdAutomationExport",
+        "resolveMediaCollection",
+        "automationId: input.automation.id",
+      ])
+      expectContains(automationSettingsSource, [
+        "generateAutomationVideo",
+        "automationVideoGenerationIssue",
+        "useAutomationGeneratedVideoExports",
+      ])
+      expectContains(overviewSource, [
+        "GeneratedVideoExports",
+        'title="Generated videos"',
+        "videoExportsLoading",
       ])
       expectContains(realfarmDataSource, [
         "demoVideos: LocalAsset[]",
@@ -143,7 +156,11 @@ describe("RealFarm source contracts", () => {
         "selectedVideoTextIndex",
         "updateVideoTextItem",
         "deleteSelectedVideoTextItem",
-        "textItems: hookTextItems",
+      ])
+      expectNotContains(videoPanelSource, [
+        "GeneratedVideoExports",
+        "createUgcAdAutomationExport",
+        "renderAndUploadUgcAdVideo",
       ])
       expectContains(rendererSource, [
         "type UGCAdTextItem",
@@ -347,7 +364,8 @@ describe("RealFarm source contracts", () => {
         'type="time"',
       ])
       expectContains(settingsSource, [
-        "config.image_collection_ids.language",
+        "config.language",
+        "config.image_fit",
         "updateLanguage",
         "SoundSelector",
         "updateTransitionStyle",
@@ -965,7 +983,9 @@ describe("RealFarm source contracts", () => {
         "components/realfarm/generated-video-exports.tsx"
       )
       const greenscreenSource = src("components/realfarm/greenscreen-view.tsx")
-      const ugcSource = readAutomationSettingsSource()
+      const ugcSource = src(
+        "components/realfarm/automation-settings/automation-video-generation.ts"
+      )
       const routeSource = src("app/api/generated-videos/route.ts")
       const greenscreenFlow = section(
         greenscreenSource,
@@ -974,8 +994,8 @@ describe("RealFarm source contracts", () => {
       )
       const ugcFlow = section(
         ugcSource,
-        "async function createUgcAdAutomationExport()",
-        "return ("
+        "async function generateUgcAdVideo(",
+        "async function generateTemplateVideo("
       )
 
       expectContains(exportsSource, [
@@ -985,8 +1005,8 @@ describe("RealFarm source contracts", () => {
         'aria-label="Save video"',
         'aria-label="Schedule post"',
         'aria-label="Delete output"',
-        "poster={item.previewUrl}",
-        "primeVideoThumbnail",
+        "useVideoThumbnailFrame(item.videoUrl)",
+        'preload="auto"',
         "ScheduleGeneratedVideoModal",
         '"/api/postfast/integrations"',
         '"/api/postfast/upload"',
@@ -1009,12 +1029,9 @@ describe("RealFarm source contracts", () => {
         'status: "processing"',
         "updateGeneratedVideoExportRecord",
         'status: "failed"',
-        "previewUrl: renderedVideo.thumbnailUrl",
-        "Select an avatar video collection before creating an ad.",
-        "disabled={creating || !previewVideo}",
-        "Avatar video collection",
-        "Demo video",
-        "GeneratedVideoExports",
+        "previewUrl: rendered.thumbnailUrl",
+        "Choose or create a video collection with at least one video before generating.",
+        "automationId: input.automation.id",
       ])
       expectContains(routeSource, [
         "payload.status",

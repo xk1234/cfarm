@@ -34,7 +34,7 @@ export type Project = {
 export type Automation = {
   id: string
   name: string
-  automationKind?: "slideshow" | "video"
+  automationKind?: "slideshow" | "video" | "x_threads"
   status: AutomationLifecycleStatus
   account: string
   handle: string

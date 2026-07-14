@@ -41,66 +41,77 @@ const socialMediaSettingTabs: {
   label: string
   icon: Icon
   summary: string
+  videoSummary: string
 }[] = [
   {
     provider: "tiktok",
     label: "TikTok",
     icon: IconBrandTiktok,
     summary: "Video or photo slideshow posts.",
+    videoSummary: "Native video posts.",
   },
   {
     provider: "youtube",
     label: "YouTube",
     icon: IconBrandYoutubeFilled,
     summary: "Exported slideshow videos. Shorts is always enabled.",
+    videoSummary: "YouTube Shorts. Shorts is always enabled.",
   },
   {
     provider: "instagram",
     label: "Instagram",
     icon: IconBrandInstagram,
     summary: "Timeline for slideshows, Reels for exported videos.",
+    videoSummary: "Published as Reels.",
   },
   {
     provider: "facebook",
     label: "Facebook",
     icon: IconBrandFacebookFilled,
     summary: "Feed posts for slideshows, Reels for exported videos.",
+    videoSummary: "Published as Reels.",
   },
   {
     provider: "x",
     label: "X",
     icon: IconBrandX,
     summary: "Text, image, carousel, and video posts.",
+    videoSummary: "Native video posts.",
   },
   {
     provider: "linkedin",
     label: "LinkedIn",
     icon: IconBrandLinkedin,
     summary: "Text, image carousel, and video posts.",
+    videoSummary: "Native video posts.",
   },
   {
     provider: "pinterest",
     label: "Pinterest",
     icon: IconBrandPinterest,
     summary: "Image, carousel, and video pins.",
+    videoSummary: "Video pins.",
   },
   {
     provider: "threads",
     label: "Threads",
     icon: IconBrandThreads,
     summary: "Text, image carousel, and video posts.",
+    videoSummary: "Native video posts.",
   },
   {
     provider: "telegram",
     label: "Telegram",
     icon: IconBrandTelegram,
     summary: "Text, images, videos, and mixed media groups.",
+    videoSummary: "Native video posts.",
   },
   {
     provider: "bluesky",
     label: "Bluesky",
     icon: IconBrandBluesky,
     summary: "Text and image posts.",
+    videoSummary: "Video publishing is not available for this provider.",
   },
 ]
 
@@ -123,6 +134,7 @@ export function SocialMediaSettingsPanel({
     socialMediaSettingTabs.find((tab) => tab.provider === activeProvider) ??
     socialMediaSettingTabs[0]
   const ActiveIcon = activeTab.icon
+  const isVideoAutomation = config.automationKind === "video"
   const activeSettings = socialSettingsForProvider(config, activeProvider)
 
   function updateTikTokPostSettings(
@@ -189,7 +201,7 @@ export function SocialMediaSettingsPanel({
   const selectedProviderCount = config.social_integrations.filter(
     (integration) => socialProviderMatches(activeProvider, integration.provider)
   ).length
-  const slideshowSocialIntegrations = config.social_integrations.filter(
+  const supportedSocialIntegrations = config.social_integrations.filter(
     (integration) => isSlideshowSocialProvider(integration.provider)
   )
 
@@ -206,8 +218,8 @@ export function SocialMediaSettingsPanel({
                 Social destinations
               </div>
               <div className="mt-1 text-[13px] font-semibold text-app-muted-text">
-                {slideshowSocialIntegrations.length > 0
-                  ? `${slideshowSocialIntegrations.length} account${slideshowSocialIntegrations.length === 1 ? "" : "s"} selected`
+                {supportedSocialIntegrations.length > 0
+                  ? `${supportedSocialIntegrations.length} account${supportedSocialIntegrations.length === 1 ? "" : "s"} selected`
                   : "No social accounts selected"}
               </div>
             </div>
@@ -217,7 +229,7 @@ export function SocialMediaSettingsPanel({
               size="appDefault"
               onClick={onEditSocialAccounts}
             >
-              {slideshowSocialIntegrations.length > 0
+              {supportedSocialIntegrations.length > 0
                 ? "Edit accounts"
                 : "Add accounts"}
             </Button>
@@ -226,7 +238,7 @@ export function SocialMediaSettingsPanel({
 
         <SettingsRow
           title="Auto-post automation"
-          description="Publish automatically when a scheduled slideshow is ready."
+          description={`Publish automatically when a scheduled ${isVideoAutomation ? "video" : "slideshow"} is ready.`}
           control={
             <SwitchPillButton
               enabled={config.tiktok_post_settings.auto_post}
@@ -274,7 +286,7 @@ export function SocialMediaSettingsPanel({
                 {activeTab.label}
               </div>
               <p className="mt-1 text-[13px] leading-5 font-semibold text-app-muted-text">
-                {activeTab.summary}
+                {isVideoAutomation ? activeTab.videoSummary : activeTab.summary}
               </p>
             </div>
             <span className="rounded-full bg-[#f1f0eb] px-3 py-1 text-[12px] font-bold text-[#62615b]">
@@ -317,4 +329,3 @@ function socialProviderMatches(
   }
   return integrationProvider === activeProvider
 }
-

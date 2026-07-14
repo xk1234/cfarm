@@ -30,22 +30,18 @@ export function AutomationFormatTextToolbar({
 }) {
   return (
     <div
+      role={layout === "floating" ? "dialog" : undefined}
+      aria-label={layout === "floating" ? "Text styling" : undefined}
       className={cn(
         "flex-shrink-0 space-y-2.5 rounded-xl border-t border-[#E5E7EB] bg-[#F5F5F5] px-4 py-3 shadow-lg",
         layout === "floating"
-          ? "absolute right-0 bottom-0 left-0 mx-4 mb-4"
+          ? "absolute right-0 bottom-0 left-0 z-30 w-full rounded-b-none"
           : "relative shadow-sm"
       )}
     >
       <div className="space-y-2.5">
         <div className="space-y-2">
-          <div className="grid grid-cols-3 gap-2">
-            <CompactTextSelect
-              label="Font"
-              value={fontLabel(textItem.font)}
-              options={automationFontLabels}
-              onChange={(value) => updateTextItem({ font: labelToFont(value) })}
-            />
+          <div className="grid grid-cols-2 gap-2">
             <CompactTextSelect
               label="Style"
               value={textStyleLabel(textItem.textStyle)}
@@ -157,12 +153,6 @@ export function AutomationFormatTextToolbar({
   )
 }
 
-const automationFontLabels = [
-  "Default",
-  "TikTok Display Medium",
-  "Inter",
-  "Arial",
-]
 const automationFontSizes = [
   "8px",
   "10px",
@@ -187,6 +177,7 @@ const automationTextStyleOptions = [
   { label: "Yellow Text", value: "yellowText" },
   { label: "Black Text", value: "blackText" },
   { label: "Background", value: "background" },
+  { label: "Dark Background", value: "black50Background" },
   { label: "Outline", value: "outline" },
 ]
 const automationTextStyleLabels = automationTextStyleOptions.map(
@@ -212,14 +203,6 @@ function wordRangeLabelFromTuple([minimum, maximum]: [number, number]) {
 function parseWordRange(value: string): [number, number] {
   const [minimum, maximum] = value.match(/\d+/g)?.map(Number) ?? [5, 10]
   return [minimum || 5, maximum || minimum || 10]
-}
-
-function fontLabel(value: string) {
-  return value && value !== "TikTok Display Medium" ? value : "Default"
-}
-
-function labelToFont(value: string) {
-  return value === "Default" ? "TikTok Display Medium" : value
 }
 
 function textStyleLabel(value: string) {

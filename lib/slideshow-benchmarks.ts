@@ -5,13 +5,15 @@ import sharp from "sharp"
 
 import { readAssetBytes } from "@/lib/asset-storage"
 import { clean, isRecord } from "@/lib/guards"
-import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
+import {
+  readJsonArrayStore,
+  withJsonArrayStore,
+  writeJsonArrayStore,
+} from "@/lib/json-store"
 import { openRouterChatCompletion } from "@/lib/openrouter"
 import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-registry"
-import {
-  renderedSlideSvg,
-  type SlideshowSlide,
-} from "@/lib/slideshow-renderer"
+import { renderedSlideSvg, type SlideshowSlide } from "@/lib/slideshow-renderer"
+import type { SlideshowRecord } from "@/lib/slideshows"
 
 export type SlideshowBenchmarkScores = {
   hookVirality: number
@@ -71,7 +73,7 @@ export type BenchmarkSourceStats = {
 
 export type BenchmarkCorpusRecord = {
   id: string
-  source: "reelfarm"
+  source: "reelfarm" | "tiktok"
   sourceUrl: string
   creator: BenchmarkCreator
   stats: BenchmarkSourceStats
@@ -123,6 +125,25 @@ type RawGrade = {
 const benchmarkRootDir = path.join(process.cwd(), "data", "benchmarks")
 const benchmarkModel = openRouterModelForUseCase("imageCaptioning")
 
+// Keep in sync with scripts/import-tiktok-corpus.mjs so corpus references and
+// generated slideshows are graded on the same rubric.
+export const benchmarkGraderSystemPrompt = [
+  "You are a strict short-form slideshow creative benchmarker. Grade four independent dimensions from 0 to 10 using integers. Judge the rendered pixels: actual text placement, legibility, image relevance, specificity, and narrative progression. A 5 is average; 8+ requires unusually strong evidence. Do not reward production polish that does not improve the metric being scored.",
+  "",
+  "hookVirality — use ONLY slide 1. On a photo slideshow the slide-1 text is the headline and the image is the visual hook; grade both plus their alignment:",
+  "- Rapid context: after one read the viewer knows exactly what the post is about and who it is for. The wording must have one unmistakable reading; any plausible confusion loses points.",
+  "- Curiosity loop via contrast: the hook states or implies a gap between what people currently believe or expect and what the post will reveal. Bigger, more surprising contrast scores higher. A plain topic label or bland statement with no tension caps this dimension at 4.",
+  "- Distillation and direct address: fewest possible words, no wasted openers ('in my opinion', throat-clearing), text big and legible near eye level. 'You/your' or a named identity call-out ('October Scorpios', 'homeschool moms') beats 'I/me' framing unless the me-story is universally relatable.",
+  "- Text-visual alignment: the image must amplify the same idea as the text; a generic or mismatched image weakens the hook.",
+  "Anchors: 3 = topic label with no tension over an unrelated photo; 5 = clear topic with mild curiosity; 8 = unmistakable topic plus strong stated or implied contrast plus an aligned scroll-stopping visual; 10 = all of that plus an identity call-out or stakes that make skipping feel costly.",
+  "",
+  "pictureTextFit — use ALL slides: legibility of every text block against its background (contrast, size, safe placement, nothing important covered), consistent styling across slides, and whether each image's subject and mood match — ideally amplify — that slide's text. Native platform-feel (looks typed in the app) beats ad-style polish.",
+  "",
+  "usefulnessToIcp — use ALL slides: each slide should deliver a specific, concrete, NEW point (a behavior, scene, example, or number) the target ICP would care about. Generic trait lists, repeated points, or filler cap this at 4. Density matters: a slide worth reading for five seconds beats a thin quip. Progression should build across slides, not shuffle.",
+  "",
+  "conversationPotential — use ALL slides: score the signals that actually drive comments, shares, and saves — identity signaling ('this is me' / 'send this to her'), a confident take that is just polarizing enough, open questions, a natural CTA (tag someone, comment your sign, which one next), and a final slide worth screenshotting. A post that ends flat with no invitation caps at 5.",
+].join("\n")
+
 export async function listBenchmarkCorpus(input: { limit?: number } = {}) {
   const records = await readJsonArrayStore<BenchmarkCorpusRecord>({
     rootDir: benchmarkRootDir,
@@ -133,20 +154,46 @@ export async function listBenchmarkCorpus(input: { limit?: number } = {}) {
   return records.slice(0, Math.max(1, input.limit ?? 100))
 }
 
-export async function listGeneratedSlideshowBenchmarks(input: {
-  slideshowId?: string
-  limit?: number
-} = {}) {
+export async function listGeneratedSlideshowBenchmarks(
+  input: {
+    slideshowId?: string
+    automationId?: string
+    limit?: number
+  } = {}
+) {
   const records = await readJsonArrayStore<GeneratedSlideshowBenchmark>({
     rootDir: benchmarkRootDir,
     fileName: "scores.json",
     key: "benchmarks",
     normalize: normalizeGeneratedBenchmark,
   })
-  const filtered = input.slideshowId
-    ? records.filter((record) => record.slideshowId === input.slideshowId)
-    : records
+  const filtered = records.filter(
+    (record) =>
+      (!input.slideshowId || record.slideshowId === input.slideshowId) &&
+      (!input.automationId || record.automationId === input.automationId)
+  )
   return filtered.slice(0, Math.max(1, input.limit ?? 100))
+}
+
+export async function deleteGeneratedSlideshowBenchmarks(slideshowId: string) {
+  return withJsonArrayStore<
+    GeneratedSlideshowBenchmark,
+    GeneratedSlideshowBenchmark[]
+  >({
+    rootDir: benchmarkRootDir,
+    fileName: "scores.json",
+    key: "benchmarks",
+    normalize: normalizeGeneratedBenchmark,
+    update(records) {
+      const deleted = records.filter(
+        (record) => record.slideshowId === slideshowId
+      )
+      return {
+        records: records.filter((record) => record.slideshowId !== slideshowId),
+        result: deleted,
+      }
+    },
+  })
 }
 
 export async function benchmarkComparisonForSlideshow(
@@ -163,8 +210,80 @@ export async function benchmarkComparisonForSlideshow(
       ...subject,
       slides: await enrichBenchmarkSlides(subject.slides),
     },
-    references: randomBenchmarkReferences(await listBenchmarkCorpus(), 3, random),
+    references: nicheMatchedBenchmarkReferences(
+      await listBenchmarkCorpus(),
+      subject,
+      3,
+      random
+    ),
   }
+}
+
+/**
+ * Prefer corpus references from the subject's own niche (keyword overlap on
+ * icp/title vs the reference's icp/niche/prompt) so an astrology slideshow is
+ * compared against astrology winners, not random accounts. Falls back to
+ * random picks to fill remaining slots.
+ */
+export function nicheMatchedBenchmarkReferences(
+  records: BenchmarkCorpusRecord[],
+  subject: Pick<GeneratedSlideshowBenchmark, "icp" | "title">,
+  count = 3,
+  random = Math.random
+) {
+  const subjectTokens = benchmarkNicheTokens(
+    `${subject.icp ?? ""} ${subject.title ?? ""}`
+  )
+  const scored = records
+    .map((record) => {
+      const recordTokens = benchmarkNicheTokens(
+        `${record.icp ?? ""} ${record.creator?.niche ?? ""} ${record.prompt ?? ""}`
+      )
+      let overlap = 0
+      for (const token of recordTokens) {
+        if (subjectTokens.has(token)) overlap += 1
+      }
+      return { record, overlap }
+    })
+    .filter((entry) => entry.overlap > 0)
+    .sort((a, b) => b.overlap - a.overlap)
+    .slice(0, count)
+    .map((entry) => entry.record)
+  const matchedIds = new Set(scored.map((record) => record.id))
+  const fillers = randomBenchmarkReferences(
+    records.filter((record) => !matchedIds.has(record.id)),
+    count - scored.length,
+    random
+  )
+  return [...scored, ...fillers]
+}
+
+const nicheStopWords = new Set([
+  "the",
+  "and",
+  "for",
+  "with",
+  "your",
+  "you",
+  "this",
+  "that",
+  "from",
+  "about",
+  "website",
+  "informational",
+  "content",
+  "slideshow",
+  "tiktok",
+  "instagram",
+])
+
+function benchmarkNicheTokens(value: string) {
+  return new Set(
+    value
+      .toLowerCase()
+      .split(/[^a-z]+/)
+      .filter((token) => token.length >= 4 && !nicheStopWords.has(token))
+  )
 }
 
 export function randomBenchmarkReferences(
@@ -181,11 +300,13 @@ export function randomBenchmarkReferences(
   return picked
 }
 
-export async function benchmarkAndStoreGeneratedSlideshow(input: ScoreInput & {
-  slideshowId: string
-  runId?: string
-  automationId?: string
-}) {
+export async function benchmarkAndStoreGeneratedSlideshow(
+  input: ScoreInput & {
+    slideshowId: string
+    runId?: string
+    automationId?: string
+  }
+) {
   const imageBytes = await Promise.all(
     input.slides.map(
       async (slide, index) =>
@@ -205,7 +326,8 @@ export async function benchmarkAndStoreGeneratedSlideshow(input: ScoreInput & {
     runId: clean(input.runId) || undefined,
     automationId: clean(input.automationId) || undefined,
     title: clean(input.title) || "Generated slideshow",
-    icp: clean(input.icp) || "The intended audience inferred from the slideshow",
+    icp:
+      clean(input.icp) || "The intended audience inferred from the slideshow",
     slides,
     ...grade,
     createdAt: now,
@@ -223,6 +345,32 @@ export async function benchmarkAndStoreGeneratedSlideshow(input: ScoreInput & {
     ],
   })
   return record
+}
+
+export function benchmarkSlidesFromSlideshow(
+  slideshow: Pick<SlideshowRecord, "id" | "images" | "output_images">
+): BenchmarkSlideInfo[] {
+  return slideshow.output_images.map((imageUrl, index) => {
+    const sourceSlide = slideshow.images[index]
+    const sourceId = clean(sourceSlide?.id).toLowerCase()
+    const role: BenchmarkSlideInfo["role"] =
+      index === 0 || sourceId.includes("hook")
+        ? "hook"
+        : sourceId.includes("cta")
+          ? "cta"
+          : "content"
+
+    return {
+      id: sourceSlide?.id || `${slideshow.id}-slide-${index + 1}`,
+      imageUrl,
+      originalImageUrl: sourceSlide?.source_image_url || sourceSlide?.image_url,
+      text: sourceSlide?.textItems
+        .map((item) => item.text)
+        .filter(Boolean)
+        .join("\n"),
+      role,
+    }
+  })
 }
 
 async function enrichBenchmarkSlides(
@@ -276,9 +424,15 @@ export async function scoreSlideshowBenchmark(input: ScoreInput) {
     },
   ]
   for (const [index, item] of prepared.entries()) {
+    const marker =
+      index === 0
+        ? " (HOOK — use only this slide for hook virality)"
+        : index === prepared.length - 1
+          ? " (FINAL slide — judge the close/CTA here for conversation potential)"
+          : ""
     content.push({
       type: "text",
-      text: `Slide ${index + 1}${index === 0 ? " (HOOK — use only this slide for hook virality)" : ""}${item.slide.text ? `\nStored text: ${item.slide.text}` : ""}`,
+      text: `Slide ${index + 1}${marker}${item.slide.text ? `\nStored text: ${item.slide.text}` : ""}`,
     })
     content.push({ type: "image_url", image_url: { url: item.dataUrl } })
   }
@@ -291,8 +445,7 @@ export async function scoreSlideshowBenchmark(input: ScoreInput) {
     messages: [
       {
         role: "system",
-        content:
-          "You are a strict short-form slideshow creative benchmarker. Grade four independent dimensions from 0 to 10 using integers. Hook virality must use ONLY slide 1. Picture/text fit, usefulness to ICP, and conversation potential must use ALL slides. Judge the rendered pixels, including actual text placement, legibility, image relevance, specificity, narrative progression, and whether the content invites comments or sharing. A 5 is average; 8+ requires unusually strong evidence. Do not reward production polish that does not improve the metric.",
+        content: benchmarkGraderSystemPrompt,
       },
       { role: "user", content },
     ],
@@ -300,23 +453,29 @@ export async function scoreSlideshowBenchmark(input: ScoreInput) {
   })
   if (!response.ok) {
     throw new Error(
-      response.payload.error?.message || `Benchmark model failed (${response.status})`
+      response.payload.error?.message ||
+        `Benchmark model failed (${response.status})`
     )
   }
   const rawContent = response.payload.choices?.[0]?.message?.content
   const parsed =
-    typeof rawContent === "string" ? (JSON.parse(rawContent) as RawGrade) : rawContent
+    typeof rawContent === "string"
+      ? (JSON.parse(rawContent) as RawGrade)
+      : rawContent
   return normalizeGrade(parsed)
 }
 
-export async function renderSlidesForBenchmark(slides: SlideshowSlide[]) {
+export async function renderSlidesForBenchmark(
+  slides: SlideshowSlide[],
+  opts?: { aspectRatio?: string; font?: string }
+) {
   return Promise.all(
     slides.map(async (slide) => {
       const source = await imageDataUrl(slide.image_url)
       const overlay = slide.overlayImage?.image_url
         ? await imageDataUrl(slide.overlayImage.image_url)
         : undefined
-      const svg = renderedSlideSvg(slide, source, overlay)
+      const svg = renderedSlideSvg(slide, source, overlay, opts)
       return sharp(Buffer.from(svg)).png().toBuffer()
     })
   )
@@ -392,7 +551,10 @@ function normalizeGrade(value: unknown): {
       ...normalizedScores,
       overall:
         Math.round(
-          (Object.values(normalizedScores).reduce((sum, score) => sum + score, 0) /
+          (Object.values(normalizedScores).reduce(
+            (sum, score) => sum + score,
+            0
+          ) /
             4) *
             10
         ) / 10,
@@ -417,15 +579,23 @@ async function benchmarkImageBytes(imageUrl: string) {
       .map(decodeURIComponent)
     return readAssetBytes(path.join(process.cwd(), "data", ...relative))
   }
-  const response = await fetch(imageUrl, { signal: AbortSignal.timeout(30_000) })
-  if (!response.ok) throw new Error(`Could not load benchmark image (${response.status})`)
+  const response = await fetch(imageUrl, {
+    signal: AbortSignal.timeout(30_000),
+  })
+  if (!response.ok)
+    throw new Error(`Could not load benchmark image (${response.status})`)
   return Buffer.from(await response.arrayBuffer())
 }
 
 async function compactBenchmarkImage(bytes: Buffer) {
   const output = await sharp(bytes)
     .rotate()
-    .resize({ width: 640, height: 960, fit: "inside", withoutEnlargement: true })
+    .resize({
+      width: 640,
+      height: 960,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
     .jpeg({ quality: 68, mozjpeg: true })
     .toBuffer()
   return `data:image/jpeg;base64,${output.toString("base64")}`
@@ -448,13 +618,14 @@ function dataUrlBytes(value: string) {
 }
 
 function normalizeCorpusRecord(record: BenchmarkCorpusRecord) {
-  return record?.id && record?.slides?.length && record?.scores
-    ? record
-    : null
+  return record?.id && record?.slides?.length && record?.scores ? record : null
 }
 
 function normalizeGeneratedBenchmark(record: GeneratedSlideshowBenchmark) {
-  return record?.id && record?.slideshowId && record?.slides?.length && record?.scores
+  return record?.id &&
+    record?.slideshowId &&
+    record?.slides?.length &&
+    record?.scores
     ? record
     : null
 }

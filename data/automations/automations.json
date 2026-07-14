@@ -30,8 +30,6 @@
             "single_image": null
           },
           "all_slides": "collection-pinterest-nature-texture-2026-07-03t00-00-21-000z",
-          "aspect_ratio": "9:16",
-          "is_bg_overlay_on": true,
           "cta_slide": {
             "check": true,
             "cta_collection_check": true,
@@ -39,15 +37,12 @@
             "image_id": null,
             "cta_location": "last_slide"
           },
-          "keepOriginalAspectRatio": true,
-          "is_bg_overlay_on_hook_image": true,
           "textOnFirstSlideOnly": false,
           "noTextOnSlides": false,
           "autoPullImagesNotCollections": false,
           "autoImagesNoTextOnImages": false,
           "disableAutoImageForFirstSlide": false,
-          "video_demo_asset_id": "",
-          "language": "English"
+          "video_demo_asset_id": ""
         },
         "formatting": [
           {
@@ -145,7 +140,7 @@
                 "textAnchor": "padded"
               }
             ],
-            "aspect_ratio": "fit",
+            "aspect_ratio": "4:5",
             "imageGrid": "none",
             "slideCount": 0,
             "noText": false,
@@ -265,12 +260,14 @@
               ]
             }
           ]
-        }
+        },
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
       "id": "automation-curtains-renter-glowup",
-      "name": "Curtains — Renter Window Glow-Up",
+      "name": "Interior Design — Customer Content Engine",
       "status": "live",
       "account": "No social account",
       "handle": "Click to add account",
@@ -279,43 +276,38 @@
       ],
       "favorite": false,
       "theme": "ugc",
-      "updatedAt": "2026-07-08T11:43:02Z",
+      "updatedAt": "2026-07-14T14:30:00+08:00",
       "schema": {
         "created_at": "2026-07-08T11:43:02.000Z",
-        "title": "Curtains — Renter Window Glow-Up",
+        "title": "Interior Design — Customer Content Engine",
         "status": "live",
         "social_integrations": [],
         "automationKind": "slideshow",
         "prompt_formatting": {
-          "style": "First slide is one strong scroll-stopping hook. Body slides each deliver ONE concrete, renter-safe curtain fix as an instant room transformation. Keep text short, confident, and native to TikTok slideshow memes — before/after energy, no jargon.",
-          "narrative": "stop drilling holes just to hang curtains\nrenters: this window upgrade leaves zero wall damage\nyour [[room]] looks unfinished because of one window mistake\nthis is how designers make cheap curtains look custom\nplain [[room]], one curtain swap, a completely different room\nmost people hang curtains too low and too narrow — here's the fix\ncustom-looking curtains without the custom price",
+          "style": "Create a six-slide, lowercase TikTok interior-design slideshow using the selected repeatable format. The hook must name one room and one concrete decision. Write four concise points that directly answer the hook, then a format-specific soft CTA over a final relevant room image. Treat the routed image captions as the visual evidence: every body claim must describe a color, material, fixture, furniture choice, lighting choice, layout, or atmosphere that could genuinely appear in that room collection. Use one sharp contrast and one causal chain. Never use generic filler such as elevate, transform, unlock, game-changer, intentional, cohesive, timeless, or expensive-looking. Never invent dimensions, prices, products, building rules, or before-and-after claims. Use plain language, one idea per slide, and no jargon.",
+          "narrative": "4 warm living room palettes worth copying\n4 bedroom palettes that feel restful\n4 kitchen finishes that won't date quickly\n4 bathroom finishes that feel calm\n4 dining room styles for a warmer home\n4 living room lighting ideas that add depth\n4 small apartment ideas that save space\navoid these 4 living room layout mistakes\n3 bedroom choices making the room feel smaller\n4 dining room mistakes that ruin the flow\nhow i'd style a narrow living room\nthe bathroom details i'd choose first",
           "num_of_slides": 6
         },
         "image_collection_ids": {
           "first_slide": {
-            "collection": "collection-pinterest-curtains-2026-07-09t06-20-03-126z",
+            "collection": "collection-interior-design-editorial-rooms-2026-07-14t05-30-00-000z",
             "mode": "collection",
             "single_image": null
           },
-          "all_slides": "collection-pinterest-curtains-2026-07-09t06-20-03-126z",
-          "aspect_ratio": "9:16",
-          "is_bg_overlay_on": true,
+          "all_slides": "collection-interior-design-editorial-rooms-2026-07-14t05-30-00-000z",
           "cta_slide": {
             "check": true,
             "cta_collection_check": true,
-            "cta_collection_id": "",
+            "cta_collection_id": "collection-interior-design-editorial-rooms-2026-07-14t05-30-00-000z",
             "image_id": null,
             "cta_location": "last_slide"
           },
-          "keepOriginalAspectRatio": true,
-          "is_bg_overlay_on_hook_image": true,
           "textOnFirstSlideOnly": false,
           "noTextOnSlides": false,
           "autoPullImagesNotCollections": false,
           "autoImagesNoTextOnImages": false,
           "disableAutoImageForFirstSlide": false,
-          "video_demo_asset_id": "",
-          "language": "English"
+          "video_demo_asset_id": ""
         },
         "formatting": [
           {
@@ -325,27 +317,28 @@
               {
                 "id": "text-o4ppg6my",
                 "text": "",
-                "fontSize": "10px",
-                "textStyle": "whiteText",
+                "fontSize": "18px",
+                "textStyle": "black50Background",
                 "font": "TikTok Display Medium",
                 "textPosition": "center",
-                "textItemWidth": "60%",
+                "textItemWidth": "82%",
                 "wordLengthMin": 5,
-                "wordLengthMax": 10,
-                "contentDirection": "stop drilling holes just to hang curtains\nrenters: this window upgrade leaves zero wall damage\nyour [[room]] looks unfinished because of one window mistake\nthis is how designers make cheap curtains look custom\nplain [[room]], one curtain swap, a completely different room\nmost people hang curtains too low and too narrow — here's the fix\ncustom-looking curtains without the custom price",
+                "wordLengthMax": 9,
+                "contentDirection": "Use the selected hook exactly in lowercase. Keep the room, number, and concrete design decision. Maximum 9 words.",
                 "textMode": "prompt",
                 "staticText": "",
-                "textAlign": "left",
-                "textAnchor": "flush"
+                "textAlign": "center",
+                "textAnchor": "padded"
               }
             ],
-            "aspect_ratio": "4:5",
+            "aspect_ratio": "9:16",
             "imageGrid": "none",
             "slideCount": 1,
             "noText": false,
             "overlay": true,
             "slideOverrides": [],
-            "imageOverrides": []
+            "imageOverrides": [],
+            "aiImageSelection": true
           },
           {
             "id": "body",
@@ -354,27 +347,28 @@
               {
                 "id": "text-0jmkltys",
                 "text": "",
-                "fontSize": "8px",
-                "textStyle": "whiteText",
+                "fontSize": "16px",
+                "textStyle": "black50Background",
                 "font": "TikTok Display Medium",
                 "textPosition": "center",
                 "textItemWidth": "80%",
-                "wordLengthMin": 5,
-                "wordLengthMax": 10,
-                "contentDirection": "Each body slide gives one concrete curtain upgrade a renter can do with no tools: hang the rod high and wide, pick the right opacity, use no-drill tension/adhesive hardware, layer sheer + blackout, correct harsh noon glare. Frame every tip as an instant, damage-free room glow-up.",
+                "wordLengthMin": 3,
+                "wordLengthMax": 8,
+                "contentDirection": "Write one numbered lowercase visual verdict that directly answers the hook. Maximum 8 words. Name a visible color, material, furniture, fixture, lighting, layout, or atmosphere choice supported by the routed room collection. Use four distinct answers. Never write generic advice that could sit over any room.",
                 "textMode": "prompt",
                 "staticText": "",
-                "textAlign": "left",
-                "textAnchor": "flush"
+                "textAlign": "center",
+                "textAnchor": "padded"
               }
             ],
-            "aspect_ratio": "4:5",
+            "aspect_ratio": "9:16",
             "imageGrid": "none",
             "slideCount": 4,
             "noText": false,
             "overlay": true,
             "slideOverrides": [],
-            "imageOverrides": []
+            "imageOverrides": [],
+            "aiImageSelection": true
           },
           {
             "id": "cta",
@@ -383,33 +377,34 @@
               {
                 "id": "text-xojfy3qf",
                 "text": "",
-                "fontSize": "12px",
-                "textStyle": "yellowText",
+                "fontSize": "16px",
+                "textStyle": "black50Background",
                 "font": "TikTok Display Medium",
                 "textPosition": "center",
                 "textItemWidth": "70%",
-                "wordLengthMin": 5,
-                "wordLengthMax": 10,
-                "contentDirection": "comment RENT and i'll send the no-drill curtain list — save this before you buy curtains",
+                "wordLengthMin": 4,
+                "wordLengthMax": 9,
+                "contentDirection": "Write one lowercase soft CTA that follows the selected strategy: ask which option they would choose, ask them to save the exact room decision, or ask which room they need help with. Maximum 9 words. Never say download, buy now, link in bio, or DM me.",
                 "textMode": "prompt",
                 "staticText": "",
                 "textAlign": "center",
                 "textAnchor": "padded"
               }
             ],
-            "aspect_ratio": "fit",
+            "aspect_ratio": "9:16",
             "imageGrid": "none",
-            "slideCount": 0,
+            "slideCount": 1,
             "noText": false,
-            "overlay": false,
+            "overlay": true,
             "slideOverrides": [],
             "imageOverrides": [],
             "ctaLocation": "last",
-            "imageMode": "collection"
+            "imageMode": "collection",
+            "aiImageSelection": true
           },
           {
             "id": "_tone",
-            "value": "Practical & Aspirational",
+            "value": "Authoritative & Reassuring",
             "preset": "custom"
           }
         ],
@@ -417,12 +412,12 @@
           "caption": {
             "mode": "prompt",
             "static_text": "",
-            "prompt_text": "this should be in \"lowercase,\" same exact text as the first text item."
+            "prompt_text": "write one lowercase sentence that restates the exact room decision and invites a specific comment; no generic inspiration language"
           },
           "description": {
             "mode": "prompt",
             "static_text": "",
-            "prompt_text": "give me 3-5 broad hashtags related to curtains, renter decor, and home upgrades, all lowercase, nothing else other than 3-5 hashtags"
+            "prompt_text": "give 3-5 lowercase hashtags specific to the selected room and design decision, nothing else"
           },
           "visibility": "PUBLIC_TO_EVERYONE",
           "auto_music": true,
@@ -436,7 +431,7 @@
           "post_mode": "MEDIA_UPLOAD",
           "publish_type": "slideshow",
           "slideshow_transition_style": "hard",
-          "slideshow_slide_duration": 4,
+          "slideshow_slide_duration": 3,
           "slideshow_sound_id": "",
           "slideshow_sound_name": "",
           "slideshow_sound_url": ""
@@ -461,7 +456,7 @@
             "facebookContentType": "POST"
           },
           "youtube": {
-            "youtubeTitle": "give me 3-5 broad hashtags related to curtains, renter decor, and home upgrades, all lowercase, nothing else other than 3-5 hashtags",
+            "youtubeTitle": "give me 3-5 broad hashtags related to interior design, home decor, and room styling, all lowercase, nothing else other than 3-5 hashtags",
             "youtubePrivacy": "PUBLIC",
             "youtubeIsShort": true,
             "youtubeMadeForKids": false,
@@ -517,9 +512,142 @@
           ],
           "paused": false
         },
-        "hook_slots": {
-          "room": "room"
-        }
+        "hook_slots": {},
+        "content_strategy": {
+          "routes": [
+            {
+              "id": "living-visual-decisions",
+              "format": "visual_decision",
+              "hook_patterns": [
+                "living room (palettes|lighting)"
+              ],
+              "collection_ids": [
+                "collection-interior-design-living-rooms-2026-07-14t14-30-00-000z"
+              ],
+              "cta_strategy": "comment_prompt"
+            },
+            {
+              "id": "bedroom-visual-decisions",
+              "format": "visual_decision",
+              "hook_patterns": [
+                "bedroom palettes"
+              ],
+              "collection_ids": [
+                "collection-interior-design-bedrooms-2026-07-14t14-30-00-000z"
+              ],
+              "cta_strategy": "comment_prompt"
+            },
+            {
+              "id": "kitchen-visual-decisions",
+              "format": "visual_decision",
+              "hook_patterns": [
+                "kitchen finishes"
+              ],
+              "collection_ids": [
+                "collection-interior-design-kitchens-2026-07-14t14-30-00-000z"
+              ],
+              "cta_strategy": "comment_prompt"
+            },
+            {
+              "id": "bathroom-visual-decisions",
+              "format": "visual_decision",
+              "hook_patterns": [
+                "bathroom finishes"
+              ],
+              "collection_ids": [
+                "collection-interior-design-bathrooms-2026-07-14t14-30-00-000z"
+              ],
+              "cta_strategy": "comment_prompt"
+            },
+            {
+              "id": "dining-visual-decisions",
+              "format": "visual_decision",
+              "hook_patterns": [
+                "dining room styles"
+              ],
+              "collection_ids": [
+                "collection-interior-design-dining-apartments-2026-07-14t14-30-00-000z"
+              ],
+              "cta_strategy": "comment_prompt"
+            },
+            {
+              "id": "apartment-visual-decisions",
+              "format": "visual_decision",
+              "hook_patterns": [
+                "small apartment"
+              ],
+              "collection_ids": [
+                "collection-interior-design-dining-apartments-2026-07-14t14-30-00-000z",
+                "collection-interior-design-living-rooms-2026-07-14t14-30-00-000z",
+                "collection-interior-design-kitchens-2026-07-14t14-30-00-000z"
+              ],
+              "cta_strategy": "comment_prompt"
+            },
+            {
+              "id": "living-mistakes",
+              "format": "mistake_replacement",
+              "hook_patterns": [
+                "living room layout mistakes"
+              ],
+              "collection_ids": [
+                "collection-interior-design-living-rooms-2026-07-14t14-30-00-000z"
+              ],
+              "cta_strategy": "save_prompt"
+            },
+            {
+              "id": "bedroom-mistakes",
+              "format": "mistake_replacement",
+              "hook_patterns": [
+                "bedroom choices"
+              ],
+              "collection_ids": [
+                "collection-interior-design-bedrooms-2026-07-14t14-30-00-000z"
+              ],
+              "cta_strategy": "save_prompt"
+            },
+            {
+              "id": "dining-mistakes",
+              "format": "mistake_replacement",
+              "hook_patterns": [
+                "dining room mistakes"
+              ],
+              "collection_ids": [
+                "collection-interior-design-dining-apartments-2026-07-14t14-30-00-000z"
+              ],
+              "cta_strategy": "save_prompt"
+            },
+            {
+              "id": "living-designer-help",
+              "format": "designer_recommendation",
+              "hook_patterns": [
+                "how i'd style"
+              ],
+              "collection_ids": [
+                "collection-interior-design-living-rooms-2026-07-14t14-30-00-000z"
+              ],
+              "cta_strategy": "customer_prompt"
+            },
+            {
+              "id": "bathroom-designer-help",
+              "format": "designer_recommendation",
+              "hook_patterns": [
+                "bathroom details"
+              ],
+              "collection_ids": [
+                "collection-interior-design-bathrooms-2026-07-14t14-30-00-000z"
+              ],
+              "cta_strategy": "customer_prompt"
+            }
+          ]
+        },
+        "reuse_policy": {
+          "image_exclusion_days": 14,
+          "image_exclusion_limit": 60,
+          "text_exclusion_days": 45,
+          "text_exclusion_limit": 30
+        },
+        "image_fit": "cover",
+        "language": "English"
       }
     },
     {
@@ -552,8 +680,6 @@
             "single_image": null
           },
           "all_slides": "Astrology — Celestial vs Office (add your collection)",
-          "aspect_ratio": "9:16",
-          "is_bg_overlay_on": true,
           "cta_slide": {
             "check": true,
             "cta_collection_check": true,
@@ -561,15 +687,12 @@
             "image_id": null,
             "cta_location": "last_slide"
           },
-          "keepOriginalAspectRatio": true,
-          "is_bg_overlay_on_hook_image": true,
           "textOnFirstSlideOnly": false,
           "noTextOnSlides": false,
           "autoPullImagesNotCollections": false,
           "autoImagesNoTextOnImages": false,
           "disableAutoImageForFirstSlide": false,
-          "video_demo_asset_id": "",
-          "language": "English"
+          "video_demo_asset_id": ""
         },
         "formatting": [
           {
@@ -651,7 +774,7 @@
                 "textAnchor": "padded"
               }
             ],
-            "aspect_ratio": "fit",
+            "aspect_ratio": "4:5",
             "imageGrid": "none",
             "slideCount": 0,
             "noText": false,
@@ -774,7 +897,9 @@
         "hook_slots": {
           "zodiac": "zodiac",
           "Year": "year"
-        }
+        },
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -807,8 +932,6 @@
             "single_image": null
           },
           "all_slides": "Real Estate — Buyer Reality Check (add your collection)",
-          "aspect_ratio": "9:16",
-          "is_bg_overlay_on": true,
           "cta_slide": {
             "check": true,
             "cta_collection_check": true,
@@ -816,15 +939,12 @@
             "image_id": null,
             "cta_location": "last_slide"
           },
-          "keepOriginalAspectRatio": true,
-          "is_bg_overlay_on_hook_image": true,
           "textOnFirstSlideOnly": false,
           "noTextOnSlides": false,
           "autoPullImagesNotCollections": false,
           "autoImagesNoTextOnImages": false,
           "disableAutoImageForFirstSlide": false,
-          "video_demo_asset_id": "",
-          "language": "English"
+          "video_demo_asset_id": ""
         },
         "formatting": [
           {
@@ -906,7 +1026,7 @@
                 "textAnchor": "padded"
               }
             ],
-            "aspect_ratio": "fit",
+            "aspect_ratio": "4:5",
             "imageGrid": "none",
             "slideCount": 0,
             "noText": false,
@@ -1028,7 +1148,9 @@
         },
         "hook_slots": {
           "stage": "home-buying stage"
-        }
+        },
+        "image_fit": "contain",
+        "language": "English"
       }
     }
   ]

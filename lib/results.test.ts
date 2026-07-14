@@ -50,10 +50,10 @@ describe("result persistence", () => {
         slideshowType: "automation",
         settings: {
           duration: 4,
+          aspect_ratio: "9:16",
+          font: "TikTok Display Medium",
           background_color: "#000000",
-          is_bg_overlay_on: false,
           transition_style: "fade",
-          is_bg_overlay_on_hook_image: false,
           export_as_video: false,
           sound_id: "",
           sound_name: "",
@@ -66,8 +66,6 @@ describe("result persistence", () => {
               "/api/local-assets/slideshows/outputs/slideshow-1/slide-001.png",
             source_image_url:
               "/api/local-assets/slideshows/outputs/slideshow-1/source-001.jpg",
-            aspect_ratio: "9:16",
-            time_length_ms: 4000,
             textItems: [],
           },
         ],

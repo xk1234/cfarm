@@ -14,6 +14,7 @@ export type StoredImageCollection = {
   name: string
   created_at: string
   pinned?: boolean
+  mediaType?: "image" | "video"
   images: {
     image_link: string
     caption: string
@@ -113,9 +114,11 @@ export async function deleteImageCollections(
 export async function importRemoteImagesToCollection(input: {
   collectionName?: string
   collectionCreatedAt?: string
+  mediaType?: "image" | "video"
   images?: { url?: string; caption?: string; sourceUrl?: string }[]
   fetchImpl?: typeof fetch
 }) {
+  const mediaType = input.mediaType === "video" ? "video" : "image"
   const imageInputs = Array.isArray(input.images) ? input.images : []
   const uniqueImages = dedupeImportImages(imageInputs).slice(
     0,
@@ -137,6 +140,7 @@ export async function importRemoteImagesToCollection(input: {
   const baseCollection: StoredImageCollection = existing ?? {
     name: requestedName,
     created_at: requestedCreatedAt || new Date().toISOString(),
+    ...(mediaType === "video" ? { mediaType: "video" as const } : {}),
     images: [],
   }
 
@@ -146,6 +150,7 @@ export async function importRemoteImagesToCollection(input: {
       url: image.url,
       sourceUrl: image.sourceUrl,
       index,
+      mediaType,
       fetchImpl: input.fetchImpl,
     })
     importedImages.push({
@@ -202,6 +207,9 @@ function normalizeCollection(
     name: clean(collection.name) || "Untitled collection",
     created_at: clean(collection.created_at) || new Date().toISOString(),
     pinned: collection.pinned === true,
+    ...(collection.mediaType === "video"
+      ? { mediaType: "video" as const }
+      : {}),
     images: Array.isArray(collection.images)
       ? collection.images.flatMap((image) => {
           const imageLink = clean(image.image_link)
@@ -400,13 +408,15 @@ async function downloadImageToCollectionFile(input: {
   url: string
   sourceUrl?: string
   index: number
+  mediaType?: "image" | "video"
   fetchImpl?: typeof fetch
 }) {
   const response = await (input.fetchImpl ?? fetch)(input.url, {
     headers: {
       Accept:
         "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-      Referer: safeHttpUrl(input.sourceUrl || "") || "https://www.tumblr.com/",
+      Referer:
+        safeHttpUrl(input.sourceUrl || "") || "https://www.pinterest.com/",
       "User-Agent":
         "Mozilla/5.0 (compatible; cfarm-image-collection-import/1.0)",
     },
@@ -418,8 +428,11 @@ async function downloadImageToCollectionFile(input: {
   const contentType =
     response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() ||
     ""
-  if (!contentType.startsWith("image/")) {
-    throw new Error(`Imported URL ${input.index + 1} was not an image`)
+  const expectedPrefix = input.mediaType === "video" ? "video/" : "image/"
+  if (!contentType.startsWith(expectedPrefix)) {
+    throw new Error(
+      `Imported URL ${input.index + 1} was not ${input.mediaType === "video" ? "a video" : "an image"}`
+    )
   }
 
   const bytes = Buffer.from(await response.arrayBuffer())
@@ -428,7 +441,10 @@ async function downloadImageToCollectionFile(input: {
   }
   const hash = createHash("sha256").update(bytes).digest("hex")
 
-  const extension = extensionForImage(input.url, contentType)
+  const extension =
+    input.mediaType === "video"
+      ? extensionForVideo(input.url, contentType)
+      : extensionForImage(input.url, contentType)
   const fileName = `${Date.now()}-${randomUUID()}${extension}`
   await persistAsset(path.join(IMAGE_COLLECTION_FILES_DIR, fileName), bytes)
 
@@ -436,6 +452,23 @@ async function downloadImageToCollectionFile(input: {
     fileName,
     hash,
     publicUrl: `${IMAGE_COLLECTION_PUBLIC_PREFIX}/${encodeURIComponent(fileName)}`,
+  }
+}
+
+function extensionForVideo(url: string, contentType: string) {
+  const byType: Record<string, string> = {
+    "video/mp4": ".mp4",
+    "video/quicktime": ".mov",
+    "video/webm": ".webm",
+  }
+  if (byType[contentType]) {
+    return byType[contentType]
+  }
+  try {
+    const extension = path.extname(new URL(url).pathname).toLowerCase()
+    return [".mp4", ".mov", ".webm"].includes(extension) ? extension : ".mp4"
+  } catch {
+    return ".mp4"
   }
 }
 

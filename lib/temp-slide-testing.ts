@@ -18,6 +18,11 @@ import {
   type AutomationSchema,
   type AutomationTextItem,
 } from "@/lib/realfarm-automation"
+import {
+  normalizeSocialPostMetadata,
+  socialPostMetadataPromptLines,
+  socialPostMetadataSchemaProperties,
+} from "@/lib/social-post-metadata"
 
 export type TempSlideSectionId = "hook" | "content" | "cta"
 
@@ -110,6 +115,10 @@ export type TempSlidePromptInput = {
   promptInstructions: string
   placeholders: TempSlideTextPlaceholder[]
   avoidSimilarOutputs?: string[]
+  performanceMemory?: {
+    provenPatterns: string[]
+    avoidPatterns: string[]
+  }
 }
 
 export function buildTempSlideUserPrompt(input: TempSlidePromptInput) {
@@ -123,11 +132,10 @@ export function buildTempSlideUserPrompt(input: TempSlidePromptInput) {
     `Tone: ${input.tone}`,
     `Style: ${input.style}`,
     "Metadata requirements:",
-    "- title: write an AI-generated title for the slideshow, 3-8 words, specific to the hook/topic.",
-    "- caption: write a short TikTok/Instagram-style post caption for the slideshow, one sentence, specific to the hook/topic, no hashtags.",
-    "- hashtags: give me 3-5 broad hashtags related to the topic/niche of the content, all lowercase, nothing else other than 3-5 hashtags.",
+    ...socialPostMetadataPromptLines("slideshow"),
     "Prompt instructions:",
     input.promptInstructions,
+    ...performanceMemoryLines(input.performanceMemory),
     "Hook-to-content coherence rules:",
     "- The selected Hook above is the source of truth for this one slideshow. First identify its exact subject, people/sign/product, and claim or question.",
     "- Every body slide must directly answer, explain, support, exemplify, or continue that exact hook. Reuse the hook's specific subject where needed so the connection is unmistakable.",
@@ -142,6 +150,20 @@ export function buildTempSlideUserPrompt(input: TempSlidePromptInput) {
   ].join("\n")
 }
 
+function performanceMemoryLines(
+  memory: TempSlidePromptInput["performanceMemory"]
+) {
+  const proven = (memory?.provenPatterns ?? []).map(clean).filter(Boolean)
+  const avoid = (memory?.avoidPatterns ?? []).map(clean).filter(Boolean)
+  if (proven.length === 0 && avoid.length === 0) return []
+  return [
+    "Performance memory from prior scored posts:",
+    ...proven.map((value) => `- Proven: ${value}`),
+    ...avoid.map((value) => `- Avoid: ${value}`),
+    "Use this only as strategic guidance; the selected hook and field directions still control the topic.",
+  ]
+}
+
 export function styleRequestsLowercase(style: string | undefined) {
   return /lower\s*case|all\s*lowercase/i.test(style ?? "")
 }
@@ -151,7 +173,7 @@ function strictOutputRuleLines(style: string | undefined) {
     "Strict output rules:",
     "- Fill EVERY field. Never return an empty string for title, caption, hashtags, or any placeholder.",
     "- Keep each placeholder within the exact word range stated for it; count words before answering.",
-    "- hashtags must be 3-5 tags, each starting with '#', separated by single spaces (e.g. '#focus #wellness #mindset').",
+    "- hashtags must be a JSON array of 3-5 tags, each starting with '#' (e.g. ['#focus', '#wellness', '#mindset']).",
   ]
   if (styleRequestsLowercase(style)) {
     lines.push(
@@ -177,6 +199,22 @@ export function promptPreviewHook(automation: TempSlideTestingAutomation) {
     automation.hooks.map(clean).find(Boolean) ??
     "Create a high-performing TikTok slideshow."
   )
+}
+
+/**
+ * A hook like "3 things a Gemini will never tell you" promises exactly N body
+ * slides. Returns that leading count (1-10) so the plan can size content
+ * slides to match, or null when the hook makes no numeric promise. Numbers
+ * that are not at the start (e.g. "Demon each zodiac sign part 3") are
+ * labels, not counts, and are ignored.
+ */
+export function hookImpliedSlideCount(hook: string): number | null {
+  const match = clean(hook).match(/^(\d{1,2})\s+[a-zA-Z]/)
+  if (!match) {
+    return null
+  }
+  const count = Number(match[1])
+  return count >= 1 && count <= 10 ? count : null
 }
 
 type RawImageCollectionIds = {
@@ -249,7 +287,8 @@ export function automationSchemaToTempSlideTestingAutomation(
   const hook = automationFormatSection(schema, "hook")
   const content = automationFormatSection(schema, "content")
   const cta = automationFormatSection(schema, "cta")
-  const ctaEnabled = cta.slideCount > 0
+  const ctaEnabled =
+    cta.slideCount > 0 || schema.image_collection_ids.cta_slide.check
 
   return {
     id,
@@ -347,6 +386,7 @@ export function buildTempSlideStructuredOutputSchema(
       placeholder.id,
       {
         type: "string",
+        minLength: 1,
         description: placeholderDescription(placeholder),
       },
     ])
@@ -356,21 +396,7 @@ export function buildTempSlideStructuredOutputSchema(
     type: "object",
     additionalProperties: false,
     properties: {
-      title: {
-        type: "string",
-        description:
-          "AI-generated slideshow title, 3-8 words, specific to the hook/topic.",
-      },
-      caption: {
-        type: "string",
-        description:
-          "Short TikTok/Instagram-style post caption for the slideshow, one sentence, specific to the hook/topic, no hashtags.",
-      },
-      hashtags: {
-        type: "string",
-        description:
-          "Give me 3-5 broad hashtags related to the topic/niche of the content, all lowercase, nothing else other than 3-5 hashtags.",
-      },
+      ...socialPostMetadataSchemaProperties("slideshow"),
       text: {
         type: "object",
         additionalProperties: false,
@@ -404,10 +430,11 @@ export function normalizeTempSlideStructuredOutput(
     isRecord(output) && isRecord(output.text) ? output.text : {}
   const maybeLower = (value: string) =>
     options.lowercase ? value.toLowerCase() : value
+  const metadata = normalizeSocialPostMetadata(output, options)
   return {
-    title: maybeLower(clean(isRecord(output) ? output.title : "")),
-    caption: maybeLower(clean(isRecord(output) ? output.caption : "")),
-    hashtags: normalizeHashtags(clean(isRecord(output) ? output.hashtags : "")),
+    title: metadata.title,
+    caption: metadata.caption,
+    hashtags: metadata.hashtags.join(" "),
     text: Object.fromEntries(
       placeholders.map((placeholder) => [
         placeholder.id,
@@ -421,16 +448,6 @@ export function normalizeTempSlideStructuredOutput(
       ])
     ),
   }
-}
-
-function normalizeHashtags(value: string) {
-  return value
-    .split(/[\s,]+/)
-    .map((tag) => tag.trim().toLowerCase().replace(/^#+/, ""))
-    .filter((tag) => tag.length > 0)
-    .map((tag) => `#${tag}`)
-    .slice(0, 5)
-    .join(" ")
 }
 
 function buildAutomationSlideSpec(input: {

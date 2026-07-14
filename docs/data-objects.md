@@ -24,18 +24,18 @@ export type RealFarmData = typeof realfarmData & {
 
 Top-level keys currently used:
 
-| Key | Purpose | Notes |
-| --- | --- | --- |
-| `brand` | Sidebar and account summary copy. | Includes `name`, owner/contact, quota-like numbers. |
-| `ugcAds` | Legacy seed hooks/avatar ordering used by migrated UGC video automation assets. | Standalone AI UGC Ads editor was removed; generated UGC ads now live in video automations. |
-| `generatedAssets` | Generated media references. | Currently used for the Higgsfield character image URL. |
-| `defaultCollections` | Real image lists bundled with the app. | `backgrounds.images` is the primary default image pool. |
-| `projects` | Home draft cards. | Demo project metadata only. |
-| `videos` | Demo video cards. | Used by creator-like pages and greenscreen page. |
-| `imageCollections` | Collection summary metadata. | Counts/themes only, not full images. |
-| `automations` | Built-in automation templates/cards. | Used by Home, Automations, Editor format picker, and template modal. |
-| `editor` | Slideshow editor defaults. | Includes seed slides and caption range labels. |
-| `assets` | Runtime local assets. | Added by `loadRealFarmData()`, not present in JSON. |
+| Key                  | Purpose                                                                         | Notes                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `brand`              | Sidebar and account summary copy.                                               | Includes `name`, owner/contact, quota-like numbers.                                        |
+| `ugcAds`             | Legacy seed hooks/avatar ordering used by migrated UGC video automation assets. | Standalone AI UGC Ads editor was removed; generated UGC ads now live in video automations. |
+| `generatedAssets`    | Generated media references.                                                     | Currently used for the Higgsfield character image URL.                                     |
+| `defaultCollections` | Real image lists bundled with the app.                                          | `backgrounds.images` is the primary default image pool.                                    |
+| `projects`           | Home draft cards.                                                               | Demo project metadata only.                                                                |
+| `videos`             | Demo video cards.                                                               | Used by creator-like pages and greenscreen page.                                           |
+| `imageCollections`   | Collection summary metadata.                                                    | Counts/themes only, not full images.                                                       |
+| `automations`        | Built-in automation templates/cards.                                            | Used by Home, Automations, Editor format picker, and template modal.                       |
+| `editor`             | Slideshow editor defaults.                                                      | Includes seed slides and caption range labels.                                             |
+| `assets`             | Runtime local assets.                                                           | Added by `loadRealFarmData()`, not present in JSON.                                        |
 
 ## LocalAsset
 
@@ -81,7 +81,14 @@ type AssetRecord = {
   source: "upload" | "ai_generated"
   status: "processing" | "ready" | "failed"
   scope: "ugc_avatar" | "ugc_ad" | "ugc_demo" | "greenscreen" | "global"
-  category?: "outfit" | "accessory" | "background" | "product" | "reference" | "sound" | "other"
+  category?:
+    | "outfit"
+    | "accessory"
+    | "background"
+    | "product"
+    | "reference"
+    | "sound"
+    | "other"
   name: string
   caption: string
   prompt?: string
@@ -342,16 +349,17 @@ Major sections:
 
 ```ts
 export type AutomationSchema = {
+  automationKind: "slideshow" | "video"
+  image_fit: "cover" | "contain" | "fit"
+  language: string
   title: string
   created_at: Date
   status: "paused" | "live"
   tiktok_account_id: string | null
   prompt_formatting: PromptFormatting
   image_collection_ids: ImageCollectionConfig
-  formatting: (
-    | AutomationFormatSection // id: "hook" | "body" | "cta"
-    | AutomationToneSection // id: "_tone"
-  )[]
+  tone: AutomationToneSection
+  formatting: AutomationFormatSection[] // id: "hook" | "body" | "cta"
   tiktok_post_settings: { ... }
   schedule: { ... }
 }
@@ -369,8 +377,6 @@ type ImageCollectionConfig = {
     single_image: string | null
   }
   all_slides: string
-  aspect_ratio?: string
-  is_bg_overlay_on?: boolean
   cta_slide: {
     check: boolean
     cta_collection_check: boolean
@@ -378,16 +384,12 @@ type ImageCollectionConfig = {
     image_id: string | null
     cta_location: string
   }
-  keepOriginalAspectRatio?: boolean
-  is_bg_overlay_on_hook_image?: boolean
-  textOnFirstSlideOnly?: boolean
-  noTextOnSlides?: boolean
-  autoPullImagesNotCollections?: boolean
-  autoImagesNoTextOnImages?: boolean
-  disableAutoImageForFirstSlide?: boolean
-  language?: string
+  video_demo_asset_id?: string
 }
 ```
+
+Image fitting and language are automation-level concerns. Dark background
+overlays are configured only on each canonical `formatting` section.
 
 For imported automations, `AutomationSchema` is persisted inside `AutomationRecord.schema`.
 
@@ -409,7 +411,15 @@ API routes:
 ```ts
 type PostFastPostRecord = {
   id: string
-  sourceType: "automation" | "generated_video" | "asset" | "greenscreen" | "ugc_ad" | "image" | "swipe" | "manual"
+  sourceType:
+    | "automation"
+    | "generated_video"
+    | "asset"
+    | "greenscreen"
+    | "ugc_ad"
+    | "image"
+    | "swipe"
+    | "manual"
   sourceId: string
   postfastPostId?: string
   integrationId: string
@@ -556,11 +566,12 @@ Type source: `lib/swipes.ts`
 Payload accepted by `createSwipe()`.
 
 ```ts
-export type SwipePayload =
-  Partial<Omit<SwipeRecord, "id" | "swipedAt" | "screenshotPath">> & {
-    analyticsText?: string
-    screenshotDataUrl?: string
-  }
+export type SwipePayload = Partial<
+  Omit<SwipeRecord, "id" | "swipedAt" | "screenshotPath">
+> & {
+  analyticsText?: string
+  screenshotDataUrl?: string
+}
 ```
 
 Screenshots and fetched remote media are saved under `data/swipes/assets`.

@@ -146,7 +146,7 @@ describe("slideshow format preview controls", () => {
       fontSize: "22px",
     })
     const section = updated.formatting.find((entry) => entry.id === "body")
-    if (!section || section.id === "_tone") throw new Error("Missing body")
+    if (!section) throw new Error("Missing body")
 
     expect(section.textItems[0]).toEqual(item.textItems[0])
     expect(section.textItems[1]).toMatchObject({

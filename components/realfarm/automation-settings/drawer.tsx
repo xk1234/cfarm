@@ -2,21 +2,22 @@
 
 import { useEffect, useState } from "react"
 import { flushSync } from "react-dom"
+import { toast } from "sonner"
 import {
   IconBrandTiktok,
   IconCalendar,
   IconChevronLeft,
-  IconChevronRight,
   IconHome,
-  IconLayoutDashboard,
   IconMessage,
   IconPlus,
+  IconSettings,
   IconTrash,
   IconWand,
 } from "@tabler/icons-react"
 import { Copy } from "lucide-react"
 
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
+import { useAutomationGeneratedVideoExports } from "@/components/realfarm/generated-video-workflow"
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
 import { automationHooks } from "@/lib/realfarm-automation"
@@ -40,6 +41,11 @@ import { PromptConfigPanel } from "./prompt-settings"
 import { SchedulePanel } from "./schedule-settings"
 import { AutomationFormatPanel } from "./slideshow-format-panel"
 import { SocialMediaSettingsPanel } from "./social-settings"
+import { AutomationSettingsNavButton } from "./settings-nav"
+import {
+  automationVideoGenerationIssue,
+  generateAutomationVideo,
+} from "./automation-video-generation"
 
 export function AutomationSettingsDrawer({
   automation,
@@ -82,31 +88,74 @@ export function AutomationSettingsDrawer({
   )
   const [generating, setGenerating] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
-  const [generationError, setGenerationError] = useState<string>()
   const [recentRuns, setRecentRuns] = useState<AutomationRunApiRecord[]>([])
+  const [loadedRunsAutomationId, setLoadedRunsAutomationId] = useState<
+    string | null
+  >(null)
+  const recentRunsLoading = loadedRunsAutomationId !== automation.id
   const automationKind =
     draftConfig.automationKind === "video" ? "video" : "slideshow"
   const hookCount = automationHooks(draftConfig).length
+  const [videoExports, setVideoExports, videoExportsLoading] =
+    useAutomationGeneratedVideoExports(
+      automation.id,
+      "Failed to load generated automation videos"
+    )
 
   useEffect(() => {
     let active = true
-    void fetchJsonWithTimeout<{ runs?: AutomationRunApiRecord[] }>(
-      `/api/automations/runs?automationId=${encodeURIComponent(automation.id)}&limit=100`,
-      {
-        toastOnError: false,
-      }
-    )
-      .then((payload) => {
-        if (active) {
-          setRecentRuns(payload.runs ?? [])
+    let timer: ReturnType<typeof setTimeout> | undefined
+
+    async function loadRuns() {
+      try {
+        const payload = await fetchJsonWithTimeout<{
+          runs?: AutomationRunApiRecord[]
+        }>(
+          `/api/automations/runs?automationId=${encodeURIComponent(automation.id)}&limit=100`,
+          {
+            toastOnError: false,
+          }
+        )
+        if (!active) {
+          return
         }
-      })
-      .catch(() => undefined)
+        const runs = payload.runs ?? []
+        const hasInFlight = runs.some((run) => run.status === "running")
+        setRecentRuns((current) => {
+          // Keep the instant client-side placeholder only until the runner's
+          // own "running" record lands in the store (a few seconds).
+          const placeholder = current.find(
+            (run) => run.id === `generation-placeholder-${automation.id}`
+          )
+          return placeholder && generating && !hasInFlight
+            ? [placeholder, ...runs]
+            : runs
+        })
+        setLoadedRunsAutomationId(automation.id)
+        // While anything is generating (including a run discovered after a
+        // page reload), keep polling so the live progress stage updates.
+        if (hasInFlight || generating) {
+          timer = setTimeout(loadRuns, 4000)
+        }
+      } catch {
+        if (active) {
+          setLoadedRunsAutomationId(automation.id)
+        }
+        if (active && generating) {
+          timer = setTimeout(loadRuns, 8000)
+        }
+      }
+    }
+
+    void loadRuns()
 
     return () => {
       active = false
+      if (timer) {
+        clearTimeout(timer)
+      }
     }
-  }, [automation.id])
+  }, [automation.id, generating])
 
   function saveName() {
     const nextName = draftName.trim()
@@ -124,15 +173,50 @@ export function AutomationSettingsDrawer({
       return
     }
 
-    const preflightError = automationGenerationIssue(draftConfig, collections)
+    const preflightError =
+      automationKind === "video"
+        ? automationVideoGenerationIssue(draftConfig, collections, demoVideos)
+        : automationGenerationIssue(draftConfig, collections)
     if (preflightError) {
-      setGenerationError(preflightError)
       setActiveTab("overview")
+      showGenerationError(preflightError)
+      return
+    }
+
+    if (automationKind === "video") {
+      const loadingStartedAt = Date.now()
+      setGenerating(true)
+      setActiveTab("overview")
+      try {
+        await persistDraftConfig(automation.id, draftConfig)
+        await generateAutomationVideo({
+          automation,
+          config: draftConfig,
+          collections,
+          demoVideos,
+          music,
+          selectedSound,
+          onExportUpdate: (item) =>
+            setVideoExports((current) => [
+              item,
+              ...current.filter((candidate) => candidate.id !== item.id),
+            ]),
+        })
+        toast.success("Video generated")
+      } catch (error) {
+        showGenerationError(
+          getApiErrorMessage(error, "Failed to generate video"),
+          "Video wasn’t generated"
+        )
+      } finally {
+        const remainingLoadingMs = 450 - (Date.now() - loadingStartedAt)
+        if (remainingLoadingMs > 0) await wait(remainingLoadingMs)
+        setGenerating(false)
+      }
       return
     }
 
     const loadingStartedAt = Date.now()
-    setGenerationError(undefined)
     const placeholderRun = generationPlaceholderRun({
       automation,
       config: draftConfig,
@@ -152,20 +236,13 @@ export function AutomationSettingsDrawer({
       // Persist the exact editor state first, then let the runner reload the
       // canonical Appwrite row. Passing a client-side schema override here can
       // resurrect stale prompt/style fields from a long-open drawer.
-      await fetchJsonWithTimeout("/api/automations", {
-        method: "PATCH",
-        timeoutMs: 30_000,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: automation.id,
-          schema: draftConfig,
-        }),
-      })
+      await persistDraftConfig(automation.id, draftConfig)
       const payload = await fetchJsonWithTimeout<AutomationRunApiPayload>(
         "/api/automations/run",
         {
           method: "POST",
           timeoutMs: 10 * 60_000,
+          toastOnError: false,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             automationId: automation.id,
@@ -191,7 +268,7 @@ export function AutomationSettingsDrawer({
           current.filter((item) => item.id !== placeholderRun.id)
         )
         onGenerationRunRemove(placeholderRun.id)
-        setGenerationError(message)
+        showGenerationError(message)
         return
       }
 
@@ -205,14 +282,13 @@ export function AutomationSettingsDrawer({
       )
       onGenerationRunRemove(placeholderRun.id)
       onGenerationRunUpdate(run)
-      setGenerationError(undefined)
       setActiveTab("overview")
     } catch (error) {
       setRecentRuns((current) =>
         current.filter((item) => item.id !== placeholderRun.id)
       )
       onGenerationRunRemove(placeholderRun.id)
-      setGenerationError(
+      showGenerationError(
         getApiErrorMessage(error, "Failed to generate slideshow")
       )
     } finally {
@@ -239,6 +315,23 @@ export function AutomationSettingsDrawer({
     setActiveTab("overview")
   }
 
+  async function deleteGeneratedSlideshow(run: AutomationRunApiRecord) {
+    if (!run.slideshowId) {
+      throw new Error("This slideshow does not have a persisted slideshow id.")
+    }
+    const payload = await fetchJsonWithTimeout<{ deletedRunIds?: string[] }>(
+      `/api/slideshows/${encodeURIComponent(run.slideshowId)}`,
+      {
+        method: "DELETE",
+      }
+    )
+    const deletedRunIds = new Set(payload.deletedRunIds ?? [run.id])
+    setRecentRuns((current) =>
+      current.filter((item) => !deletedRunIds.has(item.id))
+    )
+    deletedRunIds.forEach(onGenerationRunRemove)
+  }
+
   return (
     <div
       className={cn(
@@ -258,42 +351,42 @@ export function AutomationSettingsDrawer({
             {generating ? "Generating..." : "Generate"}
           </button>
           <div className="space-y-1">
-            <DrawerNavButton
+            <AutomationSettingsNavButton
               label="Overview"
               icon={IconHome}
               active={activeTab === "overview"}
               onClick={() => setActiveTab("overview")}
             />
             <div className="my-2 h-px bg-[#e1e0d8]" />
-            <DrawerNavButton
+            <AutomationSettingsNavButton
               label={
                 automationKind === "video" ? "Video Format" : "Slideshow Format"
               }
               icon={IconWand}
               onClick={() => setActiveTab("format")}
             />
-            <DrawerNavButton
-              label={`Hooks (${hookCount}) & Style`}
+            <AutomationSettingsNavButton
+              label={`Hooks (${hookCount}) & ${automationKind === "video" ? "Voice" : "Style"}`}
               icon={IconMessage}
               active={activeTab === "hooks"}
               onClick={() => setActiveTab("hooks")}
             />
             <div className="my-2 h-px bg-[#e1e0d8]" />
-            <DrawerNavButton
+            <AutomationSettingsNavButton
               label="Schedule"
               icon={IconCalendar}
               active={activeTab === "schedule"}
               onClick={() => setActiveTab("schedule")}
             />
-            <DrawerNavButton
+            <AutomationSettingsNavButton
               label="Social Media Settings"
               icon={IconBrandTiktok}
               active={activeTab === "tiktok"}
               onClick={() => setActiveTab("tiktok")}
             />
-            <DrawerNavButton
+            <AutomationSettingsNavButton
               label="Settings"
-              icon={IconLayoutDashboard}
+              icon={IconSettings}
               active={activeTab === "settings"}
               onClick={() => setActiveTab("settings")}
             />
@@ -338,7 +431,6 @@ export function AutomationSettingsDrawer({
             automation={automation}
             editingName={editingName}
             draftName={draftName}
-            generationError={generationError}
             onDraftNameChange={setDraftName}
             onStartNameEdit={() => setEditingName(true)}
             onSaveName={saveName}
@@ -347,6 +439,15 @@ export function AutomationSettingsDrawer({
               setEditingName(false)
             }}
             recentRuns={recentRuns}
+            recentRunsLoading={recentRunsLoading}
+            videoExports={videoExports}
+            videoExportsLoading={videoExportsLoading}
+            onVideoDeleted={(id) =>
+              setVideoExports((current) =>
+                current.filter((item) => item.id !== id)
+              )
+            }
+            onDeleteRun={deleteGeneratedSlideshow}
           />
         )}
         {activeTab === "format" && (
@@ -404,34 +505,25 @@ export function AutomationSettingsDrawer({
   )
 }
 
-function DrawerNavButton({
-  label,
-  icon: Icon,
-  active,
-  disabled,
-  onClick,
-}: {
-  label: string
-  icon: React.ComponentType<{ className?: string }>
-  active?: boolean
-  disabled?: boolean
-  onClick?: () => void
-}) {
-  return (
-    <button
-      className={cn(
-        "flex h-9 w-full items-center gap-3 rounded-[6px] border border-transparent px-3 text-left text-[14px] font-semibold",
-        active
-          ? "border-[#92918a] bg-white text-[#242421]"
-          : "text-[#7b7a73] hover:bg-white/70",
-        disabled && "cursor-not-allowed opacity-35 hover:bg-transparent"
-      )}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      <Icon className="size-4" />
-      {label}
-      {active && <IconChevronRight className="ml-auto size-4" />}
-    </button>
-  )
+async function persistDraftConfig(
+  automationId: string,
+  schema: AutomationSchema
+) {
+  await fetchJsonWithTimeout("/api/automations", {
+    method: "PATCH",
+    timeoutMs: 30_000,
+    toastOnError: false,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: automationId, schema }),
+  })
+}
+
+function showGenerationError(
+  message: string,
+  title = "Slideshow wasn’t generated"
+) {
+  toast.error(title, {
+    description: message,
+    duration: 7_000,
+  })
 }

@@ -1,65 +1,561 @@
 {
   "collections": [
     {
-      "name": "Pinterest - curtains",
-      "created_at": "2026-07-09T06:20:03.126Z",
+      "name": "Interior Design — Editorial Rooms",
+      "created_at": "2026-07-14T05:30:00.000Z",
       "images": [
         {
-          "image_link": "/api/local-assets/image-collections/files/1783578004516-9b878716-e2e6-486d-9932-2266ccdd28e8.jpg",
-          "caption": "This bright, serene living space features light-colored curtains flanking a window, with a styled bench on the left and a wooden ladder on the right.",
-          "hash": "d7722746b51baf2247f703098be8f3d9abfa076080fac9bfbb54c060c72f3963"
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-28542161.jpg",
+          "caption": "Living room — Warm and inviting living room with modern art, rattan chair, and sofa. Photo by juliane Monari on Pexels.",
+          "hash": "f0404ff23c7038a0afcbc268e35f547a69fff1fa11b2d954fa32acbe3b78703d"
         },
         {
-          "image_link": "/api/local-assets/image-collections/files/1783578004672-765fe823-4930-4908-80b9-0ebcc98eee5d.jpg",
-          "caption": "A cozy bedroom scene bathed in soft lamplight, featuring plaid curtains, a tidy bed, and a circular side table.",
-          "hash": "b95813571531177671147ddaaf8851da58d164b39da53c1efec1158fb843bd94"
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-15602699.jpg",
+          "caption": "Living room — A modern living room with a designer coffee table, decorative plates, and a vase with eucalyptus, featuring warm, natural tones. Photo by Tuğçe Açıkyürek on Pexels.",
+          "hash": "ae1fe2e5222b8764d2ad209f248f79e159ad1b2ff4bc9cb229ce5d8d13816f2a"
         },
         {
-          "image_link": "/api/local-assets/image-collections/files/1783578004733-3c0493c3-699b-41ef-8b39-20c78a4ae3ae.jpg",
-          "caption": "Sunlight streams brightly through a sheer white curtain, casting warm shadows onto the window frame, creating a calm mood.",
-          "hash": "1d2d4756b95f257d2048273d930f723b3fa691b0087ff1aac976f707633f1f46"
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-30861113.jpg",
+          "caption": "Living room — Warm living room corner with sofa, books, coffee, and ambient lighting creating a cozy atmosphere. Photo by Sümeyye Ertan on Pexels.",
+          "hash": "c049e7a0dd556b8669f96cbde23862810a9f9c4a2e87dce05f285272d735fd32"
         },
         {
-          "image_link": "/api/local-assets/image-collections/files/1783578004775-c1651235-5100-4e22-9435-9d7c6e035318.jpg",
-          "caption": "Blue velvet curtains with elegant pleats and a dark rod frame a bright window overlooking a peaceful outdoor scene.",
-          "hash": "d5e993b7056e76a793c186876fc574f2e29d3ebf1279c1f240b2be9db3d1b065"
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-35373121.jpg",
+          "caption": "Living room — Comfortable beige sofa with fluffy pillows in a modern living room. Photo by Pexels User on Pexels.",
+          "hash": "fd63054c0f9b7a26baf8ce757cfad06ceb14aafb24aa3311c708cdb64c4089b9"
         },
         {
-          "image_link": "/api/local-assets/image-collections/files/1783578005212-d9a978b2-6cf1-438f-9e8d-322c65f8cc6e.png",
-          "caption": "White sheer curtains hang on a black rod, filtering sunlight through a bright window, creating a serene, airy mood.",
-          "hash": "95cd88f6ee30f1cc073301b42564121d01de75dace491818eb12d7d6479e1ffa"
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-29532564.jpg",
+          "caption": "Living room — Elegant modern living room with art decor and warm lighting. Photo by Clément Proust on Pexels.",
+          "hash": "08e248e574e8750fcfe9c8cabe0f1fbfdfe11f83c52437dad7fdef4d062132c4"
         },
         {
-          "image_link": "/api/local-assets/image-collections/files/1783578005374-09ef7a86-7fd3-484f-a5f4-5712290c3599.jpg",
-          "caption": "Warm evening light filters through the sheer bedroom window curtains, creating a cozy and inviting ambiance.",
-          "hash": "1c6f2b58489dc1747306866ee01365abe5f567ab454ab156b4e30fce451b8b64"
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-12155600.jpg",
+          "caption": "Living room — Warm and inviting room with a leather armchair, floor lamp, and art-filled walls. Photo by Sami  Aksu on Pexels.",
+          "hash": "8597d5dc22de2fdb7780b00ad5daee5f2d1258ccd557d071dbe628476e4c568c"
         },
         {
-          "image_link": "/api/local-assets/image-collections/files/1783578005458-70b3980f-7a16-4393-8f97-9cad765b1ba3.jpg",
-          "caption": "A tranquil indoor scene looking through a window at a boat with red sails on the water, with a vase of blue flowers and plants visible.",
-          "hash": "8c973ea3481f6dd79ce4a2f16b6d88c1bc4db9f070c4133807777dff24200fe9"
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-4906241.jpg",
+          "caption": "Living room — Contemporary living room interior with furniture on carpet and potted plant on fireplace in daylight. Photo by Maria Orlova on Pexels.",
+          "hash": "1a0a8e16d57e2d0b238e615869d2d85dbdf7afb4029148bffe4e7070f161a9d2"
         },
         {
-          "image_link": "/api/local-assets/image-collections/files/1783578006117-aeb03c1a-8551-42cc-acdb-bf91719d1a38.png",
-          "caption": "Sunlight streams through sheer curtains onto a wooden floor and bed, creating a serene, warm bedroom interior.",
-          "hash": "5275ea744eb5efd148c6f060d7ea6b9298f17dd9faa4fd378b7a80d2d433a951"
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-20130624.jpg",
+          "caption": "Living room — Stylish modern living room featuring a hanging fireplace and elegant decor. Photo by Wolf  Art on Pexels.",
+          "hash": "2d401f3f21894ac4c43a33c477f9034f0102ed0f2410ec0e38f79b92480c958d"
         },
         {
-          "image_link": "/api/local-assets/image-collections/files/1783578006422-6e844aea-30a6-45d8-9fca-b95cf955ff1b.jpg",
-          "caption": "Warm light shines through patchwork bohemian curtains with vibrant patterns creating a cozy, inviting atmosphere.",
-          "hash": "7187591db9a88ff5e205a49cb6d61f03b92a76d99c1ed301cd853e3487697142"
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-14367647.jpg",
+          "caption": "Living room — A warm, inviting living room with soft lighting, a comfy sofa, and stylish decor. Photo by Denis Gvozdov on Pexels.",
+          "hash": "9b92bdfe8f9c2ac5b63d1b84c7beb2aa5dd8c6976c691eaf6a0b936416c135bc"
         },
         {
-          "image_link": "/api/local-assets/image-collections/files/1783578006471-8261129b-a47d-4336-a69e-f1887058c685.webp",
-          "caption": "Warm sunlight filters through the sheer curtains of a bright room, casting striped shadows on the floor.",
-          "hash": "0aec5fedd0237b0f7e53bb82f71ec8a1267a02d80d38fb283af106ad894b1b35"
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-1125135.jpg",
+          "caption": "Living room — A stylish living room featuring modern furnishings and sleek interior design. Photo by Element5 Digital on Pexels.",
+          "hash": "6916ab688b9ebfb5478075604b567eabda230571dafcc682779fd46f031f5e98"
         },
         {
-          "image_link": "/api/local-assets/image-collections/files/1783578006581-aea5d1b4-d87f-4644-9e5c-ecb29c98f364.png",
-          "caption": "A serene room featuring an oval marble table with decorative pots, sheer pink curtains, and modern artwork.",
-          "hash": "5b53cd113c6a07dd49650ddd8c11614c8e0db37b3654cd6fa2e991905a0d4f81"
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-19234067.jpg",
+          "caption": "Living room — Sunlit modern living room featuring a stylish sofa, armchair, TV, and coffee table with elegant decor. Photo by Ayşe Nurdan Öngel on Pexels.",
+          "hash": "2e0fad0eb4c777b471f35261b579bb424aa85f79aedc572181b693b456b187a0"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-5825391.jpg",
+          "caption": "Living room — From above of living room interior with comfortable sofas and table between chairs at home. Photo by Charlotte May on Pexels.",
+          "hash": "cbbedc77a45595282e959fd0940443956f0c9c5403021547059f5dfa8d29a11e"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-15897445.jpg",
+          "caption": "Living room — A stylish living room setup featuring tulip flowers in a modern vase, framed art, and a comfortable sofa. Photo by Jennifer Krug on Pexels.",
+          "hash": "e695af5a5d0970e055432e71f69708fe6d242bb018d41b6f6abbfcfcc860358a"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-15034529.jpg",
+          "caption": "Living room — Cozy and modern living room with stylish furniture and a warm atmosphere. Photo by Robert Gutierrez on Pexels.",
+          "hash": "f70f99e12243864c8a3a4fc4ecf0dcbe2a3184d3c958232944782e4977d041ce"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-34684022.jpg",
+          "caption": "Living room — A modern cozy living room featuring plush furniture and elegant decor, perfect for relaxation. Photo by 果 芒 on Pexels.",
+          "hash": "bbd467aa6c262e04421a42c7661421802eb72b471602af71b9688cfcfea77053"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-6186848.jpg",
+          "caption": "Living room — Modern living room interior with soft couch and pillows near armchair and round table near window with curtains and shelves with plants near lamp. Photo by Max Vakhtbovych on Pexels.",
+          "hash": "e21eab740ad54513857340512c03300d359ea58025cc4baa8c6c9c9fc7e131d4"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-27198456.jpg",
+          "caption": "Living room — Elegant minimalist bookshelf in a modern home interior design, emphasizing simplicity and luxury. Photo by Wilcle Nunes on Pexels.",
+          "hash": "bc6c3455e64abcdca94e7ca7c571773395aa3d9887b5422e50909e24334db0de"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-13086783.jpg",
+          "caption": "Living room — A luxurious beige sofa in a sunlit room with classic architectural details. Photo by Sarazh  Izmailov on Pexels.",
+          "hash": "eaf1c0d82132a9fe456c59fb95b62a908f9eb4da8d8e830c79f2edbccad220c2"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-29012624.jpg",
+          "caption": "Living room — A modern living room with plush seating and tall windows letting in natural light. Photo by Beyza Kılıçdere on Pexels.",
+          "hash": "f986c931a4f56a9ccfcdcd76ae430a8dbe8e27cc6da0ea754f3a3e30fe9f817c"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-31949939.jpg",
+          "caption": "Living room — Modern living room featuring elegant decor, ambient lighting, and luxurious furnishings. Photo by Misbaa eri on Pexels.",
+          "hash": "590a9ff4d5e805e887278d268ef6aa5f19db7cdb32196753391b16b3a353f51d"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-37252547.jpg",
+          "caption": "Living room — Elegant and modern living room interior with sofa, artwork, and city view. Photo by Misbaa eri on Pexels.",
+          "hash": "7e7dcc03bb14f68cc8b348e01fe670e6c967b7485ebacd5a985ad80a95cdec7e"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-9976128.jpg",
+          "caption": "Living room — Stylish modern living room with high ceilings, minimalist decor, and neutral palette. Photo by Jonathan Borba on Pexels.",
+          "hash": "9aa58a63641d897f2962d0493ef041f36f095be3c0ddc09572d6505a70a73d26"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-16720155.jpg",
+          "caption": "Living room — A vintage-style living room featuring classic furniture and ornate decor in neutral tones. Photo by Mehmet Turgut  Kirkgoz on Pexels.",
+          "hash": "ec6c08c8b881079bc7fef20a90c6e91ddaabf9c9260998a918832940eeca4ae0"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-19980253.jpg",
+          "caption": "Living room — Neutral-toned living room featuring a modern sofa, stylish coffee table, and plush pillows. Photo by Alex Tyson on Pexels.",
+          "hash": "4a9fb797a986d93def3bee2ab4ca2e0d56e1896b21cf40dcb7998bf3f88ffdda"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-15743375.jpg",
+          "caption": "Bedroom — A warm and inviting bedroom featuring stylish bedding, soft lighting, and contemporary art. Photo by Ushindi Namegabe on Pexels.",
+          "hash": "01b19c53ad19540d709fabbb45c00f5c35c23a389267a350711eef3a1d2962e4"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-31184400.jpg",
+          "caption": "Bedroom — Stylish dark-themed bedroom with elegant decor, luxurious bed, and cozy armchair. Photo by Adamowicz Adamsky on Pexels.",
+          "hash": "55fd140b32ee375885eae635bbe58fafd487f5e1b266b09b23e17cd687e52a4b"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-13722859.jpg",
+          "caption": "Bedroom — Cozy and stylish modern bedroom with textured wall and ambient lighting. Photo by Bilal Mansuri on Pexels.",
+          "hash": "d35c4540ae887b0fe7830008e04521ebc7773883fc930101aead0e34e7b8b5ff"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-30455215.jpg",
+          "caption": "Bedroom — Warm and inviting bedroom illuminated by stylish wall sconces, perfect for relaxation. Photo by Marion Batteur on Pexels.",
+          "hash": "c3eb883d35d0130c27c3297dfb9f13048d71b4f7981d700dad38dcade553f3b4"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-18738880.jpg",
+          "caption": "Bedroom — Elegant modern bedroom featuring striped pillows and a woven blanket. Photo by Alejandra Montenegro on Pexels.",
+          "hash": "4343a27588e9e7c11f8b0c3b670f726dfc8f1a14ea3f85fcf5a73ad0cfbf01f7"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-34930440.jpg",
+          "caption": "Bedroom — A modern bedroom with a warm ambiance and a large window showcasing a forest view. Photo by Carla-Lavinia on Pexels.",
+          "hash": "dc6783ec2f14bd29800c628fa8bcd10f1bb8cf19c219989a31cf2553e5b0c443"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-38305985.jpg",
+          "caption": "Bedroom — Elegant modern bedroom with minimalist decor, featuring sleek furniture and subtle lighting. Photo by DOAN THANH BINH on Pexels.",
+          "hash": "f637754429e3506b88c7eb064590f72955f46a6f1b4e08d9913e96eb10ab2184"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-13723007.jpg",
+          "caption": "Bedroom — Warm and contemporary bedroom with comfortable bedding, subtle lighting, and modern furniture. Photo by Teruo Kondo on Pexels.",
+          "hash": "6b18e7b6d92dff6a0813e2924d9cc5cdd4ca1af7afd6ab97a61afb95f4983c97"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-28581288.jpg",
+          "caption": "Bedroom — Warm, inviting bedroom featuring a unique floor mirror and ambient lighting for a cozy ambiance. Photo by Rappunk G Ononiwu on Pexels.",
+          "hash": "c9863142bddb63b4eeb61a67f39b36bf10c31135da6a4522a7a2d273ab903076"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-20653855.jpg",
+          "caption": "Bedroom — A stylish modern bedroom interior with soft lighting and contemporary decor. Photo by Roshan Patel on Pexels.",
+          "hash": "5b132159e3e3ee174c86ec4d9b66f309243cc32ec23b4e40c55eb2b41f118914"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-5644277.jpg",
+          "caption": "Bedroom — Inviting minimalist bedroom with soft lighting and a rustic wooden design. Photo by Polina ⠀ on Pexels.",
+          "hash": "9e6cc55309ad4e0de867ce8972be94800f101f7986d67d4918f2a44b9ff07fdc"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-34906890.jpg",
+          "caption": "Bedroom — A stylish minimalist bedroom featuring a double bed and subtle lighting. Photo by GALERI CREATOR on Pexels.",
+          "hash": "b7b4a7e1d19efb0b5b6e48b00cd2e4c1b0d2101bbc47641f951b0b63b09a86a3"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-14883343.jpg",
+          "caption": "Bedroom — Warm and inviting bedroom with elegant chandelier and stylish bedding, perfect for relaxation. Photo by Din on Pexels.",
+          "hash": "da7ee306136e5fd269693a1a569645e5e0365ddc38728ba1b7651ded566c6882"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-18601964.jpg",
+          "caption": "Bedroom — A serene and cozy minimalist bedroom with beige and white accents. Photo by Aljona Ovtšinnikova on Pexels.",
+          "hash": "4916e5dfcebcc7216e52be7f2f435932c3700174b270e64d13a7f5c7a51d7a22"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-14976360.jpg",
+          "caption": "Kitchen — Elegant kitchen featuring stainless steel oven, wooden shelves, and artistic decor. Photo by İlknur Çelik on Pexels.",
+          "hash": "555cfaeaed0d59e26fc097c1d32d2ebdcd281e51124f8fcc101c7078517452a8"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10117713.jpg",
+          "caption": "Kitchen — Elegant kitchen interior featuring wooden counter, open shelves, and stylish decor. Photo by Keegan Checks on Pexels.",
+          "hash": "83b60c38e3e3aa4c4bb64a5fad47f2d942952a85a76ba5ba5f7467861f282f58"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10854903.jpg",
+          "caption": "Kitchen — Contemporary kitchen interior featuring red barstools, sleek countertops and tiled backsplash. Photo by Derwin  Edwards on Pexels.",
+          "hash": "6c4ec5b4711231c94a7114842ffeb7a6a3592421b0ba577eb1168f225965b2a0"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-31737857.jpg",
+          "caption": "Kitchen — Cozy modern kitchen with a variety of food on the island table, perfect for culinary shoots. Photo by Sharath G. on Pexels.",
+          "hash": "fcde926f69f24bf02f5fcdce51ecb0e2cd31d285f7a8626e5897e08406acd8a3"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-259819.jpg",
+          "caption": "Kitchen — Warm and cozy kitchen featuring wooden furniture and green plants. Photo by Pixabay on Pexels.",
+          "hash": "b94c18a9c7e5fc63077e2e3656b23628c35b188ee00414fcf7a6815aae856be2"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-19563199.jpg",
+          "caption": "Kitchen — Stylish kitchen interior featuring modern oven, stove, and wooden countertops. Photo by Leyla Kılıç on Pexels.",
+          "hash": "190afa7d84fcf990a0f61d41c127bf1f6d1c8864efec0878dad9d6cecfc58bf9"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-19353445.jpg",
+          "caption": "Kitchen — Stylish kitchen with modern furniture and warm lighting, creating an inviting atmosphere. Photo by Oliver Atherton on Pexels.",
+          "hash": "9958d783fcf70f0e07b12c9386b9504d86258498d29c338fffb12a645e23cb11"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-11076072.jpg",
+          "caption": "Kitchen — Stylish kitchen with minimalist design, wood accents and natural light. Photo by Bilal Mansuri on Pexels.",
+          "hash": "17fa4995c8a9b36cb01e4a0597205588e78e9047e625e3d4130def14d0d204b3"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-32471846.jpg",
+          "caption": "Kitchen — A modern minimalist kitchen with warm lighting and sleek decor. Photo by Francesco Ungaro on Pexels.",
+          "hash": "e7f51a2a936d39d9f4385b5d6881c403aec3d5914b644d95e0a403cdd9d77334"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-29471808.jpg",
+          "caption": "Kitchen — A warm and inviting kitchen counter with a teapot, candles, and potted plant for a cozy ambiance. Photo by Nursevim on Pexels.",
+          "hash": "cd9ad4999bf9575e301317c6a3c46ba299a8c766f6ad20a1ddf3362695a7a16d"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-13722854.jpg",
+          "caption": "Kitchen — Sleek modern kitchen interior featuring a marble island, dark cabinets, and elegant lighting. Photo by Bilal Mansuri on Pexels.",
+          "hash": "3f8391d80e52f46c4aa22e66fd0ee9116a4ed50b336e628d01f2ed9aa8cad0ba"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-34946369.jpg",
+          "caption": "Kitchen — A sleek, contemporary kitchen in Jakarta highlighted by elegant lighting and marble countertops. Photo by murod lens on Pexels.",
+          "hash": "84c7e45adb42c8a7168e11ff8759b62e4ae46eca39f3e5d1875de34a3da7c611"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-33599113.jpg",
+          "caption": "Bathroom — Elegant modern bathroom with marble design, double sink, and ambient warm lighting. Photo by Ela De Pure on Pexels.",
+          "hash": "6eaa665f184b5cb2d6687ad51356e4778a57d4e132855fefb0b63ecc480e7275"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10919427.jpg",
+          "caption": "Bathroom — Minimalist luxury bathroom featuring designer sink, round mirror, and textured wall. Photo by Bilal Mansuri on Pexels.",
+          "hash": "dec3bfcad727bdc7a44cf64e239cf8fdda74db1859b8c48a05dd4c9917e3d0f3"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-11076069.jpg",
+          "caption": "Bathroom — Elegant modern minimalist bathroom with geometric patterns and warm lighting. Photo by Bilal Mansuri on Pexels.",
+          "hash": "bc6e5728187547f2ccbd3eb46d9ef3f5eef812df370d681de2604a64d0ce6178"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-28080316.jpg",
+          "caption": "Bathroom — Stylish bathroom featuring brass fixtures, a round mirror, and modern decor. Photo by isabel  ph on Pexels.",
+          "hash": "5cdd7da1429e9fe99e7bb345016f99005fb5cc6aeaa880879f7b27d72b799c4e"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-16436964.jpg",
+          "caption": "Bathroom — Stylish bathroom featuring rustic design with elegant fixtures and ambient lighting. Photo by Luis Zambrano on Pexels.",
+          "hash": "2ea46e6e1ab1c10ffac132be31a855d9d11d71fc742ae73acf020353fc0095ab"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-5644275.jpg",
+          "caption": "Bathroom — Modern bathroom with glass door, wooden sink, and natural brick wall. Photo by Polina ⠀ on Pexels.",
+          "hash": "e727ce503c95a0c6977dd9a88e01625da27f023a406cf09c1f9ad76c63c68f78"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10153049.jpg",
+          "caption": "Bathroom — Stylish bathroom featuring a luxury washbasin, mirror, and striped walls. Photo by Jonathan Borba on Pexels.",
+          "hash": "41302e52ba960a083d51d8d43192c6117813244ddafdc02b4c049e70865640a8"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10886544.jpg",
+          "caption": "Bathroom — Elegant Scandinavian bathroom featuring a freestanding bathtub and natural wooden accents in a well-lit interior. Photo by Andrea Davis on Pexels.",
+          "hash": "cdc6fb5831ce802e507555170c7dbcbe89a64ca13f6014e0364f954a306d0aed"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-29435312.jpg",
+          "caption": "Bathroom — Stylish bathroom with marble sink, mirror, and ambient lighting, offering a modern aesthetic. Photo by Yunus Tuğ on Pexels.",
+          "hash": "238f1dae8b7596c27c9c1265af7213c2b323a8ce2600cdcd5f6b808b6e094d9d"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-16436967.jpg",
+          "caption": "Bathroom — Elegant rustic bathroom featuring a modern sink, faucet, and warm lighting. Photo by Luis Zambrano on Pexels.",
+          "hash": "1de52101c1e670d10f68ac4d7b7d48b1ea369b7c0d0dde2663e08b7446a8ad6c"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-6734409.jpg",
+          "caption": "Bathroom — Modern bathroom featuring white subway tiles, a pedestal sink, and warm lighting. Photo by Nese Dolan on Pexels.",
+          "hash": "9f95f59ddd64502330bd85e3fc89260fc1ff73d1117c9ba86f02b16a97286fcd"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10919431.jpg",
+          "caption": "Bathroom — Spacious minimalist bathroom featuring a sleek black toilet and wooden walls. Ideal for interior design inspiration. Photo by Bilal Mansuri on Pexels.",
+          "hash": "a3045f838d42b7c4b92d1797a5fb74b838c493bc0dfee9da911c1e782b532f4d"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-16436916.jpg",
+          "caption": "Bathroom — Stylish minimalist bathroom interior featuring modern design and natural lighting. Photo by Luis Zambrano on Pexels.",
+          "hash": "ada57aa04f27a824d2ecda749b5c71e23f51d0a1911e1e2697b96431f5046422"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-15743371.jpg",
+          "caption": "Bathroom — A glimpse into a modern bathroom with a sleek bathtub, seen through an open doorway. Photo by Ushindi Namegabe on Pexels.",
+          "hash": "07ff2ea229d9ccd1d7bd8d98ad2024dc5827d69cd7f85b4b63983c07038fe4fd"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10188098.jpg",
+          "caption": "Bathroom — Elegant minimalist bathroom featuring a freestanding bathtub, contemporary decor, and wooden accents. Photo by Andrea Davis on Pexels.",
+          "hash": "c639fa4ad3cdf68c13ec19ad61d66c84705efd0da60275406be17d20326f0377"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-15948527.jpg",
+          "caption": "Dining room — Stylish interior with wooden dining set and rustic pendant lamps in a minimalist design. Photo by Mia Dalisay on Pexels.",
+          "hash": "d67da44bc3813d05ba85c846c22ddf9d9bf380e80c89e55cac6d6e5429145f2d"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-36495171.jpg",
+          "caption": "Dining room — Cozy and elegant dining area featuring a wooden table, chairs, and a modern chandelier, perfect for stylish interiors. Photo by Mariya Eskina on Pexels.",
+          "hash": "812565cbdb937d704342992743cb043da2cbf949cf0d6fdebb96106a70ae9258"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-15775226.jpg",
+          "caption": "Dining room — A beautifully arranged dining room table with elegant tableware in a sunlit interior setting. Photo by Kiazoldyck on Pexels.",
+          "hash": "fff30c5ca8d2515965811d646d58d90ea6ca2b7a6b6f290796db0bdcc98a941e"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10115000.jpg",
+          "caption": "Dining room — Spacious modern dining room featuring wooden table and chairs, pendant lights, and a bright airy feel. Photo by Jonathan Borba on Pexels.",
+          "hash": "5a9cc41d62402ca3373d8211f67315a5ccc1db051c7329e88356a03c7d46cba3"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-8778083.jpg",
+          "caption": "Dining room — Stylish dining room with stone wall and wooden features in Istanbul. Photo by özhan Hazırlar on Pexels.",
+          "hash": "5aef975868f0797b751286298c0f38fa662daabee8ea4dfba417bca28ee02fb1"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-6119569.jpg",
+          "caption": "Dining room — Stylish room with a Christmas tree, table, and modern chandelier, perfect for festive settings. Photo by Vlada Karpovich on Pexels.",
+          "hash": "fa7e31b244d9f2d045afb388359f1ad586ad2dadc2ee03ab4c0d6f3eb174fa82"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-6310291.jpg",
+          "caption": "Dining room — Interior of modern dining room with table served with various tableware and candles under traditional paper cranes hanging on ceiling. Photo by furkanfdemir on Pexels.",
+          "hash": "e66549f3daa613d8cfbcf9ed8307dd33735009f4a41b15d4e26445e8e4f875ae"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-2995012.jpg",
+          "caption": "Dining room — Sunlit minimalist dining room with round table, chairs, and painting. Photo by Tiana on Pexels.",
+          "hash": "8ab5fb9e4eef49b8acb22af2d5abc4fa0976174ff7647e7e73f829148f59cda0"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-6310294.jpg",
+          "caption": "Dining room — Set of various tableware placed on table with burning candles in spacious dining room with decorative paper cranes hanging on lamps. Photo by furkanfdemir on Pexels.",
+          "hash": "1fbdb5c9abec34eac014188cad1c9874007e4277c019eac1a5d01a9f8159b858"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-22743854.jpg",
+          "caption": "Dining room — Elegant kitchen dining space featuring wooden furniture and minimalist decor. Photo by Thới Nam Cao on Pexels.",
+          "hash": "f3bafb468b81af45ae1b906380e50499ded51c6f677f00b3ffe89fd7015b163a"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10114999.jpg",
+          "caption": "Dining room — Stylish dining room featuring a wooden table, chairs, and a lush vertical garden wall for a natural touch. Photo by Jonathan Borba on Pexels.",
+          "hash": "9eb06a9e51fc6c91da129f18408905223f42440bdbbc356b6b373e13fce8b20a"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-35610411.jpg",
+          "caption": "Dining room — Inviting dining room featuring a wooden table and chairs in a well-lit space. Photo by Ivett M on Pexels.",
+          "hash": "cda095487a7005234dab39fa58450111b73024e718a29b763b23c7ef1b8ac755"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10240141.jpg",
+          "caption": "Dining room — A bright dining room with elegant table settings and modern decor under sunlit shadows. Photo by Ron Lach on Pexels.",
+          "hash": "90f849ae0e6a61e07debf24619a5c670bc05bb178d6c8811545eb3b158465efd"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-17219549.jpg",
+          "caption": "Dining room — Elegant modern dining room with wooden furniture and bright natural lighting in Yalova, Türkiye. Photo by Betül  Ataç on Pexels.",
+          "hash": "b6fc90e5b8ab93ac0a6b2ef42b1ed5ad0bff82f7942335695170e8ec8dd4b0bd"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10588266.jpg",
+          "caption": "Dining room — Warm brick interior in Istanbul with a vintage chandelier and a lush plant. Photo by Büşranur Aydın on Pexels.",
+          "hash": "5a6b081eea30a210c09c934c8d16f363c21bd43ea00603d50e17900d8d1e93a8"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-36887744.jpg",
+          "caption": "Apartment — Explore a minimalist wooden interior featuring sleek built-in storage solutions. Ideal for modern home design inspiration. Photo by DOAN THANH BINH on Pexels.",
+          "hash": "cbd5783d23e4e49db9901f32fe9838d6c551b2b139e44b41d0fce1c3a3b2b9e0"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-7303768.jpg",
+          "caption": "Apartment — A modern minimalist kitchen interior featuring wooden cabinets and sleek design. Photo by Cup of  Couple on Pexels.",
+          "hash": "7902dbaec096898f1c9b080cd4a0afc659cad86d079c1cced9f7d4419e9a1756"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-7303775.jpg",
+          "caption": "Apartment — A minimalist kitchen counter with wooden bowls and red leaves in a vase. Photo by Cup of  Couple on Pexels.",
+          "hash": "bb946fa065f70134ae692dfac4354671eba44f4172d95de1ebb2cd5bc11520ee"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-7004717.jpg",
+          "caption": "Apartment — A warm and inviting living room features a cozy sofa, dining table, and artistic decor. Photo by Arina Krasnikova on Pexels.",
+          "hash": "77f8292bc0c412183483f805c7801a61914060f72bf1c6892c72664f2838e207"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-14498466.jpg",
+          "caption": "Apartment — Cozy modern living room with sunlight casting warm shadows on the wall at sunset. Photo by Kien Tran on Pexels.",
+          "hash": "7f30b9c98643099487e1681cf2a2c1cdf99eabe7fa7589f131234effffc280c1"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-34549308.jpg",
+          "caption": "Apartment — Elegant minimalist bedroom interior design with soft lighting and cozy atmosphere. Photo by Liuuu _61 on Pexels.",
+          "hash": "03150efa524560e2b37ad51014046197ad60f48c1e82a94fba462d0b0521fb30"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-34995590.jpg",
+          "caption": "Apartment — Inviting doorway leading to a warmly lit interior featuring a dining area. Photo by Ayşe  Demir on Pexels.",
+          "hash": "7b52e564d03cf8ffbdd7e7d021b05265587aa166c2016552e2ff9f5548d0f416"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-32062852.jpg",
+          "caption": "Apartment — Explore the stylish design of a modern industrial living room with cozy furnishings and warm lighting. Photo by Trần Tuấn Anh on Pexels.",
+          "hash": "1a0649aa94da5b3893046b31fd5b1e6167ac949b8e691c5d3343fb970a033443"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-31895796.jpg",
+          "caption": "Apartment — Warm and inviting Scandinavian kitchen design with wooden furniture and natural light. Photo by @nomundodejr Jr. on Pexels.",
+          "hash": "de9ae440b3f9f6f4430af30d92698ee5dbf1a89379b483f20166233a8851fcb2"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10446865.jpg",
+          "caption": "Living room — Cozy modern living room featuring a stylish sofa and abstract wall art, perfect for home decor inspiration. Photo by Heloisa Vecchio on Pexels.",
+          "hash": "62de5150a8f8353ed18e43aeaf12e3bcf3ff63d3e953d760087e5ef148b0cf8e"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-36654141.jpg",
+          "caption": "Living room — Stylish living room with modern decor and soft lighting, perfect for relaxation. Photo by Luk Sauvage on Pexels.",
+          "hash": "01075c3ca28fc4c612c016eab3bfd1f3d3a94d2642ae35b7747ba3b24e70f2f4"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-11842399.jpg",
+          "caption": "Living room — A stylish beige interior featuring an elegant armchair and decorative fireplace in natural light. Photo by Yulia Goncharuk on Pexels.",
+          "hash": "dfe9129b701a77ef0bbaaa4077283bac9aea180286bf5df8c71aef45146fa88b"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-29012620.jpg",
+          "caption": "Living room — Bright and airy minimalist living room with white furniture and tall curtains enhancing natural light. Photo by Beyza Kılıçdere on Pexels.",
+          "hash": "e5d07d9e25478a8240039d9ad9788d429018822ad578c0282e9a069819f17114"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-34017792.jpg",
+          "caption": "Living room — Elegant minimalist living room with sofa, floor lamp, and decorative vase. Photo by Sami Raad on Pexels.",
+          "hash": "40ff3febe1fe22d3c44b65dd97f9c1648ed36800fa8022cf731b9aa11c3d7261"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-37748259.jpg",
+          "caption": "Living room — Bright minimalist living room featuring sleek TV setup, neutral furniture, and natural light through large window. Photo by Misbaa eri on Pexels.",
+          "hash": "92943e46654619154dafa3a47a860d6fce3f2ad69d5c23e995115159a2d55cb5"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10117807.jpg",
+          "caption": "Bedroom — A cozy, elegant bedroom featuring a greyhound on a bed with modern interior decor and soft lighting. Photo by Ron Lach on Pexels.",
+          "hash": "6b67726b1cb88be969824fa181b82ef189c00a83e0ff7395f753f555dfe8979b"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-33389177.jpg",
+          "caption": "Bedroom — A serene, minimalist bedroom featuring a stylish pastel headboard and lamp. Photo by Vincent Rivaud on Pexels.",
+          "hash": "b36748348b6ac2f3af231c6dfff5242c2451135157757af177eca26a94a4c1ba"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-29435313.jpg",
+          "caption": "Bedroom — Elegant minimalist bedroom interior with plush bedding and ambient lighting. Photo by Yunus Tuğ on Pexels.",
+          "hash": "b39e75360f7e644eb7248945a779f2c912a0ee35b8bb5f8154eaab98fcea4014"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-37468270.jpg",
+          "caption": "Bedroom — Stylish minimalist bedroom with beige decor, modern bed and soft lighting. Photo by mcpeter on Pexels.",
+          "hash": "83887e4c64018f96da3b2ae73e121ab9aad1965f206d34dc4f2eb2cdb2544836"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-12814943.jpg",
+          "caption": "Kitchen — A warm, inviting kitchen scene showcasing rustic cabinets and modern appliances. Photo by Ioana Motoc on Pexels.",
+          "hash": "17cb5a2a84e231d656e6155210af25837b14739a58359b9eb4f86bc1a48ed921"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-28539229.jpg",
+          "caption": "Kitchen — Sleek kitchen design with wooden cabinets, island, and stainless steel appliances. Photo by Damm aaaa on Pexels.",
+          "hash": "e13890cd35599119e71ff1d5b2882aa9010f462723b54622ab7e703837039434"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-36887735.jpg",
+          "caption": "Kitchen — Stylish kitchen featuring marble countertop, floral centerpiece, and illuminated shelves. Photo by DOAN THANH BINH on Pexels.",
+          "hash": "82b436c4ef1fd36edf32b94210bc03492638a58e68ade813f75c69efc3a853c4"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-34620475.jpg",
+          "caption": "Kitchen — Contemporary small kitchen with beige cabinets and patterned flooring. Photo by Renáta Mező on Pexels.",
+          "hash": "d2f750df7a45aab7bceed592d04d45d4a391216767bd3c13ddd1d04d5bb7630d"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-358592.jpg",
+          "caption": "Bathroom — Contemporary bathroom featuring a sleek white bathtub, modern fixtures, and minimalist interior design. Photo by Pixabay on Pexels.",
+          "hash": "33afff52707d7639deff3edd90618912ebb89a7c358039b26e5b28f8dd753c4c"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-20705920.jpg",
+          "caption": "Bathroom — A stylish retro bathroom featuring a vintage washbasin and elegant tile designs. Photo by Алан Албегов on Pexels.",
+          "hash": "bbd0c5b33539084932cfb22f1945302d22bde7a9419c7877d83e0cc206e4e5c5"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-27729373.jpg",
+          "caption": "Dining room — Inviting contemporary living room with stylish furniture, warm colors, and elegant decor. Photo by Alexander Mass on Pexels.",
+          "hash": "4695c1a7d704dae49135ff4ad19870f293ed1af991da18dffb5b28cfcc0d1551"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-7004712.jpg",
+          "caption": "Dining room — Cozy dining area with modern furniture and natural lighting in a minimalist home setting. Photo by Arina Krasnikova on Pexels.",
+          "hash": "74de21228d3b2d0d19a9a637f215a04fc9187a5d7feafb8384a72d395ca8fe54"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-6127212.jpg",
+          "caption": "Dining room — Elegant dining area featuring a glass table and woven chairs in a contemporary home setting. Photo by Rachel Claire on Pexels.",
+          "hash": "0a1db0648fb32cf4dfa804dc851fc0a96c0ddc47053a75edda0d778da44789ca"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-6173324.jpg",
+          "caption": "Dining room — Cozy dining room setup with rustic table, candles, and small potted trees for festive ambiance. Photo by Leeloo The First on Pexels.",
+          "hash": "42d590d621d455a43d205b4be24c1736a01c6539b79eb5933dabff3e478fd916"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-19991839.jpg",
+          "caption": "Dining room — Elegant minimalist kitchen scene with blue cabinets and contemporary furniture. Photo by Alex Tyson on Pexels.",
+          "hash": "fe2225106052d9d58c21af4afd736868597c4b9c73b8c8cd61be82c343a9a01f"
         }
-      ]
+      ],
+      "pinned": true
     },
     {
       "name": "Pinterest - nature texture",
@@ -30622,6 +31118,591 @@
         {
           "image_link": "/api/local-assets/image-collections/files/ellamadrell-9-0107-5419-839eb7a278.jpg",
           "caption": ""
+        }
+      ]
+    },
+    {
+      "name": "Interior Design — Living Rooms",
+      "created_at": "2026-07-14T14:30:00.000Z",
+      "pinned": false,
+      "images": [
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-28542161.jpg",
+          "caption": "Living room — Warm and inviting living room with modern art, rattan chair, and sofa. Photo by juliane Monari on Pexels.",
+          "hash": "f0404ff23c7038a0afcbc268e35f547a69fff1fa11b2d954fa32acbe3b78703d"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-15602699.jpg",
+          "caption": "Living room — A modern living room with a designer coffee table, decorative plates, and a vase with eucalyptus, featuring warm, natural tones. Photo by Tuğçe Açıkyürek on Pexels.",
+          "hash": "ae1fe2e5222b8764d2ad209f248f79e159ad1b2ff4bc9cb229ce5d8d13816f2a"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-30861113.jpg",
+          "caption": "Living room — Warm living room corner with sofa, books, coffee, and ambient lighting creating a cozy atmosphere. Photo by Sümeyye Ertan on Pexels.",
+          "hash": "c049e7a0dd556b8669f96cbde23862810a9f9c4a2e87dce05f285272d735fd32"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-35373121.jpg",
+          "caption": "Living room — Comfortable beige sofa with fluffy pillows in a modern living room. Photo by Pexels User on Pexels.",
+          "hash": "fd63054c0f9b7a26baf8ce757cfad06ceb14aafb24aa3311c708cdb64c4089b9"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-29532564.jpg",
+          "caption": "Living room — Elegant modern living room with art decor and warm lighting. Photo by Clément Proust on Pexels.",
+          "hash": "08e248e574e8750fcfe9c8cabe0f1fbfdfe11f83c52437dad7fdef4d062132c4"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-12155600.jpg",
+          "caption": "Living room — Warm and inviting room with a leather armchair, floor lamp, and art-filled walls. Photo by Sami  Aksu on Pexels.",
+          "hash": "8597d5dc22de2fdb7780b00ad5daee5f2d1258ccd557d071dbe628476e4c568c"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-4906241.jpg",
+          "caption": "Living room — Contemporary living room interior with furniture on carpet and potted plant on fireplace in daylight. Photo by Maria Orlova on Pexels.",
+          "hash": "1a0a8e16d57e2d0b238e615869d2d85dbdf7afb4029148bffe4e7070f161a9d2"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-20130624.jpg",
+          "caption": "Living room — Stylish modern living room featuring a hanging fireplace and elegant decor. Photo by Wolf  Art on Pexels.",
+          "hash": "2d401f3f21894ac4c43a33c477f9034f0102ed0f2410ec0e38f79b92480c958d"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-14367647.jpg",
+          "caption": "Living room — A warm, inviting living room with soft lighting, a comfy sofa, and stylish decor. Photo by Denis Gvozdov on Pexels.",
+          "hash": "9b92bdfe8f9c2ac5b63d1b84c7beb2aa5dd8c6976c691eaf6a0b936416c135bc"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-1125135.jpg",
+          "caption": "Living room — A stylish living room featuring modern furnishings and sleek interior design. Photo by Element5 Digital on Pexels.",
+          "hash": "6916ab688b9ebfb5478075604b567eabda230571dafcc682779fd46f031f5e98"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-19234067.jpg",
+          "caption": "Living room — Sunlit modern living room featuring a stylish sofa, armchair, TV, and coffee table with elegant decor. Photo by Ayşe Nurdan Öngel on Pexels.",
+          "hash": "2e0fad0eb4c777b471f35261b579bb424aa85f79aedc572181b693b456b187a0"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-5825391.jpg",
+          "caption": "Living room — From above of living room interior with comfortable sofas and table between chairs at home. Photo by Charlotte May on Pexels.",
+          "hash": "cbbedc77a45595282e959fd0940443956f0c9c5403021547059f5dfa8d29a11e"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-15897445.jpg",
+          "caption": "Living room — A stylish living room setup featuring tulip flowers in a modern vase, framed art, and a comfortable sofa. Photo by Jennifer Krug on Pexels.",
+          "hash": "e695af5a5d0970e055432e71f69708fe6d242bb018d41b6f6abbfcfcc860358a"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-15034529.jpg",
+          "caption": "Living room — Cozy and modern living room with stylish furniture and a warm atmosphere. Photo by Robert Gutierrez on Pexels.",
+          "hash": "f70f99e12243864c8a3a4fc4ecf0dcbe2a3184d3c958232944782e4977d041ce"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-34684022.jpg",
+          "caption": "Living room — A modern cozy living room featuring plush furniture and elegant decor, perfect for relaxation. Photo by 果 芒 on Pexels.",
+          "hash": "bbd467aa6c262e04421a42c7661421802eb72b471602af71b9688cfcfea77053"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-6186848.jpg",
+          "caption": "Living room — Modern living room interior with soft couch and pillows near armchair and round table near window with curtains and shelves with plants near lamp. Photo by Max Vakhtbovych on Pexels.",
+          "hash": "e21eab740ad54513857340512c03300d359ea58025cc4baa8c6c9c9fc7e131d4"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-27198456.jpg",
+          "caption": "Living room — Elegant minimalist bookshelf in a modern home interior design, emphasizing simplicity and luxury. Photo by Wilcle Nunes on Pexels.",
+          "hash": "bc6c3455e64abcdca94e7ca7c571773395aa3d9887b5422e50909e24334db0de"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-13086783.jpg",
+          "caption": "Living room — A luxurious beige sofa in a sunlit room with classic architectural details. Photo by Sarazh  Izmailov on Pexels.",
+          "hash": "eaf1c0d82132a9fe456c59fb95b62a908f9eb4da8d8e830c79f2edbccad220c2"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-29012624.jpg",
+          "caption": "Living room — A modern living room with plush seating and tall windows letting in natural light. Photo by Beyza Kılıçdere on Pexels.",
+          "hash": "f986c931a4f56a9ccfcdcd76ae430a8dbe8e27cc6da0ea754f3a3e30fe9f817c"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-31949939.jpg",
+          "caption": "Living room — Modern living room featuring elegant decor, ambient lighting, and luxurious furnishings. Photo by Misbaa eri on Pexels.",
+          "hash": "590a9ff4d5e805e887278d268ef6aa5f19db7cdb32196753391b16b3a353f51d"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-37252547.jpg",
+          "caption": "Living room — Elegant and modern living room interior with sofa, artwork, and city view. Photo by Misbaa eri on Pexels.",
+          "hash": "7e7dcc03bb14f68cc8b348e01fe670e6c967b7485ebacd5a985ad80a95cdec7e"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-9976128.jpg",
+          "caption": "Living room — Stylish modern living room with high ceilings, minimalist decor, and neutral palette. Photo by Jonathan Borba on Pexels.",
+          "hash": "9aa58a63641d897f2962d0493ef041f36f095be3c0ddc09572d6505a70a73d26"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-16720155.jpg",
+          "caption": "Living room — A vintage-style living room featuring classic furniture and ornate decor in neutral tones. Photo by Mehmet Turgut  Kirkgoz on Pexels.",
+          "hash": "ec6c08c8b881079bc7fef20a90c6e91ddaabf9c9260998a918832940eeca4ae0"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-19980253.jpg",
+          "caption": "Living room — Neutral-toned living room featuring a modern sofa, stylish coffee table, and plush pillows. Photo by Alex Tyson on Pexels.",
+          "hash": "4a9fb797a986d93def3bee2ab4ca2e0d56e1896b21cf40dcb7998bf3f88ffdda"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10446865.jpg",
+          "caption": "Living room — Cozy modern living room featuring a stylish sofa and abstract wall art, perfect for home decor inspiration. Photo by Heloisa Vecchio on Pexels.",
+          "hash": "62de5150a8f8353ed18e43aeaf12e3bcf3ff63d3e953d760087e5ef148b0cf8e"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-36654141.jpg",
+          "caption": "Living room — Stylish living room with modern decor and soft lighting, perfect for relaxation. Photo by Luk Sauvage on Pexels.",
+          "hash": "01075c3ca28fc4c612c016eab3bfd1f3d3a94d2642ae35b7747ba3b24e70f2f4"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-11842399.jpg",
+          "caption": "Living room — A stylish beige interior featuring an elegant armchair and decorative fireplace in natural light. Photo by Yulia Goncharuk on Pexels.",
+          "hash": "dfe9129b701a77ef0bbaaa4077283bac9aea180286bf5df8c71aef45146fa88b"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-29012620.jpg",
+          "caption": "Living room — Bright and airy minimalist living room with white furniture and tall curtains enhancing natural light. Photo by Beyza Kılıçdere on Pexels.",
+          "hash": "e5d07d9e25478a8240039d9ad9788d429018822ad578c0282e9a069819f17114"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-34017792.jpg",
+          "caption": "Living room — Elegant minimalist living room with sofa, floor lamp, and decorative vase. Photo by Sami Raad on Pexels.",
+          "hash": "40ff3febe1fe22d3c44b65dd97f9c1648ed36800fa8022cf731b9aa11c3d7261"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-37748259.jpg",
+          "caption": "Living room — Bright minimalist living room featuring sleek TV setup, neutral furniture, and natural light through large window. Photo by Misbaa eri on Pexels.",
+          "hash": "92943e46654619154dafa3a47a860d6fce3f2ad69d5c23e995115159a2d55cb5"
+        }
+      ]
+    },
+    {
+      "name": "Interior Design — Bedrooms",
+      "created_at": "2026-07-14T14:30:00.000Z",
+      "pinned": false,
+      "images": [
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-15743375.jpg",
+          "caption": "Bedroom — A warm and inviting bedroom featuring stylish bedding, soft lighting, and contemporary art. Photo by Ushindi Namegabe on Pexels.",
+          "hash": "01b19c53ad19540d709fabbb45c00f5c35c23a389267a350711eef3a1d2962e4"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-31184400.jpg",
+          "caption": "Bedroom — Stylish dark-themed bedroom with elegant decor, luxurious bed, and cozy armchair. Photo by Adamowicz Adamsky on Pexels.",
+          "hash": "55fd140b32ee375885eae635bbe58fafd487f5e1b266b09b23e17cd687e52a4b"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-13722859.jpg",
+          "caption": "Bedroom — Cozy and stylish modern bedroom with textured wall and ambient lighting. Photo by Bilal Mansuri on Pexels.",
+          "hash": "d35c4540ae887b0fe7830008e04521ebc7773883fc930101aead0e34e7b8b5ff"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-30455215.jpg",
+          "caption": "Bedroom — Warm and inviting bedroom illuminated by stylish wall sconces, perfect for relaxation. Photo by Marion Batteur on Pexels.",
+          "hash": "c3eb883d35d0130c27c3297dfb9f13048d71b4f7981d700dad38dcade553f3b4"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-18738880.jpg",
+          "caption": "Bedroom — Elegant modern bedroom featuring striped pillows and a woven blanket. Photo by Alejandra Montenegro on Pexels.",
+          "hash": "4343a27588e9e7c11f8b0c3b670f726dfc8f1a14ea3f85fcf5a73ad0cfbf01f7"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-34930440.jpg",
+          "caption": "Bedroom — A modern bedroom with a warm ambiance and a large window showcasing a forest view. Photo by Carla-Lavinia on Pexels.",
+          "hash": "dc6783ec2f14bd29800c628fa8bcd10f1bb8cf19c219989a31cf2553e5b0c443"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-38305985.jpg",
+          "caption": "Bedroom — Elegant modern bedroom with minimalist decor, featuring sleek furniture and subtle lighting. Photo by DOAN THANH BINH on Pexels.",
+          "hash": "f637754429e3506b88c7eb064590f72955f46a6f1b4e08d9913e96eb10ab2184"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-13723007.jpg",
+          "caption": "Bedroom — Warm and contemporary bedroom with comfortable bedding, subtle lighting, and modern furniture. Photo by Teruo Kondo on Pexels.",
+          "hash": "6b18e7b6d92dff6a0813e2924d9cc5cdd4ca1af7afd6ab97a61afb95f4983c97"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-28581288.jpg",
+          "caption": "Bedroom — Warm, inviting bedroom featuring a unique floor mirror and ambient lighting for a cozy ambiance. Photo by Rappunk G Ononiwu on Pexels.",
+          "hash": "c9863142bddb63b4eeb61a67f39b36bf10c31135da6a4522a7a2d273ab903076"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-20653855.jpg",
+          "caption": "Bedroom — A stylish modern bedroom interior with soft lighting and contemporary decor. Photo by Roshan Patel on Pexels.",
+          "hash": "5b132159e3e3ee174c86ec4d9b66f309243cc32ec23b4e40c55eb2b41f118914"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-5644277.jpg",
+          "caption": "Bedroom — Inviting minimalist bedroom with soft lighting and a rustic wooden design. Photo by Polina ⠀ on Pexels.",
+          "hash": "9e6cc55309ad4e0de867ce8972be94800f101f7986d67d4918f2a44b9ff07fdc"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-34906890.jpg",
+          "caption": "Bedroom — A stylish minimalist bedroom featuring a double bed and subtle lighting. Photo by GALERI CREATOR on Pexels.",
+          "hash": "b7b4a7e1d19efb0b5b6e48b00cd2e4c1b0d2101bbc47641f951b0b63b09a86a3"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-14883343.jpg",
+          "caption": "Bedroom — Warm and inviting bedroom with elegant chandelier and stylish bedding, perfect for relaxation. Photo by Din on Pexels.",
+          "hash": "da7ee306136e5fd269693a1a569645e5e0365ddc38728ba1b7651ded566c6882"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-18601964.jpg",
+          "caption": "Bedroom — A serene and cozy minimalist bedroom with beige and white accents. Photo by Aljona Ovtšinnikova on Pexels.",
+          "hash": "4916e5dfcebcc7216e52be7f2f435932c3700174b270e64d13a7f5c7a51d7a22"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10117807.jpg",
+          "caption": "Bedroom — A cozy, elegant bedroom featuring a greyhound on a bed with modern interior decor and soft lighting. Photo by Ron Lach on Pexels.",
+          "hash": "6b67726b1cb88be969824fa181b82ef189c00a83e0ff7395f753f555dfe8979b"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-33389177.jpg",
+          "caption": "Bedroom — A serene, minimalist bedroom featuring a stylish pastel headboard and lamp. Photo by Vincent Rivaud on Pexels.",
+          "hash": "b36748348b6ac2f3af231c6dfff5242c2451135157757af177eca26a94a4c1ba"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-29435313.jpg",
+          "caption": "Bedroom — Elegant minimalist bedroom interior with plush bedding and ambient lighting. Photo by Yunus Tuğ on Pexels.",
+          "hash": "b39e75360f7e644eb7248945a779f2c912a0ee35b8bb5f8154eaab98fcea4014"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-37468270.jpg",
+          "caption": "Bedroom — Stylish minimalist bedroom with beige decor, modern bed and soft lighting. Photo by mcpeter on Pexels.",
+          "hash": "83887e4c64018f96da3b2ae73e121ab9aad1965f206d34dc4f2eb2cdb2544836"
+        }
+      ]
+    },
+    {
+      "name": "Interior Design — Kitchens",
+      "created_at": "2026-07-14T14:30:00.000Z",
+      "pinned": false,
+      "images": [
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-14976360.jpg",
+          "caption": "Kitchen — Elegant kitchen featuring stainless steel oven, wooden shelves, and artistic decor. Photo by İlknur Çelik on Pexels.",
+          "hash": "555cfaeaed0d59e26fc097c1d32d2ebdcd281e51124f8fcc101c7078517452a8"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10117713.jpg",
+          "caption": "Kitchen — Elegant kitchen interior featuring wooden counter, open shelves, and stylish decor. Photo by Keegan Checks on Pexels.",
+          "hash": "83b60c38e3e3aa4c4bb64a5fad47f2d942952a85a76ba5ba5f7467861f282f58"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10854903.jpg",
+          "caption": "Kitchen — Contemporary kitchen interior featuring red barstools, sleek countertops and tiled backsplash. Photo by Derwin  Edwards on Pexels.",
+          "hash": "6c4ec5b4711231c94a7114842ffeb7a6a3592421b0ba577eb1168f225965b2a0"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-31737857.jpg",
+          "caption": "Kitchen — Cozy modern kitchen with a variety of food on the island table, perfect for culinary shoots. Photo by Sharath G. on Pexels.",
+          "hash": "fcde926f69f24bf02f5fcdce51ecb0e2cd31d285f7a8626e5897e08406acd8a3"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-259819.jpg",
+          "caption": "Kitchen — Warm and cozy kitchen featuring wooden furniture and green plants. Photo by Pixabay on Pexels.",
+          "hash": "b94c18a9c7e5fc63077e2e3656b23628c35b188ee00414fcf7a6815aae856be2"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-19563199.jpg",
+          "caption": "Kitchen — Stylish kitchen interior featuring modern oven, stove, and wooden countertops. Photo by Leyla Kılıç on Pexels.",
+          "hash": "190afa7d84fcf990a0f61d41c127bf1f6d1c8864efec0878dad9d6cecfc58bf9"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-19353445.jpg",
+          "caption": "Kitchen — Stylish kitchen with modern furniture and warm lighting, creating an inviting atmosphere. Photo by Oliver Atherton on Pexels.",
+          "hash": "9958d783fcf70f0e07b12c9386b9504d86258498d29c338fffb12a645e23cb11"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-11076072.jpg",
+          "caption": "Kitchen — Stylish kitchen with minimalist design, wood accents and natural light. Photo by Bilal Mansuri on Pexels.",
+          "hash": "17fa4995c8a9b36cb01e4a0597205588e78e9047e625e3d4130def14d0d204b3"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-32471846.jpg",
+          "caption": "Kitchen — A modern minimalist kitchen with warm lighting and sleek decor. Photo by Francesco Ungaro on Pexels.",
+          "hash": "e7f51a2a936d39d9f4385b5d6881c403aec3d5914b644d95e0a403cdd9d77334"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-29471808.jpg",
+          "caption": "Kitchen — A warm and inviting kitchen counter with a teapot, candles, and potted plant for a cozy ambiance. Photo by Nursevim on Pexels.",
+          "hash": "cd9ad4999bf9575e301317c6a3c46ba299a8c766f6ad20a1ddf3362695a7a16d"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-13722854.jpg",
+          "caption": "Kitchen — Sleek modern kitchen interior featuring a marble island, dark cabinets, and elegant lighting. Photo by Bilal Mansuri on Pexels.",
+          "hash": "3f8391d80e52f46c4aa22e66fd0ee9116a4ed50b336e628d01f2ed9aa8cad0ba"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-34946369.jpg",
+          "caption": "Kitchen — A sleek, contemporary kitchen in Jakarta highlighted by elegant lighting and marble countertops. Photo by murod lens on Pexels.",
+          "hash": "84c7e45adb42c8a7168e11ff8759b62e4ae46eca39f3e5d1875de34a3da7c611"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-12814943.jpg",
+          "caption": "Kitchen — A warm, inviting kitchen scene showcasing rustic cabinets and modern appliances. Photo by Ioana Motoc on Pexels.",
+          "hash": "17cb5a2a84e231d656e6155210af25837b14739a58359b9eb4f86bc1a48ed921"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-28539229.jpg",
+          "caption": "Kitchen — Sleek kitchen design with wooden cabinets, island, and stainless steel appliances. Photo by Damm aaaa on Pexels.",
+          "hash": "e13890cd35599119e71ff1d5b2882aa9010f462723b54622ab7e703837039434"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-36887735.jpg",
+          "caption": "Kitchen — Stylish kitchen featuring marble countertop, floral centerpiece, and illuminated shelves. Photo by DOAN THANH BINH on Pexels.",
+          "hash": "82b436c4ef1fd36edf32b94210bc03492638a58e68ade813f75c69efc3a853c4"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-34620475.jpg",
+          "caption": "Kitchen — Contemporary small kitchen with beige cabinets and patterned flooring. Photo by Renáta Mező on Pexels.",
+          "hash": "d2f750df7a45aab7bceed592d04d45d4a391216767bd3c13ddd1d04d5bb7630d"
+        }
+      ]
+    },
+    {
+      "name": "Interior Design — Bathrooms",
+      "created_at": "2026-07-14T14:30:00.000Z",
+      "pinned": false,
+      "images": [
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-33599113.jpg",
+          "caption": "Bathroom — Elegant modern bathroom with marble design, double sink, and ambient warm lighting. Photo by Ela De Pure on Pexels.",
+          "hash": "6eaa665f184b5cb2d6687ad51356e4778a57d4e132855fefb0b63ecc480e7275"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10919427.jpg",
+          "caption": "Bathroom — Minimalist luxury bathroom featuring designer sink, round mirror, and textured wall. Photo by Bilal Mansuri on Pexels.",
+          "hash": "dec3bfcad727bdc7a44cf64e239cf8fdda74db1859b8c48a05dd4c9917e3d0f3"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-11076069.jpg",
+          "caption": "Bathroom — Elegant modern minimalist bathroom with geometric patterns and warm lighting. Photo by Bilal Mansuri on Pexels.",
+          "hash": "bc6e5728187547f2ccbd3eb46d9ef3f5eef812df370d681de2604a64d0ce6178"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-28080316.jpg",
+          "caption": "Bathroom — Stylish bathroom featuring brass fixtures, a round mirror, and modern decor. Photo by isabel  ph on Pexels.",
+          "hash": "5cdd7da1429e9fe99e7bb345016f99005fb5cc6aeaa880879f7b27d72b799c4e"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-16436964.jpg",
+          "caption": "Bathroom — Stylish bathroom featuring rustic design with elegant fixtures and ambient lighting. Photo by Luis Zambrano on Pexels.",
+          "hash": "2ea46e6e1ab1c10ffac132be31a855d9d11d71fc742ae73acf020353fc0095ab"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-5644275.jpg",
+          "caption": "Bathroom — Modern bathroom with glass door, wooden sink, and natural brick wall. Photo by Polina ⠀ on Pexels.",
+          "hash": "e727ce503c95a0c6977dd9a88e01625da27f023a406cf09c1f9ad76c63c68f78"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10153049.jpg",
+          "caption": "Bathroom — Stylish bathroom featuring a luxury washbasin, mirror, and striped walls. Photo by Jonathan Borba on Pexels.",
+          "hash": "41302e52ba960a083d51d8d43192c6117813244ddafdc02b4c049e70865640a8"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10886544.jpg",
+          "caption": "Bathroom — Elegant Scandinavian bathroom featuring a freestanding bathtub and natural wooden accents in a well-lit interior. Photo by Andrea Davis on Pexels.",
+          "hash": "cdc6fb5831ce802e507555170c7dbcbe89a64ca13f6014e0364f954a306d0aed"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-29435312.jpg",
+          "caption": "Bathroom — Stylish bathroom with marble sink, mirror, and ambient lighting, offering a modern aesthetic. Photo by Yunus Tuğ on Pexels.",
+          "hash": "238f1dae8b7596c27c9c1265af7213c2b323a8ce2600cdcd5f6b808b6e094d9d"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-16436967.jpg",
+          "caption": "Bathroom — Elegant rustic bathroom featuring a modern sink, faucet, and warm lighting. Photo by Luis Zambrano on Pexels.",
+          "hash": "1de52101c1e670d10f68ac4d7b7d48b1ea369b7c0d0dde2663e08b7446a8ad6c"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-6734409.jpg",
+          "caption": "Bathroom — Modern bathroom featuring white subway tiles, a pedestal sink, and warm lighting. Photo by Nese Dolan on Pexels.",
+          "hash": "9f95f59ddd64502330bd85e3fc89260fc1ff73d1117c9ba86f02b16a97286fcd"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10919431.jpg",
+          "caption": "Bathroom — Spacious minimalist bathroom featuring a sleek black toilet and wooden walls. Ideal for interior design inspiration. Photo by Bilal Mansuri on Pexels.",
+          "hash": "a3045f838d42b7c4b92d1797a5fb74b838c493bc0dfee9da911c1e782b532f4d"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-16436916.jpg",
+          "caption": "Bathroom — Stylish minimalist bathroom interior featuring modern design and natural lighting. Photo by Luis Zambrano on Pexels.",
+          "hash": "ada57aa04f27a824d2ecda749b5c71e23f51d0a1911e1e2697b96431f5046422"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-15743371.jpg",
+          "caption": "Bathroom — A glimpse into a modern bathroom with a sleek bathtub, seen through an open doorway. Photo by Ushindi Namegabe on Pexels.",
+          "hash": "07ff2ea229d9ccd1d7bd8d98ad2024dc5827d69cd7f85b4b63983c07038fe4fd"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10188098.jpg",
+          "caption": "Bathroom — Elegant minimalist bathroom featuring a freestanding bathtub, contemporary decor, and wooden accents. Photo by Andrea Davis on Pexels.",
+          "hash": "c639fa4ad3cdf68c13ec19ad61d66c84705efd0da60275406be17d20326f0377"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-358592.jpg",
+          "caption": "Bathroom — Contemporary bathroom featuring a sleek white bathtub, modern fixtures, and minimalist interior design. Photo by Pixabay on Pexels.",
+          "hash": "33afff52707d7639deff3edd90618912ebb89a7c358039b26e5b28f8dd753c4c"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-20705920.jpg",
+          "caption": "Bathroom — A stylish retro bathroom featuring a vintage washbasin and elegant tile designs. Photo by Алан Албегов on Pexels.",
+          "hash": "bbd0c5b33539084932cfb22f1945302d22bde7a9419c7877d83e0cc206e4e5c5"
+        }
+      ]
+    },
+    {
+      "name": "Interior Design — Dining & Apartments",
+      "created_at": "2026-07-14T14:30:00.000Z",
+      "pinned": false,
+      "images": [
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-15948527.jpg",
+          "caption": "Dining room — Stylish interior with wooden dining set and rustic pendant lamps in a minimalist design. Photo by Mia Dalisay on Pexels.",
+          "hash": "d67da44bc3813d05ba85c846c22ddf9d9bf380e80c89e55cac6d6e5429145f2d"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-36495171.jpg",
+          "caption": "Dining room — Cozy and elegant dining area featuring a wooden table, chairs, and a modern chandelier, perfect for stylish interiors. Photo by Mariya Eskina on Pexels.",
+          "hash": "812565cbdb937d704342992743cb043da2cbf949cf0d6fdebb96106a70ae9258"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-15775226.jpg",
+          "caption": "Dining room — A beautifully arranged dining room table with elegant tableware in a sunlit interior setting. Photo by Kiazoldyck on Pexels.",
+          "hash": "fff30c5ca8d2515965811d646d58d90ea6ca2b7a6b6f290796db0bdcc98a941e"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10115000.jpg",
+          "caption": "Dining room — Spacious modern dining room featuring wooden table and chairs, pendant lights, and a bright airy feel. Photo by Jonathan Borba on Pexels.",
+          "hash": "5a9cc41d62402ca3373d8211f67315a5ccc1db051c7329e88356a03c7d46cba3"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-8778083.jpg",
+          "caption": "Dining room — Stylish dining room with stone wall and wooden features in Istanbul. Photo by özhan Hazırlar on Pexels.",
+          "hash": "5aef975868f0797b751286298c0f38fa662daabee8ea4dfba417bca28ee02fb1"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-6119569.jpg",
+          "caption": "Dining room — Stylish room with a Christmas tree, table, and modern chandelier, perfect for festive settings. Photo by Vlada Karpovich on Pexels.",
+          "hash": "fa7e31b244d9f2d045afb388359f1ad586ad2dadc2ee03ab4c0d6f3eb174fa82"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-6310291.jpg",
+          "caption": "Dining room — Interior of modern dining room with table served with various tableware and candles under traditional paper cranes hanging on ceiling. Photo by furkanfdemir on Pexels.",
+          "hash": "e66549f3daa613d8cfbcf9ed8307dd33735009f4a41b15d4e26445e8e4f875ae"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-2995012.jpg",
+          "caption": "Dining room — Sunlit minimalist dining room with round table, chairs, and painting. Photo by Tiana on Pexels.",
+          "hash": "8ab5fb9e4eef49b8acb22af2d5abc4fa0976174ff7647e7e73f829148f59cda0"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-6310294.jpg",
+          "caption": "Dining room — Set of various tableware placed on table with burning candles in spacious dining room with decorative paper cranes hanging on lamps. Photo by furkanfdemir on Pexels.",
+          "hash": "1fbdb5c9abec34eac014188cad1c9874007e4277c019eac1a5d01a9f8159b858"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-22743854.jpg",
+          "caption": "Dining room — Elegant kitchen dining space featuring wooden furniture and minimalist decor. Photo by Thới Nam Cao on Pexels.",
+          "hash": "f3bafb468b81af45ae1b906380e50499ded51c6f677f00b3ffe89fd7015b163a"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10114999.jpg",
+          "caption": "Dining room — Stylish dining room featuring a wooden table, chairs, and a lush vertical garden wall for a natural touch. Photo by Jonathan Borba on Pexels.",
+          "hash": "9eb06a9e51fc6c91da129f18408905223f42440bdbbc356b6b373e13fce8b20a"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-35610411.jpg",
+          "caption": "Dining room — Inviting dining room featuring a wooden table and chairs in a well-lit space. Photo by Ivett M on Pexels.",
+          "hash": "cda095487a7005234dab39fa58450111b73024e718a29b763b23c7ef1b8ac755"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10240141.jpg",
+          "caption": "Dining room — A bright dining room with elegant table settings and modern decor under sunlit shadows. Photo by Ron Lach on Pexels.",
+          "hash": "90f849ae0e6a61e07debf24619a5c670bc05bb178d6c8811545eb3b158465efd"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-17219549.jpg",
+          "caption": "Dining room — Elegant modern dining room with wooden furniture and bright natural lighting in Yalova, Türkiye. Photo by Betül  Ataç on Pexels.",
+          "hash": "b6fc90e5b8ab93ac0a6b2ef42b1ed5ad0bff82f7942335695170e8ec8dd4b0bd"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-10588266.jpg",
+          "caption": "Dining room — Warm brick interior in Istanbul with a vintage chandelier and a lush plant. Photo by Büşranur Aydın on Pexels.",
+          "hash": "5a6b081eea30a210c09c934c8d16f363c21bd43ea00603d50e17900d8d1e93a8"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-36887744.jpg",
+          "caption": "Apartment — Explore a minimalist wooden interior featuring sleek built-in storage solutions. Ideal for modern home design inspiration. Photo by DOAN THANH BINH on Pexels.",
+          "hash": "cbd5783d23e4e49db9901f32fe9838d6c551b2b139e44b41d0fce1c3a3b2b9e0"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-7303768.jpg",
+          "caption": "Apartment — A modern minimalist kitchen interior featuring wooden cabinets and sleek design. Photo by Cup of  Couple on Pexels.",
+          "hash": "7902dbaec096898f1c9b080cd4a0afc659cad86d079c1cced9f7d4419e9a1756"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-7303775.jpg",
+          "caption": "Apartment — A minimalist kitchen counter with wooden bowls and red leaves in a vase. Photo by Cup of  Couple on Pexels.",
+          "hash": "bb946fa065f70134ae692dfac4354671eba44f4172d95de1ebb2cd5bc11520ee"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-7004717.jpg",
+          "caption": "Apartment — A warm and inviting living room features a cozy sofa, dining table, and artistic decor. Photo by Arina Krasnikova on Pexels.",
+          "hash": "77f8292bc0c412183483f805c7801a61914060f72bf1c6892c72664f2838e207"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-14498466.jpg",
+          "caption": "Apartment — Cozy modern living room with sunlight casting warm shadows on the wall at sunset. Photo by Kien Tran on Pexels.",
+          "hash": "7f30b9c98643099487e1681cf2a2c1cdf99eabe7fa7589f131234effffc280c1"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-34549308.jpg",
+          "caption": "Apartment — Elegant minimalist bedroom interior design with soft lighting and cozy atmosphere. Photo by Liuuu _61 on Pexels.",
+          "hash": "03150efa524560e2b37ad51014046197ad60f48c1e82a94fba462d0b0521fb30"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-34995590.jpg",
+          "caption": "Apartment — Inviting doorway leading to a warmly lit interior featuring a dining area. Photo by Ayşe  Demir on Pexels.",
+          "hash": "7b52e564d03cf8ffbdd7e7d021b05265587aa166c2016552e2ff9f5548d0f416"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-32062852.jpg",
+          "caption": "Apartment — Explore the stylish design of a modern industrial living room with cozy furnishings and warm lighting. Photo by Trần Tuấn Anh on Pexels.",
+          "hash": "1a0649aa94da5b3893046b31fd5b1e6167ac949b8e691c5d3343fb970a033443"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-31895796.jpg",
+          "caption": "Apartment — Warm and inviting Scandinavian kitchen design with wooden furniture and natural light. Photo by @nomundodejr Jr. on Pexels.",
+          "hash": "de9ae440b3f9f6f4430af30d92698ee5dbf1a89379b483f20166233a8851fcb2"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-27729373.jpg",
+          "caption": "Dining room — Inviting contemporary living room with stylish furniture, warm colors, and elegant decor. Photo by Alexander Mass on Pexels.",
+          "hash": "4695c1a7d704dae49135ff4ad19870f293ed1af991da18dffb5b28cfcc0d1551"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-7004712.jpg",
+          "caption": "Dining room — Cozy dining area with modern furniture and natural lighting in a minimalist home setting. Photo by Arina Krasnikova on Pexels.",
+          "hash": "74de21228d3b2d0d19a9a637f215a04fc9187a5d7feafb8384a72d395ca8fe54"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-6127212.jpg",
+          "caption": "Dining room — Elegant dining area featuring a glass table and woven chairs in a contemporary home setting. Photo by Rachel Claire on Pexels.",
+          "hash": "0a1db0648fb32cf4dfa804dc851fc0a96c0ddc47053a75edda0d778da44789ca"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-6173324.jpg",
+          "caption": "Dining room — Cozy dining room setup with rustic table, candles, and small potted trees for festive ambiance. Photo by Leeloo The First on Pexels.",
+          "hash": "42d590d621d455a43d205b4be24c1736a01c6539b79eb5933dabff3e478fd916"
+        },
+        {
+          "image_link": "/api/local-assets/image-collections/files/pexels-interior-19991839.jpg",
+          "caption": "Dining room — Elegant minimalist kitchen scene with blue cabinets and contemporary furniture. Photo by Alex Tyson on Pexels.",
+          "hash": "fe2225106052d9d58c21af4afd736868597c4b9c73b8c8cd61be82c343a9a01f"
         }
       ]
     }

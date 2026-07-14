@@ -39,6 +39,10 @@ export async function POST(request: Request) {
     const preview = await previewAutomationRunPlan(schema, {
       automationId: automation.id,
       now: dateValue(payload?.now),
+      textModel:
+        typeof payload?.textModel === "string" && payload.textModel.trim()
+          ? payload.textModel.trim()
+          : undefined,
     })
 
     return NextResponse.json({

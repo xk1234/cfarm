@@ -25,7 +25,6 @@ describe("pinterest search helpers", () => {
       type: "all-pins",
       limit: 20,
       content_analysis: false,
-      sentinent_analysis: false,
       proxyConfiguration: {
         useApifyProxy: true,
         apifyProxyGroups: ["RESIDENTIAL"],
@@ -45,7 +44,6 @@ describe("pinterest search helpers", () => {
       type: "all-pins",
       limit: 20,
       content_analysis: false,
-      sentinent_analysis: false,
       proxyConfiguration: {
         useApifyProxy: true,
         apifyProxyGroups: ["RESIDENTIAL"],
@@ -80,6 +78,11 @@ describe("pinterest search helpers", () => {
         apifyProxyGroups: ["RESIDENTIAL"],
       },
     })
+  })
+
+  it("requests a minimum actor batch without changing the caller result limit", () => {
+    expect(buildPinterestActorInput("small batch", 3).limit).toBe(10)
+    expect(buildPinterestBoardActorInput("user/board", 3).maxResults).toBe(3)
   })
 
   it("normalizes nested Pinterest pin media into collection results", () => {
@@ -178,6 +181,24 @@ describe("pinterest search helpers", () => {
       imageUrl: "https://i.pinimg.com/originals/b2/af/6b/example.jpg",
       dominantColor: "#b7a38e",
     })
+  })
+
+  it("recovers deeply nested pinimg urls from changing actor payloads", () => {
+    const results = normalizePinterestItems([
+      {
+        id: "789",
+        payload: {
+          unexpected: {
+            image:
+              "https:\\/\\/i.pinimg.com\\/originals\\/aa\\/bb\\/fallback.jpg",
+          },
+        },
+      },
+    ])
+
+    expect(results[0]?.imageUrl).toBe(
+      "https://i.pinimg.com/originals/aa/bb/fallback.jpg"
+    )
   })
 
   it("creates deterministic fallback results for local testing", () => {

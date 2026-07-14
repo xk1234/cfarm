@@ -8,15 +8,15 @@ import {
 
 function schema(value: string, preset: string) {
   return {
-    formatting: [{ id: "_tone", value, preset }],
-  } as AutomationSchema
+    tone: { value, preset },
+  } as unknown as AutomationSchema
 }
 
 describe("automation tone presets", () => {
   it("recognizes named tones even when legacy data incorrectly says custom", () => {
-    expect(
-      automationToneSelection(schema("Witty & Relatable", "custom"))
-    ).toBe("Witty & Relatable")
+    expect(automationToneSelection(schema("Witty & Relatable", "custom"))).toBe(
+      "Witty & Relatable"
+    )
   })
 
   it("uses a stored preset when its value contains the full prompt", () => {
@@ -32,7 +32,7 @@ describe("automation tone presets", () => {
       schema("old prompt", "custom"),
       "Practical & Aspirational"
     )
-    expect(updated.formatting.find((item) => item.id === "_tone")).toMatchObject({
+    expect(updated.tone).toMatchObject({
       value: "Practical & Aspirational",
       preset: "practical_aspirational",
     })

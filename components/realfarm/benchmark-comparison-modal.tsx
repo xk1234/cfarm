@@ -1,7 +1,6 @@
 "use client"
 
-import { IconChartBar, IconX } from "@tabler/icons-react"
-
+import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import type {
   BenchmarkCorpusRecord,
   BenchmarkSlideInfo,
@@ -35,25 +34,16 @@ export function BenchmarkComparisonModal({
     ...comparison.references.map(referenceRow),
   ]
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="flex max-h-[90vh] w-full max-w-[1180px] flex-col overflow-hidden rounded-[12px] border border-[#d9d8d1] bg-white shadow-2xl">
-        <header className="flex items-center justify-between gap-4 border-b border-[#e4e3dc] px-5 py-4">
-          <div>
-            <h2 className="flex items-center gap-2 text-[18px] font-bold text-[#242421]">
-              <IconChartBar className="size-5 text-app-action" />
-              {title}
-            </h2>
-            <p className="mt-1 text-[12px] font-medium text-[#77766f]">
-              Your slideshow versus three randomly selected ReelFarm references. Scores are out of 10.
-            </p>
-          </div>
-          <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-[7px] text-[#77766f] hover:bg-[#f1f0eb]" aria-label="Close benchmark">
-            <IconX className="size-5" />
-          </button>
-        </header>
+    <AppModal className="z-[90]" onClose={onClose}>
+      <AppModalPanel className="flex max-h-[90vh] max-w-[1180px] flex-col rounded-[12px] border border-[#d9d8d1]">
+        <AppModalHeader
+          title={title}
+          description="Your slideshow versus three randomly selected ReelFarm references. Scores are out of 10."
+          onClose={onClose}
+        />
         <BenchmarkTable rows={rows} />
-      </div>
-    </div>
+      </AppModalPanel>
+    </AppModal>
   )
 }
 
@@ -65,22 +55,16 @@ export function BenchmarkCorpusModal({
   onClose: () => void
 }) {
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label="Benchmark corpus">
-      <div className="flex max-h-[90vh] w-full max-w-[1280px] flex-col overflow-hidden rounded-[12px] border border-[#d9d8d1] bg-white shadow-2xl">
-        <header className="flex items-center justify-between gap-4 border-b border-[#e4e3dc] px-5 py-4">
-          <div>
-            <h2 className="text-[18px] font-bold text-[#242421]">ReelFarm benchmark corpus</h2>
-            <p className="mt-1 text-[12px] font-medium text-[#77766f]">
-              {records.length} stored slideshows with copied images, source performance, ICP context, and multimodal grades.
-            </p>
-          </div>
-          <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-[7px] text-[#77766f] hover:bg-[#f1f0eb]" aria-label="Close benchmark corpus">
-            <IconX className="size-5" />
-          </button>
-        </header>
+    <AppModal className="z-[90]" onClose={onClose}>
+      <AppModalPanel className="flex max-h-[90vh] max-w-[1280px] flex-col rounded-[12px] border border-[#d9d8d1]">
+        <AppModalHeader
+          title="ReelFarm benchmark corpus"
+          description={`${records.length} stored slideshows with copied images, source performance, ICP context, and multimodal grades.`}
+          onClose={onClose}
+        />
         <BenchmarkTable rows={records.map(referenceRow)} />
-      </div>
-    </div>
+      </AppModalPanel>
+    </AppModal>
   )
 }
 
@@ -102,15 +86,28 @@ function BenchmarkTable({ rows }: { rows: BenchmarkRow[] }) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.id} className={cn("border-t border-[#ecebe5] align-top", row.current && "bg-[#fbf8ff]")}> 
+            <tr
+              key={row.id}
+              className={cn(
+                "border-t border-[#ecebe5] align-top",
+                row.current && "bg-[#fbf8ff]"
+              )}
+            >
               <td className="px-4 py-4">
                 <div className="flex gap-1.5">
                   {row.slides.slice(0, 3).map((slide) => (
                     // eslint-disable-next-line @next/next/no-img-element -- Benchmark thumbnails use dynamic Appwrite and authenticated asset URLs.
-                    <img key={slide.id} src={slide.imageUrl} alt="" className="h-[84px] w-[52px] rounded-[5px] bg-black object-cover" />
+                    <img
+                      key={slide.id}
+                      src={slide.imageUrl}
+                      alt=""
+                      className="h-[84px] w-[52px] rounded-[5px] bg-black object-cover"
+                    />
                   ))}
                   {row.slides.length > 3 ? (
-                    <span className="grid h-[84px] w-[42px] place-items-center rounded-[5px] bg-[#eeede7] font-bold text-[#77766f]">+{row.slides.length - 3}</span>
+                    <span className="grid h-[84px] w-[42px] place-items-center rounded-[5px] bg-[#eeede7] font-bold text-[#77766f]">
+                      +{row.slides.length - 3}
+                    </span>
                   ) : null}
                 </div>
                 <div className="mt-2 font-mono text-[10px] text-[#8a8982]">
@@ -119,7 +116,9 @@ function BenchmarkTable({ rows }: { rows: BenchmarkRow[] }) {
               </td>
               <td className="max-w-[270px] px-3 py-4">
                 <div className="font-bold text-[#242421]">{row.label}</div>
-                <div className="mt-1 line-clamp-3 leading-4 text-[#77766f]">{row.detail}</div>
+                <div className="mt-1 line-clamp-3 leading-4 text-[#77766f]">
+                  {row.detail}
+                </div>
               </td>
               <td className="px-3 py-4 font-mono text-[11px] text-[#55544f]">
                 {row.stats ? (
@@ -145,10 +144,29 @@ function BenchmarkTable({ rows }: { rows: BenchmarkRow[] }) {
   )
 }
 
-function ScoreCell({ score, overall = false }: { score: number; overall?: boolean }) {
+function ScoreCell({
+  score,
+  overall = false,
+}: {
+  score: number
+  overall?: boolean
+}) {
   return (
     <td className="px-3 py-4 text-center">
-      <span className={cn("inline-flex min-w-10 justify-center rounded-full px-2 py-1 font-mono text-[12px] font-bold", overall ? "bg-app-action text-white" : score >= 8 ? "bg-emerald-100 text-emerald-800" : score >= 6 ? "bg-amber-100 text-amber-800" : "bg-[#eeede7] text-[#66655f]")}>{score.toFixed(score % 1 ? 1 : 0)}</span>
+      <span
+        className={cn(
+          "inline-flex min-w-10 justify-center rounded-full px-2 py-1 font-mono text-[12px] font-bold",
+          overall
+            ? "bg-app-action text-white"
+            : score >= 8
+              ? "bg-emerald-100 text-emerald-800"
+              : score >= 6
+                ? "bg-amber-100 text-amber-800"
+                : "bg-[#eeede7] text-[#66655f]"
+        )}
+      >
+        {score.toFixed(score % 1 ? 1 : 0)}
+      </span>
     </td>
   )
 }
@@ -168,7 +186,13 @@ function referenceRow(record: BenchmarkCorpusRecord): BenchmarkRow {
   return {
     id: record.id,
     label: `@${record.creator.username}`,
-    detail: [record.creator.niche, record.creator.productMedium, record.creator.product].filter(Boolean).join(" · "),
+    detail: [
+      record.creator.niche,
+      record.creator.productMedium,
+      record.creator.product,
+    ]
+      .filter(Boolean)
+      .join(" · "),
     slides: record.slides,
     stats: record.stats,
     scores: record.scores,
@@ -176,7 +200,12 @@ function referenceRow(record: BenchmarkCorpusRecord): BenchmarkRow {
 }
 
 function pictureInfo(slide: BenchmarkSlideInfo | undefined, count: number) {
-  const size = slide?.width && slide?.height ? `${slide.width}×${slide.height}` : "size n/a"
-  const bytes = slide?.bytes ? `${Math.max(1, Math.round(slide.bytes / 1024))} KB first image` : ""
+  const size =
+    slide?.width && slide?.height
+      ? `${slide.width}×${slide.height}`
+      : "size n/a"
+  const bytes = slide?.bytes
+    ? `${Math.max(1, Math.round(slide.bytes / 1024))} KB first image`
+    : ""
   return `${count} slides · ${size}${bytes ? ` · ${bytes}` : ""}`
 }

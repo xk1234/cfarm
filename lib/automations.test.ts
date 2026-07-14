@@ -1,9 +1,7 @@
 import path from "node:path"
 
-import { Query } from "node-appwrite"
 import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
 import { upsertAutomationTemplateRecords } from "@/lib/automation-templates"
 import {
@@ -12,6 +10,8 @@ import {
   deleteAutomationRecord,
   listAutomationRecords,
   normalizeReelfarmAutomation,
+  patchAutomationRecord,
+  type AutomationRecord,
   upsertAutomationRecords,
 } from "@/lib/automations"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
@@ -26,7 +26,6 @@ import { defaultAutomationTemplateDefaults } from "@/lib/automation-template-def
 //   data/automation-templates/templates.json    -> automation_templates
 const rootDir = path.join(process.cwd(), "data", "automations")
 const templatesRoot = path.join(process.cwd(), "data", "automation-templates")
-
 
 const clearAll = () => clearTestTables("automations", "automation_templates")
 
@@ -132,6 +131,8 @@ describe("automation import persistence", () => {
           disclose_branded_content: false,
           post_mode: "DIRECT_POST",
         },
+        image_fit: "contain",
+        language: "English",
         image_collection_ids: JSON.stringify({
           first_slide: {
             collection: "community_collection_hook",
@@ -139,8 +140,6 @@ describe("automation import persistence", () => {
             single_image: "215115",
           },
           all_slides: "community_collection_body",
-          aspect_ratio: "9:16",
-          is_bg_overlay_on: true,
           cta_slide: {
             check: true,
             cta_collection_check: true,
@@ -148,14 +147,11 @@ describe("automation import persistence", () => {
             image_id: null,
             cta_location: "last_slide",
           },
-          keepOriginalAspectRatio: true,
-          is_bg_overlay_on_hook_image: true,
           textOnFirstSlideOnly: false,
           noTextOnSlides: false,
           autoPullImagesNotCollections: false,
           autoImagesNoTextOnImages: false,
           disableAutoImageForFirstSlide: false,
-          language: "English",
         }),
         schedule: { timezone: "America/New_York" },
       },
@@ -200,11 +196,6 @@ describe("automation import persistence", () => {
           ],
         }),
         expect.objectContaining({
-          id: "_tone",
-          value: "all lowercase",
-          preset: "custom",
-        }),
-        expect.objectContaining({
           id: "body",
           overlayImage: {
             enabled: true,
@@ -226,6 +217,10 @@ describe("automation import persistence", () => {
         }),
       ])
     )
+    expect(normalized.schema.tone).toEqual({
+      value: "all lowercase",
+      preset: "custom",
+    })
     expect(normalized.schema.tiktok_post_settings.caption).toEqual({
       mode: "prompt",
       static_text: "",
@@ -238,8 +233,6 @@ describe("automation import persistence", () => {
         single_image: "215115",
       },
       all_slides: "community_collection_body",
-      aspect_ratio: "9:16",
-      is_bg_overlay_on: true,
       cta_slide: {
         check: true,
         cta_collection_check: true,
@@ -247,16 +240,10 @@ describe("automation import persistence", () => {
         image_id: null,
         cta_location: "last_slide",
       },
-      keepOriginalAspectRatio: true,
-      is_bg_overlay_on_hook_image: true,
-      textOnFirstSlideOnly: false,
-      noTextOnSlides: false,
-      autoPullImagesNotCollections: false,
-      autoImagesNoTextOnImages: false,
-      disableAutoImageForFirstSlide: false,
       video_demo_asset_id: "",
-      language: "English",
     })
+    expect(normalized.schema.image_fit).toBe("contain")
+    expect(normalized.schema.language).toBe("English")
     expect(normalized.schema.schedule.timezone).toBe("America/New_York")
     expect(normalized.schema.schedule.posting_times).toEqual([
       {
@@ -294,6 +281,27 @@ describe("automation import persistence", () => {
       name: "Renamed",
       status: "live",
       times: ["9:00 AM"],
+    })
+  })
+
+  it("keeps legacy nested metadata synchronized with the canonical record", async () => {
+    const record = automationRecordFixture("metadata-sync")
+    await upsertAutomationRecords({ rootDir, records: [record] })
+
+    const updated = await patchAutomationRecord({
+      rootDir,
+      id: record.id,
+      name: "Renamed automation",
+      status: "live",
+    })
+
+    expect(updated).toMatchObject({
+      name: "Renamed automation",
+      status: "live",
+      schema: {
+        title: "Renamed automation",
+        status: "live",
+      },
     })
   })
 
@@ -339,6 +347,8 @@ describe("automation import persistence", () => {
     ])
     expect(record.schema).toMatchObject({
       automationKind: "slideshow",
+      image_fit: "contain",
+      language: "English",
       prompt_formatting: {
         num_of_slides: expect.any(Number),
       },
@@ -356,16 +366,6 @@ describe("automation import persistence", () => {
           image_id: null,
           cta_location: "last_slide",
         },
-        aspect_ratio: "9:16",
-        is_bg_overlay_on: true,
-        keepOriginalAspectRatio: true,
-        is_bg_overlay_on_hook_image: true,
-        textOnFirstSlideOnly: false,
-        noTextOnSlides: false,
-        autoPullImagesNotCollections: false,
-        autoImagesNoTextOnImages: false,
-        disableAutoImageForFirstSlide: false,
-        language: "English",
       },
       formatting: expect.arrayContaining([
         expect.objectContaining({ id: "hook", textItems: expect.any(Array) }),
@@ -375,9 +375,7 @@ describe("automation import persistence", () => {
     })
     expect(
       record.schema.formatting.flatMap((section) =>
-        section.id === "_tone"
-          ? []
-          : section.textItems.map((item) => item.contentDirection)
+        section.textItems.map((item) => item.contentDirection)
       )
     ).not.toEqual(
       expect.arrayContaining([
@@ -534,6 +532,10 @@ describe("automation import persistence", () => {
     })
     const template = {
       automationKind: templateRecord.schema.automationKind,
+      aspect_ratio: templateRecord.schema.aspect_ratio,
+      font: templateRecord.schema.font,
+      image_fit: templateRecord.schema.image_fit,
+      language: templateRecord.schema.language,
       prompt_formatting: {
         ...templateRecord.schema.prompt_formatting,
         num_of_slides: 6,
@@ -550,6 +552,7 @@ describe("automation import persistence", () => {
       ),
       tiktok_post_settings: templateRecord.schema.tiktok_post_settings,
       image_collection_ids: templateRecord.schema.image_collection_ids,
+      tone: templateRecord.schema.tone,
     }
 
     const local = createLocalAutomationRecord({
@@ -649,7 +652,7 @@ describe("automation import persistence", () => {
   })
 })
 
-function automationRecordFixture(id: string) {
+function automationRecordFixture(id: string): AutomationRecord {
   const summary = {
     id,
     name: id,

@@ -41,7 +41,7 @@ describe("template showcase generated previews", () => {
         id: "run-1",
         label: "Slideshow 1",
         title: "Slideshow 1",
-        status: "succeeded",
+        status: "completed",
         caption: "First",
         durationSeconds: 8,
         slides: [
@@ -63,7 +63,7 @@ describe("template showcase generated previews", () => {
         id: "run-2",
         label: "Slideshow 2",
         title: "Slideshow 2",
-        status: "succeeded",
+        status: "completed",
         caption: "Third",
         durationSeconds: 4,
         slides: [

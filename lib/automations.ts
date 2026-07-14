@@ -2,7 +2,11 @@ import { clean, isRecord } from "@/lib/guards"
 import { randomUUID } from "node:crypto"
 import path from "node:path"
 
-import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
+import {
+  deleteJsonArrayRecord,
+  readJsonArrayStore,
+  upsertJsonArrayRecord,
+} from "@/lib/json-store"
 import {
   defaultAutomationSchema,
   normalizeAutomationSchema,
@@ -54,6 +58,7 @@ export async function upsertAutomationRecords(input: {
 }) {
   const current = await readAutomationRecords(input.rootDir)
   const next = [...current]
+  const changed: AutomationRecord[] = []
 
   for (const record of input.records) {
     const index = next.findIndex((item) =>
@@ -62,17 +67,24 @@ export async function upsertAutomationRecords(input: {
         : item.id === record.id
     )
     if (index >= 0) {
-      next[index] = {
+      const updated = {
         ...record,
         id: next[index].id,
         importedAt: next[index].importedAt ?? record.importedAt,
       }
+      next[index] = updated
+      changed.push(updated)
     } else {
       next.unshift(record)
+      changed.push(record)
     }
   }
 
-  await writeAutomationRecords(input.rootDir, next)
+  await Promise.all(
+    changed.map((record) =>
+      upsertAutomationRecord(input.rootDir, record, "first")
+    )
+  )
   return next
 }
 
@@ -151,32 +163,33 @@ export async function patchAutomationRecord(input: {
 }) {
   const records = await readAutomationRecords(input.rootDir)
   const updatedAt = new Date().toISOString()
-  let updated: AutomationRecord | null = null
-  const next = records.map((record) => {
-    if (record.id !== input.id) {
-      return record
-    }
-    const nextSchema = input.schema ?? record.schema
-    const nextSocialSummary = socialIntegrationSummary(
-      nextSchema.social_integrations
-    )
-    const nextTimes = automationScheduleTimes(nextSchema)
-    updated = {
-      ...record,
-      name: clean(input.name) || record.name,
-      status: input.status ?? nextSchema.status ?? record.status,
-      favorite:
-        typeof input.favorite === "boolean" ? input.favorite : record.favorite,
-      account: nextSocialSummary.account,
-      handle: nextSocialSummary.handle,
-      times: nextTimes,
-      schema: nextSchema,
-      updatedAt,
-    }
-    return updated
-  })
-
-  await writeAutomationRecords(input.rootDir, next)
+  const record = records.find((item) => item.id === input.id)
+  if (!record) return null
+  const nextSchema = input.schema ?? record.schema
+  const nextName = clean(input.name) || record.name
+  const nextStatus = input.status ?? nextSchema.status ?? record.status
+  const canonicalSchema = {
+    ...nextSchema,
+    title: nextName,
+    status: nextStatus,
+  }
+  const nextSocialSummary = socialIntegrationSummary(
+    canonicalSchema.social_integrations
+  )
+  const nextTimes = automationScheduleTimes(canonicalSchema)
+  const updated: AutomationRecord = {
+    ...record,
+    name: nextName,
+    status: nextStatus,
+    favorite:
+      typeof input.favorite === "boolean" ? input.favorite : record.favorite,
+    account: nextSocialSummary.account,
+    handle: nextSocialSummary.handle,
+    times: nextTimes,
+    schema: canonicalSchema,
+    updatedAt,
+  }
+  await upsertAutomationRecord(input.rootDir, updated)
   return updated
 }
 
@@ -190,10 +203,10 @@ export async function deleteAutomationRecord(input: {
     return null
   }
 
-  await writeAutomationRecords(
-    input.rootDir,
-    records.filter((record) => record.id !== input.id)
-  )
+  await deleteJsonArrayRecord({
+    ...automationStore(input.rootDir),
+    id: input.id,
+  })
   return deleted
 }
 
@@ -283,15 +296,23 @@ function readAutomationRecords(
   })
 }
 
-async function writeAutomationRecords(
-  rootDir = defaultRootDir,
-  records: AutomationRecord[]
-) {
-  await writeJsonArrayStore({
+function automationStore(rootDir = defaultRootDir) {
+  return {
     rootDir,
     fileName: dbFileName,
     key: "automations",
-    records,
+  }
+}
+
+async function upsertAutomationRecord(
+  rootDir: string | undefined,
+  record: AutomationRecord,
+  position?: "first" | "last"
+) {
+  await upsertJsonArrayRecord({
+    ...automationStore(rootDir),
+    record,
+    position,
   })
 }
 
@@ -319,14 +340,24 @@ function normalizeAutomationRecord(
     automationKind:
       record.schema?.automationKind === "video" ? "video" : undefined,
   })
-  const schema = normalizeAutomationSchema(
-    record.schema ?? defaultAutomationSchema(summary),
-    summary
-  )
+  const normalizedStatus = normalizeStatus(record.status)
+  const schema = {
+    ...normalizeAutomationSchema(
+      record.schema ?? defaultAutomationSchema(summary),
+      summary
+    ),
+    // Record metadata is canonical. Keep legacy nested aliases synchronized
+    // until stored schemas can drop title/status in a versioned migration.
+    title: record.name,
+    status:
+      normalizedStatus === "paused" || normalizedStatus === "live"
+        ? normalizedStatus
+        : "live",
+  }
 
   return {
     ...recordWithoutSource,
-    status: normalizeStatus(record.status),
+    status: normalizedStatus,
     account: clean(record.account) || "No social account",
     handle: clean(record.handle),
     times: Array.isArray(record.times)
@@ -462,10 +493,19 @@ function cloneTemplate(
 ): RuntimeAutomationTemplate {
   return {
     automationKind: template.automationKind === "video" ? "video" : "slideshow",
+    aspect_ratio: template.aspect_ratio,
+    font: template.font,
+    image_fit: template.image_fit,
+    language: template.language,
     prompt_formatting: structuredClone(template.prompt_formatting),
     image_collection_ids: structuredClone(template.image_collection_ids ?? {}),
+    tone: structuredClone(template.tone),
     formatting: structuredClone(template.formatting),
     tiktok_post_settings: structuredClone(template.tiktok_post_settings),
+    web_search_enabled: Boolean(template.web_search_enabled),
+    video_format: template.video_format
+      ? structuredClone(template.video_format)
+      : undefined,
   }
 }
 
@@ -480,12 +520,6 @@ function cloneSchedule(schedule: AutomationSchedule): AutomationSchedule {
     paused: schedule.paused,
     jitter_minutes: schedule.jitter_minutes,
     min_gap_minutes: schedule.min_gap_minutes,
-    interval: schedule.interval
-      ? {
-          ...schedule.interval,
-          days: [...schedule.interval.days],
-        }
-      : undefined,
   }
 }
 

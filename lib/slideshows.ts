@@ -21,12 +21,12 @@ import {
   runRendiFfmpegAndDownload,
   uploadLocalFileToRendi,
 } from "@/lib/rendi-ffmpeg"
-import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 import {
   createResultRecord,
   deleteResultRecord,
   deleteResultRecordsForAutomation,
   listResultRecords,
+  updateResultRecord,
   type ResultRecord,
   type ResultSlideshowPayload,
 } from "@/lib/results"
@@ -35,6 +35,8 @@ import {
   defaultSlideshowTransition,
 } from "@/lib/slideshow-publishing-config"
 import {
+  defaultSlideshowAspectRatio,
+  defaultSlideshowFont,
   renderedSlideSvg,
   type SlideshowOverlayImage,
   type SlideshowSlide,
@@ -51,10 +53,13 @@ export type SlideshowStatus = "exported" | "failed"
 
 export type SlideshowSettings = {
   duration: number
+  // One aspect ratio and font for the whole slideshow — every slide/text box
+  // shares them (a carousel with mixed ratios gets cropped by TikTok/IG, and
+  // the font is a brand constant). Not per-slide / per-text-item.
+  aspect_ratio: string
+  font: string
   background_color: string
-  is_bg_overlay_on: boolean
   transition_style: string
-  is_bg_overlay_on_hook_image: boolean
   export_as_video: boolean
   sound_id: string
   sound_name: string
@@ -114,7 +119,6 @@ type RawSlideshowRecord = Omit<Partial<SlideshowRecord>, "images"> & {
 }
 
 const defaultRootDir = path.join(process.cwd(), "data", "slideshows")
-const dbFileName = "slideshows.json"
 
 export async function listSlideshowRecords(
   input: {
@@ -131,15 +135,7 @@ export async function listSlideshowRecords(
   const resultSlideshows = resultRecords
     .map(resultRecordToSlideshowRecord)
     .filter((record): record is SlideshowRecord => Boolean(record))
-  const resultSlideshowIds = new Set(
-    resultSlideshows.map((record) => record.id)
-  )
-  const legacyRecords = await readLegacySlideshowRecords(input.rootDir)
-  const records = [
-    ...resultSlideshows,
-    ...legacyRecords.filter((record) => !resultSlideshowIds.has(record.id)),
-  ]
-  const filtered = records.filter((record) => {
+  const filtered = resultSlideshows.filter((record) => {
     if (input.id && record.id !== input.id) {
       return false
     }
@@ -204,6 +200,51 @@ export async function createSlideshowResultRecord(input: CreateSlideshowInput) {
   }
 }
 
+export async function removeSlideshowSlide(input: {
+  rootDir?: string
+  resultRootDir?: string
+  id: string
+  slideIndex: number
+}) {
+  const slideIndex = Math.floor(input.slideIndex)
+  const resultRecords = await listResultRecords({
+    rootDir: resultRootDirFor(input),
+    limit: Number.MAX_SAFE_INTEGER,
+  })
+  const result = resultRecords.find(
+    (record) =>
+      record.artifacts.slideshowId === input.id || record.id === input.id
+  )
+  if (!result || result.payload?.type !== "slideshow") {
+    return null
+  }
+  const slides = result.payload.slides ?? []
+  if (slideIndex < 0 || slideIndex >= slides.length) {
+    throw new Error("Slide index is out of range")
+  }
+  if (slides.length <= 1) {
+    throw new Error("A slideshow needs at least one slide")
+  }
+
+  const outputImages = result.artifacts.outputImages ?? []
+  const updated = await updateResultRecord({
+    rootDir: resultRootDirFor(input),
+    id: result.id,
+    update: (record) => ({
+      ...record,
+      payload: {
+        ...(record.payload as ResultSlideshowPayload),
+        slides: slides.filter((_, index) => index !== slideIndex),
+      },
+      artifacts: {
+        ...record.artifacts,
+        outputImages: outputImages.filter((_, index) => index !== slideIndex),
+      },
+    }),
+  })
+  return updated ? resultRecordToSlideshowRecord(updated) : null
+}
+
 export async function deleteSlideshowRecord(input: {
   rootDir?: string
   resultRootDir?: string
@@ -231,17 +272,7 @@ export async function deleteSlideshowRecord(input: {
     return slideshow
   }
 
-  const records = await readLegacySlideshowRecords(input.rootDir)
-  const deletedLegacy = records.find((record) => record.id === input.id) ?? null
-  if (!deletedLegacy) {
-    return null
-  }
-  await deleteSlideshowOutput(input.rootDir, deletedLegacy)
-  await writeLegacySlideshowRecords(
-    input.rootDir,
-    records.filter((record) => record.id !== input.id)
-  )
-  return deletedLegacy
+  return null
 }
 
 export async function deleteSlideshowRecordsForAutomation(input: {
@@ -267,12 +298,7 @@ export async function deleteSlideshowRecordsForAutomation(input: {
     .map(resultRecordToSlideshowRecord)
     .filter((record): record is SlideshowRecord => Boolean(record))
 
-  const records = await readLegacySlideshowRecords(input.rootDir)
-  const deletedLegacy = records.filter(
-    (record) =>
-      record.automationId === automationId || slideshowIds.has(record.id)
-  )
-  const deleted = [...deletedResultSlideshows, ...deletedLegacy]
+  const deleted = deletedResultSlideshows
   if (deleted.length === 0) {
     return []
   }
@@ -280,14 +306,7 @@ export async function deleteSlideshowRecordsForAutomation(input: {
   await Promise.all(
     deleted.map((record) => deleteSlideshowOutput(input.rootDir, record))
   )
-  await writeLegacySlideshowRecords(
-    input.rootDir,
-    records.filter(
-      (record) =>
-        record.automationId !== automationId && !slideshowIds.has(record.id)
-    )
-  )
-  return dedupeSlideshows(deleted)
+  return deleted
 }
 
 export function defaultSlideshowSettings(
@@ -295,37 +314,16 @@ export function defaultSlideshowSettings(
 ): SlideshowSettings {
   return {
     duration: defaultSlideshowDuration,
+    aspect_ratio: defaultSlideshowAspectRatio,
+    font: defaultSlideshowFont,
     background_color: "#000000",
-    is_bg_overlay_on: false,
     transition_style: defaultSlideshowTransition,
-    is_bg_overlay_on_hook_image: false,
     export_as_video: false,
     sound_id: "",
     sound_name: "",
     sound_url: "",
     ...overrides,
   }
-}
-
-function readLegacySlideshowRecords(rootDir = defaultRootDir) {
-  return readJsonArrayStore<SlideshowRecord>({
-    rootDir,
-    fileName: dbFileName,
-    key: "slideshows",
-    normalize: normalizeSlideshowRecord,
-  })
-}
-
-async function writeLegacySlideshowRecords(
-  rootDir = defaultRootDir,
-  records: SlideshowRecord[]
-) {
-  await writeJsonArrayStore({
-    rootDir,
-    fileName: dbFileName,
-    key: "slideshows",
-    records,
-  })
 }
 
 function resultRootDirFor(input: { rootDir?: string; resultRootDir?: string }) {
@@ -380,17 +378,6 @@ function slideshowRecordToResultPayload(
   }
 }
 
-function dedupeSlideshows(records: SlideshowRecord[]) {
-  const seen = new Set<string>()
-  return records.filter((record) => {
-    if (seen.has(record.id)) {
-      return false
-    }
-    seen.add(record.id)
-    return true
-  })
-}
-
 function normalizeSlideshowRecord(record: RawSlideshowRecord): SlideshowRecord {
   const now = new Date().toISOString()
   const id = clean(record.id) || `slideshow-${randomUUID()}`
@@ -416,16 +403,13 @@ function normalizeSlideshowRecord(record: RawSlideshowRecord): SlideshowRecord {
     created_at: normalizeDate(record.created_at, now),
     updated_at: normalizeDate(record.updated_at, now),
     settings,
-    images: images.map((slide, index) =>
-      normalizeSlide(slide, index, settings.duration)
-    ),
+    images: images.map((slide, index) => normalizeSlide(slide, index)),
   }
 }
 
 function normalizeSlide(
   slide: Partial<SlideshowSlide>,
-  index: number,
-  duration: number
+  index: number
 ): SlideshowSlide {
   const imageUrl = clean(slide.image_url)
   return {
@@ -439,8 +423,6 @@ function normalizeSlide(
           normalizeTextItem(item, textIndex)
         )
       : [],
-    aspect_ratio: clean(slide.aspect_ratio) || "9:16",
-    time_length_ms: normalizeDurationMs(slide.time_length_ms, duration),
   }
 }
 
@@ -467,7 +449,6 @@ function normalizeTextItem(
   return {
     id: clean(item.id) || `text-${index + 1}`,
     text,
-    font: clean(item.font) || "TikTok Display Medium",
     fontSize: clean(item.fontSize) || "10px",
     textSize: normalizeTextSize(item.textSize, text),
     textStyle: clean(item.textStyle) || "outline",
@@ -486,6 +467,8 @@ function normalizeSettings(
     ...defaultSlideshowSettings(),
     ...(settings ?? {}),
     duration: normalizeNumber(settings?.duration, defaultSlideshowDuration),
+    aspect_ratio: clean(settings?.aspect_ratio) || defaultSlideshowAspectRatio,
+    font: clean(settings?.font) || defaultSlideshowFont,
     transition_style:
       clean(settings?.transition_style) || defaultSlideshowTransition,
     export_as_video: Boolean(settings?.export_as_video),
@@ -515,13 +498,6 @@ function normalizeTextPosition(
     x: normalizeNumber(value?.x, 50),
     y: normalizeNumber(value?.y, 45),
   }
-}
-
-function normalizeDurationMs(value: unknown, duration: number) {
-  const parsed = typeof value === "number" ? value : Number(value)
-  return Number.isFinite(parsed) && parsed > 0
-    ? Math.round(parsed)
-    : Math.max(1, duration) * 1000
 }
 
 function normalizeNumber(value: unknown, fallback: number) {
@@ -557,6 +533,8 @@ async function writeSlideshowOutputs(
       slideIndex: index,
       slide,
       sourceUrl,
+      aspectRatio: record.settings.aspect_ratio,
+      font: record.settings.font,
     })
     outputs.push(output)
     if (output) {
@@ -633,6 +611,8 @@ async function materializeSlideImage(input: {
   slideIndex: number
   slide: SlideshowSlide
   sourceUrl: string
+  aspectRatio: string
+  font: string
 }) {
   const source = await materializeSlideSource(input)
   if (!source) {
@@ -654,7 +634,8 @@ async function materializeSlideImage(input: {
     await imageDataUri(source.filePath, source.extension),
     overlaySource
       ? await imageDataUri(overlaySource.filePath, overlaySource.extension)
-      : undefined
+      : undefined,
+    { aspectRatio: input.aspectRatio, font: input.font }
   )
   const svgPath = path.join(input.outputDir, fileName)
   await writeFile(svgPath, svg)

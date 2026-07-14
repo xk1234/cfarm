@@ -2,10 +2,9 @@
 
 import { Check, ChevronDown, Search } from "lucide-react"
 import type { ComponentProps } from "react"
-import { useState } from "react"
+import { Select, Switch } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
-import { useDismissableLayer } from "@/components/ui/dismissable"
 import { cn } from "@/lib/utils"
 
 export function SwitchPill({ enabled }: { enabled?: boolean }) {
@@ -32,14 +31,22 @@ export function SwitchPillButton({
   ...props
 }: Omit<ComponentProps<"button">, "children"> & { enabled?: boolean }) {
   return (
-    <button
-      type="button"
-      aria-pressed={Boolean(enabled)}
-      className={cn("shrink-0", className)}
+    <Switch.Root
+      checked={Boolean(enabled)}
+      className={cn(
+        "inline-flex h-7 w-12 shrink-0 rounded-full p-1 transition outline-none focus-visible:ring-3 focus-visible:ring-app-action/25",
+        enabled ? "bg-app-action" : "bg-[#ececea]",
+        className
+      )}
       {...props}
     >
-      <SwitchPill enabled={enabled} />
-    </button>
+      <Switch.Thumb
+        className={cn(
+          "block size-5 rounded-full bg-white shadow-sm transition-transform",
+          enabled && "translate-x-5"
+        )}
+      />
+    </Switch.Root>
   )
 }
 
@@ -75,40 +82,40 @@ export function SelectLike({
   onChange?: (value: string) => void
   placement?: "top" | "bottom"
 }) {
-  const [open, setOpen] = useState(false)
-  const ref = useDismissableLayer<HTMLDivElement>(() => setOpen(false), open)
   return (
-    <div ref={ref} className="relative">
-      <Button
-        variant="softControl"
-        size="appDefault"
-        className="w-full justify-start text-left"
-        onClick={() => setOpen((current) => !current)}
-      >
-        {value}
-      </Button>
-      {open && (
-        <div
+    <Select.Root value={value} onValueChange={onChange}>
+      <Select.Trigger asChild>
+        <Button
+          variant="softControl"
+          size="appDefault"
+          className="w-full justify-start text-left"
+        >
+          <Select.Value />
+        </Button>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content
+          position="popper"
+          side={placement === "bottom" ? "bottom" : "top"}
+          sideOffset={8}
           className={cn(
-            "absolute left-0 z-20 w-32 rounded-lg border border-app-panel-border bg-app-control-bg p-1 text-sm shadow-xl",
-            placement === "bottom" ? "top-full mt-2" : "bottom-full mb-2"
+            "z-[120] min-w-32 overflow-hidden rounded-lg border border-app-panel-border bg-app-control-bg p-1 text-sm shadow-xl"
           )}
         >
-          {options.map((option) => (
-            <button
-              key={option}
-              className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-app-control-hover"
-              onClick={() => {
-                onChange?.(option)
-                setOpen(false)
-              }}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+          <Select.Viewport>
+            {options.map((option) => (
+              <Select.Item
+                key={option}
+                value={option}
+                className="cursor-default rounded-md px-2 py-1.5 outline-none data-[highlighted]:bg-app-control-hover"
+              >
+                <Select.ItemText>{option}</Select.ItemText>
+              </Select.Item>
+            ))}
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
   )
 }
 
@@ -142,41 +149,45 @@ export function CheckedDropdownButton({
   onChange: (value: string) => void
   className?: string
 }) {
-  const [open, setOpen] = useState(false)
-  const ref = useDismissableLayer<HTMLDivElement>(() => setOpen(false), open)
-
   return (
-    <div ref={ref} className="relative">
-      <Button
-        type="button"
-        variant="softControl"
-        size="appDefault"
-        className={cn("justify-between gap-2", className)}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <span>{value}</span>
-        <ChevronDown className="size-4 text-[#77766f]" />
-      </Button>
-      {open && (
-        <div className="absolute top-full right-0 z-30 mt-1 min-w-[142px] overflow-hidden rounded-lg border border-app-panel-border bg-app-control-bg py-1 text-sm shadow-xl">
-          {options.map((option) => (
-            <button
-              key={option}
-              className="flex h-8 w-full items-center justify-between gap-4 px-3 text-left hover:bg-app-control-hover"
-              onClick={() => {
-                onChange(option)
-                setOpen(false)
-              }}
-            >
-              <span>{option}</span>
-              {option === value && (
-                <Check className="size-3.5 text-[#242421]" />
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <Select.Root value={value} onValueChange={onChange}>
+      <Select.Trigger asChild>
+        <Button
+          type="button"
+          variant="softControl"
+          size="appDefault"
+          className={cn("justify-between gap-2", className)}
+        >
+          <Select.Value />
+          <Select.Icon asChild>
+            <ChevronDown className="size-4 text-[#77766f]" />
+          </Select.Icon>
+        </Button>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content
+          position="popper"
+          sideOffset={4}
+          align="end"
+          className="z-[120] min-w-[142px] overflow-hidden rounded-lg border border-app-panel-border bg-app-control-bg py-1 text-sm shadow-xl"
+        >
+          <Select.Viewport>
+            {options.map((option) => (
+              <Select.Item
+                key={option}
+                value={option}
+                className="flex h-8 w-full items-center justify-between gap-4 px-3 text-left hover:bg-app-control-hover"
+              >
+                <Select.ItemText>{option}</Select.ItemText>
+                <Select.ItemIndicator>
+                  <Check className="size-3.5 text-[#242421]" />
+                </Select.ItemIndicator>
+              </Select.Item>
+            ))}
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
   )
 }
 

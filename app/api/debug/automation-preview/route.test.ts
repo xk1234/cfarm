@@ -3,7 +3,15 @@ import os from "node:os"
 import path from "node:path"
 
 import { Query } from "node-appwrite"
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
@@ -17,8 +25,13 @@ import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 // route is read-only, so automation_runs/results must stay empty afterward.
 let tempRoot: string
 
-
-const clearAll = () => clearTestTables("automations", "image_collections", "automation_runs", "results")
+const clearAll = () =>
+  clearTestTables(
+    "automations",
+    "image_collections",
+    "automation_runs",
+    "results"
+  )
 
 beforeEach(async () => {
   await clearAll()
@@ -57,7 +70,6 @@ describe("POST /api/debug/automation-preview", () => {
         single_image: null,
       },
       all_slides: "collection-debug-scenes-2026-07-03t00-00-00-000z",
-      aspect_ratio: "9:16",
     }
     automation.schema.formatting = automation.schema.formatting.map(
       (section) =>
@@ -90,8 +102,7 @@ describe("POST /api/debug/automation-preview", () => {
           created_at: "2026-07-03T00:00:00.000Z",
           images: [
             {
-              image_link:
-                "/api/local-assets/image-collections/files/debug.jpg",
+              image_link: "/api/local-assets/image-collections/files/debug.jpg",
               caption: "Debug image",
             },
           ],

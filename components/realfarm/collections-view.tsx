@@ -10,6 +10,7 @@ import {
   IconPhoto,
   IconPhotoPlus,
   IconPin,
+  IconPinFilled,
   IconPlus,
   IconShoppingBag,
   IconTrash,
@@ -18,9 +19,9 @@ import {
   IconX,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
+import { Popover, Tabs } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
-import { useDismissableLayer } from "@/components/ui/dismissable"
 import {
   LabelledSelect,
   SearchControl,
@@ -28,7 +29,7 @@ import {
   SwitchPillButton,
   ToggleRow,
 } from "@/components/ui/form-controls"
-import { AppModal, AppModalPanel } from "@/components/ui/modal"
+import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import { UploadDropzone } from "@/components/ui/upload-dropzone"
 import { ImageViewerModal } from "@/components/realfarm/image-viewer-modal"
 import {
@@ -69,6 +70,13 @@ const COLLECTION_CARD_WIDTH = 170
 const COLLECTION_GRID_GAP = 20
 
 type CollectionTab = "images" | "videos" | "products" | "variables"
+type CollectionSort =
+  | "newest"
+  | "oldest"
+  | "name-asc"
+  | "name-desc"
+  | "images-desc"
+  | "images-asc"
 
 export function CollectionsView({
   collections,
@@ -88,6 +96,8 @@ export function CollectionsView({
   const [activeTab, setActiveTab] = useState<CollectionTab>("images")
   const [searchOpen, setSearchOpen] = useState(false)
   const [collectionSearch, setCollectionSearch] = useState("")
+  const [collectionSort, setCollectionSort] =
+    useState<CollectionSort>("newest")
   const [visibleCollectionRows, setVisibleCollectionRows] = useState(
     INITIAL_COLLECTION_VISIBLE_ROWS
   )
@@ -110,15 +120,34 @@ export function CollectionsView({
   )
   const filteredCollections = useMemo(() => {
     const query = collectionSearch.trim().toLowerCase()
-    if (!query) {
-      return pinnedCollectionsFirst(mediaCollections)
-    }
-    return pinnedCollectionsFirst(
-      mediaCollections.filter((collection) =>
+    const matchingCollections = query
+      ? mediaCollections.filter((collection) =>
         collection.title.toLowerCase().includes(query)
       )
-    )
-  }, [mediaCollections, collectionSearch])
+      : mediaCollections
+    const sortedCollections = [...matchingCollections].sort((left, right) => {
+      switch (collectionSort) {
+        case "oldest":
+          return Date.parse(left.createdAt) - Date.parse(right.createdAt)
+        case "name-asc":
+          return left.title.localeCompare(right.title, undefined, {
+            sensitivity: "base",
+          })
+        case "name-desc":
+          return right.title.localeCompare(left.title, undefined, {
+            sensitivity: "base",
+          })
+        case "images-desc":
+          return right.images.length - left.images.length
+        case "images-asc":
+          return left.images.length - right.images.length
+        case "newest":
+        default:
+          return Date.parse(right.createdAt) - Date.parse(left.createdAt)
+      }
+    })
+    return pinnedCollectionsFirst(sortedCollections)
+  }, [mediaCollections, collectionSearch, collectionSort])
   const visibleCollectionCount = visibleCollectionRows * collectionColumns
   const visibleCollections = filteredCollections.slice(
     0,
@@ -241,213 +270,239 @@ export function CollectionsView({
           </div>
         ) : null}
       </div>
-      <div
-        className="mb-6 flex w-fit rounded-[7px] border border-app-panel-border bg-[#f1f0ea] p-1"
-        role="tablist"
-        aria-label="Collection types"
+      <Tabs.Root
+        value={activeTab}
+        onValueChange={(value) => selectTab(value as typeof activeTab)}
       >
-        {(
-          [
-            ["images", "Images", IconPhoto],
-            ["videos", "Videos", IconVideo],
-            ["products", "Products", IconShoppingBag],
-            ["variables", "Variables", IconBrackets],
-          ] as const
-        ).map(([tab, label, Icon]) => (
-          <button
-            key={tab}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab}
-            onClick={() => selectTab(tab)}
-            className={cn(
-              "flex h-9 items-center gap-2 rounded-[5px] px-4 text-[13px] font-semibold transition",
-              activeTab === tab
-                ? "bg-white text-app-text shadow-sm"
-                : "text-app-muted-text hover:text-app-text"
-            )}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <Tabs.List
+            className="flex w-fit rounded-[7px] border border-app-panel-border bg-[#f1f0ea] p-1"
+            aria-label="Collection types"
           >
-            <Icon className="size-4" />
-            {label}
-          </button>
-        ))}
-      </div>
-      {activeTab === "products" ? (
-        <ProductCollectionsPanel collections={productCollections} />
-      ) : activeTab === "variables" ? (
-        <VariableCollectionsPanel />
-      ) : (
-        <>
-          {mediaCollections.length > 0 && (
-            <div className="mb-5 max-w-[440px]">
+            {(
+              [
+                ["images", "Images", IconPhoto],
+                ["videos", "Videos", IconVideo],
+                ["products", "Products", IconShoppingBag],
+                ["variables", "Variables", IconBrackets],
+              ] as const
+            ).map(([tab, label, Icon]) => (
+              <Tabs.Trigger
+                key={tab}
+                value={tab}
+                className={cn(
+                  "flex h-9 items-center gap-2 rounded-[5px] px-4 text-[13px] font-semibold transition",
+                  activeTab === tab
+                    ? "bg-white text-app-text shadow-sm"
+                    : "text-app-muted-text hover:text-app-text"
+                )}
+              >
+                <Icon className="size-4" />
+                {label}
+              </Tabs.Trigger>
+            ))}
+          </Tabs.List>
+          {(activeTab === "images" || activeTab === "videos") && (
+            <div className="ml-auto flex min-w-0 items-center gap-2">
               <SearchControl
+                className="w-[min(320px,45vw)]"
                 value={collectionSearch}
-                onChange={(event) => updateCollectionSearch(event.target.value)}
+                onChange={(event) =>
+                  updateCollectionSearch(event.target.value)
+                }
                 placeholder={`Search ${activeTab}`}
                 aria-label={`Search ${activeTab} collections`}
               />
+              <SelectControl
+                value={collectionSort}
+                onChange={(event) => {
+                  setCollectionSort(event.target.value as CollectionSort)
+                  setVisibleCollectionRows(INITIAL_COLLECTION_VISIBLE_ROWS)
+                }}
+                aria-label="Sort collections"
+                className="max-w-[180px]"
+              >
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+                <option value="name-asc">Name: A–Z</option>
+                <option value="name-desc">Name: Z–A</option>
+                <option value="images-desc">Most images</option>
+                <option value="images-asc">Fewest images</option>
+              </SelectControl>
             </div>
           )}
-          {mediaCollections.length === 0 ? (
-            <button
-              type="button"
-              className="app-empty-state grid min-h-[470px] w-full place-items-center text-center transition hover:bg-app-control-hover"
-              onClick={() => activeTab === "images" && setSearchOpen(true)}
-            >
-              <span className="max-w-[360px]">
-                <span className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-white text-[#e46954] shadow-sm">
-                  <IconPhotoPlus className="size-6" />
-                </span>
-                <span className="block text-[18px] font-semibold">
-                  No {activeTab} collections yet
-                </span>
-                <span className="mt-2 block text-[13px] leading-5 text-[#77766f]">
-                  {activeTab === "images"
-                    ? "Search Pinterest, choose the first batch of images, then create your first collection."
-                    : "Video collections appear here when reusable video assets are added."}
-                </span>
-              </span>
-            </button>
-          ) : (
-            <>
-              {filteredCollections.length === 0 ? (
-                <div className="app-empty-state grid min-h-[260px] place-items-center text-center">
-                  <span>
-                    <span className="block text-[18px] font-semibold">
-                      No matching collections
-                    </span>
-                    <span className="mt-2 block text-[13px] leading-5 text-[#77766f]">
-                      Try another search term.
-                    </span>
+        </div>
+        {activeTab === "products" ? (
+          <ProductCollectionsPanel collections={productCollections} />
+        ) : activeTab === "variables" ? (
+          <VariableCollectionsPanel />
+        ) : (
+          <>
+            {mediaCollections.length === 0 ? (
+              <button
+                type="button"
+                className="app-empty-state grid min-h-[470px] w-full place-items-center text-center transition hover:bg-app-control-hover"
+                onClick={() => activeTab === "images" && setSearchOpen(true)}
+              >
+                <span className="max-w-[360px]">
+                  <span className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-white text-[#e46954] shadow-sm">
+                    <IconPhotoPlus className="size-6" />
                   </span>
-                </div>
-              ) : (
-                <>
-                  <div
-                    ref={collectionGridRef}
-                    className="grid grid-cols-[repeat(auto-fill,170px)] gap-5"
-                  >
-                    {visibleCollections.map((collection, index) => (
-                      <MediaCardShell
-                        key={collection.id}
-                        className="group relative w-[170px] text-left"
-                      >
-                        {!collection.virtual && (
-                          <>
-                            <Button
-                              type="button"
-                              variant="iconControl"
-                              size="icon-control-sm"
-                              className={cn(
-                                "absolute top-2 left-2 z-10 opacity-0 shadow-sm group-hover:opacity-100",
-                                selectedCollectionIds.has(collection.id) &&
-                                  "opacity-100"
-                              )}
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                toggleCollection(collection.id)
-                              }}
-                              aria-label={`Select ${collection.title}`}
-                            >
-                              {selectedCollectionIds.has(collection.id)
-                                ? "✓"
-                                : ""}
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="iconControl"
-                              size="icon-control-sm"
-                              className={cn(
-                                "absolute top-2 right-2 z-10 opacity-0 shadow-sm group-hover:opacity-100",
-                                collection.pinned &&
-                                  "bg-app-accent hover:bg-app-accent text-white opacity-100"
-                              )}
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                onToggleCollectionPin(collection.id)
-                              }}
-                              aria-label={`${collection.pinned ? "Unpin" : "Pin"} ${collection.title}`}
-                              aria-pressed={collection.pinned === true}
-                            >
-                              <IconPin className="size-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="iconControl"
-                              size="icon-control-sm"
-                              className="absolute top-11 right-2 z-10 text-app-danger opacity-0 shadow-sm group-hover:opacity-100"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                deleteCollections([collection.id])
-                              }}
-                              aria-label={`Delete ${collection.title}`}
-                            >
-                              <IconTrash className="size-4" />
-                            </Button>
-                          </>
-                        )}
-                        <button
-                          className="block w-full text-left"
-                          onClick={() => onOpenCollection(collection.id)}
+                  <span className="block text-[18px] font-semibold">
+                    No {activeTab} collections yet
+                  </span>
+                  <span className="mt-2 block text-[13px] leading-5 text-[#77766f]">
+                    {activeTab === "images"
+                      ? "Search Pinterest, choose the first batch of images, then create your first collection."
+                      : "Video collections appear here when reusable video assets are added."}
+                  </span>
+                </span>
+              </button>
+            ) : (
+              <>
+                {filteredCollections.length === 0 ? (
+                  <div className="app-empty-state grid min-h-[260px] place-items-center text-center">
+                    <span>
+                      <span className="block text-[18px] font-semibold">
+                        No matching collections
+                      </span>
+                      <span className="mt-2 block text-[13px] leading-5 text-[#77766f]">
+                        Try another search term.
+                      </span>
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      ref={collectionGridRef}
+                      className="grid grid-cols-[repeat(auto-fill,170px)] gap-5"
+                    >
+                      {visibleCollections.map((collection, index) => (
+                        <MediaCardShell
+                          key={collection.id}
+                          className="group relative w-[170px] text-left"
                         >
-                          <CollectionPreview
-                            collection={collection}
-                            index={index}
-                          />
-                          <div className="bg-white px-4 py-4">
-                            <div className="flex min-w-0 items-center gap-1.5">
-                              {collection.mediaType === "video" ? (
-                                <IconVideo className="size-4 shrink-0 text-[#77766f]" />
-                              ) : (
-                                <IconPhoto className="size-4 shrink-0 text-[#77766f]" />
-                              )}
-                              <div className="truncate text-[14px] leading-5 font-semibold text-app-text">
-                                {collection.title}
+                          {!collection.virtual && (
+                            <>
+                              <Button
+                                type="button"
+                                variant="iconControl"
+                                size="icon-control-sm"
+                                className={cn(
+                                  "absolute top-2 left-2 z-10 opacity-0 shadow-sm group-hover:opacity-100",
+                                  selectedCollectionIds.has(collection.id) &&
+                                    "opacity-100"
+                                )}
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  toggleCollection(collection.id)
+                                }}
+                                aria-label={`Select ${collection.title}`}
+                              >
+                                {selectedCollectionIds.has(collection.id)
+                                  ? "✓"
+                                  : ""}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="iconControl"
+                                size="icon-control-sm"
+                                className={cn(
+                                  "absolute top-2 right-2 z-10 opacity-0 shadow-sm group-hover:opacity-100",
+                                  collection.pinned &&
+                                    "bg-app-accent hover:bg-app-accent text-white opacity-100"
+                                )}
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  onToggleCollectionPin(collection.id)
+                                }}
+                                aria-label={`${collection.pinned ? "Unpin" : "Pin"} ${collection.title}`}
+                                aria-pressed={collection.pinned === true}
+                              >
+                                {collection.pinned ? (
+                                  <IconPinFilled className="size-4" />
+                                ) : (
+                                  <IconPin className="size-4" />
+                                )}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="iconControl"
+                                size="icon-control-sm"
+                                className="absolute top-11 right-2 z-10 text-app-danger opacity-0 shadow-sm group-hover:opacity-100"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  deleteCollections([collection.id])
+                                }}
+                                aria-label={`Delete ${collection.title}`}
+                              >
+                                <IconTrash className="size-4" />
+                              </Button>
+                            </>
+                          )}
+                          <button
+                            className="block w-full text-left"
+                            onClick={() => onOpenCollection(collection.id)}
+                          >
+                            <CollectionPreview
+                              collection={collection}
+                              index={index}
+                            />
+                            <div className="bg-white px-4 py-4">
+                              <div className="flex min-w-0 items-center gap-1.5">
+                                {collection.mediaType === "video" ? (
+                                  <IconVideo className="size-4 shrink-0 text-[#77766f]" />
+                                ) : (
+                                  <IconPhoto className="size-4 shrink-0 text-[#77766f]" />
+                                )}
+                                <div className="truncate text-[14px] leading-5 font-semibold text-app-text">
+                                  {collection.title}
+                                </div>
+                              </div>
+                              <div className="mt-1 text-[13px] font-medium text-app-muted-text">
+                                {collection.images.length}{" "}
+                                {collection.mediaType === "video"
+                                  ? "videos"
+                                  : "images"}
                               </div>
                             </div>
-                            <div className="mt-1 text-[13px] font-medium text-app-muted-text">
-                              {collection.images.length}{" "}
-                              {collection.mediaType === "video"
-                                ? "videos"
-                                : "images"}
-                            </div>
-                          </div>
-                        </button>
-                      </MediaCardShell>
-                    ))}
-                    {activeTab === "images" ? (
-                      <Button
-                        type="button"
-                        variant="iconControl"
-                        className="grid h-[242px] w-[170px] place-items-center rounded-[7px] border border-dashed border-app-panel-border bg-app-surface-subtle text-app-muted-text hover:bg-app-control-hover"
-                        onClick={() => setSearchOpen(true)}
-                        aria-label="Add collection"
-                      >
-                        <IconPlus className="size-6" />
-                      </Button>
-                    ) : null}
-                  </div>
-                  {hasMoreCollections && (
-                    <div className="mt-8 flex justify-center">
-                      <Button
-                        variant="softControl"
-                        size="appDefault"
-                        onClick={() =>
-                          setVisibleCollectionRows(
-                            (current) => current + COLLECTION_LOAD_MORE_ROWS
-                          )
-                        }
-                      >
-                        Load more
-                      </Button>
+                          </button>
+                        </MediaCardShell>
+                      ))}
+                      {activeTab === "images" ? (
+                        <Button
+                          type="button"
+                          variant="iconControl"
+                          className="grid h-[242px] w-[170px] place-items-center rounded-[7px] border border-dashed border-app-panel-border bg-app-surface-subtle text-app-muted-text hover:bg-app-control-hover"
+                          onClick={() => setSearchOpen(true)}
+                          aria-label="Add collection"
+                        >
+                          <IconPlus className="size-6" />
+                        </Button>
+                      ) : null}
                     </div>
-                  )}
-                </>
-              )}
-            </>
-          )}
-        </>
-      )}
+                    {hasMoreCollections && (
+                      <div className="mt-8 flex justify-center">
+                        <Button
+                          variant="softControl"
+                          size="appDefault"
+                          onClick={() =>
+                            setVisibleCollectionRows(
+                              (current) => current + COLLECTION_LOAD_MORE_ROWS
+                            )
+                          }
+                        >
+                          Load more
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </Tabs.Root>
       {searchOpen && activeTab === "images" && (
         <PinterestCollectionSearch
           onCancel={() => setSearchOpen(false)}
@@ -477,7 +532,10 @@ function CaptionProgressModal({
 
   return (
     <AppModal className="z-[70]" onClose={onClose}>
-      <AppModalPanel className="max-w-[460px] p-5">
+      <AppModalPanel
+        accessibleTitle={failed ? "Captioning stopped" : "Captioning images"}
+        className="max-w-[460px] p-5"
+      >
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-[22px] font-bold text-[#333]">
@@ -569,11 +627,6 @@ export function CollectionDetailView({
   const [editorOpen, setEditorOpen] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState(collection.title)
-  const [viewOpen, setViewOpen] = useState(false)
-  const viewMenuRef = useDismissableLayer<HTMLDivElement>(
-    () => setViewOpen(false),
-    viewOpen
-  )
   const [columns, setColumns] = useState(5)
   const [visibleRows, setVisibleRows] = useState(INITIAL_VISIBLE_ROWS)
   const [showDescriptions, setShowDescriptions] = useState(false)
@@ -813,17 +866,19 @@ export function CollectionDetailView({
             <IconPhotoPlus className="size-4" />
             {captioning ? "Captioning..." : "Get image captions"}
           </Button>
-          <div ref={viewMenuRef} className="relative">
-            <Button
-              variant="softControl"
-              size="compact"
-              onClick={() => setViewOpen((current) => !current)}
-            >
-              <IconList className="size-4" />
-              View
-            </Button>
-            {viewOpen && (
-              <div className="absolute top-10 right-0 z-20 w-[210px] rounded-[8px] bg-white p-3 text-[13px] font-semibold shadow-xl">
+          <Popover.Root>
+            <Popover.Trigger asChild>
+              <Button variant="softControl" size="compact">
+                <IconList className="size-4" />
+                View
+              </Button>
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Content
+                sideOffset={8}
+                align="end"
+                className="z-50 w-[210px] rounded-[8px] bg-white p-3 text-[13px] font-semibold shadow-xl outline-none"
+              >
                 <label className="flex items-center justify-between gap-3">
                   Columns:
                   <SelectControl
@@ -847,9 +902,9 @@ export function CollectionDetailView({
                     onToggle={() => setShowDescriptions((current) => !current)}
                   />
                 </div>
-              </div>
-            )}
-          </div>
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
           {!readonly && (
             <Button
               variant="action"
@@ -1119,7 +1174,10 @@ function CollectionAutomationEditor({
 
   return (
     <AppModal className="z-40 bg-[#24251f]/48" onClose={onClose}>
-      <AppModalPanel className="relative grid max-w-[760px] rounded-[10px] bg-[#d0d0cc] md:grid-cols-[255px_1fr]">
+      <AppModalPanel
+        accessibleTitle="Automation editor"
+        className="relative grid max-w-[760px] rounded-[10px] bg-[#d0d0cc] md:grid-cols-[255px_1fr]"
+      >
         <div className="flex min-h-[520px] flex-col bg-white p-4">
           <div className="mb-5 flex items-center justify-between text-[13px]">
             <Button
@@ -1351,49 +1409,52 @@ function CreateAutomationDialog({
   const [name, setName] = useState(defaultName)
 
   return (
-    <div className="absolute inset-0 z-50 grid place-items-center bg-[#24251f]/32 p-4">
-      <section className="w-full max-w-[430px] rounded-[8px] bg-white p-5 shadow-2xl">
-        <h2 className="text-[18px] font-semibold">Create Automation</h2>
-        <p className="mt-1 text-[13px] text-[#77766f]">
-          Name your automation, add hooks, and set the tone & style.
-        </p>
-        <label className="mt-5 block text-[12px] font-semibold">
-          Automation name
-          <input
-            className="mt-2 h-10 w-full rounded-[7px] border border-[#ecebe4] px-3 text-[13px] outline-none"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
-        <div className="mt-4 flex border-b text-[12px] font-semibold">
-          <button className="border-b-2 border-[#242421] pr-6 pb-2">
-            Hooks (1)
-          </button>
-          <button className="pb-2 text-[#8b8a83]">Tone & Style</button>
-        </div>
-        <div className="mt-4 text-[14px] font-semibold">
-          Slideshow Hooks <span className="text-[#aaa9a2]">⊙</span>
-        </div>
-        <div className="mt-1 text-[12px] font-semibold text-app-action">
-          Each line is a separate hook
-        </div>
-        <textarea
-          className="mt-3 h-28 w-full resize-none rounded-[8px] border border-[#ecebe4] p-3 text-[13px] outline-none"
-          defaultValue="uncomfortable things to build extreme confidence"
+    <AppModal layer="absolute" className="z-50" onClose={onCancel}>
+      <AppModalPanel className="max-w-[430px] rounded-[8px] shadow-2xl">
+        <AppModalHeader
+          title="Create Automation"
+          description="Name your automation, add hooks, and set the tone & style."
+          onClose={onCancel}
         />
-        <div className="mt-4 flex justify-end gap-2">
-          <Button variant="softControl" size="appDefault" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button
-            variant="action"
-            size="appDefault"
-            onClick={() => onCreate(name.trim() || defaultName)}
-          >
-            Create
-          </Button>
+        <div className="p-5">
+          <label className="mt-5 block text-[12px] font-semibold">
+            Automation name
+            <input
+              className="mt-2 h-10 w-full rounded-[7px] border border-[#ecebe4] px-3 text-[13px] outline-none"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+          <div className="mt-4 flex border-b text-[12px] font-semibold">
+            <button className="border-b-2 border-[#242421] pr-6 pb-2">
+              Hooks (1)
+            </button>
+            <button className="pb-2 text-[#8b8a83]">Tone & Style</button>
+          </div>
+          <div className="mt-4 text-[14px] font-semibold">
+            Slideshow Hooks <span className="text-[#aaa9a2]">⊙</span>
+          </div>
+          <div className="mt-1 text-[12px] font-semibold text-app-action">
+            Each line is a separate hook
+          </div>
+          <textarea
+            className="mt-3 h-28 w-full resize-none rounded-[8px] border border-[#ecebe4] p-3 text-[13px] outline-none"
+            defaultValue="uncomfortable things to build extreme confidence"
+          />
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="softControl" size="appDefault" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button
+              variant="action"
+              size="appDefault"
+              onClick={() => onCreate(name.trim() || defaultName)}
+            >
+              Create
+            </Button>
+          </div>
         </div>
-      </section>
-    </div>
+      </AppModalPanel>
+    </AppModal>
   )
 }

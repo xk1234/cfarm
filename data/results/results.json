@@ -32,13 +32,13 @@
         "settings": {
           "duration": 4,
           "background_color": "#000000",
-          "is_bg_overlay_on": true,
           "transition_style": "hard",
-          "is_bg_overlay_on_hook_image": true,
           "export_as_video": false,
           "sound_id": "",
           "sound_name": "",
-          "sound_url": ""
+          "sound_url": "",
+          "aspect_ratio": "9:16",
+          "font": "TikTok Display Medium"
         },
         "slides": [
           {
@@ -49,7 +49,6 @@
               {
                 "id": "ffb82f88-3cee-4cdd-9338-7ac1e693869b",
                 "text": "rules of self-trust for people who second-guess everything they feel",
-                "font": "TikTok Display Medium",
                 "fontSize": "22px",
                 "textSize": {
                   "width": 60,
@@ -64,9 +63,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "9:16",
-            "time_length_ms": 4000
+            ]
           },
           {
             "id": "slide-2",
@@ -76,7 +73,6 @@
               {
                 "id": "852ae8ab-f9ae-4c23-ae2d-c4cec10a3f87",
                 "text": "rule 1. i honor my internal feelings",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -94,7 +90,6 @@
               {
                 "id": "dbae41c0-4d60-4820-87fe-e83123715188",
                 "text": "i used to ignore my gut instincts to please others. now i pause to listen to what my body needs before agreeing to any new commitments today.",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -109,9 +104,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "9:16",
-            "time_length_ms": 4000
+            ]
           },
           {
             "id": "slide-3",
@@ -121,7 +114,6 @@
               {
                 "id": "852ae8ab-f9ae-4c23-ae2d-c4cec10a3f87",
                 "text": "rule 2. i define my own energy",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -139,7 +131,6 @@
               {
                 "id": "dbae41c0-4d60-4820-87fe-e83123715188",
                 "text": "chasing constant productivity left me feeling burnt out and tired. i now embrace rest as a tool for natural energy instead of fighting against my own biology.",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -154,9 +145,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "9:16",
-            "time_length_ms": 4000
+            ]
           },
           {
             "id": "slide-4",
@@ -166,7 +155,6 @@
               {
                 "id": "852ae8ab-f9ae-4c23-ae2d-c4cec10a3f87",
                 "text": "rule 3. i quit the overthinking cycle",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -184,7 +172,6 @@
               {
                 "id": "dbae41c0-4d60-4820-87fe-e83123715188",
                 "text": "why do i spend hours worried about past mistakes? i practice grounding techniques like deep breathing to stay in the present and let those anxious thoughts drift away.",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -199,9 +186,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "9:16",
-            "time_length_ms": 4000
+            ]
           },
           {
             "id": "slide-5",
@@ -211,7 +196,6 @@
               {
                 "id": "852ae8ab-f9ae-4c23-ae2d-c4cec10a3f87",
                 "text": "rule 4. i trust my natural focus",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -229,7 +213,6 @@
               {
                 "id": "dbae41c0-4d60-4820-87fe-e83123715188",
                 "text": "i stopped forcing myself to work for hours without stopping. i now take small breaks to move my body and refresh my brain to sustain lasting concentration throughout.",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -244,9 +227,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "9:16",
-            "time_length_ms": 4000
+            ]
           },
           {
             "id": "slide-6",
@@ -256,7 +237,6 @@
               {
                 "id": "852ae8ab-f9ae-4c23-ae2d-c4cec10a3f87",
                 "text": "rule 5. i accept my personal truth",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -274,7 +254,6 @@
               {
                 "id": "dbae41c0-4d60-4820-87fe-e83123715188",
                 "text": "it is okay to change my mind when things no longer serve my wellness. i am prioritizing my peace over the expectations that others have placed on me.",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -289,9 +268,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "9:16",
-            "time_length_ms": 4000
+            ]
           },
           {
             "id": "slide-7",
@@ -301,7 +278,6 @@
               {
                 "id": "079f30f3-4958-4082-afc2-bdb1585e49fe",
                 "text": "save this post to help you trust yourself today",
-                "font": "TikTok Display Medium",
                 "fontSize": "12px",
                 "textSize": {
                   "width": 70,
@@ -316,9 +292,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "fit",
-            "time_length_ms": 4000
+            ]
           }
         ]
       },
@@ -356,13 +330,13 @@
         "settings": {
           "duration": 4,
           "background_color": "#000000",
-          "is_bg_overlay_on": true,
           "transition_style": "hard",
-          "is_bg_overlay_on_hook_image": true,
           "export_as_video": false,
           "sound_id": "",
           "sound_name": "",
-          "sound_url": ""
+          "sound_url": "",
+          "aspect_ratio": "4:5",
+          "font": "TikTok Display Medium"
         },
         "slides": [
           {
@@ -373,7 +347,6 @@
               {
                 "id": "text-3t4d6tlp",
                 "text": "born to be a [[sign]] femme fatale, forced to attend 9am standups",
-                "font": "TikTok Display Medium",
                 "fontSize": "10px",
                 "textSize": {
                   "width": 60,
@@ -388,9 +361,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "4:5",
-            "time_length_ms": 4000
+            ]
           },
           {
             "id": "slide-2",
@@ -400,7 +371,6 @@
               {
                 "id": "text-z72zy7rf",
                 "text": "Born to channel starlight, forced to write emails.",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -415,9 +385,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "4:5",
-            "time_length_ms": 4000
+            ]
           },
           {
             "id": "slide-3",
@@ -427,7 +395,6 @@
               {
                 "id": "text-z72zy7rf",
                 "text": "Born to perform rituals, forced to join meetings.",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -442,9 +409,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "4:5",
-            "time_length_ms": 4000
+            ]
           },
           {
             "id": "slide-4",
@@ -454,7 +419,6 @@
               {
                 "id": "text-z72zy7rf",
                 "text": "Born to read tarot, forced to analyze spreadsheets.",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -469,9 +433,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "4:5",
-            "time_length_ms": 4000
+            ]
           },
           {
             "id": "slide-5",
@@ -481,7 +443,6 @@
               {
                 "id": "text-z72zy7rf",
                 "text": "Born to command constellations, forced to fix printers.",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -496,9 +457,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "4:5",
-            "time_length_ms": 4000
+            ]
           },
           {
             "id": "slide-6",
@@ -508,7 +467,6 @@
               {
                 "id": "text-z72zy7rf",
                 "text": "Smuggle your magic charms into your bleak office.",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -523,9 +481,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "4:5",
-            "time_length_ms": 4000
+            ]
           },
           {
             "id": "slide-7",
@@ -535,7 +491,6 @@
               {
                 "id": "text-i22pzl2z",
                 "text": "Comment your sign for your office-legal talisman.",
-                "font": "TikTok Display Medium",
                 "fontSize": "12px",
                 "textSize": {
                   "width": 70,
@@ -550,9 +505,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "fit",
-            "time_length_ms": 4000
+            ]
           }
         ]
       },
@@ -589,13 +542,13 @@
         "settings": {
           "duration": 4,
           "background_color": "#000000",
-          "is_bg_overlay_on": true,
           "transition_style": "hard",
-          "is_bg_overlay_on_hook_image": true,
           "export_as_video": false,
           "sound_id": "",
           "sound_name": "",
-          "sound_url": ""
+          "sound_url": "",
+          "aspect_ratio": "4:5",
+          "font": "TikTok Display Medium"
         },
         "slides": [
           {
@@ -606,7 +559,6 @@
               {
                 "id": "text-o4ppg6my",
                 "text": "most people hang curtains too low and too narrow — here's the fix",
-                "font": "TikTok Display Medium",
                 "fontSize": "10px",
                 "textSize": {
                   "width": 60,
@@ -621,9 +573,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "4:5",
-            "time_length_ms": 4000
+            ]
           },
           {
             "id": "slide-2",
@@ -633,7 +583,6 @@
               {
                 "id": "text-0jmkltys",
                 "text": "Mount your rod high and wide for instant height.",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -648,9 +597,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "4:5",
-            "time_length_ms": 4000
+            ]
           },
           {
             "id": "slide-3",
@@ -660,7 +607,6 @@
               {
                 "id": "text-0jmkltys",
                 "text": "Use tension rods to avoid any wall damage.",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -675,9 +621,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "4:5",
-            "time_length_ms": 4000
+            ]
           },
           {
             "id": "slide-4",
@@ -687,7 +631,6 @@
               {
                 "id": "text-0jmkltys",
                 "text": "Layer sheer and blackout curtains for hotel vibes.",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -702,9 +645,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "4:5",
-            "time_length_ms": 4000
+            ]
           },
           {
             "id": "slide-5",
@@ -714,7 +655,6 @@
               {
                 "id": "text-0jmkltys",
                 "text": "Pick the right material to block harsh glare.",
-                "font": "TikTok Display Medium",
                 "fontSize": "8px",
                 "textSize": {
                   "width": 80,
@@ -729,9 +669,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "4:5",
-            "time_length_ms": 4000
+            ]
           },
           {
             "id": "slide-6",
@@ -741,7 +679,6 @@
               {
                 "id": "text-xojfy3qf",
                 "text": "Comment RENT for the full no-drill curtain list.",
-                "font": "TikTok Display Medium",
                 "fontSize": "12px",
                 "textSize": {
                   "width": 70,
@@ -756,9 +693,7 @@
                   "y": 45
                 }
               }
-            ],
-            "aspect_ratio": "fit",
-            "time_length_ms": 4000
+            ]
           }
         ]
       },

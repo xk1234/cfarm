@@ -12,6 +12,7 @@ export async function POST(request: Request) {
     const result = await importRemoteImagesToCollection({
       collectionName: payload?.collectionName,
       collectionCreatedAt: payload?.collectionCreatedAt,
+      mediaType: payload?.mediaType,
       images: payload?.images,
     })
     return NextResponse.json(result, { status: 201 })

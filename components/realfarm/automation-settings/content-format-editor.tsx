@@ -313,81 +313,85 @@ export function AutomationCtaFormatEditor({
         enabled={enabled}
         onClick={() => onEnabledChange(!enabled)}
       />
-      <CtaSelectRow
-        icon={<ImageIcon className="size-3.5 text-[#999]" />}
-        label="Collection or Image"
-        value={imageMode === "single_image" ? "Single image" : "Collection"}
-        options={["Collection", "Single image"]}
-        onChange={(value) =>
-          onImageModeChange(
-            value === "Single image" ? "single_image" : "collection"
-          )
-        }
-      />
-
-      <div className="pt-1">
-        {imageMode === "single_image" ? (
-          <CtaSingleImagePicker
-            collection={collection}
-            collections={collections}
-            selectedImageId={selectedImageId}
-            onCollectionChange={onCollectionChange}
-            onCreateCollection={onCreateCollection}
-            onImageChange={onSingleImageChange}
+      {enabled ? (
+        <>
+          <CtaSelectRow
+            icon={<ImageIcon className="size-3.5 text-[#999]" />}
+            label="Collection or Image"
+            value={imageMode === "single_image" ? "Single image" : "Collection"}
+            options={["Collection", "Single image"]}
+            onChange={(value) =>
+              onImageModeChange(
+                value === "Single image" ? "single_image" : "collection"
+              )
+            }
           />
-        ) : (
-          <CollectionSelector
-            label="CTA collection"
-            collection={collection}
-            collections={collections}
-            onChange={onCollectionChange}
-            onCreateCollection={onCreateCollection}
+
+          <div className="pt-1">
+            {imageMode === "single_image" ? (
+              <CtaSingleImagePicker
+                collection={collection}
+                collections={collections}
+                selectedImageId={selectedImageId}
+                onCollectionChange={onCollectionChange}
+                onCreateCollection={onCreateCollection}
+                onImageChange={onSingleImageChange}
+              />
+            ) : (
+              <CollectionSelector
+                label="CTA collection"
+                collection={collection}
+                collections={collections}
+                onChange={onCollectionChange}
+                onCreateCollection={onCreateCollection}
+              />
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <CtaSelectRow
+              icon={<Expand className="size-3.5 text-[#999]" />}
+              label="Aspect Ratio"
+              value={aspectRatioLabel(section.aspect_ratio)}
+              options={automationAspectRatios.map(aspectRatioLabel)}
+              onChange={(value) =>
+                onSectionChange({ aspect_ratio: labelToAspectRatio(value) })
+              }
+            />
+          </div>
+
+          <CtaDivider />
+          <CtaToggleRow
+            icon={<Blend className="size-3.5 text-[#999]" />}
+            label="Overlay"
+            enabled={section.overlay}
+            onClick={() => onSectionChange({ overlay: !section.overlay })}
           />
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <CtaSelectRow
-          icon={<Expand className="size-3.5 text-[#999]" />}
-          label="Aspect Ratio"
-          value={aspectRatioLabel(section.aspect_ratio)}
-          options={automationAspectRatios.map(aspectRatioLabel)}
-          onChange={(value) =>
-            onSectionChange({ aspect_ratio: labelToAspectRatio(value) })
-          }
-        />
-      </div>
-
-      <CtaDivider />
-      <CtaToggleRow
-        icon={<Blend className="size-3.5 text-[#999]" />}
-        label="Overlay"
-        enabled={section.overlay}
-        onClick={() => onSectionChange({ overlay: !section.overlay })}
-      />
-      <CtaDivider />
-      <CtaToggleRow
-        icon={<ImageIcon className="size-3.5 text-[#999]" />}
-        label="Overlay Image"
-        enabled={Boolean(section.overlayImage?.enabled)}
-        onClick={() => onOverlayImageChange(!section.overlayImage?.enabled)}
-      />
-      {section.overlayImage?.enabled ? (
-        <CollectionSelector
-          label="Overlay image"
-          collection={overlayCollection}
-          collections={collections}
-          onChange={onOverlayCollectionChange}
-          onCreateCollection={onCreateCollection}
-        />
+          <CtaDivider />
+          <CtaToggleRow
+            icon={<ImageIcon className="size-3.5 text-[#999]" />}
+            label="Overlay Image"
+            enabled={Boolean(section.overlayImage?.enabled)}
+            onClick={() => onOverlayImageChange(!section.overlayImage?.enabled)}
+          />
+          {section.overlayImage?.enabled ? (
+            <CollectionSelector
+              label="Overlay image"
+              collection={overlayCollection}
+              collections={collections}
+              onChange={onOverlayCollectionChange}
+              onCreateCollection={onCreateCollection}
+            />
+          ) : null}
+          <CtaDivider />
+          <CtaToggleRow
+            icon={<Type className="size-3.5 text-[#999]" />}
+            label="Display text"
+            enabled={!section.noText}
+            onClick={() => onSectionChange({ noText: !section.noText })}
+          />
+        </>
       ) : null}
-      <CtaDivider />
-      <CtaToggleRow
-        icon={<Type className="size-3.5 text-[#999]" />}
-        label="Display text"
-        enabled={!section.noText}
-        onClick={() => onSectionChange({ noText: !section.noText })}
-      />
     </div>
   )
 }

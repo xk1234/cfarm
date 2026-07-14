@@ -1,12 +1,24 @@
 "use client"
 
 import { useState } from "react"
-import { IconChartBar, IconDownload, IconX } from "@tabler/icons-react"
+import { toast } from "sonner"
+import { Dialog } from "radix-ui"
+import {
+  IconChartBar,
+  IconDownload,
+  IconTrash,
+  IconX,
+} from "@tabler/icons-react"
 
 import { BenchmarkComparisonModal } from "@/components/realfarm/benchmark-comparison-modal"
+import { DeleteSlideshowDialog } from "@/components/realfarm/delete-slideshow-dialog"
 import { TemplateGeneratedPreview } from "@/components/realfarm/template-showcase-preview"
 import { AppModal, AppModalPanel } from "@/components/ui/modal"
 import { exportSlideshowAsPngZip } from "@/lib/slideshow-export"
+import {
+  benchmarkErrorMessage,
+  generateSlideshowBenchmark,
+} from "@/lib/client-slideshow-benchmarks"
 import { cn } from "@/lib/utils"
 import type { SlideshowBenchmarkComparison } from "@/lib/slideshow-benchmarks"
 
@@ -22,6 +34,8 @@ export type SlideshowViewerItem = {
   id: string
   label: string
   title: string
+  caption?: string
+  hashtags?: string
   slides: SlideshowViewerSlide[]
 }
 
@@ -31,6 +45,8 @@ export function SlideshowViewerModal({
   initialSlideshowId,
   benchmarkSlideshowId,
   fallbackSlides = [],
+  onDelete,
+  onDeleteSlide,
   onClose,
 }: {
   title: string
@@ -38,6 +54,8 @@ export function SlideshowViewerModal({
   initialSlideshowId?: string
   benchmarkSlideshowId?: string
   fallbackSlides?: SlideshowViewerSlide[]
+  onDelete?: () => Promise<void>
+  onDeleteSlide?: (slideshowItemId: string, slideIndex: number) => Promise<void>
   onClose: () => void
 }) {
   const initialIndex = Math.max(
@@ -50,14 +68,26 @@ export function SlideshowViewerModal({
 
   return (
     <AppModal onClose={onClose}>
-      <AppModalPanel className="h-[min(620px,90vh)] max-w-[760px] rounded-[10px] bg-[#b9b9b6]">
+      <AppModalPanel
+        accessibleTitle={title}
+        className="h-[min(620px,90vh)] max-w-[760px] rounded-[10px] bg-[#b9b9b6]"
+      >
         <SlideshowViewerContent
           key={selectedSlideshow?.id ?? "empty"}
           title={title}
           exportTitle={selectedSlideshow?.title || title}
+          slideshowTitle={selectedSlideshow?.title}
+          caption={selectedSlideshow?.caption}
+          hashtags={selectedSlideshow?.hashtags}
           slides={selectedSlideshow?.slides ?? []}
           fallbackSlides={fallbackSlides}
           benchmarkSlideshowId={benchmarkSlideshowId}
+          onDelete={onDelete}
+          onDeleteSlide={
+            onDeleteSlide && selectedSlideshow
+              ? (slideIndex) => onDeleteSlide(selectedSlideshow.id, slideIndex)
+              : undefined
+          }
           onClose={onClose}
         />
       </AppModalPanel>
@@ -68,26 +98,36 @@ export function SlideshowViewerModal({
 function SlideshowViewerContent({
   title,
   exportTitle,
+  slideshowTitle,
+  caption,
+  hashtags,
   slides,
   fallbackSlides,
   benchmarkSlideshowId,
+  onDelete,
+  onDeleteSlide,
   onClose,
 }: {
   title: string
   exportTitle: string
+  slideshowTitle?: string
+  caption?: string
+  hashtags?: string
   slides: SlideshowViewerSlide[]
   fallbackSlides: SlideshowViewerSlide[]
   benchmarkSlideshowId?: string
+  onDelete?: () => Promise<void>
+  onDeleteSlide?: (slideIndex: number) => Promise<void>
   onClose: () => void
 }) {
   const [activeSlide, setActiveSlide] = useState(0)
   const [exporting, setExporting] = useState(false)
-  const [exportError, setExportError] = useState("")
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [benchmark, setBenchmark] =
     useState<SlideshowBenchmarkComparison | null>(null)
   const [benchmarkOpen, setBenchmarkOpen] = useState(false)
   const [benchmarkLoading, setBenchmarkLoading] = useState(false)
-  const [benchmarkError, setBenchmarkError] = useState("")
+  const [deletingSlide, setDeletingSlide] = useState(false)
   const boundedActiveSlide =
     slides.length > 0 ? Math.min(activeSlide, slides.length - 1) : 0
   const visibleSlots = [
@@ -98,15 +138,34 @@ function SlideshowViewerContent({
 
   async function exportSlides() {
     setExporting(true)
-    setExportError("")
     try {
       await exportSlideshowAsPngZip({ title: exportTitle, slides })
     } catch (error) {
-      setExportError(
-        error instanceof Error ? error.message : "The slideshow could not be exported."
-      )
+      toast.error("Slideshow couldn’t be exported", {
+        description:
+          error instanceof Error
+            ? error.message
+            : "The slideshow could not be exported.",
+      })
     } finally {
       setExporting(false)
+    }
+  }
+
+  async function deleteActiveSlide() {
+    if (!onDeleteSlide || slides.length === 0 || deletingSlide) return
+    setDeletingSlide(true)
+    try {
+      await onDeleteSlide(boundedActiveSlide)
+      setActiveSlide((current) => Math.max(0, current - 1))
+      toast.success(`Slide ${boundedActiveSlide + 1} deleted`)
+    } catch (error) {
+      toast.error("The slide could not be deleted", {
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+      })
+    } finally {
+      setDeletingSlide(false)
     }
   }
 
@@ -115,23 +174,13 @@ function SlideshowViewerContent({
     setBenchmarkOpen(true)
     if (benchmark) return
     setBenchmarkLoading(true)
-    setBenchmarkError("")
     try {
-      const response = await fetch(
-        `/api/benchmarks?slideshowId=${encodeURIComponent(benchmarkSlideshowId)}`
-      )
-      const payload = (await response.json()) as {
-        comparison?: SlideshowBenchmarkComparison | null
-        error?: string
-      }
-      if (!response.ok || !payload.comparison) {
-        throw new Error(payload.error || "No benchmark is available for this slideshow.")
-      }
-      setBenchmark(payload.comparison)
+      setBenchmark(await generateSlideshowBenchmark(benchmarkSlideshowId))
     } catch (error) {
-      setBenchmarkError(
-        error instanceof Error ? error.message : "Benchmark could not be loaded."
-      )
+      setBenchmarkOpen(false)
+      toast.error("Benchmark generation failed", {
+        description: benchmarkErrorMessage(error),
+      })
     } finally {
       setBenchmarkLoading(false)
     }
@@ -153,10 +202,15 @@ function SlideshowViewerContent({
           </h2>
         </div>
         <div className="flex items-center gap-3">
-          {exportError ? (
-            <span className="max-w-[280px] truncate text-[12px] font-semibold text-[#b33a3a]">
-              {exportError}
-            </span>
+          {onDelete ? (
+            <button
+              type="button"
+              className="inline-flex h-9 items-center gap-2 rounded-[7px] border border-red-200 bg-white px-3.5 text-[13px] font-semibold text-red-600 shadow-sm transition hover:bg-red-50"
+              onClick={() => setDeleteOpen(true)}
+            >
+              <IconTrash className="size-4" />
+              Delete
+            </button>
           ) : null}
           {benchmarkSlideshowId ? (
             <button
@@ -165,7 +219,7 @@ function SlideshowViewerContent({
               onClick={() => void openBenchmark()}
             >
               <IconChartBar className="size-4" />
-              Benchmark
+              {benchmarkLoading ? "Generating…" : "Benchmark"}
             </button>
           ) : null}
           <button
@@ -179,64 +233,119 @@ function SlideshowViewerContent({
           </button>
         </div>
       </header>
-      <main className="relative flex h-[calc(100%-60px)] items-center justify-center overflow-hidden px-4">
-        {slides.length === 0 ? (
-          <TemplateGeneratedPreview
-            exampleSlides={fallbackSlides}
-            tileCount={3}
-            className="h-[356px] w-[620px] max-w-full rounded-[9px] shadow-xl"
-          />
-        ) : (
-          <div className="flex max-w-full items-center gap-4 overflow-hidden">
-            {visibleSlots.map((absoluteIndex, index) => {
-              const slide = slides[absoluteIndex]
-              if (!slide) {
+      <main className="relative flex h-[calc(100%-60px)] flex-col overflow-hidden">
+        <div className="relative flex min-h-0 flex-1 items-center justify-center px-4">
+          {slides.length === 0 ? (
+            <TemplateGeneratedPreview
+              exampleSlides={fallbackSlides}
+              tileCount={3}
+              className="h-[356px] w-[620px] max-w-full rounded-[9px] shadow-xl"
+            />
+          ) : (
+            <div className="flex max-w-full items-center gap-4 overflow-hidden">
+              {visibleSlots.map((absoluteIndex, index) => {
+                const slide = slides[absoluteIndex]
+                if (!slide) {
+                  return (
+                    <div
+                      key={`empty-${index}`}
+                      className="h-[356px] w-[200px] shrink-0"
+                      aria-hidden="true"
+                    />
+                  )
+                }
                 return (
-                  <div
-                    key={`empty-${index}`}
-                    className="h-[356px] w-[200px] shrink-0"
-                    aria-hidden="true"
-                  />
+                  <button
+                    key={slide.id}
+                    type="button"
+                    className={cn(
+                      "relative h-[356px] w-[200px] shrink-0 cursor-pointer overflow-hidden rounded-[9px] bg-black text-left shadow-xl transition duration-300",
+                      absoluteIndex === boundedActiveSlide
+                        ? "opacity-100 ring-2 ring-white"
+                        : "opacity-45"
+                    )}
+                    onClick={() => setActiveSlide(absoluteIndex)}
+                    aria-label={`Show slide ${absoluteIndex + 1}`}
+                  >
+                    <img
+                      src={slide.imageUrl}
+                      alt={slide.text || `${title} slide ${absoluteIndex + 1}`}
+                      className="h-full w-full bg-black object-contain"
+                      draggable={false}
+                    />
+                    {onDeleteSlide &&
+                    absoluteIndex === boundedActiveSlide &&
+                    slides.length > 1 ? (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="absolute top-2 right-2 grid size-8 cursor-pointer place-items-center rounded-full bg-black/60 text-white transition hover:bg-red-600 disabled:opacity-50"
+                        aria-label={`Delete slide ${absoluteIndex + 1}`}
+                        title="Delete this slide"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          void deleteActiveSlide()
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.stopPropagation()
+                            void deleteActiveSlide()
+                          }
+                        }}
+                      >
+                        <IconTrash className="size-4" />
+                      </span>
+                    ) : null}
+                  </button>
                 )
-              }
-              return (
+              })}
+            </div>
+          )}
+          {slides.length > 0 ? (
+            <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-2">
+              {slides.map((_, dot) => (
                 <button
-                  key={slide.id}
+                  key={dot}
                   type="button"
                   className={cn(
-                    "relative h-[356px] w-[200px] shrink-0 cursor-pointer overflow-hidden rounded-[9px] bg-black text-left shadow-xl transition duration-300",
-                    absoluteIndex === boundedActiveSlide
-                      ? "opacity-100 ring-2 ring-white"
-                      : "opacity-45"
+                    "size-2 rounded-full",
+                    dot === boundedActiveSlide ? "bg-white" : "bg-white/55"
                   )}
-                  onClick={() => setActiveSlide(absoluteIndex)}
-                  aria-label={`Show slide ${absoluteIndex + 1}`}
-                >
-                  <img
-                    src={slide.imageUrl}
-                    alt={slide.text || `${title} slide ${absoluteIndex + 1}`}
-                    className="h-full w-full bg-black object-contain"
-                    draggable={false}
-                  />
-                </button>
-              )
-            })}
-          </div>
-        )}
-        {slides.length > 0 ? (
-          <div className="absolute bottom-[32px] flex gap-2">
-            {slides.map((_, dot) => (
-              <button
-                key={dot}
-                type="button"
-                className={cn(
-                  "size-2 rounded-full",
-                  dot === boundedActiveSlide ? "bg-white" : "bg-white/55"
-                )}
-                onClick={() => setActiveSlide(dot)}
-                aria-label={`Show slide ${dot + 1}`}
-              />
-            ))}
+                  onClick={() => setActiveSlide(dot)}
+                  aria-label={`Show slide ${dot + 1}`}
+                />
+              ))}
+            </div>
+          ) : null}
+        </div>
+        {slideshowTitle || caption || hashtags ? (
+          <div className="shrink-0 space-y-1.5 border-t border-[#a8a8a5] bg-[#f7f7f4] px-5 py-3 text-[13px] leading-5">
+            {slideshowTitle ? (
+              <div className="min-w-0">
+                <span className="text-[10px] font-bold tracking-[0.06em] text-[#77766f] uppercase">
+                  Title{" "}
+                </span>
+                <span className="font-semibold text-[#242421]">
+                  {slideshowTitle}
+                </span>
+              </div>
+            ) : null}
+            {caption ? (
+              <div className="min-w-0">
+                <span className="text-[10px] font-bold tracking-[0.06em] text-[#77766f] uppercase">
+                  Caption{" "}
+                </span>
+                <span className="font-medium text-[#3a3936]">{caption}</span>
+              </div>
+            ) : null}
+            {hashtags ? (
+              <div className="min-w-0">
+                <span className="text-[10px] font-bold tracking-[0.06em] text-[#77766f] uppercase">
+                  Hashtags{" "}
+                </span>
+                <span className="font-medium text-[#5a5954]">{hashtags}</span>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </main>
@@ -247,21 +356,22 @@ function SlideshowViewerContent({
         />
       ) : null}
       {benchmarkOpen && !benchmark ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-md rounded-[10px] bg-white p-6 text-center shadow-2xl">
-            <h3 className="text-[16px] font-bold text-[#242421]">
-              {benchmarkLoading ? "Loading benchmark…" : "Benchmark unavailable"}
-            </h3>
-            {benchmarkError ? (
-              <p className="mt-2 text-[13px] text-[#77766f]">{benchmarkError}</p>
-            ) : null}
-            {!benchmarkLoading ? (
-              <button type="button" className="mt-4 rounded-[7px] bg-[#242421] px-4 py-2 text-[13px] font-semibold text-white" onClick={() => setBenchmarkOpen(false)}>
-                Close
-              </button>
-            ) : null}
-          </div>
-        </div>
+        <AppModal className="z-[90]" onClose={() => undefined}>
+          <AppModalPanel className="max-w-md p-6 text-center">
+            <Dialog.Title className="text-[16px] font-bold text-[#242421]">
+              Generating benchmark…
+            </Dialog.Title>
+            <p className="mt-2 text-[13px] text-[#77766f]">
+              Grading all {slides.length} slides. This can take up to a minute.
+            </p>
+          </AppModalPanel>
+        </AppModal>
+      ) : null}
+      {deleteOpen && onDelete ? (
+        <DeleteSlideshowDialog
+          onCancel={() => setDeleteOpen(false)}
+          onConfirm={onDelete}
+        />
       ) : null}
     </>
   )

@@ -14,6 +14,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
+import { Select } from "radix-ui"
 
 import { SwipeDetailPage } from "@/components/realfarm/swipe-detail-page"
 import {
@@ -22,9 +23,8 @@ import {
 } from "@/components/realfarm/swipe-display-model"
 import { SwipeMedia } from "@/components/realfarm/swipe-media"
 import { Button } from "@/components/ui/button"
-import { useDismissableLayer } from "@/components/ui/dismissable"
+import { CardGridSkeleton } from "@/components/ui/loading-skeleton"
 import { SelectLike } from "@/components/ui/form-controls"
-import { Spinner } from "@/components/ui/spinner"
 import { fetchJsonWithTimeout, toastApiError } from "@/lib/client-api"
 import type { SwipeRecord } from "@/lib/swipes"
 import { cn } from "@/lib/utils"
@@ -202,10 +202,7 @@ export function SwipesView({ currentUserId }: { currentUserId: string }) {
       )}
 
       {status === "loading" ? (
-        <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 rounded-[10px] bg-[#f0efff] text-[14px] font-semibold text-[#6d6b90]">
-          <Spinner size={28} aria-label="Loading swipe file" />
-          Loading swipe file...
-        </div>
+        <CardGridSkeleton count={8} className="lg:grid-cols-4" />
       ) : filteredSwipes.length === 0 ? (
         <div className="grid min-h-[360px] place-items-center rounded-[10px] border border-dashed border-[#d6d4ee] bg-[#f6f5ff] text-center">
           <div>
@@ -255,45 +252,52 @@ function PlatformSelect({
   value: string
   onChange: (value: string) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const ref = useDismissableLayer<HTMLDivElement>(() => setOpen(false), open)
   const selected = platformOptions.includes(value as SwipePlatformFilter)
     ? (value as SwipePlatformFilter)
     : "All"
 
   return (
-    <div ref={ref} className="relative">
-      <Button
-        type="button"
-        variant="softControl"
-        size="appDefault"
-        className="min-w-[158px] justify-between gap-3"
-        onClick={() => setOpen((current) => !current)}
-      >
-        <PlatformOptionContent platform={selected} />
-        <IconChevronDown className="size-4 text-[#77766f]" />
-      </Button>
-      {open && (
-        <div className="absolute top-full left-0 z-30 mt-2 w-[190px] rounded-lg border border-app-panel-border bg-app-control-bg p-1 text-sm shadow-xl">
-          {platformOptions.map((option) => (
-            <button
-              key={option}
-              type="button"
-              className={cn(
-                "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left font-semibold hover:bg-app-control-hover",
-                option === selected && "bg-app-control-hover"
-              )}
-              onClick={() => {
-                onChange(option)
-                setOpen(false)
-              }}
-            >
-              <PlatformOptionContent platform={option} />
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <Select.Root value={selected} onValueChange={onChange}>
+      <Select.Trigger asChild>
+        <Button
+          type="button"
+          variant="softControl"
+          size="appDefault"
+          className="min-w-[158px] justify-between gap-3"
+        >
+          <Select.Value>
+            <PlatformOptionContent platform={selected} />
+          </Select.Value>
+          <Select.Icon asChild>
+            <IconChevronDown className="size-4 text-[#77766f]" />
+          </Select.Icon>
+        </Button>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content
+          position="popper"
+          sideOffset={8}
+          className="z-50 w-[190px] rounded-lg border border-app-panel-border bg-app-control-bg p-1 text-sm shadow-xl"
+        >
+          <Select.Viewport>
+            {platformOptions.map((option) => (
+              <Select.Item
+                key={option}
+                value={option}
+                className={cn(
+                  "flex h-9 w-full cursor-default items-center gap-2 rounded-md px-2 text-left font-semibold outline-none data-[highlighted]:bg-app-control-hover",
+                  option === selected && "bg-app-control-hover"
+                )}
+              >
+                <Select.ItemText>
+                  <PlatformOptionContent platform={option} />
+                </Select.ItemText>
+              </Select.Item>
+            ))}
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
   )
 }
 

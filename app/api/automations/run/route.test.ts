@@ -3,7 +3,15 @@ import os from "node:os"
 import path from "node:path"
 
 import { Query } from "node-appwrite"
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
@@ -12,6 +20,7 @@ import {
   createLocalAutomationRecord,
   upsertAutomationRecords,
 } from "@/lib/automations"
+import { createGeneratedVideoExport } from "@/lib/generated-videos"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
 // Appwrite-only, run against cfarm (forced by vitest.setup.ts).
@@ -19,8 +28,15 @@ import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 const slideExt = process.platform === "darwin" ? "png" : "svg"
 let tempRoot: string
 
-
-const clearAll = () => clearTestTables("automations", "automation_runs", "image_collections", "slideshows", "results")
+const clearAll = () =>
+  clearTestTables(
+    "automations",
+    "automation_runs",
+    "generated_video_exports",
+    "image_collections",
+    "slideshows",
+    "results"
+  )
 
 beforeEach(async () => {
   await clearAll()
@@ -69,11 +85,13 @@ afterAll(clearAll)
 
 describe("POST /api/automations/run", () => {
   it("runs browser requests without additional API credentials", async () => {
-    const runDueAutomations = vi.fn(async (_input: Record<string, unknown>) => ({
-      created: [],
-      results: [],
-      skipped: [],
-    }))
+    const runDueAutomations = vi.fn(
+      async (_input: Record<string, unknown>) => ({
+        created: [],
+        results: [],
+        skipped: [],
+      })
+    )
     vi.doMock("@/lib/automation-runner", () => ({
       runDueAutomations,
     }))
@@ -251,6 +269,50 @@ describe("POST /api/automations/run", () => {
 })
 
 describe("GET /api/automations/runs", () => {
+  it("includes generated video exports linked to an automation", async () => {
+    const automationId = "video-automation-1"
+    const videoExport = await createGeneratedVideoExport({
+      rootDir: path.join(tempRoot, "data", "generated-videos"),
+      type: "template_video",
+      status: "ready",
+      title: "Three ways to improve your hook",
+      description: "A generated video description",
+      hashtags: ["#hooks", "#video"],
+      sourceConfig: {
+        automationId,
+        automationName: "Daily video hooks",
+        hook: "Stop scrolling",
+      },
+      previewUrl: "/generated/preview.jpg",
+      videoUrl: "/generated/video.mp4",
+    })
+
+    const runsRoute = await import("../runs/route")
+    const response = await runsRoute.GET(
+      new Request(
+        `http://localhost/api/automations/runs?automationId=${automationId}`
+      )
+    )
+    const payload = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(payload.runs).toHaveLength(1)
+    expect(payload.runs[0]).toMatchObject({
+      id: videoExport.id,
+      automationId,
+      automationTitle: "Daily video hooks",
+      status: "succeeded",
+      videoUrl: "/generated/video.mp4",
+      thumbnailUrl: "/generated/preview.jpg",
+      plan: {
+        title: "Three ways to improve your hook",
+        caption: "A generated video description",
+        hashtags: "#hooks #video",
+        publishType: "video",
+      },
+    })
+  })
+
   it("returns persisted recent runs for an automation", async () => {
     const automation = createLocalAutomationRecord({
       name: "Recent hooks",

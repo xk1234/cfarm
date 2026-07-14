@@ -3,5 +3,12 @@
 import { Toaster } from "sonner"
 
 export function AppToaster() {
-  return <Toaster richColors closeButton position="top-right" />
+  return (
+    <Toaster
+      richColors
+      closeButton
+      position="top-right"
+      duration={6_000}
+    />
+  )
 }

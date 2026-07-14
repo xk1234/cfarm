@@ -10,15 +10,19 @@ import {
   IconX,
 } from "@tabler/icons-react"
 import { Folder } from "lucide-react"
+import { Dialog } from "radix-ui"
 import { toast } from "sonner"
 
 import { AttachmentSquareRow } from "@/components/realfarm/characters/shared-components"
 import { InfoRow } from "@/components/realfarm/characters/workflow-panels"
-import { ratioToCss, referenceAssetReady } from "@/components/realfarm/characters/workflow-helpers"
+import {
+  ratioToCss,
+  referenceAssetReady,
+} from "@/components/realfarm/characters/workflow-helpers"
 import { Button } from "@/components/ui/button"
 import { SelectControl } from "@/components/ui/form-controls"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
-import { Spinner } from "@/components/ui/spinner"
+import { CardGridSkeleton } from "@/components/ui/loading-skeleton"
 import { UploadDropzone } from "@/components/ui/upload-dropzone"
 import type { AssetCategory, AssetKind, AssetRecord } from "@/lib/assets"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
@@ -182,201 +186,208 @@ export function CharacterImageEditorModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black/86 text-white">
-      <button
-        className="absolute top-5 right-6 z-10 grid size-9 place-items-center rounded-full hover:bg-white/10"
-        onClick={onClose}
-        aria-label="Close image editor"
-      >
-        <IconX className="size-8" />
-      </button>
-      <button
-        className="absolute top-1/2 left-8 z-10 grid size-12 -translate-y-1/2 place-items-center rounded-full hover:bg-white/10 disabled:opacity-30"
-        onClick={onPrevious}
-        disabled={index === 0}
-        aria-label="Previous image"
-      >
-        <IconChevronLeft className="size-10" />
-      </button>
-      <button
-        className="absolute top-1/2 right-8 z-10 grid size-12 -translate-y-1/2 place-items-center rounded-full hover:bg-white/10 disabled:opacity-30"
-        onClick={onNext}
-        disabled={index === total - 1}
-        aria-label="Next image"
-      >
-        <IconChevronRight className="size-10" />
-      </button>
-      <div className="flex flex-1 items-center justify-center px-6 pt-14 pb-6 md:px-20">
-        <div className="flex min-h-0 w-full max-w-[980px] flex-col items-center">
-          <div
-            className="h-[52vh] min-h-[260px] w-full bg-contain bg-center bg-no-repeat"
-            style={{ backgroundImage: `url(${generation.imageUrl})` }}
-            role="img"
-            aria-label={title}
-          />
-          <textarea
-            className="mt-2 min-h-[44px] w-full max-w-[860px] resize-none bg-transparent text-center text-[15px] leading-6 font-semibold text-white outline-none placeholder:text-white/55"
-            value={generation.prompt || "Character generation"}
-            placeholder="Add image caption..."
-            onChange={(event) => onCaptionChange(event.target.value)}
-          />
-          <div className="mt-1 rounded-[3px] bg-black/55 px-4 py-1.5 text-[15px] font-bold">
-            {index + 1} / {total}
-          </div>
-          <div className="mt-2 w-full max-w-[860px] rounded-[8px] bg-white p-3 text-[#242421] shadow-xl">
-            <div className="mb-2 grid h-8 w-[180px] grid-cols-2 rounded-[6px] bg-[#ecebe4] p-0.5 text-[12px] font-semibold">
-              {(["image", "video"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  className={cn(
-                    "rounded-[5px] px-3 leading-none text-[#595852] capitalize",
-                    activeTab === tab && "bg-white text-[#242421] shadow-sm"
-                  )}
-                  onClick={() => setActiveTab(tab)}
-                >
-                  {tab}
-                </button>
-              ))}
+    <AppModal className="z-50 bg-black/86 p-0" onClose={onClose}>
+      <AppModalPanel className="relative flex h-full max-w-none flex-col rounded-none bg-transparent text-white shadow-none">
+        <Dialog.Title className="sr-only">{title}</Dialog.Title>
+        <button
+          className="absolute top-5 right-6 z-10 grid size-9 place-items-center rounded-full hover:bg-white/10"
+          onClick={onClose}
+          aria-label="Close image editor"
+        >
+          <IconX className="size-8" />
+        </button>
+        <button
+          className="absolute top-1/2 left-8 z-10 grid size-12 -translate-y-1/2 place-items-center rounded-full hover:bg-white/10 disabled:opacity-30"
+          onClick={onPrevious}
+          disabled={index === 0}
+          aria-label="Previous image"
+        >
+          <IconChevronLeft className="size-10" />
+        </button>
+        <button
+          className="absolute top-1/2 right-8 z-10 grid size-12 -translate-y-1/2 place-items-center rounded-full hover:bg-white/10 disabled:opacity-30"
+          onClick={onNext}
+          disabled={index === total - 1}
+          aria-label="Next image"
+        >
+          <IconChevronRight className="size-10" />
+        </button>
+        <div className="flex flex-1 items-center justify-center px-6 pt-14 pb-6 md:px-20">
+          <div className="flex min-h-0 w-full max-w-[980px] flex-col items-center">
+            <div
+              className="h-[52vh] min-h-[260px] w-full bg-contain bg-center bg-no-repeat"
+              style={{ backgroundImage: `url(${generation.imageUrl})` }}
+              role="img"
+              aria-label={title}
+            />
+            <textarea
+              className="mt-2 min-h-[44px] w-full max-w-[860px] resize-none bg-transparent text-center text-[15px] leading-6 font-semibold text-white outline-none placeholder:text-white/55"
+              value={generation.prompt || "Character generation"}
+              placeholder="Add image caption..."
+              onChange={(event) => onCaptionChange(event.target.value)}
+            />
+            <div className="mt-1 rounded-[3px] bg-black/55 px-4 py-1.5 text-[15px] font-bold">
+              {index + 1} / {total}
             </div>
-            {activeTab === "image" ? (
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="grid h-8 grid-cols-2 rounded-[6px] bg-[#ecebe4] p-0.5 text-[12px] font-semibold">
-                    {(["edit", "upscale"] as const).map((tool) => (
-                      <button
-                        key={tool}
-                        className={cn(
-                          "rounded-[5px] px-3 leading-none text-[#595852] capitalize",
-                          activeImageTool === tool &&
-                            "bg-white text-[#242421] shadow-sm"
-                        )}
-                        onClick={() => setActiveImageTool(tool)}
-                      >
-                        {tool}
-                      </button>
-                    ))}
-                  </div>
-                  <SelectControl
-                    aria-label="Image action model"
-                    className="h-8 min-w-[132px] rounded-[6px] border border-[#deddd5] bg-white px-2 text-[12px] font-semibold"
-                    value={imageModel}
-                    onChange={(event) => setImageModel(event.target.value)}
+            <div className="mt-2 w-full max-w-[860px] rounded-[8px] bg-white p-3 text-[#242421] shadow-xl">
+              <div className="mb-2 grid h-8 w-[180px] grid-cols-2 rounded-[6px] bg-[#ecebe4] p-0.5 text-[12px] font-semibold">
+                {(["image", "video"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    className={cn(
+                      "rounded-[5px] px-3 leading-none text-[#595852] capitalize",
+                      activeTab === tab && "bg-white text-[#242421] shadow-sm"
+                    )}
+                    onClick={() => setActiveTab(tab)}
                   >
-                    {imageActionModels.map((model) => (
-                      <option key={model.model} value={model.model}>
-                        {model.label}
-                      </option>
-                    ))}
-                  </SelectControl>
-                  {activeImageTool === "upscale" && (
+                    {tab}
+                  </button>
+                ))}
+              </div>
+              {activeTab === "image" ? (
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="grid h-8 grid-cols-2 rounded-[6px] bg-[#ecebe4] p-0.5 text-[12px] font-semibold">
+                      {(["edit", "upscale"] as const).map((tool) => (
+                        <button
+                          key={tool}
+                          className={cn(
+                            "rounded-[5px] px-3 leading-none text-[#595852] capitalize",
+                            activeImageTool === tool &&
+                              "bg-white text-[#242421] shadow-sm"
+                          )}
+                          onClick={() => setActiveImageTool(tool)}
+                        >
+                          {tool}
+                        </button>
+                      ))}
+                    </div>
                     <SelectControl
-                      aria-label="Upscale factor"
-                      className="h-8 w-[78px] rounded-[6px] border border-[#deddd5] bg-white px-2 text-[12px] font-semibold"
-                      value={upscaleFactor}
-                      onChange={(event) => setUpscaleFactor(event.target.value)}
+                      aria-label="Image action model"
+                      className="h-8 min-w-[132px] rounded-[6px] border border-[#deddd5] bg-white px-2 text-[12px] font-semibold"
+                      value={imageModel}
+                      onChange={(event) => setImageModel(event.target.value)}
                     >
-                      <option value="2">2x</option>
-                      <option value="4">4x</option>
+                      {imageActionModels.map((model) => (
+                        <option key={model.model} value={model.model}>
+                          {model.label}
+                        </option>
+                      ))}
                     </SelectControl>
-                  )}
-                  <div className="min-w-2 flex-1" />
-                  <Button
-                    className="h-8 rounded-[6px] px-4 text-[12px]"
-                    disabled={
-                      imageWorking ||
-                      (activeImageTool === "edit" && !imagePrompt.trim())
-                    }
-                    onClick={() => void runImageAction()}
-                  >
-                    {imageWorking
-                      ? "Generating..."
-                      : activeImageTool === "edit"
-                        ? "Generate"
-                        : "Upscale"}
-                  </Button>
-                </div>
-                {activeImageTool === "edit" && (
-                  <textarea
-                    className="mt-2 min-h-[44px] w-full resize-none rounded-[6px] border border-[#deddd5] px-3 py-2 text-[13px] leading-5 font-medium outline-none placeholder:text-[#aaa]"
-                    value={imagePrompt}
-                    onChange={(event) => setImagePrompt(event.target.value)}
-                    placeholder="Describe the edit you want to make..."
-                  />
-                )}
-                {imageError && (
-                  <div className="mt-2 rounded-[6px] bg-[#fff3f0] px-3 py-2 text-[12px] font-semibold text-[#b44d38]">
-                    {imageError}
+                    {activeImageTool === "upscale" && (
+                      <SelectControl
+                        aria-label="Upscale factor"
+                        className="h-8 w-[78px] rounded-[6px] border border-[#deddd5] bg-white px-2 text-[12px] font-semibold"
+                        value={upscaleFactor}
+                        onChange={(event) =>
+                          setUpscaleFactor(event.target.value)
+                        }
+                      >
+                        <option value="2">2x</option>
+                        <option value="4">4x</option>
+                      </SelectControl>
+                    )}
+                    <div className="min-w-2 flex-1" />
+                    <Button
+                      className="h-8 rounded-[6px] px-4 text-[12px]"
+                      disabled={
+                        imageWorking ||
+                        (activeImageTool === "edit" && !imagePrompt.trim())
+                      }
+                      onClick={() => void runImageAction()}
+                    >
+                      {imageWorking
+                        ? "Generating..."
+                        : activeImageTool === "edit"
+                          ? "Generate"
+                          : "Upscale"}
+                    </Button>
                   </div>
-                )}
-              </div>
-            ) : (
-              <div className="grid gap-3">
-                {generation.videoUrl && (
-                  <video
-                    className="max-h-[220px] w-full rounded-[8px] bg-black object-contain"
-                    src={generation.videoUrl}
-                    controls
-                    playsInline
-                  />
-                )}
-                <div className="flex flex-wrap items-center gap-2">
-                  <SelectControl
-                    aria-label="Image to video model"
-                    className="h-8 min-w-[190px] rounded-[6px] border border-[#deddd5] bg-white px-2 text-[12px] font-semibold"
-                    value={videoModel}
-                    onChange={(event) => setVideoModel(event.target.value)}
-                  >
-                    {characterImageToVideoModels.map((model) => (
-                      <option key={model.label} value={model.label}>
-                        {model.label}
-                      </option>
-                    ))}
-                  </SelectControl>
-                  <SelectControl
-                    aria-label="Video duration"
-                    className="h-8 w-[92px] rounded-[6px] border border-[#deddd5] bg-white px-2 text-[12px] font-semibold"
-                    value={videoDuration}
-                    onChange={(event) => setVideoDuration(event.target.value)}
-                  >
-                    <option value="5">5 sec</option>
-                    <option value="10">10 sec</option>
-                    <option value="15">15 sec</option>
-                  </SelectControl>
-                  <label className="flex h-8 items-center gap-2 rounded-[6px] border border-[#deddd5] px-3 text-[12px] font-semibold">
-                    <input
-                      type="checkbox"
-                      checked={videoSound}
-                      onChange={(event) => setVideoSound(event.target.checked)}
+                  {activeImageTool === "edit" && (
+                    <textarea
+                      className="mt-2 min-h-[44px] w-full resize-none rounded-[6px] border border-[#deddd5] px-3 py-2 text-[13px] leading-5 font-medium outline-none placeholder:text-[#aaa]"
+                      value={imagePrompt}
+                      onChange={(event) => setImagePrompt(event.target.value)}
+                      placeholder="Describe the edit you want to make..."
                     />
-                    Sound
-                  </label>
-                  <div className="min-w-2 flex-1" />
-                  <Button
-                    className="h-8 rounded-[6px] px-4 text-[12px]"
-                    disabled={videoWorking || !videoPrompt.trim()}
-                    onClick={() => void runVideoGeneration()}
-                  >
-                    {videoWorking ? "Generating..." : "Generate video"}
-                  </Button>
+                  )}
+                  {imageError && (
+                    <div className="mt-2 rounded-[6px] bg-[#fff3f0] px-3 py-2 text-[12px] font-semibold text-[#b44d38]">
+                      {imageError}
+                    </div>
+                  )}
                 </div>
-                <textarea
-                  className="min-h-[58px] w-full resize-none rounded-[6px] border border-[#deddd5] px-3 py-2 text-[13px] leading-5 font-medium outline-none placeholder:text-[#aaa]"
-                  aria-label="Video generation prompt"
-                  value={videoPrompt}
-                  onChange={(event) => setVideoPrompt(event.target.value)}
-                  placeholder="Describe the motion, camera movement, and action..."
-                />
-                {(videoError || generation.videoError) && (
-                  <div className="rounded-[6px] bg-[#fff3f0] px-3 py-2 text-[12px] font-semibold text-[#b44d38]">
-                    {videoError || generation.videoError}
+              ) : (
+                <div className="grid gap-3">
+                  {generation.videoUrl && (
+                    <video
+                      className="max-h-[220px] w-full rounded-[8px] bg-black object-contain"
+                      src={generation.videoUrl}
+                      controls
+                      playsInline
+                    />
+                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <SelectControl
+                      aria-label="Image to video model"
+                      className="h-8 min-w-[190px] rounded-[6px] border border-[#deddd5] bg-white px-2 text-[12px] font-semibold"
+                      value={videoModel}
+                      onChange={(event) => setVideoModel(event.target.value)}
+                    >
+                      {characterImageToVideoModels.map((model) => (
+                        <option key={model.label} value={model.label}>
+                          {model.label}
+                        </option>
+                      ))}
+                    </SelectControl>
+                    <SelectControl
+                      aria-label="Video duration"
+                      className="h-8 w-[92px] rounded-[6px] border border-[#deddd5] bg-white px-2 text-[12px] font-semibold"
+                      value={videoDuration}
+                      onChange={(event) => setVideoDuration(event.target.value)}
+                    >
+                      <option value="5">5 sec</option>
+                      <option value="10">10 sec</option>
+                      <option value="15">15 sec</option>
+                    </SelectControl>
+                    <label className="flex h-8 items-center gap-2 rounded-[6px] border border-[#deddd5] px-3 text-[12px] font-semibold">
+                      <input
+                        type="checkbox"
+                        checked={videoSound}
+                        onChange={(event) =>
+                          setVideoSound(event.target.checked)
+                        }
+                      />
+                      Sound
+                    </label>
+                    <div className="min-w-2 flex-1" />
+                    <Button
+                      className="h-8 rounded-[6px] px-4 text-[12px]"
+                      disabled={videoWorking || !videoPrompt.trim()}
+                      onClick={() => void runVideoGeneration()}
+                    >
+                      {videoWorking ? "Generating..." : "Generate video"}
+                    </Button>
                   </div>
-                )}
-              </div>
-            )}
+                  <textarea
+                    className="min-h-[58px] w-full resize-none rounded-[6px] border border-[#deddd5] px-3 py-2 text-[13px] leading-5 font-medium outline-none placeholder:text-[#aaa]"
+                    aria-label="Video generation prompt"
+                    value={videoPrompt}
+                    onChange={(event) => setVideoPrompt(event.target.value)}
+                    placeholder="Describe the motion, camera movement, and action..."
+                  />
+                  {(videoError || generation.videoError) && (
+                    <div className="rounded-[6px] bg-[#fff3f0] px-3 py-2 text-[12px] font-semibold text-[#b44d38]">
+                      {videoError || generation.videoError}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+      </AppModalPanel>
+    </AppModal>
   )
 }
 
@@ -488,12 +499,10 @@ export function CharacterAssetsPanel({
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {loading ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-              <Spinner size={26} aria-label="Loading assets" />
-              <div className="text-[14px] font-bold text-[#737373]">
-                Loading assets...
-              </div>
-            </div>
+            <CardGridSkeleton
+              count={6}
+              className="grid-cols-2 xl:grid-cols-2"
+            />
           ) : error ? (
             <div className="rounded-[10px] bg-[#fff0f0] p-3 text-[13px] font-semibold text-[#c63d4a]">
               {error}
@@ -926,7 +935,10 @@ export function PromptDebugModal({
 }) {
   return (
     <AppModal className="z-[80]" onClose={onClose}>
-      <AppModalPanel className="max-w-[760px] rounded-[14px]">
+      <AppModalPanel
+        accessibleTitle="Final prompt debug"
+        className="max-w-[760px] rounded-[14px]"
+      >
         <div className="flex items-start justify-between border-b border-[#eceff3] px-5 py-4">
           <div>
             <h2 className="text-[22px] font-bold text-[#252525]">
@@ -995,7 +1007,10 @@ export function GenerationDebugModal({
 
   return (
     <AppModal className="z-[85]" onClose={onClose}>
-      <AppModalPanel className="max-w-[900px] rounded-[14px]">
+      <AppModalPanel
+        accessibleTitle="Generation debug"
+        className="max-w-[900px] rounded-[14px]"
+      >
         <div className="flex items-start justify-between border-b border-[#eceff3] px-5 py-4">
           <div>
             <h2 className="text-[22px] font-bold text-[#252525]">
@@ -1132,6 +1147,7 @@ export function ReferenceImageModal({
   onClose: () => void
 }) {
   const [assets, setAssets] = useState<AssetRecord[]>([])
+  const [assetsLoading, setAssetsLoading] = useState(true)
   const [source, setSource] = useState<"upload" | "url">("upload")
   const [imageUrl, setImageUrl] = useState("")
   const [file, setFile] = useState<File | null>(null)
@@ -1141,11 +1157,18 @@ export function ReferenceImageModal({
 
   useEffect(() => {
     let active = true
-    void loadReferenceAssets().then((loadedAssets) => {
-      if (active) {
-        setAssets(loadedAssets)
-      }
-    })
+    void loadReferenceAssets()
+      .then((loadedAssets) => {
+        if (active) {
+          setAssets(loadedAssets)
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) {
+          setAssetsLoading(false)
+        }
+      })
     return () => {
       active = false
     }
@@ -1278,10 +1301,12 @@ export function ReferenceImageModal({
         <div
           className={cn(
             "min-h-[270px] p-6",
-            assets.length === 0 && "grid place-items-center"
+            !assetsLoading && assets.length === 0 && "grid place-items-center"
           )}
         >
-          {assets.length === 0 ? (
+          {assetsLoading ? (
+            <CardGridSkeleton count={3} className="grid-cols-3" />
+          ) : assets.length === 0 ? (
             <div className="text-center">
               <IconPhoto
                 className="mx-auto size-10 text-app-text-faint"
@@ -1469,6 +1494,7 @@ export function MotionReferenceModal({
   onClose: () => void
 }) {
   const [assets, setAssets] = useState<AssetRecord[]>([])
+  const [assetsLoading, setAssetsLoading] = useState(true)
   const [source, setSource] = useState<"upload" | "url">("upload")
   const [url, setUrl] = useState(selectedUrl)
   const [file, setFile] = useState<File | null>(null)
@@ -1482,11 +1508,18 @@ export function MotionReferenceModal({
     void fetchJsonWithTimeout<{ assets?: AssetRecord[] }>(
       "/api/assets?scope=ugc_avatar&kind=video",
       { cache: "no-store", timeoutMs: 12_000, toastOnError: false }
-    ).then((payload) => {
-      if (active) {
-        setAssets(payload.assets ?? [])
-      }
-    })
+    )
+      .then((payload) => {
+        if (active) {
+          setAssets(payload.assets ?? [])
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) {
+          setAssetsLoading(false)
+        }
+      })
     return () => {
       active = false
     }
@@ -1641,49 +1674,53 @@ export function MotionReferenceModal({
             </div>
           )}
 
-          {assets.length > 0 && (
-            <div>
-              <div className="mb-2 text-[11px] font-medium tracking-wide text-app-text-faint uppercase">
-                Your motion references
-              </div>
-              <div className="grid max-h-[360px] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
-                {assets.map((asset) => (
-                  <button
-                    key={asset.id}
-                    type="button"
-                    className={cn(
-                      "group overflow-hidden rounded-xl border bg-app-surface text-left transition",
-                      selectedUrl === asset.fileUrl
-                        ? "border-app-action ring-2 ring-app-action/30"
-                        : "border-app-panel-border hover:border-app-muted-text/40"
-                    )}
-                    onClick={() => asset.fileUrl && onSelect(asset.fileUrl)}
-                    disabled={!asset.fileUrl}
-                    title={asset.name}
-                  >
-                    <span className="grid aspect-video w-full place-items-center bg-app-media-empty">
-                      {asset.fileUrl ? (
-                        <video
-                          src={asset.fileUrl}
-                          className="h-full w-full object-cover"
-                          muted
-                          playsInline
-                          preload="metadata"
-                        />
-                      ) : (
-                        <IconPhoto
-                          className="size-7 text-app-text-faint"
-                          stroke={1.5}
-                        />
+          {assetsLoading ? (
+            <CardGridSkeleton count={3} className="grid-cols-3" />
+          ) : (
+            assets.length > 0 && (
+              <div>
+                <div className="mb-2 text-[11px] font-medium tracking-wide text-app-text-faint uppercase">
+                  Your motion references
+                </div>
+                <div className="grid max-h-[360px] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
+                  {assets.map((asset) => (
+                    <button
+                      key={asset.id}
+                      type="button"
+                      className={cn(
+                        "group overflow-hidden rounded-xl border bg-app-surface text-left transition",
+                        selectedUrl === asset.fileUrl
+                          ? "border-app-action ring-2 ring-app-action/30"
+                          : "border-app-panel-border hover:border-app-muted-text/40"
                       )}
-                    </span>
-                    <span className="block truncate px-3 py-2 text-[12px] font-medium text-app-text-soft">
-                      {asset.name}
-                    </span>
-                  </button>
-                ))}
+                      onClick={() => asset.fileUrl && onSelect(asset.fileUrl)}
+                      disabled={!asset.fileUrl}
+                      title={asset.name}
+                    >
+                      <span className="grid aspect-video w-full place-items-center bg-app-media-empty">
+                        {asset.fileUrl ? (
+                          <video
+                            src={asset.fileUrl}
+                            className="h-full w-full object-cover"
+                            muted
+                            playsInline
+                            preload="metadata"
+                          />
+                        ) : (
+                          <IconPhoto
+                            className="size-7 text-app-text-faint"
+                            stroke={1.5}
+                          />
+                        )}
+                      </span>
+                      <span className="block truncate px-3 py-2 text-[12px] font-medium text-app-text-soft">
+                        {asset.name}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )
           )}
         </div>
       </AppModalPanel>

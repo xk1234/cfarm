@@ -95,13 +95,13 @@ function dueSlots(schema, now, lookbackMinutes) {
   return [...new Set(slots)]
 }
 
-async function listAutomations(db) {
+async function listAutomations(db, table = "automations") {
   const out = []
   let cursor = null
   for (;;) {
     const q = [Query.limit(100), Query.orderAsc("ord")]
     if (cursor) q.push(Query.cursorAfter(cursor))
-    const res = await db.listRows(DB, "automations", q)
+    const res = await db.listRows(DB, table, q)
     for (const row of res.rows) {
       try {
         out.push({
@@ -150,6 +150,12 @@ export default async ({ log, error }) => {
     const db = client()
     const now = new Date()
     const automations = await listAutomations(db)
+    const xAutomations = await listAutomations(db, "x_automations").catch(
+      (cause) => {
+        if (cause?.code === 404) return []
+        throw cause
+      }
+    )
     let enqueued = 0,
       dup = 0,
       considered = 0
@@ -167,12 +173,27 @@ export default async ({ log, error }) => {
         else dup++
       }
     }
+    for (const a of xAutomations) {
+      if (a?.status !== "live") continue
+      considered++
+      for (const slot of dueSlots(a, now, LOOKBACK)) {
+        const res = await enqueue(db, {
+          type: "run-x-automation",
+          payload: { automationId: a.id, scheduledFor: slot },
+          dedupeKey: `x-auto:${a.id}:${slot}`,
+          ownerId: a.ownerId,
+        })
+        if (res === "enqueued") enqueued++
+        else dup++
+      }
+    }
     log(
-      `scheduler: ${automations.length} automations, ${considered} live, enqueued ${enqueued}, dedup ${dup}`
+      `scheduler: ${automations.length} slideshow + ${xAutomations.length} X automations, ${considered} live, enqueued ${enqueued}, dedup ${dup}`
     )
     return {
       ok: true,
       automations: automations.length,
+      xAutomations: xAutomations.length,
       live: considered,
       enqueued,
       duplicates: dup,

@@ -51,6 +51,7 @@ export function PinterestCollectionSearch({
   >("idle")
   const [creatingCollection, setCreatingCollection] = useState(false)
   const [autoCaption, setAutoCaption] = useState(true)
+  const [showImageLabels, setShowImageLabels] = useState(true)
   const [recentSearches, setRecentSearches] = useState<string[]>(() =>
     readRecentPinterestSearches()
   )
@@ -203,7 +204,10 @@ export function PinterestCollectionSearch({
 
   return (
     <AppModal className="bg-[#24251f]/50" onClose={onCancel}>
-      <AppModalPanel className="relative flex max-h-[78vh] max-w-[640px] flex-col rounded-[10px]">
+      <AppModalPanel
+        accessibleTitle="Search for collection images"
+        className="relative flex max-h-[78vh] max-w-[640px] flex-col rounded-[10px]"
+      >
         <AppModalCloseButton
           className="absolute top-3 right-3 z-10"
           onClick={onCancel}
@@ -260,10 +264,22 @@ export function PinterestCollectionSearch({
             </Button>
           </form>
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-3 px-4 text-[12px] text-[#77766f]">
-          {results.length > 0 && <span>{results.length} results loaded</span>}
-          {(source === "fallback" || source === "pexels-fallback") &&
-            results.length > 0 && <span>Showing local preview results</span>}
+        <div className="mt-3 flex min-h-6 flex-wrap items-center justify-between gap-3 px-4 text-[12px] text-[#77766f]">
+          <div className="flex flex-wrap items-center gap-3">
+            {results.length > 0 && <span>{results.length} results loaded</span>}
+            {(source === "fallback" || source === "pexels-fallback") &&
+              results.length > 0 && <span>Showing local preview results</span>}
+          </div>
+          {results.length > 0 ? (
+            <label className="flex items-center gap-2 font-semibold text-[#62615b]">
+              <SwitchPillButton
+                enabled={showImageLabels}
+                onClick={() => setShowImageLabels((current) => !current)}
+                aria-label="Toggle image labels"
+              />
+              Image labels
+            </label>
+          ) : null}
         </div>
         {results.length === 0 && !searchBusy ? (
           <div className="min-h-[250px] px-5 pt-2 pb-8">
@@ -300,6 +316,7 @@ export function PinterestCollectionSearch({
                   result={result}
                   index={index}
                   selected={selectedIds.has(result.id)}
+                  showLabel={showImageLabels}
                   onClick={() => toggleResult(result.id)}
                 />
               ))}
@@ -409,11 +426,13 @@ function PinterestResultCard({
   result,
   index,
   selected,
+  showLabel,
   onClick,
 }: {
   result: PinterestSearchResult
   index: number
   selected: boolean
+  showLabel: boolean
   onClick: () => void
 }) {
   const width = result.width && result.width > 0 ? result.width : 736
@@ -455,9 +474,11 @@ function PinterestResultCard({
         >
           {selected ? "✓" : "+"}
         </span>
-        <div className="absolute inset-x-1.5 bottom-1.5 rounded bg-black/35 p-1.5 text-[10px] leading-tight font-semibold text-white">
-          {result.title}
-        </div>
+        {showLabel ? (
+          <div className="absolute inset-x-1.5 bottom-1.5 rounded bg-black/35 p-1.5 text-[10px] leading-tight font-semibold text-white">
+            {result.title}
+          </div>
+        ) : null}
       </div>
     </button>
   )

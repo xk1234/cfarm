@@ -94,7 +94,10 @@ export function CollectionSelector({
 
       {open && (
         <AppModal className="bg-[#24251f]/45" onClose={() => setOpen(false)}>
-          <AppModalPanel className="flex h-[min(680px,86vh)] w-[min(760px,calc(100vw-40px))] flex-col rounded-[12px]">
+          <AppModalPanel
+            accessibleTitle="Select collection"
+            className="flex h-[min(680px,86vh)] w-[min(760px,calc(100vw-40px))] flex-col rounded-[12px]"
+          >
             <div className="flex items-center gap-3 border-b border-[#ecebe4] px-4 py-3">
               <button
                 type="button"

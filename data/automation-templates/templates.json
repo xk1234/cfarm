@@ -92,7 +92,9 @@
           "i did not expect this to work this well",
           "this is the easiest way to show the product result",
           "watch what happens after one quick use"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -187,7 +189,9 @@
           "i wish i tried this sooner",
           "the before and after surprised me",
           "this fixed the thing i kept putting off"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -200,7 +204,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2025-08-28T23:02:33.367407+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-ugc-laptop-study-2026-07-03t00-01-04-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-ugc-laptop-study-2026-07-03t00-01-04-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-ugc-laptop-study-2026-07-03t00-01-04-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-ugc-laptop-study-2026-07-03t00-01-04-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-ugc-laptop-study-2026-07-03t00-01-04-000z\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-ugc-laptop-study-2026-07-03t00-01-04-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -314,7 +318,9 @@
           "6 daily habits that build academic excellence",
           "3 mindset shifts that make learning easier",
           "5 ways top students structure their study time"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -327,7 +333,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2025-09-09T16:41:47.864776+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-ugc-entrepreneur-2026-07-03t00-01-02-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-tumblr-1stclassdon-2026-07-03t00-01-08-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-tumblr-1stclassdon-2026-07-03t00-01-08-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-ugc-entrepreneur-2026-07-03t00-01-02-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-tumblr-1stclassdon-2026-07-03t00-01-08-000z\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-tumblr-1stclassdon-2026-07-03t00-01-08-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -441,7 +447,9 @@
           "6 daily habits that build mental toughness",
           "3 mindset shifts that make wealth-building automatic",
           "5 ways successful men structure their time"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -454,7 +462,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2025-09-11T15:46:36.826944+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-tumblr-oldpaintings-2026-07-03t00-01-18-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-tumblr-oldpaintings-2026-07-03t00-01-18-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-tumblr-oldpaintings-2026-07-03t00-01-18-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-tumblr-oldpaintings-2026-07-03t00-01-18-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-tumblr-oldpaintings-2026-07-03t00-01-18-000z\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-tumblr-oldpaintings-2026-07-03t00-01-18-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -568,7 +576,9 @@
           "5 things that happen when an infj finally heals",
           "8 ways infjs lead without saying a word",
           "6 infj strengths that make you magnetic to the right people"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -581,7 +591,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2025-09-11T21:15:22.298424+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-gym-2026-07-03t00-01-16-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-gym-2026-07-03t00-01-16-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-gym-2026-07-03t00-01-16-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-gym-2026-07-03t00-01-16-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-gym-2026-07-03t00-01-16-000z\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-gym-2026-07-03t00-01-16-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -710,7 +720,9 @@
           "building healthy relationships with exercise",
           "growing stronger mentally",
           "creating sustainable joy in fitness"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -723,7 +735,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2025-09-12T16:13:39.504991+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-faceless-selfies-2026-07-03t00-01-10-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-tumblr-nar-r-2026-07-03t00-01-21-000z\",\"aspect_ratio\":\"4:5\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-tumblr-nar-r-2026-07-03t00-01-21-000z\",\"image_id\":\"77807\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-faceless-selfies-2026-07-03t00-01-10-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-tumblr-nar-r-2026-07-03t00-01-21-000z\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-tumblr-nar-r-2026-07-03t00-01-21-000z\",\"image_id\":\"77807\",\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "4:5",
@@ -837,7 +849,9 @@
           "6 habits that help me stay true to myself",
           "4 truths about building real confidence",
           "5 practices that keep me mentally strong"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -850,7 +864,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2025-09-25T03:09:26.88254+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-fall-evening-2026-07-03t00-01-12-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-fall-evening-2026-07-03t00-01-12-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":\"collection-pinterest-love-texts-imessage-2026-07-03t00-00-52-000z\",\"image_id\":\"167389\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-fall-evening-2026-07-03t00-01-12-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-fall-evening-2026-07-03t00-01-12-000z\",\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":\"collection-pinterest-love-texts-imessage-2026-07-03t00-00-52-000z\",\"image_id\":\"167389\",\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -964,7 +978,9 @@
           "7 real-life horrors that hollywood turned into supernatural films",
           "4 strategies paranormal investigators use to solve famous mysteries",
           "5 techniques to tell a spine-chilling supernatural story on halloween night"
-        ]
+        ],
+        "image_fit": "cover",
+        "language": "English"
       }
     },
     {
@@ -977,7 +993,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2025-12-18T20:24:50.842017+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-movie-watching-aesthetic-2026-07-03t00-01-01-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-movie-watching-aesthetic-2026-07-03t00-01-01-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":false,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_8900\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-movie-watching-aesthetic-2026-07-03t00-01-01-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-movie-watching-aesthetic-2026-07-03t00-01-01-000z\",\"cta_slide\":{\"check\":false,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_8900\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -1076,7 +1092,9 @@
           "7 underrated foreign films with perfect ratings that deserve way more love",
           "top 6 underrated movies from the 2000s that still completely hold up",
           "7 movies that got way better reviews after they left theaters"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -1089,7 +1107,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2025-12-19T17:27:23.200067+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-baseball-black-and-white-aesthetic-film-photos-2026-07-03t00-01-00-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-baseball-black-and-white-aesthetic-film-photos-2026-07-03t00-01-00-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -1143,7 +1161,9 @@
           "6 mlb teams with the highest run differentials",
           "7 mlb players setting new exit velocity records",
           "5 mlb teams with impressive comeback win percentages"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -1156,7 +1176,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2025-12-20T02:38:22.029813+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-wolf-of-wall-street-aesthetic-2026-07-03t00-00-58-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-wolf-of-wall-street-aesthetic-2026-07-03t00-00-58-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -1207,7 +1227,9 @@
           "5 real investor stories that sound too good to be true",
           "5 companies with the most dramatic stock price histories",
           "5 famous investors and their unconventional strategies"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -1220,7 +1242,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-01-02T21:12:18.780593+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-sunsets-iphone-photos-2026-07-03t00-00-57-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-sunsets-iphone-photos-2026-07-03t00-00-57-000z\",\"aspect_ratio\":\"1:1\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-sunsets-iphone-photos-2026-07-03t00-00-57-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-sunsets-iphone-photos-2026-07-03t00-00-57-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-sunsets-iphone-photos-2026-07-03t00-00-57-000z\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-sunsets-iphone-photos-2026-07-03t00-00-57-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "1:1",
@@ -1311,7 +1333,9 @@
           "best scriptures for sagittarius",
           "best scriptures for capricorn",
           "best scriptures for aquarius"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -1324,7 +1348,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-01-02T21:16:51.265005+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-nail-design-inspo-2026-07-03t00-00-56-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nail-design-inspo-2026-07-03t00-00-56-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":false,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nail-design-inspo-2026-07-03t00-00-56-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":true,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-nail-design-inspo-2026-07-03t00-00-56-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nail-design-inspo-2026-07-03t00-00-56-000z\",\"cta_slide\":{\"check\":false,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nail-design-inspo-2026-07-03t00-00-56-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":true,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -1357,7 +1381,9 @@
         "hooks": [
           "cute nail designs i found on pinterest",
           "11/10 cute nail designs i found on pinterest"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -1370,7 +1396,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-01-03T23:51:11.190944+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-healthy-meal-inspo-2026-07-03t00-00-53-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-high-protein-meal-cheat-sheet-2026-07-03t00-00-54-000z\",\"aspect_ratio\":\"4:5\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":false,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-high-protein-meal-cheat-sheet-2026-07-03t00-00-54-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":true,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-healthy-meal-inspo-2026-07-03t00-00-53-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-high-protein-meal-cheat-sheet-2026-07-03t00-00-54-000z\",\"cta_slide\":{\"check\":false,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-high-protein-meal-cheat-sheet-2026-07-03t00-00-54-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":true,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -1402,7 +1428,9 @@
         },
         "hooks": [
           "literally the best high protein meal cheat sheet"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -1415,10 +1443,10 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-01-05T21:35:21.843436+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-blurry-night-love-photos-2026-07-03t00-00-51-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-love-texts-imessage-2026-07-03t00-00-52-000z\",\"aspect_ratio\":\"4:5\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-love-texts-imessage-2026-07-03t00-00-52-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":true,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-blurry-night-love-photos-2026-07-03t00-00-51-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-love-texts-imessage-2026-07-03t00-00-52-000z\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-love-texts-imessage-2026-07-03t00-00-52-000z\",\"image_id\":\"74717\",\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":true,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
         "format": {
           "hook": {
-            "aspect_ratio": "fit",
+            "aspect_ratio": "4:5",
             "image_grid": "none",
             "overlay": false,
             "display_text": true,
@@ -1441,7 +1469,7 @@
             ]
           },
           "content": {
-            "aspect_ratio": "fit",
+            "aspect_ratio": "4:5",
             "image_grid": "none",
             "slide_count_mode": "static",
             "slide_count": 1,
@@ -1468,7 +1496,7 @@
           "cta": {
             "enabled": false,
             "image_mode": "collection",
-            "aspect_ratio": "fit",
+            "aspect_ratio": "4:5",
             "image_grid": "none",
             "overlay": false,
             "display_text": true,
@@ -1502,7 +1530,9 @@
           "when he texts u this",
           "i think im in love",
           "when ur bf sends u texts like this"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -1515,7 +1545,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-01-24T18:12:06.858879+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-movie-watching-aesthetic-2026-07-03t00-01-01-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-movie-watching-aesthetic-2026-07-03t00-01-01-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -1630,7 +1660,9 @@
           "top 9 highest grossing horror movies of all time",
           "top 9 actors with the most emmys (as of 2025)",
           "top 9 actors with the most oscars (as of 2025)"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -1643,7 +1675,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-01-24T18:37:50.092519+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-feminine-hollywood-aesthetic-2026-07-03t00-00-47-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-feminine-hollywood-aesthetic-2026-07-03t00-00-47-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-nyc-lifestyle-2026-07-03t00-01-05-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":true,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":true}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -1745,7 +1777,9 @@
           "5 actresses who made over $20m last year (2024)",
           "top 5 actresses with the most emmys (as of 2025)",
           "top 5 actresses with the most oscars (as of 2025)"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -1758,7 +1792,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-01-29T00:19:11.841034+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-high-class-women-faceless-aesthetic-2026-07-03t00-00-45-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-classy-dark-nyc-pov-aesthetic-2026-07-03t00-00-44-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-classy-dark-nyc-pov-aesthetic-2026-07-03t00-00-44-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-high-class-women-faceless-aesthetic-2026-07-03t00-00-45-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-classy-dark-nyc-pov-aesthetic-2026-07-03t00-00-44-000z\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-classy-dark-nyc-pov-aesthetic-2026-07-03t00-00-44-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -1880,7 +1914,9 @@
           "5 shifts i made to fully detach from unavailable men",
           "5 shifts that made me get over him (fast)",
           "5 ways i regained my power during no contact"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -1893,10 +1929,10 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-03-10T04:24:18.533889+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-horizontal-hooks-2026-07-03t00-00-37-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-horizontal-hooks-2026-07-03t00-00-37-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
         "format": {
           "hook": {
-            "aspect_ratio": "fit",
+            "aspect_ratio": "4:5",
             "image_grid": "none",
             "overlay": false,
             "display_text": true,
@@ -1919,7 +1955,7 @@
             ]
           },
           "content": {
-            "aspect_ratio": "fit",
+            "aspect_ratio": "4:5",
             "image_grid": "none",
             "slide_count_mode": "static",
             "slide_count": 5,
@@ -1961,7 +1997,7 @@
           "cta": {
             "enabled": false,
             "image_mode": "collection",
-            "aspect_ratio": "fit",
+            "aspect_ratio": "4:5",
             "image_grid": "none",
             "overlay": false,
             "display_text": true,
@@ -2047,7 +2083,9 @@
           "how i stopped feeling like i needed to have everything together before i could feel okay",
           "how i made myself actually start doing things instead of just thinking about them",
           "small things i changed that made me stop feeling like i was falling behind"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -2060,7 +2098,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-03-19T20:51:17.15656+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-horizontal-hooks-2026-07-03t00-00-37-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-horizontal-hooks-2026-07-03t00-00-37-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"collection-pinterest-horizontal-body-2026-07-03t00-00-39-000z\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -2232,7 +2270,9 @@
           "things i do now instead of scrolling when i can't sleep",
           "how i got okay with people not liking me without being weird about it",
           "ways i made my bad days feel less like the end of the world"
-        ]
+        ],
+        "image_fit": "cover",
+        "language": "English"
       }
     },
     {
@@ -2245,7 +2285,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-05-19T00:42:18.014195+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "4:5",
@@ -2328,7 +2368,7 @@
           "cta": {
             "enabled": false,
             "image_mode": "collection",
-            "aspect_ratio": "fit",
+            "aspect_ratio": "4:5",
             "image_grid": "none",
             "overlay": false,
             "display_text": true,
@@ -2377,7 +2417,9 @@
           "the art of staying soft without letting people walk all over you",
           "things i stopped doing when i realized peace mattered more than being liked",
           "how i became someone who doesn't need closure to move on"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -2390,7 +2432,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-05-19T02:27:36.891653+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-nature-texture-2026-07-03t00-00-21-000z\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -2458,7 +2500,7 @@
           "cta": {
             "enabled": false,
             "image_mode": "collection",
-            "aspect_ratio": "fit",
+            "aspect_ratio": "4:5",
             "image_grid": "none",
             "overlay": false,
             "display_text": true,
@@ -2507,7 +2549,9 @@
           "the art of staying soft without letting people walk all over you",
           "things i stopped doing when i realized peace mattered more than being liked",
           "how i became someone who doesn't need closure to move on"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -2520,7 +2564,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-05-19T04:42:43.292619+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-space-2026-07-03t00-00-15-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-space-2026-07-03t00-00-15-000z\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"collection-pinterest-space-2026-07-03t00-00-15-000z\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"collection-pinterest-space-2026-07-03t00-00-15-000z\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -2578,7 +2622,7 @@
           "cta": {
             "enabled": false,
             "image_mode": "collection",
-            "aspect_ratio": "fit",
+            "aspect_ratio": "4:5",
             "image_grid": "none",
             "overlay": false,
             "display_text": true,
@@ -2613,7 +2657,9 @@
           "videos i re-watch to learn about ndes",
           "videos that make me question everything about reality",
           "videos that changed how i see death completely"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -2626,7 +2672,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-06-09T18:21:49.884943+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_12468\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_12468\",\"aspect_ratio\":\"3:2\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_12468\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_12468\",\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "3:2",
@@ -2735,7 +2781,9 @@
           "high-level rules of unrotting your brain",
           "how to become the smartest person in the room",
           "how to become dangerously well educated"
-        ]
+        ],
+        "image_fit": "cover",
+        "language": "English"
       }
     },
     {
@@ -2748,7 +2796,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-05-27T17:40:39.597963+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11945\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11945\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_4932\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11945\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11945\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"community_collection_4932\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "4:3",
@@ -2816,7 +2864,7 @@
           "cta": {
             "enabled": false,
             "image_mode": "collection",
-            "aspect_ratio": "fit",
+            "aspect_ratio": "4:5",
             "image_grid": "none",
             "overlay": false,
             "display_text": true,
@@ -2870,7 +2918,9 @@
           "what yoga actually does to your body",
           "5 of the best exercises you can ever do",
           "foods that actually slow aging"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -2883,7 +2933,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-05-23T01:43:20.63364+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11759\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_11758\",\"aspect_ratio\":\"3:4\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11759\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_11758\",\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "3:4",
@@ -2979,7 +3029,9 @@
         "hooks": [
           "uncomfortable but healthy questions i've asked in my relationship",
           "4 uncomfortable but healthy relationship questions i've asked my partner"
-        ]
+        ],
+        "image_fit": "cover",
+        "language": "English"
       }
     },
     {
@@ -2992,7 +3044,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-05-22T18:31:08.583329+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11750\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_11751\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":false,\"is_bg_overlay_on_hook_image\":false,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11750\",\"mode\":\"collection\",\"single_image\":null},\"all_slides\":\"user_collection_11751\",\"cta_slide\":{\"check\":false,\"cta_collection_check\":false,\"cta_collection_id\":null,\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"hookGridFormat\":\"none\",\"bodyGridFormat\":\"none\",\"autoImagesHook\":false,\"autoImagesBody\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -3111,7 +3163,9 @@
           "5 life investments with the highest roi backed by neuroscience",
           "5 ways to hack your brain into getting things done",
           "how to start living your life to the fullest"
-        ]
+        ],
+        "image_fit": "cover",
+        "language": "English"
       }
     },
     {
@@ -3124,7 +3178,7 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-05-21T19:09:15.151529+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11625\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11625\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":false,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11625\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\",\"autoImagesBody\":false}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11625\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11625\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11625\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"autoImagesBody\":false}",
         "format": {
           "hook": {
             "aspect_ratio": "9:16",
@@ -3182,7 +3236,7 @@
           "cta": {
             "enabled": false,
             "image_mode": "collection",
-            "aspect_ratio": "fit",
+            "aspect_ratio": "4:5",
             "image_grid": "none",
             "overlay": false,
             "display_text": true,
@@ -3211,7 +3265,9 @@
           "substack articles that i read this week",
           "articles that i saved this week",
           "substack articles i recommend everyone reads"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     },
     {
@@ -3224,10 +3280,10 @@
       "updatedAt": "2026-07-04T02:08:22.094Z",
       "template": {
         "created_at": "2026-05-19T17:53:00.700484+00:00",
-        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11507\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11501\",\"aspect_ratio\":\"9:16\",\"is_bg_overlay_on\":true,\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"keepOriginalAspectRatio\":true,\"is_bg_overlay_on_hook_image\":true,\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false,\"language\":\"English\"}",
+        "image_collection_ids": "{\"first_slide\":{\"collection\":\"user_collection_11507\",\"mode\":\"collection\",\"single_image\":\"215115\"},\"all_slides\":\"user_collection_11501\",\"cta_slide\":{\"check\":true,\"cta_collection_check\":true,\"cta_collection_id\":\"user_collection_11356\",\"image_id\":null,\"cta_location\":\"last_slide\"},\"textOnFirstSlideOnly\":false,\"noTextOnSlides\":false,\"autoPullImagesNotCollections\":false,\"autoImagesNoTextOnImages\":false,\"disableAutoImageForFirstSlide\":false}",
         "format": {
           "hook": {
-            "aspect_ratio": "fit",
+            "aspect_ratio": "4:5",
             "image_grid": "none",
             "overlay": true,
             "display_text": true,
@@ -3307,7 +3363,7 @@
           "cta": {
             "enabled": false,
             "image_mode": "collection",
-            "aspect_ratio": "fit",
+            "aspect_ratio": "4:5",
             "image_grid": "none",
             "overlay": false,
             "display_text": true,
@@ -3351,7 +3407,9 @@
           "how to be okay and deal with not having a lot of friends at school",
           "small things you can do throughout the day to strengthen your brain",
           "how to be more productive in the morning when you feel tired"
-        ]
+        ],
+        "image_fit": "contain",
+        "language": "English"
       }
     }
   ]

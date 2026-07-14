@@ -102,21 +102,17 @@ describe("slideshow persistence", () => {
       slideshow_type: "educational",
       settings: {
         duration: 4,
+        aspect_ratio: "4:5",
         background_color: "#000000",
-        is_bg_overlay_on: false,
         transition_style: "hard",
-        is_bg_overlay_on_hook_image: false,
       },
       images: [
         {
           image_url: "/api/local-assets/image-collections/files/first.jpg",
-          aspect_ratio: "4:5",
-          time_length_ms: 2000,
           textItems: [
             {
               id: "text-1",
               text: "WAIT. you're giving up???",
-              font: "TikTok Display Medium",
               fontSize: "10px",
               textSize: { width: 80, height: 18 },
               textStyle: "outline",
@@ -147,6 +143,7 @@ describe("slideshow persistence", () => {
       slideshow_type: "educational",
       settings: {
         duration: 4,
+        aspect_ratio: "4:5",
         transition_style: "hard",
       },
     })
@@ -154,8 +151,6 @@ describe("slideshow persistence", () => {
     expect(records[0].images[0]).toMatchObject({
       image_url: `/api/local-assets/slideshows/outputs/${record.id}/slide-001.${slideExt}`,
       source_image_url: `/api/local-assets/slideshows/outputs/${record.id}/source-001.jpg`,
-      aspect_ratio: "4:5",
-      time_length_ms: 2000,
       textItems: [
         {
           text: "WAIT. you're giving up???",
@@ -252,15 +247,14 @@ describe("slideshow persistence", () => {
   it("renders output slides with configured aspect ratio and bounded text lines", async () => {
     const record = await createSlideshowRecord({
       title: "Bounded text",
+      settings: { aspect_ratio: "4:5" },
       images: [
         {
           image_url: "/api/local-assets/image-collections/files/first.jpg",
-          aspect_ratio: "4:5",
           textItems: [
             {
               id: "text-1",
               text: "the note-taking method that helped me go from c's to straight a's in one semester",
-              font: "TikTok Display Medium",
               fontSize: "15px",
               textSize: { width: 80, height: 18 },
               textStyle: "outline",
@@ -300,7 +294,6 @@ describe("slideshow persistence", () => {
             {
               id: "text-1",
               text: "hook text",
-              font: "TikTok Display Medium",
               fontSize: "10px",
               textSize: { width: 56, height: 18 },
               textStyle: "outline",
@@ -364,7 +357,6 @@ describe("slideshow persistence", () => {
             {
               id: "text-1",
               text,
-              font: "TikTok Display Medium",
               fontSize: "14px",
               textSize: { width: 80, height: 18 },
               textStyle: "outline",
@@ -393,7 +385,6 @@ describe("slideshow persistence", () => {
             {
               id: "white-text",
               text: "white editor text",
-              font: "TikTok Display Medium",
               fontSize: "12px",
               textSize: { width: 70, height: 18 },
               textStyle: "whiteText",
@@ -404,7 +395,6 @@ describe("slideshow persistence", () => {
             {
               id: "yellow-text",
               text: "yellow editor text",
-              font: "TikTok Display Medium",
               fontSize: "12px",
               textSize: { width: 70, height: 18 },
               textStyle: "yellowText",
@@ -434,7 +424,6 @@ describe("slideshow persistence", () => {
       images: [
         {
           image_url: "/api/local-assets/image-collections/files/first.jpg",
-          aspect_ratio: "9:16",
           overlayImage: {
             image_url: "/api/local-assets/image-collections/files/overlay.svg",
             padding: 10,
@@ -462,7 +451,6 @@ describe("slideshow persistence", () => {
             {
               id: "title",
               text: "4. 安排短暂的定时学习休息时间",
-              font: "TikTok Display Medium",
               fontSize: "14px",
               textSize: { width: 80, height: 18 },
               textStyle: "outline",
@@ -473,7 +461,6 @@ describe("slideshow persistence", () => {
             {
               id: "body",
               text: "使用计时器，学习25分钟后休息5分钟。这有助于保持大脑清醒，并专注于学习。",
-              font: "TikTok Display Medium",
               fontSize: "12px",
               textSize: { width: 80, height: 18 },
               textStyle: "outline",
@@ -530,7 +517,8 @@ describe("slideshow persistence", () => {
     expect(record.thumbnail_url).toBe(
       "/api/local-assets/assets/files/slideshow-video-thumbnail.jpg"
     )
-    expect(record.images[0].time_length_ms).toBe(3000)
+    // Duration is one-per-slideshow now — no redundant per-slide field.
+    expect(record.images[0]).not.toHaveProperty("time_length_ms")
   })
 
   it.runIf(process.platform === "darwin")(
@@ -550,7 +538,6 @@ describe("slideshow persistence", () => {
               {
                 id: "text-1",
                 text: "how to stop caring what people think",
-                font: "TikTok Display Medium",
                 fontSize: "10px",
                 textSize: { width: 56, height: 18 },
                 textStyle: "outline",

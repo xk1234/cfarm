@@ -14,6 +14,13 @@ export type PostFastRequestOptions = {
   query?: Record<string, string | number | boolean | undefined>
   body?: unknown
   headers?: Record<string, string>
+  retry?: Partial<PostFastRetryOptions>
+}
+
+type PostFastRetryOptions = {
+  maxAttempts: number
+  baseDelayMs: number
+  minRequestGapMs: number
 }
 
 export type PostFastMediaType = "IMAGE" | "VIDEO"
@@ -112,6 +119,13 @@ export class PostFastApiError extends Error {
 }
 
 const defaultPostFastBaseUrl = "https://api.postfa.st"
+const defaultPostFastRetry: PostFastRetryOptions = {
+  maxAttempts: 3,
+  baseDelayMs: 500,
+  minRequestGapMs: 350,
+}
+let postFastRequestQueue = Promise.resolve()
+let lastPostFastRequestAt = 0
 
 export async function postfastRequest<T = unknown>(
   path: string,
@@ -134,25 +148,92 @@ export async function postfastRequest<T = unknown>(
     headers["Content-Type"] = "application/json"
   }
 
-  const response = await fetchWithTimeout(
-    url,
-    {
-      method: options.method ?? (body === undefined ? "GET" : "POST"),
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-    },
-    { fetchImpl: fetcher, timeoutMs: 30_000 }
+  const retry = normalizeRetryOptions(options.retry)
+  return enqueuePostFastRequest(async () => {
+    for (let attempt = 1; attempt <= retry.maxAttempts; attempt += 1) {
+      await waitForPostFastGap(retry.minRequestGapMs)
+      const response = await fetchWithTimeout(
+        url,
+        {
+          method: options.method ?? (body === undefined ? "GET" : "POST"),
+          headers,
+          body: body === undefined ? undefined : JSON.stringify(body),
+        },
+        { fetchImpl: fetcher, timeoutMs: 30_000 }
+      )
+      lastPostFastRequestAt = Date.now()
+
+      if (response.ok) {
+        if (response.status === 204) {
+          return undefined as T
+        }
+        return (await response.json()) as T
+      }
+
+      const error = await normalizePostFastError(response)
+      if (!error.retryable || attempt === retry.maxAttempts) {
+        throw error
+      }
+      await delay(retryDelayMs(response, attempt, retry.baseDelayMs))
+    }
+
+    throw new Error("PostFast request exhausted its retry attempts")
+  })
+}
+
+function enqueuePostFastRequest<T>(request: () => Promise<T>) {
+  const queued = postFastRequestQueue.catch(() => undefined).then(request)
+  postFastRequestQueue = queued.then(
+    () => undefined,
+    () => undefined
   )
+  return queued
+}
 
-  if (!response.ok) {
-    throw await normalizePostFastError(response)
+function normalizeRetryOptions(
+  value: Partial<PostFastRetryOptions> | undefined
+): PostFastRetryOptions {
+  return {
+    maxAttempts: Math.max(
+      1,
+      Math.min(
+        5,
+        Math.floor(value?.maxAttempts ?? defaultPostFastRetry.maxAttempts)
+      )
+    ),
+    baseDelayMs: Math.max(
+      0,
+      value?.baseDelayMs ?? defaultPostFastRetry.baseDelayMs
+    ),
+    minRequestGapMs: Math.max(
+      0,
+      value?.minRequestGapMs ?? defaultPostFastRetry.minRequestGapMs
+    ),
   }
+}
 
-  if (response.status === 204) {
-    return undefined as T
+async function waitForPostFastGap(minRequestGapMs: number) {
+  const remaining = minRequestGapMs - (Date.now() - lastPostFastRequestAt)
+  if (remaining > 0) await delay(remaining)
+}
+
+function retryDelayMs(
+  response: Response,
+  attempt: number,
+  baseDelayMs: number
+) {
+  const retryAfter = response.headers.get("retry-after")
+  if (retryAfter) {
+    const seconds = Number(retryAfter)
+    if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000)
+    const date = Date.parse(retryAfter)
+    if (Number.isFinite(date)) return Math.max(0, date - Date.now())
   }
+  return baseDelayMs * 2 ** (attempt - 1)
+}
 
-  return (await response.json()) as T
+function delay(milliseconds: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
 }
 
 export function createPostFastPostPayload(

@@ -19,6 +19,8 @@ const TABLES = [
   "assets",
   "automations",
   "automation_runs",
+  "x_automations",
+  "x_automation_runs",
   "results",
   "slideshows",
   "usage_ledger",

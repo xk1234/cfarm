@@ -6,7 +6,17 @@ import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 import type { PostFastMedia } from "@/lib/postfast-client"
 
 export type PostFastPostStatus = "draft" | "scheduled" | "published" | "failed"
-export type PostFastSourceType = "automation" | "generated_video" | "asset" | "greenscreen" | "ugc_ad" | "image" | "swipe" | "slideshow" | "manual"
+export type PostFastSourceType =
+  | "automation"
+  | "x_automation"
+  | "generated_video"
+  | "asset"
+  | "greenscreen"
+  | "ugc_ad"
+  | "image"
+  | "swipe"
+  | "slideshow"
+  | "manual"
 
 export type PostFastAnalyticsPoint = {
   date: string
@@ -42,31 +52,41 @@ export type PostFastPostRecord = {
 const defaultRootDir = path.join(process.cwd(), "data")
 const dbFileName = "postfast-posts.json"
 
-export async function listPostFastPostRecords(filters: { rootDir?: string; sourceType?: PostFastSourceType; integrationId?: string } = {}) {
+export async function listPostFastPostRecords(
+  filters: {
+    rootDir?: string
+    sourceType?: PostFastSourceType
+    integrationId?: string
+  } = {}
+) {
   const records = await readPostFastPostRecords(filters.rootDir)
-  return records.filter((record) =>
-    (!filters.sourceType || record.sourceType === filters.sourceType) &&
-    (!filters.integrationId || record.integrationId === filters.integrationId)
+  return records.filter(
+    (record) =>
+      (!filters.sourceType || record.sourceType === filters.sourceType) &&
+      (!filters.integrationId || record.integrationId === filters.integrationId)
   )
 }
 
-export async function upsertPostFastPostRecord(input: Omit<Partial<PostFastPostRecord>, "id" | "createdAt" | "updatedAt"> & {
-  rootDir?: string
-  sourceType: PostFastSourceType
-  sourceId: string
-  integrationId: string
-  provider: string
-  status: PostFastPostStatus
-  content: string
-  media: PostFastMedia[]
-}) {
+export async function upsertPostFastPostRecord(
+  input: Omit<Partial<PostFastPostRecord>, "id" | "createdAt" | "updatedAt"> & {
+    rootDir?: string
+    sourceType: PostFastSourceType
+    sourceId: string
+    integrationId: string
+    provider: string
+    status: PostFastPostStatus
+    content: string
+    media: PostFastMedia[]
+  }
+) {
   const rootDir = input.rootDir
   const records = await readPostFastPostRecords(rootDir)
   const now = new Date().toISOString()
-  const existing = records.find((record) =>
-    record.sourceType === input.sourceType &&
-    record.sourceId === input.sourceId &&
-    record.integrationId === input.integrationId
+  const existing = records.find(
+    (record) =>
+      record.sourceType === input.sourceType &&
+      record.sourceId === input.sourceId &&
+      record.integrationId === input.integrationId
   )
   const record: PostFastPostRecord = {
     id: existing?.id ?? randomUUID(),
@@ -81,14 +101,18 @@ export async function upsertPostFastPostRecord(input: Omit<Partial<PostFastPostR
     content: input.content,
     media: input.media,
     analytics: input.analytics ?? existing?.analytics,
-    lastAnalyticsSyncedAt: input.lastAnalyticsSyncedAt ?? existing?.lastAnalyticsSyncedAt,
+    lastAnalyticsSyncedAt:
+      input.lastAnalyticsSyncedAt ?? existing?.lastAnalyticsSyncedAt,
     lastSyncedAt: now,
     error: clean(input.error) || undefined,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   }
 
-  await writePostFastPostRecords(rootDir, [record, ...records.filter((item) => item.id !== record.id)])
+  await writePostFastPostRecords(rootDir, [
+    record,
+    ...records.filter((item) => item.id !== record.id),
+  ])
   return record
 }
 
@@ -160,7 +184,9 @@ export async function deletePostFastPostRecords(input: {
   return deleted
 }
 
-async function readPostFastPostRecords(rootDir = defaultRootDir): Promise<PostFastPostRecord[]> {
+async function readPostFastPostRecords(
+  rootDir = defaultRootDir
+): Promise<PostFastPostRecord[]> {
   return readJsonArrayStore({
     rootDir,
     fileName: dbFileName,
@@ -169,12 +195,28 @@ async function readPostFastPostRecords(rootDir = defaultRootDir): Promise<PostFa
   })
 }
 
-async function writePostFastPostRecords(rootDir = defaultRootDir, records: PostFastPostRecord[]) {
-  await writeJsonArrayStore({ rootDir, fileName: dbFileName, key: "posts", records })
+async function writePostFastPostRecords(
+  rootDir = defaultRootDir,
+  records: PostFastPostRecord[]
+) {
+  await writeJsonArrayStore({
+    rootDir,
+    fileName: dbFileName,
+    key: "posts",
+    records,
+  })
 }
 
-function normalizeRecord(record: PostFastPostRecord): PostFastPostRecord | null {
-  if (!record?.id || !record.sourceType || !record.sourceId || !record.integrationId || !record.provider) {
+function normalizeRecord(
+  record: PostFastPostRecord
+): PostFastPostRecord | null {
+  if (
+    !record?.id ||
+    !record.sourceType ||
+    !record.sourceId ||
+    !record.integrationId ||
+    !record.provider
+  ) {
     return null
   }
   return {
@@ -183,14 +225,21 @@ function normalizeRecord(record: PostFastPostRecord): PostFastPostRecord | null 
     content: clean(record.content),
     media: Array.isArray(record.media) ? record.media : [],
     createdAt: clean(record.createdAt) || new Date().toISOString(),
-    updatedAt: clean(record.updatedAt) || clean(record.createdAt) || new Date().toISOString(),
+    updatedAt:
+      clean(record.updatedAt) ||
+      clean(record.createdAt) ||
+      new Date().toISOString(),
   }
 }
 
 function isStatus(value: unknown): value is PostFastPostStatus {
-  return value === "draft" || value === "scheduled" || value === "published" || value === "failed"
+  return (
+    value === "draft" ||
+    value === "scheduled" ||
+    value === "published" ||
+    value === "failed"
+  )
 }
-
 
 function baseSourceId(sourceId: string) {
   return clean(sourceId).split(":")[0] ?? ""

@@ -65,9 +65,57 @@ export function HookVariableEditor({
     top: number
   } | null>(null)
 
+  // The highlight layer must have IDENTICAL text metrics to the textarea
+  // beneath it: any font, weight, or padding difference on the slot tokens
+  // shifts line wrapping, so the visible text no longer sits where the
+  // textarea's invisible text actually is — clicks then land on the wrong
+  // character. Token styling is therefore limited to background/color, and
+  // the layer never intercepts pointer events (tooltips are hit-tested from
+  // wrapper mousemove instead, so clicks always reach the textarea).
+  function hoverFromPoint(clientX: number, clientY: number) {
+    const spans =
+      highlightRef.current?.querySelectorAll<HTMLElement>("[data-slot]") ?? []
+    for (const span of spans) {
+      const rect = span.getBoundingClientRect()
+      if (
+        clientX >= rect.left &&
+        clientX <= rect.right &&
+        clientY >= rect.top &&
+        clientY <= rect.bottom
+      ) {
+        const slot = span.dataset.slot
+        if (!slot) continue
+        const top = rect.bottom + 8
+        setHovered((current) =>
+          current?.slot === slot && Math.abs(current.top - top) < 1
+            ? current
+            : {
+                slot,
+                collection: collectionForHookSlot({
+                  slot,
+                  hookSlots,
+                  collections,
+                }),
+                left: Math.min(
+                  window.innerWidth - 180,
+                  rect.left + rect.width / 2
+                ),
+                top,
+              }
+        )
+        return
+      }
+    }
+    setHovered((current) => (current ? null : current))
+  }
+
   return (
     <>
-      <div className="relative h-72 w-full rounded-[8px] border border-[#deddd5] bg-white focus-within:border-[#9f9e96]">
+      <div
+        className="relative h-72 w-full rounded-[8px] border border-[#deddd5] bg-white focus-within:border-[#9f9e96]"
+        onMouseMove={(event) => hoverFromPoint(event.clientX, event.clientY)}
+        onMouseLeave={() => setHovered(null)}
+      >
         <div
           ref={highlightRef}
           className="pointer-events-none absolute inset-0 z-20 overflow-hidden whitespace-pre-wrap break-words p-5 text-[14px] leading-6 font-medium text-[#242421]"
@@ -85,22 +133,13 @@ export function HookVariableEditor({
             return (
               <span
                 key={`${index}-${segment.slot}`}
+                data-slot={segment.slot}
                 className={cn(
-                  "pointer-events-auto relative cursor-help rounded-[4px] px-0.5 font-mono font-bold",
+                  "rounded-[4px]",
                   collection
                     ? "bg-[#eee7ff] text-[#6d28d9]"
                     : "bg-[#fff0d8] text-[#a15c00]"
                 )}
-                onMouseEnter={(event) => {
-                  const rect = event.currentTarget.getBoundingClientRect()
-                  setHovered({
-                    slot: segment.slot!,
-                    collection,
-                    left: Math.min(window.innerWidth - 180, rect.left + rect.width / 2),
-                    top: rect.bottom + 8,
-                  })
-                }}
-                onMouseLeave={() => setHovered(null)}
               >
                 {segment.text}
               </span>
@@ -108,7 +147,7 @@ export function HookVariableEditor({
           })}
         </div>
         <textarea
-          className="absolute inset-0 z-10 h-full w-full resize-none overflow-auto bg-transparent p-5 text-[14px] leading-6 font-medium text-transparent caret-[#242421] outline-none selection:bg-[#cdb8ff]/50"
+          className="absolute inset-0 z-10 h-full w-full resize-none overflow-auto bg-transparent p-5 text-[14px] leading-6 font-medium break-words text-transparent caret-[#242421] outline-none selection:bg-[#cdb8ff]/50"
           value={value}
           aria-label="Hooks"
           spellCheck={false}

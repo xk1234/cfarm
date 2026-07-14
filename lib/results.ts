@@ -2,7 +2,11 @@ import { clean, isRecord } from "@/lib/guards"
 import { randomUUID } from "node:crypto"
 import path from "node:path"
 
-import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
+import {
+  deleteJsonArrayRecord,
+  readJsonArrayStore,
+  upsertJsonArrayRecord,
+} from "@/lib/json-store"
 import type { SlideshowSettings, SlideshowSlide } from "@/lib/slideshows"
 
 export type ResultWorkflowType = "slideshow" | "video"
@@ -115,14 +119,38 @@ export async function createResultRecord(input: CreateResultInput) {
     throw new Error("A result requires an automation id and run id")
   }
 
-  const next = [
-    record,
-    ...records.filter(
-      (item) => item.id !== record.id && item.runId !== record.runId
-    ),
-  ]
-  await writeResultRecords(input.rootDir, next)
+  await upsertResultRecord(input.rootDir, record, "first")
+  const supersededIds = records
+    .filter((item) => item.id !== record.id && item.runId === record.runId)
+    .map((item) => item.id)
+  await Promise.all(
+    supersededIds.map((id) => deleteStoredResult(input.rootDir, id))
+  )
   return record
+}
+
+export async function updateResultRecord(input: {
+  rootDir?: string
+  id: string
+  update: (record: ResultRecord) => ResultRecord
+}) {
+  const id = clean(input.id)
+  if (!id) {
+    return null
+  }
+
+  const records = await readResultRecords(input.rootDir)
+  const existing = records.find((record) => record.id === id)
+  if (!existing) {
+    return null
+  }
+  const updated = {
+    ...input.update(existing),
+    id: existing.id,
+    updatedAt: new Date().toISOString(),
+  }
+  await upsertResultRecord(input.rootDir, updated)
+  return updated
 }
 
 export async function deleteResultRecord(input: {
@@ -140,10 +168,7 @@ export async function deleteResultRecord(input: {
     return null
   }
 
-  await writeResultRecords(
-    input.rootDir,
-    records.filter((record) => record.id !== id)
-  )
+  await deleteStoredResult(input.rootDir, id)
   return deleted
 }
 
@@ -174,10 +199,8 @@ export async function deleteResultRecordsForAutomation(input: {
     return []
   }
 
-  const deletedIds = new Set(deleted.map((record) => record.id))
-  await writeResultRecords(
-    input.rootDir,
-    records.filter((record) => !deletedIds.has(record.id))
+  await Promise.all(
+    deleted.map((record) => deleteStoredResult(input.rootDir, record.id))
   )
   return deleted
 }
@@ -191,16 +214,28 @@ function readResultRecords(rootDir = defaultRootDir()) {
   })
 }
 
-async function writeResultRecords(
-  rootDir = defaultRootDir(),
-  records: ResultRecord[]
-) {
-  await writeJsonArrayStore({
+function resultStore(rootDir = defaultRootDir()) {
+  return {
     rootDir,
     fileName: dbFileName,
     key: "results",
-    records,
+  }
+}
+
+async function upsertResultRecord(
+  rootDir: string | undefined,
+  record: ResultRecord,
+  position?: "first" | "last"
+) {
+  await upsertJsonArrayRecord({
+    ...resultStore(rootDir),
+    record,
+    position,
   })
+}
+
+async function deleteStoredResult(rootDir: string | undefined, id: string) {
+  return deleteJsonArrayRecord({ ...resultStore(rootDir), id })
 }
 
 function defaultRootDir() {

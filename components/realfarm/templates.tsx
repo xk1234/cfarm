@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import {
   IconPhoto,
+  IconBrandX,
   IconPlus,
   IconSearch,
   IconSlideshow,
@@ -23,13 +24,15 @@ import { AppModal, AppModalPanel } from "@/components/ui/modal"
 import {
   automationCreatedAt,
   type AutomationSchema,
+  type AutomationVideoTemplateId,
 } from "@/lib/realfarm-automation"
+import { videoAutomationTemplatePresets } from "@/lib/video-automation-templates"
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { Automation, RealFarmData } from "@/lib/realfarm-data"
 import { cn } from "@/lib/utils"
 
 type TemplateSortOption = "Newest" | "Oldest" | "A → Z" | "Z → A"
-type TemplateKindFilter = "slideshow" | "video"
+type TemplateKindFilter = "slideshow" | "video" | "x_threads"
 const templateSortOptions: TemplateSortOption[] = [
   "Newest",
   "Oldest",
@@ -45,6 +48,7 @@ export function TemplateFolderModal({
   recentRunsByAutomationId,
   onClose,
   onCreateBlank,
+  onCreateVideoTemplate,
   onUseTemplate,
 }: {
   data: RealFarmData
@@ -54,6 +58,7 @@ export function TemplateFolderModal({
   recentRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
   onClose: () => void
   onCreateBlank: (automationKind: Automation["automationKind"]) => void
+  onCreateVideoTemplate: (templateId: AutomationVideoTemplateId) => void
   onUseTemplate: (automation: Automation) => void
 }) {
   const [search, setSearch] = useState("")
@@ -93,7 +98,11 @@ export function TemplateFolderModal({
       .map(({ automation }) => automation)
   }, [templateAutomations, search, selectedKind, sort])
   const selectedKindLabel =
-    selectedKind === "video" ? "Video" : "Slideshow"
+    selectedKind === "video"
+      ? "Video"
+      : selectedKind === "x_threads"
+        ? "X / Threads"
+        : "Slideshow"
 
   if (selectedTemplate) {
     return (
@@ -107,7 +116,10 @@ export function TemplateFolderModal({
 
   return (
     <AppModal onClose={onClose}>
-      <AppModalPanel className="max-h-[86vh] max-w-[840px] rounded-[10px]">
+      <AppModalPanel
+        accessibleTitle="Automation templates"
+        className="max-h-[86vh] max-w-[840px] rounded-[10px]"
+      >
         <div className="border-b border-[#deddd7] bg-white">
           <div className="flex h-[58px] items-center gap-3 px-3">
             <button
@@ -131,9 +143,9 @@ export function TemplateFolderModal({
         </div>
 
         <div className="max-h-[calc(86vh-58px)] overflow-y-auto px-3 pt-2 pb-6">
-          <div className="mb-5 flex items-end justify-between">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-2">
             <div className="flex items-center gap-1">
-              {(["slideshow", "video"] as const).map((kind) => {
+              {(["slideshow", "video", "x_threads"] as const).map((kind) => {
                 const active = selectedKind === kind
                 return (
                   <button
@@ -147,7 +159,11 @@ export function TemplateFolderModal({
                     )}
                     onClick={() => setSelectedKind(kind)}
                   >
-                    {kind === "video" ? "Video" : "Slideshow"}
+                    {kind === "video"
+                      ? "Video"
+                      : kind === "x_threads"
+                        ? "X / Threads"
+                        : "Slideshow"}
                   </button>
                 )
               })}
@@ -158,24 +174,52 @@ export function TemplateFolderModal({
                 options={templateSortOptions}
                 onChange={(value) => setSort(value as TemplateSortOption)}
               />
+              <Button
+                type="button"
+                variant="softControl"
+                size="appDefault"
+                onClick={() => onCreateBlank(selectedKind)}
+              >
+                {selectedKind === "x_threads" ? (
+                  <IconBrandX className="size-4" />
+                ) : selectedKind === "video" ? (
+                  <IconVideo className="size-4" />
+                ) : (
+                  <IconSlideshow className="size-4" />
+                )}
+                New {selectedKindLabel.toLowerCase()} automation
+              </Button>
             </div>
           </div>
 
-          <div className="mb-3">
-            <Button
-              type="button"
-              variant="softControl"
-              size="appDefault"
-              onClick={() => onCreateBlank(selectedKind)}
-            >
-              {selectedKind === "video" ? (
-                <IconVideo className="size-4" />
-              ) : (
-                <IconSlideshow className="size-4" />
-              )}
-              New {selectedKindLabel.toLowerCase()} automation
-            </Button>
-          </div>
+          {selectedKind === "video" ? (
+            <div className="mb-5">
+              <div className="mb-2 text-[12px] font-bold tracking-[0.08em] text-[#77766f] uppercase">
+                Start from a format
+              </div>
+              <div className="grid gap-2 md:grid-cols-2">
+                {videoAutomationTemplatePresets.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className="group rounded-[10px] border border-[#deddd7] bg-white p-3 text-left transition hover:border-[#242421]"
+                    onClick={() => onCreateVideoTemplate(preset.id)}
+                  >
+                    <div className="flex items-center gap-2 text-[14px] font-bold text-[#242421]">
+                      <IconVideo className="size-4 shrink-0" />
+                      {preset.name}
+                    </div>
+                    <div className="mt-0.5 text-[12px] font-semibold text-[#77766f]">
+                      {preset.tagline}
+                    </div>
+                    <p className="mt-1.5 line-clamp-2 text-[12px] leading-4 font-medium text-[#9a9992]">
+                      {preset.description}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {templateAutomations.length === 0 ? (
             <TemplateEmptyState

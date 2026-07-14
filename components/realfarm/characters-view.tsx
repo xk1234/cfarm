@@ -10,14 +10,20 @@ import {
   NewCharacterModal,
 } from "@/components/realfarm/character-create"
 import { Button } from "@/components/ui/button"
+import { CardGridSkeleton } from "@/components/ui/loading-skeleton"
 import type { CharacterPayload, CharacterRecord } from "@/lib/characters"
-import { fetchJsonWithTimeout, getApiErrorMessage, toastApiError } from "@/lib/client-api"
+import {
+  fetchJsonWithTimeout,
+  getApiErrorMessage,
+  toastApiError,
+} from "@/lib/client-api"
 
 export function AvatarsView() {
   const [characterOpen, setCharacterOpen] = useState(false)
   const [editingCharacter, setEditingCharacter] =
     useState<CharacterRecord | null>(null)
   const [characters, setCharacters] = useState<CharacterRecord[]>([])
+  const [charactersLoading, setCharactersLoading] = useState(true)
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(
     null
   )
@@ -46,6 +52,10 @@ export function AvatarsView() {
         if (active) {
           setCharacters([])
           toastApiError(error, "Failed to load characters")
+        }
+      } finally {
+        if (active) {
+          setCharactersLoading(false)
         }
       }
     }
@@ -138,7 +148,7 @@ export function AvatarsView() {
     )
   }
 
-  if (!selectedCharacter) {
+  if (charactersLoading || !selectedCharacter) {
     return (
       <div className="mx-[-8px] mt-[-8px]">
         <div className="grid min-h-[calc(100svh-72px)] overflow-hidden rounded-[8px] bg-[#f8f8f4] lg:grid-cols-[280px_1fr]">
@@ -159,19 +169,29 @@ export function AvatarsView() {
               New Character
             </Button>
           </aside>
-          <main className="grid place-items-center bg-[#f8f8f4] text-center">
-            <div>
-              <IconPhoto
-                className="mx-auto size-12 text-[#b8babf]"
-                stroke={1.5}
-              />
-              <div className="mt-5 text-[22px] font-bold text-[#333]">
-                No characters yet
+          <main
+            className={
+              charactersLoading
+                ? "bg-[#f8f8f4] p-7"
+                : "grid place-items-center bg-[#f8f8f4] text-center"
+            }
+          >
+            {charactersLoading ? (
+              <CardGridSkeleton count={6} className="xl:grid-cols-3" />
+            ) : (
+              <div>
+                <IconPhoto
+                  className="mx-auto size-12 text-[#b8babf]"
+                  stroke={1.5}
+                />
+                <div className="mt-5 text-[22px] font-bold text-[#333]">
+                  No characters yet
+                </div>
+                <div className="mt-3 text-[17px] font-semibold text-[#8b8b86]">
+                  Create a character to generate images
+                </div>
               </div>
-              <div className="mt-3 text-[17px] font-semibold text-[#8b8b86]">
-                Create a character to generate images
-              </div>
-            </div>
+            )}
           </main>
         </div>
         {characterOpen && !editingCharacter && (

@@ -22,6 +22,7 @@ import {
   upsertAutomationRecords,
 } from "@/lib/automations"
 import { runDueAutomations } from "@/lib/automation-runner"
+import type { AutomationSchema } from "@/lib/realfarm-automation"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 import { appendUsageRecords } from "@/lib/usage-ledger"
 
@@ -41,7 +42,6 @@ type StoredTestResult = {
     settings: Record<string, unknown>
     slides: Array<{
       textItems: Array<{ text: string }>
-      time_length_ms?: number
       overlayImage?: { image_url?: string; padding?: number }
     }>
   }
@@ -323,9 +323,11 @@ describe("runDueAutomations", () => {
         reason: "hooks_exhausted",
       }),
     ])
-    const storedAutomation = (await listAutomationRecords({
-      rootDir: automationRootDir,
-    })).find((record) => record.id === automation.id)
+    const storedAutomation = (
+      await listAutomationRecords({
+        rootDir: automationRootDir,
+      })
+    ).find((record) => record.id === automation.id)
     const storedHookSection = storedAutomation?.schema.formatting.find(
       (section) => section.id === "hook" && "textItems" in section
     )
@@ -517,7 +519,7 @@ describe("runDueAutomations", () => {
             days: ["Fri"],
           },
           jitter_minutes: 15,
-        },
+        } as unknown as AutomationSchema["schedule"],
       },
     })
     selectDailyScenesCollection(automation)
@@ -1262,9 +1264,9 @@ describe("runDueAutomations", () => {
         },
       },
     })
+    automation.schema.language = "Spanish"
     automation.schema.image_collection_ids = {
       ...automation.schema.image_collection_ids,
-      language: "Spanish",
       first_slide: {
         collection: "collection-brand-scenes-2026-07-03t00-00-00-000z",
         mode: "collection",
@@ -1454,7 +1456,13 @@ describe("runDueAutomations", () => {
       sound_name: "TikTok trend sound",
       sound_url: "/api/local-assets/music/files/trend.mp3",
     })
-    expect(results.results[0].payload.slides[0].time_length_ms).toBe(3000)
+    // One aspect ratio per slideshow lives in settings; no per-slide duration.
+    expect(typeof results.results[0].payload.settings.aspect_ratio).toBe(
+      "string"
+    )
+    expect(results.results[0].payload.slides[0]).not.toHaveProperty(
+      "time_length_ms"
+    )
   })
 
   it("matches imported community collection ids from locally downloaded filenames", async () => {

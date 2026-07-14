@@ -4,6 +4,7 @@ import path from "node:path"
 import { beforeAll, describe, expect, it } from "vitest"
 
 import {
+  automationSchemaToTemplateRecord,
   automationTemplateRecordToSchema,
   automationTemplateRecordToSummary,
   validateAutomationTemplateCollectionIds,
@@ -16,8 +17,10 @@ import { writeJsonArrayStore } from "@/lib/json-store"
 import {
   automationFormatSection,
   automationHooks,
+  defaultAutomationSchema,
   schemaWithAutomationHooks,
 } from "@/lib/realfarm-automation"
+import type { Automation } from "@/lib/realfarm-data"
 
 // Templates read from the bundled seed file directly; example-runs read only
 // from the store, so seed cfarm's automation_template_runs from the shipped
@@ -273,6 +276,57 @@ describe("automation template persistence", () => {
       automationKind: "video",
       name: "Creator UGC Video",
     })
+  })
+
+  it("round-trips video automation definitions without changing their kind", () => {
+    const summary: Automation = {
+      id: "video-automation",
+      automationKind: "video",
+      name: "Creator UGC Video",
+      status: "live",
+      account: "",
+      handle: "",
+      times: [],
+      favorite: false,
+      theme: "creator-ugc-video",
+      socialIntegrations: [],
+    }
+    const schema = defaultAutomationSchema(summary)
+    schema.video_format = {
+      template: "ugc_ad",
+      hookPlacement: "first_segment",
+      globalTextItems: [],
+      segments: [
+        {
+          id: "demo",
+          label: "Demo",
+          guidance: "Show the product in use",
+          mediaSource: "collection",
+          mediaKind: "video",
+          collectionId: "collection-demo",
+          demoAssetId: "",
+          clipCount: 2,
+          clipDurationMs: 2500,
+          transition: "cut",
+          textItems: [],
+        },
+      ],
+    }
+
+    const record = automationSchemaToTemplateRecord({
+      id: "template-video-ugc",
+      name: summary.name,
+      theme: summary.theme,
+      createdAt: "2026-07-06T00:00:00.000Z",
+      updatedAt: "2026-07-06T00:00:00.000Z",
+      schema,
+    })
+    const restored = automationTemplateRecordToSchema(record)
+
+    expect(record.automationKind).toBe("video")
+    expect(record.template.video_format).toEqual(schema.video_format)
+    expect(restored.automationKind).toBe("video")
+    expect(restored.video_format).toEqual(schema.video_format)
   })
 
   it("reports imported template collection ids that do not resolve locally", () => {

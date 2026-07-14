@@ -33,6 +33,92 @@ describe("expandHook", () => {
     })
   })
 
+  it("resolves capitalized slots against lowercase collections without a slot map", () => {
+    const collections: WordCollectionRecord[] = [
+      wordCollection("month", ["January", "February"]),
+      wordCollection("number", ["3", "5"]),
+    ]
+
+    expect(
+      expandHook("[[Number]] things about [[Month]]", undefined, collections, () => 0)
+    ).toEqual({
+      text: "3 things about January",
+      template: "[[Number]] things about [[Month]]",
+      substitutions: {
+        Number: "3",
+        Month: "January",
+      },
+    })
+  })
+
+  it("draws different values for a repeated variable when noDuplicates is on", () => {
+    const collections: WordCollectionRecord[] = [
+      wordCollection("zodiac", ["aries", "taurus"]),
+    ]
+
+    const result = expandHook(
+      "[[ZODIAC]] VERSUS [[ZODIAC]]",
+      undefined,
+      collections,
+      () => 0,
+      { noDuplicates: true }
+    )
+
+    expect(result.text).toBe("Aries VERSUS Taurus")
+    expect(result.substitutions).toEqual({
+      ZODIAC: "Aries",
+      ZODIAC_2: "Taurus",
+    })
+  })
+
+  it("repeats the same value for a repeated variable when noDuplicates is off", () => {
+    const collections: WordCollectionRecord[] = [
+      wordCollection("zodiac", ["aries", "taurus"]),
+    ]
+
+    expect(
+      expandHook("[[ZODIAC]] loves another [[ZODIAC]]", undefined, collections, () => 0)
+        .text
+    ).toBe("Aries loves another Aries")
+  })
+
+  it("enumerates distinct pairs for repeated variables in combinations", () => {
+    const collections: WordCollectionRecord[] = [
+      wordCollection("zodiac", ["aries", "taurus"]),
+    ]
+
+    const combos = expandAllHookCombinations(
+      "[[ZODIAC]] VERSUS [[ZODIAC]]",
+      undefined,
+      collections,
+      { noDuplicates: true }
+    )
+
+    expect(combos.map((combo) => combo.text).sort()).toEqual([
+      "Aries VERSUS Taurus",
+      "Taurus VERSUS Aries",
+    ])
+  })
+
+  it("never repeats a word when two slots share one collection", () => {
+    const collections: WordCollectionRecord[] = [
+      wordCollection("zodiac", ["aries", "taurus"]),
+    ]
+
+    const result = expandHook(
+      "[[zodiac]] VERSUS [[zodiac_2]]",
+      { zodiac_2: "zodiac" },
+      collections,
+      () => 0
+    )
+
+    expect(result.text).toBe("Aries VERSUS Taurus")
+    expect(result.substitutions).toEqual({
+      zodiac: "Aries",
+      zodiac_2: "Taurus",
+    })
+  })
+
   it("leaves unknown slots visible so bad automation config is obvious", () => {
     expect(expandHook("hello [[missing]]", {}, [], () => 0)).toEqual({
       text: "hello [[missing]]",

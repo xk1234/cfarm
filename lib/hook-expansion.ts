@@ -1,10 +1,16 @@
 import { clean } from "@/lib/guards"
+import { applyResolvedHookCase, type HookCaseMode } from "@/lib/hook-casing"
 import type { WordCollectionRecord } from "@/lib/word-collections"
 
 export type HookExpansionResult = {
   text: string
   template: string
   substitutions: Record<string, string>
+}
+
+type HookExpansionOptions = {
+  noDuplicates?: boolean
+  caseMode?: HookCaseMode
 }
 
 const slotPattern = /\[\[([a-zA-Z0-9_-]+)\]\]|\{([a-zA-Z0-9_-]+)\}/g
@@ -14,7 +20,8 @@ export function expandHook(
   hook: string,
   slots: Record<string, string> | undefined,
   collections: WordCollectionRecord[],
-  random: () => number = Math.random
+  random: () => number = Math.random,
+  options: HookExpansionOptions = {}
 ): HookExpansionResult {
   const template = clean(hook)
   const slotMap = slots ?? {}
@@ -30,42 +37,69 @@ export function expandHook(
     })
   )
   const substitutions: Record<string, string> = {}
+  const usedWordsByCollection = new Map<string, Set<string>>()
+  const occurrenceCounts = new Map<string, number>()
   const expandedText = template.replace(
     slotPattern,
     (match, bracketSlot, braceSlot) => {
-      const slotName = clean(bracketSlot || braceSlot)
-      if (!slotName) {
+      const baseSlotName = clean(bracketSlot || braceSlot)
+      if (!baseSlotName) {
         return match
       }
+      const count = (occurrenceCounts.get(baseSlotName.toLowerCase()) ?? 0) + 1
+      occurrenceCounts.set(baseSlotName.toLowerCase(), count)
+      // With noDuplicates each repeat of the variable is a fresh draw from the
+      // words that remain, keyed zodiac, zodiac_2, ... so combination usage
+      // keys stay stable.
+      const slotName =
+        options.noDuplicates && count > 1
+          ? `${baseSlotName}_${count}`
+          : baseSlotName
       if (!substitutions[slotName]) {
-        const collectionId = clean(slotMap[slotName]) || slotName
+        const collectionId = resolveSlotCollectionId(baseSlotName, slotMap)
         const collection = collectionId
-          ? collectionsById.get(collectionId)
+          ? collectionsById.get(collectionId) ??
+            collectionsById.get(collectionId.toLowerCase())
           : null
-        const words = collection?.words.filter(Boolean) ?? []
-        if (words.length === 0) {
+        const allWords = collection?.words.filter(Boolean) ?? []
+        if (allWords.length === 0) {
           return match
         }
+        // Distinct slots backed by the same collection (e.g. [[zodiac]] vs
+        // [[zodiac_2]]) should not repeat the same word within one hook.
+        const usedKey = (collection?.id ?? collectionId).toLowerCase()
+        const used = usedWordsByCollection.get(usedKey) ?? new Set<string>()
+        const freshWords = allWords.filter((word) => !used.has(word))
+        const words = freshWords.length > 0 ? freshWords : allWords
         const index = Math.min(
           words.length - 1,
           Math.max(0, Math.floor(random() * words.length))
         )
-        substitutions[slotName] = formatSlotSubstitution(slotName, words[index])
+        used.add(words[index])
+        usedWordsByCollection.set(usedKey, used)
+        substitutions[slotName] = formatSlotSubstitution(
+          slotName,
+          words[index],
+          collectionId
+        )
       }
       return substitutions[slotName] || match
     }
   )
-  const text = correctIndefiniteArticles(
+  const correctedText = correctIndefiniteArticles(
     correctPluralSuffixes(expandedText, substitutions)
   )
+  const text = applyResolvedHookCase(correctedText, options.caseMode ?? "mixed")
+  const casedSubstitutions = caseSubstitutions(substitutions, options.caseMode)
 
-  return { text, template, substitutions }
+  return { text, template, substitutions: casedSubstitutions }
 }
 
 export function expandAllHookCombinations(
   hook: string,
   slots: Record<string, string> | undefined,
-  collections: WordCollectionRecord[]
+  collections: WordCollectionRecord[],
+  options: HookExpansionOptions = {}
 ): HookExpansionResult[] {
   const template = clean(hook)
   const slotMap = slots ?? {}
@@ -79,23 +113,51 @@ export function expandAllHookCombinations(
       ].map((key) => [key, collection] as const)
     )
   )
-  const slotNames = [...template.matchAll(slotPattern)]
-    .map((match) => clean(match[1] || match[2]))
-    .filter((slotName, index, values) => slotName && values.indexOf(slotName) === index)
+  // Occurrence names: with noDuplicates each repeat of a variable becomes its
+  // own draw (zodiac, zodiac_2, ...) so "[[ZODIAC]] VERSUS [[ZODIAC]]" yields
+  // two different signs. Without it, repeats share one substitution.
+  const occurrenceNames: string[] = []
+  const seenCounts = new Map<string, number>()
+  for (const match of template.matchAll(slotPattern)) {
+    const slotName = clean(match[1] || match[2])
+    if (!slotName) continue
+    const count = (seenCounts.get(slotName.toLowerCase()) ?? 0) + 1
+    seenCounts.set(slotName.toLowerCase(), count)
+    occurrenceNames.push(
+      options.noDuplicates && count > 1 ? `${slotName}_${count}` : slotName
+    )
+  }
+  const slotNames = occurrenceNames.filter(
+    (slotName, index, values) => values.indexOf(slotName) === index
+  )
 
   if (slotNames.length === 0) {
     return [{ text: template, template, substitutions: {} }]
   }
 
   const valuesBySlot = slotNames.map((slotName) => {
-    const collectionId = clean(slotMap[slotName]) || slotName
-    const collection = collectionsById.get(collectionId)
+    // A synthetic occurrence name (zodiac_2) resolves against its base
+    // variable's collection.
+    const baseName = options.noDuplicates
+      ? slotName.replace(/_\d+$/, "")
+      : slotName
+    const collectionId =
+      resolveSlotCollectionId(slotName, slotMap) === slotName
+        ? resolveSlotCollectionId(baseName, slotMap)
+        : resolveSlotCollectionId(slotName, slotMap)
+    const collection =
+      collectionsById.get(collectionId) ??
+      collectionsById.get(collectionId.toLowerCase())
     const words = collection?.words.filter(Boolean) ?? []
     return {
       slotName,
+      collectionKey: (collection?.id ?? collectionId).toLowerCase(),
+      hasWords: words.length > 0,
       values:
         words.length > 0
-          ? words.map((word) => formatSlotSubstitution(slotName, word))
+          ? words.map((word) =>
+              formatSlotSubstitution(slotName, word, collectionId)
+            )
           : [`[[${slotName}]]`],
     }
   })
@@ -103,23 +165,35 @@ export function expandAllHookCombinations(
 
   function visit(index: number, substitutions: Record<string, string>) {
     if (index >= valuesBySlot.length) {
-      const expandedText = template.replace(
-        slotPattern,
-        (match, bracketSlot, braceSlot) =>
-          substitutions[clean(bracketSlot || braceSlot)] || match
-      )
+      let occurrence = -1
+      const expandedText = template.replace(slotPattern, (match) => {
+        occurrence += 1
+        return substitutions[occurrenceNames[occurrence]] || match
+      })
       expansions.push({
-        text: correctIndefiniteArticles(
-          correctPluralSuffixes(expandedText, substitutions)
+        text: applyResolvedHookCase(
+          correctIndefiniteArticles(correctPluralSuffixes(expandedText, substitutions)),
+          options.caseMode ?? "mixed"
         ),
         template,
-        substitutions: { ...substitutions },
+        substitutions: caseSubstitutions(substitutions, options.caseMode),
       })
       return
     }
 
     const slot = valuesBySlot[index]
+    const usedFromSameCollection = new Set(
+      valuesBySlot
+        .slice(0, index)
+        .filter(
+          (other) => slot.hasWords && other.collectionKey === slot.collectionKey
+        )
+        .map((other) => substitutions[other.slotName])
+    )
     for (const value of slot.values) {
+      if (usedFromSameCollection.has(value)) {
+        continue
+      }
       visit(index + 1, { ...substitutions, [slot.slotName]: value })
     }
   }
@@ -128,9 +202,44 @@ export function expandAllHookCombinations(
   return expansions
 }
 
-function formatSlotSubstitution(slotName: string, value: string) {
+function caseSubstitutions(
+  substitutions: Record<string, string>,
+  mode: HookCaseMode | undefined
+) {
+  if (!mode || mode === "mixed") return substitutions
+  const substitutionMode = mode === "sentence" ? "lowercase" : mode
+  return Object.fromEntries(
+    Object.entries(substitutions).map(([key, value]) => [
+      key,
+      applyResolvedHookCase(value, substitutionMode),
+    ])
+  )
+}
+
+function resolveSlotCollectionId(
+  slotName: string,
+  slotMap: Record<string, string>
+) {
+  const mapped =
+    clean(slotMap[slotName]) ||
+    clean(
+      Object.entries(slotMap).find(
+        ([key]) => key.toLowerCase() === slotName.toLowerCase()
+      )?.[1] ?? ""
+    )
+  return mapped || slotName
+}
+
+function formatSlotSubstitution(
+  slotName: string,
+  value: string,
+  collectionId?: string
+) {
   const normalized = clean(value)
-  if (properTitleCaseSlots.has(slotName.toLowerCase())) {
+  if (
+    properTitleCaseSlots.has(slotName.toLowerCase()) ||
+    (collectionId && properTitleCaseSlots.has(collectionId.toLowerCase()))
+  ) {
     return titleCase(normalized)
   }
   return normalized

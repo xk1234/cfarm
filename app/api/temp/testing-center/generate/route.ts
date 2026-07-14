@@ -4,6 +4,7 @@ import { NextResponse } from "next/server"
 
 import {
   automationRunSlidesToSlideshowSlides,
+  automationSlideshowSettings,
   previewAutomationRunPlan,
 } from "@/lib/automation-runner"
 import {
@@ -93,11 +94,19 @@ export async function POST(request: Request) {
     let benchmarkComparison
     let benchmarkError = ""
     try {
+      const benchmarkSchema = automationTemplateRecordToSchema(record)
       const benchmarkSlides = automationRunSlidesToSlideshowSlides(
-        automationTemplateRecordToSchema(record),
+        benchmarkSchema,
         preview.plan
       )
-      const benchmarkImageBytes = await renderSlidesForBenchmark(benchmarkSlides)
+      const benchmarkSettings = automationSlideshowSettings(benchmarkSchema)
+      const benchmarkImageBytes = await renderSlidesForBenchmark(
+        benchmarkSlides,
+        {
+          aspectRatio: benchmarkSettings.aspect_ratio,
+          font: benchmarkSettings.font,
+        }
+      )
       const displaySlides = preview.plan.slides.map((slide, index) => ({
         id: `debug-${automationId}-${index + 1}`,
         imageUrl: slide.imageUrl,

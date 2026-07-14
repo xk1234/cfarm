@@ -29,11 +29,14 @@ import {
   IconFilter,
   IconRefresh,
 } from "@tabler/icons-react"
+import { DropdownMenu } from "radix-ui"
+import useSWR from "swr"
 
 import { Button } from "@/components/ui/button"
-import { useDismissableLayer } from "@/components/ui/dismissable"
 import { SelectControl } from "@/components/ui/form-controls"
+import { SkeletonBlock } from "@/components/ui/loading-skeleton"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
+import { clientSWRFetcher } from "@/lib/client-swr"
 import { cn } from "@/lib/utils"
 
 type PostFastListedPost = {
@@ -106,12 +109,8 @@ export function ContentCalendarView({
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(() =>
     DateTime.now().toJSDate()
   )
-  const [filterOpen, setFilterOpen] = useState(false)
-  const filterRef = useDismissableLayer<HTMLDivElement>(
-    () => setFilterOpen(false),
-    filterOpen
-  )
   const [postfastPosts, setPostFastPosts] = useState<PostFastListedPost[]>([])
+  const [loadedMonthRangeKey, setLoadedMonthRangeKey] = useState("")
   const [postfastConfigured, setPostFastConfigured] = useState(true)
   const [filters, setFilters] = useState({
     scheduled: true,
@@ -126,6 +125,7 @@ export function ContentCalendarView({
     const endDate = monthEnd.toUTC().toISO() ?? ""
     return `/api/postfast/posts?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`
   }, [monthDate, monthEnd])
+  const postsLoading = loadedMonthRangeKey !== monthRangeKey
   const gridStart = monthDate.startOf("week").minus({ days: 1 })
   const calendarWeeks = Array.from({ length: 6 }, (_, weekIndex) =>
     Array.from({ length: 7 }, (_, dayIndex) =>
@@ -153,6 +153,11 @@ export function ContentCalendarView({
           setPostFastPosts([])
         }
       })
+      .finally(() => {
+        if (active) {
+          setLoadedMonthRangeKey(monthRangeKey)
+        }
+      })
 
     return () => {
       active = false
@@ -166,30 +171,38 @@ export function ContentCalendarView({
           Content Calendar
         </h1>
         <div className="flex items-center gap-3">
-          <div ref={filterRef} className="relative">
-            <Button
-              variant="softControl"
-              size="compact"
-              onClick={() => setFilterOpen((current) => !current)}
-            >
-              <IconFilter className="size-3.5" />
-              Filter
-            </Button>
-            {filterOpen && (
-              <div className="absolute top-10 right-0 z-30 w-[170px] rounded-[7px] border border-[#e5e4dc] bg-white p-2 text-[12px] font-semibold shadow-xl">
-                <CalendarFilterCheckbox
-                  label="Scheduled Posts"
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <Button variant="softControl" size="compact">
+                <IconFilter className="size-3.5" />
+                Filter
+              </Button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                sideOffset={8}
+                align="end"
+                className="z-50 w-[170px] rounded-[7px] border border-[#e5e4dc] bg-white p-2 text-[12px] font-semibold shadow-xl"
+              >
+                <DropdownMenu.CheckboxItem
                   checked={filters.scheduled}
-                  onChange={() =>
+                  onCheckedChange={(checked) =>
                     setFilters((current) => ({
                       ...current,
-                      scheduled: !current.scheduled,
+                      scheduled: checked === true,
                     }))
                   }
-                />
-              </div>
-            )}
-          </div>
+                  onSelect={(event) => event.preventDefault()}
+                  className="flex cursor-default items-center gap-2 rounded-[4px] px-2 py-1.5 outline-none data-[highlighted]:bg-[#f5f5f1]"
+                >
+                  <span className="grid size-3.5 place-items-center rounded-[2px] border border-[#aaa89f] bg-white text-[10px] text-app-action">
+                    <DropdownMenu.ItemIndicator>✓</DropdownMenu.ItemIndicator>
+                  </span>
+                  Scheduled Posts
+                </DropdownMenu.CheckboxItem>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
           <Button
             variant="iconControl"
             size="icon-control-sm"
@@ -263,52 +276,48 @@ export function ContentCalendarView({
             })}
           </div>
         ))}
-        {!hasContent && (
-          <div className="absolute top-[34%] left-1/2 w-[330px] -translate-x-1/2 rounded-[4px] bg-white px-7 py-5 text-center shadow-[0_12px_28px_rgba(0,0,0,0.16)]">
-            <div className="text-[13px] font-bold text-[#242421]">
-              {postfastConfigured
-                ? "No PostFast posts yet"
-                : "PostFast is not configured"}
-            </div>
-            <p className="mt-2 text-[12px] font-medium text-[#77766f]">
-              {postfastConfigured
-                ? "Schedule posts on an added social account to populate this calendar."
-                : "Add POSTFAST_API_KEY and connect a social account to sync scheduled posts."}
-            </p>
-            <Button
-              variant="action"
-              size="appDefault"
-              className="mt-4"
-              onClick={onGoAutomations}
-            >
-              Go to automations
-            </Button>
+        {postsLoading ? (
+          <div
+            role="status"
+            aria-label="Loading scheduled posts"
+            aria-busy="true"
+            className="absolute inset-0 grid grid-cols-7 gap-px bg-[#e5e4dc]/70 p-px"
+          >
+            {Array.from({ length: 42 }, (_, index) => (
+              <div key={index} className="bg-[#fdfdf9] p-3">
+                <SkeletonBlock className="size-6 rounded-full" circle />
+                {index % 4 === 0 ? (
+                  <SkeletonBlock className="mt-4 h-5 w-full rounded" />
+                ) : null}
+              </div>
+            ))}
           </div>
+        ) : (
+          !hasContent && (
+            <div className="absolute top-[34%] left-1/2 w-[330px] -translate-x-1/2 rounded-[4px] bg-white px-7 py-5 text-center shadow-[0_12px_28px_rgba(0,0,0,0.16)]">
+              <div className="text-[13px] font-bold text-[#242421]">
+                {postfastConfigured
+                  ? "No PostFast posts yet"
+                  : "PostFast is not configured"}
+              </div>
+              <p className="mt-2 text-[12px] font-medium text-[#77766f]">
+                {postfastConfigured
+                  ? "Schedule posts on an added social account to populate this calendar."
+                  : "Add POSTFAST_API_KEY and connect a social account to sync scheduled posts."}
+              </p>
+              <Button
+                variant="action"
+                size="appDefault"
+                className="mt-4"
+                onClick={onGoAutomations}
+              >
+                Go to automations
+              </Button>
+            </div>
+          )
         )}
       </div>
     </div>
-  )
-}
-
-function CalendarFilterCheckbox({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string
-  checked: boolean
-  onChange: () => void
-}) {
-  return (
-    <label className="flex cursor-pointer items-center gap-2 rounded-[4px] px-2 py-1.5 hover:bg-[#f5f5f1]">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        className="size-3.5 accent-app-action"
-      />
-      {label}
-    </label>
   )
 }
 
@@ -495,40 +504,28 @@ function statusBorderClass(status: string | undefined) {
 
 export function AnalyticsView() {
   const [range, setRange] = useState(30)
-  const [integrations, setIntegrations] = useState<PostFastIntegration[]>([])
-  const [selectedIntegrationId, setSelectedIntegrationId] = useState("")
+  const [requestedIntegrationId, setSelectedIntegrationId] = useState("")
   const [metrics, setMetrics] = useState<PostFastMetric[]>([])
+  const [loadedMetricsRequestKey, setLoadedMetricsRequestKey] = useState("")
   const [error, setError] = useState("")
   const [refreshTick, setRefreshTick] = useState(0)
-
-  useEffect(() => {
-    let active = true
-    void fetchJsonWithTimeout<{ integrations?: PostFastIntegration[] }>(
-      "/api/postfast/integrations"
-    )
-      .then((payload) => {
-        if (!active) {
-          return
-        }
-        const nextIntegrations = payload?.integrations ?? []
-        setIntegrations(nextIntegrations)
-        setSelectedIntegrationId(
-          (current) => current || nextIntegrations[0]?.id || ""
-        )
-      })
-      .catch((integrationsError) => {
-        if (active) {
-          setIntegrations([])
-          setError(
-            getApiErrorMessage(integrationsError, "PostFast is not configured")
-          )
-        }
-      })
-
-    return () => {
-      active = false
-    }
-  }, [])
+  const {
+    data: integrationsPayload,
+    error: integrationsError,
+    isLoading: integrationsLoading,
+  } = useSWR<{ integrations?: PostFastIntegration[] }>(
+    "/api/postfast/integrations",
+    clientSWRFetcher
+  )
+  const integrations = useMemo(
+    () => integrationsPayload?.integrations ?? [],
+    [integrationsPayload?.integrations]
+  )
+  const selectedIntegrationId = integrations.some(
+    (item) => item.id === requestedIntegrationId
+  )
+    ? requestedIntegrationId
+    : integrations[0]?.id || ""
 
   useEffect(() => {
     if (!selectedIntegrationId) {
@@ -536,6 +533,7 @@ export function AnalyticsView() {
     }
 
     let active = true
+    const requestKey = `${selectedIntegrationId}:${range}:${refreshTick}`
     void fetchJsonWithTimeout<{ analytics?: PostFastMetric[] }>(
       `/api/postfast/analytics/platform?integrationId=${encodeURIComponent(selectedIntegrationId)}&days=${range}`
     )
@@ -551,11 +549,25 @@ export function AnalyticsView() {
           setMetrics([])
         }
       })
+      .finally(() => {
+        if (active) {
+          setLoadedMetricsRequestKey(requestKey)
+        }
+      })
 
     return () => {
       active = false
     }
   }, [range, refreshTick, selectedIntegrationId])
+  const metricsRequestKey = selectedIntegrationId
+    ? `${selectedIntegrationId}:${range}:${refreshTick}`
+    : ""
+  const metricsLoading = Boolean(
+    selectedIntegrationId && loadedMetricsRequestKey !== metricsRequestKey
+  )
+  const visibleError = integrationsError
+    ? getApiErrorMessage(integrationsError, "PostFast is not configured")
+    : error
 
   const visibleMetrics = useMemo(
     () => (selectedIntegrationId ? metrics : []),
@@ -676,6 +688,7 @@ export function AnalyticsView() {
             variant="softControl"
             size="appDefault"
             onClick={() => setRefreshTick((current) => current + 1)}
+            disabled={integrationsLoading || metricsLoading}
           >
             <IconRefresh className="size-5" />
             Refresh
@@ -695,7 +708,11 @@ export function AnalyticsView() {
             value={selectedIntegrationId}
             onChange={(event) => setSelectedIntegrationId(event.target.value)}
           >
-            <option value="">No social account</option>
+            <option value="">
+              {integrationsLoading
+                ? "Loading social accounts…"
+                : "No social account"}
+            </option>
             {integrations.map((integration) => (
               <option key={integration.id} value={integration.id}>
                 {integration.displayName ||
@@ -711,54 +728,76 @@ export function AnalyticsView() {
         </div>
       </div>
 
-      <section className="rounded-[14px] border border-[#e1e0d8] bg-white p-8 shadow-sm">
-        <h2 className="mb-5 flex items-center gap-3 text-[26px] font-bold">
-          <IconBolt className="size-6 text-[#77766f]" />
-          {primaryMetric?.label ?? "Daily Views"} (Last {range} Days)
-        </h2>
-        <div className="h-[420px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
-              data={chartData}
-              margin={{ left: 8, right: 8, top: 8, bottom: 8 }}
-            >
-              <CartesianGrid stroke="#e6e5de" strokeDasharray="4 4" />
-              <XAxis
-                dataKey="date"
-                tickLine={false}
-                axisLine={false}
-                interval={Math.max(0, Math.floor(range / 12))}
-              />
-              <YAxis tickLine={false} axisLine={false} domain={[0, 4]} />
-              <Tooltip />
-              <Area
-                type="monotone"
-                dataKey="views"
-                stroke="var(--app-action)"
-                fill="var(--app-action)"
-                fillOpacity={0.08}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
+      {integrationsLoading || metricsLoading ? (
+        <AnalyticsSkeleton />
+      ) : (
+        <>
+          <section className="rounded-[14px] border border-[#e1e0d8] bg-white p-8 shadow-sm">
+            <h2 className="mb-5 flex items-center gap-3 text-[26px] font-bold">
+              <IconBolt className="size-6 text-[#77766f]" />
+              {primaryMetric?.label ?? "Daily Views"} (Last {range} Days)
+            </h2>
+            <div className="h-[420px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={chartData}
+                  margin={{ left: 8, right: 8, top: 8, bottom: 8 }}
+                >
+                  <CartesianGrid stroke="#e6e5de" strokeDasharray="4 4" />
+                  <XAxis
+                    dataKey="date"
+                    tickLine={false}
+                    axisLine={false}
+                    interval={Math.max(0, Math.floor(range / 12))}
+                  />
+                  <YAxis tickLine={false} axisLine={false} domain={[0, 4]} />
+                  <Tooltip />
+                  <Area
+                    type="monotone"
+                    dataKey="views"
+                    stroke="var(--app-action)"
+                    fill="var(--app-action)"
+                    fillOpacity={0.08}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
 
-      <section className="mt-10 overflow-hidden rounded-[10px] border border-[#e1e0d8] bg-white shadow-sm">
-        <div className="h-[360px] min-w-0">
-          <AgGridReact<AnalyticsMetricRow>
-            className="realfarm-analytics-grid ag-theme-quartz h-full w-full"
-            theme="legacy"
-            rowData={analyticsRows}
-            columnDefs={analyticsColumns}
-            defaultColDef={defaultAnalyticsColumn}
-            animateRows
-            pagination
-            paginationPageSize={10}
-            paginationPageSizeSelector={[10, 20, 50, 100]}
-            suppressCellFocus
-            overlayNoRowsTemplate={`<span class="text-[15px] font-semibold text-[#77766f]">${error || "No PostFast analytics yet"}</span>`}
-          />
-        </div>
+          <section className="mt-10 overflow-hidden rounded-[10px] border border-[#e1e0d8] bg-white shadow-sm">
+            <div className="h-[360px] min-w-0">
+              <AgGridReact<AnalyticsMetricRow>
+                className="realfarm-analytics-grid ag-theme-quartz h-full w-full"
+                theme="legacy"
+                rowData={analyticsRows}
+                columnDefs={analyticsColumns}
+                defaultColDef={defaultAnalyticsColumn}
+                animateRows
+                pagination
+                paginationPageSize={10}
+                paginationPageSizeSelector={[10, 20, 50, 100]}
+                suppressCellFocus
+                overlayNoRowsTemplate={`<span class="text-[15px] font-semibold text-[#77766f]">${visibleError || "No PostFast analytics yet"}</span>`}
+              />
+            </div>
+          </section>
+        </>
+      )}
+    </div>
+  )
+}
+
+function AnalyticsSkeleton() {
+  return (
+    <div role="status" aria-label="Loading analytics" aria-busy="true">
+      <section className="rounded-[14px] border border-[#e1e0d8] bg-white p-8 shadow-sm">
+        <SkeletonBlock className="h-7 w-64 rounded" />
+        <SkeletonBlock className="mt-8 h-[380px] w-full rounded-lg" />
+      </section>
+      <section className="mt-10 rounded-[10px] border border-[#e1e0d8] bg-white p-5 shadow-sm">
+        {Array.from({ length: 6 }, (_, index) => (
+          <SkeletonBlock key={index} className="mb-4 h-10 w-full rounded" />
+        ))}
       </section>
     </div>
   )

@@ -14,6 +14,7 @@ import {
   defaultTempSlideUserInstructions,
   defaultTempSlideSystemPrompt,
   getTempSlidePromptPlaceholders,
+  hookImpliedSlideCount,
   promptPreviewHook,
   normalizeTempSlideStructuredOutput,
   storedCollectionsToTempSlideCollections,
@@ -49,6 +50,27 @@ describe("temp slide testing helpers", () => {
         (slide) => slide.section === "cta"
       )
     ).toBe(false)
+  })
+
+  it("includes a CTA when the slideshow CTA switch is enabled", () => {
+    const schema = defaultAutomationSchema({
+      id: "cta-switch",
+      name: "CTA switch",
+      status: "live",
+      account: "",
+      handle: "",
+      times: [],
+      favorite: false,
+      theme: "default",
+      socialIntegrations: [],
+    })
+    schema.image_collection_ids.cta_slide.check = true
+
+    expect(
+      automationSchemaToTempSlideTestingAutomation(schema).slides.filter(
+        (slide) => slide.section === "cta"
+      )
+    ).toHaveLength(1)
   })
 
   it("applies content direction and image overrides to the exact generated slide", () => {
@@ -133,7 +155,7 @@ describe("temp slide testing helpers", () => {
           type: "string",
         },
         hashtags: {
-          type: "string",
+          type: "array",
         },
         text: {
           type: "object",
@@ -318,9 +340,7 @@ describe("temp slide testing helpers", () => {
     expect(prompt).toContain("Hook: 3 ways to test hooks")
     expect(prompt).toContain("Tone: Educational & Informative")
     expect(prompt).toContain("Metadata requirements:")
-    expect(prompt).toContain(
-      "give me 3-5 broad hashtags related to the topic/niche of the content"
-    )
+    expect(prompt).toContain("return an array of 3-5 broad lowercase hashtags")
     expect(prompt).toContain("Prompt instructions:")
     expect(prompt).toContain(defaultTempSlideUserInstructions)
     expect(prompt).not.toContain("hook-1__hook-title")
@@ -468,3 +488,28 @@ const templateRecord: AutomationTemplateRecord = {
     },
   },
 }
+
+describe("hookImpliedSlideCount", () => {
+  it("reads a leading count that promises N body slides", () => {
+    expect(hookImpliedSlideCount("3 things a Gemini will never tell you")).toBe(
+      3
+    )
+    expect(
+      hookImpliedSlideCount("7 wealth-building rules successful men follow")
+    ).toBe(7)
+    expect(hookImpliedSlideCount(" 5 destined for wealth in 2026")).toBe(5)
+  })
+
+  it("ignores numbers that are labels, not counts", () => {
+    expect(hookImpliedSlideCount("Demon each zodiac sign part 3")).toBeNull()
+    expect(hookImpliedSlideCount("When Scorpio gets angry")).toBeNull()
+    expect(hookImpliedSlideCount("2026 is the age of Leo Women")).toBeNull()
+    expect(hookImpliedSlideCount("12:19 pm i'm a gemini")).toBeNull()
+    expect(hookImpliedSlideCount("")).toBeNull()
+  })
+
+  it("rejects counts outside a sane slideshow range", () => {
+    expect(hookImpliedSlideCount("99 things about Aries")).toBeNull()
+    expect(hookImpliedSlideCount("0 things about Aries")).toBeNull()
+  })
+})

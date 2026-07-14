@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo } from "react"
 import {
   IconBrandBluesky,
   IconBrandFacebookFilled,
@@ -16,10 +16,12 @@ import {
   IconPlus,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
+import useSWR from "swr"
 
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
-import { Spinner } from "@/components/ui/spinner"
-import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
+import { AccountGridSkeleton } from "@/components/ui/loading-skeleton"
+import { getApiErrorMessage } from "@/lib/client-api"
+import { clientSWRFetcher } from "@/lib/client-swr"
 import {
   normalizePostFastIntegration,
   type PostFastSocialIntegration,
@@ -37,11 +39,26 @@ export function SocialAccountPickerModal({
   onSelect: (integrations: PostFastSocialIntegration[]) => void
   onClose: () => void
 }) {
-  const [integrations, setIntegrations] = useState<PostFastSocialIntegration[]>(
-    []
+  const {
+    data,
+    error: loadError,
+    isLoading: loading,
+  } = useSWR<{
+    integrations?: unknown[]
+  }>("/api/postfast/integrations", clientSWRFetcher)
+  const integrations = useMemo(
+    () =>
+      (data?.integrations ?? []).flatMap((integration) => {
+        const normalized = normalizePostFastIntegration(integration)
+        return normalized && isSlideshowSocialProvider(normalized.provider)
+          ? [normalized]
+          : []
+      }),
+    [data]
   )
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
+  const error = loadError
+    ? getApiErrorMessage(loadError, "Failed to load social accounts")
+    : ""
   const selectedSlideshowIntegrations = useMemo(
     () =>
       selectedIntegrations.filter((integration) =>
@@ -71,40 +88,8 @@ export function SocialAccountPickerModal({
   )
 
   useEffect(() => {
-    let cancelled = false
-    const loadIntegrations = async () => {
-      try {
-        const payload = await fetchJsonWithTimeout<{
-          integrations?: unknown[]
-        }>("/api/postfast/integrations", { toastOnError: false })
-        if (cancelled) return
-        setIntegrations(
-          (payload.integrations ?? []).flatMap((integration) => {
-            const normalized = normalizePostFastIntegration(integration)
-            return normalized && isSlideshowSocialProvider(normalized.provider)
-              ? [normalized]
-              : []
-          })
-        )
-      } catch (loadError) {
-        if (cancelled) return
-        const message = getApiErrorMessage(
-          loadError,
-          "Failed to load social accounts"
-        )
-        setError(message)
-        toast.error(message)
-      } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      }
-    }
-    void loadIntegrations()
-    return () => {
-      cancelled = true
-    }
-  }, [])
+    if (error) toast.error(error)
+  }, [error])
 
   useEffect(() => {
     if (selectedSlideshowIntegrations.length !== selectedIntegrations.length) {
@@ -155,10 +140,7 @@ export function SocialAccountPickerModal({
               </span>
             </div>
             {loading ? (
-              <div className="flex min-h-[172px] flex-col items-center justify-center gap-3 rounded-[8px] border border-app-panel-border bg-white text-sm font-semibold text-app-muted-text">
-                <Spinner size={24} aria-label="Loading accounts" />
-                Loading accounts...
-              </div>
+              <AccountGridSkeleton />
             ) : integrations.length > 0 ? (
               <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
                 {integrations.map((integration) => (

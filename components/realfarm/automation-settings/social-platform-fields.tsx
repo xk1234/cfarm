@@ -231,6 +231,20 @@ function PublishAsSettingsRow({
     return null
   }
 
+  if (config.automationKind === "video") {
+    return (
+      <SettingsRow
+        title="Publish as"
+        description="Video automations always publish their rendered video."
+        control={
+          <span className="inline-flex h-10 items-center rounded-[8px] border border-[#d8d7cf] bg-[#f7f7f3] px-3 text-[14px] font-semibold text-[#242421]">
+            Video
+          </span>
+        }
+      />
+    )
+  }
+
   const exportAsVideo = automationPublishType(config) === "video"
   const publishAs = exportAsVideo
     ? automationProviderPublishAs(config, provider)
@@ -301,8 +315,6 @@ function SelectedPlatformAccounts({
     </div>
   )
 }
-
-
 
 function SettingsToggle({
   title,
@@ -382,5 +394,3 @@ function SettingsTextInput({
     />
   )
 }
-
-

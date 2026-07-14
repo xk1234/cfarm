@@ -8,6 +8,8 @@ import {
   IconUpload,
 } from "@tabler/icons-react"
 import { Folder, Pencil, Trash2 } from "lucide-react"
+import { Select } from "radix-ui"
+import { useDropzone } from "react-dropzone"
 import { toast } from "sonner"
 
 import {
@@ -33,15 +35,18 @@ import {
   compileWorkflowUserPrompt,
   createPendingGenerationId,
   generationCountForWorkflow,
-  hasImageDragItems,
 } from "@/components/realfarm/characters/workflow-helpers"
 import { Button } from "@/components/ui/button"
-import { useDismissableLayer } from "@/components/ui/dismissable"
+import { CardGridSkeleton } from "@/components/ui/loading-skeleton"
 import { SelectControl } from "@/components/ui/form-controls"
 import { UploadDropzone } from "@/components/ui/upload-dropzone"
 import type { AssetRecord } from "@/lib/assets"
 import type { CharacterRecord } from "@/lib/characters"
-import { fetchJsonWithTimeout, getApiErrorMessage, toastApiError } from "@/lib/client-api"
+import {
+  fetchJsonWithTimeout,
+  getApiErrorMessage,
+  toastApiError,
+} from "@/lib/client-api"
 import {
   buildCharacterPromptPackage,
   characterImageAspectRatios,
@@ -112,11 +117,6 @@ export function CharactersView({
   const [assetsOpen, setAssetsOpen] = useState(false)
   const [selectedAssets, setSelectedAssets] = useState<AssetRecord[]>([])
   const [debugOpen, setDebugOpen] = useState(false)
-  const [modelMenuOpen, setModelMenuOpen] = useState(false)
-  const modelMenuRef = useDismissableLayer<HTMLDivElement>(
-    () => setModelMenuOpen(false),
-    modelMenuOpen
-  )
   const sourceImageInputRef = useRef<HTMLInputElement | null>(null)
   const [selectedModel, setSelectedModel] = useState(
     defaultImageGenerationModel
@@ -124,12 +124,23 @@ export function CharactersView({
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<
     (typeof characterImageAspectRatios)[number]
   >(characterImageAspectRatios[0])
-  const [generations, setGenerations] = useState<
-    CharacterGenerationView[]
-  >([])
+  const [generations, setGenerations] = useState<CharacterGenerationView[]>([])
+  const [loadedGenerationsCharacterId, setLoadedGenerationsCharacterId] =
+    useState<string | null>(null)
+  const generationsLoading =
+    loadedGenerationsCharacterId !== selectedCharacter.id
   const [selectedGeneration, setSelectedGeneration] =
     useState<CharacterGenerationView | null>(null)
-  const [generationDropActive, setGenerationDropActive] = useState(false)
+  const {
+    getRootProps: getGenerationDropRootProps,
+    isDragActive: generationDropActive,
+  } = useDropzone({
+    accept: { "image/*": [] },
+    multiple: true,
+    noClick: true,
+    noKeyboard: true,
+    onDropAccepted: (files) => void uploadDroppedGenerationImages(files),
+  })
   const [debugGeneration, setDebugGeneration] =
     useState<CharacterGenerationView | null>(null)
   const [previewGeneration, setPreviewGeneration] =
@@ -269,10 +280,14 @@ export function CharactersView({
       })
       .catch((error) => {
         if (active) {
-          toastApiError(
-              error, "Failed to load generated character images")
+          toastApiError(error, "Failed to load generated character images")
           setGenerations([])
           setSelectedGeneration(null)
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoadedGenerationsCharacterId(selectedCharacter.id)
         }
       })
 
@@ -699,35 +714,14 @@ export function CharactersView({
         </div>
 
         <div
-          className={cn(
-            "absolute inset-x-0 top-[104px] bottom-0 overflow-y-auto px-7 pt-8 pb-64",
-            generations.length === 0 && "grid place-items-center text-center"
-          )}
-          onDragEnter={(event) => {
-            if (hasImageDragItems(event.dataTransfer)) {
-              event.preventDefault()
-              setGenerationDropActive(true)
-            }
-          }}
-          onDragOver={(event) => {
-            if (hasImageDragItems(event.dataTransfer)) {
-              event.preventDefault()
-              event.dataTransfer.dropEffect = "copy"
-              setGenerationDropActive(true)
-            }
-          }}
-          onDragLeave={(event) => {
-            if (
-              !event.currentTarget.contains(event.relatedTarget as Node | null)
-            ) {
-              setGenerationDropActive(false)
-            }
-          }}
-          onDrop={(event) => {
-            event.preventDefault()
-            setGenerationDropActive(false)
-            void uploadDroppedGenerationImages(event.dataTransfer.files)
-          }}
+          {...getGenerationDropRootProps({
+            className: cn(
+              "absolute inset-x-0 top-[104px] bottom-0 overflow-y-auto px-7 pt-8 pb-64",
+              !generationsLoading &&
+                generations.length === 0 &&
+                "grid place-items-center text-center"
+            ),
+          })}
         >
           {generationDropActive && (
             <div className="pointer-events-none absolute inset-4 z-20 grid place-items-center rounded-2xl border-2 border-dashed border-app-action bg-app-surface/85 text-center shadow-[0_12px_32px_rgba(30,30,25,0.12)] backdrop-blur-sm">
@@ -743,7 +737,12 @@ export function CharactersView({
               </div>
             </div>
           )}
-          {generations.length === 0 ? (
+          {generationsLoading ? (
+            <CardGridSkeleton
+              count={6}
+              className="md:grid-cols-2 xl:grid-cols-3"
+            />
+          ) : generations.length === 0 ? (
             <CharacterWorkflowEmptyState
               characterName={selectedCharacter.name}
               onSelectWorkflow={(workflow) => {
@@ -954,34 +953,40 @@ export function CharactersView({
                   ))}
                 </SelectControl>
               </label>
-              <div ref={modelMenuRef} className="relative">
-                <Button
-                  variant="outline"
-                  onClick={() => setModelMenuOpen((value) => !value)}
-                >
-                  <IconSparkles className="mr-2 size-4" />
-                  {selectedModel}
-                </Button>
-                {modelMenuOpen && (
-                  <div className="absolute bottom-[46px] left-0 z-20 w-[210px] overflow-hidden rounded-lg border border-app-panel-border bg-app-control-bg p-1 shadow-xl">
-                    {characterGenerationModels.map((model) => (
-                      <button
-                        key={model}
-                        className={cn(
-                          "flex h-10 w-full items-center rounded-md px-3 text-left text-sm font-medium text-app-text hover:bg-app-control-hover",
-                          selectedModel === model && "bg-app-control-hover"
-                        )}
-                        onClick={() => {
-                          setSelectedModel(model)
-                          setModelMenuOpen(false)
-                        }}
-                      >
-                        {model}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <Select.Root
+                value={selectedModel}
+                onValueChange={setSelectedModel}
+              >
+                <Select.Trigger asChild>
+                  <Button variant="outline">
+                    <IconSparkles className="mr-2 size-4" />
+                    <Select.Value />
+                  </Button>
+                </Select.Trigger>
+                <Select.Portal>
+                  <Select.Content
+                    side="top"
+                    sideOffset={8}
+                    position="popper"
+                    className="z-50 w-[210px] overflow-hidden rounded-lg border border-app-panel-border bg-app-control-bg p-1 shadow-xl"
+                  >
+                    <Select.Viewport>
+                      {characterGenerationModels.map((model) => (
+                        <Select.Item
+                          key={model}
+                          value={model}
+                          className={cn(
+                            "flex h-10 w-full cursor-default items-center rounded-md px-3 text-left text-sm font-medium text-app-text outline-none data-[highlighted]:bg-app-control-hover",
+                            selectedModel === model && "bg-app-control-hover"
+                          )}
+                        >
+                          <Select.ItemText>{model}</Select.ItemText>
+                        </Select.Item>
+                      ))}
+                    </Select.Viewport>
+                  </Select.Content>
+                </Select.Portal>
+              </Select.Root>
               <Button
                 variant="action"
                 size="lg"

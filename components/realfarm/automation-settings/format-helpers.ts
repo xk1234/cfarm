@@ -13,6 +13,7 @@ import {
   type CreatedImageCollection,
 } from "@/lib/realfarm-collections"
 import { previewTextForTextItem } from "@/lib/realfarm-preview-text"
+import { splitDebateHook } from "@/lib/debate-hook"
 import type { PinterestSearchResult } from "@/lib/pinterest-search"
 import type {
   SlideshowSlide,
@@ -38,11 +39,19 @@ export function previewSlideshowSlide(
           padding: item.section.overlayImage?.padding ?? 5,
         }
       : undefined,
-    aspect_ratio: item.section.aspect_ratio || "9:16",
     overlay: item.section.overlay,
-    time_length_ms: 3000,
     textItems: previewSlideshowTextItems(item),
   }
+}
+
+// Aspect ratio + font are one-per-slideshow, not per-slide/per-item; the format
+// preview derives them from the section for display.
+export function previewSlideshowAspectRatio(item: AutomationFormatPreviewItem) {
+  return item.section.aspect_ratio || "9:16"
+}
+
+export function previewSlideshowFont(item: AutomationFormatPreviewItem) {
+  return item.textItems[0]?.font || "TikTok Display Medium"
 }
 
 export function previewSlideshowTextItems(
@@ -52,12 +61,13 @@ export function previewSlideshowTextItems(
     return []
   }
 
+  const debatePair = item.role === "hook" ? splitDebateHook(item.text) : null
   return item.textItems.map((textItem, index) => {
-    const text = previewTextForTextItem(textItem) || item.text
+    const text =
+      debatePair?.[index] || previewTextForTextItem(textItem) || item.text
     return {
       id: textItem.id || `${item.id}-text-${index}`,
       text,
-      font: textItem.font || "TikTok Display Medium",
       fontSize: textItem.fontSize || "10px",
       textSize: {
         width: previewTextItemWidth(textItem.textItemWidth, text),
@@ -316,12 +326,9 @@ export function formatAspectRatioCss(
 
 export function formatAspectRatioNumbers(
   aspectRatio: AutomationAspectRatio,
-  image?: PinterestSearchResult
+  _image?: PinterestSearchResult
 ): [number, number] {
-  if (aspectRatio === "fit") {
-    return image?.width && image?.height ? [image.width, image.height] : [3, 4]
-  }
-
+  void _image
   const [width, height] = aspectRatio.split(":").map(Number)
   return width && height ? [width, height] : [3, 4]
 }

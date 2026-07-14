@@ -9,14 +9,27 @@ import {
   IconCreditCard,
   IconExternalLink,
   IconPlus,
+  IconRefresh,
   IconSettings,
+  IconTrash,
   IconUpload,
   IconUsers,
   IconVideo,
 } from "@tabler/icons-react"
+import useSWR from "swr"
 
+import { Button } from "@/components/ui/button"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
-import type { PostFastSocialIntegration } from "@/lib/postfast-client"
+import {
+  CardGridSkeleton,
+  ListSkeleton,
+} from "@/components/ui/loading-skeleton"
+import { UploadDropzone } from "@/components/ui/upload-dropzone"
+import {
+  normalizePostFastIntegration,
+  type PostFastSocialIntegration,
+} from "@/lib/postfast-client"
+import { clientSWRFetcher } from "@/lib/client-swr"
 import { cn } from "@/lib/utils"
 
 type Tab = "billing" | "accounts" | "team" | "demos"
@@ -38,9 +51,11 @@ const tabs = [
 export function UserSettingsModal({
   email,
   onClose,
+  onSocialAccountDisconnected,
 }: {
   email: string
   onClose: () => void
+  onSocialAccountDisconnected?: (integrationId: string) => void
 }) {
   const [tab, setTab] = useState<Tab>("billing")
   return (
@@ -75,7 +90,11 @@ export function UserSettingsModal({
           </nav>
           <div className="min-w-0 p-6 sm:p-8">
             {tab === "billing" && <BillingPanel />}
-            {tab === "accounts" && <AccountsPanel />}
+            {tab === "accounts" && (
+              <AccountsPanel
+                onSocialAccountDisconnected={onSocialAccountDisconnected}
+              />
+            )}
             {tab === "team" && <TeamPanel />}
             {tab === "demos" && <DemosPanel />}
           </div>
@@ -136,45 +155,94 @@ function BillingPanel() {
   )
 }
 
-function AccountsPanel() {
-  const [accounts, setAccounts] = useState<PostFastSocialIntegration[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
-  async function load() {
-    setLoading(true)
-    const r = await fetch("/api/postfast/integrations")
-    const p = await r.json().catch(() => null)
-    setAccounts(Array.isArray(p?.integrations) ? p.integrations : [])
-    setError(r.ok ? "" : p?.error || "Could not load accounts.")
-    setLoading(false)
-  }
-  useEffect(() => {
-    void load()
-  }, [])
+function AccountsPanel({
+  onSocialAccountDisconnected,
+}: {
+  onSocialAccountDisconnected?: (integrationId: string) => void
+}) {
+  const {
+    data,
+    error: loadError,
+    isLoading: loading,
+    mutate,
+  } = useSWR<{
+    integrations?: unknown[]
+    disconnectedIntegrations?: unknown[]
+  }>("/api/postfast/integrations", clientSWRFetcher)
+  const accounts = normalizedIntegrations(data?.integrations)
+  const disconnectedAccounts = normalizedIntegrations(
+    data?.disconnectedIntegrations
+  )
+  const [actionError, setActionError] = useState("")
+  const [pendingId, setPendingId] = useState("")
+  const error = loadError ? "Could not load accounts." : actionError
   async function connect() {
     const r = await fetch("/api/postfast/connect-url")
     const p = await r.json().catch(() => null)
     if (r.ok && p?.url) window.open(p.url, "_blank", "noopener,noreferrer")
-    else setError(p?.error || "Could not create a connection link.")
+    else setActionError(p?.error || "Could not create a connection link.")
+  }
+  async function disconnect(account: PostFastSocialIntegration) {
+    const confirmed = window.confirm(
+      `Disconnect ${account.name || account.profile || account.provider} from LumenClip? It will be removed from every automation.`
+    )
+    if (!confirmed) return
+    setPendingId(account.integration_id)
+    setActionError("")
+    const response = await fetch("/api/postfast/integrations", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ integrationId: account.integration_id }),
+    })
+    const payload = await response.json().catch(() => null)
+    if (response.ok) {
+      onSocialAccountDisconnected?.(account.integration_id)
+      await mutate()
+    } else setActionError(payload?.error || "Could not disconnect account.")
+    setPendingId("")
+  }
+  async function restore(account: PostFastSocialIntegration) {
+    setPendingId(account.integration_id)
+    setActionError("")
+    const response = await fetch("/api/postfast/integrations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ integrationId: account.integration_id }),
+    })
+    const payload = await response.json().catch(() => null)
+    if (response.ok) await mutate()
+    else setActionError(payload?.error || "Could not restore account.")
+    setPendingId("")
   }
   return (
     <div>
       <PanelHeading
         title="Connected accounts"
-        description="Connect social profiles once, then choose them in any automation."
+        description="Connect social profiles once, then choose them in any automation. Disconnecting here removes an account from every LumenClip automation."
       />
-      <button
-        onClick={connect}
-        className="mb-6 inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#6d28d9] px-4 text-sm font-semibold text-white hover:bg-[#5b21b6]"
-      >
-        <IconPlus className="size-4" />
-        Add social account
-      </button>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <button
+          onClick={connect}
+          className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#6d28d9] px-4 text-sm font-semibold text-white hover:bg-[#5b21b6]"
+        >
+          <IconPlus className="size-4" />
+          Add social account
+        </button>
+        <a
+          href="https://app.postfa.st"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#dddde5] px-4 text-sm font-semibold text-[#4f4f5b] hover:bg-[#f7f7fa]"
+        >
+          <IconExternalLink className="size-4" />
+          Manage authorization in PostFast
+        </a>
+      </div>
       {error ? (
         <p className="mb-4 text-sm font-medium text-[#b43e4d]">{error}</p>
       ) : null}
       {loading ? (
-        <p className="text-sm text-[#686875]">Loading connected accounts…</p>
+        <ListSkeleton count={4} className="border-y border-[#ececf1]" />
       ) : accounts.length ? (
         <div className="divide-y divide-[#ececf1] border-y border-[#ececf1]">
           {accounts.map((a) => (
@@ -199,10 +267,21 @@ function AccountsPanel() {
                   {a.provider}
                 </p>
               </div>
-              <span className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-[#27845b]">
-                <IconCheck className="size-4" />
-                Connected
-              </span>
+              <div className="ml-auto flex items-center gap-3">
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#27845b]">
+                  <IconCheck className="size-4" />
+                  Connected
+                </span>
+                <button
+                  type="button"
+                  disabled={pendingId === a.integration_id}
+                  onClick={() => void disconnect(a)}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-[#efcfd3] px-2.5 text-xs font-semibold text-[#a8464f] hover:bg-[#fff5f6] disabled:cursor-wait disabled:opacity-50"
+                >
+                  <IconTrash className="size-3.5" />
+                  Disconnect
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -213,23 +292,78 @@ function AccountsPanel() {
           text="Connect Instagram, TikTok, YouTube, and other publishing destinations."
         />
       )}
+      {disconnectedAccounts.length > 0 ? (
+        <div className="mt-8">
+          <h3 className="text-sm font-semibold">Disconnected from LumenClip</h3>
+          <p className="mt-1 text-xs leading-5 text-[#858592]">
+            These accounts remain authorized in PostFast until you revoke them
+            there.
+          </p>
+          <div className="mt-3 divide-y divide-[#ececf1] border-y border-[#ececf1]">
+            {disconnectedAccounts.map((account) => (
+              <div
+                key={`${account.provider}:${account.integration_id}`}
+                className="flex items-center gap-3 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">
+                    {account.name || account.profile || account.provider}
+                  </p>
+                  <p className="text-xs text-[#858592] capitalize">
+                    {account.provider}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={pendingId === account.integration_id}
+                  onClick={() => void restore(account)}
+                  className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-[#dddde5] px-2.5 text-xs font-semibold hover:bg-[#f7f7fa] disabled:cursor-wait disabled:opacity-50"
+                >
+                  <IconRefresh className="size-3.5" />
+                  Restore
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
 
+function normalizedIntegrations(values: unknown[] | undefined) {
+  return (values ?? []).flatMap((value) => {
+    const integration = normalizePostFastIntegration(value)
+    return integration ? [integration] : []
+  })
+}
+
 function TeamPanel() {
   const [members, setMembers] = useState<Member[]>([]),
+    [loading, setLoading] = useState(true),
     [open, setOpen] = useState(false),
     [email, setEmail] = useState(""),
     [pending, setPending] = useState(false),
     [error, setError] = useState("")
   async function load() {
-    const r = await fetch("/api/settings/team")
-    const p = await r.json().catch(() => null)
-    if (r.ok) setMembers(p.members || [])
+    try {
+      const r = await fetch("/api/settings/team")
+      const p = await r.json().catch(() => null)
+      if (r.ok) {
+        setMembers(p.members || [])
+        setError("")
+      } else {
+        setError(p?.error || "Could not load team members.")
+      }
+    } catch {
+      setError("Could not load team members.")
+    } finally {
+      setLoading(false)
+    }
   }
   useEffect(() => {
-    void load()
+    const timer = window.setTimeout(() => void load(), 0)
+    return () => window.clearTimeout(timer)
   }, [])
   async function invite(e: React.FormEvent) {
     e.preventDefault()
@@ -244,6 +378,7 @@ function TeamPanel() {
     if (r.ok) {
       setOpen(false)
       setEmail("")
+      setLoading(true)
       await load()
     } else setError(p?.error || "Invitation failed.")
     setPending(false)
@@ -261,7 +396,12 @@ function TeamPanel() {
         <IconPlus className="size-4" />
         Add member
       </button>
-      {members.length ? (
+      {error ? (
+        <p className="mb-4 text-sm font-medium text-[#b43e4d]">{error}</p>
+      ) : null}
+      {loading ? (
+        <ListSkeleton count={4} className="border-y border-[#ececf1]" />
+      ) : members.length ? (
         <div className="divide-y divide-[#ececf1] border-y border-[#ececf1]">
           {members.map((m) => (
             <div key={m.id} className="flex items-center gap-3 py-4">
@@ -336,16 +476,29 @@ function TeamPanel() {
 
 function DemosPanel() {
   const [demos, setDemos] = useState<Demo[]>([]),
+    [loading, setLoading] = useState(true),
     [pending, setPending] = useState(false),
     [error, setError] = useState("")
   const input = useRef<HTMLInputElement>(null)
   async function load() {
-    const r = await fetch("/api/settings/demos")
-    const p = await r.json().catch(() => null)
-    if (r.ok) setDemos(p.demos || [])
+    try {
+      const r = await fetch("/api/settings/demos")
+      const p = await r.json().catch(() => null)
+      if (r.ok) {
+        setDemos(p.demos || [])
+        setError("")
+      } else {
+        setError(p?.error || "Could not load demos.")
+      }
+    } catch {
+      setError("Could not load demos.")
+    } finally {
+      setLoading(false)
+    }
   }
   useEffect(() => {
-    void load()
+    const timer = window.setTimeout(() => void load(), 0)
+    return () => window.clearTimeout(timer)
   }, [])
   async function upload(file: File) {
     setPending(true)
@@ -355,8 +508,10 @@ function DemosPanel() {
     form.set("title", file.name.replace(/\.[^.]+$/, ""))
     const r = await fetch("/api/settings/demos", { method: "POST", body: form })
     const p = await r.json().catch(() => null)
-    if (r.ok) await load()
-    else setError(p?.error || "Upload failed.")
+    if (r.ok) {
+      setLoading(true)
+      await load()
+    } else setError(p?.error || "Upload failed.")
     setPending(false)
   }
   return (
@@ -365,26 +520,24 @@ function DemosPanel() {
         title="Demos"
         description="Upload product walkthroughs and example videos for your workspace."
       />
-      <input
-        ref={input}
-        hidden
-        type="file"
+      <UploadDropzone
+        inputRef={input}
         accept="video/*"
-        onChange={(e) => {
-          const f = e.target.files?.[0]
+        disabled={pending}
+        onFiles={(files) => {
+          const f = files?.[0]
           if (f) void upload(f)
         }}
-      />
-      <button
-        onClick={() => input.current?.click()}
-        disabled={pending}
-        className="mb-6 inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#6d28d9] px-4 text-sm font-semibold text-white disabled:opacity-60"
       >
-        <IconUpload className="size-4" />
-        {pending ? "Uploading…" : "Upload demo"}
-      </button>
+        <Button className="mb-6" variant="action" disabled={pending}>
+          <IconUpload className="size-4" />
+          {pending ? "Uploading…" : "Upload demo"}
+        </Button>
+      </UploadDropzone>
       {error ? <p className="mb-4 text-sm text-[#b43e4d]">{error}</p> : null}
-      {demos.length ? (
+      {loading ? (
+        <CardGridSkeleton count={4} className="sm:grid-cols-2 xl:grid-cols-2" />
+      ) : demos.length ? (
         <div className="grid gap-4 sm:grid-cols-2">
           {demos.map((d) => (
             <article

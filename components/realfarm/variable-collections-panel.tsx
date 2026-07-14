@@ -9,6 +9,8 @@ import {
 } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { CardGridSkeleton } from "@/components/ui/loading-skeleton"
 import { SearchControl } from "@/components/ui/form-controls"
 import { AppModal, AppModalPanel } from "@/components/ui/modal"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
@@ -34,6 +36,7 @@ export function VariableCollectionsPanel() {
   const [error, setError] = useState("")
   const [draft, setDraft] = useState<VariableDraft | null>(null)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState<WordCollectionRecord | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -123,9 +126,6 @@ export function VariableCollectionsPanel() {
   }
 
   async function deleteCollection(collection: WordCollectionRecord) {
-    if (!window.confirm(`Delete [[${collection.id}]] and all of its values?`)) {
-      return
-    }
     try {
       await fetchJsonWithTimeout(
         `/api/word-collections/${encodeURIComponent(collection.id)}`,
@@ -168,9 +168,7 @@ export function VariableCollectionsPanel() {
       ) : null}
 
       {loading ? (
-        <div className="app-empty-state grid min-h-[260px] place-items-center text-[14px] font-semibold text-app-muted-text">
-          Loading variables…
-        </div>
+        <CardGridSkeleton count={6} />
       ) : filteredCollections.length === 0 ? (
         <button
           type="button"
@@ -229,7 +227,7 @@ export function VariableCollectionsPanel() {
                     size="icon-control-sm"
                     className="text-app-danger"
                     aria-label={`Delete ${collection.id}`}
-                    onClick={() => void deleteCollection(collection)}
+                    onClick={() => setDeleting(collection)}
                   >
                     <IconTrash className="size-4" />
                   </Button>
@@ -269,6 +267,16 @@ export function VariableCollectionsPanel() {
           onSave={() => void saveDraft()}
         />
       ) : null}
+      {deleting ? (
+        <ConfirmDialog
+          title={`Delete [[${deleting.id}]]?`}
+          description="This permanently removes the variable collection and all of its values."
+          confirmLabel="Delete variable"
+          pendingLabel="Deleting…"
+          onCancel={() => setDeleting(null)}
+          onConfirm={() => deleteCollection(deleting)}
+        />
+      ) : null}
     </div>
   )
 }
@@ -288,7 +296,10 @@ function VariableCollectionModal({
 }) {
   return (
     <AppModal onClose={onClose}>
-      <AppModalPanel className="max-w-[560px] p-5">
+      <AppModalPanel
+        accessibleTitle={draft.originalId ? "Edit variable" : "New variable"}
+        className="max-w-[560px] p-5"
+      >
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-[20px] font-semibold text-app-text">

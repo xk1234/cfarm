@@ -1,9 +1,19 @@
 import { clean, isRecord } from "@/lib/guards"
+import type {
+  AutomationRunSlideRole,
+  AutomationRunSlideView,
+  AutomationRunStatus,
+} from "@/lib/automation-run-contract"
+import { splitDebateHook } from "@/lib/debate-hook"
 import { randomUUID } from "node:crypto"
 import path from "node:path"
 import { DateTime } from "luxon"
 
 import { listAutomationRecords, type AutomationRecord } from "@/lib/automations"
+import {
+  clearAutomationRunProgress,
+  setAutomationRunProgress,
+} from "@/lib/automation-run-progress"
 import {
   deeplTargetLanguage,
   translateTextsWithDeepL,
@@ -22,6 +32,7 @@ import {
   isAutomationHookInstruction,
   updateAutomationFormatSection,
   type AutomationSchema,
+  type AutomationContentRoute,
 } from "@/lib/realfarm-automation"
 import { collectionAliases, slugify } from "@/lib/realfarm-collections"
 import {
@@ -42,10 +53,15 @@ import {
   type SlideshowSlide,
   type SlideshowTextItem,
 } from "@/lib/slideshows"
-import { slideshowTextPositionX } from "@/lib/slideshow-renderer"
-import type { ResultRecord, ResultStatus } from "@/lib/results"
+import {
+  defaultSlideshowAspectRatio,
+  defaultSlideshowFont,
+  slideshowTextPositionX,
+} from "@/lib/slideshow-renderer"
+import type { ResultRecord } from "@/lib/results"
 import {
   automationSchemaToTempSlideTestingAutomation,
+  hookImpliedSlideCount,
   type TempSlideSpec,
   type TempSlideStructuredOutput,
 } from "@/lib/temp-slide-testing"
@@ -72,15 +88,17 @@ import {
   listKnowledgeBases,
 } from "@/lib/knowledge-bases"
 import { selectSlideshowImageWithAi } from "@/lib/slideshow-image-matching"
-import { benchmarkAndStoreGeneratedSlideshow } from "@/lib/slideshow-benchmarks"
+import {
+  benchmarkAndStoreGeneratedSlideshow,
+  listGeneratedSlideshowBenchmarks,
+} from "@/lib/slideshow-benchmarks"
 import {
   readJsonArrayStore,
   withJsonArrayStore,
   writeJsonArrayStore,
 } from "@/lib/json-store"
 
-// A run's terminal states are exactly a result's outcomes, plus "running".
-export type AutomationRunStatus = ResultStatus | "running"
+export type { AutomationRunStatus } from "@/lib/automation-run-contract"
 
 export type AutomationRunRecord = {
   id: string
@@ -127,12 +145,18 @@ export type AutomationRunPlan = {
   textModel?: string
   language: string
   translationProvider?: "deepl"
+  contentStrategy?: {
+    routeId: string
+    format: AutomationContentRoute["format"]
+    ctaStrategy: AutomationContentRoute["cta_strategy"]
+  }
   debug?: {
     selectedHookIndex?: number
     textGenerationError?: string
     textSimilarityRetry?: boolean
     textModelPrompt?: SlideshowTextGenerationResult["promptPayload"]
     textGenerationResult?: TempSlideStructuredOutput
+    webSearchSources?: SlideshowTextGenerationResult["webSearchSources"]
   }
 }
 
@@ -144,9 +168,9 @@ export type AutomationRunReuseWarning = {
   reason: string
 }
 
-export type AutomationRunSlide = {
+export type AutomationRunSlide = AutomationRunSlideView & {
   id: string
-  role: "hook" | "content" | "cta"
+  role: AutomationRunSlideRole
   imageUrl: string
   imageKey?: string
   imageCaption: string
@@ -164,7 +188,7 @@ export type AutomationRunSlide = {
   textItems?: SlideshowTextItem[]
 }
 
-export type AutomationRunRenderedSlide = {
+export type AutomationRunRenderedSlide = AutomationRunSlideView & {
   id: string
   role?: AutomationRunSlide["role"]
   imageUrl: string
@@ -437,6 +461,7 @@ export async function runDueAutomations(
         now,
         random: input.random,
       }).catch(async (error) => {
+        clearAutomationRunProgress(claim.run!.id)
         await updateAutomationRun(
           runRootDir,
           failedClaimedAutomationRun(claim.run!, error)
@@ -520,17 +545,7 @@ function dueAutomationSlots(
       random,
     })
   })
-  const intervalSlots = intervalScheduleSlots({
-    schema,
-    nowLocal,
-    earliest,
-    jitterMinutes,
-    random,
-  })
-
-  return [...explicitSlots, ...intervalSlots].filter((value): value is string =>
-    Boolean(value)
-  )
+  return explicitSlots.filter((value): value is string => Boolean(value))
 }
 
 function dueSlotForDays(input: {
@@ -556,44 +571,6 @@ function dueSlotForDays(input: {
     scheduledSlot.toUTC().toISO({ suppressMilliseconds: false }) ??
       scheduledSlot.toUTC().toISO(),
   ]
-}
-
-function intervalScheduleSlots(input: {
-  schema: AutomationSchema
-  nowLocal: DateTime
-  earliest: DateTime
-  jitterMinutes: number
-  random: () => number
-}) {
-  const interval = input.schema.schedule.interval
-  if (!interval || interval.enabled === false) {
-    return []
-  }
-  const day = input.nowLocal.toFormat("ccc")
-  if (!interval.days.includes(day as never)) {
-    return []
-  }
-  const start = parseLocalSlot(input.nowLocal, interval.start_time)
-  const end = parseLocalSlot(input.nowLocal, interval.end_time)
-  if (!start || !end || end < start) {
-    return []
-  }
-
-  const slots: string[] = []
-  let slot = start
-  while (slot <= end) {
-    if (slot <= input.nowLocal && slot >= input.earliest) {
-      const scheduledSlot = applyJitter(slot, input.jitterMinutes, input.random)
-      const iso =
-        scheduledSlot.toUTC().toISO({ suppressMilliseconds: false }) ??
-        scheduledSlot.toUTC().toISO()
-      if (iso) {
-        slots.push(iso)
-      }
-    }
-    slot = slot.plus({ hours: interval.every_n_hours })
-  }
-  return slots
 }
 
 function applyJitter(
@@ -643,6 +620,7 @@ async function createAutomationRun(input: {
   random?: () => number
 }) {
   const now = new Date().toISOString()
+  const runId = input.claimedRun.id
   let plan: AutomationRunPlan
   try {
     plan = await createAutomationRunPlan(input.record.schema, {
@@ -655,8 +633,11 @@ async function createAutomationRun(input: {
       usedHookCombinationKeys: input.usedHookCombinationKeys,
       now: input.now,
       random: input.random,
+      onProgress: (stage, detail) =>
+        setAutomationRunProgress(runId, stage, detail),
     })
   } catch (error) {
+    clearAutomationRunProgress(runId)
     if (
       error instanceof HookCombinationsExhaustedError ||
       error instanceof InsufficientUniqueImagesError
@@ -682,9 +663,11 @@ async function createAutomationRun(input: {
         : undefined,
   }
   if (status === "failed") {
+    clearAutomationRunProgress(runId)
     return { run }
   }
 
+  setAutomationRunProgress(runId, "Rendering slides", plan.hook)
   const { slideshow, result } = await createSlideshowResultRecord({
     rootDir: input.slideshowRootDir,
     resultRootDir: input.resultRootDir,
@@ -703,6 +686,7 @@ async function createAutomationRun(input: {
 
   let benchmarkId: string | undefined
   let benchmarkError: string | undefined
+  setAutomationRunProgress(runId, "Scoring benchmark", plan.hook)
   try {
     const benchmark = await benchmarkAndStoreGeneratedSlideshow({
       slideshowId: slideshow.id,
@@ -780,6 +764,7 @@ async function createAutomationRun(input: {
     rootDir: input.usageLedgerRootDir,
     usedAt: input.now.toISOString(),
   })
+  clearAutomationRunProgress(runId)
 
   return {
     run: runWithRenderedSlides(runWithStatuses, slideshow),
@@ -845,8 +830,8 @@ function runWithRenderedSlides(
       sourceImageUrl: slide.source_image_url,
       imageCaption: planSlide?.imageCaption,
       text: firstText,
-      durationMs: slide.time_length_ms,
-      aspectRatio: slide.aspect_ratio,
+      durationMs: Math.max(1, slideshow.settings.duration) * 1000,
+      aspectRatio: slideshow.settings.aspect_ratio,
     })
   })
 
@@ -951,8 +936,10 @@ async function createAutomationRunPlan(
     systemPrompt?: string
     promptInstructions?: string
     includeTextGenerationResult?: boolean
+    onProgress?: (stage: string, detail?: string) => void
   } = {}
 ): Promise<AutomationRunPlan> {
+  const progress = options.onProgress ?? (() => {})
   const configuredContent = automationFormatSection(schema, "content")
   const slideCountMode = configuredContent.slideCountMode ?? "static"
   const {
@@ -982,8 +969,7 @@ async function createAutomationRunPlan(
       },
     }
   }
-  const collectionIds = automationCollectionIds(schema)
-  const slideCount = automationTotalSlideCount(schema)
+  progress("Selecting hook")
   const hookCandidates = automationHooks(schema)
   const hookSelection = await selectAutomationHook({
     schema,
@@ -1000,13 +986,51 @@ async function createAutomationRunPlan(
     hookSelection.expansion.text || schema.title,
     automationFormatSection(schema, "hook").textItems[0]?.contentDirection
   )
-  const textAutomation = automationSchemaToTempSlideTestingAutomation(schema)
+  // A hook that promises "N things ..." must produce exactly N body slides.
+  const impliedContentCount = hookImpliedSlideCount(hook)
+  if (
+    impliedContentCount &&
+    impliedContentCount !==
+      automationFormatSection(schema, "content").slideCount
+  ) {
+    const hookSlideCount = automationFormatSection(schema, "hook").slideCount
+    const ctaSlideCount = automationFormatSection(schema, "cta").slideCount
+    schema = {
+      ...updateAutomationFormatSection(schema, "content", {
+        slideCount: impliedContentCount,
+      }),
+      prompt_formatting: {
+        ...schema.prompt_formatting,
+        num_of_slides: Math.max(
+          1,
+          hookSlideCount + impliedContentCount + ctaSlideCount
+        ),
+      },
+    }
+  }
+  progress("Writing slide text", hook)
+  const slideCount = automationTotalSlideCount(schema)
+  const contentRoute = selectAutomationContentRoute(schema, hook)
+  const collectionIds =
+    contentRoute?.collection_ids ?? automationCollectionIds(schema)
+  const baseTextAutomation =
+    automationSchemaToTempSlideTestingAutomation(schema)
+  const textAutomation = contentRoute
+    ? {
+        ...baseTextAutomation,
+        slides: baseTextAutomation.slides.map((slide) => ({
+          ...slide,
+          collectionId: "",
+        })),
+      }
+    : baseTextAutomation
   const selectedKnowledgeIds = schema.knowledge_base_ids ?? []
   const selectedKnowledgeContext = selectedKnowledgeIds.length
     ? knowledgeContext(await listKnowledgeBases(), selectedKnowledgeIds)
     : ""
   const promptInstructions = [
     options.promptInstructions,
+    contentRoutePrompt(contentRoute),
     knowledgeContextPrompt(selectedKnowledgeContext),
   ]
     .filter(Boolean)
@@ -1019,12 +1043,18 @@ async function createAutomationRunPlan(
         now: options.now,
       })
     : []
+  const performanceMemory = options.automationId
+    ? await automationPerformanceMemory(options.automationId)
+    : undefined
   let textGeneration = await generateAutomationText({
     automation: textAutomation,
     hook,
     model: options.textModel,
     systemPrompt: options.systemPrompt,
     promptInstructions,
+    webSearchEnabled: schema.web_search_enabled,
+    requireHookSubjectCoverage: Boolean(selectedKnowledgeContext),
+    performanceMemory,
   })
   let textSimilarityRetry = false
   if (
@@ -1035,6 +1065,7 @@ async function createAutomationRunPlan(
       { threshold: schema.reuse_policy?.text_similarity_threshold ?? 0.85 }
     )
   ) {
+    progress("Rewriting slide text (too similar to a recent post)", hook)
     const retry = await generateAutomationText({
       automation: textAutomation,
       hook,
@@ -1042,6 +1073,9 @@ async function createAutomationRunPlan(
       model: options.textModel,
       systemPrompt: options.systemPrompt,
       promptInstructions,
+      webSearchEnabled: schema.web_search_enabled,
+      requireHookSubjectCoverage: Boolean(selectedKnowledgeContext),
+      performanceMemory,
     })
     if (retry) {
       textGeneration = retry
@@ -1051,6 +1085,7 @@ async function createAutomationRunPlan(
   const textGenerationError = textGeneration
     ? undefined
     : "OPENROUTER_API_KEY is not configured"
+  progress("Choosing images", hook)
   const imageCollections = await readImageCollections(
     options.imageCollectionDbPath
   )
@@ -1089,7 +1124,7 @@ async function createAutomationRunPlan(
     random: options.random,
   })
   const slides = await translateAutomationSlides({
-    language: schema.image_collection_ids.language || defaultAutomationLanguage,
+    language: schema.language || defaultAutomationLanguage,
     slides: slideResult.slides,
   })
   const caption =
@@ -1118,22 +1153,68 @@ async function createAutomationRunPlan(
     reuseWarnings: slideResult.reuseWarnings,
     hookCandidates,
     textModel: textGeneration?.model,
-    language: schema.image_collection_ids.language || defaultAutomationLanguage,
+    language: schema.language || defaultAutomationLanguage,
     translationProvider: deeplTargetLanguage(
-      schema.image_collection_ids.language || defaultAutomationLanguage
+      schema.language || defaultAutomationLanguage
     )
       ? "deepl"
+      : undefined,
+    contentStrategy: contentRoute
+      ? {
+          routeId: contentRoute.id,
+          format: contentRoute.format,
+          ctaStrategy: contentRoute.cta_strategy,
+        }
       : undefined,
     debug: {
       selectedHookIndex: hookSelection.index,
       textGenerationError,
       textSimilarityRetry,
       textModelPrompt: textGeneration?.promptPayload,
+      webSearchSources: textGeneration?.webSearchSources,
       textGenerationResult: options.includeTextGenerationResult
         ? textGeneration?.result
         : undefined,
     },
   }
+}
+
+export function selectAutomationContentRoute(
+  schema: Pick<AutomationSchema, "content_strategy">,
+  hook: string
+) {
+  const normalizedHook = clean(hook).toLowerCase()
+  return schema.content_strategy?.routes.find((route) =>
+    route.hook_patterns.some((pattern) => {
+      try {
+        return new RegExp(pattern, "i").test(normalizedHook)
+      } catch {
+        return normalizedHook.includes(pattern.toLowerCase())
+      }
+    })
+  )
+}
+
+function contentRoutePrompt(route: AutomationContentRoute | undefined) {
+  if (!route) return ""
+  const formatDirections: Record<AutomationContentRoute["format"], string> = {
+    visual_decision:
+      "Use a visual decision-guide structure: name or compare concrete visible options. Each body line must describe a choice that can be supported by the selected image caption.",
+    mistake_replacement:
+      "Use a mistake-and-replacement structure: identify a visible design choice, state why it fails, and give a concrete replacement. Never invent a flaw that the selected collection cannot show.",
+    designer_recommendation:
+      "Use a designer-recommendation structure: make one specific room decision at a time and briefly explain the practical result.",
+  }
+  const ctaDirections: Record<AutomationContentRoute["cta_strategy"], string> =
+    {
+      comment_prompt:
+        "End with a soft comment prompt asking which visible option the viewer would choose.",
+      save_prompt:
+        "End with a small save prompt tied to the exact room decision.",
+      customer_prompt:
+        "End with a low-friction customer prompt asking the viewer to comment the room they need help with. Do not hard sell.",
+    }
+  return `Selected repeatable format: ${route.format}. ${formatDirections[route.format]} ${ctaDirections[route.cta_strategy]}`
 }
 
 export function applyHookTextDirection(
@@ -1228,7 +1309,11 @@ async function selectAutomationHook(input: {
     expandAllHookCombinations(
       candidate,
       input.schema.hook_slots,
-      wordCollections
+      wordCollections,
+      {
+        noDuplicates: input.schema.hook_no_duplicate_slots === true,
+        caseMode: input.schema.prompt_formatting.hook_case,
+      }
     ).map((expansion) => ({ expansion, index }))
   )
   const available = expanded.filter(({ expansion }) => {
@@ -1375,6 +1460,12 @@ async function generateAutomationText(input: {
   model?: string
   systemPrompt?: string
   promptInstructions?: string
+  webSearchEnabled?: boolean
+  requireHookSubjectCoverage?: boolean
+  performanceMemory?: {
+    provenPatterns: string[]
+    avoidPatterns: string[]
+  }
 }) {
   const apiKey = clean(process.env.OPENROUTER_API_KEY)
   if (!apiKey) {
@@ -1388,8 +1479,41 @@ async function generateAutomationText(input: {
     promptInstructions: input.promptInstructions,
     selectedHook: input.hook,
     avoidSimilarOutputs: input.avoidSimilarOutputs,
+    webSearchEnabled: input.webSearchEnabled,
+    requireHookSubjectCoverage: input.requireHookSubjectCoverage,
+    performanceMemory: input.performanceMemory,
     apiKey,
   })
+}
+
+async function automationPerformanceMemory(automationId: string) {
+  try {
+    const records = await listGeneratedSlideshowBenchmarks({
+      automationId,
+      limit: 8,
+    })
+    const provenPatterns = records
+      .filter((record) => record.scores.overall >= 8)
+      .flatMap((record) => Object.values(record.rationales))
+      .map(clean)
+      .filter(Boolean)
+      .slice(0, 4)
+    const avoidPatterns = records
+      .filter((record) => record.scores.overall <= 5)
+      .flatMap((record) => Object.values(record.rationales))
+      .map(clean)
+      .filter(Boolean)
+      .slice(0, 3)
+    return provenPatterns.length || avoidPatterns.length
+      ? { provenPatterns, avoidPatterns }
+      : undefined
+  } catch (error) {
+    console.warn("Could not load slideshow performance memory", {
+      automationId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return undefined
+  }
 }
 
 function textUsageKeyFromGeneratedOutput(output: TempSlideStructuredOutput) {
@@ -1435,6 +1559,7 @@ function overlayImageForSlide(input: {
   collections: Awaited<ReturnType<typeof readImageCollections>>
   slide: TempSlideSpec
   slideIndex: number
+  matchText?: string
 }): AutomationRunSlide["overlayImage"] {
   if (
     !input.slide.overlayImage?.enabled ||
@@ -1446,7 +1571,12 @@ function overlayImageForSlide(input: {
     collections: input.collections,
     collectionIds: [input.slide.overlayImage.collectionId],
   })
-  const image = images[input.slideIndex % Math.max(1, images.length)]
+  // Prefer the overlay whose caption shares words with the hook/slide text
+  // (e.g. the "cancer zodiac bracelet" cutout on a Cancer post) so per-sign
+  // product overlays never attach the wrong sign. Falls back to index rotation.
+  const image =
+    bestCaptionMatch(images, input.matchText) ??
+    images[input.slideIndex % Math.max(1, images.length)]
   if (!image) {
     return undefined
   }
@@ -1456,6 +1586,40 @@ function overlayImageForSlide(input: {
     imageCaption: image.imageCaption,
     padding: Math.max(0, input.slide.overlayImage.height),
   }
+}
+
+function bestCaptionMatch<T extends { imageCaption?: string }>(
+  images: T[],
+  matchText: string | undefined
+): T | undefined {
+  const targetTokens = new Set(captionMatchTokens(matchText))
+  if (targetTokens.size === 0) {
+    return undefined
+  }
+  let best: T | undefined
+  let bestScore = 0
+  for (const image of images) {
+    let score = 0
+    for (const token of captionMatchTokens(image.imageCaption)) {
+      if (targetTokens.has(token)) score += 1
+    }
+    if (score > bestScore) {
+      best = image
+      bestScore = score
+    }
+  }
+  return best
+}
+
+// Normalized for matching: lowercase, letters only, trailing plural "s"
+// stripped from BOTH sides so "Capricorns" matches "capricorn" (and "aries"
+// still matches "aries" since both normalize to "arie").
+function captionMatchTokens(value: string | undefined) {
+  return clean(value)
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter((token) => token.length >= 4)
+    .map((token) => token.replace(/s$/, ""))
 }
 
 async function createSlides(input: {
@@ -1550,6 +1714,7 @@ async function createSlides(input: {
           collections: input.imageCollections,
           slide,
           slideIndex: index,
+          matchText: `${input.hook} ${text}`,
         }),
         displayText: slide.displayText,
         textItems,
@@ -1648,10 +1813,20 @@ function automationSlideTextItems(input: {
   generatedText?: TempSlideStructuredOutput
 }): SlideshowTextItem[] {
   if (!input.slide || input.slide.section === "hook") {
-    const textItem = input.slide?.textItems[0]
+    const hookItems = input.slide?.textItems ?? []
+    const pair = splitDebateHook(input.hook)
+    if (pair && hookItems.length >= 2) {
+      return hookItems.slice(0, 2).map((textItem, index) =>
+        slideshowTextItemFromTempTextItem({
+          textItem,
+          text: pair[index],
+          fallbackId: `hook-text-${index + 1}`,
+        })
+      )
+    }
     return [
       slideshowTextItemFromTempTextItem({
-        textItem,
+        textItem: hookItems[0],
         text: input.hook,
         fallbackId: "hook-text",
       }),
@@ -1716,14 +1891,13 @@ function fallbackSlideText(input: {
   if (input.section === "cta") {
     return input.title
   }
-  return input.imageCaption || input.hook
+  return input.hook
 }
 
 export function automationRunSlidesToSlideshowSlides(
   schema: AutomationSchema,
   plan: AutomationRunPlan
 ): SlideshowSlide[] {
-  const settings = automationSlideshowSettings(schema)
   return plan.slides.map((slide, index) => {
     const section = automationFormatSection(
       schema,
@@ -1740,7 +1914,6 @@ export function automationRunSlidesToSlideshowSlides(
             {
               id: textItem?.id || `text-${index + 1}`,
               text,
-              font: textItem?.font || "TikTok Display Medium",
               fontSize: textItem?.fontSize || "10px",
               textSize: {
                 width: textItemWidth(textItem?.textItemWidth, text),
@@ -1765,8 +1938,7 @@ export function automationRunSlidesToSlideshowSlides(
           }
         : undefined,
       overlay: slide.overlay,
-      aspect_ratio: slide.aspectRatio || section.aspect_ratio || "9:16",
-      time_length_ms: Math.max(1, settings.duration) * 1000,
+      imageFit: schema.image_fit,
       textItems,
     }
   })
@@ -1781,7 +1953,6 @@ function slideshowTextItemFromTempTextItem(input: {
   return {
     id: input.textItem?.itemId || input.textItem?.id || input.fallbackId,
     text: input.text,
-    font: input.textItem?.font || "TikTok Display Medium",
     fontSize: input.textItem?.fontSize || "10px",
     textSize: {
       width: textItemWidth(input.textItem?.textItemWidth, input.text),
@@ -1803,18 +1974,15 @@ function tempTextPlacement(
   return value === "bottom" || value === "center" ? value : "top"
 }
 
-function automationSlideshowSettings(schema: AutomationSchema) {
-  const content = automationFormatSection(schema, "content")
+export function automationSlideshowSettings(schema: AutomationSchema) {
   const tiktok = schema.tiktok_post_settings
   return defaultSlideshowSettings({
     duration: slideshowDurationValue(tiktok.slideshow_slide_duration),
+    aspect_ratio: clean(schema.aspect_ratio) || defaultSlideshowAspectRatio,
+    font: clean(schema.font) || defaultSlideshowFont,
     background_color: "#000000",
-    is_bg_overlay_on: content.overlay,
     transition_style:
       clean(tiktok.slideshow_transition_style) || defaultSlideshowTransition,
-    is_bg_overlay_on_hook_image: Boolean(
-      schema.image_collection_ids.is_bg_overlay_on_hook_image
-    ),
     export_as_video: automationPublishType(schema) === "video",
     sound_id: clean(tiktok.slideshow_sound_id),
     sound_name: clean(tiktok.slideshow_sound_name),
@@ -1955,6 +2123,10 @@ function usablePromptFallback(value: string) {
 function isPlaceholderInstruction(value: string) {
   const normalized = value.toLowerCase()
   return (
+    normalized.startsWith("write ") ||
+    normalized.startsWith("create ") ||
+    normalized.startsWith("generate ") ||
+    normalized.startsWith("each ") ||
     normalized.includes("supporting text") ||
     normalized.includes("content varies based on narrative") ||
     normalized.includes("numbered") ||
@@ -2134,9 +2306,33 @@ async function claimAutomationRunSlot(input: {
         scheduledFor: input.scheduledFor,
         now: input.now,
       })
+      // Self-heal: a process restart mid-run leaves records stuck in
+      // "running" forever. Anything past the claim guard is dead — mark it
+      // failed so the UI reflects reality.
+      const healed = runs.map((existingRun) => {
+        if (existingRun.status !== "running") {
+          return existingRun
+        }
+        const updatedAt = new Date(clean(existingRun.updatedAt)).getTime()
+        const guardMs = runningClaimGuardMinutes * 60 * 1000
+        if (
+          Number.isFinite(updatedAt) &&
+          input.now.getTime() - updatedAt >= guardMs
+        ) {
+          return {
+            ...existingRun,
+            status: "failed" as const,
+            error:
+              clean(existingRun.error) ||
+              "Run was interrupted before it completed.",
+            updatedAt: input.now.toISOString(),
+          }
+        }
+        return existingRun
+      })
       const records = input.force
-        ? runs
-        : runs.filter(
+        ? healed
+        : healed.filter(
             (existingRun) =>
               !isSameAutomationSlot({
                 run: existingRun,
@@ -2150,6 +2346,34 @@ async function claimAutomationRunSlot(input: {
       }
     },
   })
+}
+
+export async function removeAutomationRunSlide(input: {
+  runRootDir?: string
+  slideshowId: string
+  slideIndex: number
+}) {
+  const runRootDir = input.runRootDir ?? defaultRunRootDir
+  const runs = await readAutomationRuns(runRootDir)
+  const run = runs.find((record) => record.slideshowId === input.slideshowId)
+  if (!run) {
+    return null
+  }
+  const dropIndex = Math.floor(input.slideIndex)
+  const without = <T>(items: T[] | undefined) =>
+    items?.filter((_, index) => index !== dropIndex)
+  const updated: AutomationRunRecord = {
+    ...run,
+    plan: {
+      ...run.plan,
+      slides: without(run.plan.slides) ?? [],
+    },
+    renderedSlides: without(run.renderedSlides),
+    outputImages: without(run.outputImages),
+    updatedAt: new Date().toISOString(),
+  }
+  await updateAutomationRun(runRootDir, updated)
+  return updated
 }
 
 async function updateAutomationRun(
@@ -2241,12 +2465,15 @@ function pendingAutomationRunPlan(record: AutomationRecord): AutomationRunPlan {
   const collectionIds = automationCollectionIds(record.schema)
   const content = automationFormatSection(record.schema, "content")
   const slideCount = automationTotalSlideCount(record.schema)
-  const hook = automationHooks(record.schema)[0] || record.schema.title
+  // Placeholder while the run generates. Never seed hook/caption from the raw
+  // narrative here — those lines can contain unexpanded [[slot]] templates and
+  // this record is what surfaces if the run dies before generation completes.
+  const title = record.schema.title || record.name
   return {
-    title: record.schema.title || record.name,
-    caption: hook.toLowerCase(),
+    title,
+    caption: "",
     hashtags: "",
-    hook,
+    hook: "Generating…",
     imageCollectionIds: collectionIds,
     slides: [],
     slideCount: {
@@ -2259,8 +2486,7 @@ function pendingAutomationRunPlan(record: AutomationRecord): AutomationRunPlan {
     autoMusic: record.schema.tiktok_post_settings.auto_music,
     autoPost: record.schema.tiktok_post_settings.auto_post,
     hookCandidates: automationHooks(record.schema),
-    language:
-      record.schema.image_collection_ids.language || defaultAutomationLanguage,
+    language: record.schema.language || defaultAutomationLanguage,
   }
 }
 

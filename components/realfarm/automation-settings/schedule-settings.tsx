@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import type { AutomationDay, AutomationSchema } from "@/lib/realfarm-automation"
+import type { AutomationDay, AutomationSchedule, AutomationSchema } from "@/lib/realfarm-automation"
 import { cn } from "@/lib/utils"
 
 import {
@@ -24,7 +24,28 @@ export function SchedulePanel({
   onCancel: () => void
   onSave: () => void
 }) {
-  const postingTimes = schedulePostingTimes(config)
+  return (
+    <PostingSchedulePanel
+      schedule={config.schedule}
+      onScheduleChange={(schedule) => onConfigChange({ ...config, schedule })}
+      onCancel={onCancel}
+      onSave={onSave}
+    />
+  )
+}
+
+export function PostingSchedulePanel({
+  schedule,
+  onScheduleChange,
+  onCancel,
+  onSave,
+}: {
+  schedule: AutomationSchedule
+  onScheduleChange: (schedule: AutomationSchedule) => void
+  onCancel: () => void
+  onSave: () => void
+}) {
+  const postingTimes = schedulePostingTimes({ schedule } as AutomationSchema)
   const weeklyPostCount = postingTimes.reduce(
     (total, postingTime) => total + postingTime.days.length,
     0
@@ -33,12 +54,9 @@ export function SchedulePanel({
   function updatePostingTimes(
     nextPostingTimes: AutomationSchema["schedule"]["posting_times"]
   ) {
-    onConfigChange({
-      ...config,
-      schedule: {
-        ...config.schedule,
-        posting_times: nextPostingTimes.slice(0, 5),
-      },
+    onScheduleChange({
+      ...schedule,
+      posting_times: nextPostingTimes.slice(0, 5),
     })
   }
 
@@ -90,7 +108,7 @@ export function SchedulePanel({
       title="Posting times"
       action={
         <span className="rounded-full bg-[#333] px-4 py-2 text-[14px] font-semibold text-white">
-          {timezoneLabel(config.schedule.timezone)}
+          {timezoneLabel(schedule.timezone)}
         </span>
       }
     >
@@ -161,5 +179,4 @@ export function SchedulePanel({
     </SettingsPage>
   )
 }
-
 

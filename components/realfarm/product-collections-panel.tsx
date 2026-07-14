@@ -24,7 +24,9 @@ export function ProductCollectionsPanel({
       <div className="app-empty-state grid min-h-[360px] place-items-center text-center">
         <div>
           <IconPackage className="mx-auto size-9 text-app-muted-text" />
-          <h2 className="mt-3 text-[18px] font-semibold">No product collections yet</h2>
+          <h2 className="mt-3 text-[18px] font-semibold">
+            No product collections yet
+          </h2>
         </div>
       </div>
     )
@@ -53,7 +55,9 @@ export function ProductCollectionsPanel({
             </div>
             <div className="p-4">
               <div className="flex items-start justify-between gap-3">
-                <h2 className="text-[15px] font-bold text-app-text">{collection.name}</h2>
+                <h2 className="text-[15px] font-bold text-app-text">
+                  {collection.name}
+                </h2>
                 <span className="shrink-0 rounded-full bg-[#f1f0eb] px-2 py-1 text-[10px] font-bold text-app-muted-text">
                   {collection.items.length} items
                 </span>
@@ -67,7 +71,10 @@ export function ProductCollectionsPanel({
       </div>
 
       {selected ? (
-        <ProductCollectionModal collection={selected} onClose={() => setSelected(null)} />
+        <ProductCollectionModal
+          collection={selected}
+          onClose={() => setSelected(null)}
+        />
       ) : null}
     </>
   )
@@ -82,10 +89,15 @@ function ProductCollectionModal({
 }) {
   return (
     <AppModal className="z-[80]" onClose={onClose}>
-      <AppModalPanel className="flex max-h-[92vh] max-w-[1240px] flex-col overflow-hidden rounded-[12px] bg-[#f6f5f0]">
+      <AppModalPanel
+        accessibleTitle={collection.name}
+        className="flex max-h-[92vh] max-w-[1240px] flex-col overflow-hidden rounded-[12px] bg-[#f6f5f0]"
+      >
         <header className="flex items-start justify-between gap-5 border-b border-app-panel-border bg-white px-6 py-5">
           <div>
-            <h2 className="text-[22px] font-bold text-app-text">{collection.name}</h2>
+            <h2 className="text-[22px] font-bold text-app-text">
+              {collection.name}
+            </h2>
             <p className="mt-1 max-w-[760px] text-[13px] leading-5 font-medium text-app-muted-text">
               {collection.description}
             </p>
@@ -118,7 +130,10 @@ function ProductCollectionModal({
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {collection.items.map((item) => (
-              <article key={item.id} className="overflow-hidden rounded-[10px] border border-app-panel-border bg-white shadow-sm">
+              <article
+                key={item.id}
+                className="overflow-hidden rounded-[10px] border border-app-panel-border bg-white shadow-sm"
+              >
                 <div className="aspect-[4/3] bg-app-panel-border">
                   <ProductImage
                     imageUrl={item.generatedImageUrl}
@@ -127,11 +142,18 @@ function ProductCollectionModal({
                   />
                 </div>
                 <div className="p-4">
-                  <h3 className="line-clamp-2 min-h-10 text-[14px] leading-5 font-bold text-app-text">{item.name}</h3>
-                  <p className="mt-2 line-clamp-3 min-h-[54px] text-[12px] leading-[18px] font-medium text-app-muted-text">{item.useCase}</p>
+                  <h3 className="line-clamp-2 min-h-10 text-[14px] leading-5 font-bold text-app-text">
+                    {item.name}
+                  </h3>
+                  <p className="mt-2 line-clamp-3 min-h-[54px] text-[12px] leading-[18px] font-medium text-app-muted-text">
+                    {item.useCase}
+                  </p>
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     <ProductMetric label="Price" value={item.priceLabel} />
-                    <ProductMetric label={`Est. commission · ${(item.commissionRate * 100).toFixed(1)}%`} value={`S$${item.estimatedCommission.toFixed(2)}`} />
+                    <ProductMetric
+                      label={`Est. commission · ${(item.commissionRate * 100).toFixed(1)}%`}
+                      value={`S$${item.estimatedCommission.toFixed(2)}`}
+                    />
                   </div>
                   <a
                     href={item.marketplaceUrl}
@@ -166,7 +188,9 @@ function ProductImage({
     <div className="relative overflow-hidden bg-white">
       {/* eslint-disable-next-line @next/next/no-img-element -- Product assets are dynamic Appwrite URLs. */}
       <img src={imageUrl} alt={alt} className="h-full w-full object-cover" />
-      <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-1 text-[9px] font-bold text-white backdrop-blur-sm">{label}</span>
+      <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-1 text-[9px] font-bold text-white backdrop-blur-sm">
+        {label}
+      </span>
     </div>
   )
 }
@@ -178,7 +202,9 @@ function ProductMetric({ label, value }: { label: string; value: string }) {
         <IconCurrencyDollarSingapore className="size-3" />
         {label}
       </div>
-      <div className="mt-1 font-mono text-[13px] font-bold text-app-text">{value}</div>
+      <div className="mt-1 font-mono text-[13px] font-bold text-app-text">
+        {value}
+      </div>
     </div>
   )
 }

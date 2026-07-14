@@ -9,6 +9,8 @@ import { Plus } from "lucide-react"
 import {
   formatAspectRatioCss,
   formatPreviewCardSize,
+  previewSlideshowAspectRatio,
+  previewSlideshowFont,
   previewSlideshowSlide,
   type AutomationFormatPreviewItem,
 } from "./format-helpers"
@@ -48,12 +50,17 @@ export function AutomationFormatPreviewCard({
   const displayScale = compact ? 1 : previewBaseScale * zoom
   const size = formatPreviewCardSize(item.section.aspect_ratio, item.image)
   const slide = previewSlideshowSlide(item, index)
+  const aspectRatio = previewSlideshowAspectRatio(item)
+  const font = previewSlideshowFont(item)
   const overlayUrl = slide.overlayImage?.image_url
   const previewSvg = item.image
-    ? renderedSlideSvg(slide, item.image.imageUrl, overlayUrl)
+    ? renderedSlideSvg(slide, item.image.imageUrl, overlayUrl, {
+        aspectRatio,
+        font,
+      })
     : ""
   const previewTextItems = slide.textItems
-  const selectionBoxes = textSelectionBoxes(slide)
+  const selectionBoxes = textSelectionBoxes(slide, aspectRatio)
 
   return (
     <div
@@ -170,8 +177,11 @@ export function AutomationFormatPreviewCard({
   )
 }
 
-function textSelectionBoxes(slide: ReturnType<typeof previewSlideshowSlide>) {
-  const dimensions = slideDimensions(slide.aspect_ratio)
+function textSelectionBoxes(
+  slide: ReturnType<typeof previewSlideshowSlide>,
+  aspectRatio: string
+) {
+  const dimensions = slideDimensions(aspectRatio)
   return renderedTextItemBounds(
     slide.textItems,
     dimensions.width,
