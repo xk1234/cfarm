@@ -208,7 +208,7 @@ export function VideoAutomationFormatPanel({
               >
                 {videoAutomationTemplatePresets.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.name} - {item.tagline}
+                    {item.name}
                   </option>
                 ))}
               </SelectControl>

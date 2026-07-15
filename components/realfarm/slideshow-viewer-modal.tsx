@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { Dialog } from "radix-ui"
 import {
   IconChartBar,
+  IconCopy,
   IconDownload,
   IconTrash,
   IconX,
@@ -135,6 +136,19 @@ function SlideshowViewerContent({
     boundedActiveSlide,
     boundedActiveSlide + 1,
   ]
+  const descriptionAndHashtags = [caption?.trim(), hashtags?.trim()]
+    .filter(Boolean)
+    .join("\n\n")
+
+  async function copyMetadata(label: string, value: string) {
+    if (!value) return
+    try {
+      await navigator.clipboard.writeText(value)
+      toast.success(`${label} copied`)
+    } catch {
+      toast.error(`${label} couldn’t be copied`)
+    }
+  }
 
   async function exportSlides() {
     setExporting(true)
@@ -321,29 +335,52 @@ function SlideshowViewerContent({
         {slideshowTitle || caption || hashtags ? (
           <div className="shrink-0 space-y-1.5 border-t border-[#a8a8a5] bg-[#f7f7f4] px-5 py-3 text-[13px] leading-5">
             {slideshowTitle ? (
-              <div className="min-w-0">
-                <span className="text-[10px] font-bold tracking-[0.06em] text-[#77766f] uppercase">
-                  Title{" "}
-                </span>
-                <span className="font-semibold text-[#242421]">
-                  {slideshowTitle}
-                </span>
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold tracking-[0.06em] text-[#77766f] uppercase">
+                    Title{" "}
+                  </span>
+                  <span className="font-semibold text-[#242421]">
+                    {slideshowTitle}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="grid size-7 shrink-0 place-items-center rounded-[6px] border border-[#d8d7cf] bg-white text-[#56554f] shadow-sm hover:bg-[#efeee9]"
+                  onClick={() =>
+                    void copyMetadata("Title", slideshowTitle)
+                  }
+                  aria-label="Copy title"
+                  title="Copy title"
+                >
+                  <IconCopy className="size-3.5" />
+                </button>
               </div>
             ) : null}
-            {caption ? (
-              <div className="min-w-0">
-                <span className="text-[10px] font-bold tracking-[0.06em] text-[#77766f] uppercase">
-                  Caption{" "}
-                </span>
-                <span className="font-medium text-[#3a3936]">{caption}</span>
-              </div>
-            ) : null}
-            {hashtags ? (
-              <div className="min-w-0">
-                <span className="text-[10px] font-bold tracking-[0.06em] text-[#77766f] uppercase">
-                  Hashtags{" "}
-                </span>
-                <span className="font-medium text-[#5a5954]">{hashtags}</span>
+            {descriptionAndHashtags ? (
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0 whitespace-pre-wrap">
+                  <span className="text-[10px] font-bold tracking-[0.06em] text-[#77766f] uppercase">
+                    Description + hashtags{" "}
+                  </span>
+                  <span className="font-medium text-[#3a3936]">
+                    {descriptionAndHashtags}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="grid size-7 shrink-0 place-items-center rounded-[6px] border border-[#d8d7cf] bg-white text-[#56554f] shadow-sm hover:bg-[#efeee9]"
+                  onClick={() =>
+                    void copyMetadata(
+                      "Description and hashtags",
+                      descriptionAndHashtags
+                    )
+                  }
+                  aria-label="Copy description and hashtags"
+                  title="Copy description and hashtags"
+                >
+                  <IconCopy className="size-3.5" />
+                </button>
               </div>
             ) : null}
           </div>

@@ -340,8 +340,12 @@ export function RealFarmWorkspace({
     [collections]
   )
   const ugcAvatarVideoCollection = useMemo(
-    () => ugcAvatarVideoCollectionFromAssets(data.assets.ugcAvatarVideos),
-    [data.assets.ugcAvatarVideos]
+    () =>
+      ugcAvatarVideoCollectionFromAssets(
+        data.assets.ugcAvatarVideos,
+        collections
+      ),
+    [collections, data.assets.ugcAvatarVideos]
   )
   const visibleCollections = useMemo(
     () => [allImagesCollection, ugcAvatarVideoCollection, ...collections],

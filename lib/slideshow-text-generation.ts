@@ -13,6 +13,7 @@ import {
 import {
   defaultSlideshowTextModel,
   openRouterModelForUseCase,
+  slideshowTextFallbackModels,
 } from "@/lib/realfarm-generation-model-registry"
 import { clean } from "@/lib/guards"
 import { fetchJson } from "@/lib/http"
@@ -33,6 +34,10 @@ type OpenRouterResponse = {
   }[]
   error?: {
     message?: string
+    metadata?: {
+      provider_name?: string
+      raw?: unknown
+    }
   }
   usage?: {
     server_tool_use?: {
@@ -111,6 +116,7 @@ export async function generateSlideshowText(input: {
     apiKey,
     fetchImpl: input.fetchImpl,
     model,
+    fallbackModels: slideshowTextFallbackModels,
     promptPayload,
     placeholders,
     selectedHook,
@@ -123,7 +129,7 @@ export async function generateSlideshowText(input: {
     styleRequestsLowercase(input.systemPrompt) ||
     styleRequestsLowercase(input.promptInstructions)
   return {
-    model,
+    model: completion.model,
     selectedHook,
     result: normalizeTempSlideStructuredOutput(
       completion.output,
@@ -142,45 +148,73 @@ async function requestStructuredOutput(input: {
   apiKey: string
   fetchImpl?: typeof fetch
   model: string
+  fallbackModels?: readonly string[]
   promptPayload: ReturnType<typeof slideshowTextGenerationPayload>
   placeholders: ReturnType<typeof getTempSlidePromptPlaceholders>
   selectedHook: string
   requireHookSubjectCoverage?: boolean
 }) {
   let lastError: unknown
+  let repairError: unknown
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
-    const attemptPayload = lastError
-      ? promptPayloadWithRepairFeedback(input.promptPayload, lastError)
+    const attemptModel =
+      attempt === 1 ? input.model : input.fallbackModels?.[0] || input.model
+    const attemptPayload = repairError
+      ? promptPayloadWithRepairFeedback(input.promptPayload, repairError)
       : input.promptPayload
-    const payload = await fetchJson<OpenRouterResponse>(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${input.apiKey}`,
-          "Content-Type": "application/json",
+    const routedPayload = { ...attemptPayload, model: attemptModel }
+    let payload: OpenRouterResponse
+    try {
+      payload = await fetchJson<OpenRouterResponse>(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${input.apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(routedPayload),
         },
-        body: JSON.stringify(attemptPayload),
-      },
-      {
-        fetchImpl: input.fetchImpl,
-        // Reasoning-heavy models routinely take 30-90s to emit the full
-        // structured slideshow JSON; generation runs in the background, so a
-        // generous timeout beats failing the run.
-        timeoutMs: 120_000,
-        errorMessage: (_response, payload) =>
-          typeof payload === "object" &&
-          payload !== null &&
-          "error" in payload &&
-          typeof payload.error === "object" &&
-          payload.error !== null &&
-          "message" in payload.error &&
-          typeof payload.error.message === "string"
-            ? payload.error.message
-            : "OpenRouter generation failed",
+        {
+          fetchImpl: input.fetchImpl,
+          // Reasoning-heavy models routinely take 30-90s to emit the full
+          // structured slideshow JSON; generation runs in the background, so a
+          // generous timeout beats failing the run.
+          timeoutMs: 120_000,
+          errorMessage: (response, payload) => {
+            const providerError =
+              typeof payload === "object" &&
+              payload !== null &&
+              "error" in payload &&
+              typeof payload.error === "object" &&
+              payload.error !== null
+                ? payload.error
+                : null
+            const providerMessage =
+              providerError &&
+              "message" in providerError &&
+              typeof providerError.message === "string"
+                ? providerError.message
+                : "Provider returned no error details"
+            const providerMetadata = openRouterProviderMetadata(providerError)
+            return `OpenRouter generation failed (${response.status}): ${providerMessage}${
+              providerMetadata ? ` [${providerMetadata}]` : ""
+            }`
+          },
+        }
+      )
+    } catch (error) {
+      lastError = error
+      if (attempt < 2) {
+        console.warn("OpenRouter slideshow request failed; retrying", {
+          attempt,
+          model: attemptModel,
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
-    )
+      continue
+    }
 
     const choice = payload.choices?.[0]
     try {
@@ -204,15 +238,16 @@ async function requestStructuredOutput(input: {
           `Generated body text does not develop the selected hook subject: ${input.selectedHook}`
         )
       }
-      return { output, webSearchSources }
+      return { output, webSearchSources, model: attemptModel }
     } catch (error) {
       lastError = error
+      repairError = error
       if (attempt < 2) {
         console.warn(
           "OpenRouter returned invalid structured slideshow text; retrying",
           {
             attempt,
-            model: input.model,
+            model: attemptModel,
             finishReason: choice?.finish_reason ?? null,
             nativeFinishReason: choice?.native_finish_reason ?? null,
             error: error instanceof Error ? error.message : String(error),
@@ -249,6 +284,25 @@ function promptPayloadWithRepairFeedback(
   }
 }
 
+function openRouterProviderMetadata(error: unknown) {
+  if (!error || typeof error !== "object" || !("metadata" in error)) return ""
+  const metadata = error.metadata
+  if (!metadata || typeof metadata !== "object") return ""
+  const provider =
+    "provider_name" in metadata && typeof metadata.provider_name === "string"
+      ? clean(metadata.provider_name)
+      : ""
+  const raw =
+    "raw" in metadata
+      ? clean(
+          typeof metadata.raw === "string"
+            ? metadata.raw
+            : JSON.stringify(metadata.raw)
+        ).slice(0, 500)
+      : ""
+  return [provider, raw].filter(Boolean).join(": ")
+}
+
 function structuredOutputValidationErrors(
   output: unknown,
   placeholders: ReturnType<typeof getTempSlidePromptPlaceholders>
@@ -266,16 +320,6 @@ function structuredOutputValidationErrors(
     errors.push("title must contain 3-8 words")
   }
   if (!caption) errors.push("caption must not be empty")
-
-  const hashtags = Array.isArray(record.hashtags)
-    ? record.hashtags.filter(
-        (value): value is string =>
-          typeof value === "string" && Boolean(value.trim())
-      )
-    : []
-  if (hashtags.length < 3 || hashtags.length > 5) {
-    errors.push("hashtags must contain 3-5 non-empty strings")
-  }
 
   const text =
     record.text &&

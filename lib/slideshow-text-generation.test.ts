@@ -103,13 +103,11 @@ describe("slideshow text structured output", () => {
     expect(payload.plugins).toEqual([{ id: "response-healing" }])
     expect(payload.stream).toBe(false)
     expect(payload.max_tokens).toBeGreaterThanOrEqual(2_048)
-    expect(
+    const hashtagsSchema =
       payload.response_format.json_schema.schema.properties.hashtags
-    ).toMatchObject({
-      type: "array",
-      minItems: 3,
-      maxItems: 5,
-    })
+    expect(hashtagsSchema).toMatchObject({ type: "array" })
+    expect(hashtagsSchema).not.toHaveProperty("minItems")
+    expect(hashtagsSchema).not.toHaveProperty("maxItems")
   })
 
   it("only grants model-controlled web search when the automation enables it", () => {
@@ -246,6 +244,71 @@ describe("slideshow text structured output", () => {
     expect(result.result.text["content-2__heading"]).toBe(
       "change keeps geminis curious"
     )
+  })
+
+  it("accepts the generated hashtag count without enforcing 3-5", async () => {
+    const oneHashtag = JSON.stringify({
+      ...JSON.parse(validContent),
+      hashtags: ["#astrology"],
+    })
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(response(oneHashtag))
+
+    await expect(
+      generateSlideshowText({ automation, apiKey: "test-key", fetchImpl })
+    ).resolves.toMatchObject({
+      result: { hashtags: "#astrology" },
+    })
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+
+  it("retries a transient provider failure before failing the slideshow run", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ error: { message: "Provider returned error" } }),
+          {
+            status: 502,
+            headers: { "Content-Type": "application/json" },
+          }
+        )
+      )
+      .mockResolvedValueOnce(response(validContent))
+
+    await expect(
+      generateSlideshowText({ automation, apiKey: "test-key", fetchImpl })
+    ).resolves.toMatchObject({
+      skippedOpenRouter: false,
+      model: "z-ai/glm-5.2",
+    })
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(JSON.parse(String(fetchImpl.mock.calls[1]?.[1]?.body)).model).toBe(
+      "z-ai/glm-5.2"
+    )
+  })
+
+  it("keeps the provider status and message when both attempts fail", async () => {
+    const providerFailure = () =>
+      new Response(
+        JSON.stringify({ error: { message: "Provider returned error" } }),
+        {
+          status: 502,
+          headers: { "Content-Type": "application/json" },
+        }
+      )
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(providerFailure())
+      .mockResolvedValueOnce(providerFailure())
+
+    await expect(
+      generateSlideshowText({ automation, apiKey: "test-key", fetchImpl })
+    ).rejects.toThrow(
+      "OpenRouter generation failed (502): Provider returned error"
+    )
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
   })
 
   it("retries a completion that ended because of its output limit", async () => {

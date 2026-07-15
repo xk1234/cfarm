@@ -14,11 +14,10 @@ describe("shared social post metadata", () => {
       "- hashtags: return an array of 3-5 broad lowercase hashtags related to the topic or niche.",
     ])
 
-    expect(socialPostMetadataSchemaProperties("video").hashtags).toMatchObject({
-      type: "array",
-      minItems: 3,
-      maxItems: 5,
-    })
+    const hashtagsSchema = socialPostMetadataSchemaProperties("video").hashtags
+    expect(hashtagsSchema).toMatchObject({ type: "array" })
+    expect(hashtagsSchema).not.toHaveProperty("minItems")
+    expect(hashtagsSchema).not.toHaveProperty("maxItems")
   })
 
   it("normalizes generated video and slideshow hashtags identically", () => {
@@ -33,5 +32,15 @@ describe("shared social post metadata", () => {
       caption: "Useful details that make a compact room work.",
       hashtags: ["#hdb", "#interiordesign", "#small-spaces"],
     })
+  })
+
+  it("keeps every generated hashtag instead of enforcing a count", () => {
+    expect(
+      normalizeSocialPostMetadata({
+        title: "A Better Small Home",
+        caption: "Useful details that make a compact room work.",
+        hashtags: ["one", "two", "three", "four", "five", "six"],
+      }).hashtags
+    ).toEqual(["#one", "#two", "#three", "#four", "#five", "#six"])
   })
 })

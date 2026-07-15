@@ -28,8 +28,6 @@ export function socialPostMetadataSchemaProperties(subject: string) {
     },
     hashtags: {
       type: "array",
-      minItems: 3,
-      maxItems: 5,
       items: {
         type: "string",
         minLength: 2,
@@ -70,5 +68,5 @@ export function normalizeSocialPostHashtags(value: unknown) {
         .filter(Boolean)
         .map((tag) => `#${tag}`)
     ),
-  ].slice(0, 5)
+  ]
 }

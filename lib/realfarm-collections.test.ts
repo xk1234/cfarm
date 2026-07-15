@@ -220,6 +220,59 @@ describe("realfarm collection helpers", () => {
     })
   })
 
+  it("merges categorized Appwrite videos into AI UGC Avatar Videos", () => {
+    const videos: LocalAsset[] = [
+      {
+        id: "avatar-one",
+        name: "Avatar One",
+        path: "ugc_avatar_videos/avatar-one.mp4",
+        url: "/api/local-assets/ugc_avatar_videos/avatar-one.mp4",
+        kind: "video",
+      },
+    ]
+    const categorizedCollections: CreatedImageCollection[] = [
+      {
+        id: "ugc-surprise",
+        title: "UGC Avatars — Surprise & Shock",
+        mediaType: "video",
+        createdAt: "2026-07-15T00:00:00.000Z",
+        source: "pinterest",
+        images: [
+          {
+            id: "categorized-avatar-one",
+            title: "Creator covers their mouth in surprise.",
+            description: "Creator covers their mouth in surprise.",
+            imageUrl: "/api/local-assets/ugc_avatar_videos/avatar-one.mp4",
+            sourceUrl: "/api/local-assets/ugc_avatar_videos/avatar-one.mp4",
+            dominantColor: "#d9d8d0",
+          },
+          {
+            id: "categorized-avatar-two",
+            title: "Creator points directly at the camera.",
+            description: "Creator points directly at the camera.",
+            imageUrl: "/api/local-assets/ugc_avatar_videos/avatar-two.mp4",
+            sourceUrl: "/api/local-assets/ugc_avatar_videos/avatar-two.mp4",
+            dominantColor: "#d9d8d0",
+          },
+        ],
+      },
+    ]
+
+    const collection = ugcAvatarVideoCollectionFromAssets(
+      videos,
+      categorizedCollections
+    )
+
+    expect(collection.images).toHaveLength(2)
+    expect(collection.images[0]).toMatchObject({
+      id: "categorized-avatar-one",
+      description: "Creator covers their mouth in surprise.",
+    })
+    expect(collection.images[1]).toMatchObject({
+      id: "categorized-avatar-two",
+    })
+  })
+
   it("builds All Images from photo collections only", () => {
     const collection = allImagesCollectionFrom([
       {

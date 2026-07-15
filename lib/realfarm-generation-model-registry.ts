@@ -30,6 +30,7 @@ export const generationModelRegistry = {
       // (vs 7.75 for gemini-3.1-flash-lite) with the best latency of the top
       // tier and zero structured-output failures. ~$0.011 per slideshow.
       model: "anthropic/claude-sonnet-5",
+      fallbackModels: ["z-ai/glm-5.2"],
     },
     webResearch: {
       model: "openai/gpt-5.4-mini",
@@ -165,6 +166,9 @@ export function openRouterModelForUseCase(useCase: OpenRouterModelUseCase) {
 
 export const defaultSlideshowTextModel =
   generationModelRegistry.openRouter.slideshowText.model
+
+export const slideshowTextFallbackModels =
+  generationModelRegistry.openRouter.slideshowText.fallbackModels
 
 export const featuredOpenRouterModelIds: readonly string[] =
   generationModelRegistry.openRouter.tempTestingCenter.featuredModelIds

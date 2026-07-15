@@ -77,22 +77,38 @@ export function allImagesCollectionFrom(
 }
 
 export function ugcAvatarVideoCollectionFromAssets(
-  videos: LocalAsset[]
+  videos: LocalAsset[],
+  categorizedCollections: CreatedImageCollection[] = []
 ): CreatedImageCollection {
+  const categorizedVideos = categorizedCollections
+    .filter(
+      (collection) =>
+        collection.mediaType === "video" &&
+        collection.title.startsWith("UGC Avatars — ")
+    )
+    .flatMap((collection) => collection.images)
+  const localVideos = videos
+    .filter((video) => video.kind === "video" && video.url)
+    .map((video) => ({
+      id: video.id,
+      title: video.name,
+      description: video.name,
+      imageUrl: video.url,
+      sourceUrl: video.url,
+      dominantColor: "#1f1f1f",
+    }))
+  const seen = new Set<string>()
+
   return {
     id: "collection-ugc-avatar-videos",
     title: "AI UGC Avatar Videos",
     mediaType: "video",
-    images: videos
-      .filter((video) => video.kind === "video" && video.url)
-      .map((video) => ({
-        id: video.id,
-        title: video.name,
-        description: video.name,
-        imageUrl: video.url,
-        sourceUrl: video.url,
-        dominantColor: "#1f1f1f",
-      })),
+    images: [...categorizedVideos, ...localVideos].filter((video) => {
+      const key = video.imageUrl || video.sourceUrl
+      if (!key || seen.has(key)) return false
+      seen.add(key)
+      return true
+    }),
     createdAt: "virtual",
     source: "virtual",
     virtual: true,
@@ -106,7 +122,9 @@ export function collectionToStored(
     name: collection.title,
     created_at: normalizedCollectionDate(collection.createdAt),
     pinned: collection.pinned === true,
-    ...(collection.mediaType === "video" ? { mediaType: "video" as const } : {}),
+    ...(collection.mediaType === "video"
+      ? { mediaType: "video" as const }
+      : {}),
     images: collection.images
       .filter((image) => image.imageUrl)
       .map((image) => ({
