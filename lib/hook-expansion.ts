@@ -1,5 +1,6 @@
 import { clean } from "@/lib/guards"
 import { applyResolvedHookCase, type HookCaseMode } from "@/lib/hook-casing"
+import { runtimeHookVariableValue } from "@/lib/hook-variables"
 import type { WordCollectionRecord } from "@/lib/word-collections"
 
 export type HookExpansionResult = {
@@ -11,6 +12,8 @@ export type HookExpansionResult = {
 type HookExpansionOptions = {
   noDuplicates?: boolean
   caseMode?: HookCaseMode
+  now?: Date
+  timeZone?: string
 }
 
 const slotPattern = /\[\[([a-zA-Z0-9_-]+)\]\]|\{([a-zA-Z0-9_-]+)\}/g
@@ -56,14 +59,24 @@ export function expandHook(
           ? `${baseSlotName}_${count}`
           : baseSlotName
       if (!substitutions[slotName]) {
+        const runtimeValue = runtimeHookVariableValue(baseSlotName, {
+          now: options.now,
+          timeZone: options.timeZone,
+        })
+        if (runtimeValue !== undefined) {
+          substitutions[slotName] = runtimeValue
+          return runtimeValue
+        }
         const collectionId = resolveSlotCollectionId(baseSlotName, slotMap)
         const collection = collectionId
-          ? collectionsById.get(collectionId) ??
-            collectionsById.get(collectionId.toLowerCase())
+          ? (collectionsById.get(collectionId) ??
+            collectionsById.get(collectionId.toLowerCase()))
           : null
         const allWords = collection?.words.filter(Boolean) ?? []
         if (allWords.length === 0) {
-          return match
+          throw new Error(
+            `Hook slot ${slotName} has no words in database collection ${collectionId}`
+          )
         }
         // Distinct slots backed by the same collection (e.g. [[zodiac]] vs
         // [[zodiac_2]]) should not repeat the same word within one hook.
@@ -141,6 +154,19 @@ export function expandAllHookCombinations(
     const baseName = options.noDuplicates
       ? slotName.replace(/_\d+$/, "")
       : slotName
+    const runtimeValue = runtimeHookVariableValue(baseName, {
+      now: options.now,
+      timeZone: options.timeZone,
+    })
+    if (runtimeValue !== undefined) {
+      return {
+        slotName,
+        collectionKey: `runtime:${baseName.toLowerCase()}`,
+        enforceDistinct: false,
+        hasWords: true,
+        values: [runtimeValue],
+      }
+    }
     const collectionId =
       resolveSlotCollectionId(slotName, slotMap) === slotName
         ? resolveSlotCollectionId(baseName, slotMap)
@@ -149,16 +175,19 @@ export function expandAllHookCombinations(
       collectionsById.get(collectionId) ??
       collectionsById.get(collectionId.toLowerCase())
     const words = collection?.words.filter(Boolean) ?? []
+    if (words.length === 0) {
+      throw new Error(
+        `Hook slot ${slotName} has no words in database collection ${collectionId}`
+      )
+    }
     return {
       slotName,
       collectionKey: (collection?.id ?? collectionId).toLowerCase(),
-      hasWords: words.length > 0,
-      values:
-        words.length > 0
-          ? words.map((word) =>
-              formatSlotSubstitution(slotName, word, collectionId)
-            )
-          : [`[[${slotName}]]`],
+      enforceDistinct: true,
+      hasWords: true,
+      values: words.map((word) =>
+        formatSlotSubstitution(slotName, word, collectionId)
+      ),
     }
   })
   const expansions: HookExpansionResult[] = []
@@ -172,7 +201,9 @@ export function expandAllHookCombinations(
       })
       expansions.push({
         text: applyResolvedHookCase(
-          correctIndefiniteArticles(correctPluralSuffixes(expandedText, substitutions)),
+          correctIndefiniteArticles(
+            correctPluralSuffixes(expandedText, substitutions)
+          ),
           options.caseMode ?? "mixed"
         ),
         template,
@@ -186,7 +217,11 @@ export function expandAllHookCombinations(
       valuesBySlot
         .slice(0, index)
         .filter(
-          (other) => slot.hasWords && other.collectionKey === slot.collectionKey
+          (other) =>
+            slot.enforceDistinct &&
+            other.enforceDistinct &&
+            slot.hasWords &&
+            other.collectionKey === slot.collectionKey
         )
         .map((other) => substitutions[other.slotName])
     )

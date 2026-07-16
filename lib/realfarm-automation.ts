@@ -194,6 +194,8 @@ export type AutomationSchedule = {
   min_gap_minutes?: number
 }
 
+export type AutomationPostingMode = "manual" | "review" | "auto"
+
 type LegacyAutomationScheduleInterval = {
   every_n_hours: number
   start_time: Time
@@ -237,6 +239,8 @@ export type AutomationVideoTemplateId =
   | "screen_record"
   | "screenshot_pictures"
   | "aesthetic"
+  | "story_over_broll"
+  | "faceless_reel"
 
 export const automationVideoTemplateIds: AutomationVideoTemplateId[] = [
   "ugc_ad",
@@ -246,6 +250,8 @@ export const automationVideoTemplateIds: AutomationVideoTemplateId[] = [
   "screen_record",
   "screenshot_pictures",
   "aesthetic",
+  "story_over_broll",
+  "faceless_reel",
 ]
 
 export type AutomationVideoTransition = "cut" | "fade"
@@ -310,8 +316,11 @@ export type AutomationSchema = {
   social_post_settings: AutomationSocialPostSettings
   social_publish_as: AutomationSocialPublishAs
   schedule: AutomationSchedule
+  posting_mode?: AutomationPostingMode
+  generation_lead_minutes?: number
   hook_slots?: Record<string, string>
   hook_no_duplicate_slots?: boolean
+  knowledge_context_enabled?: boolean
   knowledge_base_ids?: string[]
   web_search_enabled?: boolean
   reuse_policy?: AutomationReusePolicy
@@ -389,6 +398,7 @@ export function defaultAutomationSchema(
     status,
     social_integrations: [],
     ...template,
+    knowledge_context_enabled: false,
     social_post_settings:
       template.social_post_settings ?? defaultSocialPostSettings(),
     social_publish_as: normalizeSocialPublishAs(template.social_publish_as, {}),
@@ -404,7 +414,22 @@ export function defaultAutomationSchema(
           days: allDays,
         })),
     },
+    posting_mode: "auto",
+    generation_lead_minutes: 30,
   }
+}
+
+export function automationPostingMode(
+  schema: Pick<AutomationSchema, "posting_mode" | "tiktok_post_settings">
+): AutomationPostingMode {
+  if (
+    schema.posting_mode === "auto" ||
+    schema.posting_mode === "review" ||
+    schema.posting_mode === "manual"
+  ) {
+    return schema.posting_mode
+  }
+  return "auto"
 }
 
 export function defaultAutomationTemplate(
@@ -559,6 +584,8 @@ export function mergeAutomationSchema(
     },
     hook_slots: normalizeHookSlots(normalizedDraft.hook_slots),
     hook_no_duplicate_slots: Boolean(normalizedDraft.hook_no_duplicate_slots),
+    knowledge_context_enabled:
+      normalizedDraft.knowledge_context_enabled === true,
     knowledge_base_ids: normalizeIdList(normalizedDraft.knowledge_base_ids),
     web_search_enabled: Boolean(normalizedDraft.web_search_enabled),
     reuse_policy: normalizeReusePolicy(normalizedDraft.reuse_policy),
@@ -652,14 +679,39 @@ export function normalizeAutomationSchema(
         sourceSchedule?.min_gap_minutes
       ),
     },
+    posting_mode:
+      source.posting_mode === "auto" ||
+      source.posting_mode === "review" ||
+      source.posting_mode === "manual"
+        ? source.posting_mode
+        : "auto",
+    generation_lead_minutes: Math.max(
+      0,
+      Math.min(
+        24 * 60,
+        Math.round(numberValue(source.generation_lead_minutes, 30))
+      )
+    ),
     hook_slots: normalizeHookSlots(source.hook_slots),
     hook_no_duplicate_slots: Boolean(source.hook_no_duplicate_slots),
+    knowledge_context_enabled: source.knowledge_context_enabled === true,
     knowledge_base_ids: normalizeIdList(source.knowledge_base_ids),
     web_search_enabled: Boolean(source.web_search_enabled),
     reuse_policy: normalizeReusePolicy(source.reuse_policy),
     content_strategy: normalizeContentStrategy(source.content_strategy),
     video_format: normalizeVideoFormat(source.video_format),
   }
+}
+
+export function automationKnowledgeBaseIds(
+  schema: Pick<
+    AutomationSchema,
+    "knowledge_context_enabled" | "knowledge_base_ids"
+  >
+) {
+  return schema.knowledge_context_enabled === true
+    ? normalizeIdList(schema.knowledge_base_ids)
+    : []
 }
 
 export function normalizeVideoFormat(
@@ -1526,10 +1578,8 @@ function normalizeImageCollectionConfig(
 }
 
 function normalizeAutomationImageFit(value: unknown): AutomationImageFit {
-  if (value === "cover" || value === "contain" || value === "fit") {
-    return value
-  }
-  return defaultAutomationTemplateDefaults.image_fit
+  void value
+  return "cover"
 }
 
 function normalizeFormatting(

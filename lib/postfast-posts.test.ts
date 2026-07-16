@@ -5,7 +5,11 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
-import { listPostFastPostRecords, upsertPostFastPostRecord, updatePostFastPostAnalytics } from "@/lib/postfast-posts"
+import {
+  listPostFastPostRecords,
+  upsertPostFastPostRecord,
+  updatePostFastPostAnalytics,
+} from "@/lib/postfast-posts"
 
 // Appwrite-only: `data/postfast-posts.json` -> the `postfast_posts` table, run
 // against cfarm (forced by vitest.setup.ts), cleared between tests.
@@ -72,11 +76,19 @@ describe("postfast post mapping persistence", () => {
     const updated = await updatePostFastPostAnalytics({
       rootDir,
       id: record.id,
-      analytics: [{ label: "Views", data: [{ date: "2026-07-02", total: "100" }], percentageChange: 10 }],
+      analytics: [
+        {
+          label: "Views",
+          data: [{ date: "2026-07-02", total: "100" }],
+          percentageChange: 10,
+        },
+      ],
     })
 
     expect(updated?.analytics?.[0]?.label).toBe("Views")
     expect(updated?.lastAnalyticsSyncedAt).toBeTruthy()
+    expect(record.publishedAt).toBeTruthy()
+    expect(Number.isFinite(Date.parse(record.publishedAt ?? ""))).toBe(true)
   })
 
   it("tracks scheduled slideshow posts as first-class PostFast sources", async () => {
@@ -93,7 +105,10 @@ describe("postfast post mapping persistence", () => {
       media: [{ key: "image/slide-1.jpg", type: "IMAGE" }],
     })
 
-    const records = await listPostFastPostRecords({ rootDir, sourceType: "slideshow" })
+    const records = await listPostFastPostRecords({
+      rootDir,
+      sourceType: "slideshow",
+    })
 
     expect(records).toHaveLength(1)
     expect(records[0]).toMatchObject({

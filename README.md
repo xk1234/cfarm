@@ -51,10 +51,10 @@ lib/                     Domain logic, API clients, persistence layer, tests
 appwrite/functions/      Appwrite Functions (cron scheduler + job worker)
 extension/               Browser extension for swipe capture (load unpacked)
 data/                    Local working files + static config seeds
-docs/                    Feature docs (per tab, extension, data objects, Appwrite)
+docs/                    Feature and architecture docs
 diagrams/                Mermaid workflow diagrams (00-overview → 11)
 workflows/               Swipe-capture QA workflows per platform
-scripts/                 One-off provisioning + backfill scripts
+scripts/                 Provisioning, import, and evaluation tools
 ```
 
 ## Backend — Appwrite
@@ -64,7 +64,7 @@ cfarm runs on Appwrite Cloud (project `Cfarm`, region `sgp`, endpoint `https://s
 - **TablesDB** database `cfarm` — 18 tables. Structured stores live in rows shaped `rid, name, status, created_raw, source_key, ord, data(longtext)`; the `data` column carries the JSON blob and `ord` preserves original array order.
 - **Storage** — 9 buckets (music, image_collections, greenscreen, characters, slideshows, ugc_videos, backgrounds, assets, misc). Asset file ids are deterministic (`sha256(path).slice(0,36)`), so callers derive them at runtime with no lookup table.
 - **Persistence layer** — `lib/json-store.ts` exposes `readJsonArrayStore` / `writeJsonArrayStore` / `withJsonArrayStore`; mapped stores read/write TablesDB (paginated by `ord`, upsert-by-id) with a **filesystem fallback** for unmapped/dynamic stores and local dev. `lib/asset-storage.ts` writes binaries to the local `data/` tree and mirrors them to Appwrite Storage at the same id.
-- **Functions** — `automation-scheduler` (cron `*/5 * * * *`) computes which automations are due and enqueues deduped jobs; `job-worker` (every minute) drains the `jobs` table with a leased-claim queue and runs rendering/generation/publishing work. See `docs/appwrite-scheduling.md` for the queue model and `docs/appwrite-migration-report.md` for migration details.
+- **Functions** — `automation-scheduler` (cron `*/5 * * * *`) computes which automations are due and enqueues deduped jobs; `job-worker` (every minute) drains the `jobs` table with a leased-claim queue and runs rendering/generation/publishing work. See `docs/appwrite-scheduling.md` for the queue model.
 
 Local `data/` copies are kept intentionally as working files for filesystem-dependent code (ffmpeg, sharp, directory scans); slideshow intermediate frames (SVG/PNG) stay local by design.
 
@@ -76,16 +76,20 @@ See `workflows/README.md` for per-platform QA workflows and `docs/extension/` fo
 
 ## Further documentation
 
+Docs are organized by lifecycle — start at **`docs/README.md`** (index), which points to the two living docs and the `reference/` · `proposals/` · `archive/` split.
+
 | Topic | File |
 |---|---|
+| **Docs index (start here)** | `docs/README.md` |
+| **State of the app** (current truth) | `docs/STATE.md` |
+| **Roadmap** (planned/in-flight work) | `docs/ROADMAP.md` |
 | Design system (tokens, typography, components) | `DESIGN.md` |
 | Next.js version notes (read before writing Next code) | `AGENTS.md` |
 | End-to-end workflow map | `diagrams/00-overview.md` |
 | Per-tab feature docs | `docs/tabs/` |
 | Extension adapter notes | `docs/extension/` |
-| Data objects & types | `docs/data-objects.md` |
-| Appwrite scheduling & job queue | `docs/appwrite-scheduling.md` |
-| Appwrite migration report | `docs/appwrite-migration-report.md` |
+| Data objects & types | `docs/reference/data-objects.md` |
+| Appwrite scheduling & job queue | `docs/reference/appwrite-scheduling.md` |
 | Swipe-capture QA workflows | `workflows/README.md` |
 
 ## Testing

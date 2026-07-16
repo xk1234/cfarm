@@ -1,9 +1,11 @@
-import { readdirSync, readFileSync } from "node:fs"
-import path from "node:path"
-
 import realfarmData from "../data/realfarm.json"
 import demoSeedData from "../data/seeds/demo-realfarm.json"
+import { unstable_cache } from "next/cache"
 
+import {
+  listMediaLibraryAssets,
+  type MediaLibraryAsset,
+} from "@/lib/media-library"
 import type {
   AutomationLifecycleStatus,
   AutomationSchedule,
@@ -35,6 +37,7 @@ export type Automation = {
   id: string
   name: string
   automationKind?: "slideshow" | "video" | "x_threads"
+  platform?: "x" | "threads"
   status: AutomationLifecycleStatus
   account: string
   handle: string
@@ -93,13 +96,22 @@ export type ImageCollection = RealFarmData["imageCollections"][number]
 
 export type LoadRealFarmDataOptions = {
   includeDemoSeed?: boolean
+  mediaAssets?: MediaLibraryAsset[]
 }
 
-export function loadRealFarmData(
+const listCachedMediaLibraryAssets = unstable_cache(
+  listMediaLibraryAssets,
+  ["media-library-assets"],
+  { revalidate: 300 }
+)
+
+export async function loadRealFarmData(
   options: LoadRealFarmDataOptions = {}
-): RealFarmData {
+): Promise<RealFarmData> {
   const data = realfarmData as RealFarmJson
   const demoSeed = demoSeedData as RealFarmDemoSeed
+  const mediaAssets =
+    options.mediaAssets ?? (await listCachedMediaLibraryAssets())
   const seededData = options.includeDemoSeed
     ? {
         ...data,
@@ -117,81 +129,27 @@ export function loadRealFarmData(
   return {
     ...seededData,
     assets: {
-      music: listLocalAssets("music", ["mp3", "wav"], "audio"),
-      ugcAvatarVideos: listLocalAssets(
-        "ugc_avatar_videos",
-        ["mp4", "webm", "mov"],
-        "video"
-      ),
-      demoVideos: listLocalAssets(
-        "assets/demos",
-        ["mp4", "webm", "mov"],
-        "video"
-      ),
-      greenscreenMemes: listLocalAssets(
-        "greenscreen_memes",
-        ["mp4", "webm", "mov"],
-        "video"
-      ),
-      ctas: listLocalAssets("ctas", ["txt"], "text"),
+      music: assetsFor(mediaAssets, "music"),
+      ugcAvatarVideos: assetsFor(mediaAssets, "ugc_avatar_videos"),
+      demoVideos: assetsFor(mediaAssets, "demo_videos"),
+      greenscreenMemes: assetsFor(mediaAssets, "greenscreen_memes"),
+      ctas: assetsFor(mediaAssets, "ctas"),
     },
   }
 }
 
-function listLocalAssets(
-  folder: string,
-  extensions: string[],
-  kind: LocalAssetKind
+function assetsFor(
+  assets: MediaLibraryAsset[],
+  collection: MediaLibraryAsset["collection"]
 ): LocalAsset[] {
-  const root = path.join(process.cwd(), "data", folder)
-  const allowed = new Set(
-    extensions.map((extension) => `.${extension.toLowerCase()}`)
-  )
-
-  try {
-    return collectFiles(root)
-      .filter((filePath) => allowed.has(path.extname(filePath).toLowerCase()))
-      .map((filePath) => {
-        const relativePath = path.relative(
-          path.join(process.cwd(), "data"),
-          filePath
-        )
-        const name = titleFromFilename(filePath)
-
-        return {
-          id: slugify(relativePath),
-          name,
-          path: relativePath,
-          url: `/api/local-assets/${relativePath.split(path.sep).map(encodeURIComponent).join("/")}`,
-          kind,
-          text:
-            kind === "text" ? readFileSync(filePath, "utf8").trim() : undefined,
-        }
-      })
-  } catch {
-    return []
-  }
-}
-
-function collectFiles(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const entryPath = path.join(directory, entry.name)
-    return entry.isDirectory() ? collectFiles(entryPath) : [entryPath]
-  })
-}
-
-function titleFromFilename(filePath: string) {
-  return path
-    .basename(filePath, path.extname(filePath))
-    .replace(/^copy of /i, "")
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-}
-
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
+  return assets
+    .filter((asset) => asset.collection === collection)
+    .map(({ id, name, path, url, kind, text }) => ({
+      id,
+      name,
+      path,
+      url,
+      kind,
+      text,
+    }))
 }

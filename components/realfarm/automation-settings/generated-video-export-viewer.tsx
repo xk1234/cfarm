@@ -16,7 +16,7 @@ export function GeneratedVideoExportViewer({
     <AppModal onClose={onClose}>
       <AppModalPanel
         accessibleTitle={`${item.title} video`}
-        className="max-h-[90vh] max-w-[880px] overflow-hidden rounded-[10px] bg-white"
+        className="max-h-[90vh] max-w-[880px] overflow-hidden rounded-[10px] bg-app-surface"
       >
         <AppModalHeader
           title={item.title}
@@ -24,7 +24,7 @@ export function GeneratedVideoExportViewer({
           closeLabel="Close generated video"
           onClose={onClose}
         />
-        <main className="grid max-h-[calc(90vh-73px)] gap-5 overflow-y-auto bg-[#f7f7f4] p-5 md:grid-cols-[minmax(260px,360px)_1fr]">
+        <main className="grid max-h-[calc(90vh-73px)] gap-5 overflow-y-auto bg-app-surface-subtle p-5 md:grid-cols-[minmax(260px,360px)_1fr]">
           <section className="min-w-0">
             <div className="grid aspect-[9/16] max-h-[68vh] place-items-center overflow-hidden rounded-[9px] bg-black shadow-xl">
               {item.videoUrl ? (

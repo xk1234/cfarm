@@ -1,164 +1,113 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { DateTime } from "luxon"
+import dynamic from "next/dynamic"
 import { toast } from "sonner"
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
-import {
-  IconBolt,
-  IconCalendar,
-  IconChevronLeft,
-  IconChevronRight,
-  IconFilter,
-  IconHome,
-  IconLayoutDashboard,
-  IconList,
-  IconMessage,
-  IconPhoto,
-  IconPhotoPlus,
-  IconPlayerPlay,
-  IconPlus,
-  IconRefresh,
-  IconSearch,
-  IconSparkles,
-  IconStar,
-  IconStarFilled,
-  IconSwitch,
-  IconTrash,
-  IconUpload,
-  IconVolume,
-  IconX,
-} from "@tabler/icons-react"
-import {
-  Ban,
-  ChevronRight as LucideChevronRight,
-  Copy,
-  Expand,
-  Folder,
-  Grid2X2,
-  ImagePlus,
-  Pause,
-  Pencil,
-  Search as LucideSearch,
-  Shrink,
-  SlidersHorizontal,
-  Trash2,
-  X as LucideX,
-} from "lucide-react"
-
-import {
-  AnalyticsView,
-  ContentCalendarView,
-} from "@/components/realfarm/calendar-analytics"
-import { AutomationSettingsDrawer } from "@/components/realfarm/automation-settings"
-import { AutomationsView } from "@/components/realfarm/automations-view"
-import { XAutomationStudio } from "@/components/x-automation-studio"
-import { SocialAccountPickerModal } from "@/components/realfarm/social-account-picker"
 import type { SocialAccountStatusItem } from "@/components/realfarm/social-account-status"
-import { UserSettingsModal } from "@/components/realfarm/user-settings-modal"
-import { KnowledgeBasesPanel } from "@/components/realfarm/knowledge-bases-panel"
-import {
-  BuilderStep,
-  CreatorBuilderPanel,
-  CreatorPageShell,
-  SoundSelector,
-} from "@/components/realfarm/creator-ui"
-import { GreenscreenMemesView } from "@/components/realfarm/greenscreen-view"
-import {
-  CollectionDetailView,
-  CollectionsView,
-} from "@/components/realfarm/collections-view"
-import { HomeView } from "@/components/realfarm/home-view"
-import { AvatarsView } from "@/components/realfarm/characters-view"
 import { Sidebar, type ViewKey } from "@/components/realfarm/navigation"
-import { TemplateFolderModal } from "@/components/realfarm/templates"
-import { Button } from "@/components/ui/button"
 import {
-  CheckedDropdownButton,
-  FormatLabeledSelect,
-  FormatSelect,
-  LabelledSelect,
-  SelectLike,
-  SwitchPill,
-  SwitchPillButton,
-  ToggleRow,
-} from "@/components/ui/form-controls"
-import { SwipesView } from "@/components/realfarm/swipes-view"
-import {
-  AutomationThumb,
-  AvatarDot,
-  CollectionPreview,
-  ControlRow,
-  ControlSelect,
-  ControlToggle,
-  PinterestPreviewTile,
-  SlideThumb,
-  ToolPill,
-  VideoGrid,
-  thumbTone,
-} from "@/components/realfarm/shared-media"
-import {
-  alignmentLabel,
-  anchorLabel,
-  aspectRatioLabel,
-  automationAlignments,
-  automationAnchors,
-  automationAspectRatios,
-  automationCreatedAt,
-  automationImageGrids,
-  automationWordLengths,
-  defaultAutomationTextItem,
-  imageGridLabel,
-  labelToAlignment,
-  labelToAnchor,
-  labelToAspectRatio,
-  labelToImageGrid,
-  labelToWordLength,
   defaultAutomationTemplate,
   mergeAutomationSchema,
-  wordLengthLabel,
   type AutomationSchedule,
   type AutomationSchema,
   type AutomationSocialIntegration,
   type AutomationStatus,
-  type AutomationTextItem,
   type RuntimeAutomationTemplate,
-  type ImageCollectionConfig,
 } from "@/lib/realfarm-automation"
 import { videoAutomationTemplatePreset } from "@/lib/video-automation-templates"
 import {
-  allImagesCollectionFrom,
   collectionToStored,
   defaultImageCollections,
   storedToCollection,
   ugcAvatarVideoCollectionFromAssets,
   type CreatedImageCollection,
-  type PinterestCollectionCreatePayload,
   type StoredImageCollection,
 } from "@/lib/realfarm-collections"
-import type { Automation, LocalAsset, RealFarmData } from "@/lib/realfarm-data"
-import type { XAutomationRecord, XAutomationRun } from "@/lib/x-automation"
-import type { AutomationRecord } from "@/lib/automations"
-import type { AutomationTemplateRecord } from "@/lib/automation-templates"
+import type { Automation, RealFarmData } from "@/lib/realfarm-data"
 import {
-  defaultCharacterAttributes,
-  normalizeCharacterAttributes,
-  type Character,
-} from "@/lib/character-model"
-import type { CharacterPayload, CharacterRecord } from "@/lib/characters"
+  xAutomationToAutomation,
+  type XAutomationRecord,
+  type XAutomationRun,
+} from "@/lib/x-automation"
+import type { AutomationRecord } from "@/lib/automations"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
-import type { PinterestSearchResult } from "@/lib/pinterest-search"
 import type { ProductCollection } from "@/lib/product-collections"
 import { isSlideshowSocialProvider } from "@/lib/slideshow-social-platforms"
 import { cn } from "@/lib/utils"
+
+const HomeView = dynamic(() =>
+  import("@/components/realfarm/home-view").then((module) => module.HomeView)
+)
+const SwipesView = dynamic(() =>
+  import("@/components/realfarm/swipes-view").then(
+    (module) => module.SwipesView
+  )
+)
+const AvatarsView = dynamic(() =>
+  import("@/components/realfarm/characters-view").then(
+    (module) => module.AvatarsView
+  )
+)
+const GreenscreenMemesView = dynamic(() =>
+  import("@/components/realfarm/greenscreen-view").then(
+    (module) => module.GreenscreenMemesView
+  )
+)
+const ContentCalendarView = dynamic(() =>
+  import("@/components/realfarm/content-calendar/content-calendar-view").then(
+    (module) => module.ContentCalendarView
+  )
+)
+const AnalyticsView = dynamic(() =>
+  import("@/components/realfarm/analytics/analytics-view").then(
+    (module) => module.AnalyticsView
+  )
+)
+const KnowledgeBasesPanel = dynamic(() =>
+  import("@/components/realfarm/knowledge-bases-panel").then(
+    (module) => module.KnowledgeBasesPanel
+  )
+)
+const CollectionsView = dynamic(() =>
+  import("@/components/realfarm/collections-view").then(
+    (module) => module.CollectionsView
+  )
+)
+const CollectionDetailView = dynamic(() =>
+  import("@/components/realfarm/collections-view").then(
+    (module) => module.CollectionDetailView
+  )
+)
+const AutomationsView = dynamic(() =>
+  import("@/components/realfarm/automations-view").then(
+    (module) => module.AutomationsView
+  )
+)
+const AutomationSettingsDrawer = dynamic(() =>
+  import("@/components/realfarm/automation-settings").then(
+    (module) => module.AutomationSettingsDrawer
+  )
+)
+const XAutomationStudio = dynamic(() =>
+  import("@/components/x-automation-studio").then(
+    (module) => module.XAutomationStudio
+  )
+)
+const SocialAccountPickerModal = dynamic(() =>
+  import("@/components/realfarm/social-account-picker").then(
+    (module) => module.SocialAccountPickerModal
+  )
+)
+const UserSettingsModal = dynamic(() =>
+  import("@/components/realfarm/user-settings-modal").then(
+    (module) => module.UserSettingsModal
+  )
+)
+const TemplateFolderModal = dynamic(() =>
+  import("@/components/realfarm/templates").then(
+    (module) => module.TemplateFolderModal
+  )
+)
 
 export type AutomationRunSummary = {
   ownerId?: string
@@ -166,9 +115,11 @@ export type AutomationRunSummary = {
   automationId: string
   automationTitle?: string
   scheduledFor?: string
+  requestId?: string
   status?: string
   slideshowId?: string
   socialStatuses?: SocialAccountStatusItem[]
+  manuallyPublishedAt?: string
   createdAt: string
   error?: string
   videoUrl?: string
@@ -232,12 +183,19 @@ export function RealFarmWorkspace({
   const [view, setView] = useState<ViewKey>("home")
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [selectedSoundId, setSelectedSoundId] = useState("")
+  const [workspaceAssets, setWorkspaceAssets] = useState(data.assets)
+  const [workspaceAssetsLoaded, setWorkspaceAssetsLoaded] = useState(
+    Object.values(data.assets).some((assets) => assets.length > 0)
+  )
   const [collections, setCollections] = useState<CreatedImageCollection[]>(() =>
     defaultImageCollections(data)
   )
+  const [collectionsLoaded, setCollectionsLoaded] = useState(false)
   const [productCollections, setProductCollections] = useState<
     ProductCollection[]
   >([])
+  const [productCollectionsLoaded, setProductCollectionsLoaded] =
+    useState(false)
   const [selectedCollectionId, setSelectedCollectionId] = useState<
     string | null
   >(null)
@@ -262,29 +220,28 @@ export function RealFarmWorkspace({
   const [automationConfigEdits, setAutomationConfigEdits] = useState<
     Record<string, AutomationSchema>
   >({})
-  const [templateAutomations, setTemplateAutomations] = useState<Automation[]>(
-    initialTemplateData.templates
+  const templateAutomations = initialTemplateData.templates
+  const templateConfigEdits = useMemo<Record<string, AutomationSchema>>(
+    () =>
+      Object.fromEntries(
+        Object.entries(initialTemplateData.schemas).map(([id, schema]) => [
+          id,
+          reviveAutomationSchema(schema),
+        ])
+      ),
+    [initialTemplateData.schemas]
   )
-  const [templateConfigEdits, setTemplateConfigEdits] = useState<
-    Record<string, AutomationSchema>
-  >(() =>
-    Object.fromEntries(
-      Object.entries(initialTemplateData.schemas).map(([id, schema]) => [
-        id,
-        reviveAutomationSchema(schema),
-      ])
-    )
-  )
-  const [templateExampleRunsById, setTemplateExampleRunsById] = useState<
-    Record<string, AutomationRunSummary[]>
-  >(initialTemplateData.exampleRunsByTemplateId)
+  const templateExampleRunsById = initialTemplateData.exampleRunsByTemplateId
   const [recentRunsLoaded, setRecentRunsLoaded] = useState(false)
   const [recentAutomationRuns, setRecentAutomationRuns] = useState<
     AutomationRunSummary[]
   >([])
+  const recentRunsRevisionRef = useRef(0)
   const [editingAutomation, setEditingAutomation] = useState<Automation | null>(
     null
   )
+  const [linkedAutomationId, setLinkedAutomationId] = useState("")
+  const [linkedAutomationRunId, setLinkedAutomationRunId] = useState("")
   const [socialAccountAutomation, setSocialAccountAutomation] =
     useState<Automation | null>(null)
   const [templateFolderOpen, setTemplateFolderOpen] = useState(false)
@@ -294,20 +251,7 @@ export function RealFarmWorkspace({
       [
         ...createdAutomations,
         ...persistedAutomations,
-        ...xAutomations.map<Automation>((engine) => ({
-          id: engine.id,
-          name: engine.name,
-          automationKind: "x_threads",
-          status: engine.status,
-          account:
-            engine.publishing.integrations[0]?.name || "No social account",
-          handle: "X / Threads",
-          times: [],
-          favorite: false,
-          theme: "x_threads",
-          socialIntegrations: engine.publishing.integrations,
-          created_at: engine.createdAt,
-        })),
+        ...xAutomations.map(xAutomationToAutomation),
       ]
         .map((automation, index) => ({
           automation: {
@@ -335,28 +279,28 @@ export function RealFarmWorkspace({
       xAutomations,
     ]
   )
-  const allImagesCollection = useMemo(
-    () => allImagesCollectionFrom(collections),
-    [collections]
-  )
   const ugcAvatarVideoCollection = useMemo(
     () =>
       ugcAvatarVideoCollectionFromAssets(
-        data.assets.ugcAvatarVideos,
+        workspaceAssets.ugcAvatarVideos,
         collections
       ),
-    [collections, data.assets.ugcAvatarVideos]
+    [collections, workspaceAssets.ugcAvatarVideos]
   )
   const visibleCollections = useMemo(
-    () => [allImagesCollection, ugcAvatarVideoCollection, ...collections],
-    [allImagesCollection, ugcAvatarVideoCollection, collections]
+    () => [ugcAvatarVideoCollection, ...collections],
+    [ugcAvatarVideoCollection, collections]
+  )
+  const workspaceData = useMemo(
+    () => ({ ...data, assets: workspaceAssets }),
+    [data, workspaceAssets]
   )
   const selectedCollection =
     visibleCollections.find(
       (collection) => collection.id === selectedCollectionId
     ) ?? null
   const selectedSound =
-    data.assets.music.find((sound) => sound.id === selectedSoundId) ?? null
+    workspaceAssets.music.find((sound) => sound.id === selectedSoundId) ?? null
   const recentRunsByAutomationId = useMemo(() => {
     return recentAutomationRuns.reduce<Record<string, AutomationRunSummary[]>>(
       (groups, run) => {
@@ -383,6 +327,23 @@ export function RealFarmWorkspace({
   )
 
   useEffect(() => {
+    const search = new URLSearchParams(window.location.search)
+    if (search.get("view") === "automations") {
+      setView("automations")
+      setLinkedAutomationId(search.get("automation")?.trim() || "")
+      setLinkedAutomationRunId(search.get("run")?.trim() || "")
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!linkedAutomationId) return
+    const automation = automations.find(
+      (candidate) => candidate.id === linkedAutomationId
+    )
+    if (automation) setEditingAutomation(automation)
+  }, [automations, linkedAutomationId])
+
+  useEffect(() => {
     const initialHash = window.location.hash
     let ignoredInitialHashChange = false
 
@@ -402,6 +363,40 @@ export function RealFarmWorkspace({
   }, [])
 
   useEffect(() => {
+    const needsAssets =
+      view === "greenscreen" ||
+      (view === "automations" &&
+        Boolean(editingAutomation?.id) &&
+        editingAutomation?.automationKind !== "x_threads")
+    if (!needsAssets || workspaceAssetsLoaded) return
+    let active = true
+    void fetchJsonWithTimeout<{ assets?: RealFarmData["assets"] }>(
+      "/api/media-library"
+    )
+      .then((payload) => {
+        if (active && payload.assets) setWorkspaceAssets(payload.assets)
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setWorkspaceAssetsLoaded(true)
+      })
+    return () => {
+      active = false
+    }
+  }, [
+    editingAutomation?.automationKind,
+    editingAutomation?.id,
+    view,
+    workspaceAssetsLoaded,
+  ])
+
+  useEffect(() => {
+    const needsCollections =
+      view === "greenscreen" ||
+      view === "collections" ||
+      view === "automations" ||
+      templateFolderOpen
+    if (!needsCollections || collectionsLoaded) return
     let active = true
     void fetchJsonWithTimeout<{ collections?: StoredImageCollection[] }>(
       "/api/image-collections"
@@ -413,13 +408,17 @@ export function RealFarmWorkspace({
         setCollections(payload.collections.map(storedToCollection))
       })
       .catch(() => undefined)
+      .finally(() => {
+        if (active) setCollectionsLoaded(true)
+      })
 
     return () => {
       active = false
     }
-  }, [])
+  }, [collectionsLoaded, templateFolderOpen, view])
 
   useEffect(() => {
+    if (view !== "automations" || xAutomationsLoaded) return
     let active = true
     void Promise.all([
       fetchJsonWithTimeout<{ automations?: XAutomationRecord[] }>(
@@ -441,9 +440,10 @@ export function RealFarmWorkspace({
     return () => {
       active = false
     }
-  }, [])
+  }, [view, xAutomationsLoaded])
 
   useEffect(() => {
+    if (view !== "collections" || productCollectionsLoaded) return
     let active = true
     void fetchJsonWithTimeout<{ collections?: ProductCollection[] }>(
       "/api/product-collections"
@@ -452,11 +452,14 @@ export function RealFarmWorkspace({
         if (active) setProductCollections(payload.collections ?? [])
       })
       .catch(() => undefined)
+      .finally(() => {
+        if (active) setProductCollectionsLoaded(true)
+      })
 
     return () => {
       active = false
     }
-  }, [])
+  }, [productCollectionsLoaded, view])
 
   useEffect(() => {
     let active = true
@@ -491,39 +494,10 @@ export function RealFarmWorkspace({
 
   useEffect(() => {
     let active = true
-    void fetchJsonWithTimeout<{
-      templates?: Automation[]
-      records?: AutomationTemplateRecord[]
-      schemas?: Record<string, AutomationSchema>
-      exampleRunsByTemplateId?: Record<string, AutomationRunSummary[]>
-    }>("/api/automation-templates")
-      .then((payload) => {
-        if (!active || !payload?.templates) {
-          return
-        }
-        setTemplateAutomations(payload.templates)
-        setTemplateExampleRunsById(payload.exampleRunsByTemplateId ?? {})
-        setTemplateConfigEdits(
-          Object.fromEntries(
-            Object.entries(payload.schemas ?? {}).map(([id, schema]) => [
-              id,
-              reviveAutomationSchema(schema),
-            ])
-          )
-        )
-      })
-      .catch(() => undefined)
-
-    return () => {
-      active = false
-    }
-  }, [])
-
-  useEffect(() => {
-    let active = true
+    const requestRevision = recentRunsRevisionRef.current
     void loadRecentAutomationRuns()
       .then((runs) => {
-        if (active) {
+        if (active && requestRevision === recentRunsRevisionRef.current) {
           setRecentAutomationRuns(runs)
         }
       })
@@ -576,12 +550,14 @@ export function RealFarmWorkspace({
   }
 
   function upsertRecentAutomationRun(run: AutomationRunSummary) {
+    recentRunsRevisionRef.current += 1
     setRecentAutomationRuns((current) =>
       [run, ...current.filter((item) => item.id !== run.id)].slice(0, 100)
     )
   }
 
   function removeRecentAutomationRun(runId: string) {
+    recentRunsRevisionRef.current += 1
     setRecentAutomationRuns((current) =>
       current.filter((item) => item.id !== runId)
     )
@@ -880,15 +856,23 @@ export function RealFarmWorkspace({
   }
 
   function refreshRecentAutomationRuns() {
+    const requestRevision = recentRunsRevisionRef.current
     void loadRecentAutomationRuns()
-      .then(setRecentAutomationRuns)
+      .then((runs) => {
+        // A generation can finish while this request is in flight. Never let
+        // that older server snapshot erase the run that was just inserted by
+        // the editor; the next refresh will include the persisted record.
+        if (requestRevision === recentRunsRevisionRef.current) {
+          setRecentAutomationRuns(runs)
+        }
+      })
       .catch(() => undefined)
   }
 
   const fillsWorkspace = view === "automations" && Boolean(editingAutomation)
 
   return (
-    <main className="relative h-svh overflow-hidden bg-[#f7f7fa] text-[#111117]">
+    <main className="relative h-svh overflow-hidden bg-[#f7f7fa] text-app-text">
       {view === "home" && !user.emailVerified ? (
         <EmailVerificationNotice />
       ) : null}
@@ -949,10 +933,10 @@ export function RealFarmWorkspace({
           {view === "avatars" && <AvatarsView />}
           {view === "greenscreen" && (
             <GreenscreenMemesView
-              data={data}
+              data={workspaceData}
               collections={visibleCollections}
               selectedSound={selectedSound}
-              music={data.assets.music}
+              music={workspaceAssets.music}
               onSoundSelect={setSelectedSoundId}
               onCreateCollection={(collection) => {
                 setCollections((current) => [
@@ -1065,6 +1049,7 @@ export function RealFarmWorkspace({
               <CollectionsView
                 collections={visibleCollections}
                 productCollections={productCollections}
+                loading={!collectionsLoaded}
                 onCreateCollection={(collection) => {
                   setCollections((current) => [collection, ...current])
                   persistCollection(collection)
@@ -1109,14 +1094,15 @@ export function RealFarmWorkspace({
                 <AutomationSettingsDrawer
                   key={editingAutomation.id}
                   automation={editingAutomation}
+                  initialRunId={linkedAutomationRunId || undefined}
                   config={mergeAutomationSchema(
                     editingAutomation,
                     automationConfigEdits[editingAutomation.id]
                   )}
                   collections={visibleCollections}
                   selectedSound={selectedSound}
-                  music={data.assets.music}
-                  demoVideos={data.assets.demoVideos}
+                  music={workspaceAssets.music}
+                  demoVideos={workspaceAssets.demoVideos}
                   onCreateCollection={(collection) => {
                     setCollections((current) => [
                       collection,
@@ -1326,16 +1312,25 @@ export function RealFarmWorkspace({
               })
               .catch(() => undefined)
           }}
-          onCreateBlank={(automationKind) => {
+          onCreateBlank={(automationKind, platform) => {
             if (automationKind === "x_threads") {
+              const selectedPlatform = platform === "threads" ? "threads" : "x"
               void fetch("/api/x-automations", {
                 method: "POST",
                 headers: { "content-type": "application/json" },
-                body: JSON.stringify({ name: "X / Threads Content Engine" }),
+                body: JSON.stringify({
+                  name:
+                    selectedPlatform === "threads"
+                      ? "New Threads automation"
+                      : "New X automation",
+                  platform: selectedPlatform,
+                }),
               })
                 .then(async (response) => {
                   if (!response.ok)
-                    throw new Error("Could not create X / Threads automation")
+                    throw new Error(
+                      `Could not create ${selectedPlatform === "threads" ? "Threads" : "X"} automation`
+                    )
                   return response.json() as Promise<{
                     automation: XAutomationRecord
                   }>
@@ -1348,9 +1343,10 @@ export function RealFarmWorkspace({
                     id: automation.id,
                     name: automation.name,
                     automationKind: "x_threads",
+                    platform: automation.platform,
                     status: automation.status,
                     account: "No social account",
-                    handle: "X / Threads",
+                    handle: automation.platform === "threads" ? "Threads" : "X",
                     times: [],
                     favorite: false,
                     theme: "x_threads",

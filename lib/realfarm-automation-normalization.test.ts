@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  automationPostingMode,
   automationProviderPublishesVideo,
   defaultAutomationSchema,
   normalizeAutomationSchema,
@@ -22,6 +23,19 @@ const automation = {
 } satisfies Automation
 
 describe("automation schema normalization", () => {
+  it("defaults scheduled content to auto-publish and preserves explicit manual mode", () => {
+    const defaults = defaultAutomationSchema(automation)
+    expect(automationPostingMode(defaults)).toBe("auto")
+    expect(defaults.tiktok_post_settings.auto_post).toBe(true)
+
+    expect(
+      automationPostingMode({
+        ...defaults,
+        posting_mode: "manual",
+      })
+    ).toBe("manual")
+  })
+
   it("moves legacy tone items out of formatting", () => {
     const base = defaultAutomationSchema(automation)
     const normalized = normalizeAutomationSchema(

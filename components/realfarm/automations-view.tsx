@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import {
-  IconBrandX,
   IconPlayerPlay,
   IconPlus,
   IconSlideshow,
@@ -16,6 +15,7 @@ import { CardGridSkeleton } from "@/components/ui/loading-skeleton"
 import { GeneratedSlideshowViewerModal } from "@/components/realfarm/automation-settings/generated-slideshow-viewer"
 import { GeneratedAutomationVideoViewer } from "@/components/realfarm/automation-settings/generated-video-viewer"
 import { GeneratedVideoThumbnail } from "@/components/realfarm/generated-video-thumbnail"
+import { XThreadsBrandIcon } from "@/components/realfarm/x-threads-brand-icon"
 import type { AutomationRunApiRecord } from "@/components/realfarm/automation-settings/types"
 import {
   SocialAccountStatusRow,
@@ -24,6 +24,7 @@ import {
 import { upcomingAutomationPosts } from "@/lib/automation-upcoming-posts"
 import type { Automation } from "@/lib/realfarm-data"
 import type { XAutomationRun } from "@/lib/x-automation"
+import { xThreadsPlatformForDisplay } from "@/lib/x-automation-platform"
 import { cn } from "@/lib/utils"
 
 type AutomationRunPreview = {
@@ -35,6 +36,7 @@ type AutomationRunPreview = {
   videoUrl?: string
   thumbnailUrl?: string
   socialStatuses?: SocialAccountStatusItem[]
+  manuallyPublishedAt?: string
   renderedSlides?: AutomationRunPreviewSlide[]
   plan?: {
     slides?: AutomationRunPreviewSlide[]
@@ -122,7 +124,7 @@ export function AutomationsView({
             )
           )}
         {!automationsLoading && automations.length === 0 && (
-          <div className="col-span-full rounded-[8px] border border-dashed border-[#d8d7cf] bg-white px-5 py-10 text-center text-[14px] font-semibold text-[#77766f]">
+          <div className="col-span-full rounded-[8px] border border-dashed border-app-panel-border bg-app-surface px-5 py-10 text-center text-[14px] font-semibold text-app-muted-text">
             No automations yet.
           </div>
         )}
@@ -146,9 +148,9 @@ function XThreadsAutomationCard({
   const previews = (recentRuns ?? []).slice(0, 3)
 
   return (
-    <article className="relative overflow-hidden rounded-[8px] border border-[#eeeeee] bg-white shadow-sm">
+    <article className="relative overflow-hidden rounded-[8px] border border-[#eeeeee] bg-app-surface shadow-sm">
       <button
-        className="absolute top-2 left-2 z-10 flex items-center gap-1.5 rounded-[6px] bg-white px-2 py-1 text-[12px] font-medium text-[#333] shadow-sm"
+        className="absolute top-2 left-2 z-10 flex items-center gap-1.5 rounded-[6px] bg-app-surface px-2 py-1 text-[12px] font-medium text-app-text shadow-sm"
         onClick={() => onToggleStatus(automation)}
       >
         <span
@@ -162,9 +164,10 @@ function XThreadsAutomationCard({
       <div className="border-b border-[#eeeeee] px-9 py-3 text-center text-[13px] font-semibold">
         {automation.name}
       </div>
-      <div className="grid grid-cols-3 bg-[#111117]">
+      <div className="grid grid-cols-3 bg-app-strong">
         {[0, 1, 2].map((slot) => {
           const run = previews[slot]
+          const platform = xThreadsPlatformForDisplay(automation, run?.platform)
           return (
             <div
               key={run?.id ?? slot}
@@ -173,50 +176,51 @@ function XThreadsAutomationCard({
                 slot < 2 && "border-r border-white/15"
               )}
             >
-              <IconBrandX className="size-4 opacity-65" />
+              <XThreadsBrandIcon
+                platform={platform}
+                className="size-4 opacity-65"
+              />
               <p className="line-clamp-6 text-[11px] leading-[1.35] font-medium">
                 {run?.posts[0]?.text || run?.hook || "No recent generation"}
               </p>
               <span className="text-[9px] font-semibold text-white/50">
                 {run
-                  ? `${run.contentType} · ${run.benchmark.total}/100`
-                  : "X / Threads"}
+                  ? `${run.platform === "threads" ? "Threads" : "X"} · ${run.contentType} · ${run.benchmark.total}/100`
+                  : automation.handle || "Social post"}
               </span>
             </div>
           )
         })}
       </div>
-      <div className="p-4">
-        <div className="mb-3 flex items-center justify-between text-[12px]">
-          <span className="font-bold tracking-[0.08em] text-[#8a8982] uppercase">
-            Content automation
-          </span>
-          <span className="font-semibold text-[#77766f]">
-            {recentRuns?.length ?? 0} drafts
-          </span>
-        </div>
-        <div className="flex justify-end gap-2 border-t border-[#eeeeee] pt-3">
-          <Button
-            variant="softControl"
-            size="xs"
-            onClick={() => onToggleStatus(automation)}
-          >
-            {live ? (
-              <Pause className="size-3.5" />
-            ) : (
-              <IconPlayerPlay className="size-3.5" />
-            )}
-            {live ? "Pause" : "Resume"}
-          </Button>
-          <Button
-            variant="softControl"
-            size="xs"
-            onClick={() => onEdit(automation)}
-          >
-            <Pencil className="size-3.5" />
-            Edit
-          </Button>
-        </div>
+      <AutomationAccountsSection
+        automation={automation}
+        onClick={() => onEdit(automation)}
+      />
+      <AutomationScheduleSection
+        automation={automation}
+        status={live ? "live" : "paused"}
+      />
+      <div className="flex justify-end gap-2 px-4 pt-2 pb-4">
+        <Button
+          variant="softControl"
+          size="xs"
+          onClick={() => onToggleStatus(automation)}
+        >
+          {live ? (
+            <Pause className="size-3.5" />
+          ) : (
+            <IconPlayerPlay className="size-3.5" />
+          )}
+          {live ? "Pause" : "Resume"}
+        </Button>
+        <Button
+          variant="softControl"
+          size="xs"
+          onClick={() => onEdit(automation)}
+        >
+          <Pencil className="size-3.5" />
+          Edit
+        </Button>
       </div>
     </article>
   )
@@ -251,17 +255,11 @@ function AutomationGridCard({
   const generating = recentRuns?.some(
     (run) => run.status === "generating" || run.status === "running"
   )
-  const socialIntegrations = automation.socialIntegrations ?? []
-  const activeSocialIntegrations = socialIntegrations.filter(
-    (integration) => !integration.disabled
-  )
-  const accountStatusItems = automationAccountStatusItems(automation)
-  const upcomingPosts = upcomingAutomationPosts(automation)
 
   return (
-    <article className="relative overflow-hidden rounded-[8px] border border-[#eeeeee] bg-white shadow-sm">
+    <article className="relative overflow-hidden rounded-[8px] border border-[#eeeeee] bg-app-surface shadow-sm">
       <button
-        className="absolute top-2 left-2 z-10 flex items-center gap-1.5 rounded-[6px] bg-white px-2 py-1 text-[12px] font-medium text-[#333] shadow-sm transition hover:opacity-70"
+        className="absolute top-2 left-2 z-10 flex items-center gap-1.5 rounded-[6px] bg-app-surface px-2 py-1 text-[12px] font-medium text-app-text shadow-sm transition hover:opacity-70"
         onClick={() => onToggleStatus(automation)}
         aria-label={
           status === "live"
@@ -278,7 +276,7 @@ function AutomationGridCard({
         {status === "live" ? "Live" : "Paused"}
       </button>
       <button
-        className="absolute top-2 right-2 z-10 grid size-7 place-items-center rounded-[6px] bg-white text-[#777] shadow-sm transition hover:bg-[#f5f5f2]"
+        className="absolute top-2 right-2 z-10 grid size-7 place-items-center rounded-[6px] bg-app-surface text-app-muted-text shadow-sm transition hover:bg-app-surface-subtle"
         onClick={() => onToggleFavorite(automation)}
         aria-label={
           automation.favorite
@@ -293,7 +291,7 @@ function AutomationGridCard({
         )}
       </button>
 
-      <div className="border-x border-t border-[#eeeeee] bg-white px-9 py-3 text-center">
+      <div className="border-x border-t border-[#eeeeee] bg-app-surface px-9 py-3 text-center">
         <AutomationCardTitle automation={automation} onRename={onRename} />
       </div>
 
@@ -373,6 +371,10 @@ function AutomationGridCard({
         automation.automationKind === "video" ? (
           <GeneratedAutomationVideoViewer
             run={viewerRun as unknown as AutomationRunApiRecord}
+            onRunChanged={(run) => {
+              setViewerRun(run as unknown as AutomationRunPreview)
+              onGenerationRunUpdate?.(run)
+            }}
             onDelete={
               viewerRun.slideshowId
                 ? async () => {
@@ -416,54 +418,11 @@ function AutomationGridCard({
         )
       ) : null}
 
-      <div className="p-2 pb-1">
-        <button
-          className="flex w-full flex-col items-start gap-2 rounded-[8px] bg-white px-3 py-2 text-left transition hover:opacity-65"
-          onClick={() => onEditSocialAccounts(automation)}
-        >
-          <span className="flex w-full items-center justify-between gap-3">
-            <span className="text-[12px] font-bold tracking-[0.08em] text-[#8a8982] uppercase">
-              Accounts
-            </span>
-            <span className="text-[12px] font-semibold text-[#77766f]">
-              {activeSocialIntegrations.length} selected
-            </span>
-          </span>
-          <SocialAccountStatusRow
-            items={accountStatusItems}
-            size="compact"
-            showLabels
-            emptyLabel="Add account"
-          />
-        </button>
-      </div>
-
-      <div className="mt-1 border-t border-[#eeeeee] px-4 py-2">
-        <div className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap">
-          {upcomingPosts.length > 0 ? (
-            upcomingPosts.map((post) => (
-              <span
-                key={post.key}
-                className={cn(
-                  "inline-flex items-center rounded-full border border-[#eeeeee] px-2 py-1 text-[12px] font-medium text-[#191919] shadow-sm",
-                  status === "paused" && "line-through opacity-35"
-                )}
-                title={
-                  status === "paused"
-                    ? "Cancelled while automation is paused"
-                    : post.scheduledAt
-                }
-              >
-                {post.label}
-              </span>
-            ))
-          ) : (
-            <span className="inline-flex items-center rounded-full border border-[#eeeeee] px-2 py-1 text-[12px] font-medium text-[#191919] shadow-sm">
-              No upcoming posts
-            </span>
-          )}
-        </div>
-      </div>
+      <AutomationAccountsSection
+        automation={automation}
+        onClick={() => onEditSocialAccounts(automation)}
+      />
+      <AutomationScheduleSection automation={automation} status={status} />
 
       <div className="flex items-center justify-end gap-2 px-4 pt-2 pb-4">
         <Button
@@ -488,6 +447,82 @@ function AutomationGridCard({
         </Button>
       </div>
     </article>
+  )
+}
+
+function AutomationAccountsSection({
+  automation,
+  onClick,
+}: {
+  automation: Automation
+  onClick: () => void
+}) {
+  const activeSocialIntegrations = (automation.socialIntegrations ?? []).filter(
+    (integration) => !integration.disabled
+  )
+  const accountStatusItems = automationAccountStatusItems(automation)
+
+  return (
+    <div className="p-2 pb-1">
+      <button
+        className="flex w-full flex-col items-start gap-2 rounded-[8px] bg-app-surface px-3 py-2 text-left transition hover:opacity-65"
+        onClick={onClick}
+      >
+        <span className="flex w-full items-center justify-between gap-3">
+          <span className="text-[12px] font-bold tracking-[0.08em] text-app-text-faint uppercase">
+            Accounts
+          </span>
+          <span className="text-[12px] font-semibold text-app-muted-text">
+            {activeSocialIntegrations.length} selected
+          </span>
+        </span>
+        <SocialAccountStatusRow
+          items={accountStatusItems}
+          size="compact"
+          showLabels
+          emptyLabel="Add account"
+        />
+      </button>
+    </div>
+  )
+}
+
+function AutomationScheduleSection({
+  automation,
+  status,
+}: {
+  automation: Automation
+  status: "live" | "paused"
+}) {
+  const upcomingPosts = upcomingAutomationPosts(automation)
+
+  return (
+    <div className="mt-1 border-t border-[#eeeeee] px-4 py-2">
+      <div className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap">
+        {upcomingPosts.length > 0 ? (
+          upcomingPosts.map((post) => (
+            <span
+              key={post.key}
+              className={cn(
+                "inline-flex items-center rounded-full border border-[#eeeeee] px-2 py-1 text-[12px] font-medium text-[#191919] shadow-sm",
+                status === "paused" && "line-through opacity-35"
+              )}
+              title={
+                status === "paused"
+                  ? "Cancelled while automation is paused"
+                  : post.scheduledAt
+              }
+            >
+              {post.label}
+            </span>
+          ))
+        ) : (
+          <span className="inline-flex items-center rounded-full border border-[#eeeeee] px-2 py-1 text-[12px] font-medium text-[#191919] shadow-sm">
+            No upcoming posts
+          </span>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -615,7 +650,7 @@ function AutomationCardTitle({
   if (editing) {
     return (
       <input
-        className="h-7 min-w-0 flex-1 rounded-[5px] border border-[#d8d7cf] bg-white px-2 text-[12px] font-semibold ring-2 ring-app-action/20 outline-none"
+        className="h-7 min-w-0 flex-1 rounded-[5px] border border-app-panel-border bg-app-surface px-2 text-[12px] font-semibold ring-2 ring-app-action/20 outline-none"
         value={draftName}
         autoFocus
         onChange={(event) => setDraftName(event.target.value)}
@@ -637,15 +672,15 @@ function AutomationCardTitle({
   return (
     <div className="flex min-w-0 items-center justify-center gap-1">
       {automation.automationKind === "video" ? (
-        <IconPlayerPlay className="size-3.5 shrink-0 text-[#77766f]" />
+        <IconPlayerPlay className="size-3.5 shrink-0 text-app-muted-text" />
       ) : (
-        <IconSlideshow className="size-3.5 shrink-0 text-[#77766f]" />
+        <IconSlideshow className="size-3.5 shrink-0 text-app-muted-text" />
       )}
-      <span className="truncate text-[12px] font-medium text-[#333]">
+      <span className="truncate text-[12px] font-medium text-app-text">
         {automation.name}
       </span>
       <button
-        className="grid size-5 shrink-0 place-items-center rounded-full text-[#b8b8b8] hover:bg-[#f1f0eb] hover:text-[#388eff]"
+        className="grid size-5 shrink-0 place-items-center rounded-full text-[#b8b8b8] hover:bg-app-surface-subtle hover:text-[#388eff]"
         onClick={() => setEditing(true)}
         aria-label={`Edit ${automation.name} name`}
       >

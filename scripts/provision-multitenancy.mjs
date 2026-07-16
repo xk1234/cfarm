@@ -26,12 +26,39 @@ const TABLES = [
   "usage_ledger",
   "word_collections",
   "postfast_posts",
+  "postfast_metric_snapshots",
+  "account_follower_snapshots",
   "swipes",
   "generated_video_exports",
   "knowledge_bases",
   "jobs",
   "slideshow_benchmarks",
   "product_collections",
+]
+const JSON_STORE_TABLES = [
+  "image_collections",
+  "characters",
+  "character_generations",
+  "character_video_generations",
+  "assets",
+  "automations",
+  "automation_runs",
+  "x_automations",
+  "x_automation_runs",
+  "results",
+  "usage_ledger",
+  "word_collections",
+  "postfast_posts",
+  "swipes",
+  "generated_video_exports",
+  "knowledge_bases",
+  "slideshow_benchmarks",
+  "product_collections",
+  "automation_templates",
+  "automation_template_runs",
+  "benchmark_corpus",
+  "x_benchmark_corpus",
+  "media_library",
 ]
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -50,6 +77,18 @@ async function main() {
     await tables
       .createStringColumn(DB, table, "owner_id", 36, false)
       .catch(ignoreConflict)
+  }
+
+  for (const table of JSON_STORE_TABLES) {
+    for (const [key, column] of [
+      ["idx_ord", "ord"],
+      ["idx_rid", "rid"],
+      ["idx_status", "status"],
+    ]) {
+      await tables
+        .createIndex(DB, table, key, "key", [column], ["ASC"])
+        .catch(ignoreConflict)
+    }
   }
 
   for (const table of TABLES) {

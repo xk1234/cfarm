@@ -5,6 +5,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest"
 import { clearTestTables } from "@/lib/test-helpers"
 import {
   appendUsageRecords,
+  deleteUsageRecords,
   recentUsageRecords,
   recentUsageKeys,
   usageKeyForHookCombination,
@@ -22,6 +23,34 @@ beforeEach(clearUsageLedger)
 afterAll(clearUsageLedger)
 
 describe("usage ledger", () => {
+  it("removes usage for deleted runs without touching other runs", async () => {
+    await appendUsageRecords({
+      rootDir,
+      records: [
+        {
+          automation_id: "automation-a",
+          kind: "image",
+          key: "image-a",
+          run_id: "run-deleted",
+          used_at: "2026-07-07T10:00:00.000Z",
+        },
+        {
+          automation_id: "automation-a",
+          kind: "image",
+          key: "image-b",
+          run_id: "run-kept",
+          used_at: "2026-07-07T10:00:00.000Z",
+        },
+      ],
+    })
+
+    await deleteUsageRecords({ rootDir, runIds: ["run-deleted"] })
+
+    await expect(
+      recentUsageKeys("image", "automation-a", { rootDir, allTime: true })
+    ).resolves.toEqual(new Set(["image-b"]))
+  })
+
   it("tracks recent usage keys by automation and kind while pruning old records", async () => {
     await appendUsageRecords({
       rootDir,

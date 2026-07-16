@@ -179,15 +179,15 @@ function CollectionImageActionEditor({
   onSubmit: () => void
 }) {
   return (
-    <div className="mt-2 w-full max-w-[860px] rounded-[8px] bg-white p-3 text-[#242421] shadow-xl">
+    <div className="mt-2 w-full max-w-[860px] rounded-[8px] bg-app-surface p-3 text-app-text shadow-xl">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="grid h-8 grid-cols-2 rounded-[6px] bg-[#ecebe4] p-0.5 text-[12px] font-semibold">
+        <div className="grid h-8 grid-cols-2 rounded-[6px] bg-app-control-hover p-0.5 text-[12px] font-semibold">
           {(["edit", "upscale"] as const).map((tool) => (
             <button
               key={tool}
               className={cn(
                 "rounded-[5px] px-3 leading-none text-[#595852] capitalize",
-                activeTool === tool && "bg-white text-[#242421] shadow-sm"
+                activeTool === tool && "bg-app-surface text-app-text shadow-sm"
               )}
               onClick={() => onToolChange(tool)}
             >
@@ -201,7 +201,7 @@ function CollectionImageActionEditor({
         <SelectControl
           id="image-action-model"
           aria-label="Image action model"
-          className="h-8 min-w-[132px] rounded-[6px] border border-[#deddd5] bg-white px-2 text-[12px] font-semibold"
+          className="h-8 min-w-[132px] rounded-[6px] border border-app-panel-border bg-app-surface px-2 text-[12px] font-semibold"
           value={model}
           onChange={(event) => onModelChange(event.target.value)}
         >
@@ -214,7 +214,7 @@ function CollectionImageActionEditor({
         {activeTool === "upscale" && (
           <SelectControl
             aria-label="Upscale factor"
-            className="h-8 w-[78px] rounded-[6px] border border-[#deddd5] bg-white px-2 text-[12px] font-semibold"
+            className="h-8 w-[78px] rounded-[6px] border border-app-panel-border bg-app-surface px-2 text-[12px] font-semibold"
             value={upscaleFactor}
             onChange={(event) => onUpscaleFactorChange(event.target.value)}
           >
@@ -237,7 +237,7 @@ function CollectionImageActionEditor({
       </div>
       {activeTool === "edit" && (
         <textarea
-          className="mt-2 min-h-[44px] w-full resize-none rounded-[6px] border border-[#deddd5] px-3 py-2 text-[13px] leading-5 font-medium outline-none placeholder:text-[#aaa]"
+          className="mt-2 min-h-[44px] w-full resize-none rounded-[6px] border border-app-panel-border px-3 py-2 text-[13px] leading-5 font-medium outline-none placeholder:text-[#aaa]"
           value={prompt}
           onChange={(event) => onPromptChange(event.target.value)}
           placeholder="Describe the edit you want to make..."

@@ -4,30 +4,43 @@ import { useMemo, useState } from "react"
 
 import {
   SlideshowViewerModal,
+  type SlideshowViewerDetails,
+  type SlideshowViewerImageOption,
   type SlideshowViewerItem,
+  type SlideshowViewerMetadata,
   type SlideshowViewerSlide,
 } from "@/components/realfarm/slideshow-viewer-modal"
-
 import {
   automationRunSlides,
   canDeleteCompletedSlideshow,
   formatRunDate,
+  formatRunSchedule,
+  runPublishSchedule,
   slideshowCaption,
   slideshowTitle,
 } from "./run-helpers"
 import type { AutomationRunApiRecord, AutomationRunApiSlide } from "./types"
+import { RunPublicationStatusSelect } from "./run-publication-status-select"
 
 export function GeneratedSlideshowViewerModal({
   run,
   runs,
   onDeleted,
   onRunChanged,
+  allowDelete = true,
+  details,
+  onDebug,
+  onDelete,
   onClose,
 }: {
   run: AutomationRunApiRecord
   runs?: AutomationRunApiRecord[]
   onDeleted?: (runId: string) => void
   onRunChanged?: (run: AutomationRunApiRecord) => void
+  allowDelete?: boolean
+  details?: SlideshowViewerDetails
+  onDebug?: () => void
+  onDelete?: () => Promise<void>
   onClose: () => void
 }) {
   // Local copy so slide deletions reflect immediately even when the parent
@@ -39,6 +52,15 @@ export function GeneratedSlideshowViewerModal({
     () => automationRunsToViewerSlideshows(localRuns),
     [localRuns]
   )
+  const resolvedDetails = details ?? viewerDetailsForRun(run)
+  const currentRun = localRuns.find((item) => item.id === run.id) ?? run
+
+  function applyRunChanged(updated: AutomationRunApiRecord) {
+    setLocalRuns((current) =>
+      current.map((item) => (item.id === updated.id ? updated : item))
+    )
+    onRunChanged?.(updated)
+  }
 
   async function deleteSlide(slideshowItemId: string, slideIndex: number) {
     const target = localRuns.find((item) => item.id === slideshowItemId)
@@ -76,7 +98,90 @@ export function GeneratedSlideshowViewerModal({
     onRunChanged?.(updated)
   }
 
+  async function loadSlideImages(slideshowItemId: string) {
+    const target = localRuns.find((item) => item.id === slideshowItemId)
+    if (!target?.slideshowId) {
+      throw new Error("This slideshow has no editable record.")
+    }
+    const response = await fetch(
+      `/api/slideshows/${encodeURIComponent(target.slideshowId)}`
+    )
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string
+      images?: SlideshowViewerImageOption[]
+    }
+    if (!response.ok) {
+      throw new Error(payload.error || "Images could not be loaded.")
+    }
+    return payload.images ?? []
+  }
+
+  async function replaceSlideImage(
+    slideshowItemId: string,
+    slideIndex: number,
+    imageUrl: string
+  ) {
+    const target = localRuns.find((item) => item.id === slideshowItemId)
+    if (!target?.slideshowId) {
+      throw new Error("This slideshow has no editable record.")
+    }
+    const response = await fetch(
+      `/api/slideshows/${encodeURIComponent(target.slideshowId)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "replaceImage", slideIndex, imageUrl }),
+      }
+    )
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string
+      run?: AutomationRunApiRecord
+    }
+    if (!response.ok || !payload.run) {
+      throw new Error(payload.error || "The slide image could not be changed.")
+    }
+    setLocalRuns((current) =>
+      current.map((item) => (item.id === payload.run!.id ? payload.run! : item))
+    )
+    onRunChanged?.(payload.run)
+  }
+
+  async function updateMetadata(
+    slideshowItemId: string,
+    metadata: SlideshowViewerMetadata
+  ) {
+    const target = localRuns.find((item) => item.id === slideshowItemId)
+    if (!target?.slideshowId) {
+      throw new Error("This slideshow has no editable record.")
+    }
+    const response = await fetch(
+      `/api/slideshows/${encodeURIComponent(target.slideshowId)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "updateMetadata", ...metadata }),
+      }
+    )
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string
+      run?: AutomationRunApiRecord
+    }
+    if (!response.ok || !payload.run) {
+      throw new Error(
+        payload.error || "The slideshow details could not be saved."
+      )
+    }
+    setLocalRuns((current) =>
+      current.map((item) => (item.id === payload.run!.id ? payload.run! : item))
+    )
+    onRunChanged?.(payload.run)
+  }
+
   async function deleteSlideshow() {
+    if (onDelete) {
+      await onDelete()
+      return
+    }
     if (!run.slideshowId) return
     const response = await fetch(
       `/api/slideshows/${encodeURIComponent(run.slideshowId)}`,
@@ -98,11 +203,36 @@ export function GeneratedSlideshowViewerModal({
       slideshows={slideshows}
       initialSlideshowId={run.id}
       benchmarkSlideshowId={run.slideshowId}
-      onDelete={canDeleteCompletedSlideshow(run) ? deleteSlideshow : undefined}
+      details={resolvedDetails}
+      publicationStatusControl={
+        <RunPublicationStatusSelect
+          run={currentRun}
+          onRunChanged={applyRunChanged}
+        />
+      }
+      onDebug={onDebug}
+      onDelete={
+        allowDelete && canDeleteCompletedSlideshow(run)
+          ? deleteSlideshow
+          : undefined
+      }
       onDeleteSlide={deleteSlide}
+      onLoadSlideImages={run.slideshowId ? loadSlideImages : undefined}
+      onReplaceSlideImage={run.slideshowId ? replaceSlideImage : undefined}
+      onUpdateMetadata={run.slideshowId ? updateMetadata : undefined}
       onClose={onClose}
     />
   )
+}
+
+function viewerDetailsForRun(
+  run: AutomationRunApiRecord
+): SlideshowViewerDetails {
+  return {
+    creationDate: formatRunDate(run.createdAt),
+    postDate: formatRunSchedule(runPublishSchedule(run)),
+    language: run.plan?.language || "English",
+  }
 }
 
 function automationRunsToViewerSlideshows(runs: AutomationRunApiRecord[]) {
@@ -140,7 +270,10 @@ function automationSlideToViewerSlide(
   slide: AutomationRunApiSlide,
   index: number
 ): SlideshowViewerSlide | null {
-  const imageUrl = slide.imageUrl?.trim() || slide.sourceImageUrl?.trim()
+  const rawImageUrl = slide.imageUrl?.trim() || slide.sourceImageUrl?.trim()
+  const imageUrl = rawImageUrl
+    ? cacheBustedImageUrl(rawImageUrl, run.updatedAt)
+    : ""
   if (!imageUrl) {
     return null
   }
@@ -155,6 +288,12 @@ function automationSlideToViewerSlide(
         ? Math.max(1, slide.durationMs / 1000)
         : undefined,
   }
+}
+
+function cacheBustedImageUrl(imageUrl: string, updatedAt?: string) {
+  if (!updatedAt) return imageUrl
+  const separator = imageUrl.includes("?") ? "&" : "?"
+  return `${imageUrl}${separator}v=${encodeURIComponent(updatedAt)}`
 }
 
 function automationSlideSection(

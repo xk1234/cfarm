@@ -68,8 +68,8 @@ export function EmailVerificationCard() {
   }
 
   return (
-    <div className="w-full rounded-[18px] border border-[#e7e7ee] bg-white p-7 text-center shadow-[0_18px_60px_rgba(35,24,67,0.1)] sm:p-9">
-      <div className="mx-auto grid size-12 place-items-center rounded-full bg-[#f1eafe] text-2xl">
+    <div className="brand-card w-full p-7 text-center sm:p-9">
+      <div className="mx-auto grid size-12 place-items-center rounded-full bg-brand-accent-surface text-2xl">
         {state === "verified" ? "✓" : "✉"}
       </div>
       <h1 className="mt-5 text-3xl font-semibold tracking-[-0.045em]">
@@ -79,14 +79,14 @@ export function EmailVerificationCard() {
             ? "Verifying your email"
             : "Check your inbox"}
       </h1>
-      <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-[#686875]">
+      <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-brand-muted">
         {message}
       </p>
 
       {state === "verified" ? (
         <a
           href="/app"
-          className="mt-7 flex h-11 w-full items-center justify-center rounded-[10px] bg-[#6d28d9] text-sm font-semibold text-white hover:bg-[#5b21b6]"
+          className="brand-button brand-button-primary mt-7 w-full"
         >
           Open LumenClip
         </a>
@@ -94,7 +94,7 @@ export function EmailVerificationCard() {
         <button
           onClick={resend}
           disabled={pending}
-          className="mt-7 h-11 w-full rounded-[10px] bg-[#6d28d9] px-4 text-sm font-semibold text-white hover:bg-[#5b21b6] disabled:opacity-60"
+          className="brand-button brand-button-primary mt-7 w-full disabled:opacity-60"
         >
           {pending ? "Sending…" : "Resend verification email"}
         </button>
@@ -103,7 +103,7 @@ export function EmailVerificationCard() {
       {state !== "verified" ? (
         <a
           href="/login"
-          className="mt-5 block text-sm font-medium text-[#686875] hover:text-[#111117]"
+          className="mt-5 block text-sm font-medium text-brand-muted hover:text-brand-ink"
         >
           Back to login
         </a>

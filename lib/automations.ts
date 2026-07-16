@@ -4,6 +4,7 @@ import path from "node:path"
 
 import {
   deleteJsonArrayRecord,
+  readJsonArrayRecord,
   readJsonArrayStore,
   upsertJsonArrayRecord,
 } from "@/lib/json-store"
@@ -161,9 +162,8 @@ export async function patchAutomationRecord(input: {
   favorite?: boolean
   schema?: AutomationSchema
 }) {
-  const records = await readAutomationRecords(input.rootDir)
   const updatedAt = new Date().toISOString()
-  const record = records.find((item) => item.id === input.id)
+  const record = await getAutomationRecord(input.id, input.rootDir)
   if (!record) return null
   const nextSchema = input.schema ?? record.schema
   const nextName = clean(input.name) || record.name
@@ -197,8 +197,7 @@ export async function deleteAutomationRecord(input: {
   rootDir?: string
   id: string
 }) {
-  const records = await readAutomationRecords(input.rootDir)
-  const deleted = records.find((record) => record.id === input.id) ?? null
+  const deleted = await getAutomationRecord(input.id, input.rootDir)
   if (!deleted) {
     return null
   }
@@ -292,6 +291,14 @@ function readAutomationRecords(
     rootDir,
     fileName: dbFileName,
     key: "automations",
+    normalize: normalizeAutomationRecord,
+  })
+}
+
+export function getAutomationRecord(id: string, rootDir?: string) {
+  return readJsonArrayRecord({
+    ...automationStore(rootDir),
+    id,
     normalize: normalizeAutomationRecord,
   })
 }

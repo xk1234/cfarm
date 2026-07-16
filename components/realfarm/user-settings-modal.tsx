@@ -68,7 +68,7 @@ export function UserSettingsModal({
           onClose={onClose}
         />
         <div className="grid min-h-[600px] md:grid-cols-[220px_1fr]">
-          <nav className="border-b border-[#e7e7ee] bg-[#fafafd] p-3 md:border-r md:border-b-0">
+          <nav className="border-b border-app-panel-border bg-[#fafafd] p-3 md:border-r md:border-b-0">
             {tabs.map((item) => {
               const Icon = item.icon
               return (
@@ -78,8 +78,8 @@ export function UserSettingsModal({
                   className={cn(
                     "mb-1 flex h-10 w-full items-center gap-2.5 rounded-[10px] px-3 text-left text-sm font-medium",
                     tab === item.id
-                      ? "bg-[#111117] text-white"
-                      : "text-[#686875] hover:bg-[#f0eef8] hover:text-[#111117]"
+                      ? "bg-app-strong text-white"
+                      : "text-app-muted-text hover:bg-app-control-hover hover:text-app-text"
                   )}
                 >
                   <Icon className="size-4" />
@@ -114,7 +114,7 @@ function PanelHeading({
   return (
     <div className="mb-7">
       <h2 className="text-2xl font-semibold tracking-[-0.035em]">{title}</h2>
-      <p className="mt-1 text-sm leading-6 text-[#686875]">{description}</p>
+      <p className="mt-1 text-sm leading-6 text-app-muted-text">{description}</p>
     </div>
   )
 }
@@ -129,24 +129,24 @@ function BillingPanel() {
       <div className="rounded-[14px] border border-[#e4d7ff] bg-[#f6f2ff] p-5">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold tracking-[0.12em] text-[#6d28d9] uppercase">
+            <p className="text-xs font-semibold tracking-[0.12em] text-app-action uppercase">
               Current plan
             </p>
             <h3 className="mt-1 text-xl font-semibold">LumenClip Free</h3>
           </div>
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#6d28d9]">
+          <span className="rounded-full bg-app-surface px-3 py-1 text-xs font-semibold text-app-action">
             Active
           </span>
         </div>
-        <p className="mt-4 text-sm text-[#686875]">
+        <p className="mt-4 text-sm text-app-muted-text">
           Billing is being finalized. You’ll be able to upgrade, manage payment
           methods, and download invoices here.
         </p>
       </div>
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
         {["Generations", "Storage", "Team seats"].map((label) => (
-          <div key={label} className="border-t border-[#e7e7ee] pt-4">
-            <p className="text-xs font-medium text-[#858592]">{label}</p>
+          <div key={label} className="border-t border-app-panel-border pt-4">
+            <p className="text-xs font-medium text-app-text-faint">{label}</p>
             <p className="mt-1 text-sm font-semibold">Coming soon</p>
           </div>
         ))}
@@ -223,7 +223,7 @@ function AccountsPanel({
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <button
           onClick={connect}
-          className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#6d28d9] px-4 text-sm font-semibold text-white hover:bg-[#5b21b6]"
+          className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-app-action px-4 text-sm font-semibold text-white hover:bg-[#5b21b6]"
         >
           <IconPlus className="size-4" />
           Add social account
@@ -242,15 +242,15 @@ function AccountsPanel({
         <p className="mb-4 text-sm font-medium text-[#b43e4d]">{error}</p>
       ) : null}
       {loading ? (
-        <ListSkeleton count={4} className="border-y border-[#ececf1]" />
+        <ListSkeleton count={4} className="border-y border-app-panel-border" />
       ) : accounts.length ? (
-        <div className="divide-y divide-[#ececf1] border-y border-[#ececf1]">
+        <div className="divide-y divide-[#ececf1] border-y border-app-panel-border">
           {accounts.map((a) => (
             <div
               key={`${a.provider}:${a.integration_id}`}
               className="flex items-center gap-3 py-4"
             >
-              <span className="grid size-10 place-items-center rounded-full bg-[#111117] text-white">
+              <span className="grid size-10 place-items-center rounded-full bg-app-strong text-white">
                 {a.provider === "instagram" ? (
                   <IconBrandInstagram className="size-5" />
                 ) : a.provider === "youtube" ? (
@@ -263,7 +263,7 @@ function AccountsPanel({
                 <p className="truncate text-sm font-semibold">
                   {a.name || a.profile || a.provider}
                 </p>
-                <p className="text-xs text-[#858592] capitalize">
+                <p className="text-xs text-app-text-faint capitalize">
                   {a.provider}
                 </p>
               </div>
@@ -295,11 +295,11 @@ function AccountsPanel({
       {disconnectedAccounts.length > 0 ? (
         <div className="mt-8">
           <h3 className="text-sm font-semibold">Disconnected from LumenClip</h3>
-          <p className="mt-1 text-xs leading-5 text-[#858592]">
+          <p className="mt-1 text-xs leading-5 text-app-text-faint">
             These accounts remain authorized in PostFast until you revoke them
             there.
           </p>
-          <div className="mt-3 divide-y divide-[#ececf1] border-y border-[#ececf1]">
+          <div className="mt-3 divide-y divide-[#ececf1] border-y border-app-panel-border">
             {disconnectedAccounts.map((account) => (
               <div
                 key={`${account.provider}:${account.integration_id}`}
@@ -309,7 +309,7 @@ function AccountsPanel({
                   <p className="truncate text-sm font-semibold">
                     {account.name || account.profile || account.provider}
                   </p>
-                  <p className="text-xs text-[#858592] capitalize">
+                  <p className="text-xs text-app-text-faint capitalize">
                     {account.provider}
                   </p>
                 </div>
@@ -391,7 +391,7 @@ function TeamPanel() {
       />
       <button
         onClick={() => setOpen(true)}
-        className="mb-6 inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#6d28d9] px-4 text-sm font-semibold text-white"
+        className="mb-6 inline-flex h-10 items-center gap-2 rounded-[10px] bg-app-action px-4 text-sm font-semibold text-white"
       >
         <IconPlus className="size-4" />
         Add member
@@ -400,17 +400,17 @@ function TeamPanel() {
         <p className="mb-4 text-sm font-medium text-[#b43e4d]">{error}</p>
       ) : null}
       {loading ? (
-        <ListSkeleton count={4} className="border-y border-[#ececf1]" />
+        <ListSkeleton count={4} className="border-y border-app-panel-border" />
       ) : members.length ? (
-        <div className="divide-y divide-[#ececf1] border-y border-[#ececf1]">
+        <div className="divide-y divide-[#ececf1] border-y border-app-panel-border">
           {members.map((m) => (
             <div key={m.id} className="flex items-center gap-3 py-4">
-              <span className="grid size-9 place-items-center rounded-full bg-[#f0eef8] text-sm font-semibold text-[#6d28d9]">
+              <span className="grid size-9 place-items-center rounded-full bg-app-control-hover text-sm font-semibold text-app-action">
                 {m.email[0]?.toUpperCase()}
               </span>
               <div>
                 <p className="text-sm font-semibold">{m.email}</p>
-                <p className="text-xs text-[#858592]">
+                <p className="text-xs text-app-text-faint">
                   Can view shared generations and swipes
                 </p>
               </div>
@@ -462,7 +462,7 @@ function TeamPanel() {
               ) : null}
               <button
                 disabled={pending}
-                className="mt-5 h-10 w-full rounded-[10px] bg-[#6d28d9] text-sm font-semibold text-white disabled:opacity-60"
+                className="mt-5 h-10 w-full rounded-[10px] bg-app-action text-sm font-semibold text-white disabled:opacity-60"
               >
                 {pending ? "Sending…" : "Send invitation"}
               </button>
@@ -542,17 +542,17 @@ function DemosPanel() {
           {demos.map((d) => (
             <article
               key={d.id}
-              className="overflow-hidden rounded-[14px] border border-[#e7e7ee] bg-white"
+              className="overflow-hidden rounded-[14px] border border-app-panel-border bg-app-surface"
             >
               <video
                 controls
                 preload="metadata"
                 src={d.url}
-                className="aspect-video w-full bg-[#111117]"
+                className="aspect-video w-full bg-app-strong"
               />
               <div className="p-3">
                 <p className="truncate text-sm font-semibold">{d.title}</p>
-                <p className="mt-1 text-xs text-[#858592]">
+                <p className="mt-1 text-xs text-app-text-faint">
                   {new Date(d.createdAt).toLocaleDateString()}
                 </p>
               </div>
@@ -582,9 +582,9 @@ function Empty({
   return (
     <div className="grid min-h-[220px] place-items-center rounded-[14px] border border-dashed border-[#d8d8e2] bg-[#fbfbfd] p-8 text-center">
       <div>
-        <Icon className="mx-auto size-6 text-[#6d28d9]" />
+        <Icon className="mx-auto size-6 text-app-action" />
         <p className="mt-3 text-sm font-semibold">{title}</p>
-        <p className="mt-1 max-w-sm text-xs leading-5 text-[#858592]">{text}</p>
+        <p className="mt-1 max-w-sm text-xs leading-5 text-app-text-faint">{text}</p>
       </div>
     </div>
   )

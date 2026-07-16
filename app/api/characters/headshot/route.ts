@@ -6,6 +6,7 @@ import {
   normalizeCharacterAttributes,
   type Character,
 } from "@/lib/character-model"
+import { buildHeadshotPrompt } from "@/lib/character-headshot-prompt"
 import {
   downloadRemoteImageToLocalAsset,
   getKieApiKey,
@@ -39,7 +40,11 @@ export async function POST(request: Request) {
     const name = payload.name?.trim() || attributes.name || "New character"
     const apiKey = getKieApiKey()
 
-    const prompt = buildHeadshotPrompt(name, attributes, payload.customPrompt)
+    const prompt = buildHeadshotPrompt({
+      name,
+      attributes,
+      customPrompt: payload.customPrompt,
+    })
     if (!apiKey) {
       return NextResponse.json({ error: "Missing KIE_KEY" }, { status: 500 })
     }
@@ -78,27 +83,6 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-}
-
-function buildHeadshotPrompt(
-  name: string,
-  attributes: Character,
-  customPrompt?: string
-) {
-  const characterJson = JSON.stringify({ ...attributes, name }, null, 2)
-  const extraPrompt = customPrompt?.trim()
-
-  return [
-    "Generate a photorealistic AI UGC character headshot on a clean white background.",
-    "The image must be a front-facing shoulders-up portrait, centered, evenly lit, with natural skin texture, realistic facial proportions, and no text, watermark, logo, border, or UI elements.",
-    "Keep the identity consistent with this character JSON. Treat the JSON as the source of truth for age, ethnicity, gender, hair, eyes, face, skin, build, clothing, posture, emotion, accessories, and voice cues.",
-    "Use the uploaded character image only as a visual reference when one is provided. Do not return the uploaded image itself; generate a new clean headshot from the reference plus the character JSON.",
-    "Character JSON:",
-    characterJson,
-    extraPrompt
-      ? `Custom prompt: ${extraPrompt}`
-      : "Custom prompt: professional neutral headshot, white background, passport-style crop but natural UGC realism.",
-  ].join("\n\n")
 }
 
 async function uploadSourceImage(

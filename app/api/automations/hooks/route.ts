@@ -2,10 +2,13 @@ import { clean, isRecord } from "@/lib/guards"
 import { NextResponse } from "next/server"
 
 import { withHandler } from "@/lib/api"
-import { openRouterChatCompletion } from "@/lib/openrouter"
+import {
+  openRouterChatCompletion,
+  parseOpenRouterContent,
+} from "@/lib/openrouter"
 import {
   automationRecordToSummary,
-  listAutomationRecords,
+  getAutomationRecord,
   patchAutomationRecord,
 } from "@/lib/automations"
 import {
@@ -36,8 +39,7 @@ export const POST = withHandler(async (request: Request) => {
     )
   }
 
-  const records = await listAutomationRecords()
-  const record = records.find((item) => item.id === automationId)
+  const record = await getAutomationRecord(automationId)
   if (!record) {
     return NextResponse.json({ error: "Automation not found" }, { status: 404 })
   }
@@ -57,51 +59,54 @@ export const POST = withHandler(async (request: Request) => {
   const recentHookKeys = await recentUsageKeys("hook", record.id, {
     withinDays: record.schema.reuse_policy?.hook_exclusion_days ?? 45,
   })
-  const { ok, status, payload: openRouterPayload } =
-    await openRouterChatCompletion({
-      apiKey,
-      model: openRouterModelForUseCase("automationHooks"),
-      messages: [
-        {
-          role: "system",
-          content:
-            "You write TikTok slideshow hooks. Return only JSON that matches the schema. Do not number the hooks. Do not repeat the provided examples.",
-        },
-        {
-          role: "user",
-          content: [
-            `Automation: ${record.name}`,
-            `Generate 10 new hooks in the same niche and style as these existing hooks.`,
-            `Existing hooks:`,
-            ...sampleHooks.map((hook) => `- ${hook}`),
-            "Keep each hook short, specific, and usable as the first slide of a TikTok slideshow.",
-          ].join("\n"),
-        },
-      ],
-      responseFormat: {
-        type: "json_schema",
-        json_schema: {
-          name: "automation_hook_generation",
-          strict: true,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            required: ["hooks"],
-            properties: {
-              hooks: {
-                type: "array",
-                minItems: 10,
-                maxItems: 10,
-                items: {
-                  type: "string",
-                  minLength: 3,
-                },
+  const {
+    ok,
+    status,
+    payload: openRouterPayload,
+  } = await openRouterChatCompletion({
+    apiKey,
+    model: openRouterModelForUseCase("automationHooks"),
+    messages: [
+      {
+        role: "system",
+        content:
+          "You write TikTok slideshow hooks. Return only JSON that matches the schema. Do not number the hooks. Do not repeat the provided examples.",
+      },
+      {
+        role: "user",
+        content: [
+          `Automation: ${record.name}`,
+          `Generate 10 new hooks in the same niche and style as these existing hooks.`,
+          `Existing hooks:`,
+          ...sampleHooks.map((hook) => `- ${hook}`),
+          "Keep each hook short, specific, and usable as the first slide of a TikTok slideshow.",
+        ].join("\n"),
+      },
+    ],
+    responseFormat: {
+      type: "json_schema",
+      json_schema: {
+        name: "automation_hook_generation",
+        strict: true,
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          required: ["hooks"],
+          properties: {
+            hooks: {
+              type: "array",
+              minItems: 10,
+              maxItems: 10,
+              items: {
+                type: "string",
+                minLength: 3,
               },
             },
           },
         },
       },
-    })
+    },
+  })
 
   if (!ok) {
     return NextResponse.json(
@@ -145,36 +150,12 @@ export const POST = withHandler(async (request: Request) => {
 })
 
 function parseGeneratedHooks(content: unknown) {
-  const parsed = parseOpenRouterContent(content)
+  const parsed = JSON.parse(parseOpenRouterContent(content))
   if (!isRecord(parsed) || !Array.isArray(parsed.hooks)) {
     return []
   }
 
   return parsed.hooks.map(clean).filter(Boolean)
-}
-
-function parseOpenRouterContent(content: unknown): unknown {
-  if (typeof content === "string") {
-    return JSON.parse(content)
-  }
-
-  if (Array.isArray(content)) {
-    const text = content
-      .map((part) => {
-        if (typeof part === "string") {
-          return part
-        }
-        if (isRecord(part) && typeof part.text === "string") {
-          return part.text
-        }
-        return ""
-      })
-      .join("")
-      .trim()
-    return JSON.parse(text)
-  }
-
-  return content
 }
 
 function randomSample<T>(items: T[], count: number) {

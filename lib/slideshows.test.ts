@@ -2,7 +2,6 @@ import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { Query } from "node-appwrite"
 import {
   afterAll,
   afterEach,
@@ -13,7 +12,6 @@ import {
   vi,
 } from "vitest"
 
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
 import { mirrorAssetToAppwrite, readAssetBytes } from "@/lib/asset-storage"
 import { readJsonArrayStore } from "@/lib/json-store"
@@ -25,13 +23,14 @@ let createSlideshowRecord: typeof SlideshowsModule.createSlideshowRecord
 let deleteSlideshowRecord: typeof SlideshowsModule.deleteSlideshowRecord
 let deleteSlideshowRecordsForAutomation: typeof SlideshowsModule.deleteSlideshowRecordsForAutomation
 let listSlideshowRecords: typeof SlideshowsModule.listSlideshowRecords
+let replaceSlideshowSlideImage: typeof SlideshowsModule.replaceSlideshowSlideImage
+let updateSlideshowMetadata: typeof SlideshowsModule.updateSlideshowMetadata
 
 // Appwrite-only, run against cfarm (forced by vitest.setup.ts):
 //   data/slideshows/slideshows.json -> slideshows, results -> results;
 //   rendered slide output -> Storage.
-// Slides are rasterized to PNG only where a rasterizer is available (darwin);
-// elsewhere the served slide is the SVG source.
-const slideExt = process.platform === "darwin" ? "png" : "svg"
+// Exported slide media is always PNG; SVG is an internal render artifact.
+const slideExt = "png"
 let rootDir: string
 
 const clearAll = () => clearTestTables("slideshows", "results")
@@ -61,8 +60,17 @@ beforeEach(async () => {
         })
       ),
       runRendiFfmpegAndDownload: vi.fn(
-        async ({ outputPath }: { outputPath: string }) => {
-          await writeFile(outputPath, Buffer.from("fake mp4"))
+        async ({
+          outputPath,
+          localOutputPath,
+        }: {
+          outputPath: string
+          localOutputPath?: string
+        }) => {
+          await writeFile(
+            localOutputPath ?? outputPath,
+            Buffer.from("fake mp4")
+          )
           return outputPath
         }
       ),
@@ -73,6 +81,8 @@ beforeEach(async () => {
     deleteSlideshowRecord,
     deleteSlideshowRecordsForAutomation,
     listSlideshowRecords,
+    replaceSlideshowSlideImage,
+    updateSlideshowMetadata,
   } = await import("@/lib/slideshows"))
   await writeLocalAsset("first.jpg", "first image")
   await writeLocalAsset("slide.jpg", "slide image")
@@ -242,6 +252,75 @@ describe("slideshow persistence", () => {
 
     expect(deleted?.id).toBe(record.id)
     expect(records).toEqual([])
+  })
+
+  it("replaces a slide source and rerenders it without changing its text layout", async () => {
+    const record = await createSlideshowRecord({
+      automationId: "automation-1",
+      runId: "automation-run-replace-image",
+      title: "Replace image",
+      images: [
+        {
+          image_url: "/api/local-assets/image-collections/files/first.jpg",
+          overlay: true,
+          textItems: [
+            {
+              id: "text-1",
+              text: "keep this exact text",
+              fontSize: "12px",
+              textSize: { width: 70, height: 18 },
+              textStyle: "outline",
+              textAlign: "left",
+              textAnchor: "flush",
+              textPosition: { x: 12, y: 42 },
+            },
+          ],
+        },
+      ],
+    })
+    const originalTextItems = record.images[0].textItems
+
+    const updated = await replaceSlideshowSlideImage({
+      id: record.id,
+      imageUrl: "/api/local-assets/image-collections/files/slide.jpg",
+      slideIndex: 0,
+    })
+    const outputSvg = await readOutputText(record, "slide-001.svg")
+
+    expect(updated?.images[0]).toMatchObject({
+      overlay: true,
+      textItems: originalTextItems,
+    })
+    expect(outputSvg).toContain(Buffer.from("slide image").toString("base64"))
+    expect(outputSvg).not.toContain(
+      Buffer.from("first image").toString("base64")
+    )
+  })
+
+  it("updates publishing metadata without changing rendered slides", async () => {
+    const record = await createSlideshowRecord({
+      automationId: "automation-metadata",
+      runId: "automation-run-metadata",
+      title: "Old title",
+      caption: "Old description",
+      hashtags: "#old",
+      images: [],
+    })
+
+    const updated = await updateSlideshowMetadata({
+      id: record.id,
+      title: "New title",
+      caption: "New description",
+      hashtags: "#new #edited",
+    })
+
+    expect(updated).toMatchObject({
+      id: record.id,
+      title: "New title",
+      caption: "New description",
+      hashtags: "#new #edited",
+      output_images: record.output_images,
+    })
   })
 
   it("renders output slides with configured aspect ratio and bounded text lines", async () => {
@@ -521,53 +600,50 @@ describe("slideshow persistence", () => {
     expect(record.images[0]).not.toHaveProperty("time_length_ms")
   })
 
-  it.runIf(process.platform === "darwin")(
-    "renders slideshow PNG frames and a video into the output folder",
-    async () => {
-      const record = await createSlideshowRecord({
-        title: "Rendered video slideshow",
-        settings: {
-          duration: 1,
-          transition_style: "fade",
-          export_as_video: true,
+  it("renders slideshow PNG frames and a video into the output folder", async () => {
+    const record = await createSlideshowRecord({
+      title: "Rendered video slideshow",
+      settings: {
+        duration: 1,
+        transition_style: "fade",
+        export_as_video: true,
+      },
+      images: [
+        {
+          image_url: "/api/local-assets/image-collections/files/scene.svg",
+          textItems: [
+            {
+              id: "text-1",
+              text: "how to stop caring what people think",
+              fontSize: "10px",
+              textSize: { width: 56, height: 18 },
+              textStyle: "outline",
+              textAlign: "center",
+              textAnchor: "padded",
+              textPosition: { x: 50, y: 18 },
+            },
+          ],
         },
-        images: [
-          {
-            image_url: "/api/local-assets/image-collections/files/scene.svg",
-            textItems: [
-              {
-                id: "text-1",
-                text: "how to stop caring what people think",
-                fontSize: "10px",
-                textSize: { width: 56, height: 18 },
-                textStyle: "outline",
-                textAlign: "center",
-                textAnchor: "padded",
-                textPosition: { x: 50, y: 18 },
-              },
-            ],
-          },
-        ],
-      })
+      ],
+    })
 
-      expect(record.output_images).toEqual([
-        `/api/local-assets/slideshows/outputs/${record.id}/slide-001.${slideExt}`,
-      ])
-      expect(record.images[0].image_url).toBe(record.output_images[0])
-      expect(record.video_url).toBe(
-        `/api/local-assets/slideshows/outputs/${record.id}/slideshow-export.mp4`
-      )
-      expect(record.thumbnail_url).toBe(
-        `/api/local-assets/slideshows/outputs/${record.id}/slideshow-thumbnail.png`
-      )
-      await expect(
-        readAssetBytes(outputPath(rootDir, record, "slide-001.png"))
-      ).resolves.toBeTruthy()
-      await expect(
-        readAssetBytes(outputPath(rootDir, record, "slideshow-export.mp4"))
-      ).resolves.toBeTruthy()
-    }
-  )
+    expect(record.output_images).toEqual([
+      `/api/local-assets/slideshows/outputs/${record.id}/slide-001.${slideExt}`,
+    ])
+    expect(record.images[0].image_url).toBe(record.output_images[0])
+    expect(record.video_url).toBe(
+      `/api/local-assets/slideshows/outputs/${record.id}/slideshow-export.mp4`
+    )
+    expect(record.thumbnail_url).toBe(
+      `/api/local-assets/slideshows/outputs/${record.id}/slideshow-thumbnail.png`
+    )
+    await expect(
+      readAssetBytes(outputPath(rootDir, record, "slide-001.png"))
+    ).resolves.toBeTruthy()
+    await expect(
+      readAssetBytes(outputPath(rootDir, record, "slideshow-export.mp4"))
+    ).resolves.toBeTruthy()
+  })
 })
 
 async function writeLocalAsset(fileName: string, value: string | Uint8Array) {

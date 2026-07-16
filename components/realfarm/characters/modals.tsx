@@ -229,14 +229,14 @@ export function CharacterImageEditorModal({
             <div className="mt-1 rounded-[3px] bg-black/55 px-4 py-1.5 text-[15px] font-bold">
               {index + 1} / {total}
             </div>
-            <div className="mt-2 w-full max-w-[860px] rounded-[8px] bg-white p-3 text-[#242421] shadow-xl">
-              <div className="mb-2 grid h-8 w-[180px] grid-cols-2 rounded-[6px] bg-[#ecebe4] p-0.5 text-[12px] font-semibold">
+            <div className="mt-2 w-full max-w-[860px] rounded-[8px] bg-app-surface p-3 text-app-text shadow-xl">
+              <div className="mb-2 grid h-8 w-[180px] grid-cols-2 rounded-[6px] bg-app-control-hover p-0.5 text-[12px] font-semibold">
                 {(["image", "video"] as const).map((tab) => (
                   <button
                     key={tab}
                     className={cn(
                       "rounded-[5px] px-3 leading-none text-[#595852] capitalize",
-                      activeTab === tab && "bg-white text-[#242421] shadow-sm"
+                      activeTab === tab && "bg-app-surface text-app-text shadow-sm"
                     )}
                     onClick={() => setActiveTab(tab)}
                   >
@@ -247,14 +247,14 @@ export function CharacterImageEditorModal({
               {activeTab === "image" ? (
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="grid h-8 grid-cols-2 rounded-[6px] bg-[#ecebe4] p-0.5 text-[12px] font-semibold">
+                    <div className="grid h-8 grid-cols-2 rounded-[6px] bg-app-control-hover p-0.5 text-[12px] font-semibold">
                       {(["edit", "upscale"] as const).map((tool) => (
                         <button
                           key={tool}
                           className={cn(
                             "rounded-[5px] px-3 leading-none text-[#595852] capitalize",
                             activeImageTool === tool &&
-                              "bg-white text-[#242421] shadow-sm"
+                              "bg-app-surface text-app-text shadow-sm"
                           )}
                           onClick={() => setActiveImageTool(tool)}
                         >
@@ -264,7 +264,7 @@ export function CharacterImageEditorModal({
                     </div>
                     <SelectControl
                       aria-label="Image action model"
-                      className="h-8 min-w-[132px] rounded-[6px] border border-[#deddd5] bg-white px-2 text-[12px] font-semibold"
+                      className="h-8 min-w-[132px] rounded-[6px] border border-app-panel-border bg-app-surface px-2 text-[12px] font-semibold"
                       value={imageModel}
                       onChange={(event) => setImageModel(event.target.value)}
                     >
@@ -277,7 +277,7 @@ export function CharacterImageEditorModal({
                     {activeImageTool === "upscale" && (
                       <SelectControl
                         aria-label="Upscale factor"
-                        className="h-8 w-[78px] rounded-[6px] border border-[#deddd5] bg-white px-2 text-[12px] font-semibold"
+                        className="h-8 w-[78px] rounded-[6px] border border-app-panel-border bg-app-surface px-2 text-[12px] font-semibold"
                         value={upscaleFactor}
                         onChange={(event) =>
                           setUpscaleFactor(event.target.value)
@@ -305,7 +305,7 @@ export function CharacterImageEditorModal({
                   </div>
                   {activeImageTool === "edit" && (
                     <textarea
-                      className="mt-2 min-h-[44px] w-full resize-none rounded-[6px] border border-[#deddd5] px-3 py-2 text-[13px] leading-5 font-medium outline-none placeholder:text-[#aaa]"
+                      className="mt-2 min-h-[44px] w-full resize-none rounded-[6px] border border-app-panel-border px-3 py-2 text-[13px] leading-5 font-medium outline-none placeholder:text-[#aaa]"
                       value={imagePrompt}
                       onChange={(event) => setImagePrompt(event.target.value)}
                       placeholder="Describe the edit you want to make..."
@@ -330,7 +330,7 @@ export function CharacterImageEditorModal({
                   <div className="flex flex-wrap items-center gap-2">
                     <SelectControl
                       aria-label="Image to video model"
-                      className="h-8 min-w-[190px] rounded-[6px] border border-[#deddd5] bg-white px-2 text-[12px] font-semibold"
+                      className="h-8 min-w-[190px] rounded-[6px] border border-app-panel-border bg-app-surface px-2 text-[12px] font-semibold"
                       value={videoModel}
                       onChange={(event) => setVideoModel(event.target.value)}
                     >
@@ -342,7 +342,7 @@ export function CharacterImageEditorModal({
                     </SelectControl>
                     <SelectControl
                       aria-label="Video duration"
-                      className="h-8 w-[92px] rounded-[6px] border border-[#deddd5] bg-white px-2 text-[12px] font-semibold"
+                      className="h-8 w-[92px] rounded-[6px] border border-app-panel-border bg-app-surface px-2 text-[12px] font-semibold"
                       value={videoDuration}
                       onChange={(event) => setVideoDuration(event.target.value)}
                     >
@@ -350,7 +350,7 @@ export function CharacterImageEditorModal({
                       <option value="10">10 sec</option>
                       <option value="15">15 sec</option>
                     </SelectControl>
-                    <label className="flex h-8 items-center gap-2 rounded-[6px] border border-[#deddd5] px-3 text-[12px] font-semibold">
+                    <label className="flex h-8 items-center gap-2 rounded-[6px] border border-app-panel-border px-3 text-[12px] font-semibold">
                       <input
                         type="checkbox"
                         checked={videoSound}
@@ -370,7 +370,7 @@ export function CharacterImageEditorModal({
                     </Button>
                   </div>
                   <textarea
-                    className="min-h-[58px] w-full resize-none rounded-[6px] border border-[#deddd5] px-3 py-2 text-[13px] leading-5 font-medium outline-none placeholder:text-[#aaa]"
+                    className="min-h-[58px] w-full resize-none rounded-[6px] border border-app-panel-border px-3 py-2 text-[13px] leading-5 font-medium outline-none placeholder:text-[#aaa]"
                     aria-label="Video generation prompt"
                     value={videoPrompt}
                     onChange={(event) => setVideoPrompt(event.target.value)}
@@ -454,11 +454,11 @@ export function CharacterAssetsPanel({
   }
 
   return (
-    <div className="fixed inset-y-0 right-0 z-[60] w-full max-w-[360px] border-l border-[#e4e4df] bg-white shadow-2xl">
+    <div className="fixed inset-y-0 right-0 z-[60] w-full max-w-[360px] border-l border-[#e4e4df] bg-app-surface shadow-2xl">
       <div className="flex h-16 items-center justify-between border-b border-[#ededed] px-4">
         <h2 className="text-[20px] font-bold text-[#202020]">Assets</h2>
         <button
-          className="grid size-9 place-items-center rounded-[8px] text-[#667085] hover:bg-[#f4f4f2]"
+          className="grid size-9 place-items-center rounded-[8px] text-app-muted-text hover:bg-[#f4f4f2]"
           onClick={onClose}
           aria-label="Close assets"
         >
@@ -471,7 +471,7 @@ export function CharacterAssetsPanel({
             key={tab}
             className={cn(
               "h-10 rounded-[9px] text-[13px] font-bold text-[#666] capitalize hover:bg-[#f5f5f1]",
-              activeTab === tab && "bg-[#111] text-white hover:bg-[#111]"
+              activeTab === tab && "bg-app-strong text-white hover:bg-app-strong"
             )}
             onClick={() => {
               if (activeTab !== tab) {
@@ -514,7 +514,7 @@ export function CharacterAssetsPanel({
                   className="mx-auto size-10 text-[#b7bcc5]"
                   strokeWidth={1.5}
                 />
-                <div className="mt-4 text-[16px] font-bold text-[#333]">
+                <div className="mt-4 text-[16px] font-bold text-app-text">
                   No {activeTab} yet
                 </div>
                 <div className="mt-2 text-[13px] font-semibold text-[#8b8b86]">
@@ -534,7 +534,7 @@ export function CharacterAssetsPanel({
                 <button
                   key={asset.id}
                   className={cn(
-                    "flex w-full gap-3 rounded-[12px] border bg-white p-2 text-left shadow-sm transition hover:shadow-md",
+                    "flex w-full gap-3 rounded-[12px] border bg-app-surface p-2 text-left shadow-sm transition hover:shadow-md",
                     selectedAssetIds.includes(asset.id)
                       ? "border-[#ff4f28] ring-2 ring-[#ff4f28]/20"
                       : "border-[#e4e4df]"
@@ -546,10 +546,10 @@ export function CharacterAssetsPanel({
                     <span className="block truncate text-[13px] font-bold text-[#252525]">
                       {asset.name}
                     </span>
-                    <span className="mt-1 line-clamp-2 block text-[11px] leading-4 font-semibold text-[#667085]">
+                    <span className="mt-1 line-clamp-2 block text-[11px] leading-4 font-semibold text-app-muted-text">
                       {asset.caption || asset.prompt || "No caption yet"}
                     </span>
-                    <span className="mt-2 inline-flex rounded-full bg-[#f2f4f7] px-2 py-0.5 text-[10px] font-bold text-[#667085] uppercase">
+                    <span className="mt-2 inline-flex rounded-full bg-[#f2f4f7] px-2 py-0.5 text-[10px] font-bold text-app-muted-text uppercase">
                       {asset.source.replace("_", " ")}
                     </span>
                   </span>
@@ -795,8 +795,8 @@ function AssetCreateModal({
                 className={cn(
                   "h-10 rounded-[8px] text-[14px] font-bold capitalize",
                   mode === item
-                    ? "bg-white text-[#111827] shadow-sm"
-                    : "text-[#777] hover:bg-white/60"
+                    ? "bg-app-surface text-app-text shadow-sm"
+                    : "text-app-muted-text hover:bg-white/60"
                 )}
                 onClick={() => {
                   setMode(item)
@@ -808,10 +808,10 @@ function AssetCreateModal({
             ))}
           </div>
 
-          <label className="block text-[13px] font-bold text-[#667085]">
+          <label className="block text-[13px] font-bold text-app-muted-text">
             Name
             <input
-              className="mt-2 h-10 w-full rounded-[10px] border border-[#dde1e7] px-3 text-[14px] font-semibold text-[#111827] outline-none"
+              className="mt-2 h-10 w-full rounded-[10px] border border-[#dde1e7] px-3 text-[14px] font-semibold text-app-text outline-none"
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="Asset name"
@@ -833,14 +833,14 @@ function AssetCreateModal({
                       alt={file?.name ?? "Selected asset"}
                       className="mx-auto h-28 w-28 rounded-[12px] object-cover shadow-sm"
                     />
-                    <span className="mt-3 block text-[13px] font-bold text-[#333]">
+                    <span className="mt-3 block text-[13px] font-bold text-app-text">
                       {file?.name}
                     </span>
                   </span>
                 ) : (
                   <span>
                     <IconUpload className="mx-auto mb-3 size-8 text-[#9ca3af]" />
-                    <span className="block text-[15px] font-bold text-[#333]">
+                    <span className="block text-[15px] font-bold text-app-text">
                       {file ? file.name : "Choose file"}
                     </span>
                     <span className="mt-1 block text-[13px] font-semibold text-[#85857f]">
@@ -853,7 +853,7 @@ function AssetCreateModal({
           ) : (
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block text-[13px] font-bold text-[#667085]">
+                <label className="block text-[13px] font-bold text-app-muted-text">
                   Kind
                   <SelectControl
                     className="mt-2 w-full"
@@ -871,7 +871,7 @@ function AssetCreateModal({
                     )}
                   </SelectControl>
                 </label>
-                <label className="block text-[13px] font-bold text-[#667085]">
+                <label className="block text-[13px] font-bold text-app-muted-text">
                   Model
                   <SelectControl
                     className="mt-2 w-full"
@@ -886,7 +886,7 @@ function AssetCreateModal({
                   </SelectControl>
                 </label>
               </div>
-              <label className="block text-[13px] font-bold text-[#667085]">
+              <label className="block text-[13px] font-bold text-app-muted-text">
                 Prompt
                 <textarea
                   className="mt-2 h-28 w-full resize-none rounded-[12px] border border-[#dde1e7] p-3 text-[14px] leading-6 font-semibold outline-none"
@@ -905,7 +905,7 @@ function AssetCreateModal({
           )}
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-[#eceff3] px-5 py-4">
+        <div className="flex justify-end gap-3 border-t border-app-panel-border px-5 py-4">
           <Button variant="outline" onClick={onCancel}>
             Cancel
           </Button>
@@ -939,7 +939,7 @@ export function PromptDebugModal({
         accessibleTitle="Final prompt debug"
         className="max-w-[760px] rounded-[14px]"
       >
-        <div className="flex items-start justify-between border-b border-[#eceff3] px-5 py-4">
+        <div className="flex items-start justify-between border-b border-app-panel-border px-5 py-4">
           <div>
             <h2 className="text-[22px] font-bold text-[#252525]">
               Final prompt debug
@@ -949,7 +949,7 @@ export function PromptDebugModal({
             </p>
           </div>
           <button
-            className="grid size-9 place-items-center rounded-[8px] text-[#667085] hover:bg-[#f4f4f2]"
+            className="grid size-9 place-items-center rounded-[8px] text-app-muted-text hover:bg-[#f4f4f2]"
             onClick={onClose}
             aria-label="Close prompt debug"
           >
@@ -961,14 +961,14 @@ export function PromptDebugModal({
             <div className="text-[13px] font-bold tracking-wide text-[#9a9a93] uppercase">
               Prompt
             </div>
-            <pre className="mt-2 max-h-[360px] overflow-auto rounded-[10px] bg-[#f7f7f3] p-4 text-[12px] leading-5 font-semibold whitespace-pre-wrap text-[#333]">
+            <pre className="mt-2 max-h-[360px] overflow-auto rounded-[10px] bg-app-surface-subtle p-4 text-[12px] leading-5 font-semibold whitespace-pre-wrap text-app-text">
               {prompt}
             </pre>
           </div>
         </div>
         <div
           data-testid="debug-attachments-bottom"
-          className="border-t border-[#eceff3] px-5 py-4"
+          className="border-t border-app-panel-border px-5 py-4"
         >
           <AttachmentSquareRow
             attachments={attachments}
@@ -1011,7 +1011,7 @@ export function GenerationDebugModal({
         accessibleTitle="Generation debug"
         className="max-w-[900px] rounded-[14px]"
       >
-        <div className="flex items-start justify-between border-b border-[#eceff3] px-5 py-4">
+        <div className="flex items-start justify-between border-b border-app-panel-border px-5 py-4">
           <div>
             <h2 className="text-[22px] font-bold text-[#252525]">
               Generation debug
@@ -1022,7 +1022,7 @@ export function GenerationDebugModal({
             </p>
           </div>
           <button
-            className="grid size-9 place-items-center rounded-[8px] text-[#667085] hover:bg-[#f4f4f2]"
+            className="grid size-9 place-items-center rounded-[8px] text-app-muted-text hover:bg-[#f4f4f2]"
             onClick={onClose}
             aria-label="Close generation debug"
           >
@@ -1043,7 +1043,7 @@ export function GenerationDebugModal({
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <div className="grid h-full place-items-center px-4 text-center text-[13px] font-bold text-[#667085]">
+                <div className="grid h-full place-items-center px-4 text-center text-[13px] font-bold text-app-muted-text">
                   No image URL
                 </div>
               )}
@@ -1058,12 +1058,12 @@ export function GenerationDebugModal({
           </div>
           <div className="min-w-0 space-y-4">
             <DebugSection title="Prompt">
-              <pre className="max-h-[220px] overflow-auto rounded-[10px] bg-[#f7f7f3] p-4 text-[12px] leading-5 font-semibold whitespace-pre-wrap text-[#333]">
+              <pre className="max-h-[220px] overflow-auto rounded-[10px] bg-app-surface-subtle p-4 text-[12px] leading-5 font-semibold whitespace-pre-wrap text-app-text">
                 {generation.prompt || "No prompt stored"}
               </pre>
             </DebugSection>
             <DebugSection title="Files">
-              <dl className="space-y-2 text-[12px] font-semibold text-[#555]">
+              <dl className="space-y-2 text-[12px] font-semibold text-app-text-soft">
                 <InfoRow label="Image" value={generation.imageUrl || "None"} />
                 <InfoRow label="Video" value={generation.videoUrl || "None"} />
               </dl>
@@ -1114,7 +1114,7 @@ export function GenerationImagePreviewModal({
           description={generation.model}
           onClose={onClose}
         />
-        <div className="grid max-h-[calc(92svh-82px)] place-items-center bg-[#111] p-3">
+        <div className="grid max-h-[calc(92svh-82px)] place-items-center bg-app-strong p-3">
           {primaryMedia?.type === "video" ? (
             <video
               src={primaryMedia.url}

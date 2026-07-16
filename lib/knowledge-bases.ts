@@ -3,7 +3,12 @@ import path from "node:path"
 
 import { clean, isRecord } from "@/lib/guards"
 import { getAppwrite } from "@/lib/appwrite"
-import { readJsonArrayStore, withJsonArrayStore } from "@/lib/json-store"
+import {
+  deleteJsonArrayRecord,
+  readJsonArrayRecord,
+  readJsonArrayStore,
+  upsertJsonArrayRecord,
+} from "@/lib/json-store"
 import { enqueueJob } from "@/lib/queue"
 
 export type KnowledgeBaseSourceKind =
@@ -16,7 +21,8 @@ export type KnowledgeBaseSourceKind =
   | "twitter"
   | "tiktok"
 export type KnowledgeBaseSourceMode = "research" | "realtime"
-export type KnowledgeBaseSourceStatus = "idle" | "queued" | "processing" | "ready" | "error"
+export type KnowledgeBaseSourceStatus =
+  "idle" | "queued" | "processing" | "ready" | "error"
 export type KnowledgeBaseExpiry = "0m" | "1h" | "24h" | "1w" | "1mo" | "1y"
 
 export type KnowledgeChunk = {
@@ -62,62 +68,74 @@ const rootDir = path.join(process.cwd(), "data", "knowledge-bases")
 const fileName = "knowledge-bases.json"
 
 export async function listKnowledgeBases() {
-  return readJsonArrayStore<KnowledgeBaseRecord>({ rootDir, fileName, key: "knowledgeBases", normalize: normalizeKnowledgeBase })
+  return readJsonArrayStore<KnowledgeBaseRecord>({
+    rootDir,
+    fileName,
+    key: "knowledgeBases",
+    normalize: normalizeKnowledgeBase,
+  })
 }
 
 export async function getKnowledgeBase(id: string) {
-  return (await listKnowledgeBases()).find((item) => item.id === id) ?? null
+  return readJsonArrayRecord<KnowledgeBaseRecord>({
+    rootDir,
+    fileName,
+    key: "knowledgeBases",
+    id,
+    normalize: normalizeKnowledgeBase,
+  })
 }
 
 export async function upsertKnowledgeBase(input: Partial<KnowledgeBaseRecord>) {
   const now = new Date().toISOString()
   const id = clean(input.id) || randomUUID()
-  return withJsonArrayStore<KnowledgeBaseRecord, KnowledgeBaseRecord>({
+  const previous = await getKnowledgeBase(id)
+  const next = normalizeKnowledgeBase({
+    ...(previous ?? {}),
+    ...input,
+    id,
+    createdAt: previous?.createdAt ?? clean(input.createdAt) ?? now,
+    updatedAt: now,
+  } as KnowledgeBaseRecord)
+  await upsertJsonArrayRecord({
     rootDir,
     fileName,
     key: "knowledgeBases",
-    normalize: normalizeKnowledgeBase,
-    update(records) {
-      const previous = records.find((item) => item.id === id)
-      const next = normalizeKnowledgeBase({
-        ...(previous ?? {}),
-        ...input,
-        id,
-        createdAt: previous?.createdAt ?? clean(input.createdAt) ?? now,
-        updatedAt: now,
-      } as KnowledgeBaseRecord)
-      const nextRecords = previous
-        ? records.map((item) => (item.id === id ? next : item))
-        : [next, ...records]
-      return { records: nextRecords, result: next }
-    },
+    record: next,
   })
+  return next
 }
 
 export async function deleteKnowledgeBase(id: string) {
-  const deleted = await withJsonArrayStore<KnowledgeBaseRecord, KnowledgeBaseRecord | null>({
-    rootDir,
-    fileName,
-    key: "knowledgeBases",
-    normalize: normalizeKnowledgeBase,
-    update(records) {
-      const deleted = records.find((item) => item.id === id) ?? null
-      return { records: records.filter((item) => item.id !== id), result: deleted }
-    },
-  })
+  const deleted = await getKnowledgeBase(id)
+  if (deleted) {
+    await deleteJsonArrayRecord({
+      rootDir,
+      fileName,
+      key: "knowledgeBases",
+      id,
+    })
+  }
   const storage = getAppwrite()?.storage
   if (deleted && storage) {
     await Promise.all(
       deleted.sources
         .map((source) => source.storageFileId)
         .filter((fileId): fileId is string => Boolean(fileId))
-        .map((fileId) => storage.deleteFile("knowledge_base_files", fileId).catch(() => undefined))
+        .map((fileId) =>
+          storage
+            .deleteFile("knowledge_base_files", fileId)
+            .catch(() => undefined)
+        )
     )
   }
   return deleted
 }
 
-export async function queueKnowledgeBaseRefresh(id: string, sourceIds?: string[]) {
+export async function queueKnowledgeBaseRefresh(
+  id: string,
+  sourceIds?: string[]
+) {
   const kb = await getKnowledgeBase(id)
   if (!kb) return null
   const selected = kb.sources.filter(
@@ -135,12 +153,20 @@ export async function queueKnowledgeBaseRefresh(id: string, sourceIds?: string[]
         : source
     ),
   })
-  await Promise.all(selected.map((source) => enqueueJob({
-    type: "refresh-knowledge-source",
-    payload: { knowledgeBaseId: id, sourceId: source.id, requestedAt: queuedAt },
-    dedupeKey: `knowledge-source:${id}:${source.id}:${queuedAt}`,
-    maxAttempts: 3,
-  })))
+  await Promise.all(
+    selected.map((source) =>
+      enqueueJob({
+        type: "refresh-knowledge-source",
+        payload: {
+          knowledgeBaseId: id,
+          sourceId: source.id,
+          requestedAt: queuedAt,
+        },
+        dedupeKey: `knowledge-source:${id}:${source.id}:${queuedAt}`,
+        maxAttempts: 3,
+      })
+    )
+  )
   return updated
 }
 
@@ -154,18 +180,51 @@ export async function ensureHdbTrendsKnowledgeBase() {
   const existing = await listKnowledgeBases()
   if (existing.length) return existing
   const now = new Date().toISOString()
-  const source = (mode: KnowledgeBaseSourceMode, kind: KnowledgeBaseSourceKind, label: string, value: string, expiry: KnowledgeBaseExpiry): KnowledgeBaseSource => ({
-    id: randomUUID(), mode, kind, label, value, expiry, enabled: true, status: "idle", chunks: [],
+  const source = (
+    mode: KnowledgeBaseSourceMode,
+    kind: KnowledgeBaseSourceKind,
+    label: string,
+    value: string,
+    expiry: KnowledgeBaseExpiry
+  ): KnowledgeBaseSource => ({
+    id: randomUUID(),
+    mode,
+    kind,
+    label,
+    value,
+    expiry,
+    enabled: true,
+    status: "idle",
+    chunks: [],
   })
   const seeded = await upsertKnowledgeBase({
     id: "hdb-property-trends",
     name: "HDB Property Trends",
-    description: "Research and live reporting on Singapore HDB resale prices, supply, policy, and buyer sentiment.",
+    description:
+      "Research and live reporting on Singapore HDB resale prices, supply, policy, and buyer sentiment.",
     status: "idle",
     sources: [
-      source("realtime", "link", "HDB resale statistics", "https://www.hdb.gov.sg/residential/selling-a-flat/overview/resale-statistics", "1mo"),
-      source("realtime", "link", "HDB resale portal", "https://services2.hdb.gov.sg/webapp/BB33RTIS/", "24h"),
-      source("realtime", "rss", "Google News: Singapore HDB resale", "https://news.google.com/rss/search?q=Singapore%20HDB%20resale%20prices&hl=en-SG&gl=SG&ceid=SG:en", "24h"),
+      source(
+        "realtime",
+        "link",
+        "HDB resale statistics",
+        "https://www.hdb.gov.sg/residential/selling-a-flat/overview/resale-statistics",
+        "1mo"
+      ),
+      source(
+        "realtime",
+        "link",
+        "HDB resale portal",
+        "https://services2.hdb.gov.sg/webapp/BB33RTIS/",
+        "24h"
+      ),
+      source(
+        "realtime",
+        "rss",
+        "Google News: Singapore HDB resale",
+        "https://news.google.com/rss/search?q=Singapore%20HDB%20resale%20prices&hl=en-SG&gl=SG&ceid=SG:en",
+        "24h"
+      ),
     ],
     compiledText: "",
     createdAt: now,
@@ -174,7 +233,11 @@ export async function ensureHdbTrendsKnowledgeBase() {
   return [seeded]
 }
 
-export function knowledgeContext(records: KnowledgeBaseRecord[], ids: string[], maxChars = 30000) {
+export function knowledgeContext(
+  records: KnowledgeBaseRecord[],
+  ids: string[],
+  maxChars = 30000
+) {
   return records
     .filter((item) => ids.includes(item.id))
     .map((item) => `# ${item.name}\n${item.compiledText}`)
@@ -199,18 +262,34 @@ ${value}`
 }
 
 export function expiryMilliseconds(expiry: KnowledgeBaseExpiry) {
-  return ({ "0m": 0, "1h": 3_600_000, "24h": 86_400_000, "1w": 604_800_000, "1mo": 2_592_000_000, "1y": 31_536_000_000 })[expiry]
+  return {
+    "0m": 0,
+    "1h": 3_600_000,
+    "24h": 86_400_000,
+    "1w": 604_800_000,
+    "1mo": 2_592_000_000,
+    "1y": 31_536_000_000,
+  }[expiry]
 }
 
 function normalizeKnowledgeBase(raw: KnowledgeBaseRecord): KnowledgeBaseRecord {
   const record: Partial<KnowledgeBaseRecord> = isRecord(raw) ? raw : {}
   const now = new Date().toISOString()
-  const sources = Array.isArray(record.sources) ? record.sources.map(normalizeSource).filter(Boolean) as KnowledgeBaseSource[] : []
+  const sources = Array.isArray(record.sources)
+    ? (record.sources
+        .map(normalizeSource)
+        .filter(Boolean) as KnowledgeBaseSource[])
+    : []
   return {
     id: clean(record.id) || randomUUID(),
     name: clean(record.name) || "Untitled knowledge base",
     description: clean(record.description),
-    status: record.status === "refreshing" || record.status === "ready" || record.status === "error" ? record.status : "idle",
+    status:
+      record.status === "refreshing" ||
+      record.status === "ready" ||
+      record.status === "error"
+        ? record.status
+        : "idle",
     sources,
     compiledText: clean(record.compiledText),
     createdAt: clean(record.createdAt) || now,
@@ -221,28 +300,62 @@ function normalizeKnowledgeBase(raw: KnowledgeBaseRecord): KnowledgeBaseRecord {
 
 function normalizeSource(value: unknown): KnowledgeBaseSource | null {
   if (!isRecord(value)) return null
-  const kinds: KnowledgeBaseSourceKind[] = ["link", "youtube", "file", "google", "reddit", "rss", "twitter", "tiktok"]
-  const kind = kinds.includes(value.kind as KnowledgeBaseSourceKind) ? value.kind as KnowledgeBaseSourceKind : "link"
-  const expiryValues: KnowledgeBaseExpiry[] = ["0m", "1h", "24h", "1w", "1mo", "1y"]
+  const kinds: KnowledgeBaseSourceKind[] = [
+    "link",
+    "youtube",
+    "file",
+    "google",
+    "reddit",
+    "rss",
+    "twitter",
+    "tiktok",
+  ]
+  const kind = kinds.includes(value.kind as KnowledgeBaseSourceKind)
+    ? (value.kind as KnowledgeBaseSourceKind)
+    : "link"
+  const expiryValues: KnowledgeBaseExpiry[] = [
+    "0m",
+    "1h",
+    "24h",
+    "1w",
+    "1mo",
+    "1y",
+  ]
   return {
     id: clean(value.id) || randomUUID(),
     mode: value.mode === "realtime" ? "realtime" : "research",
     kind,
     label: clean(value.label) || kind,
     value: clean(value.value),
-    expiry: expiryValues.includes(value.expiry as KnowledgeBaseExpiry) ? value.expiry as KnowledgeBaseExpiry : "24h",
+    expiry: expiryValues.includes(value.expiry as KnowledgeBaseExpiry)
+      ? (value.expiry as KnowledgeBaseExpiry)
+      : "24h",
     enabled: value.enabled !== false,
-    status: value.status === "queued" || value.status === "processing" || value.status === "ready" || value.status === "error" ? value.status : "idle",
+    status:
+      value.status === "queued" ||
+      value.status === "processing" ||
+      value.status === "ready" ||
+      value.status === "error"
+        ? value.status
+        : "idle",
     lastScrapedAt: clean(value.lastScrapedAt) || undefined,
     nextRefreshAt: clean(value.nextRefreshAt) || undefined,
     error: clean(value.error) || undefined,
     storageFileId: clean(value.storageFileId) || undefined,
     fileName: clean(value.fileName) || undefined,
     mimeType: clean(value.mimeType) || undefined,
-    chunks: Array.isArray(value.chunks) ? value.chunks.filter(isRecord).map((chunk) => ({
-      id: clean(chunk.id) || randomUUID(), sourceId: clean(chunk.sourceId), text: clean(chunk.text),
-      title: clean(chunk.title) || undefined, url: clean(chunk.url) || undefined,
-      generatedAt: clean(chunk.generatedAt) || new Date().toISOString(),
-    })).filter((chunk) => chunk.text) : [],
+    chunks: Array.isArray(value.chunks)
+      ? value.chunks
+          .filter(isRecord)
+          .map((chunk) => ({
+            id: clean(chunk.id) || randomUUID(),
+            sourceId: clean(chunk.sourceId),
+            text: clean(chunk.text),
+            title: clean(chunk.title) || undefined,
+            url: clean(chunk.url) || undefined,
+            generatedAt: clean(chunk.generatedAt) || new Date().toISOString(),
+          }))
+          .filter((chunk) => chunk.text)
+      : [],
   }
 }

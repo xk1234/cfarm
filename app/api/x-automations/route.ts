@@ -19,6 +19,7 @@ export const POST = withHandler(async (request: Request) => {
   const payload = await request.json().catch(() => null)
   const automation = await createXAutomation({
     name: clean(payload?.name) || undefined,
+    platform: payload?.platform === "threads" ? "threads" : "x",
   })
   return NextResponse.json({ automation }, { status: 201 })
 })

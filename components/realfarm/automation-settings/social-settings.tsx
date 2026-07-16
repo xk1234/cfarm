@@ -14,9 +14,11 @@ import {
 } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
-import { SwitchPillButton } from "@/components/ui/form-controls"
+import { SelectControl } from "@/components/ui/form-controls"
 import {
+  automationPostingMode,
   type AutomationSchema,
+  type AutomationPostingMode,
   type AutomationSocialProvider,
   type TikTokPublishType,
 } from "@/lib/realfarm-automation"
@@ -135,6 +137,7 @@ export function SocialMediaSettingsPanel({
     socialMediaSettingTabs[0]
   const ActiveIcon = activeTab.icon
   const isVideoAutomation = config.automationKind === "video"
+  const postingMode = automationPostingMode(config)
   const activeSettings = socialSettingsForProvider(config, activeProvider)
 
   function updateTikTokPostSettings(
@@ -198,6 +201,17 @@ export function SocialMediaSettingsPanel({
     })
   }
 
+  function updatePostingMode(mode: AutomationPostingMode) {
+    onConfigChange({
+      ...config,
+      posting_mode: mode,
+      tiktok_post_settings: {
+        ...config.tiktok_post_settings,
+        auto_post: mode === "auto",
+      },
+    })
+  }
+
   const selectedProviderCount = config.social_integrations.filter(
     (integration) => socialProviderMatches(activeProvider, integration.provider)
   ).length
@@ -211,10 +225,10 @@ export function SocialMediaSettingsPanel({
       description="Configure platform-specific PostFast options for this automation."
     >
       <div className="space-y-5">
-        <div className="rounded-[8px] border border-app-panel-border bg-white px-4 py-3">
+        <div className="rounded-[8px] border border-app-panel-border bg-app-surface px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <div className="text-[14px] font-bold text-[#242421]">
+              <div className="text-[14px] font-bold text-app-text">
                 Social destinations
               </div>
               <div className="mt-1 text-[13px] font-semibold text-app-muted-text">
@@ -237,21 +251,49 @@ export function SocialMediaSettingsPanel({
         </div>
 
         <SettingsRow
-          title="Auto-post automation"
-          description={`Publish automatically when a scheduled ${isVideoAutomation ? "video" : "slideshow"} is ready.`}
+          title="Publishing workflow"
+          description="Choose what happens after scheduled content is generated."
           control={
-            <SwitchPillButton
-              enabled={config.tiktok_post_settings.auto_post}
-              onClick={() =>
-                updateTikTokPostSettings({
-                  auto_post: !config.tiktok_post_settings.auto_post,
-                })
+            <SelectControl
+              value={postingMode}
+              onChange={(event) =>
+                updatePostingMode(event.target.value as AutomationPostingMode)
               }
-            />
+            >
+              <option value="manual">Manual — remind me to post</option>
+              <option value="review">Review — approve before publishing</option>
+              <option value="auto">Auto — schedule automatically</option>
+            </SelectControl>
           }
         />
 
-        <div className="rounded-[10px] border border-[#ecebe4] bg-[#f7f7f3] p-2">
+        {postingMode === "review" ? (
+          <SettingsRow
+            title="Generation lead time"
+            description="Generate early enough to leave time for review."
+            control={
+              <SelectControl
+                value={config.generation_lead_minutes ?? 30}
+                onChange={(event) =>
+                  onConfigChange({
+                    ...config,
+                    generation_lead_minutes: Number(event.target.value),
+                  })
+                }
+              >
+                {[30, 60, 120, 240, 720].map((minutes) => (
+                  <option key={minutes} value={minutes}>
+                    {minutes < 60
+                      ? `${minutes} minutes`
+                      : `${minutes / 60} hours`}
+                  </option>
+                ))}
+              </SelectControl>
+            }
+          />
+        ) : null}
+
+        <div className="rounded-[10px] border border-app-panel-border bg-app-surface-subtle p-2">
           <div className="flex items-center gap-2 overflow-x-auto">
             {socialMediaSettingTabs.map((tab) => {
               const Icon = tab.icon
@@ -265,8 +307,8 @@ export function SocialMediaSettingsPanel({
                   className={cn(
                     "grid size-11 shrink-0 place-items-center rounded-full border transition",
                     selected
-                      ? "border-[#242421] bg-white text-[#242421] shadow-sm"
-                      : "border-transparent bg-[#ecebe4] text-[#77766f] hover:bg-white"
+                      ? "border-app-strong bg-app-surface text-app-text shadow-sm"
+                      : "border-transparent bg-app-control-hover text-app-muted-text hover:bg-app-surface"
                   )}
                   onClick={() => setActiveProvider(tab.provider)}
                   aria-pressed={selected}
@@ -278,10 +320,10 @@ export function SocialMediaSettingsPanel({
           </div>
         </div>
 
-        <div className="rounded-[8px] border border-app-panel-border bg-white p-4">
+        <div className="rounded-[8px] border border-app-panel-border bg-app-surface p-4">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2 text-[17px] font-bold text-[#242421]">
+              <div className="flex items-center gap-2 text-[17px] font-bold text-app-text">
                 <ActiveIcon className="size-5" />
                 {activeTab.label}
               </div>
@@ -289,7 +331,7 @@ export function SocialMediaSettingsPanel({
                 {isVideoAutomation ? activeTab.videoSummary : activeTab.summary}
               </p>
             </div>
-            <span className="rounded-full bg-[#f1f0eb] px-3 py-1 text-[12px] font-bold text-[#62615b]">
+            <span className="rounded-full bg-app-surface-subtle px-3 py-1 text-[12px] font-bold text-app-text-soft">
               {selectedProviderCount} selected
             </span>
           </div>

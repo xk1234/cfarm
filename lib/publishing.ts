@@ -126,17 +126,66 @@ export async function publishPost(
 
 export type PublishAutomationRunInput = {
   runId: string
+  scheduledFor: string
   integrations: PostFastSocialIntegration[]
   content: string
   media?: PostFastMedia[]
   postfastRootDir?: string
   request?: PublishRequest
+  now?: Date
 }
 
 export type PublishAutomationRunResult = {
   published: number
   failed: number
   records: PostFastPostRecord[]
+}
+
+export async function reschedulePost(input: {
+  record: PostFastPostRecord
+  scheduledFor: string
+  request?: PublishRequest
+}) {
+  const request = input.request ?? (postfastRequest as PublishRequest)
+  const timestamp = Date.parse(input.scheduledFor)
+  if (!Number.isFinite(timestamp) || timestamp <= Date.now()) {
+    throw new Error("Choose a future time for the post")
+  }
+  if (!input.record.postfastPostId) {
+    return upsertPostFastPostRecord({
+      ...input.record,
+      status: input.record.status,
+      scheduledAt: new Date(timestamp).toISOString(),
+    })
+  }
+
+  const payload = createPostFastPostPayload({
+    type: "schedule",
+    date: new Date(timestamp).toISOString(),
+    integrationId: input.record.integrationId,
+    provider: input.record.provider,
+    content: input.record.content,
+    media: input.record.media,
+    controls: defaultPostFastProviderControls(input.record.provider, {}),
+  })
+  const created = await request<unknown>("/social-posts", { body: payload })
+  const replacementId = postFastPostIds(created)[0]
+  if (!replacementId) {
+    throw new Error("PostFast did not return the replacement post id")
+  }
+  await request(
+    `/social-posts/${encodeURIComponent(input.record.postfastPostId)}`,
+    {
+      method: "DELETE",
+    }
+  )
+  return upsertPostFastPostRecord({
+    ...input.record,
+    postfastPostId: replacementId,
+    status: "scheduled",
+    scheduledAt: new Date(timestamp).toISOString(),
+    error: undefined,
+  })
 }
 
 // Publish one automation run to every active integration. Called by the cron
@@ -151,10 +200,15 @@ export async function publishAutomationRun(
   const records: PostFastPostRecord[] = []
   let published = 0
   let failed = 0
+  const scheduledTime = Date.parse(input.scheduledFor)
+  const scheduleForFuture =
+    Number.isFinite(scheduledTime) &&
+    scheduledTime > (input.now ?? new Date()).getTime()
 
   for (const integration of integrations) {
     const result = await publishPost({
-      type: "now",
+      type: scheduleForFuture ? "schedule" : "now",
+      date: scheduleForFuture ? input.scheduledFor : undefined,
       integrationId: integration.integration_id,
       provider: integration.provider,
       content: input.content,
@@ -173,4 +227,77 @@ export async function publishAutomationRun(
   }
 
   return { published, failed, records }
+}
+
+export async function recordAwaitingManualAutomationRun(
+  input: PublishAutomationRunInput
+): Promise<PublishAutomationRunResult> {
+  const integrations = input.integrations.filter(
+    (integration) => integration.integration_id && !integration.disabled
+  )
+  const records = await Promise.all(
+    integrations.map((integration) =>
+      upsertPostFastPostRecord({
+        rootDir: input.postfastRootDir,
+        sourceType: "automation",
+        sourceId: input.runId,
+        integrationId: integration.integration_id,
+        provider: integration.provider,
+        status: "awaiting_manual_post",
+        scheduledAt: input.scheduledFor,
+        content: input.content,
+        media: input.media ?? [],
+      })
+    )
+  )
+  return { published: 0, failed: 0, records }
+}
+
+export async function recordReadyForReviewAutomationRun(
+  input: PublishAutomationRunInput
+): Promise<PublishAutomationRunResult> {
+  const integrations = input.integrations.filter(
+    (integration) => integration.integration_id && !integration.disabled
+  )
+  const records = await Promise.all(
+    integrations.map((integration) =>
+      upsertPostFastPostRecord({
+        rootDir: input.postfastRootDir,
+        sourceType: "automation",
+        sourceId: input.runId,
+        integrationId: integration.integration_id,
+        provider: integration.provider,
+        status: "ready_for_review",
+        scheduledAt: input.scheduledFor,
+        content: input.content,
+        media: input.media ?? [],
+      })
+    )
+  )
+  return { published: 0, failed: 0, records }
+}
+
+export async function recordFailedAutomationRun(
+  input: PublishAutomationRunInput & { error: string }
+): Promise<PublishAutomationRunResult> {
+  const integrations = input.integrations.filter(
+    (integration) => integration.integration_id && !integration.disabled
+  )
+  const records = await Promise.all(
+    integrations.map((integration) =>
+      upsertPostFastPostRecord({
+        rootDir: input.postfastRootDir,
+        sourceType: "automation",
+        sourceId: input.runId,
+        integrationId: integration.integration_id,
+        provider: integration.provider,
+        status: "failed",
+        scheduledAt: input.scheduledFor,
+        content: input.content,
+        media: input.media ?? [],
+        error: input.error,
+      })
+    )
+  )
+  return { published: 0, failed: records.length, records }
 }

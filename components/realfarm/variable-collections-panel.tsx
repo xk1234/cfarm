@@ -14,6 +14,7 @@ import { CardGridSkeleton } from "@/components/ui/loading-skeleton"
 import { SearchControl } from "@/components/ui/form-controls"
 import { AppModal, AppModalPanel } from "@/components/ui/modal"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
+import { wordCollectionVariableName } from "@/lib/hook-variables"
 import type { WordCollectionRecord } from "@/lib/word-collections"
 
 type VariableDraft = {
@@ -76,7 +77,12 @@ export function VariableCollectionsPanel() {
       return collections
     }
     return collections.filter((collection) =>
-      [collection.id, collection.name, collection.description]
+      [
+        wordCollectionVariableName(collection),
+        collection.id,
+        collection.name,
+        collection.description,
+      ]
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(query))
     )
@@ -176,7 +182,7 @@ export function VariableCollectionsPanel() {
           onClick={() => setDraft(emptyDraft)}
         >
           <span className="max-w-[390px]">
-            <span className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-white text-[#e46954] shadow-sm">
+            <span className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-app-surface text-[#e46954] shadow-sm">
               <IconBrackets className="size-6" />
             </span>
             <span className="block text-[18px] font-semibold">
@@ -184,7 +190,7 @@ export function VariableCollectionsPanel() {
                 ? "No variable collections yet"
                 : "No matching variables"}
             </span>
-            <span className="mt-2 block text-[13px] leading-5 text-[#77766f]">
+            <span className="mt-2 block text-[13px] leading-5 text-app-muted-text">
               Store reusable values for dynamic tags such as [[zodiac]],
               [[city]], or [[product]].
             </span>
@@ -195,12 +201,12 @@ export function VariableCollectionsPanel() {
           {filteredCollections.map((collection) => (
             <article
               key={collection.id}
-              className="rounded-[8px] border border-app-panel-border bg-white p-4 shadow-sm"
+              className="rounded-[8px] border border-app-panel-border bg-app-surface p-4 shadow-sm"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="font-mono text-[15px] font-bold text-app-text">
-                    [[{collection.id}]]
+                    [[{wordCollectionVariableName(collection)}]]
                   </div>
                   <div className="mt-1 text-[12px] font-semibold text-app-muted-text">
                     {collection.words.length} values
@@ -210,11 +216,11 @@ export function VariableCollectionsPanel() {
                   <Button
                     variant="iconControl"
                     size="icon-control-sm"
-                    aria-label={`Edit ${collection.id}`}
+                    aria-label={`Edit ${wordCollectionVariableName(collection)}`}
                     onClick={() =>
                       setDraft({
                         originalId: collection.id,
-                        tag: collection.id,
+                        tag: wordCollectionVariableName(collection),
                         description: collection.description ?? "",
                         values: collection.words.join("\n"),
                       })
@@ -226,7 +232,7 @@ export function VariableCollectionsPanel() {
                     variant="iconControl"
                     size="icon-control-sm"
                     className="text-app-danger"
-                    aria-label={`Delete ${collection.id}`}
+                    aria-label={`Delete ${wordCollectionVariableName(collection)}`}
                     onClick={() => setDeleting(collection)}
                   >
                     <IconTrash className="size-4" />
@@ -242,7 +248,7 @@ export function VariableCollectionsPanel() {
                 {collection.words.slice(0, 8).map((word) => (
                   <span
                     key={word}
-                    className="rounded-full bg-[#f1f0ea] px-2.5 py-1 text-[11px] font-semibold text-[#5f5e57]"
+                    className="rounded-full bg-app-surface-subtle px-2.5 py-1 text-[11px] font-semibold text-[#5f5e57]"
                   >
                     {word}
                   </span>
@@ -269,7 +275,7 @@ export function VariableCollectionsPanel() {
       ) : null}
       {deleting ? (
         <ConfirmDialog
-          title={`Delete [[${deleting.id}]]?`}
+          title={`Delete [[${wordCollectionVariableName(deleting)}]]?`}
           description="This permanently removes the variable collection and all of its values."
           confirmLabel="Delete variable"
           pendingLabel="Deleting…"
@@ -320,7 +326,7 @@ function VariableCollectionModal({
         </div>
         <label className="mt-5 block">
           <span className="text-[12px] font-bold text-app-text">Tag name</span>
-          <div className="mt-1 flex h-10 items-center rounded-[6px] border border-app-panel-border bg-white px-3 focus-within:border-[#77766f]">
+          <div className="mt-1 flex h-10 items-center rounded-[6px] border border-app-panel-border bg-app-surface px-3 focus-within:border-[#77766f]">
             <span className="font-mono text-[13px] text-app-muted-text">
               [[
             </span>
@@ -348,7 +354,7 @@ function VariableCollectionModal({
             onChange={(event) =>
               onChange({ ...draft, description: event.target.value })
             }
-            className="mt-1 h-10 w-full rounded-[6px] border border-app-panel-border px-3 text-[13px] outline-none focus:border-[#77766f]"
+            className="mt-1 h-10 w-full rounded-[6px] border border-app-panel-border px-3 text-[13px] outline-none focus:border-app-action"
             placeholder="Values used for zodiac-specific hooks"
           />
         </label>
@@ -364,7 +370,7 @@ function VariableCollectionModal({
             onChange={(event) =>
               onChange({ ...draft, values: event.target.value })
             }
-            className="mt-1 h-52 w-full resize-none rounded-[6px] border border-app-panel-border p-3 text-[13px] leading-6 outline-none focus:border-[#77766f]"
+            className="mt-1 h-52 w-full resize-none rounded-[6px] border border-app-panel-border p-3 text-[13px] leading-6 outline-none focus:border-app-action"
             placeholder={"aries\ntaurus\ngemini"}
           />
         </label>

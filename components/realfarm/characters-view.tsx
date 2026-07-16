@@ -151,9 +151,9 @@ export function AvatarsView() {
   if (charactersLoading || !selectedCharacter) {
     return (
       <div className="mx-[-8px] mt-[-8px]">
-        <div className="grid min-h-[calc(100svh-72px)] overflow-hidden rounded-[8px] bg-[#f8f8f4] lg:grid-cols-[280px_1fr]">
+        <div className="grid min-h-[calc(100svh-72px)] overflow-hidden rounded-[8px] bg-app-surface-subtle lg:grid-cols-[280px_1fr]">
           <aside className="bg-[#efefe9] px-2 py-4">
-            <h1 className="px-3 text-[20px] font-bold text-[#111827]">
+            <h1 className="px-3 text-[20px] font-bold text-app-text">
               AI Characters
             </h1>
             <Button
@@ -172,8 +172,8 @@ export function AvatarsView() {
           <main
             className={
               charactersLoading
-                ? "bg-[#f8f8f4] p-7"
-                : "grid place-items-center bg-[#f8f8f4] text-center"
+                ? "bg-app-surface-subtle p-7"
+                : "grid place-items-center bg-app-surface-subtle text-center"
             }
           >
             {charactersLoading ? (
@@ -184,7 +184,7 @@ export function AvatarsView() {
                   className="mx-auto size-12 text-[#b8babf]"
                   stroke={1.5}
                 />
-                <div className="mt-5 text-[22px] font-bold text-[#333]">
+                <div className="mt-5 text-[22px] font-bold text-app-text">
                   No characters yet
                 </div>
                 <div className="mt-3 text-[17px] font-semibold text-[#8b8b86]">

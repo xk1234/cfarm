@@ -1,8 +1,12 @@
 import { clean, isRecord } from "@/lib/guards"
-import { randomUUID } from "node:crypto"
+import { createHash } from "node:crypto"
 import path from "node:path"
 
-import { readJsonArrayStore, withJsonArrayStore } from "@/lib/json-store"
+import {
+  appendJsonArrayRecords,
+  readJsonArrayStore,
+  withJsonArrayStore,
+} from "@/lib/json-store"
 
 export type UsageKind = "hook" | "hook_combination" | "image" | "text"
 
@@ -25,12 +29,57 @@ export async function appendUsageRecords(input: {
   now?: Date
   pruneOlderThanDays?: number
 }) {
-  const now = input.now ?? new Date()
-  const cutoff = cutoffDate(now, input.pruneOlderThanDays ?? 45)
-  const normalizedRecords = input.records.flatMap((record) => {
-    const normalized = normalizeUsageRecord(record)
-    return normalized ? [normalized] : []
+  const normalizedRecords = dedupeUsageRecords(
+    input.records.flatMap((record) => {
+      const normalized = normalizeUsageRecord(record)
+      return normalized ? [normalized] : []
+    })
+  )
+  if (normalizedRecords.length === 0) return []
+
+  // Usage is append-only on the hot generation path. The previous array-store
+  // update read the full ledger twice and rewrote every row for a handful of
+  // new entries. Time-window filtering below preserves the same reuse behavior
+  // without making every generation pay for historical rows.
+  await appendJsonArrayRecords<UsageRecord>({
+    rootDir: input.rootDir ?? defaultRootDir,
+    fileName,
+    key: "usage",
+    normalize: normalizeUsageRecord,
+    records: normalizedRecords,
   })
+  return normalizedRecords
+}
+
+export function listUsageRecords(input: { rootDir?: string } = {}) {
+  return readJsonArrayStore<UsageRecord>({
+    rootDir: input.rootDir ?? defaultRootDir,
+    fileName,
+    key: "usage",
+    normalize: normalizeUsageRecord,
+  })
+}
+
+export async function deleteUsageRecords(input: {
+  rootDir?: string
+  runIds?: string[]
+  entries?: Array<{
+    runId: string
+    kind: UsageKind
+    key: string
+  }>
+}) {
+  const runIds = new Set((input.runIds ?? []).map(clean).filter(Boolean))
+  const entries = new Set(
+    (input.entries ?? [])
+      .map(
+        (entry) => `${clean(entry.runId)}::${entry.kind}::${clean(entry.key)}`
+      )
+      .filter((entry) => !entry.startsWith("::") && !entry.endsWith("::"))
+  )
+  if (runIds.size === 0 && entries.size === 0) {
+    return []
+  }
 
   return withJsonArrayStore<UsageRecord, UsageRecord[]>({
     rootDir: input.rootDir ?? defaultRootDir,
@@ -38,15 +87,10 @@ export async function appendUsageRecords(input: {
     key: "usage",
     normalize: normalizeUsageRecord,
     update: (records) => {
-      const next = dedupeUsageRecords(
-        records
-          .filter(
-            (record) =>
-              record.kind === "hook" ||
-              record.kind === "hook_combination" ||
-              Date.parse(record.used_at) >= cutoff.getTime()
-          )
-          .concat(normalizedRecords)
+      const next = records.filter(
+        (record) =>
+          !runIds.has(record.run_id) &&
+          !entries.has(`${record.run_id}::${record.kind}::${record.key}`)
       )
       return { records: next, result: next }
     },
@@ -63,6 +107,7 @@ export async function recentUsageKeys(
     allTime?: boolean
     now?: Date
     limit?: number
+    records?: UsageRecord[]
   } = {}
 ) {
   const limited = await recentUsageRecords(kind, automationId, input)
@@ -79,18 +124,14 @@ export async function recentUsageRecords(
     allTime?: boolean
     now?: Date
     limit?: number
+    records?: UsageRecord[]
   } = {}
 ) {
   const now = input.now ?? new Date()
   const cutoffTime = input.allTime
     ? Number.NEGATIVE_INFINITY
     : cutoffDate(now, input.withinDays ?? 45).getTime()
-  const records = await readJsonArrayStore<UsageRecord>({
-    rootDir: input.rootDir ?? defaultRootDir,
-    fileName,
-    key: "usage",
-    normalize: normalizeUsageRecord,
-  })
+  const records = input.records ?? (await listUsageRecords(input))
   const latestByKey = new Map<string, UsageRecord>()
   for (const record of records) {
     if (
@@ -142,7 +183,9 @@ function normalizeUsageRecord(raw: UsageRecord) {
   }
   const usedAt = clean(record.used_at) || new Date().toISOString()
   return {
-    id: clean(record.id) || `usage-${randomUUID()}`,
+    id:
+      clean(record.id) ||
+      usageRecordId({ runId, kind, key, accountKey, automationId }),
     automation_id: automationId,
     ...(accountKey ? { account_key: accountKey } : {}),
     kind,
@@ -150,6 +193,23 @@ function normalizeUsageRecord(raw: UsageRecord) {
     run_id: runId,
     used_at: usedAt,
   } satisfies UsageRecord
+}
+
+function usageRecordId(input: {
+  runId: string
+  kind: UsageKind
+  key: string
+  accountKey: string
+  automationId: string
+}) {
+  const basis = [
+    input.automationId,
+    input.accountKey,
+    input.runId,
+    input.kind,
+    input.key,
+  ].join("\u0000")
+  return `u${createHash("sha256").update(basis).digest("hex").slice(0, 35)}`
 }
 
 function normalizeKind(value: unknown): UsageKind | null {

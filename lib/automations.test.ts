@@ -242,7 +242,7 @@ describe("automation import persistence", () => {
       },
       video_demo_asset_id: "",
     })
-    expect(normalized.schema.image_fit).toBe("contain")
+    expect(normalized.schema.image_fit).toBe("cover")
     expect(normalized.schema.language).toBe("English")
     expect(normalized.schema.schedule.timezone).toBe("America/New_York")
     expect(normalized.schema.schedule.posting_times).toEqual([

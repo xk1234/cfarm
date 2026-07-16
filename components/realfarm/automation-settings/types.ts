@@ -27,6 +27,8 @@ export type AutomationRunApiRecord = {
   automationId: string
   automationTitle: string
   scheduledFor: string
+  generationSource?: "manual" | "scheduled"
+  requestId?: string
   status: AutomationRunStatus
   progress?: {
     stage: string
@@ -39,8 +41,10 @@ export type AutomationRunApiRecord = {
   outputImages?: string[]
   outputDir?: string
   socialStatuses?: SocialAccountStatusItem[]
+  manuallyPublishedAt?: string
   renderedSlides?: AutomationRunApiSlide[]
   createdAt: string
+  updatedAt?: string
   views?: number
   benchmarkId?: string
   benchmarkError?: string

@@ -117,7 +117,7 @@ export function NewCharacterModal({
   const editor = (
     <section
       className={cn(
-        "grid w-full overflow-hidden bg-white lg:grid-cols-[300px_1fr]",
+        "grid w-full overflow-hidden bg-app-surface lg:grid-cols-[300px_1fr]",
         fullPage
           ? "min-h-[calc(100svh-72px)] rounded-[8px] lg:grid-cols-[260px_1fr]"
           : "h-[82vh] min-h-[640px] max-w-[1120px] rounded-[12px] shadow-2xl lg:grid-cols-[260px_1fr]"
@@ -132,7 +132,7 @@ export function NewCharacterModal({
           >
             <IconChevronLeft className="size-5" />
           </button>
-          <h2 className="text-[22px] font-bold text-[#111827]">
+          <h2 className="text-[22px] font-bold text-app-text">
             {initialCharacter ? "Edit Character" : "New Character"}
           </h2>
         </div>
@@ -140,7 +140,7 @@ export function NewCharacterModal({
           className={cn(
             "mb-4 h-11 rounded-[11px] px-4 text-left text-[16px] font-bold text-[#303030]",
             activeTab === "Overview"
-              ? "bg-white shadow-sm"
+              ? "bg-app-surface shadow-sm"
               : "hover:bg-white/65"
           )}
           onClick={() => setActiveTab("Overview")}
@@ -155,7 +155,7 @@ export function NewCharacterModal({
                 key={group}
                 className={cn(
                   "flex h-10 w-full items-center justify-between rounded-[9px] px-3 text-left text-[14px] font-semibold text-[#596575] hover:bg-white/65",
-                  activeTab === group && "bg-white text-[#202938] shadow-sm"
+                  activeTab === group && "bg-app-surface text-[#202938] shadow-sm"
                 )}
                 onClick={() => setActiveTab(group)}
               >
@@ -166,14 +166,14 @@ export function NewCharacterModal({
         </div>
         <div className="space-y-2 pt-3">
           <button
-            className="flex h-10 w-full items-center justify-center gap-2 rounded-[10px] border border-[#d6dce5] bg-white text-[14px] font-bold text-[#34332f]"
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-[10px] border border-[#d6dce5] bg-app-surface text-[14px] font-bold text-[#34332f]"
             onClick={() => setImportOpen(true)}
           >
             <IconUpload className="size-4" />
             Import Prompt
           </button>
           <button
-            className="flex h-10 w-full items-center justify-center gap-2 rounded-[10px] border border-[#d6dce5] bg-white text-[14px] font-bold text-[#34332f]"
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-[10px] border border-[#d6dce5] bg-app-surface text-[14px] font-bold text-[#34332f]"
             onClick={copyAttributesJson}
           >
             <Copy className="size-4" />
@@ -192,7 +192,7 @@ export function NewCharacterModal({
             </button>
             <div className="mt-6 flex w-full flex-wrap justify-center gap-3">
               <input
-                className="h-11 min-w-[260px] flex-1 rounded-[11px] border border-[#d8dce5] bg-white px-4 text-[17px] font-semibold text-[#111827] shadow-sm outline-none"
+                className="h-11 min-w-[260px] flex-1 rounded-[11px] border border-[#d8dce5] bg-app-surface px-4 text-[17px] font-semibold text-app-text shadow-sm outline-none"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
               />
@@ -220,7 +220,7 @@ export function NewCharacterModal({
 
   if (fullPage) {
     return (
-      <div className="bg-[#f8f8f4]">
+      <div className="bg-app-surface-subtle">
         {editor}
         {importOpen && (
           <ImportPromptModal
@@ -344,10 +344,10 @@ function CharacterGeneratedAssetState({
   const Icon =
     icon === "voice" ? IconVolume : icon === "video" ? IconMovie : IconPhoto
   return (
-    <div className="grid min-h-[300px] place-items-center rounded-[14px] border border-dashed border-[#d7d7d0] bg-[#fafaf7] text-center">
+    <div className="grid min-h-[300px] place-items-center rounded-[14px] border border-dashed border-[#d7d7d0] bg-app-surface-subtle text-center">
       <div>
         <Icon className="mx-auto size-11 text-[#b8babf]" stroke={1.5} />
-        <div className="mt-4 text-[20px] font-bold text-[#333]">{title}</div>
+        <div className="mt-4 text-[20px] font-bold text-app-text">{title}</div>
         <div className="mt-2 text-[14px] font-semibold text-[#8b8b86]">
           {description}
         </div>
@@ -378,7 +378,7 @@ export function CharacterModelPanel({
             href={model.url}
             target="_blank"
             rel="noreferrer"
-            className="flex min-h-14 items-center justify-between rounded-[12px] border border-[#e3e3dd] bg-white px-4 text-[15px] font-bold text-[#2f2f2b] shadow-sm hover:bg-[#f8f8f4]"
+            className="flex min-h-14 items-center justify-between rounded-[12px] border border-[#e3e3dd] bg-app-surface px-4 text-[15px] font-bold text-[#2f2f2b] shadow-sm hover:bg-app-surface-subtle"
           >
             {model.label}
             <IconChevronRight className="size-4 text-[#a5a59e]" />
@@ -413,7 +413,7 @@ function CharacterAttributeTabForm({
                   "grid min-h-16 place-items-center rounded-[10px] bg-[#f8f8f6] px-3 py-3 text-center text-[16px] font-medium text-[#374151]",
                   String(getCharacterFieldValue(attributes, field)) ===
                     option &&
-                    "border-2 border-[#3b82f6] bg-white text-[#111827]"
+                    "border-2 border-[#3b82f6] bg-app-surface text-app-text"
                 )}
                 onClick={() => onChange(field, option)}
               >
@@ -644,12 +644,12 @@ export function CharacterCreateModal({
         accessibleTitle="New Character"
         className="relative max-h-[92vh] max-w-[880px] overflow-y-auto rounded-[16px]"
       >
-        <div className="flex items-center justify-between border-b border-[#eceff3] px-5 py-4">
-          <h2 className="text-[22px] font-bold text-[#111827]">
+        <div className="flex items-center justify-between border-b border-app-panel-border px-5 py-4">
+          <h2 className="text-[22px] font-bold text-app-text">
             New Character
           </h2>
           <button
-            className="grid size-9 place-items-center rounded-[8px] text-[#667085] hover:bg-[#f4f4f2]"
+            className="grid size-9 place-items-center rounded-[8px] text-app-muted-text hover:bg-[#f4f4f2]"
             onClick={onCancel}
             aria-label="Close new character"
           >
@@ -669,7 +669,7 @@ export function CharacterCreateModal({
                 <div className="absolute inset-0 grid place-items-center rounded-[18px] bg-white/80 px-5 text-center backdrop-blur-sm">
                   <div className="flex flex-col items-center">
                     <Spinner size={30} className="mb-3" />
-                    <div className="text-[13px] font-bold text-[#555]">
+                    <div className="text-[13px] font-bold text-app-text-soft">
                       Generating headshot...
                     </div>
                   </div>
@@ -682,7 +682,7 @@ export function CharacterCreateModal({
               </div>
             )}
             <button
-              className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-[11px] border border-[#d8dce5] bg-white text-[14px] font-bold text-[#333] shadow-sm hover:bg-[#f8f8f4]"
+              className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-[11px] border border-[#d8dce5] bg-app-surface text-[14px] font-bold text-app-text shadow-sm hover:bg-app-surface-subtle"
               onClick={() => setUploadOpen(true)}
               type="button"
             >
@@ -690,7 +690,7 @@ export function CharacterCreateModal({
               Upload JSON or image
             </button>
             <button
-              className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-[11px] border border-[#d8dce5] bg-white text-[14px] font-bold text-[#333] shadow-sm hover:bg-[#f8f8f4] disabled:cursor-not-allowed disabled:opacity-55"
+              className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-[11px] border border-[#d8dce5] bg-app-surface text-[14px] font-bold text-app-text shadow-sm hover:bg-app-surface-subtle disabled:cursor-not-allowed disabled:opacity-55"
               onClick={regenerateFace}
               disabled={!headshotReady || attributesLoading}
               type="button"
@@ -703,19 +703,19 @@ export function CharacterCreateModal({
           <div className="min-w-0">
             <label
               htmlFor="new-character-name"
-              className="text-[13px] font-bold text-[#777]"
+              className="text-[13px] font-bold text-app-muted-text"
             >
               Name
             </label>
             <input
               id="new-character-name"
-              className="mt-2 h-11 w-full rounded-[10px] border border-[#d8dce5] bg-white px-3 text-[16px] font-semibold text-[#111827] outline-none"
+              className="mt-2 h-11 w-full rounded-[10px] border border-[#d8dce5] bg-app-surface px-3 text-[16px] font-semibold text-app-text outline-none"
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
 
-            <div className="mt-5 rounded-[12px] border border-[#eceff3] bg-[#fafaf7] p-4">
-              <div className="mb-3 text-[14px] font-bold text-[#333]">
+            <div className="mt-5 rounded-[12px] border border-app-panel-border bg-app-surface-subtle p-4">
+              <div className="mb-3 text-[14px] font-bold text-app-text">
                 Character attributes
               </div>
               {attributesLoading ? (
@@ -723,7 +723,7 @@ export function CharacterCreateModal({
                   {characterSummaryFields.map(([label, key]) => (
                     <div
                       key={`${label}-${key}`}
-                      className="rounded-[8px] bg-white px-3 py-2"
+                      className="rounded-[8px] bg-app-surface px-3 py-2"
                     >
                       <div className="text-[10px] font-bold tracking-wide text-[#a3acba] uppercase">
                         {label}
@@ -802,7 +802,7 @@ function CharacterAttributeCardControl({
       : options
 
   return (
-    <div className="rounded-[8px] bg-white px-3 py-2">
+    <div className="rounded-[8px] bg-app-surface px-3 py-2">
       <label
         className="text-[10px] font-bold tracking-wide text-[#a3acba] uppercase"
         htmlFor={`character-attribute-${field.replace(/\./g, "-")}`}
@@ -915,8 +915,8 @@ function CharacterCreateUploadModal({
               className={cn(
                 "flex h-10 items-center justify-center gap-2 rounded-[8px] text-[14px] font-bold",
                 activeTab === "json"
-                  ? "bg-white text-[#111827] shadow-sm"
-                  : "text-[#777] hover:bg-white/60"
+                  ? "bg-app-surface text-app-text shadow-sm"
+                  : "text-app-muted-text hover:bg-white/60"
               )}
               onClick={() => {
                 setActiveTab("json")
@@ -930,8 +930,8 @@ function CharacterCreateUploadModal({
               className={cn(
                 "flex h-10 items-center justify-center gap-2 rounded-[8px] text-[14px] font-bold",
                 activeTab === "image"
-                  ? "bg-white text-[#111827] shadow-sm"
-                  : "text-[#777] hover:bg-white/60"
+                  ? "bg-app-surface text-app-text shadow-sm"
+                  : "text-app-muted-text hover:bg-white/60"
               )}
               onClick={() => {
                 setActiveTab("image")
@@ -946,7 +946,7 @@ function CharacterCreateUploadModal({
 
           {activeTab === "json" ? (
             <textarea
-              className="h-52 w-full resize-none rounded-[12px] border border-[#dde1e7] bg-white p-3 text-[13px] font-medium outline-none placeholder:text-[#9ca3af]"
+              className="h-52 w-full resize-none rounded-[12px] border border-[#dde1e7] bg-app-surface p-3 text-[13px] font-medium outline-none placeholder:text-[#9ca3af]"
               placeholder="Paste character JSON here..."
               value={text}
               onChange={(event) => {
@@ -969,14 +969,14 @@ function CharacterCreateUploadModal({
                     alt="Uploaded character source"
                     className="h-28 w-28 rounded-[12px] object-cover shadow-sm"
                   />
-                  <span className="text-[13px] font-bold text-[#333]">
+                  <span className="text-[13px] font-bold text-app-text">
                     Replace image
                   </span>
                 </div>
               ) : (
                 <div>
                   <IconUpload className="mx-auto mb-3 size-8 text-[#9ca3af]" />
-                  <div className="text-[15px] font-bold text-[#333]">
+                  <div className="text-[15px] font-bold text-app-text">
                     Drag and drop an image
                   </div>
                   <div className="mt-1 text-[13px] font-semibold text-[#85857f]">
@@ -996,7 +996,7 @@ function CharacterCreateUploadModal({
           )}
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-[#eceff3] px-5 py-4">
+        <div className="flex justify-end gap-3 border-t border-app-panel-border px-5 py-4">
           <Button variant="outline" onClick={onCancel}>
             Cancel
           </Button>
@@ -1050,11 +1050,11 @@ function ImportPromptModal({
         accessibleTitle="Paste your JSON prompt"
         className="max-w-[720px] rounded-[14px]"
       >
-        <div className="border-b border-[#eceff3] px-6 py-6">
-          <h2 className="text-[30px] font-bold text-[#333]">
+        <div className="border-b border-app-panel-border px-6 py-6">
+          <h2 className="text-[30px] font-bold text-app-text">
             Paste your JSON prompt
           </h2>
-          <p className="mt-4 max-w-[640px] text-[26px] leading-9 font-medium text-[#777]">
+          <p className="mt-4 max-w-[640px] text-[26px] leading-9 font-medium text-app-muted-text">
             Paste an image generation prompt and AI will extract the character
             attributes.
           </p>
@@ -1076,7 +1076,7 @@ function ImportPromptModal({
             </div>
           )}
         </div>
-        <div className="flex justify-end gap-4 border-t border-[#eceff3] px-6 py-5">
+        <div className="flex justify-end gap-4 border-t border-app-panel-border px-6 py-5">
           <Button variant="outline" onClick={onCancel}>
             Cancel
           </Button>
@@ -1092,7 +1092,7 @@ function ImportPromptModal({
 function CharacterPortrait({ previewUrl }: { previewUrl: string }) {
   return (
     <div
-      className="relative h-[300px] w-[225px] overflow-hidden rounded-[18px] border-[5px] border-white bg-white bg-cover bg-center shadow-xl"
+      className="relative h-[300px] w-[225px] overflow-hidden rounded-[18px] border-[5px] border-white bg-app-surface bg-cover bg-center shadow-xl"
       role="img"
       aria-label="Character preview"
       style={{

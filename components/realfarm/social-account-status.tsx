@@ -1,22 +1,11 @@
-import {
-  IconBrandBluesky,
-  IconBrandFacebookFilled,
-  IconBrandGoogleFilled,
-  IconBrandInstagram,
-  IconBrandLinkedin,
-  IconBrandPinterest,
-  IconBrandTelegram,
-  IconBrandThreads,
-  IconBrandTiktok,
-  IconBrandX,
-  IconBrandYoutubeFilled,
-} from "@tabler/icons-react"
-
 import type { PostFastSocialProvider } from "@/lib/postfast-client"
 import { cn } from "@/lib/utils"
 
+import { SocialPlatformIcon, socialProviderLabel } from "./social-platform"
+
 export type SocialAccountPublishStatus =
   | "connected"
+  | "awaiting_manual_post"
   | "queued"
   | "draft"
   | "scheduled"
@@ -30,7 +19,52 @@ export type SocialAccountStatusItem = {
   name: string
   profile?: string
   status: SocialAccountPublishStatus
+  scheduledAt?: string
+  publishedAt?: string
   error?: string
+}
+
+export function SocialAccountIconList({
+  items,
+  className,
+  onClick,
+}: {
+  items: SocialAccountStatusItem[]
+  className?: string
+  onClick?: () => void
+}) {
+  if (items.length === 0) return null
+
+  return (
+    <div className={cn("flex items-center -space-x-1.5", className)}>
+      {items.map((item) => {
+        const label = accountLabel(item)
+        const statusLabel = publishStatusLabel(item.status)
+        return (
+          <button
+            key={`${item.provider}:${item.integrationId}`}
+            type="button"
+            onClick={onClick}
+            className={cn(
+              "relative grid size-7 place-items-center rounded-full border-2 border-white bg-app-strong text-white shadow-sm transition hover:z-10 hover:scale-110 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
+              item.status === "disabled" && "opacity-55"
+            )}
+            title={`${label} · ${statusLabel}`}
+            aria-label={`${label}: ${statusLabel}`}
+          >
+            <SocialPlatformIcon provider={item.provider} className="size-3.5" />
+            <span
+              className={cn(
+                "absolute right-0 bottom-0 size-2 rounded-full border border-white",
+                publishStatusDotClass(item.status)
+              )}
+              aria-hidden="true"
+            />
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 export function SocialAccountStatusRow({
@@ -50,7 +84,7 @@ export function SocialAccountStatusRow({
     return (
       <span
         className={cn(
-          "inline-flex items-center rounded-full border border-dashed border-[#d8d7cf] px-2 py-1 text-[11px] font-semibold text-[#77766f]",
+          "inline-flex items-center rounded-full border border-dashed border-app-panel-border px-2 py-1 text-[11px] font-semibold text-app-muted-text",
           className
         )}
       >
@@ -88,7 +122,7 @@ function SocialAccountStatusBadge({
   return (
     <span
       className={cn(
-        "group inline-flex min-w-0 items-center gap-1.5 rounded-full border bg-white shadow-sm",
+        "group inline-flex min-w-0 items-center gap-1.5 rounded-full border bg-app-surface shadow-sm",
         size === "compact" ? "px-1.5 py-1" : "px-2 py-1.5",
         publishStatusBorderClass(item.status)
       )}
@@ -97,18 +131,18 @@ function SocialAccountStatusBadge({
     >
       <span
         className={cn(
-          "grid shrink-0 place-items-center rounded-full bg-[#111] text-white",
+          "grid shrink-0 place-items-center rounded-full bg-app-strong text-white",
           size === "compact" ? "size-6" : "size-8"
         )}
       >
-        {platformIconElement(item.provider, {
-          className: cn(size === "compact" ? "size-3.5" : "size-4.5"),
-          stroke: 2.4,
-        })}
+        <SocialPlatformIcon
+          provider={item.provider}
+          className={cn(size === "compact" ? "size-3.5" : "size-4.5")}
+        />
       </span>
       {showLabel ? (
         <span className="min-w-0">
-          <span className="block max-w-[88px] truncate text-[11px] leading-3.5 font-semibold text-[#242421]">
+          <span className="block max-w-[88px] truncate text-[11px] leading-3.5 font-semibold text-app-text">
             {label}
           </span>
           <span
@@ -137,12 +171,14 @@ function accountLabel(item: SocialAccountStatusItem) {
   return (
     item.profile?.replace(/^@/, "") ||
     item.name ||
-    providerLabel(item.provider)
+    socialProviderLabel(item.provider)
   )
 }
 
 export function publishStatusLabel(status: SocialAccountPublishStatus) {
   switch (status) {
+    case "awaiting_manual_post":
+      return "Post manually"
     case "published":
       return "Published"
     case "scheduled":
@@ -163,6 +199,8 @@ export function publishStatusLabel(status: SocialAccountPublishStatus) {
 
 function publishStatusBorderClass(status: SocialAccountPublishStatus) {
   switch (status) {
+    case "awaiting_manual_post":
+      return "border-violet-500"
     case "published":
       return "border-[#3b82f6]"
     case "scheduled":
@@ -174,15 +212,17 @@ function publishStatusBorderClass(status: SocialAccountPublishStatus) {
     case "failed":
       return "border-[#ef4444]"
     case "disabled":
-      return "border-[#d8d7cf] opacity-60"
+      return "border-app-panel-border opacity-60"
     case "connected":
     default:
-      return "border-[#242421]"
+      return "border-app-strong"
   }
 }
 
 function publishStatusTextClass(status: SocialAccountPublishStatus) {
   switch (status) {
+    case "awaiting_manual_post":
+      return "text-violet-600"
     case "published":
       return "text-[#2563eb]"
     case "scheduled":
@@ -192,16 +232,18 @@ function publishStatusTextClass(status: SocialAccountPublishStatus) {
     case "failed":
       return "text-[#dc2626]"
     case "disabled":
-      return "text-[#8a8982]"
+      return "text-app-text-faint"
     case "draft":
     case "connected":
     default:
-      return "text-[#55544f]"
+      return "text-app-text-soft"
   }
 }
 
 function publishStatusDotClass(status: SocialAccountPublishStatus) {
   switch (status) {
+    case "awaiting_manual_post":
+      return "bg-violet-500"
     case "published":
       return "bg-[#3b82f6]"
     case "scheduled":
@@ -216,77 +258,6 @@ function publishStatusDotClass(status: SocialAccountPublishStatus) {
       return "bg-[#8a8982]"
     case "connected":
     default:
-      return "bg-[#242421]"
-  }
-}
-
-function platformIconElement(
-  provider: PostFastSocialProvider,
-  props: { className?: string; stroke?: number }
-) {
-  switch (provider) {
-    case "instagram":
-      return <IconBrandInstagram {...props} />
-    case "youtube":
-      return <IconBrandYoutubeFilled {...props} />
-    case "facebook":
-      return <IconBrandFacebookFilled {...props} />
-    case "x":
-    case "twitter":
-      return <IconBrandX {...props} />
-    case "linkedin":
-      return <IconBrandLinkedin {...props} />
-    case "threads":
-      return <IconBrandThreads {...props} />
-    case "pinterest":
-      return <IconBrandPinterest {...props} />
-    case "bluesky":
-      return <IconBrandBluesky {...props} />
-    case "telegram":
-      return <IconBrandTelegram {...props} />
-    case "google":
-    case "google-business-profile":
-      return <IconBrandGoogleFilled {...props} />
-    case "tiktok":
-    case "tiktok-creative":
-    case "tiktok-seller":
-    default:
-      return <IconBrandTiktok {...props} />
-  }
-}
-
-function providerLabel(provider: PostFastSocialProvider) {
-  switch (provider) {
-    case "google-business-profile":
-      return "Google Business"
-    case "google":
-      return "Google"
-    case "youtube":
-      return "YouTube"
-    case "instagram":
-      return "Instagram"
-    case "facebook":
-      return "Facebook"
-    case "x":
-      return "X"
-    case "twitter":
-      return "Twitter"
-    case "linkedin":
-      return "LinkedIn"
-    case "threads":
-      return "Threads"
-    case "pinterest":
-      return "Pinterest"
-    case "bluesky":
-      return "Bluesky"
-    case "telegram":
-      return "Telegram"
-    case "tiktok-creative":
-      return "TikTok Creative"
-    case "tiktok-seller":
-      return "TikTok Seller"
-    case "tiktok":
-    default:
-      return "TikTok"
+      return "bg-app-strong"
   }
 }

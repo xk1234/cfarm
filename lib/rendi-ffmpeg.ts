@@ -1,13 +1,9 @@
 import { randomUUID } from "node:crypto"
-import { open, stat } from "node:fs/promises"
+import { open, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 
 import { persistAsset } from "@/lib/asset-storage"
-import {
-  cleanString,
-  readLooseRecord,
-  readTrimmedString,
-} from "@/lib/guards"
+import { cleanString, readLooseRecord, readTrimmedString } from "@/lib/guards"
 import { fetchWithTimeout } from "@/lib/http"
 import { pollUntil } from "@/lib/poll"
 
@@ -139,6 +135,7 @@ export async function runRendiFfmpegAndDownload(input: {
   outputFiles: Record<string, string>
   outputAlias: string
   outputPath: string
+  localOutputPath?: string
   fetchImpl?: FetchLike
   pollDelayMs?: number
   pollLimit?: number
@@ -199,10 +196,11 @@ export async function runRendiFfmpegAndDownload(input: {
       `Failed to download Rendi output with ${downloadResponse.status}`
     )
   }
-  await persistAsset(
-    input.outputPath,
-    Buffer.from(await downloadResponse.arrayBuffer())
-  )
+  const bytes = Buffer.from(await downloadResponse.arrayBuffer())
+  await persistAsset(input.outputPath, bytes)
+  if (input.localOutputPath) {
+    await writeFile(input.localOutputPath, bytes)
+  }
   return status
 }
 

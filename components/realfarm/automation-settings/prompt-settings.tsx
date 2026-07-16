@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useEffectEvent, useState } from "react"
 
 import {
   SelectControl,
@@ -22,7 +22,6 @@ import {
   schemaWithAutomationHooks,
   schemaWithAutomationTone,
   schemaWithAutomationSharedSlideStyle,
-  type AutomationImageFit,
   type AutomationSchema,
 } from "@/lib/realfarm-automation"
 import {
@@ -32,14 +31,18 @@ import {
   normalizeHookVariables,
   type HookCaseMode,
 } from "@/lib/hook-casing"
+import {
+  migrateLegacyHookVariableReferences,
+  runtimeHookVariables,
+  runtimeHookVariableValue,
+  wordCollectionVariableName,
+} from "@/lib/hook-variables"
 import type { Automation } from "@/lib/realfarm-data"
 import type { WordCollectionRecord } from "@/lib/word-collections"
 import { cn } from "@/lib/utils"
 
 import { SettingsFooter, SettingsPage, SettingsRow } from "./settings-layout"
 import { HookVariableEditor } from "./hook-variable-editor"
-
-const dynamicHookSlotPattern = /\[\[([a-zA-Z0-9_-]+)\]\]|\{([a-zA-Z0-9_-]+)\}/g
 
 export function PromptTextarea({
   title,
@@ -55,16 +58,16 @@ export function PromptTextarea({
   return (
     <label className="block">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[15px] font-semibold text-[#242421]">
+        <span className="text-[15px] font-semibold text-app-text">
           {title}
         </span>
-        <span className="flex items-center gap-2 text-[13px] font-semibold text-[#62615b]">
+        <span className="flex items-center gap-2 text-[13px] font-semibold text-app-text-soft">
           Use prompt <SwitchPill enabled />
         </span>
       </div>
       <textarea
         className={cn(
-          "w-full resize-none rounded-[8px] border border-[#d8d7cf] bg-white p-4 text-[14px] leading-6 font-medium outline-none focus:border-[#9f9e96]",
+          "w-full resize-none rounded-[8px] border border-app-panel-border bg-app-surface p-4 text-[14px] leading-6 font-medium outline-none focus:border-[#9f9e96]",
           large ? "h-32" : "h-24"
         )}
         value={value}
@@ -88,10 +91,10 @@ export function PromptConfigPanel({
   onSave: () => void
 }) {
   const hooks = automationHooks(config)
-  const dynamicSlots = useMemo(() => detectDynamicHookSlots(hooks), [hooks])
   const [wordCollections, setWordCollections] = useState<
     WordCollectionRecord[]
   >([])
+  const [runtimePreviewDate] = useState(() => new Date())
   const [activeTab, setActiveTab] = useState<"hooks" | "style" | "slides">(
     "hooks"
   )
@@ -114,6 +117,30 @@ export function PromptConfigPanel({
   )
   const selectedHookCase =
     config.prompt_formatting.hook_case ?? detectedHookCase
+  const applyLoadedWordCollections = useEffectEvent(
+    (collections: WordCollectionRecord[]) => {
+      setWordCollections(collections)
+      const migration = migrateLegacyHookVariableReferences({
+        text: hooksDraft,
+        hookSlots: config.hook_slots,
+        collections,
+      })
+      if (!migration.changed) return
+
+      const migratedDraft = normalizeHookVariables(migration.text)
+      const migratedHooks = migratedDraft
+        .split("\n")
+        .map((line) => line.replace(/^\s*\d+\.\s*/, "").trim())
+        .filter(Boolean)
+      setHooksDraft(migratedDraft)
+      onConfigChange(
+        schemaWithAutomationHookSlots(
+          schemaWithAutomationHooks(config, migratedHooks),
+          migration.hookSlots
+        )
+      )
+    }
+  )
   useEffect(() => {
     let active = true
     void fetchJsonWithTimeout<{ collections?: WordCollectionRecord[] }>(
@@ -122,7 +149,7 @@ export function PromptConfigPanel({
     )
       .then((payload) => {
         if (active) {
-          setWordCollections(payload.collections ?? [])
+          applyLoadedWordCollections(payload.collections ?? [])
         }
       })
       .catch(() => undefined)
@@ -165,30 +192,6 @@ export function PromptConfigPanel({
     )
   }
 
-  function updateHookSlot(slot: string, collectionId: string) {
-    const nextSlots = { ...(config.hook_slots ?? {}) }
-    if (collectionId) {
-      nextSlots[slot] = collectionId
-    } else {
-      delete nextSlots[slot]
-    }
-    onConfigChange(schemaWithAutomationHookSlots(config, nextSlots))
-  }
-
-  function selectedCollectionId(slot: string) {
-    const explicit = config.hook_slots?.[slot]
-    if (explicit) {
-      return explicit
-    }
-    return (
-      wordCollections.find(
-        (collection) =>
-          collection.id.toLowerCase() === slot.toLowerCase() ||
-          collection.name.toLowerCase() === slot.toLowerCase()
-      )?.id ?? ""
-    )
-  }
-
   function updateTone(value: string) {
     onConfigChange(schemaWithAutomationTone(config, value))
   }
@@ -208,7 +211,7 @@ export function PromptConfigPanel({
     >
       <div
         className={cn(
-          "mb-6 grid h-11 overflow-hidden rounded-[9px] border border-[#deddd5] bg-[#f6f5f0] text-[13px] font-semibold",
+          "mb-6 grid h-11 overflow-hidden rounded-[9px] border border-app-panel-border bg-[#f6f5f0] text-[13px] font-semibold",
           isVideoAutomation ? "grid-cols-2" : "grid-cols-3"
         )}
       >
@@ -217,10 +220,10 @@ export function PromptConfigPanel({
             key={tab}
             type="button"
             className={cn(
-              "border-r border-[#deddd5] last:border-r-0",
+              "border-r border-app-panel-border last:border-r-0",
               activeTab === tab
-                ? "bg-white text-[#242421] shadow-sm"
-                : "text-[#85847d]"
+                ? "bg-app-surface text-app-text shadow-sm"
+                : "text-app-text-faint"
             )}
             onClick={() => setActiveTab(tab)}
           >
@@ -239,10 +242,10 @@ export function PromptConfigPanel({
             <label className="block">
               <div className="mb-2 flex items-end justify-between gap-4">
                 <div>
-                  <div className="text-[16px] font-semibold text-[#242421]">
+                  <div className="text-[16px] font-semibold text-app-text">
                     Hooks
                   </div>
-                  <div className="mt-1 text-[14px] font-medium text-[#77766f]">
+                  <div className="mt-1 text-[14px] font-medium text-app-muted-text">
                     One hook per line. Variables stay uppercase here and inherit
                     the selected casing when resolved.
                   </div>
@@ -270,15 +273,51 @@ export function PromptConfigPanel({
                 value={hooksDraft}
                 collections={wordCollections}
                 hookSlots={config.hook_slots}
+                timeZone={config.schedule.timezone}
                 onChange={updateHooks}
               />
             </label>
-            <div className="flex items-start justify-between gap-5 rounded-[10px] border border-[#deddd5] bg-[#fafaf7] p-4">
+            <section className="rounded-[9px] border border-app-panel-border bg-app-surface-subtle px-3 py-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h3 className="text-[14px] font-semibold text-app-text">
+                  Variables
+                </h3>
+                <p className="text-[12px] font-medium text-app-muted-text">
+                  Hover a badge to preview its current or collection value.
+                </p>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {runtimeHookVariables.map((variable) => (
+                  <VariableBadge
+                    key={`runtime-${variable.name}`}
+                    token={`[[${variable.name.toUpperCase()}]]`}
+                    value={
+                      runtimeHookVariableValue(variable.name, {
+                        now: runtimePreviewDate,
+                        timeZone: config.schedule.timezone,
+                      }) ?? "Unavailable"
+                    }
+                    detail={`${variable.label} · ${variable.description}`}
+                    kind="runtime"
+                  />
+                ))}
+                {wordCollections.map((collection) => (
+                  <VariableBadge
+                    key={`collection-${collection.id}`}
+                    token={`[[${wordCollectionVariableName(collection).toUpperCase()}]]`}
+                    value={collectionValuePreview(collection)}
+                    detail={`${collection.words.length} collection ${collection.words.length === 1 ? "value" : "values"}`}
+                    kind="dynamic"
+                  />
+                ))}
+              </div>
+            </section>
+            <div className="flex items-start justify-between gap-5 rounded-[10px] border border-app-panel-border bg-app-surface-subtle p-4">
               <div>
-                <div className="text-[15px] font-semibold text-[#242421]">
+                <div className="text-[15px] font-semibold text-app-text">
                   No duplicate values per hook
                 </div>
-                <p className="mt-1 max-w-[560px] text-[13px] leading-5 font-medium text-[#77766f]">
+                <p className="mt-1 max-w-[560px] text-[13px] leading-5 font-medium text-app-muted-text">
                   Repeated variables draw different values within the same hook.
                 </p>
               </div>
@@ -294,62 +333,6 @@ export function PromptConfigPanel({
                 }
               />
             </div>
-            {dynamicSlots.length > 0 ? (
-              <section className="rounded-[10px] border border-[#deddd5] bg-[#fafaf7] p-4">
-                <div className="flex items-start justify-between gap-5">
-                  <div>
-                    <h3 className="text-[16px] font-semibold text-[#242421]">
-                      Dynamic tags
-                    </h3>
-                    <p className="mt-1 text-[14px] font-medium text-[#77766f]">
-                      Map each variable to a word collection.
-                    </p>
-                  </div>
-                  <span className="rounded-full border border-[#deddd5] bg-white px-2.5 py-1 text-[11px] font-bold text-[#77766f]">
-                    {dynamicSlots.length} detected
-                  </span>
-                </div>
-                <div className="mt-4 divide-y divide-[#e6e5de] rounded-[8px] border border-[#e6e5de] bg-white">
-                  {dynamicSlots.map((slot) => {
-                    const value = selectedCollectionId(slot)
-                    const collection = wordCollections.find(
-                      (item) => item.id === value
-                    )
-                    return (
-                      <div
-                        key={slot}
-                        className="grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_240px]"
-                      >
-                        <div className="min-w-0">
-                          <div className="font-mono text-[13px] font-bold text-[#242421]">
-                            [[{slot}]]
-                          </div>
-                          <div className="mt-1 truncate text-[12px] font-semibold text-[#77766f]">
-                            {collection
-                              ? `${collection.words.length} values available`
-                              : "No collection mapped"}
-                          </div>
-                        </div>
-                        <SelectControl
-                          className="w-full"
-                          value={value}
-                          onChange={(event) =>
-                            updateHookSlot(slot, event.target.value)
-                          }
-                        >
-                          <option value="">Select collection</option>
-                          {wordCollections.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.name} ({item.words.length})
-                            </option>
-                          ))}
-                        </SelectControl>
-                      </div>
-                    )
-                  })}
-                </div>
-              </section>
-            ) : null}
           </>
         ) : null}
 
@@ -466,21 +449,10 @@ export function PromptConfigPanel({
             />
             <SettingsRow
               title="Image fitting"
-              description="How source images fill the shared frame"
+              description="Images fill the entire frame; overflow is cropped from the center"
               control={
-                <SelectControl
-                  value={sharedSlideStyle.imageFit}
-                  onChange={(event) =>
-                    onConfigChange(
-                      schemaWithAutomationSharedSlideStyle(config, {
-                        imageFit: event.target.value as AutomationImageFit,
-                      })
-                    )
-                  }
-                >
+                <SelectControl value="cover" disabled>
                   <option value="cover">Cover — crop edges</option>
-                  <option value="contain">Contain — show full image</option>
-                  <option value="fit">Fit — stretch to frame</option>
                 </SelectControl>
               }
             />
@@ -508,23 +480,57 @@ export function PromptConfigPanel({
   )
 }
 
-function detectDynamicHookSlots(hooks: string[]) {
-  const seen = new Set<string>()
-  for (const hook of hooks) {
-    for (const match of hook.matchAll(dynamicHookSlotPattern)) {
-      const slot = (match[1] || match[2] || "").trim()
-      if (slot) {
-        seen.add(slot)
-      }
-    }
-  }
-  return [...seen].sort((a, b) => a.localeCompare(b))
-}
-
 function hookCaseLabel(mode: HookCaseMode) {
   if (mode === "lowercase") return "all lowercase"
   if (mode === "uppercase") return "ALL UPPERCASE"
   if (mode === "title") return "Title Case"
   if (mode === "sentence") return "First word uppercase"
   return "Mixed"
+}
+
+function VariableBadge({
+  token,
+  value,
+  detail,
+  kind,
+}: {
+  token: string
+  value: string
+  detail: string
+  kind: "runtime" | "dynamic"
+}) {
+  return (
+    <span className="group relative inline-flex">
+      <span
+        className={cn(
+          "inline-flex h-7 items-center rounded-full border px-2.5 font-mono text-[11px] font-bold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#9b7bd7]/35",
+          kind === "runtime"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+            : "border-[#ddd4f3] bg-[#f7f3ff] text-app-action hover:bg-[#eee7ff]"
+        )}
+        tabIndex={0}
+        aria-label={`${token}: ${value}`}
+      >
+        {token}
+      </span>
+      <span
+        className="pointer-events-none absolute top-full left-1/2 z-50 mt-2 w-max max-w-[min(360px,calc(100vw-32px))] -translate-x-1/2 rounded-[8px] border border-app-panel-border bg-app-surface px-3 py-2 text-left opacity-0 shadow-[0_10px_28px_rgba(36,36,33,0.16)] transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+        role="tooltip"
+      >
+        <span className="block text-[10px] leading-4 font-bold tracking-[0.04em] text-app-text-faint uppercase">
+          {detail}
+        </span>
+        <span className="mt-0.5 block text-[12px] leading-5 font-semibold whitespace-normal text-app-text">
+          {value}
+        </span>
+      </span>
+    </span>
+  )
+}
+
+function collectionValuePreview(collection: WordCollectionRecord) {
+  if (collection.words.length === 0) return "No values yet"
+  const visible = collection.words.slice(0, 8).join(", ")
+  const remaining = collection.words.length - 8
+  return remaining > 0 ? `${visible} · +${remaining} more` : visible
 }

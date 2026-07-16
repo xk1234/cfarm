@@ -205,7 +205,7 @@ export function TemplateGeneratedPreview({
               <div className="h-full w-full bg-[linear-gradient(135deg,#e9e8e1_0%,#d7d6cf_48%,#c8c7c0_100%)]" />
             )}
             {!hasGeneratedSlides && tileIndex === Math.floor(tileCount / 2) ? (
-              <div className="absolute inset-x-2 top-1/2 -translate-y-1/2 text-center text-[10px] leading-tight font-semibold text-[#77766f]">
+              <div className="absolute inset-x-2 top-1/2 -translate-y-1/2 text-center text-[10px] leading-tight font-semibold text-app-muted-text">
                 No example slideshow yet
               </div>
             ) : null}

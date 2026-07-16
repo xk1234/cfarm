@@ -464,7 +464,7 @@ function WorkflowSidePanel({
 
   return (
     <aside className="hidden h-[calc(100svh-72px)] overflow-y-auto border-l border-[#e4e4df] bg-[#f3f3ee] p-4 lg:block">
-      <div className="rounded-[14px] bg-white p-4 shadow-sm">
+      <div className="rounded-[14px] bg-app-surface p-4 shadow-sm">
         <div className="text-[12px] font-bold tracking-wide text-[#9a9a93] uppercase">
           Workflow
         </div>
@@ -482,12 +482,12 @@ function WorkflowSidePanel({
             </option>
           ))}
         </SelectControl>
-        <p className="mt-3 text-[13px] leading-5 font-semibold text-[#77766f]">
+        <p className="mt-3 text-[13px] leading-5 font-semibold text-app-muted-text">
           {activeWorkflow.description}
         </p>
       </div>
 
-      <div className="mt-4 rounded-[14px] bg-white p-4 shadow-sm">
+      <div className="mt-4 rounded-[14px] bg-app-surface p-4 shadow-sm">
         {workflow === "free_generate" && (
           <FreeGeneratePanel
             character={character}
@@ -605,14 +605,14 @@ function FreeGeneratePanel({
           {attachments.map((attachment) => (
             <div
               key={`${attachment.kind}-${attachment.url}`}
-              className="flex items-center justify-between rounded-[8px] bg-[#f6f6f2] px-3 py-2 text-[12px] font-bold text-[#555]"
+              className="flex items-center justify-between rounded-[8px] bg-[#f6f6f2] px-3 py-2 text-[12px] font-bold text-app-text-soft"
             >
               <span className="truncate">{attachment.label}</span>
               <span className="ml-2 shrink-0 uppercase">{attachment.kind}</span>
             </div>
           ))}
           <button
-            className="h-9 w-full rounded-[8px] border border-dashed border-[#c8c9c2] text-[12px] font-bold text-[#77766f]"
+            className="h-9 w-full rounded-[8px] border border-dashed border-[#c8c9c2] text-[12px] font-bold text-app-muted-text"
             onClick={onOpenAssets}
           >
             {selectedAssets.length > 0
@@ -622,7 +622,7 @@ function FreeGeneratePanel({
         </div>
       </PanelSection>
       <PanelSection title="Prompt strength">
-        <div className="space-y-2 text-[12px] font-bold text-[#555]">
+        <div className="space-y-2 text-[12px] font-bold text-app-text-soft">
           <StrengthRow label="Character" value="High" />
           <StrengthRow label="User prompt" value="Medium" />
           <StrengthRow label="Reference" value="None" />
@@ -649,7 +649,7 @@ function RecreateReferencePanel({
     <div className="space-y-4">
       <PanelTitle title="Recreate Reference" />
       <button
-        className="grid min-h-28 w-full place-items-center rounded-[12px] border border-dashed border-[#c8c9c2] bg-[#f7f7f3] p-4 text-center text-[13px] font-bold text-[#77766f]"
+        className="grid min-h-28 w-full place-items-center rounded-[12px] border border-dashed border-[#c8c9c2] bg-app-surface-subtle p-4 text-center text-[13px] font-bold text-app-muted-text"
         onClick={onOpenReference}
       >
         Drop IG/TikTok screenshot here
@@ -664,7 +664,7 @@ function RecreateReferencePanel({
         background only. Identity stays locked to the selected character.
       </div>
       <PanelSection title="Analyze result">
-        <dl className="space-y-2 text-[12px] font-semibold text-[#555]">
+        <dl className="space-y-2 text-[12px] font-semibold text-app-text-soft">
           <InfoRow label="Photo type" value="Mirror selfie" />
           <InfoRow label="Pose" value="Standing angled" />
           <InfoRow label="Camera" value="Eye-level phone mirror" />
@@ -672,7 +672,7 @@ function RecreateReferencePanel({
           <InfoRow label="Outfit vibe" value="Casual UGC styling" />
         </dl>
       </PanelSection>
-      <label className="block text-[12px] font-bold text-[#667085]">
+      <label className="block text-[12px] font-bold text-app-muted-text">
         Recreation mode
         <SelectControl
           className="mt-2 w-full"
@@ -717,7 +717,7 @@ function MotionControlPanel({
   return (
     <div className="space-y-4">
       <PanelTitle title="Motion Control" />
-      <div className="rounded-[10px] bg-[#f7f7f3] p-3 text-[12px] leading-5 font-semibold text-[#77766f]">
+      <div className="rounded-[10px] bg-app-surface-subtle p-3 text-[12px] leading-5 font-semibold text-app-muted-text">
         Uses Kling 3 motion-control. Character orientation is locked to the
         image; movement and facial expressions come from the reference video.
       </div>
@@ -732,7 +732,7 @@ function MotionControlPanel({
         onChange={onMotionSourceImageUrlChange}
       />
       {!motionSourceImageUrl && (
-        <div className="rounded-[8px] bg-[#f2f4f7] px-3 py-2 text-[12px] font-bold text-[#667085]">
+        <div className="rounded-[8px] bg-[#f2f4f7] px-3 py-2 text-[12px] font-bold text-app-muted-text">
           Defaults to {character.name}&apos;s profile image.
         </div>
       )}
@@ -754,7 +754,7 @@ function SeedreamSelfiePanel({
   return (
     <div className="space-y-4">
       <PanelTitle title="Seedream Selfie" />
-      <label className="block text-[12px] font-bold text-[#667085]">
+      <label className="block text-[12px] font-bold text-app-muted-text">
         Prompt preset
         <SelectControl
           className="mt-2 w-full"
@@ -802,12 +802,12 @@ function OutfitTransferPanel({
         onChange={onClothingImageUrlChange}
       />
       <button
-        className="h-9 w-full rounded-[8px] border border-dashed border-[#c8c9c2] text-[12px] font-bold text-[#77766f]"
+        className="h-9 w-full rounded-[8px] border border-dashed border-[#c8c9c2] text-[12px] font-bold text-app-muted-text"
         onClick={onOpenAssets}
       >
         Choose from outfits
       </button>
-      <div className="rounded-[10px] bg-[#f7f7f3] p-3 text-[12px] leading-5 font-semibold text-[#77766f]">
+      <div className="rounded-[10px] bg-app-surface-subtle p-3 text-[12px] leading-5 font-semibold text-app-muted-text">
         Uses image 1 as the influencer and image 2 as the clothing reference.
       </div>
     </div>
@@ -822,13 +822,13 @@ function PoseVariationCutVideoPanel({
   return (
     <div className="space-y-4">
       <PanelTitle title="Pose Cut Video" />
-      <div className="rounded-[10px] bg-[#f7f7f3] p-3 text-[12px] leading-5 font-semibold text-[#77766f]">
+      <div className="rounded-[10px] bg-app-surface-subtle p-3 text-[12px] leading-5 font-semibold text-app-muted-text">
         Starts from {character.name}&apos;s profile image, creates a stronger
         pose variation as the end frame, animates the two frames with Kling 2.5,
         then adds random micro cuts and a random song from the music folder.
       </div>
       <PanelSection title="Output">
-        <dl className="space-y-2 text-[12px] font-semibold text-[#555]">
+        <dl className="space-y-2 text-[12px] font-semibold text-app-text-soft">
           <InfoRow label="End frame" value="Nano Banana Pro image edit" />
           <InfoRow label="Video" value="Kling 2.5 start/end frame" />
           <InfoRow label="Cuts" value="0.2-0.3s random micro cuts" />
@@ -868,7 +868,7 @@ function BuildModulesPanel({
       {Object.entries(options).map(([key, values]) => (
         <label
           key={key}
-          className="block text-[12px] font-bold text-[#667085] capitalize"
+          className="block text-[12px] font-bold text-app-muted-text capitalize"
         >
           {key}
           <SelectControl
@@ -937,7 +937,7 @@ function TikTokSlideshowPanel({
   return (
     <div className="space-y-4">
       <PanelTitle title="TikTok Slideshow" />
-      <label className="block text-[12px] font-bold text-[#667085]">
+      <label className="block text-[12px] font-bold text-app-muted-text">
         Slideshow type
         <SelectControl className="mt-2 w-full" defaultValue="Lifestyle">
           {["Lifestyle", "UGC", "Product", "Story"].map((value) => (
@@ -984,7 +984,7 @@ function ProductUgcPanel({
     <div className="space-y-4">
       <PanelTitle title="Product UGC" />
       <button
-        className="grid min-h-20 w-full place-items-center rounded-[12px] border border-dashed border-[#c8c9c2] bg-[#f7f7f3] p-4 text-center text-[13px] font-bold text-[#77766f]"
+        className="grid min-h-20 w-full place-items-center rounded-[12px] border border-dashed border-[#c8c9c2] bg-app-surface-subtle p-4 text-center text-[13px] font-bold text-app-muted-text"
         onClick={onOpenAssets}
       >
         Upload or select product image
@@ -1023,7 +1023,7 @@ function AnimateImagePanel() {
   return (
     <div className="space-y-4">
       <PanelTitle title="Animate Image" />
-      <div className="rounded-[10px] bg-[#f7f7f3] p-3 text-[12px] leading-5 font-semibold text-[#77766f]">
+      <div className="rounded-[10px] bg-app-surface-subtle p-3 text-[12px] leading-5 font-semibold text-app-muted-text">
         Generate or select an image first, then open it to use Edit, Upscale,
         Variations, or Animate. The image editor stores video metadata beside
         the selected image.
@@ -1067,7 +1067,7 @@ function StaticCheckbox({
   checked?: boolean
 }) {
   return (
-    <label className="flex items-center gap-2 text-[12px] font-bold text-[#555]">
+    <label className="flex items-center gap-2 text-[12px] font-bold text-app-text-soft">
       <input type="checkbox" checked={checked} readOnly />
       {label}
     </label>
@@ -1078,7 +1078,7 @@ function StrengthRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <span>{label}</span>
-      <span className="rounded-full bg-[#f2f4f7] px-2 py-0.5 text-[#667085]">
+      <span className="rounded-full bg-[#f2f4f7] px-2 py-0.5 text-app-muted-text">
         {value}
       </span>
     </div>
@@ -1089,7 +1089,7 @@ export function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[92px_1fr] gap-2">
       <dt className="text-[#9a9a93]">{label}</dt>
-      <dd className="text-[#333]">{value}</dd>
+      <dd className="text-app-text">{value}</dd>
     </div>
   )
 }
@@ -1097,7 +1097,7 @@ export function InfoRow({ label, value }: { label: string; value: string }) {
 function RangeReadout({ label, value }: { label: string; value: number }) {
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between text-[12px] font-bold text-[#555]">
+      <div className="mb-1 flex items-center justify-between text-[12px] font-bold text-app-text-soft">
         <span>{label}</span>
         <span>{value}%</span>
       </div>
@@ -1125,10 +1125,10 @@ function NumberField({
   onChange: (value: number) => void
 }) {
   return (
-    <label className="block text-[12px] font-bold text-[#667085]">
+    <label className="block text-[12px] font-bold text-app-muted-text">
       {label}
       <input
-        className="mt-2 h-10 w-full rounded-[10px] border border-[#dde1e7] px-3 text-[14px] font-semibold text-[#111827] outline-none"
+        className="mt-2 h-10 w-full rounded-[10px] border border-[#dde1e7] px-3 text-[14px] font-semibold text-app-text outline-none"
         type="number"
         min={min}
         max={max}
@@ -1151,10 +1151,10 @@ function TextField({
   onChange: (value: string) => void
 }) {
   return (
-    <label className="block text-[12px] font-bold text-[#667085]">
+    <label className="block text-[12px] font-bold text-app-muted-text">
       {label}
       <input
-        className="mt-2 h-10 w-full rounded-[10px] border border-[#dde1e7] px-3 text-[14px] font-semibold text-[#111827] outline-none"
+        className="mt-2 h-10 w-full rounded-[10px] border border-[#dde1e7] px-3 text-[14px] font-semibold text-app-text outline-none"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />

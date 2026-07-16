@@ -48,7 +48,7 @@ export type DefaultAutomationFormatSectionConfig = {
 
 export const defaultAutomationTemplateDefaults = {
   version: "default-automation-template-v1",
-  image_fit: "contain" as const,
+  image_fit: "cover" as const,
   language: defaultAutomationLanguage,
   schedule: {
     defaultPostingTime: "11:00 AM",
@@ -177,7 +177,7 @@ export const defaultAutomationTemplateDefaults = {
     },
     visibility: "PUBLIC_TO_EVERYONE" satisfies TikTokVisibility,
     auto_music: true,
-    auto_post: false,
+    auto_post: true,
     allow_comments: true,
     allow_duet: true,
     allow_stitch: true,

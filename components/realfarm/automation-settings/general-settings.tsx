@@ -46,6 +46,7 @@ export function AutomationGeneralSettingsPanel({
   const [knowledgeBasesLoading, setKnowledgeBasesLoading] = useState(true)
   const language = config.language || defaultAutomationLanguage
   const isVideoAutomation = config.automationKind === "video"
+  const knowledgeContextEnabled = config.knowledge_context_enabled === true
   const exportAsVideo = automationPublishType(config) === "video"
   const slideDuration = slideshowDurationValue(
     config.tiktok_post_settings.slideshow_slide_duration
@@ -144,7 +145,7 @@ export function AutomationGeneralSettingsPanel({
         }
         control={
           <div className="flex items-center gap-2">
-            <IconLanguage className="size-5 text-[#242421]" />
+            <IconLanguage className="size-5 text-app-text" />
             <SelectControl
               value={language}
               onChange={(event) => updateLanguage(event.target.value)}
@@ -224,19 +225,36 @@ export function AutomationGeneralSettingsPanel({
           />
         </div>
       ) : null}
-      <section className="mt-6 rounded-[10px] border border-[#deddd5] bg-[#fafaf7] p-4">
-        <h3 className="text-[16px] font-semibold text-[#242421]">
-          Knowledge context
-        </h3>
-        <p className="mt-1 text-[14px] font-medium text-[#77766f]">
+      <section className="mt-6 rounded-[10px] border border-app-panel-border bg-app-surface-subtle p-4">
+        <div className="flex items-center justify-between gap-4">
+          <h3 className="text-[16px] font-semibold text-app-text">
+            Knowledge context
+          </h3>
+          <SwitchPillButton
+            enabled={knowledgeContextEnabled}
+            onClick={() =>
+              onConfigChange({
+                ...config,
+                knowledge_context_enabled: !knowledgeContextEnabled,
+              })
+            }
+            aria-label="Toggle knowledge context"
+          />
+        </div>
+        <p className="mt-1 text-[14px] font-medium text-app-muted-text">
           Selected knowledge bases are inserted into the final text-generation
           prompt.
         </p>
-        <div className="mt-4 space-y-2">
+        <div
+          className={cn(
+            "mt-4 space-y-2 transition-opacity",
+            !knowledgeContextEnabled && "opacity-50"
+          )}
+        >
           {knowledgeBasesLoading ? (
             <ListSkeleton count={3} />
           ) : knowledgeBases.length === 0 ? (
-            <div className="text-[13px] font-semibold text-[#77766f]">
+            <div className="text-[13px] font-semibold text-app-muted-text">
               Create a knowledge base from Knowledge Bases first.
             </div>
           ) : (
@@ -249,6 +267,7 @@ export function AutomationGeneralSettingsPanel({
                 <button
                   key={item.id}
                   type="button"
+                  disabled={!knowledgeContextEnabled}
                   onClick={() =>
                     onConfigChange({
                       ...config,
@@ -259,13 +278,13 @@ export function AutomationGeneralSettingsPanel({
                         : [...(config.knowledge_base_ids ?? []), item.id],
                     })
                   }
-                  className="flex w-full items-center justify-between rounded-lg border border-[#e6e5de] bg-white px-4 py-3 text-left"
+                  className="flex w-full items-center justify-between rounded-lg border border-app-panel-border bg-app-surface px-4 py-3 text-left disabled:cursor-not-allowed"
                 >
                   <span>
-                    <span className="block text-[13px] font-semibold text-[#242421]">
+                    <span className="block text-[13px] font-semibold text-app-text">
                       {item.name}
                     </span>
-                    <span className="mt-0.5 block text-[11px] font-medium text-[#77766f]">
+                    <span className="mt-0.5 block text-[11px] font-medium text-app-muted-text">
                       {item.compiledText.length.toLocaleString()} context
                       characters · {item.status}
                     </span>
@@ -275,7 +294,7 @@ export function AutomationGeneralSettingsPanel({
                       "grid size-5 place-items-center rounded border text-[11px] font-bold",
                       selected
                         ? "border-app-action bg-app-action text-white"
-                        : "border-[#d8d7cf]"
+                        : "border-app-panel-border"
                     )}
                   >
                     {selected ? "✓" : ""}

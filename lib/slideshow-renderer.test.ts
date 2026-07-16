@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   renderedSlideSvg,
+  renderedTextItemEditorBounds,
   renderedTextItemBounds,
   slideshowTextPositionX,
 } from "@/lib/slideshow-renderer"
@@ -52,33 +53,24 @@ describe("slideshow renderer", () => {
     expect(svg).not.toContain('data-layer="overlay"')
   })
 
-  it("supports containing an original image without cropping", () => {
-    const svg = renderedSlideSvg(
-      {
-        id: "slide-contained",
-        image_url: "/image.jpg",
-        imageFit: "contain",
-        textItems: [],
-      },
-      "/image.jpg"
-    )
+  it.each(["cover", "contain", "fit"] as const)(
+    "fills the frame with centered cover cropping for legacy %s settings",
+    (imageFit) => {
+      const svg = renderedSlideSvg(
+        {
+          id: `slide-${imageFit}`,
+          image_url: "/image.jpg",
+          imageFit,
+          textItems: [],
+        },
+        "/image.jpg"
+      )
 
-    expect(svg).toContain('preserveAspectRatio="xMidYMid meet"')
-  })
-
-  it("supports fitting an image exactly to the frame", () => {
-    const svg = renderedSlideSvg(
-      {
-        id: "slide-fitted",
-        image_url: "/image.jpg",
-        imageFit: "fit",
-        textItems: [],
-      },
-      "/image.jpg"
-    )
-
-    expect(svg).toContain('preserveAspectRatio="none"')
-  })
+      expect(svg).toContain('preserveAspectRatio="xMidYMid slice"')
+      expect(svg).not.toContain('preserveAspectRatio="xMidYMid meet"')
+      expect(svg).not.toContain('preserveAspectRatio="none"')
+    }
+  )
 
   it("renders a visible background when the Background text style is selected", () => {
     const svg = renderedSlideSvg(
@@ -149,6 +141,60 @@ describe("slideshow renderer", () => {
 
     expect(svg).toContain('fill="#111111" fill-opacity="0.56"')
     expect(svg).not.toContain('paint-order="stroke"')
+  })
+
+  it("renders plain text and outline as visibly different styles", () => {
+    const plain = renderedSlideSvg(
+      {
+        id: "plain",
+        image_url: "/image.jpg",
+        textItems: [{ ...textItem("plain", "center"), textStyle: "whiteText" }],
+      },
+      "/image.jpg"
+    )
+    const outlined = renderedSlideSvg(
+      {
+        id: "outlined",
+        image_url: "/image.jpg",
+        textItems: [
+          { ...textItem("outlined", "center"), textStyle: "outline" },
+        ],
+      },
+      "/image.jpg"
+    )
+
+    expect(plain).not.toContain('paint-order="stroke"')
+    expect(outlined).toContain('paint-order="stroke"')
+  })
+
+  it("uses configured width for wrapping and the editor selection box", () => {
+    const content = "one two three four five six seven eight nine ten"
+    const narrow = {
+      ...textItem("narrow", "center"),
+      text: content,
+      textSize: { width: 40, height: 18 },
+    }
+    const wide = {
+      ...narrow,
+      id: "text-wide",
+      textSize: { width: 80, height: 18 },
+    }
+    const narrowSvg = renderedSlideSvg(
+      { id: "narrow", image_url: "/image.jpg", textItems: [narrow] },
+      "/image.jpg"
+    )
+    const wideSvg = renderedSlideSvg(
+      { id: "wide", image_url: "/image.jpg", textItems: [wide] },
+      "/image.jpg"
+    )
+    const [narrowBounds] = renderedTextItemEditorBounds([narrow], 1080, 1920)
+    const [wideBounds] = renderedTextItemEditorBounds([wide], 1080, 1920)
+
+    expect(narrowSvg.match(/<tspan/g)?.length).toBeGreaterThan(
+      wideSvg.match(/<tspan/g)?.length ?? 0
+    )
+    expect(narrowBounds.width).toBe(432)
+    expect(wideBounds.width).toBe(864)
   })
 
   it("wraps unspaced text and stacks text items in the shared SVG renderer", () => {

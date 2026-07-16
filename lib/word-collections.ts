@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto"
 import path from "node:path"
 
 import { readJsonArrayStore, withJsonArrayStore } from "@/lib/json-store"
+import { hookVariableNameFromLabel } from "@/lib/hook-variables"
 
 export type WordCollectionSource = "manual" | "ai" | "research"
 
@@ -37,7 +38,15 @@ export async function upsertWordCollection(input: {
 }) {
   const now = new Date().toISOString()
   const source = input.collection
-  const id = clean(source.id) || `word-collection-${randomUUID()}`
+  const id =
+    clean(source.id) ||
+    hookVariableNameFromLabel(source.name) ||
+    `word-collection-${randomUUID()}`
+  if (id.toLowerCase() === "year") {
+    throw new Error(
+      "YEAR is a retired variable tag. Use the CURRENT_YEAR runtime variable instead."
+    )
+  }
   const nextCollection: WordCollectionRecord = {
     id,
     name: clean(source.name) || "Untitled word collection",
@@ -97,9 +106,15 @@ export async function deleteWordCollection(input: {
   })
 }
 
-function normalizeWordCollection(raw: WordCollectionRecord) {
+function normalizeWordCollection(
+  raw: WordCollectionRecord
+): WordCollectionRecord | null {
   const record: Record<string, unknown> = isRecord(raw) ? raw : {}
   const id = clean(record.id) || `word-collection-${randomUUID()}`
+  // Old workspaces stored the current year as a one-item random collection.
+  // Keep that retired record out of every variable picker; legacy [[YEAR]]
+  // references are resolved and migrated by hook-variables.ts.
+  if (id.toLowerCase() === "year") return null
   const now = new Date().toISOString()
   const words = normalizeWords(record.words)
   return {

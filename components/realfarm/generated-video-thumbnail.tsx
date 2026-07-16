@@ -7,7 +7,7 @@ import { useVideoThumbnailFrame } from "./use-video-thumbnail-frame"
 export function GeneratedVideoThumbnail({
   videoUrl,
   className,
-  preload = "auto",
+  preload = "metadata",
 }: {
   videoUrl: string
   className?: string

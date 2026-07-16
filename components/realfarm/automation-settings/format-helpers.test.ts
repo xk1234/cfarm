@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import {
   newAutomationTextItemAfter,
+  previewSlideshowAspectRatio,
+  previewSlideshowFont,
   previewSlideshowSlide,
   previewSlideshowTextItems,
   previewTrackOffsetForWidths,
@@ -41,6 +43,7 @@ function previewItem(): AutomationFormatPreviewItem {
     textItemWidth: "80%",
     textAlign: "right" as const,
     textAnchor: "flush" as const,
+    textVerticalAnchor: "flush" as const,
   }
   const second = {
     ...defaultAutomationTextItem({ id: "second" }),
@@ -98,28 +101,31 @@ describe("slideshow format preview controls", () => {
   })
 
   it("maps overlay, aspect ratio, overlay image, and padding into the canvas slide", () => {
-    const slide = previewSlideshowSlide(previewItem(), 0)
+    const item = previewItem()
+    const slide = previewSlideshowSlide(item, 0)
     expect(slide).toMatchObject({
-      aspect_ratio: "1:1",
       overlay: true,
       overlayImage: { image_url: "/overlay.jpg", padding: 12 },
     })
+    expect(previewSlideshowAspectRatio(item)).toBe("1:1")
   })
 
   it("renders every configured text element with its visual controls", () => {
-    const items = previewSlideshowTextItems(previewItem())
+    const item = previewItem()
+    const items = previewSlideshowTextItems(item)
     expect(items).toHaveLength(2)
     expect(items[0]).toMatchObject({
       id: "first",
       text: "First text",
-      font: "Arial",
       fontSize: "16px",
       textStyle: "yellowText",
       textAlign: "right",
       textAnchor: "flush",
+      textVerticalAnchor: "flush",
       textPlacement: "bottom",
       textSize: { width: 80 },
     })
+    expect(previewSlideshowFont(item)).toBe("Arial")
     expect(items[1]).toMatchObject({ id: "second", text: "Second text" })
   })
 
@@ -142,8 +148,15 @@ describe("slideshow format preview controls", () => {
     const item = previewItem()
     const schema = { formatting: [item.section] } as AutomationSchema
     const updated = updateAutomationTextItemAt(schema, "content", 1, {
-      textAlign: "right",
       fontSize: "22px",
+      textStyle: "black50Background",
+      textPosition: "top",
+      textItemWidth: "40%",
+      wordLengthMin: 2,
+      wordLengthMax: 3,
+      textAlign: "left",
+      textAnchor: "flush",
+      textVerticalAnchor: "flush",
     })
     const section = updated.formatting.find((entry) => entry.id === "body")
     if (!section) throw new Error("Missing body")
@@ -151,8 +164,15 @@ describe("slideshow format preview controls", () => {
     expect(section.textItems[0]).toEqual(item.textItems[0])
     expect(section.textItems[1]).toMatchObject({
       id: "second",
-      textAlign: "right",
       fontSize: "22px",
+      textStyle: "black50Background",
+      textPosition: "top",
+      textItemWidth: "40%",
+      wordLengthMin: 2,
+      wordLengthMax: 3,
+      textAlign: "left",
+      textAnchor: "flush",
+      textVerticalAnchor: "flush",
     })
   })
 

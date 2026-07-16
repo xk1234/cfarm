@@ -4,6 +4,7 @@ import path from "node:path"
 
 import {
   deleteJsonArrayRecord,
+  readJsonArrayRecord,
   readJsonArrayStore,
   upsertJsonArrayRecord,
 } from "@/lib/json-store"
@@ -85,7 +86,21 @@ export async function listResultRecords(
     limit?: number
   } = {}
 ) {
-  const records = await readResultRecords(input.rootDir)
+  if (input.id) {
+    const record = await readResultRecord(input.rootDir, input.id)
+    if (!record) return []
+    if (input.automationId && record.automationId !== input.automationId) {
+      return []
+    }
+    if (input.runId && record.runId !== input.runId) return []
+    return [record]
+  }
+  const records = await readResultRecords(input.rootDir, {
+    limit:
+      !input.automationId && !input.runId
+        ? Math.max(1, input.limit ?? 100)
+        : undefined,
+  })
   const filtered = records.filter((record) => {
     if (input.id && record.id !== input.id) {
       return false
@@ -139,8 +154,7 @@ export async function updateResultRecord(input: {
     return null
   }
 
-  const records = await readResultRecords(input.rootDir)
-  const existing = records.find((record) => record.id === id)
+  const existing = await readResultRecord(input.rootDir, id)
   if (!existing) {
     return null
   }
@@ -162,8 +176,7 @@ export async function deleteResultRecord(input: {
     return null
   }
 
-  const records = await readResultRecords(input.rootDir)
-  const deleted = records.find((record) => record.id === id) ?? null
+  const deleted = await readResultRecord(input.rootDir, id)
   if (!deleted) {
     return null
   }
@@ -205,11 +218,23 @@ export async function deleteResultRecordsForAutomation(input: {
   return deleted
 }
 
-function readResultRecords(rootDir = defaultRootDir()) {
+function readResultRecords(
+  rootDir = defaultRootDir(),
+  options: { limit?: number } = {}
+) {
   return readJsonArrayStore<ResultRecord>({
     rootDir,
     fileName: dbFileName,
     key: "results",
+    normalize: normalizeResultRecord,
+    limit: options.limit,
+  })
+}
+
+function readResultRecord(rootDir: string | undefined, id: string) {
+  return readJsonArrayRecord({
+    ...resultStore(rootDir),
+    id,
     normalize: normalizeResultRecord,
   })
 }

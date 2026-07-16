@@ -48,16 +48,16 @@ export function ConfirmDialog({
       }}
     >
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className="fixed inset-0 z-[110] bg-black/45" />
-        <AlertDialog.Content className="fixed top-1/2 left-1/2 z-[110] w-[calc(100%-2rem)] max-w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-[10px] bg-white p-5 shadow-2xl outline-none">
-          <AlertDialog.Title className="text-[17px] font-bold text-[#242421]">
+        <AlertDialog.Overlay className="fixed inset-0 z-[110] bg-app-overlay" />
+        <AlertDialog.Content className="app-dialog-surface fixed top-1/2 left-1/2 z-[110] w-[calc(100%-2rem)] max-w-[420px] -translate-x-1/2 -translate-y-1/2 p-5">
+          <AlertDialog.Title className="text-[17px] font-bold text-app-text">
             {title}
           </AlertDialog.Title>
-          <AlertDialog.Description className="mt-2 text-[13px] leading-5 font-medium text-[#77766f]">
+          <AlertDialog.Description className="mt-2 text-[13px] leading-5 font-medium text-app-muted-text">
             {description}
           </AlertDialog.Description>
           {error ? (
-            <p className="mt-3 rounded-[7px] bg-red-50 px-3 py-2 text-[12px] font-semibold text-red-700">
+            <p className="mt-3 rounded-app-control bg-app-danger-surface px-3 py-2 text-[12px] font-semibold text-app-danger-muted">
               {error}
             </p>
           ) : null}

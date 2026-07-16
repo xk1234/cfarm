@@ -1,6 +1,8 @@
 import { clean, isRecord } from "@/lib/guards"
 import type { AutomationSchedule } from "@/lib/realfarm-automation"
+import type { Automation } from "@/lib/realfarm-data"
 import type { PostFastSocialIntegration } from "@/lib/postfast-client"
+import { generationModelRegistry } from "@/lib/realfarm-generation-model-registry"
 
 export type XAutomationPlatform = "x" | "threads"
 export type XContentType = "single" | "thread" | "article"
@@ -8,14 +10,38 @@ export type XPostLength = "short" | "standard" | "long"
 export type XPostArchetype =
   | "educational_thread"
   | "data_drop"
+  | "pattern_drop"
   | "contrarian_take"
   | "numbered_list"
   | "comparison"
   | "mistake_breakdown"
   | "opinion_framework"
+  | "label_take"
+  | "provocative_polemic"
+  | "audience_callout"
+  | "question_bait"
+  | "analogy_reframe"
+  | "micro_story"
+  | "credibility_claim"
+  | "win_celebration"
+  | "controversial_humor"
 export type XMediaMode = "none" | "generate"
 export type XReactionMode = "none" | "repost" | "quote"
 export type XDiscoverySource = "x" | "tiktok" | "instagram"
+export type ProofEntry = {
+  id: string
+  text: string
+  kind: "result" | "testimonial" | "stat"
+  source?: string
+}
+export type XAutomationBrief = {
+  audience: string
+  promise: string
+  pillars: { label: string; weight: number }[]
+  keywords: string[]
+  painPoints: string[]
+  derivedAt: string
+}
 
 export type XAutomationBenchmark = {
   id: string
@@ -37,6 +63,7 @@ export type XAutomationBenchmark = {
 export type XAutomationRecord = {
   id: string
   ownerId?: string
+  platform: XAutomationPlatform
   name: string
   status: "live" | "paused"
   createdAt: string
@@ -50,8 +77,10 @@ export type XAutomationRecord = {
     keywords: string[]
     excludedTopics: string[]
   }
+  brief: XAutomationBrief | null
+  excludedTopics: string[]
+  proofBank: ProofEntry[]
   output: {
-    platforms: XAutomationPlatform[]
     contentType: XContentType
     archetype: XPostArchetype
     singleLength: XPostLength
@@ -63,30 +92,22 @@ export type XAutomationRecord = {
     model: string
     autoInferBrief: boolean
     language: string
-    voice: string
-    hookPrompt: string
-    setupPrompt: string
-    contentPrompt: string
-    proofPrompt: string
-    curiosityGapPrompt: string
-    ctaPrompt: string
-    requireSourceAttribution: boolean
+    hookStyles: string[]
+    voicePreset: string
+    voiceOverride: string
   }
   media: {
     mode: XMediaMode
-    count: 1 | 2 | 3 | 4
     aspectRatio: "1:1" | "4:5" | "16:9"
     prompt: string
   }
   discovery: {
     enabled: boolean
     sources: XDiscoverySource[]
-    queryTemplates: string[]
     lookbackHours: number
     minimumViews: number
     minimumEngagementRate: number
     reactionMode: XReactionMode
-    requireApproval: boolean
   }
   benchmarks: XAutomationBenchmark[]
   publishing: {
@@ -94,6 +115,11 @@ export type XAutomationRecord = {
     autoPost: boolean
   }
   schedule: AutomationSchedule
+  usage: {
+    recentArchetypes: { id: string; at: string }[]
+    recentHooks: string[]
+    recentBodies: { body: string; hook: string; at: string }[]
+  }
 }
 
 export type XInferredContentBrief = {
@@ -136,6 +162,7 @@ export type XGeneratedPost = {
   text: string
   characterCount: number
   role: "hook" | "setup" | "content" | "proof" | "gap" | "cta"
+  platform?: XAutomationPlatform
 }
 
 export type XAutomationBenchmarkScore = {
@@ -180,7 +207,7 @@ export type XAutomationRun = {
   archetype?: XPostArchetype
   inferredBrief?: XInferredContentBrief
   contentType: XContentType
-  platforms: XAutomationPlatform[]
+  platform: XAutomationPlatform
   reactionMode: XReactionMode
   sourceCandidate?: XTrendCandidate
   hook: string
@@ -206,57 +233,16 @@ export type XAutomationRun = {
     failed: number
     skippedReason?: string
   }
+  plans?: Array<{
+    platform: XAutomationPlatform
+    archetype: string
+    pillar: string
+    hookStyle: string
+    needsReview?: boolean
+  }>
+  needsReview?: boolean
+  reviewErrors?: string[]
 }
-
-export const xPostArchetypes: Array<{
-  value: XPostArchetype
-  label: string
-  target: string
-  structure: string
-}> = [
-  {
-    value: "educational_thread",
-    label: "Educational thread",
-    target: "4-8% engagement · 10-20% bookmarks",
-    structure: "Problem → step-by-step solution → result",
-  },
-  {
-    value: "data_drop",
-    label: "Data drop",
-    target: "5-9% engagement · 8-15% shares",
-    structure: "3-5 sourced data points → implication → takeaway",
-  },
-  {
-    value: "contrarian_take",
-    label: "Contrarian take",
-    target: "6-12% engagement · 10-20% replies",
-    structure: "Common belief → rebuttal → alternative → proof",
-  },
-  {
-    value: "numbered_list",
-    label: "Numbered list",
-    target: "4-7% engagement · 12-20% saves",
-    structure: "5-10 useful items → why each matters",
-  },
-  {
-    value: "comparison",
-    label: "Comparison post",
-    target: "5-10% engagement",
-    structure: "Approach A vs B → clear recommendation",
-  },
-  {
-    value: "mistake_breakdown",
-    label: "Mistake breakdown",
-    target: "6-11% engagement · 10-18% saves",
-    structure: "Mistakes → lessons → corrected approach → result",
-  },
-  {
-    value: "opinion_framework",
-    label: "Opinion framework",
-    target: "4-8% engagement",
-    structure: "Opinion → 3-5 supporting points → implication",
-  },
-]
 
 export const phantomProfitBenchmarks: XAutomationBenchmark[] = [
   {
@@ -324,12 +310,25 @@ export const phantomProfitBenchmarks: XAutomationBenchmark[] = [
 ]
 
 export function defaultXAutomation(
-  overrides: Partial<Pick<XAutomationRecord, "id" | "name">> = {}
+  overrides: Partial<Pick<XAutomationRecord, "id" | "name" | "platform">> = {}
 ): XAutomationRecord {
   const now = new Date().toISOString()
+  const platform = overrides.platform ?? "x"
+  const everyDay: import("@/lib/realfarm-automation").AutomationDay[] = [
+    "Mon",
+    "Tue",
+    "Wed",
+    "Thu",
+    "Fri",
+    "Sat",
+    "Sun",
+  ]
   return {
     id: overrides.id ?? `x-automation-${crypto.randomUUID()}`,
-    name: overrides.name ?? "New X content engine",
+    name:
+      overrides.name ??
+      (platform === "threads" ? "New Threads automation" : "New X automation"),
+    platform,
     status: "paused",
     createdAt: now,
     updatedAt: now,
@@ -345,37 +344,47 @@ export function defaultXAutomation(
         "medical, legal, or financial advice presented without qualification",
       ],
     },
+    brief: null,
+    excludedTopics: [
+      "invented facts, studies, metrics, testimonials, or personal experience",
+      "medical, legal, or financial advice presented without qualification",
+    ],
+    proofBank: [],
     output: {
-      platforms: ["x", "threads"],
-      contentType: "thread",
-      archetype: "educational_thread",
+      contentType: platform === "x" ? "thread" : "single",
+      archetype: platform === "x" ? "educational_thread" : "label_take",
       singleLength: "standard",
       maxCharacters: 280,
       threadPostCount: { min: 8, max: 15 },
       articleWordCount: { min: 800, max: 1_200 },
     },
     generation: {
-      model: "google/gemini-3.1-flash-lite",
+      model: generationModelRegistry.openRouter.xPostGeneration.model,
       autoInferBrief: true,
       language: "English",
-      voice: "lowercase, blunt, tactical, specific, zero fluff",
-      hookPrompt:
-        "Write a surprising, specific claim plus a promise or question. It must pass a three-second test.",
-      setupPrompt:
-        "Establish the pain, opportunity, or stakes in 1-2 compact sentences without repeating the hook.",
-      contentPrompt:
-        "Teach a useful framework with single-idea paragraphs, concrete steps, examples, and 1-2 memorable numbers when supported.",
-      proofPrompt:
-        "Add only verifiable proof from the provided source or supplied facts. If none exists, use a concrete example and clearly label it as an example.",
-      curiosityGapPrompt:
-        "Leave one useful open loop with a question, contrast, or next-step tease that invites a real response.",
-      ctaPrompt:
-        "Choose one low-friction action: bookmark, reply with a keyword, follow for the next part, or try the first step.",
-      requireSourceAttribution: true,
+      hookStyles:
+        platform === "x"
+          ? [
+              "big_number",
+              "contrarian",
+              "time_based",
+              "curiosity_gap",
+              "direct_address",
+            ]
+          : [
+              "threads_unpopular_opinion",
+              "threads_real_talk",
+              "threads_hot_take",
+              "threads_reality_check",
+              "threads_truth",
+              "threads_point_blank",
+            ],
+      voicePreset:
+        platform === "x" ? "faceless_tactical" : "personal_connector",
+      voiceOverride: "",
     },
     media: {
       mode: "generate",
-      count: 1,
       aspectRatio: "16:9",
       prompt:
         "Create a clean editorial visual that explains the core mechanism. No logos, fake UI, or decorative text.",
@@ -383,24 +392,79 @@ export function defaultXAutomation(
     discovery: {
       enabled: true,
       sources: ["x", "tiktok", "instagram"],
-      queryTemplates: ["{niche}", "{keyword} min_faves:100", "{pain_point}"],
       lookbackHours: 72,
       minimumViews: 10_000,
       minimumEngagementRate: 0.02,
       reactionMode: "quote",
-      requireApproval: true,
     },
     benchmarks: phantomProfitBenchmarks,
-    publishing: { integrations: [], autoPost: false },
+    publishing: { integrations: [], autoPost: true },
     schedule: {
       timezone: "Asia/Singapore",
       posting_times: [
-        { time: "9:00 AM", days: ["Mon", "Wed", "Fri"], enabled: true },
+        ...(platform === "x"
+          ? [
+              { time: "8:00 AM", days: everyDay, enabled: true },
+              { time: "6:00 PM", days: everyDay, enabled: true },
+            ]
+          : [
+              "8:00 AM",
+              "9:00 AM",
+              "12:00 PM",
+              "5:00 PM",
+              "6:00 PM",
+              "8:30 PM",
+            ].map((time) => ({
+              time,
+              days: everyDay,
+              enabled: true,
+            }))),
       ],
       paused: false,
       jitter_minutes: 10,
       min_gap_minutes: 180,
     },
+    usage: { recentArchetypes: [], recentHooks: [], recentBodies: [] },
+  }
+}
+
+export function xAutomationToAutomation(engine: XAutomationRecord): Automation {
+  const activeIntegrations = engine.publishing.integrations.filter(
+    (integration) => !integration.disabled
+  )
+  const first = activeIntegrations[0]
+  const extraCount = Math.max(0, activeIntegrations.length - 1)
+  const provider =
+    first?.provider === "x"
+      ? "X"
+      : first?.provider === "threads"
+        ? "Threads"
+        : engine.platform === "threads"
+          ? "Threads"
+          : "X"
+  const profile = first?.profile
+    ? `@${first.profile.replace(/^@/, "")}`
+    : provider
+
+  return {
+    id: engine.id,
+    name: engine.name,
+    automationKind: "x_threads",
+    platform: engine.platform,
+    status: engine.status,
+    account: first
+      ? `${first.name}${extraCount > 0 ? ` +${extraCount}` : ""}`
+      : "No social account",
+    handle: first ? `${provider} · ${profile}` : "Click to add account",
+    times: engine.schedule.posting_times
+      .filter((postingTime) => postingTime.enabled !== false)
+      .map((postingTime) => postingTime.time),
+    timezone: engine.schedule.timezone,
+    schedule: engine.schedule,
+    favorite: false,
+    theme: "x_threads",
+    socialIntegrations: engine.publishing.integrations,
+    created_at: engine.createdAt,
   }
 }
 
@@ -411,6 +475,7 @@ export function normalizeXAutomation(value: unknown): XAutomationRecord | null {
   const defaults = defaultXAutomation({
     id,
     name: clean(value.name) || undefined,
+    platform: value.platform === "threads" ? "threads" : "x",
   })
   const niche = isRecord(value.niche) ? value.niche : {}
   const output = isRecord(value.output) ? value.output : {}
@@ -419,22 +484,146 @@ export function normalizeXAutomation(value: unknown): XAutomationRecord | null {
   const discovery = isRecord(value.discovery) ? value.discovery : {}
   const publishing = isRecord(value.publishing) ? value.publishing : {}
   const schedule = isRecord(value.schedule) ? value.schedule : {}
+  const oldNicheHasBrief =
+    clean(niche.audience) ||
+    clean(niche.promise) ||
+    stringArray(niche.pillars).length > 0
+  const explicitBrief = normalizeBrief(value.brief)
+  const migratedBrief =
+    explicitBrief ??
+    (oldNicheHasBrief
+      ? {
+          audience: clean(niche.audience),
+          promise: clean(niche.promise),
+          pillars: stringArray(niche.pillars)
+            .slice(0, 5)
+            .map((label, index) => ({
+              label,
+              weight: [30, 20, 15, 10, 5][index],
+            })),
+          keywords: stringArray(niche.keywords),
+          painPoints: stringArray(niche.painPoints),
+          derivedAt: clean(value.updatedAt) || new Date().toISOString(),
+        }
+      : null)
+  const customLegacyPrompts = legacyPromptOverrides(generation)
+  const legacyVoice =
+    clean(generation.voice) &&
+    clean(generation.voice) !==
+      "lowercase, blunt, tactical, specific, zero fluff"
+      ? clean(generation.voice)
+      : ""
+  const voiceOverride = [
+    clean(generation.voiceOverride),
+    legacyVoice,
+    ...customLegacyPrompts,
+  ]
+    .filter(Boolean)
+    .join("\n\n")
+  const legacyPlatforms = stringArray(output.platforms).filter(
+    (item): item is XAutomationPlatform => item === "x" || item === "threads"
+  )
+  const platformFlags = isRecord(output.platformFlags)
+    ? {
+        x: output.platformFlags.x !== false,
+        threads: output.platformFlags.threads !== false,
+      }
+    : {
+        x: legacyPlatforms.length === 0 || legacyPlatforms.includes("x"),
+        threads:
+          legacyPlatforms.length === 0 || legacyPlatforms.includes("threads"),
+      }
+  const platform: XAutomationPlatform =
+    value.platform === "threads" || value.platform === "x"
+      ? value.platform
+      : platformFlags.x
+        ? "x"
+        : "threads"
   return {
     ...defaults,
     ...value,
     id,
+    platform,
     name: clean(value.name) || defaults.name,
     status: value.status === "live" ? "live" : "paused",
     niche: { ...defaults.niche, ...niche } as XAutomationRecord["niche"],
-    output: { ...defaults.output, ...output } as XAutomationRecord["output"],
+    brief: migratedBrief,
+    excludedTopics:
+      stringArray(value.excludedTopics).length > 0
+        ? stringArray(value.excludedTopics)
+        : stringArray(niche.excludedTopics).length > 0
+          ? stringArray(niche.excludedTopics)
+          : defaults.excludedTopics,
+    proofBank: normalizeProofBank(value.proofBank),
+    output: {
+      contentType:
+        output.contentType === "single" || output.contentType === "article"
+          ? output.contentType
+          : "thread",
+      archetype: clean(output.archetype)
+        ? (output.archetype as XPostArchetype)
+        : defaults.output.archetype,
+      singleLength:
+        output.singleLength === "short" || output.singleLength === "long"
+          ? output.singleLength
+          : "standard",
+      maxCharacters:
+        Number(output.maxCharacters) ||
+        characterLimitFor(
+          output.singleLength === "short" || output.singleLength === "long"
+            ? output.singleLength
+            : "standard"
+        ),
+      threadPostCount: isRecord(output.threadPostCount)
+        ? {
+            min: Number(output.threadPostCount.min) || 8,
+            max: Number(output.threadPostCount.max) || 15,
+          }
+        : defaults.output.threadPostCount,
+      articleWordCount: isRecord(output.articleWordCount)
+        ? {
+            min: Number(output.articleWordCount.min) || 800,
+            max: Number(output.articleWordCount.max) || 1200,
+          }
+        : defaults.output.articleWordCount,
+    },
     generation: {
-      ...defaults.generation,
-      ...generation,
-    } as XAutomationRecord["generation"],
-    media: { ...defaults.media, ...media } as XAutomationRecord["media"],
+      model: clean(generation.model) || defaults.generation.model,
+      autoInferBrief: generation.autoInferBrief !== false,
+      language: clean(generation.language) || defaults.generation.language,
+      hookStyles:
+        stringArray(generation.hookStyles).length > 0
+          ? stringArray(generation.hookStyles)
+          : defaults.generation.hookStyles,
+      voicePreset:
+        clean(generation.voicePreset) || defaults.generation.voicePreset,
+      voiceOverride,
+    },
+    media: {
+      mode: media.mode === "none" ? "none" : "generate",
+      aspectRatio:
+        media.aspectRatio === "1:1" || media.aspectRatio === "4:5"
+          ? media.aspectRatio
+          : "16:9",
+      prompt: clean(media.prompt) || defaults.media.prompt,
+    },
     discovery: {
-      ...defaults.discovery,
-      ...discovery,
+      enabled: discovery.enabled !== false,
+      sources: stringArray(discovery.sources).filter(
+        (source): source is XDiscoverySource =>
+          source === "x" || source === "tiktok" || source === "instagram"
+      ),
+      lookbackHours:
+        Number(discovery.lookbackHours) || defaults.discovery.lookbackHours,
+      minimumViews:
+        Number(discovery.minimumViews) || defaults.discovery.minimumViews,
+      minimumEngagementRate:
+        Number(discovery.minimumEngagementRate) ||
+        defaults.discovery.minimumEngagementRate,
+      reactionMode:
+        discovery.reactionMode === "repost" || discovery.reactionMode === "none"
+          ? discovery.reactionMode
+          : "quote",
     } as XAutomationRecord["discovery"],
     benchmarks: Array.isArray(value.benchmarks)
       ? (value.benchmarks as XAutomationBenchmark[])
@@ -442,11 +631,135 @@ export function normalizeXAutomation(value: unknown): XAutomationRecord | null {
     publishing: {
       ...defaults.publishing,
       ...publishing,
+      integrations: Array.isArray(publishing.integrations)
+        ? (publishing.integrations as PostFastSocialIntegration[]).filter(
+            (integration) =>
+              platform === "threads"
+                ? integration.provider === "threads"
+                : integration.provider === "x" ||
+                  integration.provider === "twitter"
+          )
+        : [],
     } as XAutomationRecord["publishing"],
     schedule: { ...defaults.schedule, ...schedule } as AutomationSchedule,
+    usage: normalizeUsage(value.usage),
     createdAt: clean(value.createdAt) || defaults.createdAt,
     updatedAt: clean(value.updatedAt) || defaults.updatedAt,
   }
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value) ? value.map(clean).filter(Boolean) : []
+}
+
+function normalizeBrief(value: unknown): XAutomationBrief | null {
+  if (!isRecord(value)) return null
+  const pillars = Array.isArray(value.pillars)
+    ? value.pillars.flatMap((pillar, index) =>
+        isRecord(pillar) && clean(pillar.label)
+          ? [
+              {
+                label: clean(pillar.label),
+                weight:
+                  Number(pillar.weight) || [30, 20, 15, 10, 5][index] || 5,
+              },
+            ]
+          : []
+      )
+    : []
+  if (pillars.length === 0) return null
+  return {
+    audience: clean(value.audience),
+    promise: clean(value.promise),
+    pillars,
+    keywords: stringArray(value.keywords),
+    painPoints: stringArray(value.painPoints),
+    derivedAt: clean(value.derivedAt) || new Date().toISOString(),
+  }
+}
+
+function normalizeProofBank(value: unknown): ProofEntry[] {
+  return Array.isArray(value)
+    ? value.flatMap((entry) => {
+        if (!isRecord(entry) || !clean(entry.text)) return []
+        const kind =
+          entry.kind === "testimonial" || entry.kind === "stat"
+            ? entry.kind
+            : "result"
+        return [
+          {
+            id: clean(entry.id) || `proof-${crypto.randomUUID()}`,
+            text: clean(entry.text),
+            kind,
+            source: clean(entry.source) || undefined,
+          },
+        ]
+      })
+    : []
+}
+
+function normalizeUsage(value: unknown): XAutomationRecord["usage"] {
+  if (!isRecord(value))
+    return { recentArchetypes: [], recentHooks: [], recentBodies: [] }
+  return {
+    recentArchetypes: Array.isArray(value.recentArchetypes)
+      ? value.recentArchetypes
+          .flatMap((item) =>
+            isRecord(item) && clean(item.id)
+              ? [
+                  {
+                    id: clean(item.id),
+                    at: clean(item.at) || new Date().toISOString(),
+                  },
+                ]
+              : []
+          )
+          .slice(-100)
+      : [],
+    recentHooks: stringArray(value.recentHooks).slice(-30),
+    recentBodies: Array.isArray(value.recentBodies)
+      ? value.recentBodies
+          .flatMap((item) =>
+            isRecord(item) && clean(item.body)
+              ? [
+                  {
+                    body: clean(item.body),
+                    hook: clean(item.hook),
+                    at: clean(item.at) || new Date().toISOString(),
+                  },
+                ]
+              : []
+          )
+          .slice(-100)
+      : [],
+  }
+}
+
+const legacyPromptDefaults = [
+  "Write a surprising, specific claim plus a promise or question. It must pass a three-second test.",
+  "Establish the pain, opportunity, or stakes in 1-2 compact sentences without repeating the hook.",
+  "Teach a useful framework with single-idea paragraphs, concrete steps, examples, and 1-2 memorable numbers when supported.",
+  "Add only verifiable proof from the provided source or supplied facts. If none exists, use a concrete example and clearly label it as an example.",
+  "Leave one useful open loop with a question, contrast, or next-step tease that invites a real response.",
+  "Choose one low-friction action: bookmark, reply with a keyword, follow for the next part, or try the first step.",
+]
+
+function legacyPromptOverrides(generation: Record<string, unknown>) {
+  return [
+    "hookPrompt",
+    "setupPrompt",
+    "contentPrompt",
+    "proofPrompt",
+    "curiosityGapPrompt",
+    "ctaPrompt",
+  ]
+    .map((key, index) =>
+      clean(generation[key]) &&
+      clean(generation[key]) !== legacyPromptDefaults[index]
+        ? `${key}: ${clean(generation[key])}`
+        : ""
+    )
+    .filter(Boolean)
 }
 
 export function characterLimitFor(length: XPostLength) {
@@ -456,6 +769,7 @@ export function characterLimitFor(length: XPostLength) {
 }
 
 export function benchmarkXRun(input: {
+  platform?: XAutomationPlatform
   contentType: XContentType
   archetype?: XPostArchetype
   hook: string
@@ -491,14 +805,17 @@ export function benchmarkXRun(input: {
   const readability = clampScore(
     100 - Math.max(0, averageSentenceWords - 18) * 4
   )
-  const cta = clampScore(
-    input.cta.length > 0 &&
-      /\b(reply|bookmark|save|follow|try|dm|share|read)\b/i.test(input.cta)
-      ? 92
-      : input.cta.length > 0
-        ? 65
-        : 20
-  )
+  const isThreads = input.platform === "threads"
+  const cta = isThreads
+    ? 100
+    : clampScore(
+        input.cta.length > 0 &&
+          /\b(reply|bookmark|save|follow|try|dm|share|read)\b/i.test(input.cta)
+          ? 92
+          : input.cta.length > 0
+            ? 65
+            : 20
+      )
   const overflowing = input.posts.filter(
     (post) => post.characterCount > input.maxCharacters
   )
@@ -508,20 +825,24 @@ export function benchmarkXRun(input: {
   const formatFit = clampScore(
     100 - overflowing.length * 25 - (countFit ? 0 : 20)
   )
-  const stages = [
-    input.hook,
-    input.setup,
-    input.content.join(" "),
-    input.proof,
-    input.curiosityGap,
-    input.cta,
-  ]
+  const replyPrompt =
+    /\?|\b(reply|tell me|which|what|who|would you|your take)\b/i.test(joined)
+  const stages = isThreads
+    ? [input.hook, input.content.join(" "), replyPrompt ? "reply prompt" : ""]
+    : [
+        input.hook,
+        input.setup,
+        input.content.join(" "),
+        input.proof,
+        input.curiosityGap,
+        input.cta,
+      ]
   const stageCompleteness = clampScore(
     (stages.filter((stage) => clean(stage).length > 0).length / stages.length) *
       100
   )
   const archetypeFit = scoreArchetypeFit(archetype, joined, input.content)
-  const benchmark = xPostArchetypes.find((item) => item.value === archetype)!
+  const benchmark = benchmarkArchetypeMetadata(archetype)
   const matchedBenchmark = closestCorpusBenchmark(archetype)
   if (overflowing.length)
     notes.push(`${overflowing.length} post(s) exceed the character limit.`)
@@ -530,9 +851,14 @@ export function benchmarkXRun(input: {
     notes.push(
       "Add a supported number, example, or named mechanism for specificity."
     )
-  if (cta < 80) notes.push("End with one explicit, low-friction action.")
+  if (!isThreads && cta < 80)
+    notes.push("End with one explicit, low-friction action.")
   if (stageCompleteness < 100)
-    notes.push("Complete setup, proof, curiosity gap, and CTA before posting.")
+    notes.push(
+      isThreads
+        ? "Add a clear hook, substantive body, and reply prompt before posting."
+        : "Complete setup, proof, curiosity gap, and CTA before posting."
+    )
   if (archetypeFit < 75)
     notes.push(
       `Strengthen the ${benchmark.label.toLowerCase()} structure: ${benchmark.structure}.`
@@ -566,6 +892,39 @@ export function benchmarkXRun(input: {
   }
 }
 
+function benchmarkArchetypeMetadata(archetype: XPostArchetype) {
+  const labels: Partial<Record<XPostArchetype, [string, string]>> = {
+    educational_thread: [
+      "Educational thread",
+      "outcome → failure → framework → proof → CTA",
+    ],
+    data_drop: ["Data drop", "sourced findings → implications → takeaway"],
+    pattern_drop: [
+      "Pattern drop",
+      "observed pattern → sign-level implications → question",
+    ],
+    contrarian_take: [
+      "Contrarian take",
+      "belief → rebuttal → alternative → question",
+    ],
+    numbered_list: ["Numbered list", "5–10 specific items → reply question"],
+    comparison: ["Comparison", "A versus B → conclusion → question"],
+    mistake_breakdown: [
+      "Mistake breakdown",
+      "mistakes → correction → supported result",
+    ],
+    opinion_framework: [
+      "Opinion framework",
+      "take → supporting points → bottom line",
+    ],
+  }
+  const [label, structure] = labels[archetype] ?? [
+    "Native platform post",
+    "concise native structure",
+  ]
+  return { label, structure, target: "platform-native engagement" }
+}
+
 function scoreArchetypeFit(
   archetype: XPostArchetype,
   joined: string,
@@ -581,6 +940,11 @@ function scoreArchetypeFit(
       (joined.match(/\b\d+(?:[.,]\d+)?%?\b/g) ?? []).length >= 3,
       /\b(source|according|study|data|research)\b/i.test(joined),
       /\b(takeaway|means|implication)\b/i.test(joined),
+    ],
+    pattern_drop: [
+      sections.length >= 1,
+      /\b(sign|pattern|always|usually|first|most)\b/i.test(joined),
+      /[?:]/.test(joined),
     ],
     contrarian_take: [
       /\b(unpopular|wrong|outdated|myth|contrarian)\b/i.test(joined),
@@ -607,8 +971,35 @@ function scoreArchetypeFit(
       sections.length >= 3,
       /\b(bottom line|therefore|means|implication)\b/i.test(joined),
     ],
+    label_take: [
+      /\b(real talk|hot take|truth|opinion|point blank)\b/i.test(joined),
+      joined.length < 500,
+    ],
+    provocative_polemic: [/[.!?]/.test(joined), joined.length < 500],
+    audience_callout: [
+      /\b(you|if you're|leos?|scorpios?|signs?)\b/i.test(joined),
+      joined.length < 500,
+    ],
+    question_bait: [/[?]/.test(joined), joined.length < 500],
+    analogy_reframe: [
+      /\b(like|as if|isn't|means)\b/i.test(joined),
+      joined.length < 500,
+    ],
+    micro_story: [sections.length >= 1, joined.length < 500],
+    credibility_claim: [
+      /\b(result|proof|earned|grew|reached|helped)\b/i.test(joined),
+      joined.length < 500,
+    ],
+    win_celebration: [
+      /\b(win|won|celebrate|proud|progress|milestone)\b/i.test(joined),
+      joined.length < 500,
+    ],
+    controversial_humor: [/[.!?]/.test(joined), joined.length < 500],
   }
-  return clampScore(55 + checks[archetype].filter(Boolean).length * 15)
+  return clampScore(
+    55 +
+      (checks[archetype] ?? [sections.length > 0]).filter(Boolean).length * 15
+  )
 }
 
 function closestCorpusBenchmark(archetype: XPostArchetype) {

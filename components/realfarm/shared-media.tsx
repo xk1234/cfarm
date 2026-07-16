@@ -99,7 +99,7 @@ export function ToolPill({
   return (
     <button
       className={cn(
-        "grid h-8 min-w-8 place-items-center rounded-full bg-white px-2 text-[12px] font-semibold shadow-sm",
+        "grid h-8 min-w-8 place-items-center rounded-full bg-app-surface px-2 text-[12px] font-semibold shadow-sm",
         danger && "text-[#e16d6d]"
       )}
       onClick={onClick}
@@ -289,9 +289,9 @@ export function ControlRow({
   image?: boolean
 }) {
   return (
-    <div className="mb-3 flex items-center justify-between rounded-[8px] bg-[#f8f8f4] px-3 py-2 text-[12px]">
+    <div className="mb-3 flex items-center justify-between rounded-[8px] bg-app-surface-subtle px-3 py-2 text-[12px]">
       <span className="font-semibold">{label}</span>
-      <span className="max-w-[135px] truncate text-[#77766f]">
+      <span className="max-w-[135px] truncate text-app-muted-text">
         {image ? "▧ " : ""}
         {value}
       </span>
@@ -311,8 +311,8 @@ export function ControlSelect({
   onChange: (value: string) => void
 }) {
   return (
-    <div className="mb-3 grid grid-cols-[1fr_92px] items-center gap-3 rounded-[8px] bg-[#f8f8f4] px-3 py-2 text-sm">
-      <span className="font-medium text-[#242421]">{label}</span>
+    <div className="mb-3 grid grid-cols-[1fr_92px] items-center gap-3 rounded-[8px] bg-app-surface-subtle px-3 py-2 text-sm">
+      <span className="font-medium text-app-text">{label}</span>
       <SelectLike
         value={value}
         options={options}
@@ -335,7 +335,7 @@ export function ControlToggle({
   return (
     <button
       type="button"
-      className="mb-3 flex min-h-8 w-full items-center justify-between px-1 text-sm font-medium text-[#242421]"
+      className="mb-3 flex min-h-8 w-full items-center justify-between px-1 text-sm font-medium text-app-text"
       onClick={onClick}
       aria-pressed={enabled}
     >

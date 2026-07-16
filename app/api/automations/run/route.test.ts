@@ -25,7 +25,7 @@ import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
 // Appwrite-only, run against cfarm (forced by vitest.setup.ts).
 // Slides rasterize to PNG only where a rasterizer exists (darwin), else SVG.
-const slideExt = process.platform === "darwin" ? "png" : "svg"
+const slideExt = "png"
 let tempRoot: string
 
 const clearAll = () =>
@@ -50,26 +50,37 @@ beforeEach(async () => {
   vi.stubEnv("OPENROUTER_API_KEY", "test-openrouter-key")
   vi.stubGlobal(
     "fetch",
-    vi.fn(
-      async () =>
-        new Response(
-          JSON.stringify({
-            choices: [
-              {
-                message: {
-                  content: JSON.stringify({
-                    title: "Generated Hook Run",
-                    caption: "A relatable hook caption.",
-                    hashtags: "#hooks #content #growth",
-                    text: { "content-2__text-0": "generated body text" },
-                  }),
-                },
+    vi.fn(async (_url, init) => {
+      const request = JSON.parse(String(init?.body || "{}"))
+      const prompt = String(request.messages?.[1]?.content || "")
+      const hook = prompt.match(/^Hook:\s*(.+)$/m)?.[1] || "stored hook"
+      const textProperties =
+        request.response_format?.json_schema?.schema?.properties?.text
+          ?.properties || {}
+      const text = Object.fromEntries(
+        Object.keys(textProperties).map((id) => [
+          id,
+          `${hook} generated body text ${id}`,
+        ])
+      )
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  title: "Generated Hook Run",
+                  caption: "A relatable hook caption.",
+                  hashtags: "#hooks #content #growth",
+                  text,
+                }),
               },
-            ],
-          }),
-          { status: 200 }
-        )
-    )
+            },
+          ],
+        }),
+        { status: 200 }
+      )
+    })
   )
 })
 
@@ -103,6 +114,7 @@ describe("POST /api/automations/run", () => {
         body: JSON.stringify({
           now: "2026-07-03T15:05:00.000Z",
           automationId: "automation-1",
+          requestId: "request-1",
           schema: { title: "stale client schema" },
           force: true,
         }),
@@ -116,6 +128,7 @@ describe("POST /api/automations/run", () => {
       expect.objectContaining({
         automationId: "automation-1",
         force: true,
+        requestId: "request-1",
       })
     )
     expect(runDueAutomations.mock.calls[0]?.[0]).not.toHaveProperty(
@@ -123,7 +136,33 @@ describe("POST /api/automations/run", () => {
     )
   })
 
-  it("runs due automations through the local runner", async () => {
+  it("returns a useful preflight error for an unresolved hook variable", async () => {
+    vi.doMock("@/lib/automation-runner", () => ({
+      runDueAutomations: vi.fn(async () => {
+        throw new Error(
+          "Hook slot MISSING has no words in database collection MISSING"
+        )
+      }),
+    }))
+
+    const { POST } = await import("./route")
+    const response = await POST(
+      new Request("http://localhost/api/automations/run", {
+        method: "POST",
+        body: JSON.stringify({
+          automationId: "automation-1",
+          force: true,
+        }),
+      })
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: "Hook slot MISSING has no words in database collection MISSING",
+    })
+  })
+
+  it("runs an explicit interactive automation from its persisted schema", async () => {
     const automation = createLocalAutomationRecord({
       name: "Daily hooks",
       overrides: {
@@ -142,6 +181,7 @@ describe("POST /api/automations/run", () => {
         },
       },
     })
+    setStoredHook(automation, "daily hook")
     automation.schema.image_collection_ids = {
       ...automation.schema.image_collection_ids,
       first_slide: {
@@ -191,7 +231,11 @@ describe("POST /api/automations/run", () => {
         headers: {
           authorization: "Bearer secret-1",
         },
-        body: JSON.stringify({ now: "2026-07-03T15:05:00.000Z" }),
+        body: JSON.stringify({
+          automationId: automation.id,
+          force: true,
+          now: "2026-07-03T15:05:00.000Z",
+        }),
       })
     )
     const payload = await response.json()
@@ -200,7 +244,7 @@ describe("POST /api/automations/run", () => {
     expect(payload.created).toHaveLength(1)
     expect(payload.created[0]).toMatchObject({
       automationId: automation.id,
-      scheduledFor: "2026-07-03T15:00:00.000Z",
+      scheduledFor: "2026-07-03T15:05:00.000Z",
       status: "succeeded",
       socialStatuses: [
         {
@@ -324,6 +368,7 @@ describe("GET /api/automations/runs", () => {
         },
       },
     })
+    setStoredHook(automation, "recent hook")
     automation.schema.image_collection_ids = {
       ...automation.schema.image_collection_ids,
       first_slide: {
@@ -423,3 +468,24 @@ describe("GET /api/automations/runs", () => {
     )
   })
 })
+
+function setStoredHook(
+  automation: ReturnType<typeof createLocalAutomationRecord>,
+  hook: string
+) {
+  automation.schema.formatting = automation.schema.formatting.map((section) =>
+    section.id === "hook"
+      ? {
+          ...section,
+          textItems: [
+            {
+              ...section.textItems[0],
+              textMode: "static",
+              staticText: hook,
+              contentDirection: hook,
+            },
+          ],
+        }
+      : section
+  )
+}

@@ -21,7 +21,17 @@ export async function clearTestTables(...tables: string[]): Promise<void> {
         Query.limit(100),
       ])
       for (const row of res.rows) {
-        await aw.tables.deleteRow(APPWRITE_DATABASE_ID, table, String(row.$id))
+        try {
+          await aw.tables.deleteRow(
+            APPWRITE_DATABASE_ID,
+            table,
+            String(row.$id)
+          )
+        } catch (error) {
+          // Appwrite list results can briefly include a row deleted by another
+          // test cleanup pass. Treat that eventual-consistency race as cleared.
+          if ((error as { code?: number }).code !== 404) throw error
+        }
       }
       if (res.rows.length < 100) break
     }

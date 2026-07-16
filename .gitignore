@@ -14,6 +14,7 @@ package-lock.json
 
 # testing
 /coverage
+/test-results/
 
 # next.js
 /.next/
@@ -26,28 +27,20 @@ package-lock.json
 .DS_Store
 *.pem
 
-# local media assets
-# Keep database/metadata files trackable, but store binary media in Supabase Storage.
-/data/**/*.aac
-/data/**/*.aiff
-/data/**/*.avif
-/data/**/*.flac
-/data/**/*.gif
-/data/**/*.jpeg
-/data/**/*.jpg
-/data/**/*.m4a
-/data/**/*.mkv
-/data/**/*.mov
-/data/**/*.mp3
-/data/**/*.mp4
-/data/**/*.ogg
-/data/**/*.png
-/data/**/*.wav
-/data/**/*.webm
-/data/**/*.webp
-/data/assets/files/**
+# Appwrite is the source of truth for mutable records and media. Only bundled,
+# read-only application seeds remain under data/.
+/data/*
+!/data/realfarm.json
+!/data/seeds/
+/data/seeds/*
+!/data/seeds/demo-realfarm.json
+!/data/viral-hooks/
+/data/viral-hooks/*
+!/data/viral-hooks/hooks.jsonl
 
 # debug
+/tmp/
+/scripts/linkedin-lab/results/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

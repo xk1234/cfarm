@@ -313,7 +313,7 @@ export function normalizePostFastIntegration(
       clean(record.displayName) ||
       clean(record.name) ||
       clean(record.platformUsername) ||
-      providerLabel(provider),
+      postFastProviderLabel(provider),
     profile:
       clean(record.platformUsername) || clean(record.profile) || undefined,
     picture: clean(record.picture) || undefined,
@@ -360,7 +360,7 @@ export function normalizePostFastProvider(
   }
 }
 
-function providerLabel(provider: PostFastSocialProvider) {
+export function postFastProviderLabel(provider: PostFastSocialProvider) {
   switch (provider) {
     case "google-business-profile":
       return "Google Business Profile"

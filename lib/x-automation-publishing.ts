@@ -12,20 +12,10 @@ export async function publishXAutomationRun(input: {
   postfastRootDir?: string
 }) {
   const attemptedAt = new Date().toISOString()
-  if (input.run.contentType !== "single") {
-    return {
-      attemptedAt,
-      published: 0,
-      failed: 0,
-      skippedReason:
-        "PostFast does not expose a reply-chain or X Article contract in this project, so only single posts can autopost safely.",
-    }
-  }
-
   const integrations = input.automation.publishing.integrations.filter(
     (integration) =>
       !integration.disabled &&
-      providerIsEnabled(integration, input.run.platforms)
+      providerIsEnabled(integration, input.automation.platform)
   )
   if (integrations.length === 0) {
     return {
@@ -38,12 +28,21 @@ export async function publishXAutomationRun(input: {
 
   let published = 0
   let failed = 0
+  let unsupportedThreads = 0
   for (const integration of integrations) {
+    const platform = platformForProvider(integration.provider)
+    const platformPosts = input.run.posts.filter(
+      (post) => (post.platform ?? input.run.platform) === platform
+    )
+    if (platformPosts.length !== 1) {
+      unsupportedThreads += 1
+      continue
+    }
     const result = await publishPost({
       type: "now",
       integrationId: integration.integration_id,
       provider: integration.provider,
-      content: contentFor(input.run, integration.provider),
+      content: contentFor(input.run, integration.provider, platformPosts[0].text),
       controls: controlsFor(input.run, integration.provider),
       sourceType: "x_automation",
       sourceId: input.run.id,
@@ -54,21 +53,38 @@ export async function publishXAutomationRun(input: {
     else failed += 1
   }
 
-  return { attemptedAt, published, failed }
+  return {
+    attemptedAt,
+    published,
+    failed,
+    ...(published === 0 && failed === 0 && unsupportedThreads > 0
+      ? {
+          skippedReason:
+            "PostFast does not expose reply-chain publishing, so X threads remain drafts.",
+        }
+      : {}),
+  }
 }
 
 function providerIsEnabled(
   integration: PostFastSocialIntegration,
-  platforms: XAutomationRun["platforms"]
+  platform: XAutomationRecord["platform"]
 ) {
   if (integration.provider === "x" || integration.provider === "twitter") {
-    return platforms.includes("x")
+    return platform === "x"
   }
-  return integration.provider === "threads" && platforms.includes("threads")
+  return integration.provider === "threads" && platform === "threads"
 }
 
-function contentFor(run: XAutomationRun, provider: PostFastSocialProvider) {
-  const text = run.posts[0]?.text ?? run.hook
+function platformForProvider(provider: PostFastSocialProvider) {
+  return provider === "threads" ? "threads" : "x"
+}
+
+function contentFor(
+  run: XAutomationRun,
+  provider: PostFastSocialProvider,
+  text: string
+) {
   if (
     run.reactionMode === "quote" &&
     run.sourceCandidate?.url &&

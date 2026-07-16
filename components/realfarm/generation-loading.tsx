@@ -14,7 +14,7 @@ export function StandardGenerationLoadingScreen({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-[12px] border border-[#e5e2d9] bg-white",
+        "relative overflow-hidden rounded-[12px] border border-[#e5e2d9] bg-app-surface",
         compact ? "p-3" : "p-5 shadow-[0_10px_30px_rgba(53,47,35,0.06)]",
         className
       )}
@@ -29,8 +29,8 @@ export function StandardGenerationLoadingScreen({
           <div className="absolute inset-[7px] rotate-6 rounded-[4px] bg-[#f26c4f] shadow-[6px_5px_0_rgba(249,179,86,0.65)] motion-safe:animate-pulse" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className={cn("font-bold text-[#242421]", compact ? "text-[12px]" : "text-[14px]")}>{title}</div>
-          <div className={cn("mt-0.5 leading-5 font-medium text-[#77766f]", compact ? "text-[10px]" : "text-[12px]")}> 
+          <div className={cn("font-bold text-app-text", compact ? "text-[12px]" : "text-[14px]")}>{title}</div>
+          <div className={cn("mt-0.5 leading-5 font-medium text-app-muted-text", compact ? "text-[10px]" : "text-[12px]")}> 
             {description}
           </div>
           {!compact ? (

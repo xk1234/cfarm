@@ -22,9 +22,8 @@ export async function discoverTrendCandidates(input: {
 }) {
   const token =
     clean(input.token) ||
-    clean(process.env.APIFY_TOKEN) ||
     clean(process.env.APIFY_KEY)
-  if (!token) throw new Error("APIFY_TOKEN or APIFY_KEY is not configured")
+  if (!token) throw new Error("APIFY_KEY is not configured")
   const sources = input.source
     ? [input.source]
     : input.automation.discovery.sources

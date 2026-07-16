@@ -2,6 +2,10 @@
 
 import { useRef, useState } from "react"
 
+import {
+  runtimeHookVariableValue,
+  wordCollectionVariableName,
+} from "@/lib/hook-variables"
 import type { WordCollectionRecord } from "@/lib/word-collections"
 import { cn } from "@/lib/utils"
 
@@ -42,7 +46,9 @@ export function collectionForHookSlot(input: {
   return input.collections.find(
     (collection) =>
       collection.id.toLowerCase() === lookup.toLowerCase() ||
-      collection.name.toLowerCase() === lookup.toLowerCase()
+      collection.name.toLowerCase() === lookup.toLowerCase() ||
+      wordCollectionVariableName(collection).toLowerCase() ===
+        lookup.toLowerCase()
   )
 }
 
@@ -50,17 +56,20 @@ export function HookVariableEditor({
   value,
   collections,
   hookSlots,
+  timeZone,
   onChange,
 }: {
   value: string
   collections: WordCollectionRecord[]
   hookSlots?: Record<string, string>
+  timeZone?: string
   onChange: (value: string) => void
 }) {
   const highlightRef = useRef<HTMLDivElement>(null)
   const [hovered, setHovered] = useState<{
     slot: string
     collection?: WordCollectionRecord
+    runtimeValue?: string
     left: number
     top: number
   } | null>(null)
@@ -86,16 +95,21 @@ export function HookVariableEditor({
         const slot = span.dataset.slot
         if (!slot) continue
         const top = rect.bottom + 8
+        const runtimeValue = runtimeHookVariableValue(slot, { timeZone })
         setHovered((current) =>
           current?.slot === slot && Math.abs(current.top - top) < 1
             ? current
             : {
                 slot,
-                collection: collectionForHookSlot({
-                  slot,
-                  hookSlots,
-                  collections,
-                }),
+                collection:
+                  runtimeValue === undefined
+                    ? collectionForHookSlot({
+                        slot,
+                        hookSlots,
+                        collections,
+                      })
+                    : undefined,
+                runtimeValue,
                 left: Math.min(
                   window.innerWidth - 180,
                   rect.left + rect.width / 2
@@ -112,13 +126,13 @@ export function HookVariableEditor({
   return (
     <>
       <div
-        className="relative h-72 w-full rounded-[8px] border border-[#deddd5] bg-white focus-within:border-[#9f9e96]"
+        className="relative h-72 w-full rounded-[8px] border border-app-panel-border bg-app-surface focus-within:border-[#9f9e96]"
         onMouseMove={(event) => hoverFromPoint(event.clientX, event.clientY)}
         onMouseLeave={() => setHovered(null)}
       >
         <div
           ref={highlightRef}
-          className="pointer-events-none absolute inset-0 z-20 overflow-hidden whitespace-pre-wrap break-words p-5 text-[14px] leading-6 font-medium text-[#242421]"
+          className="pointer-events-none absolute inset-0 z-20 overflow-hidden p-5 text-[14px] leading-6 font-medium break-words whitespace-pre-wrap text-app-text"
           aria-hidden="true"
         >
           {hookEditorSegments(value).map((segment, index) => {
@@ -130,15 +144,20 @@ export function HookVariableEditor({
               hookSlots,
               collections,
             })
+            const runtimeValue = runtimeHookVariableValue(segment.slot, {
+              timeZone,
+            })
             return (
               <span
                 key={`${index}-${segment.slot}`}
                 data-slot={segment.slot}
                 className={cn(
                   "rounded-[4px]",
-                  collection
-                    ? "bg-[#eee7ff] text-[#6d28d9]"
-                    : "bg-[#fff0d8] text-[#a15c00]"
+                  runtimeValue !== undefined
+                    ? "bg-emerald-100 text-emerald-700"
+                    : collection
+                      ? "bg-[#eee7ff] text-app-action"
+                      : "bg-[#fff0d8] text-[#a15c00]"
                 )}
               >
                 {segment.text}
@@ -162,17 +181,29 @@ export function HookVariableEditor({
       </div>
       {hovered ? (
         <div
-          className="pointer-events-none fixed z-[100] w-[min(360px,calc(100vw-24px))] -translate-x-1/2 rounded-[9px] border border-[#ddd4f3] bg-white p-3 text-left shadow-[0_12px_36px_rgba(39,27,68,0.2)]"
+          className="pointer-events-none fixed z-[100] w-[min(360px,calc(100vw-24px))] -translate-x-1/2 rounded-[9px] border border-[#ddd4f3] bg-app-surface p-3 text-left shadow-[0_12px_36px_rgba(39,27,68,0.2)]"
           style={{ left: hovered.left, top: hovered.top }}
           role="tooltip"
         >
-          <div className="font-mono text-[12px] font-bold text-[#6d28d9]">
+          <div
+            className={cn(
+              "font-mono text-[12px] font-bold",
+              hovered.runtimeValue !== undefined
+                ? "text-emerald-700"
+                : "text-app-action"
+            )}
+          >
             [[{hovered.slot}]]
           </div>
-          {hovered.collection ? (
+          {hovered.runtimeValue !== undefined ? (
+            <div className="mt-1 text-[11px] font-semibold text-emerald-700">
+              Runtime value · {hovered.runtimeValue}
+            </div>
+          ) : hovered.collection ? (
             <>
-              <div className="mt-1 text-[11px] font-semibold text-[#77766f]">
-                {hovered.collection.name} · {hovered.collection.words.length} values
+              <div className="mt-1 text-[11px] font-semibold text-app-muted-text">
+                {hovered.collection.name} · {hovered.collection.words.length}{" "}
+                values
               </div>
               <div className="mt-2 flex max-h-40 flex-wrap gap-1.5 overflow-hidden">
                 {hovered.collection.words.map((word) => (

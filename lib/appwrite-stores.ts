@@ -3,37 +3,151 @@
 import crypto from "node:crypto"
 import path from "node:path"
 
-/** Relative-to-`data/` JSON file path -> TablesDB table id. Unmapped stores fall back to the filesystem. */
-export const STORE_TABLES: Record<string, string> = {
-  "image-collections.json": "image_collections",
-  "characters.json": "characters",
-  "characters/images.json": "character_generations",
-  "characters/videos.json": "character_video_generations",
-  "assets/assets.json": "assets",
+export type StoreRoute = {
+  table: string
+  sourceKey: string
+  public: boolean
+  shareable?: boolean
+}
+
+/**
+ * Relative-to-`data/` logical store -> canonical Appwrite table route.
+ *
+ * The path remains the application-facing compatibility boundary, but records
+ * are physically consolidated into outputs/permanent_assets. `sourceKey`
+ * scopes reads and deterministic ids inside those polymorphic tables.
+ */
+const RAW_STORE_ROUTES: Record<string, StoreRoute | string> = {
+  "image-collections.json": {
+    table: "permanent_assets",
+    sourceKey: "image_collection",
+    public: false,
+  },
+  "characters.json": {
+    table: "permanent_assets",
+    sourceKey: "character",
+    public: false,
+  },
+  "characters/images.json": {
+    table: "outputs",
+    sourceKey: "character_image",
+    public: false,
+    shareable: true,
+  },
+  "characters/videos.json": {
+    table: "outputs",
+    sourceKey: "character_video",
+    public: false,
+    shareable: true,
+  },
+  "assets/assets.json": {
+    table: "permanent_assets",
+    sourceKey: "uploaded_asset",
+    public: false,
+  },
   "automations/automations.json": "automations",
   "automations/runs.json": "automation_runs",
   "x-automations/automations.json": "x_automations",
-  "x-automations/runs.json": "x_automation_runs",
-  "automation-templates/templates.json": "automation_templates",
-  "automation-templates/example-runs.json": "automation_template_runs",
-  "results/results.json": "results",
+  "x-automations/runs.json": {
+    table: "outputs",
+    sourceKey: "x_automation_run",
+    public: false,
+    shareable: true,
+  },
+  "automation-templates/templates.json": {
+    table: "permanent_assets",
+    sourceKey: "automation_template",
+    public: true,
+  },
+  "automation-templates/example-runs.json": {
+    table: "permanent_assets",
+    sourceKey: "automation_template_example",
+    public: true,
+  },
+  "results/results.json": {
+    table: "outputs",
+    sourceKey: "result",
+    public: false,
+    shareable: true,
+  },
   "usage-ledger.json": "usage_ledger",
-  "word-collections/word-collections.json": "word_collections",
-  "postfast-posts.json": "postfast_posts",
-  "swipes/swipes.json": "swipes",
-  "generated-videos/exports.json": "generated_video_exports",
-  "knowledge-bases/knowledge-bases.json": "knowledge_bases",
-  "benchmarks/corpus.json": "benchmark_corpus",
-  "benchmarks/scores.json": "slideshow_benchmarks",
-  "product-collections/product-collections.json": "product_collections",
+  "word-collections/word-collections.json": {
+    table: "permanent_assets",
+    sourceKey: "word_collection",
+    public: false,
+  },
+  "postfast-metric-snapshots.json": "postfast_metric_snapshots",
+  "account-follower-snapshots.json": "account_follower_snapshots",
+  "swipes/swipes.json": {
+    table: "permanent_assets",
+    sourceKey: "swipe",
+    public: false,
+  },
+  "generated-videos/exports.json": {
+    table: "outputs",
+    sourceKey: "generated_video",
+    public: false,
+    shareable: true,
+  },
+  "knowledge-bases/knowledge-bases.json": {
+    table: "permanent_assets",
+    sourceKey: "knowledge_base",
+    public: false,
+  },
+  "benchmarks/corpus.json": {
+    table: "permanent_assets",
+    sourceKey: "benchmark_slideshow",
+    public: true,
+  },
+  "benchmarks/scores.json": {
+    table: "outputs",
+    sourceKey: "slideshow_benchmark",
+    public: false,
+    shareable: true,
+  },
+  "x-benchmarks/corpus.json": {
+    table: "permanent_assets",
+    sourceKey: "x_benchmark",
+    public: true,
+  },
+  "x-benchmarks/scores.json": {
+    table: "outputs",
+    sourceKey: "x_benchmark_score",
+    public: false,
+    shareable: true,
+  },
+  "product-collections/product-collections.json": {
+    table: "permanent_assets",
+    sourceKey: "product_collection",
+    public: false,
+  },
+  "media-library/assets.json": {
+    table: "permanent_assets",
+    sourceKey: "media_library_asset",
+    public: true,
+  },
 }
 
+export const STORE_ROUTES: Record<string, StoreRoute> = Object.fromEntries(
+  Object.entries(RAW_STORE_ROUTES).map(([pathKey, value]) => [
+    pathKey,
+    typeof value === "string"
+      ? {
+          table: value,
+          sourceKey: pathKey.replace(/\.json$/, "").replaceAll("/", "_"),
+          public: false,
+        }
+      : value,
+  ])
+)
+
+/** Relative-to-`data/` JSON file path -> physical TablesDB table id. */
+export const STORE_TABLES: Record<string, string> = Object.fromEntries(
+  Object.entries(STORE_ROUTES).map(([key, route]) => [key, route.table])
+)
+
 /** Tables that are intentionally shared between every authenticated user. */
-export const PUBLIC_STORE_TABLES = new Set([
-  "automation_templates",
-  "automation_template_runs",
-  "benchmark_corpus",
-])
+export const PUBLIC_STORE_TABLES = new Set<string>()
 
 export function dataRoot(): string {
   return path.join(process.cwd(), "data")
@@ -47,6 +161,15 @@ export function tableForStore(
   const abs = path.resolve(rootDir, fileName)
   const rel = path.relative(dataRoot(), abs).split(path.sep).join("/")
   return STORE_TABLES[rel] ?? null
+}
+
+export function routeForStore(
+  rootDir: string,
+  fileName: string
+): StoreRoute | null {
+  const abs = path.resolve(rootDir, fileName)
+  const rel = path.relative(dataRoot(), abs).split(path.sep).join("/")
+  return STORE_ROUTES[rel] ?? null
 }
 
 const ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,35}$/
@@ -91,6 +214,7 @@ export const STATUS_KEYS = ["status", "state"]
 export const CREATED_KEYS = [
   "createdAt",
   "created_at",
+  "capturedAt",
   "$createdAt",
   "created",
   "timestamp",

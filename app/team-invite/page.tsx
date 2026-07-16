@@ -8,7 +8,7 @@ import { getCurrentUser } from "@/lib/auth"
 export default async function TeamInvitePage() {
   const user = await getCurrentUser()
   return (
-    <main className="grid min-h-[100dvh] place-items-center bg-[#f7f7fa] px-5 py-10">
+    <main className="grid min-h-[100dvh] place-items-center bg-brand-canvas px-5 py-10">
       <div className="w-full max-w-[460px]">
         <Link
           href="/"

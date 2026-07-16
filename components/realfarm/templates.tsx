@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react"
 import {
   IconPhoto,
-  IconBrandX,
   IconPlus,
   IconSearch,
   IconSlideshow,
@@ -18,6 +17,7 @@ import {
   type TemplateExampleSlide,
 } from "@/components/realfarm/template-showcase-preview"
 import { ExampleSlideshowModal } from "@/components/realfarm/example-slideshow-modal"
+import { XThreadsBrandIcon } from "@/components/realfarm/x-threads-brand-icon"
 import { Button } from "@/components/ui/button"
 import { CheckedDropdownButton } from "@/components/ui/form-controls"
 import { AppModal, AppModalPanel } from "@/components/ui/modal"
@@ -29,6 +29,7 @@ import {
 import { videoAutomationTemplatePresets } from "@/lib/video-automation-templates"
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { Automation, RealFarmData } from "@/lib/realfarm-data"
+import { xThreadsPlatformForDisplay } from "@/lib/x-automation-platform"
 import { cn } from "@/lib/utils"
 
 type TemplateSortOption = "Newest" | "Oldest" | "A → Z" | "Z → A"
@@ -57,7 +58,10 @@ export function TemplateFolderModal({
   collections: CreatedImageCollection[]
   recentRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
   onClose: () => void
-  onCreateBlank: (automationKind: Automation["automationKind"]) => void
+  onCreateBlank: (
+    automationKind: Automation["automationKind"],
+    platform?: "x" | "threads"
+  ) => void
   onCreateVideoTemplate: (templateId: AutomationVideoTemplateId) => void
   onUseTemplate: (automation: Automation) => void
 }) {
@@ -97,12 +101,7 @@ export function TemplateFolderModal({
       })
       .map(({ automation }) => automation)
   }, [templateAutomations, search, selectedKind, sort])
-  const selectedKindLabel =
-    selectedKind === "video"
-      ? "Video"
-      : selectedKind === "x_threads"
-        ? "X / Threads"
-        : "Slideshow"
+  const selectedKindLabel = templateKindLabel(selectedKind)
 
   if (selectedTemplate) {
     return (
@@ -120,10 +119,10 @@ export function TemplateFolderModal({
         accessibleTitle="Automation templates"
         className="max-h-[86vh] max-w-[840px] rounded-[10px]"
       >
-        <div className="border-b border-[#deddd7] bg-white">
+        <div className="border-b border-app-panel-border bg-app-surface">
           <div className="flex h-[58px] items-center gap-3 px-3">
             <button
-              className="grid size-8 place-items-center rounded-[6px] text-[#34332f] hover:bg-[#f1f0eb]"
+              className="grid size-8 place-items-center rounded-[6px] text-[#34332f] hover:bg-app-surface-subtle"
               onClick={onClose}
               aria-label="Close templates"
             >
@@ -132,7 +131,7 @@ export function TemplateFolderModal({
             <label className="relative min-w-0 flex-1">
               <IconSearch className="absolute top-1/2 left-3 size-5 -translate-y-1/2 text-[#65645f]" />
               <input
-                className="h-10 w-full rounded-[10px] border border-[#d5d4ce] bg-white pr-3 pl-10 text-[15px] font-medium outline-none placeholder:text-[#aaa9a2]"
+                className="h-10 w-full rounded-[10px] border border-[#d5d4ce] bg-app-surface pr-3 pl-10 text-[15px] font-medium outline-none placeholder:text-app-text-faint"
                 placeholder="Search templates..."
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -154,16 +153,12 @@ export function TemplateFolderModal({
                     className={cn(
                       "rounded-[7px] px-4 py-2 text-[14px] font-semibold transition",
                       active
-                        ? "bg-[#242421] text-white"
-                        : "text-[#6f7888] hover:bg-[#ecebe4]"
+                        ? "bg-app-strong text-white"
+                        : "text-[#6f7888] hover:bg-app-control-hover"
                     )}
                     onClick={() => setSelectedKind(kind)}
                   >
-                    {kind === "video"
-                      ? "Video"
-                      : kind === "x_threads"
-                        ? "X / Threads"
-                        : "Slideshow"}
+                    {templateKindLabel(kind)}
                   </button>
                 )
               })}
@@ -174,27 +169,48 @@ export function TemplateFolderModal({
                 options={templateSortOptions}
                 onChange={(value) => setSort(value as TemplateSortOption)}
               />
-              <Button
-                type="button"
-                variant="softControl"
-                size="appDefault"
-                onClick={() => onCreateBlank(selectedKind)}
-              >
-                {selectedKind === "x_threads" ? (
-                  <IconBrandX className="size-4" />
-                ) : selectedKind === "video" ? (
-                  <IconVideo className="size-4" />
-                ) : (
-                  <IconSlideshow className="size-4" />
-                )}
-                New {selectedKindLabel.toLowerCase()} automation
-              </Button>
+              {selectedKind === "x_threads" ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="softControl"
+                    size="appDefault"
+                    onClick={() => onCreateBlank("x_threads", "x")}
+                  >
+                    <XThreadsBrandIcon platform="x" className="size-4" />
+                    New X automation
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="softControl"
+                    size="appDefault"
+                    onClick={() => onCreateBlank("x_threads", "threads")}
+                  >
+                    <XThreadsBrandIcon platform="threads" className="size-4" />
+                    New Threads automation
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  type="button"
+                  variant="softControl"
+                  size="appDefault"
+                  onClick={() => onCreateBlank(selectedKind)}
+                >
+                  {selectedKind === "video" ? (
+                    <IconVideo className="size-4" />
+                  ) : (
+                    <IconSlideshow className="size-4" />
+                  )}
+                  New {selectedKindLabel.toLowerCase()} automation
+                </Button>
+              )}
             </div>
           </div>
 
           {selectedKind === "video" ? (
             <div className="mb-5">
-              <div className="mb-2 text-[12px] font-bold tracking-[0.08em] text-[#77766f] uppercase">
+              <div className="mb-2 text-[12px] font-bold tracking-[0.08em] text-app-muted-text uppercase">
                 Start from a format
               </div>
               <div className="grid gap-2 md:grid-cols-2">
@@ -202,14 +218,14 @@ export function TemplateFolderModal({
                   <button
                     key={preset.id}
                     type="button"
-                    className="group rounded-[10px] border border-[#deddd7] bg-white p-3 text-left transition hover:border-[#242421]"
+                    className="group rounded-[10px] border border-app-panel-border bg-app-surface p-3 text-left transition hover:border-app-strong"
                     onClick={() => onCreateVideoTemplate(preset.id)}
                   >
-                    <div className="flex items-center gap-2 text-[14px] font-bold text-[#242421]">
+                    <div className="flex items-center gap-2 text-[14px] font-bold text-app-text">
                       <IconVideo className="size-4 shrink-0" />
                       {preset.name}
                     </div>
-                    <div className="mt-0.5 text-[12px] font-semibold text-[#77766f]">
+                    <div className="mt-0.5 text-[12px] font-semibold text-app-muted-text">
                       {preset.tagline}
                     </div>
                     <p className="mt-1.5 line-clamp-2 text-[12px] leading-4 font-medium text-[#9a9992]">
@@ -262,10 +278,10 @@ function TemplateEmptyState({
   description: string
 }) {
   return (
-    <div className="grid min-h-[260px] place-items-center rounded-[8px] border border-dashed border-[#d7d6cf] bg-[#f8f8f4] px-6 text-center">
+    <div className="grid min-h-[260px] place-items-center rounded-[8px] border border-dashed border-[#d7d6cf] bg-app-surface-subtle px-6 text-center">
       <div>
-        <div className="text-[17px] font-bold text-[#333]">{title}</div>
-        <div className="mt-2 text-[13px] font-semibold text-[#77766f]">
+        <div className="text-[17px] font-bold text-app-text">{title}</div>
+        <div className="mt-2 text-[13px] font-semibold text-app-muted-text">
           {description}
         </div>
       </div>
@@ -305,7 +321,12 @@ function TemplateCard({
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-black/5" />
       <div className="pointer-events-none absolute right-3 bottom-3 left-3">
         <div className="flex min-w-0 items-center gap-2 text-[16px] font-bold text-white">
-          {automation.automationKind === "video" ? (
+          {automation.automationKind === "x_threads" ? (
+            <XThreadsBrandIcon
+              platform={xThreadsPlatformForDisplay(automation)}
+              className="size-4 shrink-0"
+            />
+          ) : automation.automationKind === "video" ? (
             <IconVideo className="size-4 shrink-0" />
           ) : (
             <IconSlideshow className="size-4 shrink-0" />
@@ -313,7 +334,12 @@ function TemplateCard({
           <span className="truncate">{automation.name}</span>
         </div>
         <div className="mt-0.5 flex items-center gap-1 text-[11px] font-bold tracking-[0.08em] text-white/80 uppercase">
-          {automation.automationKind === "video" ? (
+          {automation.automationKind === "x_threads" ? (
+            <XThreadsBrandIcon
+              platform={xThreadsPlatformForDisplay(automation)}
+              className="size-3.5"
+            />
+          ) : automation.automationKind === "video" ? (
             <IconVideo className="size-3.5" />
           ) : (
             <IconPhoto className="size-3.5" />
@@ -323,7 +349,7 @@ function TemplateCard({
       </div>
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2 opacity-0 transition group-hover:opacity-100">
         <button
-          className="pointer-events-auto inline-flex h-10 items-center gap-2 rounded-full bg-white px-4 text-[15px] font-bold text-[#242421] shadow-sm"
+          className="pointer-events-auto inline-flex h-10 items-center gap-2 rounded-full bg-app-surface px-4 text-[15px] font-bold text-app-text shadow-sm"
           onClick={onOpen}
         >
           <IconSearch className="size-5" />
@@ -342,11 +368,17 @@ function TemplateCard({
 }
 
 function automationKindLabel(automation: Automation) {
-  return templateKind(automation) === "video"
-    ? "Video automation"
-    : "Slideshow automation"
+  const kind = templateKind(automation)
+  if (kind === "x_threads") return "Other social media"
+  return kind === "video" ? "Video automation" : "Slideshow automation"
+}
+
+function templateKindLabel(kind: TemplateKindFilter) {
+  if (kind === "x_threads") return "Other social media"
+  return kind === "video" ? "Video" : "Slideshow"
 }
 
 function templateKind(automation: Automation): TemplateKindFilter {
+  if (automation.automationKind === "x_threads") return "x_threads"
   return automation.automationKind === "video" ? "video" : "slideshow"
 }

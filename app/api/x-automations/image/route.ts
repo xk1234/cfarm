@@ -10,7 +10,7 @@ import {
   runKieMarketTask,
 } from "@/lib/kie-image"
 import {
-  listXAutomationRuns,
+  getXAutomationRun,
   upsertXAutomationRun,
 } from "@/lib/x-automation-store"
 
@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic"
 export const POST = withHandler(async (request: Request) => {
   const payload = await request.json().catch(() => null)
   const runId = clean(payload?.runId)
-  const run = (await listXAutomationRuns()).find((item) => item.id === runId)
+  const run = await getXAutomationRun(runId)
   if (!run) throw new ApiError(404, "X automation run not found")
   const prompt = clean(payload?.prompt) || clean(run.imagePrompt)
   if (!prompt) throw new ApiError(400, "An image prompt is required")

@@ -174,25 +174,25 @@ export function VideoAutomationFormatPanel({
   }
 
   return (
-    <div className="grid min-h-svh bg-white md:grid-cols-[360px_1fr]">
-      <aside className="flex min-h-0 flex-col border-r border-[#deddd5] bg-[#f7f7f3]">
-        <div className="flex h-12 items-center justify-between border-b border-[#deddd5] px-3">
+    <div className="grid min-h-svh bg-app-surface md:grid-cols-[360px_1fr]">
+      <aside className="flex min-h-0 flex-col border-r border-app-panel-border bg-app-surface-subtle">
+        <div className="flex h-12 items-center justify-between border-b border-app-panel-border px-3">
           <button
-            className="inline-flex items-center gap-2 rounded-[6px] px-2 py-1 text-[13px] font-semibold text-[#56554f] hover:bg-white"
+            className="inline-flex items-center gap-2 rounded-[6px] px-2 py-1 text-[13px] font-semibold text-[#56554f] hover:bg-app-surface"
             onClick={onBack}
           >
             <IconChevronLeft className="size-4" />
             Back
           </button>
-          <div className="inline-flex items-center gap-1.5 text-[13px] font-bold text-[#242421]">
+          <div className="inline-flex items-center gap-1.5 text-[13px] font-bold text-app-text">
             <IconVideo className="size-4" />
             Video automation
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <div className="space-y-4">
-            <section className="rounded-[10px] border border-[#e3e2db] bg-white p-3 shadow-sm">
-              <div className="mb-2 text-[14px] font-bold text-[#242421]">
+            <section className="rounded-[10px] border border-app-panel-border bg-app-surface p-3 shadow-sm">
+              <div className="mb-2 text-[14px] font-bold text-app-text">
                 Video template
               </div>
               <SelectControl
@@ -214,8 +214,8 @@ export function VideoAutomationFormatPanel({
               </SelectControl>
             </section>
 
-            <section className="rounded-[10px] border border-[#e3e2db] bg-white p-3 shadow-sm">
-              <div className="mb-2 text-[14px] font-bold text-[#242421]">
+            <section className="rounded-[10px] border border-app-panel-border bg-app-surface p-3 shadow-sm">
+              <div className="mb-2 text-[14px] font-bold text-app-text">
                 Avatar video collection
               </div>
               <CollectionSelector
@@ -227,13 +227,13 @@ export function VideoAutomationFormatPanel({
                 onChange={updateAvatarCollection}
                 onCreateCollection={onCreateCollection}
               />
-              <p className="mt-2 text-[12px] leading-4 font-medium text-[#77766f]">
+              <p className="mt-2 text-[12px] leading-4 font-medium text-app-muted-text">
                 The runner picks an avatar/source video from this collection.
               </p>
             </section>
 
-            <section className="rounded-[10px] border border-[#e3e2db] bg-white p-3 shadow-sm">
-              <div className="mb-2 text-[14px] font-bold text-[#242421]">
+            <section className="rounded-[10px] border border-app-panel-border bg-app-surface p-3 shadow-sm">
+              <div className="mb-2 text-[14px] font-bold text-app-text">
                 Demo video
               </div>
               <DemoVideoSelector
@@ -241,15 +241,15 @@ export function VideoAutomationFormatPanel({
                 value={selectedDemoVideoId ?? ""}
                 onChange={updateDemoVideo}
               />
-              <p className="mt-2 text-[12px] leading-4 font-medium text-[#77766f]">
+              <p className="mt-2 text-[12px] leading-4 font-medium text-app-muted-text">
                 Pulled only from the demo videos folder. If selected, the
                 rendered ad continues into this demo clip after the avatar
                 intro.
               </p>
             </section>
 
-            <section className="rounded-[10px] border border-[#e3e2db] bg-white p-3 shadow-sm">
-              <div className="mb-2 text-[14px] font-bold text-[#242421]">
+            <section className="rounded-[10px] border border-app-panel-border bg-app-surface p-3 shadow-sm">
+              <div className="mb-2 text-[14px] font-bold text-app-text">
                 Music
               </div>
               <SoundSelector
@@ -259,13 +259,13 @@ export function VideoAutomationFormatPanel({
                 variant="settingsSound"
                 emptyLabel={randomTikTokSoundLabel}
               />
-              <p className="mt-2 text-[12px] leading-4 font-medium text-[#77766f]">
+              <p className="mt-2 text-[12px] leading-4 font-medium text-app-muted-text">
                 Leave blank to use a random sound from the music list.
               </p>
             </section>
           </div>
         </div>
-        <div className="border-t border-[#deddd5] p-3">
+        <div className="border-t border-app-panel-border p-3">
           <Button
             variant="action"
             size="appDefault"
@@ -279,7 +279,7 @@ export function VideoAutomationFormatPanel({
 
       <main className="relative isolate grid min-h-0 place-items-center overflow-y-auto bg-[#b9b9b6] p-8">
         <div className="w-full max-w-[360px]">
-          <div className="mb-3 flex items-center justify-between text-[13px] font-bold text-[#55544f]">
+          <div className="mb-3 flex items-center justify-between text-[13px] font-bold text-app-text-soft">
             <span>{automation.name}</span>
             <span>
               {hooks.length} hooks · {hookTextItems.length} text elements
@@ -307,7 +307,7 @@ export function VideoAutomationFormatPanel({
               />
             ))}
           </div>
-          <p className="mt-4 text-center text-[12px] font-semibold text-[#55544f]">
+          <p className="mt-4 text-center text-[12px] font-semibold text-app-text-soft">
             Save, then use Generate. Finished videos appear in Overview.
           </p>
         </div>

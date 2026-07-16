@@ -60,24 +60,62 @@ export function formatRunSchedule(value: string | undefined) {
   }).format(date)
 }
 
-export function runStatusLabel(status: AutomationRunApiRecord["status"]) {
-  const stage = slideshowStageForRunStatus(status)
-  if (stage === "generating") return "Generating"
-  if (stage === "completed") return "Completed"
-  return "Failed"
+export function runPublishSchedule(run: AutomationRunApiRecord) {
+  return run.generationSource === "manual" ? undefined : run.scheduledFor
 }
 
-export function runStatusBadgeClass(status: AutomationRunApiRecord["status"]) {
-  switch (status) {
-    case "running":
-      return "bg-[#ff4d2d] text-white"
-    case "succeeded":
-      return "bg-emerald-600 text-white"
-    case "failed":
-      return "bg-[#d94444] text-white"
-    default:
-      return "bg-white/90 text-[#242421]"
+export function runPublishedAt(run: AutomationRunApiRecord) {
+  const actualPublishedAt = earliestValidDate(
+    (run.socialStatuses ?? [])
+      .filter((item) => item.status === "published")
+      .map((item) => item.publishedAt)
+  )
+  if (actualPublishedAt) return actualPublishedAt
+
+  if (validDate(run.manuallyPublishedAt)) return run.manuallyPublishedAt
+
+  const scheduledAt = earliestValidDate(
+    (run.socialStatuses ?? [])
+      .filter((item) => item.status === "scheduled")
+      .map((item) => item.scheduledAt)
+  )
+  if (scheduledAt) return scheduledAt
+
+  return run.generationSource === "scheduled" && validDate(run.scheduledFor)
+    ? run.scheduledFor
+    : undefined
+}
+
+function earliestValidDate(values: Array<string | undefined>) {
+  return values
+    .flatMap((value) => (value && validDate(value) ? [value] : []))
+    .sort((first, second) => Date.parse(first) - Date.parse(second))[0]
+}
+
+function validDate(value: string | undefined) {
+  return Boolean(value && Number.isFinite(Date.parse(value)))
+}
+
+export function runStatusLabel(
+  status: AutomationRunApiRecord["status"],
+  socialStatuses: AutomationRunApiRecord["socialStatuses"] = [],
+  manuallyPublishedAt?: string
+) {
+  const stage = slideshowStageForRunStatus(status)
+  if (stage === "generating") return "Generating"
+  if (stage === "completed") {
+    if (
+      validDate(manuallyPublishedAt) ||
+      socialStatuses.some((item) => item.status === "published")
+    ) {
+      return "Published"
+    }
+    if (socialStatuses.some((item) => item.status === "scheduled")) {
+      return "Scheduled"
+    }
+    return "Not published"
   }
+  return "Failed"
 }
 
 export function isCompletedSlideshowRun(run: AutomationRunApiRecord) {
@@ -88,10 +126,24 @@ export function isSlideshowLifecycleRun(run: AutomationRunApiRecord) {
   return slideshowStageForRunStatus(run.status) !== null
 }
 
+export function isGeneratingSlideshowRun(run: AutomationRunApiRecord) {
+  return slideshowStageForRunStatus(run.status) === "generating"
+}
+
+export function automationOverviewRunState(
+  runs: AutomationRunApiRecord[],
+  loading: boolean
+) {
+  if (runs.length > 0) return "runs" as const
+  if (loading) return "loading" as const
+  return "empty" as const
+}
+
 export function canDeleteCompletedSlideshow(run: AutomationRunApiRecord) {
   return Boolean(
     run.slideshowId &&
     isCompletedSlideshowRun(run) &&
+    !validDate(run.manuallyPublishedAt) &&
     !(run.socialStatuses ?? []).some(
       (item) => item.status === "published" || item.status === "scheduled"
     )
@@ -120,9 +172,12 @@ export function formatRunDuration(totalSeconds: number) {
 }
 
 export function runScheduleDurationLine(run: AutomationRunApiRecord) {
-  return `${formatRunSchedule(run.scheduledFor)} · ${formatRunDuration(
-    runDurationSeconds(run)
-  )}`
+  const schedule = formatRunSchedule(runPublishSchedule(run))
+  const exportsVideo =
+    run.plan?.publishType === "video" || Boolean(run.videoUrl?.trim())
+  return exportsVideo
+    ? `${schedule} · ${formatRunDuration(runDurationSeconds(run))}`
+    : schedule
 }
 
 export function slideshowTitle(run: AutomationRunApiRecord) {
@@ -149,22 +204,37 @@ export function automationRunSlides(run: AutomationRunApiRecord) {
     : (run.plan?.slides ?? [])
 }
 
+export function exportableAutomationRunSlides(run: AutomationRunApiRecord) {
+  return automationRunSlides(run).flatMap((slide) => {
+    const imageUrl = slide.imageUrl?.trim() || slide.sourceImageUrl?.trim()
+    return imageUrl ? [{ imageUrl }] : []
+  })
+}
+
 export function generationPlaceholderRun({
   automation,
   config,
+  requestId,
 }: {
   automation: Automation
   config: AutomationSchema
+  requestId?: string
 }): AutomationRunApiRecord {
   const now = new Date().toISOString()
   const slides = generationPlaceholderSlides(config)
 
   return {
-    id: `generation-placeholder-${automation.id}`,
+    id: `generation-placeholder-${automation.id}${requestId ? `-${requestId}` : ""}`,
     automationId: automation.id,
     automationTitle: automation.name,
     scheduledFor: now,
+    generationSource: "manual",
+    requestId,
     status: "running",
+    progress: {
+      stage: "Starting generation",
+      updatedAt: now,
+    },
     createdAt: now,
     socialStatuses: [],
     renderedSlides: slides,
@@ -178,6 +248,38 @@ export function generationPlaceholderRun({
       slides,
     },
   }
+}
+
+export function reconcileGenerationPlaceholders({
+  current,
+  persisted,
+  automationId,
+  generating,
+}: {
+  current: AutomationRunApiRecord[]
+  persisted: AutomationRunApiRecord[]
+  automationId: string
+  generating: boolean
+}) {
+  if (!generating) return persisted
+  const persistedRequestIds = new Set(
+    persisted.flatMap((run) => (run.requestId ? [run.requestId] : []))
+  )
+  const placeholders = current.filter((run) => {
+    const isPlaceholder =
+      run.id === `generation-placeholder-${automationId}` ||
+      run.id.startsWith(`generation-placeholder-${automationId}-`)
+    return (
+      isPlaceholder &&
+      (!run.requestId || !persistedRequestIds.has(run.requestId))
+    )
+  })
+  return [
+    ...placeholders,
+    ...persisted.filter(
+      (run) => !placeholders.some((placeholder) => placeholder.id === run.id)
+    ),
+  ].slice(0, 100)
 }
 
 export function automationGenerationIssue(

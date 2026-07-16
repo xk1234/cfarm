@@ -1,18 +1,28 @@
+import { readFile } from "node:fs/promises"
+import path from "node:path"
+
 import { clean, isRecord } from "@/lib/guards"
-import { getOpenRouterApiKey, openRouterChatCompletion } from "@/lib/openrouter"
+import { llmSlopPromptLine, llmSlopViolations } from "@/lib/llm-slop"
+import { getOpenRouterApiKey, openRouterJson } from "@/lib/openrouter"
 import {
   benchmarkXRun,
-  phantomProfitBenchmarks,
-  xPostArchetypes,
+  type ProofEntry,
+  type XAutomationBrief,
+  type XAutomationPlatform,
   type XAutomationRecord,
   type XAutomationRun,
   type XGeneratedPost,
-  type XInferredContentBrief,
-  type XPostArchetype,
   type XTrendCandidate,
 } from "@/lib/x-automation"
-
-const X_QUALITY_MODEL = "anthropic/claude-sonnet-4.5"
+import {
+  archetypesForPlatform,
+  hookStylesForPlatform,
+  platformRules,
+  voicePreset,
+  type HookStyle,
+  type PostArchetype,
+  type XPlatform,
+} from "@/lib/x-post-presets"
 
 type GenerateInput = {
   automation: XAutomationRecord
@@ -21,252 +31,391 @@ type GenerateInput = {
   apiKey?: string
   fetchImpl?: typeof fetch
   now?: Date
+  random?: () => number
+}
+
+type ViralHookRow = { t: string; l: number }
+
+const TOPIC_USE_RATE = 0.7
+
+let viralHookRowsPromise: Promise<ViralHookRow[]> | undefined
+
+export type PostPlan = {
+  platform: XPlatform
+  archetype: PostArchetype
+  pillar: { label: string; weight: number }
+  hookStyle: HookStyle
+  topic?: string
+  proof: ProofEntry[]
+  recycleBody?: string
+}
+
+export async function derivePillarsFromNiche(input: {
+  niche: string
+  model: string
+  apiKey?: string
+  fetchImpl?: typeof fetch
+}): Promise<XAutomationBrief> {
+  const niche = clean(input.niche)
+  if (!niche) throw new Error("A niche is required")
+  const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
+  const result = await openRouterJson({
+    apiKey,
+    fetchImpl: input.fetchImpl,
+    model: input.model,
+    timeoutMs: 90_000,
+    maxTokens: 2_800,
+    system:
+      "You derive a focused social-content strategy from one niche. Return concrete audience language and distinct content pillars. Never invent performance claims.",
+    user: `Niche: ${niche}\nReturn {"audience":"...","promise":"...","pillars":[{"label":"..."}],"keywords":["..."],"painPoints":["..."]}. Return exactly 3–5 pillars.`,
+    schema: {
+      name: "x_automation_brief",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["audience", "promise", "pillars", "keywords", "painPoints"],
+        properties: {
+          audience: { type: "string" },
+          promise: { type: "string" },
+          pillars: {
+            type: "array",
+            minItems: 3,
+            maxItems: 5,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["label"],
+              properties: { label: { type: "string" } },
+            },
+          },
+          keywords: { type: "array", items: { type: "string" } },
+          painPoints: { type: "array", items: { type: "string" } },
+        },
+      },
+    },
+  })
+  const labels = Array.isArray(result.pillars)
+    ? result.pillars
+        .flatMap((item) =>
+          isRecord(item) && clean(item.label) ? [clean(item.label)] : []
+        )
+        .slice(0, 5)
+    : []
+  if (labels.length < 3)
+    throw new Error("Strategy derivation returned fewer than three pillars")
+  const weights = [30, 20, 15, 10, 5]
+  return {
+    audience: clean(result.audience),
+    promise: clean(result.promise),
+    pillars: labels.map((label, index) => ({ label, weight: weights[index] })),
+    keywords: asStringArray(result.keywords),
+    painPoints: asStringArray(result.painPoints),
+    derivedAt: new Date().toISOString(),
+  }
+}
+
+export function selectPostPlan(
+  record: XAutomationRecord,
+  options: {
+    platform: XPlatform
+    topic?: string
+    now?: Date
+    random?: () => number
+  }
+): PostPlan {
+  if (!record.brief?.pillars.length)
+    throw new Error("Generate the niche strategy before creating a draft")
+  const random = options.random ?? Math.random
+  const now = options.now ?? new Date()
+  const cutoff = now.getTime() - 7 * 86_400_000
+  const recent = record.usage.recentArchetypes.filter(
+    (item) => Date.parse(item.at) >= cutoff
+  )
+  const previous = record.usage.recentArchetypes.at(-1)?.id
+  const astrology = /astrolog|zodiac|horoscope/i.test(record.niche.label)
+  const platformEligible = (item: PostArchetype) => {
+    if (item.id === "data_drop" && astrology) return false
+    if (item.id === "pattern_drop" && !astrology) return false
+    if (
+      record.publishing.autoPost &&
+      options.platform === "x" &&
+      item.kind === "thread"
+    )
+      return false
+    return !item.needsProof || record.proofBank.length > 0
+  }
+  let archetypes = archetypesForPlatform(options.platform).filter((item) => {
+    if (!platformEligible(item)) return false
+    if (item.id === previous) return false
+    return (
+      !item.maxPerWeek ||
+      recent.filter((used) => used.id === item.id).length < item.maxPerWeek
+    )
+  })
+  if (archetypes.length === 0)
+    archetypes = archetypesForPlatform(options.platform).filter(
+      platformEligible
+    )
+  const archetype = weightedPick(archetypes, (item) => item.weight, random)
+  const useTopic = Boolean(clean(options.topic)) && random() < TOPIC_USE_RATE
+  const pillar = useTopic
+    ? { label: clean(options.topic), weight: 100 }
+    : weightedPick(record.brief.pillars, (item) => item.weight, random)
+  const enabled = new Set(record.generation.hookStyles)
+  let styles = hookStylesForPlatform(options.platform).filter(
+    (item) =>
+      enabled.has(item.id) && (!item.needsProof || record.proofBank.length > 0)
+  )
+  if (styles.length === 0)
+    styles = hookStylesForPlatform(options.platform).filter(
+      (item) => !item.needsProof || record.proofBank.length > 0
+    )
+  const lastHookStyle = record.usage.recentHooks.at(-1)
+  const nonRepeating = styles.filter((item) => item.id !== lastHookStyle)
+  const hookStyle = weightedPick(
+    nonRepeating.length ? nonRepeating : styles,
+    (item) => item.weight ?? 1,
+    random
+  )
+  const recycleBody =
+    options.platform === "threads" && random() < 0.15
+      ? threadsRecycleCandidate(record, now)?.body
+      : undefined
+  return {
+    platform: options.platform,
+    archetype,
+    pillar,
+    hookStyle,
+    topic: clean(options.topic) || undefined,
+    proof: record.proofBank,
+    recycleBody,
+  }
+}
+
+export function threadsRecycleCandidate(
+  record: XAutomationRecord,
+  now = new Date(),
+  cooldownDays = 2
+) {
+  const cutoff = now.getTime() - cooldownDays * 86_400_000
+  return [...record.usage.recentBodies]
+    .reverse()
+    .find((item) => Date.parse(item.at) <= cutoff)
+}
+
+export function buildPostStructuredOutputSchema(archetype: PostArchetype) {
+  if (archetype.kind === "thread") {
+    return {
+      name: `x_post_${archetype.id}`,
+      strict: true,
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          posts: {
+            type: "string",
+            description:
+              "Exactly 8–15 X posts, each at most 280 characters, separated only by a line containing ---. The final post must be a genuine self-identification or curiosity question ending with ?.",
+          },
+        },
+        required: ["posts"],
+      },
+    }
+  }
+  const properties = Object.fromEntries(
+    archetype.slots.map((slot) => [
+      slot.key,
+      {
+        type: "string",
+        maxLength: slot.maxWords * 6,
+        description: `${slot.description}. ${slot.minWords}-${slot.maxWords} words. Hard maximum ${slot.maxWords * 6} characters.`,
+      },
+    ])
+  )
+  const required = archetype.slots
+    .filter((slot) => !slot.optional)
+    .map((slot) => slot.key)
+  return {
+    name: `x_post_${archetype.id}`,
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      properties,
+      required,
+    },
+  }
+}
+
+export function validateGeneratedPost(input: {
+  plan: PostPlan
+  record: XAutomationRecord
+  output: Record<string, unknown>
+  posts: string[]
+}) {
+  const errors: string[] = []
+  for (const slot of input.plan.archetype.kind === "thread"
+    ? []
+    : input.plan.archetype.slots) {
+    const value = clean(input.output[slot.key])
+    const words = wordCount(value)
+    if (!slot.optional && !value) errors.push(`${slot.key} is required`)
+    // A one-word shortfall is harmless and avoids padding otherwise sharp copy
+    // just to satisfy an approximate prose target. Upper bounds remain exact.
+    if (
+      value &&
+      (words < Math.max(1, slot.minWords - 1) || words > slot.maxWords)
+    )
+      errors.push(
+        `${slot.key} must be ${slot.minWords}-${slot.maxWords} words; received ${words}`
+      )
+  }
+  if (input.posts.some((post) => /https?:\/\//i.test(post)))
+    errors.push("links are not allowed in the post body")
+  const joined = input.posts.join("\n\n")
+  if (
+    /\b(just had (?:coffee|lunch)|believe in yourself|post consistently|never give up)\b/i.test(
+      joined
+    )
+  )
+    errors.push("generic or personal-update copy is not allowed")
+  const nicheTokens = [
+    input.record.niche.label,
+    ...(input.record.brief?.keywords ?? []),
+    input.plan.pillar.label,
+  ]
+    .flatMap((value) => value.toLowerCase().match(/[\p{L}\d]+/gu) ?? [])
+    .filter((token) => token.length >= 4)
+  if (
+    nicheTokens.length > 0 &&
+    !nicheTokens.some((token) => joined.toLowerCase().includes(token))
+  )
+    errors.push(
+      `Off-niche: post never references the niche (${input.record.niche.label}) or any brief keyword.`
+    )
+  if (
+    input.plan.platform === "x" &&
+    input.plan.archetype.kind === "single" &&
+    input.posts.some((post) => post.length > 280)
+  )
+    errors.push("single X posts must be at most 280 characters")
+  if (input.plan.platform === "x" && input.plan.archetype.engagementCloser) {
+    const last = input.posts.at(-1) ?? ""
+    if (
+      !/[?]$/.test(last.trim()) &&
+      !/\b(which|what|who|would you|your take)\b/i.test(last)
+    )
+      errors.push(
+        "X posts must end with a genuine curiosity gap or reply trigger"
+      )
+  }
+  if (input.plan.platform === "x" && input.plan.archetype.kind === "thread") {
+    if (input.posts.length < 8 || input.posts.length > 15)
+      errors.push("X threads must contain 8–15 posts")
+    if (input.posts.some((post) => post.length > 280))
+      errors.push("every X thread post must be at most 280 characters")
+  }
+  if (input.plan.platform === "threads") {
+    const text = joined
+    const lines = text.split(/\n+/).filter(Boolean)
+    if (text.length > 500)
+      errors.push("Threads posts must be at most 500 characters")
+    if (lines.length > 4)
+      errors.push("Threads posts should use at most 4 short lines")
+    if (lines.some((line) => (line.match(/[.!?]+/g) ?? []).length > 2))
+      errors.push("Threads lines may contain at most 2 sentences")
+    if (lines.length > 1 && !/\n\s*\n/.test(text))
+      errors.push("Threads lines must be separated by blank lines")
+    if ((text.match(/[😌🥹💜✨🫶😀-🙏]/gu) ?? []).length > 2)
+      errors.push("Threads posts may use at most 2 emoji")
+    if (/(?:^|\s)#[\p{L}\d_]+/u.test(text))
+      errors.push("Threads posts may not use hashtags")
+  }
+  const numericClaims =
+    input.posts
+      .join(" ")
+      .match(/\$[\d,]+k?|\d+%|\d+\s+(?:clients|sales|followers)/gi) ?? []
+  const evidence = input.plan.proof
+    .map((item) => item.text.toLowerCase())
+    .join(" ")
+  for (const claim of numericClaims)
+    if (!evidence.includes(claim.toLowerCase()))
+      errors.push(`unsupported proof claim: ${claim}`)
+  errors.push(...llmSlopViolations(input.posts.join("\n")))
+  return [...new Set(errors)]
 }
 
 export async function generateXAutomationRun(
   input: GenerateInput
 ): Promise<XAutomationRun> {
+  const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
+  if (!input.automation.brief)
+    throw new Error("Generate the niche strategy before creating a draft")
   const topic =
     clean(input.topic) ||
     input.sourceCandidate?.text ||
-    input.automation.niche.pillars[0]
-  if (!topic) throw new Error("A topic is required")
-  const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-  const inferredBrief = input.automation.generation.autoInferBrief
-    ? await inferContentBrief({
-        automation: input.automation,
-        topic,
-        sourceCandidate: input.sourceCandidate,
-        apiKey,
-        fetchImpl: input.fetchImpl,
-      })
-    : configuredContentBrief(input.automation, topic)
-  const shared = sharedPrompt(
-    input.automation,
+    input.automation.brief.pillars[0]?.label
+  const plan = selectPostPlan(input.automation, {
+    platform: input.automation.platform,
     topic,
-    input.sourceCandidate,
-    inferredBrief
-  )
-
-  // These calls stay intentionally separate so hooks, teaching quality, and
-  // conversion intent can be tuned and benchmarked independently.
-  const hookResult = await requestJson({
+    now: input.now,
+    random: input.random,
+  })
+  const first = await generatePost({
+    plan,
+    record: input.automation,
     apiKey,
     fetchImpl: input.fetchImpl,
-    model: input.automation.generation.model,
-    system: `${shared}\n\nYou are the hook writer only. ${input.automation.generation.hookPrompt}`,
-    user: `Write 5 hook candidates, select the strongest, and return {"candidates":[...],"selected":"...","reason":"..."}.`,
   })
-  const hook =
-    clean(hookResult.selected) || clean(asStringArray(hookResult.candidates)[0])
-  if (!hook) throw new Error("The hook model returned no usable hook")
-
-  const setupResult = await requestJson({
-    apiKey,
-    fetchImpl: input.fetchImpl,
-    model: input.automation.generation.model,
-    system: `${shared}\n\nYou are the setup writer only. ${input.automation.generation.setupPrompt}`,
-    user: `Write the setup that follows this hook. Return {"setup":"..."}.\n\nHook: ${hook}`,
-  })
-  const setup = clean(setupResult.setup)
-  if (!setup) throw new Error("The setup model returned no usable setup")
-
-  const contentResult = await requestJson({
-    apiKey,
-    fetchImpl: input.fetchImpl,
-    model: input.automation.generation.model,
-    system: `${shared}\n\nYou are the body writer only. ${input.automation.generation.contentPrompt}`,
-    user: bodyRequest(input.automation, hook, setup),
-  })
-  const content = dedupeContentSections(
-    bodyFrom(contentResult, input.automation.output.contentType),
-    [hook, setup]
-  ).slice(
-    0,
-    input.automation.output.contentType === "thread"
-      ? Math.max(1, input.automation.output.threadPostCount.max - 5)
-      : undefined
-  )
-  if (!content.length)
-    throw new Error("The content model returned no usable body")
-
-  const proofResult = await requestJson({
-    apiKey,
-    fetchImpl: input.fetchImpl,
-    model: input.automation.generation.model,
-    system: `${shared}\n\nYou are the proof editor only. ${input.automation.generation.proofPrompt}`,
-    user: `Add one compact proof block for this draft in no more than ${input.automation.output.maxCharacters} characters. Do not invent results or imply hypothetical examples are real. Return {"proof":"..."}.\n\nHook: ${hook}\nSetup: ${setup}\nContent: ${content.join("\n\n")}`,
-  })
-  const proof = clean(proofResult.proof)
-  if (!proof) throw new Error("The proof model returned no usable proof")
-
-  const gapResult = await requestJson({
-    apiKey,
-    fetchImpl: input.fetchImpl,
-    model: input.automation.generation.model,
-    system: `${shared}\n\nYou are the curiosity-gap writer only. ${input.automation.generation.curiosityGapPrompt}`,
-    user: `Write one compact open loop under ${input.automation.output.maxCharacters} characters that naturally follows this draft. Return {"curiosityGap":"..."}.\n\nHook: ${hook}\nSetup: ${setup}\nContent: ${content.join("\n\n")}\nProof: ${proof}`,
-  })
-  const curiosityGap = clean(
-    gapResult.curiosityGap ?? gapResult.curiosity_gap ?? gapResult.gap
-  )
-  if (!curiosityGap)
-    throw new Error("The curiosity-gap model returned no usable open loop")
-
-  const ctaResult = await requestJson({
-    apiKey,
-    fetchImpl: input.fetchImpl,
-    model: input.automation.generation.model,
-    system: `${shared}\n\nYou are the CTA writer only. ${input.automation.generation.ctaPrompt}`,
-    user: `Given this complete draft, write 4 CTA options and select one. The CTA must not repeat the curiosity gap. Return {"options":[...],"selected":"..."}.\n\nHook: ${hook}\nSetup: ${setup}\nContent: ${content.join("\n\n")}\nProof: ${proof}\nCuriosity gap: ${curiosityGap}`,
-  })
-  const cta =
-    clean(ctaResult.selected) || clean(asStringArray(ctaResult.options)[0])
-
-  const rawSingleText = [hook, setup, ...content, proof, curiosityGap, cta]
+  const posts: XGeneratedPost[] = first.posts.map((text, index) => ({
+    id: `${plan.platform}-post-${index + 1}`,
+    text,
+    characterCount: text.length,
+    role: index === 0 ? "hook" : "content",
+    platform: plan.platform,
+  }))
+  const values = first.output
+  const hook = clean(values.hook) || posts[0]?.text || ""
+  const content = Object.entries(values)
+    .filter(
+      ([key]) => !["hook", "proof", "closer", "cta", "posts"].includes(key)
+    )
+    .map(([, value]) => clean(value))
     .filter(Boolean)
-    .join("\n\n")
-  const fittedSingleText =
-    input.automation.output.contentType === "single" &&
-    rawSingleText.length > input.automation.output.maxCharacters
-      ? await fitSinglePost({
-          automation: input.automation,
-          shared,
-          apiKey,
-          fetchImpl: input.fetchImpl,
-          rawText: rawSingleText,
-          hook,
-          cta,
-        })
-      : undefined
-
-  let posts = composePosts(input.automation, {
+  const cta = clean(values.closer ?? values.cta)
+  const benchmark = benchmarkXRun({
+    platform: input.automation.platform,
+    contentType: first.plan.archetype.kind,
+    archetype: first.plan.archetype.id as never,
     hook,
-    setup,
     content,
-    proof,
-    curiosityGap,
-    cta,
-    fittedSingleText,
-  })
-  const now = input.now ?? new Date()
-  let hardBenchmark = benchmarkXRun({
-    contentType: input.automation.output.contentType,
-    archetype: inferredBrief.archetype,
-    hook,
-    setup,
-    content,
-    proof,
-    curiosityGap,
+    proof: clean(values.proof),
     cta,
     posts,
     maxCharacters: input.automation.output.maxCharacters,
   })
-  let benchmark = await benchmarkXRunWithAI({
-    automation: input.automation,
-    topic,
-    posts,
-    hardBenchmark,
-    archetype: inferredBrief.archetype,
-    apiKey,
-    fetchImpl: input.fetchImpl,
-  })
-  const initialBenchmark = benchmark
-  let revisionPasses = 0
-  for (
-    let pass = 0;
-    pass < 2 &&
-    input.automation.output.contentType !== "article" &&
-    benchmark.evaluator === "ai" &&
-    (benchmark.total < 85 || benchmark.verdict !== "ready");
-    pass += 1
-  ) {
-    const revisedPosts = await revisePostsFromCritique({
-      automation: input.automation,
-      topic,
-      brief: inferredBrief,
-      posts,
-      benchmark,
-      apiKey,
-      fetchImpl: input.fetchImpl,
-    }).catch(() => null)
-    if (!revisedPosts) break
-    const revisedHardBenchmark = benchmarkXRun({
-      contentType: input.automation.output.contentType,
-      archetype: inferredBrief.archetype,
-      hook,
-      setup,
-      content,
-      proof,
-      curiosityGap,
-      cta,
-      posts: revisedPosts,
-      maxCharacters: input.automation.output.maxCharacters,
-    })
-    const revisedBenchmark = await benchmarkXRunWithAI({
-      automation: input.automation,
-      topic,
-      posts: revisedPosts,
-      hardBenchmark: revisedHardBenchmark,
-      archetype: inferredBrief.archetype,
-      apiKey,
-      fetchImpl: input.fetchImpl,
-    })
-    if (
-      revisedBenchmark.total <= benchmark.total ||
-      revisedBenchmark.formatFit !== 100
-    ) {
-      break
-    }
-    posts = revisedPosts
-    hardBenchmark = revisedHardBenchmark
-    benchmark = revisedBenchmark
-    revisionPasses += 1
-  }
-  if (revisionPasses > 0) {
-    benchmark = {
-      ...benchmark,
-      revision: {
-        applied: true,
-        previousTotal: initialBenchmark.total,
-        previousVerdict: initialBenchmark.verdict,
-        passes: revisionPasses,
-      },
-    }
-  }
-  const articleTitle =
-    clean(contentResult.title) ||
-    (input.automation.output.contentType === "article" ? hook : undefined)
-  const articleBody =
-    input.automation.output.contentType === "article"
-      ? [hook, setup, ...content, proof, curiosityGap, cta]
-          .filter(Boolean)
-          .join("\n\n")
-      : undefined
-
+  const now = input.now ?? new Date()
   return {
     id: `x-run-${crypto.randomUUID()}`,
     automationId: input.automation.id,
     automationName: input.automation.name,
     topic,
-    archetype: inferredBrief.archetype,
-    inferredBrief,
-    contentType: input.automation.output.contentType,
-    platforms: input.automation.output.platforms,
+    archetype: first.plan.archetype.id as never,
+    contentType: first.plan.archetype.kind,
+    platform: input.automation.platform as XAutomationPlatform,
     reactionMode: input.sourceCandidate
       ? input.automation.discovery.reactionMode
       : "none",
     sourceCandidate: input.sourceCandidate,
     hook,
-    setup,
+    setup: "",
     content,
-    proof,
-    curiosityGap,
+    proof: clean(values.proof),
+    curiosityGap: "",
     cta,
     posts,
-    articleTitle,
-    articleBody,
     imagePrompt:
       input.automation.media.mode === "generate"
         ? `${input.automation.media.prompt}\n\nTopic: ${topic}\nCore idea: ${hook}`
@@ -276,525 +425,233 @@ export async function generateXAutomationRun(
     status: "draft",
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
+    plans: [
+      {
+        platform: plan.platform,
+        archetype: plan.archetype.id,
+        pillar: plan.pillar.label,
+        hookStyle: plan.hookStyle.id,
+        needsReview: first.needsReview,
+      },
+    ],
+    needsReview: first.needsReview,
+    reviewErrors: first.errors,
   }
 }
 
-async function revisePostsFromCritique(input: {
-  automation: XAutomationRecord
-  topic: string
-  brief: XInferredContentBrief
-  posts: XGeneratedPost[]
-  benchmark: XAutomationRun["benchmark"]
+async function generatePost(input: {
+  plan: PostPlan
+  record: XAutomationRecord
   apiKey: string
   fetchImpl?: typeof fetch
 }) {
-  let previousInvalid = ""
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const result = await requestJson({
-      apiKey: input.apiKey,
-      fetchImpl: input.fetchImpl,
-      model: X_QUALITY_MODEL,
-      system: [
-        "You are the final corrective editor for X/Threads.",
-        "Resolve every factual risk and concrete editing note from an independent critic.",
-        "Treat each factual-risk item as authoritative: if the topic or attributed source does not supply evidence for that claim, delete the claim instead of restating it with softer wording.",
-        "Preserve the useful idea, but remove unsupported causality, invented precision, generic AI phrasing, repetition, and engagement bait.",
-        "Every post must be a complete thought. Never use an ellipsis to hide clipped text.",
-        "Keep the same number and order of posts and stay within the exact character limit.",
-      ].join(" "),
-      user: `Topic: ${input.topic}
-Inferred brief: ${JSON.stringify(input.brief)}
-Character limit per post: ${input.automation.output.maxCharacters}
-Original final posts: ${JSON.stringify(input.posts.map((post) => post.text))}
-Critic verdict: ${input.benchmark.verdict}
-Critic summary: ${input.benchmark.summary}
-Factual risks: ${JSON.stringify(input.benchmark.factualRisks ?? [])}
-Editing actions: ${JSON.stringify(input.benchmark.notes)}
-${previousInvalid ? `Previous revision was invalid: ${previousInvalid}` : ""}
-
-Return {"posts":["complete revised post 1", ...]}. Return exactly ${input.posts.length} posts.`,
-    })
-    const revisions = asStringArray(result.posts)
-    const invalidIndex = revisions.findIndex(
-      (text) =>
-        !text ||
-        text.length > input.automation.output.maxCharacters ||
-        text.includes("…")
-    )
-    if (revisions.length === input.posts.length && invalidIndex === -1) {
-      return input.posts.map((post, index) => ({
-        ...post,
-        text: revisions[index],
-        characterCount: revisions[index].length,
-      }))
-    }
-    previousInvalid = `expected ${input.posts.length} posts under ${input.automation.output.maxCharacters} characters; received lengths ${revisions.map((text) => text.length).join(", ") || "none"}`
-  }
-  return null
-}
-
-async function benchmarkXRunWithAI(input: {
-  automation: XAutomationRecord
-  topic: string
-  posts: XGeneratedPost[]
-  hardBenchmark: XAutomationRun["benchmark"]
-  archetype: XPostArchetype
-  apiKey: string
-  fetchImpl?: typeof fetch
-}): Promise<XAutomationRun["benchmark"]> {
-  const corpus = (
-    input.automation.benchmarks.length
-      ? input.automation.benchmarks
-      : phantomProfitBenchmarks
-  ).map((benchmark) => ({
-    id: benchmark.id,
-    archetype: benchmark.archetype,
-    media: benchmark.media,
-    text: benchmark.text,
-    metrics: benchmark.metrics,
-    notes: benchmark.notes,
-  }))
-  try {
-    const result = await requestJson({
-      apiKey: input.apiKey,
-      fetchImpl: input.fetchImpl,
-      model: X_QUALITY_MODEL,
-      system: [
-        "You are a skeptical senior social editor, benchmark analyst, and fact-checking critic.",
-        "Judge the exact final posts, not the generation instructions or hidden draft stages.",
-        "Do not reward unsupported numbers merely for being specific. Penalize invented facts, causal overclaims, contradictions, generic AI phrasing, clipped endings, weak native-feed voice, and CTAs absent from the final text.",
-        "Treat the supplied benchmark posts as style and performance references, not factual evidence.",
-        "A score above 85 means publishable with only cosmetic edits. Any material factual risk must cap total at 69 and produce revise or reject.",
-      ].join(" "),
-      user: `Evaluate this ${input.automation.output.contentType} for X/Threads against the benchmark corpus.
-
-Topic: ${input.topic}
-Niche: ${input.automation.niche.label}
-Archetype: ${input.archetype}
-Final posts: ${JSON.stringify(input.posts.map((post) => post.text))}
-Objective checks: ${JSON.stringify({
-        formatFit: input.hardBenchmark.formatFit,
-        stageCompleteness: input.hardBenchmark.stageCompleteness,
-        characterCounts: input.posts.map((post) => post.characterCount),
-        configuredLimit: input.automation.output.maxCharacters,
-      })}
-Benchmark corpus: ${JSON.stringify(corpus)}
-
-Return one JSON object with integer scores from 0-100 for total, hook, specificity, readability, cta, archetypeFit, nativeVoice, factualAccuracy, and benchmarkFit; verdict as ready, revise, or reject; confidence from 0-100; summary as one concise sentence; factualRisks as an array; notes as 2-5 concrete editing actions; and matchedBenchmarkId as one corpus id.`,
-    })
-    const matchedBenchmarkId = clean(result.matchedBenchmarkId)
-    const matchedBenchmark = corpus.find(
-      (benchmark) => benchmark.id === matchedBenchmarkId
-    )
-    const factualRisks = asStringArray(result.factualRisks)
-    const verdict =
-      result.verdict === "ready" ||
-      result.verdict === "revise" ||
-      result.verdict === "reject"
-        ? result.verdict
-        : factualRisks.length
-          ? "revise"
-          : "ready"
-    return {
-      total: scoreFrom(result.total, input.hardBenchmark.total),
-      hook: scoreFrom(result.hook, input.hardBenchmark.hook),
-      specificity: scoreFrom(
-        result.specificity,
-        input.hardBenchmark.specificity
-      ),
-      readability: scoreFrom(
-        result.readability,
-        input.hardBenchmark.readability
-      ),
-      cta: scoreFrom(result.cta, input.hardBenchmark.cta),
-      formatFit: input.hardBenchmark.formatFit,
-      stageCompleteness: input.hardBenchmark.stageCompleteness,
-      archetypeFit: scoreFrom(
-        result.archetypeFit,
-        input.hardBenchmark.archetypeFit
-      ),
-      nativeVoice: scoreFrom(result.nativeVoice, 50),
-      factualAccuracy: scoreFrom(result.factualAccuracy, 50),
-      benchmarkFit: scoreFrom(result.benchmarkFit, 50),
-      evaluator: "ai",
-      evaluatorModel: X_QUALITY_MODEL,
-      verdict,
-      confidence: scoreFrom(result.confidence, 50),
-      summary: clean(result.summary),
-      factualRisks,
-      comparison: {
-        ...input.hardBenchmark.comparison,
-        matchedBenchmarkId: matchedBenchmark?.id,
-        matchedBenchmarkLabel: matchedBenchmark
-          ? `${matchedBenchmark.archetype} · ${matchedBenchmark.media}`
-          : input.hardBenchmark.comparison.matchedBenchmarkLabel,
-      },
-      notes: asStringArray(result.notes),
-    }
-  } catch (error) {
-    return {
-      ...input.hardBenchmark,
-      evaluator: "heuristic",
-      verdict: "revise",
-      summary:
-        "AI quality review was unavailable; this score covers objective checks only.",
-      notes: [
-        ...input.hardBenchmark.notes,
-        error instanceof Error
-          ? `AI critic unavailable: ${error.message}`
-          : "AI critic unavailable.",
-      ],
-    }
-  }
-}
-
-async function inferContentBrief(input: {
-  automation: XAutomationRecord
-  topic: string
-  sourceCandidate?: XTrendCandidate
-  apiKey: string
-  fetchImpl?: typeof fetch
-}): Promise<XInferredContentBrief> {
-  const result = await requestJson({
-    apiKey: input.apiKey,
-    fetchImpl: input.fetchImpl,
-    model: input.automation.generation.model,
-    system:
-      "You are the strategy planner for a native X/Threads content engine. Infer a focused runtime brief from the niche, topic, output container, and optional source. Do not import assumptions from unrelated default profiles. Prefer a specific audience and angle over generic creator language. Do not introduce numeric, scientific, historical, psychological, or causal claims that were not supplied in the topic or source; frame anything needing verification as a question for the writer, not as a fact. Safety exclusions are mandatory.",
-    user: `Niche: ${input.automation.niche.label}
-Topic: ${input.topic}
-Content type: ${input.automation.output.contentType}
-Optional source: ${input.sourceCandidate ? JSON.stringify({ url: input.sourceCandidate.url, text: input.sourceCandidate.text }) : "none"}
-
-Return {"niche":"...","audience":"...","promise":"...","angle":"...","pillars":["..."],"keywords":["..."],"painPoint":"...","voice":"...","archetype":"educational_thread|data_drop|contrarian_take|numbered_list|comparison|mistake_breakdown|opinion_framework","hookDirection":"...","contentDirection":"...","ctaDirection":"...","exclusions":["..."]}. Infer only what improves this specific post.`,
+  const schema = buildPostStructuredOutputSchema(input.plan.archetype)
+  const voice = voicePreset(input.record.generation.voicePreset)
+  const proof = input.plan.proof.length
+    ? input.plan.proof
+        .map(
+          (item) => `- ${item.text}${item.source ? ` (${item.source})` : ""}`
+        )
+        .join("\n")
+    : "none"
+  const brief = input.record.brief
+  const keywords = brief?.keywords.slice(0, 5) ?? []
+  const painPoints = brief?.painPoints.slice(0, 3) ?? []
+  const nicheContext = [
+    `Niche: ${input.record.niche.label}.`,
+    brief?.audience ? `Audience: ${brief.audience}.` : "",
+    brief?.promise ? `Promise: ${brief.promise}.` : "",
+    keywords.length ? `Core themes: ${keywords.join(", ")}.` : "",
+    painPoints.length ? `Reader pains: ${painPoints.join(", ")}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+  const astrology = /astrolog|zodiac|horoscope/i.test(input.record.niche.label)
+  const viralHookExamples = await retrieveViralHookExamples({
+    niche: input.record.niche.label,
+    topic: `${input.plan.pillar.label} ${input.plan.topic ?? ""}`,
+    limit: 5,
   })
-  return {
-    niche: clean(result.niche) || input.automation.niche.label,
-    audience:
-      clean(result.audience) || "people actively interested in this topic",
-    promise: clean(result.promise) || "deliver one clear, useful takeaway",
-    angle: clean(result.angle) || input.topic,
-    pillars: asStringArray(result.pillars),
-    keywords: asStringArray(result.keywords),
-    painPoint: clean(result.painPoint),
-    voice: clean(result.voice) || "native, concise, specific, zero fluff",
-    archetype: allowedArchetype(
-      result.archetype,
-      input.automation.output.archetype
-    ),
-    hookDirection: clean(result.hookDirection),
-    contentDirection: clean(result.contentDirection),
-    ctaDirection: clean(result.ctaDirection),
-    exclusions: [
-      ...new Set([
-        ...input.automation.niche.excludedTopics,
-        ...asStringArray(result.exclusions),
-        "invented facts, studies, metrics, testimonials, or personal experience",
-        "medical, legal, or financial advice presented without qualification",
-      ]),
-    ],
-  }
-}
-
-function configuredContentBrief(
-  automation: XAutomationRecord,
-  topic: string
-): XInferredContentBrief {
-  return {
-    niche: automation.niche.label,
-    audience: automation.niche.audience,
-    promise: automation.niche.promise,
-    angle: topic,
-    pillars: automation.niche.pillars,
-    keywords: automation.niche.keywords,
-    painPoint: automation.niche.painPoints[0] ?? "",
-    voice: automation.generation.voice,
-    archetype: automation.output.archetype,
-    hookDirection: automation.generation.hookPrompt,
-    contentDirection: automation.generation.contentPrompt,
-    ctaDirection: automation.generation.ctaPrompt,
-    exclusions: automation.niche.excludedTopics,
-  }
-}
-
-function allowedArchetype(value: unknown, fallback: XPostArchetype) {
-  const candidate = clean(value) as XPostArchetype
-  return xPostArchetypes.some((item) => item.value === candidate)
-    ? candidate
-    : fallback
-}
-
-function scoreFrom(value: unknown, fallback: number) {
-  const parsed = typeof value === "number" ? value : Number(value)
-  return Number.isFinite(parsed)
-    ? Math.max(0, Math.min(100, Math.round(parsed)))
-    : fallback
-}
-
-function sharedPrompt(
-  automation: XAutomationRecord,
-  topic: string,
-  source: XTrendCandidate | undefined,
-  brief: XInferredContentBrief
-) {
-  return [
-    `Write native social content for ${automation.output.platforms.join(" and ")}.`,
-    `Niche: ${brief.niche}.`,
-    `Audience: ${brief.audience}.`,
-    `Account promise: ${brief.promise}.`,
-    `Specific angle: ${brief.angle}.`,
-    `Topic: ${topic}.`,
-    `Post archetype: ${brief.archetype}.`,
-    `Voice: ${brief.voice}. Language: ${automation.generation.language}.`,
-    `Relevant pillars: ${brief.pillars.join(", ")}.`,
-    `Relevant keywords: ${brief.keywords.join(", ")}.`,
-    brief.painPoint ? `Primary audience pain: ${brief.painPoint}.` : "",
-    brief.hookDirection ? `Hook direction: ${brief.hookDirection}.` : "",
-    brief.contentDirection
-      ? `Content direction: ${brief.contentDirection}.`
-      : "",
-    brief.ctaDirection ? `CTA direction: ${brief.ctaDirection}.` : "",
-    `Avoid: ${brief.exclusions.join(", ")}.`,
-    source
-      ? `React to this attributed source without copying its wording: ${source.url}\nSource text: ${source.text}`
-      : "",
-    "Never invent metrics, testimonials, personal experience, or study results. Preserve source attribution for reactions.",
+  const nicheAdaptation = astrology
+    ? "For astrology, value means identity insight plus emotional and behavioral specificity. Use concrete relationship, texting, conflict, and private-feeling details—not generic trait lists. If you make an every-sign claim, cover all 12 signs or explicitly name and justify the subset. Never present astrology observations as scientific studies."
+    : `Stay strictly on this niche${brief ? ` and its defined pillars/keywords (${[...brief.pillars.map((pillar) => pillar.label), ...keywords].join(", ")})` : ""}. Deliver concrete, niche-specific value. Never drift into generic productivity, creator-economy, or self-help advice.`
+  const system = [
+    nicheContext,
+    voice.systemPrompt,
+    nicheAdaptation,
+    input.record.generation.voiceOverride,
+    `Language: ${input.record.generation.language}.`,
+    `Platform rules: ${JSON.stringify(platformRules[input.plan.platform])}.`,
+    `Avoid: ${input.record.excludedTopics.join(", ")}.`,
+    "Never invent statistics, revenue figures, client results, testimonials, or first-person experience. Only use proof provided in the PROOF section. If no proof is provided, omit proof claims.",
+    llmSlopPromptLine(),
   ]
     .filter(Boolean)
     .join("\n")
-}
-
-function bodyRequest(
-  automation: XAutomationRecord,
-  hook: string,
-  setup: string
-) {
-  if (automation.output.contentType === "single") {
-    return `Hook: ${hook}\nSetup: ${setup}\nWrite the substance for one post. Return {"sections":["..."]}. Leave room for proof, curiosity gap, and CTA. The final composed post must fit ${automation.output.maxCharacters} characters.`
-  }
-  if (automation.output.contentType === "article") {
-    return `Hook/title direction: ${hook}\nSetup: ${setup}\nWrite an article with ${automation.output.articleWordCount.min}-${automation.output.articleWordCount.max} words. Return {"title":"...","sections":["paragraph or section", ...]}. Leave the ending open for proof, curiosity gap, and CTA.`
-  }
-  return `Hook: ${hook}\nSetup: ${setup}\nWrite ${Math.max(1, automation.output.threadPostCount.min - 5)}-${Math.max(1, automation.output.threadPostCount.max - 5)} framework posts. Each must stand alone, progress the argument, and stay under ${automation.output.maxCharacters} characters. Proof, curiosity gap, and CTA are written separately. Return {"sections":["framework post 1", "framework post 2", ...]}.`
-}
-
-function composePosts(
-  automation: XAutomationRecord,
-  input: {
-    hook: string
-    setup: string
-    content: string[]
-    proof: string
-    curiosityGap: string
-    cta: string
-    fittedSingleText?: string
-  }
-): XGeneratedPost[] {
-  if (automation.output.contentType === "single") {
-    const text =
-      clean(input.fittedSingleText) ||
-      [
-        input.hook,
-        input.setup,
-        ...input.content,
-        input.proof,
-        input.curiosityGap,
-        input.cta,
-      ]
-        .filter(Boolean)
-        .join("\n\n")
-    return [
-      { id: "post-1", text, characterCount: text.length, role: "content" },
-    ]
-  }
-  if (automation.output.contentType === "article") {
-    const teaser = [input.hook, input.cta].filter(Boolean).join("\n\n")
-    return [
-      {
-        id: "post-1",
-        text: teaser,
-        characterCount: teaser.length,
-        role: "hook",
-      },
-    ]
-  }
-  const staged = [
-    { text: input.hook, role: "hook" as const },
-    { text: input.setup, role: "setup" as const },
-    ...input.content.map((text) => ({ text, role: "content" as const })),
-    { text: input.proof, role: "proof" as const },
-    { text: input.curiosityGap, role: "gap" as const },
-    ...(input.cta ? [{ text: input.cta, role: "cta" as const }] : []),
-  ].map((stage) => ({
-    text: truncateAtWord(stage.text, automation.output.maxCharacters),
-    role: stage.role,
-  }))
-  return staged.map((post, index) => ({
-    id: `post-${index + 1}`,
-    text: post.text,
-    characterCount: post.text.length,
-    role: post.role,
-  }))
-}
-
-async function fitSinglePost(input: {
-  automation: XAutomationRecord
-  shared: string
-  apiKey: string
-  fetchImpl?: typeof fetch
-  rawText: string
-  hook: string
-  cta: string
-}) {
-  let edited = ""
+  const basePrompt = `Platform: ${input.plan.platform}\nArchetype: ${input.plan.archetype.label}\nStructure: ${input.plan.archetype.structure}\nTemplate: ${input.plan.archetype.template}\n${input.plan.platform === "x" && input.plan.archetype.kind === "single" ? "HARD LENGTH BUDGET: the final post, including blank lines, must be 280 characters or fewer. Keep every slot under its schema word and character caps.\n" : ""}${input.plan.platform === "x" && input.plan.archetype.engagementCloser ? "HARD CLOSER RULE: the final slot or final thread post must end with a genuine curiosity or self-identification question and a ? character.\n" : ""}Pillar: ${input.plan.pillar.label}\nHook formula: ${input.plan.hookStyle.formula}\nHook examples: ${input.plan.hookStyle.examples.join(" | ")}${viralHookExamples.length ? `\nProven hook-shape inspiration (adapt the structure only; do not copy claims or wording):\n- ${viralHookExamples.join("\n- ")}` : ""}\nTopic: ${input.plan.topic ?? "none"}${input.plan.recycleBody ? `\nRECYCLE BODY (keep its core meaning, write a clearly different hook): ${input.plan.recycleBody}` : ""}\nPROOF:\n${proof}`
+  let output: Record<string, unknown> = {}
+  let posts: string[] = []
+  let errors: string[] = []
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const result = await requestJson({
-      apiKey: input.apiKey,
-      fetchImpl: input.fetchImpl,
-      model: input.automation.generation.model,
-      system: `${input.shared}\n\nYou are the final single-post editor. Preserve the strongest hook, one concrete mechanism or example, and one low-friction CTA. Remove repetition. Use complete sentences only and never end a thought with an ellipsis.`,
-      user: `Compress this draft into one native post of at most ${input.automation.output.maxCharacters} characters including spaces. End with this exact CTA: ${input.cta}. Return {"text":"..."}.${attempt > 0 ? ` Your previous attempt was ${edited.length} characters and invalid; make this version materially shorter.` : ""}\n\n${attempt > 0 ? edited : input.rawText}`,
-    })
-    edited = clean(result.text)
-    if (
-      edited.length <= input.automation.output.maxCharacters &&
-      !edited.includes("…") &&
-      normalizedText(edited).endsWith(normalizedText(input.cta))
-    ) {
-      return edited
-    }
-  }
-  const bodyLimit = Math.max(
-    1,
-    input.automation.output.maxCharacters - input.cta.length - 2
-  )
-  const body = normalizedText(edited).endsWith(normalizedText(input.cta))
-    ? edited.slice(0, Math.max(0, edited.length - input.cta.length)).trim()
-    : edited
-  const completeBody = completeSentencesWithin(body, bodyLimit)
-  const fallbackBody =
-    completeBody || completeSentencesWithin(input.hook, bodyLimit)
-  return [fallbackBody, input.cta].filter(Boolean).join("\n\n")
-}
-
-function completeSentencesWithin(value: string, limit: number) {
-  const sentences = clean(value).match(/[^.!?]+[.!?]+/g) ?? []
-  let result = ""
-  for (const sentence of sentences.map(clean)) {
-    const candidate = result ? `${result} ${sentence}` : sentence
-    if (candidate.length > limit) break
-    result = candidate
-  }
-  return result
-}
-
-function dedupeContentSections(sections: string[], priorStages: string[]) {
-  const seen = new Set(priorStages.map(normalizedText))
-  return sections.filter((section) => {
-    const normalized = normalizedText(section)
-    if (!normalized || seen.has(normalized)) return false
-    if (
-      [...seen].some(
-        (prior) =>
-          prior.length >= 40 &&
-          normalized.length >= 40 &&
-          (prior.startsWith(normalized.slice(0, 40)) ||
-            normalized.startsWith(prior.slice(0, 40)))
-      )
-    ) {
-      return false
-    }
-    seen.add(normalized)
-    return true
-  })
-}
-
-function normalizedText(value: string) {
-  return clean(value)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-}
-
-function truncateAtWord(value: string, limit: number) {
-  if (value.length <= limit) return value
-  const sliced = value.slice(0, Math.max(0, limit - 1))
-  const boundary = sliced.lastIndexOf(" ")
-  return `${sliced.slice(0, boundary > limit * 0.7 ? boundary : sliced.length).trim()}…`
-}
-
-function archetypeInstruction(automation: XAutomationRecord) {
-  const archetype = xPostArchetypes.find(
-    (item) => item.value === automation.output.archetype
-  )
-  return archetype
-    ? `${archetype.label}. Required structure: ${archetype.structure}`
-    : automation.output.archetype
-}
-
-async function requestJson(input: {
-  apiKey: string
-  model: string
-  system: string
-  user: string
-  fetchImpl?: typeof fetch
-}) {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const result = await openRouterChatCompletion({
-      apiKey: input.apiKey,
-      model: input.model,
-      fetchImpl: input.fetchImpl,
-      messages: [
-        { role: "system", content: input.system },
-        {
-          role: "user",
-          content:
-            attempt === 0
-              ? input.user
-              : `${input.user}\n\nReturn exactly one valid JSON object. Do not use Markdown fences or add commentary.`,
-        },
-      ],
-      responseFormat: { type: "json_object" },
-      timeoutMs: 90_000,
-    })
-    if (!result.ok)
-      throw new Error(
-        result.payload.error?.message || `OpenRouter failed (${result.status})`
-      )
-    const raw = result.payload.choices?.[0]?.message?.content
-    const text = typeof raw === "string" ? raw : ""
-    const unfenced = text
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/, "")
-      .trim()
-    const objectStart = unfenced.indexOf("{")
-    const objectEnd = unfenced.lastIndexOf("}")
-    const candidate =
-      objectStart >= 0 && objectEnd > objectStart
-        ? unfenced.slice(objectStart, objectEnd + 1)
-        : unfenced
     try {
-      const parsed = JSON.parse(candidate)
-      if (isRecord(parsed)) return parsed
-    } catch {
-      // Retry once because some OpenRouter models occasionally wrap or truncate JSON.
+      output = await openRouterJson({
+        apiKey: input.apiKey,
+        fetchImpl: input.fetchImpl,
+        model: input.record.generation.model,
+        timeoutMs: 90_000,
+        maxTokens: 2_800,
+        system,
+        user: `${basePrompt}${errors.length ? `\n\nRepair these exact errors:\n- ${errors.join("\n- ")}` : ""}`,
+        schema,
+      })
+      if (attempt === 1)
+        output = normalizeStructuredOutput(input.plan.archetype, output)
+    } catch (error) {
+      if (
+        attempt === 0 &&
+        error instanceof Error &&
+        /invalid json/i.test(error.message)
+      ) {
+        errors = ["Return compact, complete JSON matching the schema exactly"]
+        continue
+      }
+      throw error
     }
+    posts = composeStructuredPost(input.plan.archetype, output)
+    errors = validateGeneratedPost({
+      plan: input.plan,
+      record: input.record,
+      output,
+      posts,
+    })
+    if (errors.length === 0) break
   }
-  throw new Error("The model returned invalid JSON after one retry")
+  return {
+    plan: input.plan,
+    output,
+    posts,
+    needsReview: errors.length > 0,
+    errors,
+  }
 }
 
-function bodyFrom(
-  value: Record<string, unknown>,
-  contentType: XAutomationRecord["output"]["contentType"]
-) {
-  const sections = asStringArray(
-    value.sections ?? value.posts ?? value.paragraphs
+export async function retrieveViralHookExamples(input: {
+  niche: string
+  topic?: string
+  limit?: number
+}) {
+  const limit = Math.max(1, Math.min(5, input.limit ?? 5))
+  const astrology = /astrolog|zodiac|horoscope/i.test(input.niche)
+  const searchTerms = astrology
+    ? [
+        "astrology",
+        "zodiac",
+        "horoscope",
+        "sign",
+        "signs",
+        "aries",
+        "taurus",
+        "gemini",
+        "leo",
+        "virgo",
+        "libra",
+        "scorpio",
+        "sagittarius",
+        "capricorn",
+        "aquarius",
+        "pisces",
+      ]
+    : (`${input.niche} ${input.topic ?? ""}`
+        .toLowerCase()
+        .match(/[\p{L}\d]{4,}/gu) ?? [])
+  if (searchTerms.length === 0) return []
+  const rows = await loadViralHookRows()
+  const matches = rows
+    .filter((row) => {
+      const rowTokens = new Set(
+        row.t.toLowerCase().match(/[\p{L}\d]{3,}/gu) ?? []
+      )
+      return searchTerms.some((term) => rowTokens.has(term))
+    })
+    .sort((a, b) => b.l - a.l)
+    .slice(0, limit)
+    .map((row) => row.t)
+  return matches.length > 0 ? matches : []
+}
+
+async function loadViralHookRows() {
+  viralHookRowsPromise ??= readFile(
+    path.join(process.cwd(), "data", "viral-hooks", "hooks.jsonl"),
+    "utf8"
   )
-  if (sections.length) return sections
-  const body = clean(value.body)
-  return body ? (contentType === "article" ? body.split(/\n\n+/) : [body]) : []
+    .then((contents) =>
+      contents.split("\n").flatMap((line) => {
+        if (!line.trim()) return []
+        try {
+          const row: unknown = JSON.parse(line)
+          if (!isRecord(row)) return []
+          const text = clean(row.t)
+          const lift = Number(row.l)
+          return text && Number.isFinite(lift) ? [{ t: text, l: lift }] : []
+        } catch {
+          return []
+        }
+      })
+    )
+    .catch(() => [])
+  return viralHookRowsPromise
+}
+
+function composeStructuredPost(
+  archetype: PostArchetype,
+  output: Record<string, unknown>
+) {
+  if (archetype.kind === "thread") {
+    if (Array.isArray(output.posts)) return asStringArray(output.posts)
+    return clean(output.posts)
+      .split(/\n\s*---\s*\n/)
+      .map(clean)
+      .filter(Boolean)
+  }
+  const text = archetype.slots
+    .map((slot) => clean(output[slot.key]))
+    .filter(Boolean)
+    .join("\n\n")
+  return text ? [text] : []
+}
+
+export function normalizeStructuredOutput(
+  archetype: PostArchetype,
+  output: Record<string, unknown>
+) {
+  if (archetype.kind === "thread") return output
+  const normalized = { ...output }
+  for (const slot of archetype.slots) {
+    const value = clean(normalized[slot.key])
+    if (!value || wordCount(value) <= slot.maxWords) continue
+    normalized[slot.key] = value.split(/\s+/).slice(0, slot.maxWords).join(" ")
+  }
+  return normalized
+}
+
+function weightedPick<T>(
+  items: T[],
+  weight: (item: T) => number,
+  random: () => number
+): T {
+  if (items.length === 0) throw new Error("No eligible preset is available")
+  const total = items.reduce((sum, item) => sum + Math.max(0, weight(item)), 0)
+  let cursor = random() * total
+  for (const item of items) {
+    cursor -= Math.max(0, weight(item))
+    if (cursor <= 0) return item
+  }
+  return items.at(-1)!
 }
 
 function asStringArray(value: unknown) {
   return Array.isArray(value) ? value.map(clean).filter(Boolean) : []
+}
+function wordCount(value: string) {
+  return value.trim() ? value.trim().split(/\s+/).length : 0
 }

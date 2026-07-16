@@ -44,11 +44,11 @@ export function AuthForm() {
   }
 
   return (
-    <div className="w-full max-w-[430px] rounded-[18px] border border-[#e7e7ee] bg-white p-7 shadow-[0_18px_60px_rgba(35,24,67,0.1)] sm:p-9">
+    <div className="brand-card w-full max-w-[430px] p-7 sm:p-9">
       <h1 className="text-3xl font-semibold tracking-[-0.045em]">
         {mode === "login" ? "Welcome back" : "Create your workspace"}
       </h1>
-      <p className="mt-2 text-sm leading-6 text-[#686875]">
+      <p className="mt-2 text-sm leading-6 text-brand-muted">
         {mode === "login"
           ? "Log in to continue to LumenClip."
           : "Your content and workflows stay attached to your account."}
@@ -65,11 +65,11 @@ export function AuthForm() {
           autoComplete={mode === "login" ? "current-password" : "new-password"}
         />
         {error ? (
-          <p className="text-sm font-medium text-[#c53b4a]">{error}</p>
+          <p className="text-sm font-medium text-brand-danger">{error}</p>
         ) : null}
         <button
           disabled={pending}
-          className="h-11 w-full rounded-[10px] bg-[#6d28d9] px-4 text-sm font-semibold text-white hover:bg-[#5b21b6] disabled:opacity-60"
+          className="brand-button brand-button-primary w-full disabled:opacity-60"
         >
           {pending
             ? "Please wait"
@@ -83,7 +83,7 @@ export function AuthForm() {
           setError("")
           setMode(mode === "login" ? "register" : "login")
         }}
-        className="mt-5 w-full text-sm font-medium text-[#686875] hover:text-[#111117]"
+        className="mt-5 w-full text-sm font-medium text-brand-muted hover:text-brand-ink"
       >
         {mode === "login"
           ? "New to LumenClip? Create an account"
@@ -105,7 +105,7 @@ function Field(props: {
       <input
         required
         {...props}
-        className="h-11 w-full rounded-[10px] border border-[#d8d8e2] bg-white px-3 outline-none focus:border-[#6d28d9] focus:ring-3 focus:ring-[#6d28d9]/20"
+        className="brand-field"
       />
     </label>
   )

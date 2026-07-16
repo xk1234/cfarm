@@ -56,29 +56,29 @@ const solutions = [
 
 export default function SolutionsPage() {
   return (
-    <main className="min-h-[100dvh] bg-[#f7f7fa] text-[#111117]">
+    <main className="min-h-[100dvh] bg-brand-canvas text-brand-ink">
       <MarketingNav />
       <PageHero
         title="Different teams. One recurring problem."
         description="Good creative work becomes difficult to repeat when the source, assets, decisions, and outputs live in separate places."
       />
-      <section className="border-y border-[#e7e7ee] bg-white py-24 lg:py-32">
+      <section className="border-y border-brand-border bg-white py-24 lg:py-32">
         <div className="mx-auto max-w-[1280px] space-y-5 px-5 lg:px-8">
           {solutions.map((solution) => (
             <article
               key={solution.title}
-              className="grid gap-8 rounded-[20px] bg-[#f7f7fa] p-7 lg:grid-cols-[0.7fr_1.3fr] lg:p-10"
+              className="grid gap-8 rounded-2xl bg-brand-canvas p-7 lg:grid-cols-[0.7fr_1.3fr] lg:p-10"
             >
               <div>
-                <solution.icon className="size-7 text-[#6d28d9]" />
+                <solution.icon className="size-7 text-brand-accent" />
                 <h2 className="mt-8 text-3xl font-semibold tracking-[-0.04em]">
                   {solution.title}
                 </h2>
-                <p className="mt-4 text-sm leading-6 text-[#686875]">
+                <p className="mt-4 text-sm leading-6 text-brand-muted">
                   {solution.problem}
                 </p>
               </div>
-              <div className="rounded-[16px] bg-white p-6">
+              <div className="rounded-app-panel bg-white p-6">
                 <p className="max-w-[54ch] text-xl leading-7 font-semibold tracking-[-0.025em]">
                   {solution.outcome}
                 </p>
@@ -86,7 +86,7 @@ export default function SolutionsPage() {
                   {solution.moves.map((move) => (
                     <div
                       key={move}
-                      className="rounded-[10px] bg-[#ececf2] p-4 text-sm font-medium"
+                      className="rounded-app-control bg-brand-surface-muted p-4 text-sm font-medium"
                     >
                       {move}
                     </div>
@@ -94,7 +94,7 @@ export default function SolutionsPage() {
                 </div>
                 <Link
                   href="/login?mode=register"
-                  className="mt-7 inline-flex items-center gap-1 text-sm font-semibold text-[#6d28d9]"
+                  className="mt-7 inline-flex items-center gap-1 text-sm font-semibold text-brand-accent"
                 >
                   Build this workflow <IconArrowRight className="size-4" />
                 </Link>

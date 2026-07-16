@@ -236,7 +236,7 @@ export function GreenscreenMemesView({
           >
             <div className="max-w-[430px]">
               <input
-                className="h-14 w-full rounded-[13px] bg-white px-5 text-[13px] font-semibold shadow-sm outline-none"
+                className="h-14 w-full rounded-[13px] bg-app-surface px-5 text-[13px] font-semibold shadow-sm outline-none"
                 value={caption}
                 onChange={(event) => setCaption(event.target.value)}
               />
@@ -348,7 +348,7 @@ export function GreenscreenMemesView({
                       <button
                         key={background.id}
                         className={cn(
-                          "h-24 w-16 shrink-0 overflow-hidden rounded-[7px] border-2 bg-white transition",
+                          "h-24 w-16 shrink-0 overflow-hidden rounded-[7px] border-2 bg-app-surface transition",
                           activeBackgroundIndex === absoluteIndex
                             ? "border-app-action"
                             : "border-transparent"
@@ -368,7 +368,7 @@ export function GreenscreenMemesView({
                   })}
                 </div>
               ) : (
-                <div className="rounded-[8px] bg-white px-4 py-5 text-center text-[13px] font-semibold text-[#77766f] shadow-sm">
+                <div className="rounded-[8px] bg-app-surface px-4 py-5 text-center text-[13px] font-semibold text-app-muted-text shadow-sm">
                   No images in this collection.
                 </div>
               )}
@@ -418,8 +418,8 @@ export function GreenscreenMemesView({
                     key={placement}
                     type="button"
                     className={cn(
-                      "flex size-8 items-center justify-center rounded-[5px] text-[#242421] shadow-sm",
-                      textPlacement === placement ? "bg-white" : "bg-white/55"
+                      "flex size-8 items-center justify-center rounded-[5px] text-app-text shadow-sm",
+                      textPlacement === placement ? "bg-app-surface" : "bg-white/55"
                     )}
                     onClick={() => setTextPlacement(placement)}
                     aria-label={`Place text ${placement}`}

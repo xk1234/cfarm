@@ -13,7 +13,9 @@ import {
   IconVideo,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
+import type { ColDef, ICellRendererParams } from "ag-grid-community"
 
+import { AgDataTable } from "@/components/ui/ag-data-table"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { CardGridSkeleton } from "@/components/ui/loading-skeleton"
@@ -24,6 +26,7 @@ import {
 } from "@/components/ui/form-controls"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import { UploadDropzone } from "@/components/ui/upload-dropzone"
+import { ViewModeToggle, type ViewMode } from "@/components/ui/view-mode-toggle"
 import { fetchJsonWithTimeout, toastApiError } from "@/lib/client-api"
 import type {
   KnowledgeBaseExpiry,
@@ -55,12 +58,25 @@ const realtimeKinds: Array<[KnowledgeBaseSourceKind, string]> = [
   ["tiktok", "TikTok search"],
 ]
 
+type KnowledgeBaseTableRow = {
+  id: string
+  name: string
+  description: string
+  status: KnowledgeBaseRecord["status"]
+  researchSources: number
+  realtimeSources: number
+  contextChars: number
+  updatedAt: string
+  record: KnowledgeBaseRecord
+}
+
 export function KnowledgeBasesPanel() {
   const [items, setItems] = useState<KnowledgeBaseRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState("")
   const [editing, setEditing] = useState<KnowledgeBaseRecord | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>("grid")
 
   async function load(silent = false) {
     if (!silent) setLoading(true)
@@ -88,7 +104,9 @@ export function KnowledgeBasesPanel() {
   }, [])
   useEffect(() => {
     if (!items.some((item) => item.status === "refreshing")) return
-    const timer = window.setInterval(() => void load(true), 4000)
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== "hidden") void load(true)
+    }, 15_000)
     return () => window.clearInterval(timer)
   }, [items])
 
@@ -100,6 +118,125 @@ export function KnowledgeBasesPanel() {
         )
       : items
   }, [items, query])
+  const tableRows = useMemo<KnowledgeBaseTableRow[]>(
+    () =>
+      filtered.map((item) => {
+        const researchSources = item.sources.filter(
+          (source) => source.mode === "research"
+        ).length
+        return {
+          id: item.id,
+          name: item.name,
+          description: item.description || "No description",
+          status: item.status,
+          researchSources,
+          realtimeSources: item.sources.length - researchSources,
+          contextChars: item.compiledText.length,
+          updatedAt: item.updatedAt,
+          record: item,
+        }
+      }),
+    [filtered]
+  )
+  const tableColumns = useMemo<ColDef<KnowledgeBaseTableRow>[]>(
+    () => [
+      { field: "name", headerName: "Knowledge Base", minWidth: 220, flex: 1.3 },
+      {
+        field: "description",
+        headerName: "Description",
+        minWidth: 260,
+        flex: 1.6,
+      },
+      {
+        field: "status",
+        headerName: "Status",
+        minWidth: 130,
+        cellRenderer: ({
+          value,
+        }: ICellRendererParams<KnowledgeBaseTableRow>) => (
+          <div className="flex h-full items-center">
+            <StatusBadge status={value} />
+          </div>
+        ),
+      },
+      {
+        field: "researchSources",
+        headerName: "Research",
+        minWidth: 120,
+        type: "numericColumn",
+      },
+      {
+        field: "realtimeSources",
+        headerName: "Realtime",
+        minWidth: 120,
+        type: "numericColumn",
+      },
+      {
+        field: "contextChars",
+        headerName: "Context",
+        minWidth: 130,
+        type: "numericColumn",
+        valueFormatter: ({ value }) =>
+          `${Number(value).toLocaleString()} chars`,
+      },
+      {
+        field: "updatedAt",
+        headerName: "Updated",
+        minWidth: 160,
+        valueFormatter: ({ value }) => formatTableDate(String(value)),
+      },
+      {
+        headerName: "Actions",
+        minWidth: 210,
+        sortable: false,
+        filter: false,
+        cellRenderer: ({ data }: ICellRendererParams<KnowledgeBaseTableRow>) =>
+          data ? (
+            <div className="flex h-full items-center gap-2">
+              <Button
+                type="button"
+                variant="softControl"
+                size="compact"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setEditing(data.record)
+                }}
+              >
+                Open
+              </Button>
+              {data.realtimeSources > 0 ? (
+                <Button
+                  type="button"
+                  variant="iconControl"
+                  size="icon-sm"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    void refreshKnowledgeBase(data.id)
+                  }}
+                  aria-label={`Refresh ${data.name}`}
+                >
+                  <IconRefresh className="size-4" />
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="iconControl"
+                size="icon-sm"
+                className="text-app-danger"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setDeletingId(data.id)
+                }}
+                aria-label={`Delete ${data.name}`}
+              >
+                <IconTrash className="size-4" />
+              </Button>
+            </div>
+          ) : null,
+      },
+    ],
+    []
+  )
 
   function createNew() {
     const now = new Date().toISOString()
@@ -180,10 +317,13 @@ export function KnowledgeBasesPanel() {
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search knowledge bases"
         />
-        <Button variant="action" size="appDefault" onClick={createNew}>
-          <IconPlus className="size-4" />
-          New knowledge base
-        </Button>
+        <div className="flex items-center gap-2">
+          <ViewModeToggle value={viewMode} onChange={setViewMode} />
+          <Button variant="action" size="appDefault" onClick={createNew}>
+            <IconPlus className="size-4" />
+            New knowledge base
+          </Button>
+        </div>
       </div>
       {loading ? (
         <CardGridSkeleton count={8} className="2xl:grid-cols-4" />
@@ -202,6 +342,14 @@ export function KnowledgeBasesPanel() {
             </span>
           </span>
         </button>
+      ) : viewMode === "table" ? (
+        <AgDataTable
+          rows={tableRows}
+          columns={tableColumns}
+          getRowId={(row) => row.id}
+          onRowClick={(row) => setEditing(row.record)}
+          emptyMessage="No matching knowledge bases"
+        />
       ) : (
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {filtered.map((item) => {
@@ -212,7 +360,7 @@ export function KnowledgeBasesPanel() {
             return (
               <article
                 key={item.id}
-                className="group rounded-[9px] border border-app-panel-border bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                className="group rounded-[9px] border border-app-panel-border bg-app-surface p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
                 <button
                   className="block w-full text-left"
@@ -391,7 +539,7 @@ function KnowledgeBaseEditor({
               />
             </Field>
           </div>
-          <div className="mt-6 flex w-fit rounded-[7px] border border-app-panel-border bg-[#f1f0ea] p-1">
+          <div className="mt-6 flex w-fit rounded-[7px] border border-app-panel-border bg-app-surface-subtle p-1">
             {(["research", "realtime"] as const).map((mode) => (
               <button
                 key={mode}
@@ -401,7 +549,7 @@ function KnowledgeBaseEditor({
                 }}
                 className={cn(
                   "flex h-9 items-center gap-2 rounded-[5px] px-4 text-[13px] font-semibold capitalize",
-                  tab === mode ? "bg-white shadow-sm" : "text-app-muted-text"
+                  tab === mode ? "bg-app-surface shadow-sm" : "text-app-muted-text"
                 )}
               >
                 {mode === "research" ? (
@@ -413,7 +561,7 @@ function KnowledgeBaseEditor({
               </button>
             ))}
           </div>
-          <section className="mt-4 rounded-[9px] border border-app-panel-border bg-[#fafaf7] p-4">
+          <section className="mt-4 rounded-[9px] border border-app-panel-border bg-app-surface-subtle p-4">
             <div className="mb-3 text-[13px] font-semibold text-app-text">
               {tab === "research" ? "Add web source" : "Add realtime source"}
             </div>
@@ -458,7 +606,7 @@ function KnowledgeBaseEditor({
                 const file = files?.[0]
                 if (file) void upload(file)
               }}
-              className="mt-4 rounded-[9px] border border-dashed border-app-panel-border bg-white p-4"
+              className="mt-4 rounded-[9px] border border-dashed border-app-panel-border bg-app-surface p-4"
             >
               <div className="mb-1 text-[13px] font-semibold text-app-text">
                 Upload file
@@ -541,7 +689,7 @@ function SourceEditor({
           ? IconLink
           : IconNews
   return (
-    <div className="rounded-lg border border-app-panel-border bg-white p-4">
+    <div className="rounded-lg border border-app-panel-border bg-app-surface p-4">
       <div className="flex items-start gap-3">
         <span className="mt-1 grid size-8 shrink-0 place-items-center rounded-md bg-app-surface-subtle">
           <Icon className="size-4" />
@@ -660,7 +808,7 @@ function KnowledgeBaseDebugModal({
             realtimeSources.map((source) => (
               <section
                 key={source.id}
-                className="rounded-lg border border-app-panel-border bg-[#fafaf7] p-4"
+                className="rounded-lg border border-app-panel-border bg-app-surface-subtle p-4"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -685,7 +833,7 @@ function KnowledgeBaseDebugModal({
                     source.chunks.map((chunk) => (
                       <article
                         key={chunk.id}
-                        className="rounded-md border border-app-panel-border bg-white p-3"
+                        className="rounded-md border border-app-panel-border bg-app-surface p-3"
                       >
                         <div className="text-xs font-semibold text-app-text">
                           {chunk.title || "Refresh result"}
@@ -712,7 +860,7 @@ function KnowledgeBaseDebugModal({
             <div className="mb-2 text-xs font-semibold text-app-muted-text">
               Compiled output
             </div>
-            <pre className="max-h-72 overflow-auto rounded-lg border border-app-panel-border bg-[#111117] p-4 font-mono text-xs leading-5 whitespace-pre-wrap text-white">
+            <pre className="max-h-72 overflow-auto rounded-lg border border-app-panel-border bg-app-strong p-4 font-mono text-xs leading-5 whitespace-pre-wrap text-white">
               {value.compiledText || "No compiled output yet."}
             </pre>
           </section>
@@ -736,7 +884,7 @@ function StatusBadge({
             status === "processing" ||
             status === "queued"
           ? "bg-amber-50 text-amber-700"
-          : "bg-[#f1f0ea] text-app-muted-text"
+          : "bg-app-surface-subtle text-app-muted-text"
   return (
     <span
       className={cn(
@@ -747,6 +895,17 @@ function StatusBadge({
       {status}
     </span>
   )
+}
+
+function formatTableDate(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
 }
 function Field({
   label,

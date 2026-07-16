@@ -112,11 +112,11 @@ export function PostingSchedulePanel({
         </span>
       }
     >
-      <div className="flex items-center justify-between border-b border-[#ecebe4] py-4">
-        <div className="text-[16px] font-semibold text-[#333]">
+      <div className="flex items-center justify-between border-b border-app-panel-border py-4">
+        <div className="text-[16px] font-semibold text-app-text">
           {scheduleFrequencyLabel(postingTimes)}
         </div>
-        <div className="text-[16px] font-semibold text-[#333]">
+        <div className="text-[16px] font-semibold text-app-text">
           {weeklyPostCount}/week
         </div>
       </div>
@@ -127,7 +127,7 @@ export function PostingSchedulePanel({
             className="grid items-center gap-3 md:grid-cols-[132px_1fr_58px]"
           >
             <input
-              className="h-12 rounded-[8px] border border-[#d8d7cf] bg-white px-3 text-[17px] font-semibold text-[#111] outline-none focus:border-[#9f9e96]"
+              className="h-12 rounded-[8px] border border-app-panel-border bg-app-surface px-3 text-[17px] font-semibold text-app-text outline-none focus:border-[#9f9e96]"
               type="time"
               value={timeInputValue(postingTime.time)}
               onChange={(event) =>
@@ -142,8 +142,8 @@ export function PostingSchedulePanel({
                   className={cn(
                     "h-11 min-w-11 rounded-[8px] border px-3 text-[15px] font-semibold shadow-sm transition",
                     postingTime.days.includes(day)
-                      ? "border-[#4d4c47] bg-white text-[#111]"
-                      : "border-[#deddd5] bg-[#f7f7f3] text-[#9a9991]"
+                      ? "border-[#4d4c47] bg-app-surface text-app-text"
+                      : "border-app-panel-border bg-app-surface-subtle text-app-text-faint"
                   )}
                   onClick={() => toggleDay(index, day)}
                   aria-pressed={postingTime.days.includes(day)}

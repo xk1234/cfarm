@@ -2,39 +2,32 @@
 
 Route key: `greenscreen`
 
-Component: `GreenscreenMemesView` in `components/realfarm-workspace.tsx`
+Component: `GreenscreenMemesView` in `components/realfarm/greenscreen-view.tsx`
 
 ## Functionality
 
-Greenscreen Memes lets the user combine a caption, a local greenscreen meme video, and a background image. The preview uses a canvas-based chroma-key pass to remove green from the selected meme video.
+Compose a meme by combining a caption, a local greenscreen (chroma-key) video, and a background, previewed live on a canvas. Exports **persist** as generated video records and can be scheduled to social channels.
 
 Main actions:
 
-- Edit caption text.
-- Page through and select greenscreen meme videos.
-- Randomize meme or background selection.
-- Select a background image from the current background collection.
-- Change caption placement.
-- Trigger `onCreate`, which updates local draft/export state.
+- Pick a greenscreen video + background and edit the caption.
+- Preview the chroma-keyed composite on a `<canvas>`.
+- Export — persists a `GeneratedVideoExport` (type `"greenscreen"`) with a queued → ready lifecycle.
+- Browse the exports grid (paged, `memePageSize = 32`).
+- Schedule an export to PostFast from the exports list.
 
 ## Objects Used
 
 | Object | Source | Usage |
 | --- | --- | --- |
-| `LocalAsset[]` | `data.assets.greenscreenMemes` | Meme video library. |
-| `PinterestSearchResult[]` | `backgroundCollection.images` or `data.defaultCollections.backgrounds.images` | Background picker and preview. |
-| `Video[]` | `data.videos` | Demo "My Videos" grid. |
-| `generatedAssets.higgsfieldCharacter.url` | `data.generatedAssets` | Avatar image for demo video grid. |
+| `GeneratedVideoExport[]` (type `greenscreen`) | `useGeneratedVideoExports` (`generated_video_exports` table) | The "My Videos" grid (count is live, not hardcoded). |
+| Greenscreen clips / backgrounds | `greenscreen` / `backgrounds` Storage buckets + media library | Composition inputs. |
 
 ## Persistence
 
-No greenscreen compositions are persisted. Local assets are read from disk through `loadRealFarmData()`.
+Exports persist as `GeneratedVideoExport` records in the `generated_video_exports` table via `createGeneratedVideoExportRecord(...)`; rendered files land in the `ugc_videos` / `greenscreen` Storage buckets. Appwrite is authoritative — no filesystem fallback.
 
 ## Hardcoded / Demo Behavior
 
-- Initial caption is hardcoded.
-- Initial selected meme/background indexes are hardcoded.
-- Meme page size is hardcoded to 32; background page size is 10.
-- "Generate a text caption" button has no API action.
-- "My Videos (99)" count is hardcoded; cards use `data.videos`.
-- Chroma key thresholds and canvas size are hardcoded in `ChromaKeyGreenscreenVideo`.
+- Caption styling defaults and the canvas chroma-key threshold are fixed defaults.
+- `drawAvatarPlaceholder` renders a demo frame only when no clip is selected.

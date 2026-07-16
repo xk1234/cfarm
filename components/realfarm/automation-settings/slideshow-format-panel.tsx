@@ -97,7 +97,7 @@ export function AutomationFormatPanel({
   const previewBaseScale = 2.5
   const previewSlotWidths = previewItems.map((item) => {
     const size = formatPreviewCardSize(item.section.aspect_ratio, item.image)
-    return size.width * previewBaseScale * previewZoom
+    return size.width * previewBaseScale
   })
   const previewGap = 50
   const activePreviewIndex = Math.min(
@@ -469,9 +469,24 @@ export function AutomationFormatPanel({
   }
 
   return (
-    <div className="grid h-full min-h-0 min-w-0 bg-[#b9b9b6] md:grid-cols-[340px_minmax(0,1fr)]">
-      <aside className="flex min-h-0 w-[340px] min-w-[340px] flex-col bg-[#f7f7f4]">
-        <div className="flex h-12 items-center justify-between border-b border-[#deddd5] px-3">
+    <div
+      className="grid h-full min-h-0 min-w-0 bg-[#b9b9b6] md:grid-cols-[340px_minmax(0,1fr)]"
+      onPointerDown={(event) => {
+        if (selectedTextIndex === null) return
+        const target = event.target
+        if (
+          target instanceof Element &&
+          target.closest(
+            "[data-slideshow-text-editor], [data-select-like-content]"
+          )
+        ) {
+          return
+        }
+        setSelectedTextIndex(null)
+      }}
+    >
+      <aside className="flex min-h-0 w-full min-w-0 flex-col bg-app-surface-subtle md:w-[340px] md:min-w-[340px]">
+        <div className="flex h-12 items-center justify-between border-b border-app-panel-border px-3">
           <button
             className="flex items-center gap-2 text-[13px] font-semibold text-[#5d5c56]"
             onClick={onBack}
@@ -483,7 +498,7 @@ export function AutomationFormatPanel({
             <div className="flex items-center rounded-lg bg-[#efefeb] p-0.5">
               <button
                 type="button"
-                className="rounded-md p-1.5 text-[#5d5c56] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-30"
+                className="rounded-md p-1.5 text-[#5d5c56] transition-colors hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30"
                 disabled={historyCounts.undo === 0}
                 onClick={() => applyHistoryStep("undo")}
                 aria-label="Undo format change"
@@ -493,7 +508,7 @@ export function AutomationFormatPanel({
               </button>
               <button
                 type="button"
-                className="rounded-md p-1.5 text-[#5d5c56] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-30"
+                className="rounded-md p-1.5 text-[#5d5c56] transition-colors hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30"
                 disabled={historyCounts.redo === 0}
                 onClick={() => applyHistoryStep("redo")}
                 aria-label="Redo format change"
@@ -505,14 +520,14 @@ export function AutomationFormatPanel({
           </div>
         </div>
 
-        <div className="grid h-11 grid-cols-3 border-b border-[#deddd5] text-center text-[13px] font-semibold">
+        <div className="grid h-11 grid-cols-3 border-b border-app-panel-border text-center text-[13px] font-semibold">
           {(["Hook", "Content", "CTA"] as const).map((tab) => (
             <button
               key={tab}
               className={cn(
                 activeTab === tab
-                  ? "border-b-2 border-[#242421] text-[#242421]"
-                  : "text-[#9a9991]"
+                  ? "border-b-2 border-app-strong text-app-text"
+                  : "text-app-text-faint"
               )}
               onClick={() => selectTab(tab)}
             >
@@ -583,7 +598,7 @@ export function AutomationFormatPanel({
                   />
                   {activeSection.slideCountMode !== "varying" ? (
                     <input
-                      className="h-8 rounded-[7px] border border-[#ebeae3] bg-white px-2 text-center text-[12px] font-semibold outline-none"
+                      className="h-8 rounded-[7px] border border-[#ebeae3] bg-app-surface px-2 text-center text-[12px] font-semibold outline-none"
                       value={activeSection.slideCount}
                       onChange={(event) => {
                         const value = Number(event.target.value) || 1
@@ -694,7 +709,7 @@ export function AutomationFormatPanel({
           ) : null}
         </div>
 
-        <div className="border-t border-[#deddd5] p-3">
+        <div className="border-t border-app-panel-border p-3">
           <Button
             variant="action"
             size="appDefault"
@@ -745,14 +760,14 @@ function SlideCountRangeInput({
   onChange: (value: number) => void
 }) {
   return (
-    <label className="space-y-1 text-[11px] font-semibold text-[#77766f]">
+    <label className="space-y-1 text-[11px] font-semibold text-app-muted-text">
       <span>{label}</span>
       <input
         type="number"
         min={1}
         max={20}
         value={value}
-        className="h-8 w-full rounded-[7px] border border-[#ebeae3] bg-white px-2 text-center text-[12px] font-semibold outline-none"
+        className="h-8 w-full rounded-[7px] border border-[#ebeae3] bg-app-surface px-2 text-center text-[12px] font-semibold outline-none"
         onChange={(event) =>
           onChange(Math.max(1, Number(event.target.value) || 1))
         }

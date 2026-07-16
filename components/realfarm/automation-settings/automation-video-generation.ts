@@ -132,12 +132,7 @@ async function generateUgcAdVideo(input: AutomationVideoGenerationInput) {
     ) ?? input.demoVideos[0]
   const sound = selectedAutomationSound(input)
   const textPlacement = textPlacementFromItem(hookTextItems[0])
-  const copy = await requestVideoCopy(
-    input.automation.id,
-    format,
-    hookTextItems[0]?.id ?? "",
-    hook
-  )
+  const copy = await requestVideoCopy(input.automation.id, format, hook)
   let exportRecord: GeneratedVideoExport | null = null
 
   try {
@@ -197,7 +192,7 @@ async function generateTemplateVideo(
 ) {
   const hooks = automationHooks(input.config)
   const hookItemId = templateHookTextItemId(format)
-  const copy = await requestVideoCopy(input.automation.id, format, hookItemId)
+  const copy = await requestVideoCopy(input.automation.id, format)
   const hook =
     copy.hook ||
     pickRandomHook(hooks, input.config.title || input.automation.name)
@@ -425,7 +420,6 @@ function sampleItems<T>(items: T[], count: number) {
 async function requestVideoCopy(
   automationId: string,
   format: AutomationVideoFormat,
-  hookItemId: string,
   hook?: string
 ) {
   const items = [
@@ -449,10 +443,7 @@ async function requestVideoCopy(
     ),
   ]
     .filter(
-      ({ item }) =>
-        item.id !== hookItemId &&
-        item.textMode !== "static" &&
-        Boolean(item.contentDirection)
+      ({ item }) => item.textMode !== "static" && Boolean(item.contentDirection)
     )
     .map(({ item, segmentLabel, guidance, count }) => ({
       id: item.id,
@@ -482,6 +473,11 @@ async function requestVideoCopy(
       automationId,
       template: format.template,
       hook,
+      segmentRoles: format.segments.map((segment) => ({
+        id: segment.id,
+        label: segment.label,
+        guidance: segment.guidance,
+      })),
       items,
     }),
   }).then((payload) => ({
@@ -504,13 +500,11 @@ function resolveTexts(
   return items.map((item) => ({
     ...item,
     text:
-      item.id === hookItemId
-        ? hook
-        : item.textMode === "static" && item.staticText
-          ? item.staticText
-          : generatedTextAt(generated[item.id], clipIndex) ||
-            item.contentDirection ||
-            "",
+      item.textMode === "static" && item.staticText
+        ? item.staticText
+        : generatedTextAt(generated[item.id], clipIndex) ||
+          (item.id === hookItemId ? hook : item.contentDirection) ||
+          "",
   }))
 }
 

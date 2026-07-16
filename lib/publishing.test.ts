@@ -1,9 +1,7 @@
 import path from "node:path"
 
-import { Query } from "node-appwrite"
 import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
 import { listPostFastPostRecords } from "@/lib/postfast-posts"
 import type { PostFastSocialIntegration } from "@/lib/postfast-client"
@@ -25,8 +23,7 @@ const clearPosts = () => clearTestTables("postfast_posts")
 beforeEach(clearPosts)
 afterAll(clearPosts)
 
-const okRequest: PublishRequest = async () =>
-  ({ postIds: ["pf-123"] }) as never
+const okRequest: PublishRequest = async () => ({ postIds: ["pf-123"] }) as never
 const failRequest: PublishRequest = async () => {
   throw new Error("PostFast 500")
 }
@@ -82,17 +79,24 @@ describe("publishAutomationRun", () => {
   const integrations: PostFastSocialIntegration[] = [
     { provider: "tiktok", integration_id: "int-1", name: "TT" },
     { provider: "instagram", integration_id: "int-2", name: "IG" },
-    { provider: "youtube", integration_id: "int-3", name: "YT", disabled: true },
+    {
+      provider: "youtube",
+      integration_id: "int-3",
+      name: "YT",
+      disabled: true,
+    },
   ]
 
   it("publishes each active integration and skips disabled ones", async () => {
     const rootDir = tempRoot()
     const res = await publishAutomationRun({
       runId: "run-3",
+      scheduledFor: "2026-07-16T03:00:00.000Z",
       integrations,
       content: "caption #tag",
       postfastRootDir: rootDir,
       request: okRequest,
+      now: new Date("2026-07-15T03:00:00.000Z"),
     })
     expect(res.published).toBe(2)
     expect(res.failed).toBe(0)
@@ -105,12 +109,74 @@ describe("publishAutomationRun", () => {
     const rootDir = tempRoot()
     const res = await publishAutomationRun({
       runId: "run-4",
+      scheduledFor: "2026-07-16T03:00:00.000Z",
       integrations,
       content: "caption",
       postfastRootDir: rootDir,
       request: failRequest,
+      now: new Date("2026-07-15T03:00:00.000Z"),
     })
     expect(res.published).toBe(0)
     expect(res.failed).toBe(2)
+  })
+
+  it("publishes automation slides with their uploaded media keys", async () => {
+    const requests: unknown[] = []
+    const media = [
+      { key: "slides/run-5/slide-1.png", type: "IMAGE" as const, sortOrder: 0 },
+      { key: "slides/run-5/slide-2.png", type: "IMAGE" as const, sortOrder: 1 },
+    ]
+    const result = await publishAutomationRun({
+      runId: "run-5",
+      scheduledFor: "2026-07-16T03:00:00.000Z",
+      integrations: [integrations[0]],
+      content: "caption with slides",
+      media,
+      postfastRootDir: tempRoot(),
+      request: async (_path, options) => {
+        requests.push(options.body)
+        return { postIds: ["pf-with-media"] } as never
+      },
+      now: new Date("2026-07-15T03:00:00.000Z"),
+    })
+
+    expect(result.published).toBe(1)
+    expect(requests[0]).toMatchObject({
+      posts: [
+        {
+          mediaItems: [
+            { key: media[0].key, type: "IMAGE", sortOrder: 0 },
+            { key: media[1].key, type: "IMAGE", sortOrder: 1 },
+          ],
+        },
+      ],
+    })
+    expect(result.records[0].media).toEqual(media)
+  })
+
+  it("publishes immediately when a queued job is recovered after its slot", async () => {
+    const requests: unknown[] = []
+    const rootDir = tempRoot()
+    const res = await publishAutomationRun({
+      runId: "run-late",
+      scheduledFor: "2026-07-16T03:00:00.000Z",
+      integrations: [integrations[0]],
+      content: "late caption",
+      postfastRootDir: rootDir,
+      now: new Date("2026-07-16T04:00:00.000Z"),
+      request: async (_path, options) => {
+        requests.push(options.body)
+        return { postIds: ["pf-late"] } as never
+      },
+    })
+
+    expect(res.published).toBe(1)
+    expect(requests[0]).toMatchObject({
+      status: "SCHEDULED",
+      posts: [{ status: "SCHEDULED" }],
+    })
+    expect(requests[0]).not.toMatchObject({
+      posts: [{ scheduledAt: "2026-07-16T03:00:00.000Z" }],
+    })
   })
 })

@@ -39,7 +39,7 @@ When a user clicks `Swipe` on a supported external site:
 4. For TikTok Creative Center Top Ads detail URLs, `background.js` may open a tab to enrich analytics.
 5. If the payload has a safe `http` or `https` landing page, `background.js` attempts desktop and mobile landing-page screenshots in temporary windows.
 6. `background.js` posts the payload, source screenshot, and any landing-page screenshots to `/api/swipes`.
-7. The app writes an initial swipe record to the Appwrite `swipes` table (via `lib/json-store.ts`, filesystem fallback `data/swipes/swipes.json`).
+7. The app writes an initial swipe record to the Appwrite `swipes` table (via `lib/json-store.ts`; Appwrite is authoritative, no filesystem fallback).
 8. Video transcription and UGC analysis continue asynchronously; the same record updates from `processing` to `complete` or `failed`.
 9. The app writes screenshots/media under `data/swipes/assets`.
 

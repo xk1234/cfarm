@@ -207,7 +207,7 @@ export function textStyleUsesStroke(style?: string) {
   )
     ? (style ?? "White Text")
     : textStyleToEditorColor(style || "")
-  return editorColor !== "Black Text" && !editorColor.endsWith("Background")
+  return editorColor === "Outline"
 }
 
 export function textStrokeColor(color?: string) {

@@ -3,7 +3,15 @@ import os from "node:os"
 import path from "node:path"
 
 import { Query } from "node-appwrite"
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
@@ -13,9 +21,8 @@ import { readJsonArrayStore } from "@/lib/json-store"
 // Appwrite-only, run against cfarm (forced by vitest.setup.ts):
 //   slideshows -> slideshows table, results -> results; media -> Storage.
 // Slides rasterize to PNG only where a rasterizer exists (darwin), else SVG.
-const slideExt = process.platform === "darwin" ? "png" : "svg"
+const slideExt = "png"
 let tempRoot: string
-
 
 const clearAll = () => clearTestTables("slideshows", "results")
 

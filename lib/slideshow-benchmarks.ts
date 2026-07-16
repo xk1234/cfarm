@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto"
 import path from "node:path"
+import { unstable_cache } from "next/cache"
 
 import sharp from "sharp"
 
@@ -99,6 +100,7 @@ export type GeneratedSlideshowBenchmark = {
   scores: SlideshowBenchmarkScores
   rationales: SlideshowBenchmarkRationales
   model: string
+  inputHash?: string
   createdAt: string
 }
 
@@ -122,7 +124,9 @@ type RawGrade = {
   rationales?: Record<string, unknown>
 }
 
-const benchmarkRootDir = path.join(process.cwd(), "data", "benchmarks")
+function benchmarkRootDir() {
+  return path.join(process.cwd(), "data", "benchmarks")
+}
 const benchmarkModel = openRouterModelForUseCase("imageCaptioning")
 
 // Keep in sync with scripts/import-tiktok-corpus.mjs so corpus references and
@@ -144,14 +148,27 @@ export const benchmarkGraderSystemPrompt = [
   "conversationPotential — use ALL slides: score the signals that actually drive comments, shares, and saves — identity signaling ('this is me' / 'send this to her'), a confident take that is just polarizing enough, open questions, a natural CTA (tag someone, comment your sign, which one next), and a final slide worth screenshotting. A post that ends flat with no invitation caps at 5.",
 ].join("\n")
 
+const listCachedBenchmarkCorpus = unstable_cache(
+  readBenchmarkCorpus,
+  ["slideshow-benchmark-corpus"],
+  { revalidate: 300 }
+)
+
 export async function listBenchmarkCorpus(input: { limit?: number } = {}) {
-  const records = await readJsonArrayStore<BenchmarkCorpusRecord>({
-    rootDir: benchmarkRootDir,
+  const records =
+    process.env.NODE_ENV === "test"
+      ? await readBenchmarkCorpus()
+      : await listCachedBenchmarkCorpus()
+  return records.slice(0, Math.max(1, input.limit ?? 100))
+}
+
+function readBenchmarkCorpus() {
+  return readJsonArrayStore<BenchmarkCorpusRecord>({
+    rootDir: benchmarkRootDir(),
     fileName: "corpus.json",
     key: "benchmarks",
     normalize: normalizeCorpusRecord,
   })
-  return records.slice(0, Math.max(1, input.limit ?? 100))
 }
 
 export async function listGeneratedSlideshowBenchmarks(
@@ -162,7 +179,7 @@ export async function listGeneratedSlideshowBenchmarks(
   } = {}
 ) {
   const records = await readJsonArrayStore<GeneratedSlideshowBenchmark>({
-    rootDir: benchmarkRootDir,
+    rootDir: benchmarkRootDir(),
     fileName: "scores.json",
     key: "benchmarks",
     normalize: normalizeGeneratedBenchmark,
@@ -180,7 +197,7 @@ export async function deleteGeneratedSlideshowBenchmarks(slideshowId: string) {
     GeneratedSlideshowBenchmark,
     GeneratedSlideshowBenchmark[]
   >({
-    rootDir: benchmarkRootDir,
+    rootDir: benchmarkRootDir(),
     fileName: "scores.json",
     key: "benchmarks",
     normalize: normalizeGeneratedBenchmark,
@@ -313,6 +330,18 @@ export async function benchmarkAndStoreGeneratedSlideshow(
         input.imageBytes?.[index] ?? (await benchmarkImageBytes(slide.imageUrl))
     )
   )
+  const inputHash = benchmarkInputHash(input, imageBytes)
+  const records = await listGeneratedSlideshowBenchmarks({
+    limit: Number.MAX_SAFE_INTEGER,
+  })
+  const cached = records.find(
+    (record) =>
+      record.slideshowId === input.slideshowId && record.inputHash === inputHash
+  )
+  if (cached) {
+    return { ...cached, cacheHit: true as const }
+  }
+
   const slides = await enrichBenchmarkSlides(input.slides, imageBytes)
   const grade = await scoreSlideshowBenchmark({
     ...input,
@@ -330,13 +359,11 @@ export async function benchmarkAndStoreGeneratedSlideshow(
       clean(input.icp) || "The intended audience inferred from the slideshow",
     slides,
     ...grade,
+    inputHash,
     createdAt: now,
   }
-  const records = await listGeneratedSlideshowBenchmarks({
-    limit: Number.MAX_SAFE_INTEGER,
-  })
   await writeJsonArrayStore({
-    rootDir: benchmarkRootDir,
+    rootDir: benchmarkRootDir(),
     fileName: "scores.json",
     key: "benchmarks",
     records: [
@@ -344,7 +371,24 @@ export async function benchmarkAndStoreGeneratedSlideshow(
       ...records.filter((item) => item.slideshowId !== record.slideshowId),
     ],
   })
-  return record
+  return { ...record, cacheHit: false as const }
+}
+
+export function benchmarkContextFromSlides(input: {
+  title?: string
+  slides: Pick<BenchmarkSlideInfo, "text">[]
+}) {
+  return (
+    [
+      clean(input.title),
+      ...input.slides.map((slide, index) => {
+        const text = clean(slide.text)
+        return text ? `Slide ${index + 1}: ${text}` : ""
+      }),
+    ]
+      .filter(Boolean)
+      .join(" · ") || "Infer the intended audience from the slide content"
+  )
 }
 
 export function benchmarkSlidesFromSlideshow(
@@ -418,7 +462,7 @@ export async function scoreSlideshowBenchmark(input: ScoreInput) {
       type: "text",
       text: [
         `Slideshow title: ${clean(input.title) || "Untitled"}`,
-        `Target ICP: ${clean(input.icp) || "Infer the intended ICP from the content"}`,
+        `Slideshow context (title and actual slide copy): ${clean(input.icp) || "Infer the intended audience from the slide content"}`,
         `There are ${prepared.length} slides in order.`,
       ].join("\n"),
     },
@@ -462,7 +506,27 @@ export async function scoreSlideshowBenchmark(input: ScoreInput) {
     typeof rawContent === "string"
       ? (JSON.parse(rawContent) as RawGrade)
       : rawContent
-  return normalizeGrade(parsed)
+  return normalizeGrade(parsed, clean(input.model) || benchmarkModel)
+}
+
+export function benchmarkInputHash(input: ScoreInput, imageBytes: Buffer[]) {
+  const stable = JSON.stringify({
+    version: 2,
+    rubric: createHash("sha256")
+      .update(benchmarkGraderSystemPrompt)
+      .digest("hex"),
+    model: clean(input.model) || benchmarkModel,
+    title: clean(input.title),
+    context: clean(input.icp),
+    slides: input.slides.map((slide, index) => ({
+      role: slide.role || "",
+      text: clean(slide.text),
+      renderedImage: createHash("sha256")
+        .update(imageBytes[index] ?? Buffer.alloc(0))
+        .digest("hex"),
+    })),
+  })
+  return `benchmark-input-${createHash("sha256").update(stable).digest("hex")}`
 }
 
 export async function renderSlidesForBenchmark(
@@ -530,7 +594,10 @@ function benchmarkResponseFormat() {
   }
 }
 
-function normalizeGrade(value: unknown): {
+function normalizeGrade(
+  value: unknown,
+  model: string = benchmarkModel
+): {
   scores: SlideshowBenchmarkScores
   rationales: SlideshowBenchmarkRationales
   model: string
@@ -565,7 +632,7 @@ function normalizeGrade(value: unknown): {
       usefulnessToIcp: clean(rationales.usefulnessToIcp),
       conversationPotential: clean(rationales.conversationPotential),
     },
-    model: benchmarkModel,
+    model,
   }
 }
 

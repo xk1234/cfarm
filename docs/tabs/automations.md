@@ -2,7 +2,7 @@
 
 Route key: `automations`
 
-Component: `AutomationsView` in `components/realfarm-workspace.tsx`
+Component: `AutomationsView` in `components/realfarm/automations-view.tsx`
 
 Related drawer/components:
 
@@ -39,7 +39,7 @@ Main actions:
 
 ## Persistence
 
-Persisted imported automations live in the Appwrite `automations` table (via `lib/json-store.ts`); working file `data/automations/automations.json` (filesystem fallback). The API supports:
+Persisted automations live in the Appwrite `automations` table (via `lib/json-store.ts`) — authoritative, no filesystem fallback. The `AutomationSchema` includes the `posting_mode` tri-state (`manual` / `review` / `auto`) and knowledge-context fields (`knowledge_context_enabled`, `knowledge_base_ids`). The API supports:
 
 - `GET /api/automations`
 - `POST /api/automations`

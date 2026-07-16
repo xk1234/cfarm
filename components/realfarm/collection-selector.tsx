@@ -56,11 +56,11 @@ export function CollectionSelector({
     <>
       <button
         type="button"
-        className="mb-4 w-full cursor-pointer rounded-xl border border-[#eee] bg-white px-3 py-3 text-left text-[14px] font-medium text-[#333] shadow-sm transition-colors hover:opacity-[65%]"
+        className="mb-4 w-full cursor-pointer rounded-xl border border-[#eee] bg-app-surface px-3 py-3 text-left text-[14px] font-medium text-app-text shadow-sm transition-colors hover:opacity-[65%]"
         onClick={() => setOpen(true)}
       >
         <div className="flex w-full items-center justify-between gap-3">
-          <span className="flex min-w-0 items-center text-[13px] font-bold text-[#333]">
+          <span className="flex min-w-0 items-center text-[13px] font-bold text-app-text">
             {label}
             <ChevronRight className="ml-1 size-4 shrink-0 stroke-[3]" />
           </span>
@@ -98,20 +98,20 @@ export function CollectionSelector({
             accessibleTitle="Select collection"
             className="flex h-[min(680px,86vh)] w-[min(760px,calc(100vw-40px))] flex-col rounded-[12px]"
           >
-            <div className="flex items-center gap-3 border-b border-[#ecebe4] px-4 py-3">
+            <div className="flex items-center gap-3 border-b border-app-panel-border px-4 py-3">
               <button
                 type="button"
-                className="grid size-8 place-items-center rounded-full text-[#77766f] hover:bg-[#f1f0eb] hover:text-[#242421]"
+                className="grid size-8 place-items-center rounded-full text-app-muted-text hover:bg-app-surface-subtle hover:text-app-text"
                 onClick={() => setOpen(false)}
                 aria-label="Close collection selector"
               >
                 <X className="size-4" />
               </button>
               <div className="min-w-0 flex-1">
-                <h2 className="text-[18px] font-bold text-[#242421]">
+                <h2 className="text-[18px] font-bold text-app-text">
                   Select collection
                 </h2>
-                <p className="text-[12px] font-medium text-[#77766f]">
+                <p className="text-[12px] font-medium text-app-muted-text">
                   Choose a collection for this slideshow section.
                 </p>
               </div>
@@ -166,11 +166,11 @@ function CollectionSelectorBody({
 
   return (
     <>
-      <div className="border-b border-[#ecebe4] px-4 py-3">
+      <div className="border-b border-app-panel-border px-4 py-3">
         <label className="relative block">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#8c8b84]" />
           <input
-            className="h-10 w-full rounded-[8px] border border-[#e4e3dc] bg-white pr-3 pl-10 text-[14px] font-medium outline-none placeholder:text-[#aaa9a2] focus:border-[#b8b7ae]"
+            className="h-10 w-full rounded-[8px] border border-[#e4e3dc] bg-app-surface pr-3 pl-10 text-[14px] font-medium outline-none placeholder:text-app-text-faint focus:border-[#b8b7ae]"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search collections"
@@ -200,13 +200,13 @@ function CollectionSelectorBody({
         ) : (
           <div className="grid h-full min-h-[300px] place-items-center text-center">
             <div>
-              <div className="mx-auto grid size-12 place-items-center rounded-full bg-[#f1f0eb] text-[#77766f]">
+              <div className="mx-auto grid size-12 place-items-center rounded-full bg-app-surface-subtle text-app-muted-text">
                 <Images className="size-5" />
               </div>
-              <div className="mt-3 text-[15px] font-bold text-[#242421]">
+              <div className="mt-3 text-[15px] font-bold text-app-text">
                 No collections found
               </div>
-              <div className="mt-1 text-[13px] font-medium text-[#77766f]">
+              <div className="mt-1 text-[13px] font-medium text-app-muted-text">
                 Add a collection or try another search.
               </div>
             </div>
@@ -237,10 +237,10 @@ function CollectionOption({
       <button
         type="button"
         className={cn(
-          "flex w-full items-center justify-between gap-3 rounded-[8px] border bg-white px-3 py-3 text-left shadow-sm transition outline-none hover:bg-[#f8f8f4]",
+          "flex w-full items-center justify-between gap-3 rounded-[8px] border bg-app-surface px-3 py-3 text-left shadow-sm transition outline-none hover:bg-app-surface-subtle",
           selected
             ? "border-app-action text-app-action ring-1 ring-app-action"
-            : "border-[#e2e1da] text-[#242421]"
+            : "border-[#e2e1da] text-app-text"
         )}
         onClick={onClick}
       >
@@ -248,11 +248,11 @@ function CollectionOption({
           <span className="block truncate text-[14px] font-bold">
             {collection.title}
           </span>
-          <span className="mt-0.5 block text-[11px] font-medium text-[#77766f]">
+          <span className="mt-0.5 block text-[11px] font-medium text-app-muted-text">
             {collection.images.length} {collectionMediaLabel(collection)}
           </span>
         </span>
-        <ChevronRight className="size-4 shrink-0 text-[#9a9991]" />
+        <ChevronRight className="size-4 shrink-0 text-app-text-faint" />
       </button>
     )
   }
@@ -288,10 +288,10 @@ function CollectionOption({
         </div>
       </div>
       <div className="mt-2 min-w-0">
-        <div className="truncate text-[13px] font-bold text-[#242421]">
+        <div className="truncate text-[13px] font-bold text-app-text">
           {collection.title}
         </div>
-        <div className="text-[11px] font-medium text-[#77766f]">
+        <div className="text-[11px] font-medium text-app-muted-text">
           <span className="inline-flex items-center gap-1">
             {collection.mediaType === "video" ? (
               <IconVideo className="size-3.5" />

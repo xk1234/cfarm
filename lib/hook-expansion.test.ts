@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  expandAllHookCombinations,
-  expandHook,
-} from "@/lib/hook-expansion"
+import { expandAllHookCombinations, expandHook } from "@/lib/hook-expansion"
 import type { WordCollectionRecord } from "@/lib/word-collections"
 
 describe("expandHook", () => {
@@ -40,7 +37,12 @@ describe("expandHook", () => {
     ]
 
     expect(
-      expandHook("[[Number]] things about [[Month]]", undefined, collections, () => 0)
+      expandHook(
+        "[[Number]] things about [[Month]]",
+        undefined,
+        collections,
+        () => 0
+      )
     ).toEqual({
       text: "3 things about January",
       template: "[[Number]] things about [[Month]]",
@@ -77,8 +79,12 @@ describe("expandHook", () => {
     ]
 
     expect(
-      expandHook("[[ZODIAC]] loves another [[ZODIAC]]", undefined, collections, () => 0)
-        .text
+      expandHook(
+        "[[ZODIAC]] loves another [[ZODIAC]]",
+        undefined,
+        collections,
+        () => 0
+      ).text
     ).toBe("Aries loves another Aries")
   })
 
@@ -119,12 +125,43 @@ describe("expandHook", () => {
     })
   })
 
-  it("leaves unknown slots visible so bad automation config is obvious", () => {
-    expect(expandHook("hello [[missing]]", {}, [], () => 0)).toEqual({
-      text: "hello [[missing]]",
-      template: "hello [[missing]]",
-      substitutions: {},
+  it("fails when a hook slot is not backed by database words", () => {
+    expect(() => expandHook("hello [[missing]]", {}, [], () => 0)).toThrow(
+      "Hook slot missing has no words in database collection missing"
+    )
+  })
+
+  it("resolves runtime date variables without a random collection", () => {
+    const options = {
+      now: new Date("2026-12-31T16:30:00.000Z"),
+      timeZone: "Asia/Singapore",
+    }
+
+    expect(
+      expandHook(
+        "Today is [[current_month]] [[current_day]], [[current_year]]",
+        undefined,
+        [],
+        () => 0.99,
+        options
+      )
+    ).toEqual({
+      text: "Today is January 1, 2027",
+      template: "Today is [[current_month]] [[current_day]], [[current_year]]",
+      substitutions: {
+        current_month: "January",
+        current_day: "1",
+        current_year: "2027",
+      },
     })
+    expect(
+      expandAllHookCombinations(
+        "[[current_year]] plans for [[current_year]]",
+        undefined,
+        [],
+        { ...options, noDuplicates: true }
+      ).map((item) => item.text)
+    ).toEqual(["2027 plans for 2027"])
   })
 
   it("uses a same-name word collection when no explicit slot mapping is saved", () => {
@@ -174,8 +211,12 @@ describe("expandHook", () => {
     ]
 
     expect(
-      expandHook("[[zodiac]]s are loyal", { zodiac: "zodiac" }, collections, () => 0)
-        .text
+      expandHook(
+        "[[zodiac]]s are loyal",
+        { zodiac: "zodiac" },
+        collections,
+        () => 0
+      ).text
     ).toBe("Aries are loyal")
     expect(
       expandAllHookCombinations(

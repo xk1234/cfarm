@@ -9,8 +9,8 @@ import {
   mirrorAssetToAppwrite,
 } from "@/lib/asset-storage"
 
-// Appwrite-only: media is served from Storage (range-sliced in-memory), so the
-// fixture is seeded into Storage. Run against cfarm via vitest.setup.ts.
+// Appwrite-only: media ranges are streamed from Storage, so the fixture is
+// seeded into Storage. Run against cfarm via vitest.setup.ts.
 let tempRoot: string
 
 beforeEach(async () => {
@@ -35,10 +35,17 @@ describe("GET /api/local-assets/[...assetPath]", () => {
 
     const { GET } = await import("./route")
     const response = await GET(
-      new Request("http://localhost/api/local-assets/ugc_avatar_videos/avatar.mp4", {
-        headers: { Range: "bytes=2-5" },
-      }),
-      { params: Promise.resolve({ assetPath: ["ugc_avatar_videos", "avatar.mp4"] }) },
+      new Request(
+        "http://localhost/api/local-assets/ugc_avatar_videos/avatar.mp4",
+        {
+          headers: { Range: "bytes=2-5" },
+        }
+      ),
+      {
+        params: Promise.resolve({
+          assetPath: ["ugc_avatar_videos", "avatar.mp4"],
+        }),
+      }
     )
     const body = new Uint8Array(await response.arrayBuffer())
 
@@ -47,12 +54,16 @@ describe("GET /api/local-assets/[...assetPath]", () => {
     expect(response.headers.get("Content-Range")).toBe("bytes 2-5/8")
     expect(response.headers.get("Content-Length")).toBe("4")
     expect(response.headers.get("Content-Type")).toBe("video/mp4")
+    expect(response.headers.get("Cache-Control")).toBe("private, max-age=3600")
     expect([...body]).toEqual([2, 3, 4, 5])
   })
 })
 
 async function mkdtempRoot() {
-  const root = path.join(os.tmpdir(), `cfarm-local-assets-${Date.now()}-${Math.random().toString(16).slice(2)}`)
+  const root = path.join(
+    os.tmpdir(),
+    `cfarm-local-assets-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  )
   await mkdir(root, { recursive: true })
   return root
 }

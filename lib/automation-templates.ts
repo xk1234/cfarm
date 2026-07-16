@@ -1,5 +1,4 @@
 import { clean, isRecord } from "@/lib/guards"
-import { readFile } from "node:fs/promises"
 import path from "node:path"
 
 import {
@@ -56,6 +55,7 @@ export type AutomationTemplateTextItem = {
   static_text: string
   text_align: string
   text_anchor: string
+  text_vertical_anchor?: string
 }
 
 export type AutomationTemplateFormat = {
@@ -148,115 +148,24 @@ export async function listAutomationTemplateRecords(
   options: { rootDir?: string } = {}
 ) {
   const rootDir = options.rootDir ?? defaultRootDir
-  const records = await readJsonArrayStore({
+  return readJsonArrayStore({
     rootDir,
     fileName: dbFileName,
     key: "templates",
     normalize: normalizeAutomationTemplateRecord,
   })
-
-  if (path.resolve(rootDir) !== path.resolve(defaultRootDir)) {
-    return records
-  }
-
-  const seedRecords = await readAutomationTemplateSeedRecords(rootDir)
-  return appendMissingAutomationTemplateSeeds(records, seedRecords)
 }
 
 export async function listAutomationTemplateExampleRuns(
   options: { rootDir?: string } = {}
 ) {
   const rootDir = options.rootDir ?? defaultRootDir
-  const records = await readJsonArrayStore({
+  return readJsonArrayStore({
     rootDir,
     fileName: exampleRunsFileName,
     key: "runs",
     normalize: normalizeAutomationTemplateExampleRun,
   })
-
-  if (path.resolve(rootDir) !== path.resolve(defaultRootDir)) {
-    return records
-  }
-
-  const seedRecords = await readAutomationTemplateExampleRunSeeds(rootDir)
-  return appendMissingAutomationTemplateExampleRunSeeds(records, seedRecords)
-}
-
-async function readAutomationTemplateExampleRunSeeds(rootDir: string) {
-  try {
-    const contents = await readFile(
-      path.join(rootDir, exampleRunsFileName),
-      "utf8"
-    )
-    const parsed = JSON.parse(contents) as Record<string, unknown>
-    const runs = parsed.runs
-    if (!Array.isArray(runs)) return []
-    return runs.flatMap((run) => {
-      const normalized = normalizeAutomationTemplateExampleRun(
-        run as AutomationTemplateExampleRun
-      )
-      return normalized ? [normalized] : []
-    })
-  } catch {
-    return []
-  }
-}
-
-function appendMissingAutomationTemplateExampleRunSeeds(
-  records: AutomationTemplateExampleRun[],
-  seedRecords: AutomationTemplateExampleRun[]
-) {
-  const ids = new Set(records.map((record) => record.id))
-  return [
-    ...records,
-    ...seedRecords.filter((record) => {
-      if (ids.has(record.id)) return false
-      ids.add(record.id)
-      return true
-    }),
-  ]
-}
-
-async function readAutomationTemplateSeedRecords(rootDir: string) {
-  try {
-    const contents = await readFile(path.join(rootDir, dbFileName), "utf8")
-    const parsed = JSON.parse(contents) as Record<string, unknown>
-    const templates = parsed.templates
-    if (!Array.isArray(templates)) {
-      return []
-    }
-    return templates.flatMap((record) => {
-      const normalized = normalizeAutomationTemplateRecord(
-        record as AutomationTemplateRecord
-      )
-      return normalized ? [normalized] : []
-    })
-  } catch {
-    return []
-  }
-}
-
-function appendMissingAutomationTemplateSeeds(
-  records: AutomationTemplateRecord[],
-  seedRecords: AutomationTemplateRecord[]
-) {
-  const keys = new Set(records.map(automationTemplateIdentityKey))
-  const missingSeeds = seedRecords.filter((record) => {
-    const key = automationTemplateIdentityKey(record)
-    if (keys.has(key)) {
-      return false
-    }
-    keys.add(key)
-    return true
-  })
-
-  return [...records, ...missingSeeds]
-}
-
-function automationTemplateIdentityKey(record: AutomationTemplateRecord) {
-  return record.sourceAutomationId
-    ? `source:${record.sourceAutomationId}`
-    : `id:${record.id}`
 }
 
 export function groupAutomationTemplateExampleRunsByTemplateId(
@@ -602,6 +511,7 @@ function textItemToTemplate(
     static_text: item.staticText,
     text_align: item.textAlign,
     text_anchor: item.textAnchor,
+    text_vertical_anchor: item.textVerticalAnchor ?? "padded",
   }
 }
 
@@ -623,6 +533,8 @@ function templateTextItemToRuntime(
     staticText: item.static_text,
     textAlign: item.text_align as AutomationTextItem["textAlign"],
     textAnchor: item.text_anchor as AutomationTextItem["textAnchor"],
+    textVerticalAnchor:
+      item.text_vertical_anchor === "flush" ? "flush" : "padded",
   }
 }
 

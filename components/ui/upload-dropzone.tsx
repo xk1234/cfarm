@@ -61,7 +61,7 @@ export function UploadDropzone({
       {children ?? (
         <span>
           <Upload className="mx-auto mb-3 size-8 text-app-muted-text" />
-          <span className="block text-[15px] font-bold text-[#333]">
+          <span className="block text-[15px] font-bold text-app-text">
             Choose file
           </span>
         </span>

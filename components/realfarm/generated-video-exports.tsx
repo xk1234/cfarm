@@ -2,29 +2,19 @@
 
 import { useState } from "react"
 import {
-  IconBrandBluesky,
-  IconBrandFacebookFilled,
-  IconBrandInstagram,
-  IconBrandLinkedin,
-  IconBrandPinterest,
-  IconBrandTelegram,
-  IconBrandThreads,
-  IconBrandTiktok,
-  IconBrandX,
-  IconBrandYoutubeFilled,
   IconCalendar,
-  IconCheck,
   IconDownload,
-  IconPlus,
   IconPlayerPlay,
   IconTrash,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
-import useSWR from "swr"
 
 import { Button } from "@/components/ui/button"
+import {
+  AutomationGenerationEmptyState,
+  AutomationGenerationGrid,
+} from "@/components/realfarm/automation-settings/automation-generation-grid"
 import { GeneratedVideoExportViewer } from "@/components/realfarm/automation-settings/generated-video-export-viewer"
-import { AccountGridSkeleton } from "@/components/ui/loading-skeleton"
 import { SelectControl } from "@/components/ui/form-controls"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import {
@@ -34,32 +24,37 @@ import {
   MediaPendingState,
 } from "@/components/realfarm/shared-media"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
-import { clientSWRFetcher } from "@/lib/client-swr"
 import {
   generatedVideoTypeConfig,
   type GeneratedVideoExport,
 } from "@/lib/generated-video-types"
 import {
-  normalizePostFastIntegration,
   type PostFastCreatePostType,
   type PostFastMedia,
   type PostFastSocialIntegration,
-  type PostFastSocialProvider,
 } from "@/lib/postfast-client"
 import { cn } from "@/lib/utils"
 
 import { useVideoThumbnailFrame } from "./use-video-thumbnail-frame"
+import { PublicationStatusControl } from "./publication-status-control"
+import {
+  SocialAccountSelectionGrid,
+  usePostFastIntegrations,
+} from "./social-account-selection"
+import { socialIntegrationKey } from "./social-platform"
 
 export function GeneratedVideoExports({
   title,
   exports,
   emptyMessage,
   onDeleted,
+  variant = "gallery",
 }: {
   title: string
   exports: GeneratedVideoExport[]
   emptyMessage: string
   onDeleted?: (id: string) => void
+  variant?: "gallery" | "automation"
 }) {
   const [scheduleItem, setScheduleItem] = useState<GeneratedVideoExport | null>(
     null
@@ -68,23 +63,39 @@ export function GeneratedVideoExports({
     null
   )
 
+  const visibleExports =
+    variant === "automation" ? exports.slice(0, 3) : exports
+  const cards = visibleExports.map((item) => (
+    <GeneratedVideoCard
+      key={item.id}
+      item={item}
+      onOpen={() => setViewerItem(item)}
+      onSchedule={() => setScheduleItem(item)}
+      onDeleted={() => onDeleted?.(item.id)}
+    />
+  ))
+
   return (
-    <section className="mt-6">
-      <h2 className="mb-3 text-[22px] font-semibold">
+    <section className={cn(variant === "gallery" && "mt-6")}>
+      <h2
+        className={cn(
+          variant === "gallery" ? "mb-3 text-[22px] font-semibold" : "sr-only"
+        )}
+      >
         {title} <span className="text-app-text-faint">({exports.length})</span>
       </h2>
       {exports.length > 0 ? (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-          {exports.map((item) => (
-            <GeneratedVideoCard
-              key={item.id}
-              item={item}
-              onOpen={() => setViewerItem(item)}
-              onSchedule={() => setScheduleItem(item)}
-              onDeleted={() => onDeleted?.(item.id)}
-            />
-          ))}
-        </div>
+        variant === "automation" ? (
+          <AutomationGenerationGrid>{cards}</AutomationGenerationGrid>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+            {cards}
+          </div>
+        )
+      ) : variant === "automation" ? (
+        <AutomationGenerationEmptyState>
+          {emptyMessage}
+        </AutomationGenerationEmptyState>
       ) : (
         <div className="app-empty-state grid min-h-32 place-items-center px-6 text-center text-[14px] font-semibold">
           {emptyMessage}
@@ -117,7 +128,9 @@ function GeneratedVideoCard({
   onSchedule: () => void
   onDeleted: () => void
 }) {
-  const { videoRef, thumbnailReady } = useVideoThumbnailFrame(item.videoUrl)
+  const { videoRef, thumbnailReady } = useVideoThumbnailFrame(
+    item.previewUrl ? undefined : item.videoUrl
+  )
   const [deleting, setDeleting] = useState(false)
   const isPending =
     !item.videoUrl && (item.status === "queued" || item.status === "processing")
@@ -158,7 +171,7 @@ function GeneratedVideoCard({
               type="button"
               variant="iconControl"
               size="icon-control-sm"
-              className="absolute top-2 right-2 bg-white/90 text-app-danger-muted shadow-sm hover:bg-white"
+              className="absolute top-2 right-2 bg-white/90 text-app-danger-muted shadow-sm hover:bg-app-surface"
               onClick={deleteOutput}
               disabled={deleting}
               aria-label="Delete output"
@@ -210,11 +223,12 @@ function GeneratedVideoCard({
               ref={videoRef}
               className="absolute inset-0 h-full w-full object-cover"
               src={item.videoUrl}
+              poster={item.previewUrl}
               muted
               playsInline
-              preload="auto"
+              preload={item.previewUrl ? "none" : "metadata"}
             />
-            {!thumbnailReady ? (
+            {!item.previewUrl && !thumbnailReady ? (
               <div className="app-media-poster-fallback pointer-events-none absolute inset-0" />
             ) : null}
             <button
@@ -240,7 +254,7 @@ function GeneratedVideoCard({
             type="button"
             variant="iconControl"
             size="icon-control-sm"
-            className="bg-white/90 text-app-text shadow-sm hover:bg-white"
+            className="bg-white/90 text-app-text shadow-sm hover:bg-app-surface"
             onClick={saveVideo}
             disabled={!item.videoUrl}
             aria-label="Save video"
@@ -252,7 +266,7 @@ function GeneratedVideoCard({
             type="button"
             variant="iconControl"
             size="icon-control-sm"
-            className="bg-white/90 text-app-text shadow-sm hover:bg-white"
+            className="bg-white/90 text-app-text shadow-sm hover:bg-app-surface"
             onClick={onSchedule}
             disabled={!item.videoUrl}
             aria-label="Schedule post"
@@ -264,7 +278,7 @@ function GeneratedVideoCard({
             type="button"
             variant="iconControl"
             size="icon-control-sm"
-            className="bg-white/90 text-app-danger-muted shadow-sm hover:bg-white"
+            className="bg-white/90 text-app-danger-muted shadow-sm hover:bg-app-surface"
             onClick={deleteOutput}
             disabled={deleting}
             aria-label="Delete output"
@@ -273,8 +287,58 @@ function GeneratedVideoCard({
             <IconTrash className="size-4" />
           </Button>
         </div>
+        <GeneratedVideoPublicationStatusSelect item={item} />
       </MediaFrame>
     </MediaCardShell>
+  )
+}
+
+function GeneratedVideoPublicationStatusSelect({
+  item,
+}: {
+  item: GeneratedVideoExport
+}) {
+  const [publishedAt, setPublishedAt] = useState(item.manuallyPublishedAt)
+  const [marking, setMarking] = useState(false)
+  const published =
+    Boolean(publishedAt) || item.deletionBlockedBy === "published"
+  const scheduled = !published && item.deletionBlockedBy === "scheduled"
+
+  async function markPublished() {
+    if (marking) return
+    setMarking(true)
+    try {
+      const payload = await fetchJsonWithTimeout<{
+        export?: GeneratedVideoExport
+      }>(`/api/generated-videos/${encodeURIComponent(item.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "markPublished" }),
+        toastOnError: false,
+      })
+      if (!payload.export?.manuallyPublishedAt) {
+        throw new Error("The generated post was not updated.")
+      }
+      setPublishedAt(payload.export.manuallyPublishedAt)
+      toast.success("Marked as published")
+    } catch (error) {
+      toast.error(
+        getApiErrorMessage(error, "The post could not be marked as published.")
+      )
+    } finally {
+      setMarking(false)
+    }
+  }
+
+  return (
+    <PublicationStatusControl
+      status={
+        published ? "published" : scheduled ? "scheduled" : "not_published"
+      }
+      marking={marking}
+      className="absolute top-2 left-2 z-20"
+      onMarkPublished={markPublished}
+    />
   )
 }
 
@@ -286,30 +350,25 @@ function ScheduleGeneratedVideoModal({
   onClose: () => void
 }) {
   const {
-    data,
+    integrations,
     error: integrationsError,
-    isLoading: loadingIntegrations,
-  } = useSWR<{
-    integrations?: unknown[]
-  }>("/api/postfast/integrations", clientSWRFetcher)
-  const integrations = (data?.integrations ?? []).flatMap((integration) => {
-    const normalized = normalizePostFastIntegration(integration)
-    return normalized && !normalized.disabled ? [normalized] : []
-  })
+    loading: loadingIntegrations,
+  } = usePostFastIntegrations()
   const [selectedIntegrationIdsState, setSelectedIntegrationIds] = useState<
     string[] | null
   >(null)
   const selectedIntegrationIds =
-    selectedIntegrationIdsState ?? integrations.map(integrationKey)
+    selectedIntegrationIdsState ?? integrations.map(socialIntegrationKey)
+  const selectedIntegrationKeys = new Set(selectedIntegrationIds)
   const [postType, setPostType] = useState<PostFastCreatePostType>("draft")
   const [scheduledAt, setScheduledAt] = useState(defaultScheduleDateTime)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
 
   function toggleIntegration(integration: PostFastSocialIntegration) {
-    const key = integrationKey(integration)
+    const key = socialIntegrationKey(integration)
     setSelectedIntegrationIds((currentState) => {
-      const current = currentState ?? integrations.map(integrationKey)
+      const current = currentState ?? integrations.map(socialIntegrationKey)
       return current.includes(key)
         ? current.filter((id) => id !== key)
         : [...current, key]
@@ -318,7 +377,7 @@ function ScheduleGeneratedVideoModal({
 
   async function submitPost() {
     const selectedIntegrations = integrations.filter((integration) =>
-      selectedIntegrationIds.includes(integrationKey(integration))
+      selectedIntegrationIds.includes(socialIntegrationKey(integration))
     )
     if (!item.videoUrl) {
       setError("This output does not have a rendered video yet.")
@@ -384,17 +443,13 @@ function ScheduleGeneratedVideoModal({
         <div className="space-y-5 p-5">
           {(error || integrationsError) && (
             <div className="rounded-lg border border-[#f0d8d8] bg-[#fff8f8] px-3 py-2 text-sm font-semibold text-[#a8464f]">
-              {error ||
-                getApiErrorMessage(
-                  integrationsError,
-                  "Failed to load social accounts"
-                )}
+              {error || integrationsError}
             </div>
           )}
           <section>
             <div className="mb-2 flex items-end justify-between gap-3">
               <div>
-                <h3 className="text-[14px] font-semibold text-[#242421]">
+                <h3 className="text-[14px] font-semibold text-app-text">
                   Social accounts
                 </h3>
                 <p className="text-[12px] font-medium text-app-muted-text">
@@ -405,50 +460,36 @@ function ScheduleGeneratedVideoModal({
                 {selectedIntegrationIds.length} selected
               </span>
             </div>
-            {loadingIntegrations ? (
-              <AccountGridSkeleton />
-            ) : integrations.length > 0 ? (
-              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
-                {integrations.map((integration) => (
-                  <GeneratedVideoAccountTile
-                    key={integrationKey(integration)}
-                    integration={integration}
-                    selected={selectedIntegrationIds.includes(
-                      integrationKey(integration)
-                    )}
-                    onClick={() => toggleIntegration(integration)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="grid min-h-[172px] place-items-center rounded-[8px] border border-dashed border-app-panel-border bg-white px-6 text-center text-sm font-semibold text-app-muted-text">
-                No connected social accounts found.
-              </div>
-            )}
+            <SocialAccountSelectionGrid
+              integrations={integrations}
+              selectedKeys={selectedIntegrationKeys}
+              loading={loadingIntegrations}
+              onToggle={toggleIntegration}
+            />
           </section>
           <label className="block">
-            <span className="mb-1 block text-[12px] font-bold tracking-[0.08em] text-[#77766f] uppercase">
+            <span className="mb-1 block text-[12px] font-bold tracking-[0.08em] text-app-muted-text uppercase">
               Action
             </span>
             <SelectControl
-              className="h-10 w-full rounded-[7px] bg-white px-3 text-[14px] font-semibold text-[#333] focus:border-[#9f9e96]"
+              className="h-10 w-full rounded-[7px] bg-app-surface px-3 text-[14px] font-semibold text-app-text focus:border-[#9f9e96]"
               value={postType}
               onChange={(event) =>
                 setPostType(postTypeValue(event.target.value))
               }
             >
               <option value="draft">Draft</option>
-              <option value="now">Publish now</option>
+              <option value="now">Publish in ~1 min</option>
               <option value="schedule">Schedule</option>
             </SelectControl>
           </label>
           {postType === "schedule" && (
             <label className="block">
-              <span className="mb-1 block text-[12px] font-bold tracking-[0.08em] text-[#77766f] uppercase">
+              <span className="mb-1 block text-[12px] font-bold tracking-[0.08em] text-app-muted-text uppercase">
                 Date and time
               </span>
               <input
-                className="h-10 w-full rounded-[7px] border border-[#d6d5ce] bg-white px-3 text-[14px] font-semibold text-[#333] outline-none focus:border-[#9f9e96]"
+                className="h-10 w-full rounded-[7px] border border-[#d6d5ce] bg-app-surface px-3 text-[14px] font-semibold text-app-text outline-none focus:border-[#9f9e96]"
                 type="datetime-local"
                 value={scheduledAt}
                 onChange={(event) => setScheduledAt(event.target.value)}
@@ -530,7 +571,7 @@ async function createPostFastPost({
 }: {
   item: GeneratedVideoExport
   integration: PostFastSocialIntegration
-  media: PostFastMedia
+  media?: PostFastMedia
   type: PostFastCreatePostType
   scheduledAt?: string
 }) {
@@ -543,8 +584,9 @@ async function createPostFastPost({
       integrationId: integration.integration_id,
       provider: integration.provider,
       content: postContent(item),
-      media: [media],
-      sourceType: item.type,
+      media: media ? [media] : [],
+      sourceType:
+        item.type === "template_video" ? "generated_video" : item.type,
       sourceId: item.id,
     }),
     timeoutMs: 60_000,
@@ -587,137 +629,6 @@ function postfastMediaFromUpload(upload: unknown): PostFastMedia | null {
   return null
 }
 
-function GeneratedVideoAccountTile({
-  integration,
-  selected,
-  onClick,
-}: {
-  integration: PostFastSocialIntegration
-  selected: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        "group relative flex min-w-0 flex-col items-center rounded-[8px] border bg-white px-2 py-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-[#242421] hover:shadow-md",
-        selected
-          ? "border-[#242421] ring-2 ring-app-action/25"
-          : "border-app-panel-border"
-      )}
-      onClick={onClick}
-      aria-pressed={selected}
-    >
-      <span className="relative grid size-14 place-items-center rounded-full bg-[#111] text-white shadow-sm">
-        <PlatformIcon provider={integration.provider} className="size-8" />
-        <span
-          className={cn(
-            "absolute -top-1 -right-1 grid size-5 place-items-center rounded-full border border-white text-white shadow-sm",
-            selected ? "bg-app-action" : "bg-[#8d8c85]"
-          )}
-        >
-          {selected ? (
-            <IconCheck className="size-3.5" />
-          ) : (
-            <IconPlus className="size-3.5" />
-          )}
-        </span>
-      </span>
-      <span className="mt-2 w-full truncate text-[12px] leading-4 font-semibold text-[#242421]">
-        {accountShortName(integration)}
-      </span>
-      <span className="mt-0.5 w-full truncate text-[11px] leading-4 font-medium text-app-muted-text">
-        {providerLabel(integration.provider)}
-      </span>
-    </button>
-  )
-}
-
-function PlatformIcon({
-  provider,
-  className,
-}: {
-  provider: PostFastSocialProvider
-  className?: string
-}) {
-  switch (provider) {
-    case "instagram":
-      return <IconBrandInstagram className={className} stroke={2.4} />
-    case "youtube":
-      return <IconBrandYoutubeFilled className={className} stroke={2.4} />
-    case "tiktok":
-    case "tiktok-creative":
-    case "tiktok-seller":
-      return <IconBrandTiktok className={className} stroke={2.4} />
-    case "facebook":
-      return <IconBrandFacebookFilled className={className} stroke={2.4} />
-    case "x":
-    case "twitter":
-      return <IconBrandX className={className} stroke={2.4} />
-    case "linkedin":
-      return <IconBrandLinkedin className={className} stroke={2.4} />
-    case "threads":
-      return <IconBrandThreads className={className} stroke={2.4} />
-    case "pinterest":
-      return <IconBrandPinterest className={className} stroke={2.4} />
-    case "bluesky":
-      return <IconBrandBluesky className={className} stroke={2.4} />
-    case "telegram":
-      return <IconBrandTelegram className={className} stroke={2.4} />
-    default:
-      return <IconBrandTiktok className={className} stroke={2.4} />
-  }
-}
-
-function integrationKey(integration: PostFastSocialIntegration) {
-  return `${integration.provider}:${integration.integration_id}`
-}
-
-function accountShortName(integration: PostFastSocialIntegration) {
-  return (
-    integration.profile?.replace(/^@/, "") ||
-    integration.name ||
-    providerLabel(integration.provider)
-  )
-}
-
-function providerLabel(provider: PostFastSocialProvider) {
-  switch (provider) {
-    case "youtube":
-      return "YouTube"
-    case "instagram":
-      return "Instagram"
-    case "tiktok":
-      return "TikTok"
-    case "tiktok-creative":
-      return "TikTok Creative"
-    case "tiktok-seller":
-      return "TikTok Seller"
-    case "facebook":
-      return "Facebook"
-    case "x":
-      return "X"
-    case "twitter":
-      return "Twitter"
-    case "linkedin":
-      return "LinkedIn"
-    case "threads":
-      return "Threads"
-    case "pinterest":
-      return "Pinterest"
-    case "bluesky":
-      return "Bluesky"
-    case "telegram":
-      return "Telegram"
-    case "google":
-      return "Google"
-    case "google-business-profile":
-      return "Google Business Profile"
-    default:
-      return provider
-  }
-}
-
 function postTypeValue(value: string): PostFastCreatePostType {
   return value === "draft" || value === "now" || value === "schedule"
     ? value
@@ -737,7 +648,7 @@ function postCtaLabel(type: PostFastCreatePostType, count: number) {
   const suffix = count > 0 ? ` (${count})` : ""
   switch (type) {
     case "now":
-      return `Publish now${suffix}`
+      return `Publish in ~1 min${suffix}`
     case "schedule":
       return `Schedule${suffix}`
     case "draft":

@@ -81,8 +81,8 @@ export function AutomationContentFormatEditor({
       />
       {section.overlayImage?.enabled ? (
         <div className="flex items-center justify-between gap-3">
-          <label className="text-sm font-medium text-[#242421]">Padding</label>
-          <label className="flex h-8 w-[74px] items-center rounded-lg border border-[#E5E7EB] bg-white px-2 text-[12px] font-semibold text-[#242421] shadow-sm">
+          <label className="text-sm font-medium text-app-text">Padding</label>
+          <label className="flex h-8 w-[74px] items-center rounded-lg border border-app-panel-border bg-app-surface px-2 text-[12px] font-semibold text-app-text shadow-sm">
             <input
               className="min-w-0 flex-1 bg-transparent text-right outline-none"
               type="number"
@@ -94,13 +94,13 @@ export function AutomationContentFormatEditor({
               }
               aria-label="Overlay image padding"
             />
-            <span className="ml-1 text-[#77766f]">%</span>
+            <span className="ml-1 text-app-muted-text">%</span>
           </label>
         </div>
       ) : null}
       <CtaDivider />
       <CtaToggleRow
-        icon={<Type className="size-3.5 text-[#999]" />}
+        icon={<Type className="size-3.5 text-app-text-faint" />}
         label="Display text"
         enabled={!section.noText}
         onClick={() => onDisplayTextChange(section.noText)}
@@ -110,17 +110,17 @@ export function AutomationContentFormatEditor({
         title="Slide overrides"
         onAdd={onSlideOverrideAdd}
       />
-      <p className="text-[11px] leading-4 font-medium text-[#77766f]">
+      <p className="text-[11px] leading-4 font-medium text-app-muted-text">
         Override content direction for a specific slide (e.g. soft-sell a
         product on slide 3).
       </p>
       {slideOverrides.map((override, index) => (
         <div
           key={`slide-override-${index}`}
-          className="space-y-2 rounded-lg border border-[#ebeae3] bg-white p-2"
+          className="space-y-2 rounded-lg border border-[#ebeae3] bg-app-surface p-2"
         >
           <div className="flex items-center gap-2">
-            <label className="flex h-8 w-[76px] items-center gap-1 rounded-lg border border-[#E5E7EB] bg-[#FAFAFA] px-2 text-[12px] font-semibold text-[#242421]">
+            <label className="flex h-8 w-[76px] items-center gap-1 rounded-lg border border-app-panel-border bg-[#FAFAFA] px-2 text-[12px] font-semibold text-app-text">
               <span>#</span>
               <input
                 className="min-w-0 flex-1 bg-transparent outline-none"
@@ -144,7 +144,7 @@ export function AutomationContentFormatEditor({
             </button>
           </div>
           <textarea
-            className="h-16 w-full resize-none rounded-lg border border-[#E5E7EB] bg-[#FAFAFA] px-2.5 py-2 text-[12px] font-medium outline-none placeholder:text-[#AAA] focus:border-[#999]"
+            className="h-16 w-full resize-none rounded-lg border border-app-panel-border bg-[#FAFAFA] px-2.5 py-2 text-[12px] font-medium outline-none placeholder:text-[#AAA] focus:border-[#999]"
             value={override.contentDirection}
             onChange={(event) =>
               onSlideOverrideChange(index, {
@@ -160,17 +160,17 @@ export function AutomationContentFormatEditor({
         title="Image overrides"
         onAdd={onImageOverrideAdd}
       />
-      <p className="text-[11px] leading-4 font-medium text-[#77766f]">
+      <p className="text-[11px] leading-4 font-medium text-app-muted-text">
         Override the image collection for a specific slide (e.g. always use a
         specific image on slide 3).
       </p>
       {imageOverrides.map((override, index) => (
         <div
           key={`image-override-${index}`}
-          className="space-y-2 rounded-lg border border-[#ebeae3] bg-white p-2"
+          className="space-y-2 rounded-lg border border-[#ebeae3] bg-app-surface p-2"
         >
           <div className="flex items-center gap-2">
-            <label className="flex h-8 w-[76px] items-center gap-1 rounded-lg border border-[#E5E7EB] bg-[#FAFAFA] px-2 text-[12px] font-semibold text-[#242421]">
+            <label className="flex h-8 w-[76px] items-center gap-1 rounded-lg border border-app-panel-border bg-[#FAFAFA] px-2 text-[12px] font-semibold text-app-text">
               <span>#</span>
               <input
                 className="min-w-0 flex-1 bg-transparent outline-none"
@@ -230,7 +230,7 @@ function ContentOverlayImagePicker({
   return (
     <div className="space-y-2">
       <CtaToggleRow
-        icon={<ImageIcon className="size-3.5 text-[#999]" />}
+        icon={<ImageIcon className="size-3.5 text-app-text-faint" />}
         label="Overlay Image"
         enabled={Boolean(section.overlayImage?.enabled)}
         onClick={() => onOverlayImageChange(!section.overlayImage?.enabled)}
@@ -257,7 +257,7 @@ function ContentOverrideHeader({
 }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <div className="text-[13px] font-semibold text-[#242421]">{title}</div>
+      <div className="text-[13px] font-semibold text-app-text">{title}</div>
       <button
         type="button"
         className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-semibold text-blue-500 hover:bg-blue-50"
@@ -316,7 +316,7 @@ export function AutomationCtaFormatEditor({
       {enabled ? (
         <>
           <CtaSelectRow
-            icon={<ImageIcon className="size-3.5 text-[#999]" />}
+            icon={<ImageIcon className="size-3.5 text-app-text-faint" />}
             label="Collection or Image"
             value={imageMode === "single_image" ? "Single image" : "Collection"}
             options={["Collection", "Single image"]}
@@ -350,7 +350,7 @@ export function AutomationCtaFormatEditor({
 
           <div className="space-y-2">
             <CtaSelectRow
-              icon={<Expand className="size-3.5 text-[#999]" />}
+              icon={<Expand className="size-3.5 text-app-text-faint" />}
               label="Aspect Ratio"
               value={aspectRatioLabel(section.aspect_ratio)}
               options={automationAspectRatios.map(aspectRatioLabel)}
@@ -362,14 +362,14 @@ export function AutomationCtaFormatEditor({
 
           <CtaDivider />
           <CtaToggleRow
-            icon={<Blend className="size-3.5 text-[#999]" />}
+            icon={<Blend className="size-3.5 text-app-text-faint" />}
             label="Overlay"
             enabled={section.overlay}
             onClick={() => onSectionChange({ overlay: !section.overlay })}
           />
           <CtaDivider />
           <CtaToggleRow
-            icon={<ImageIcon className="size-3.5 text-[#999]" />}
+            icon={<ImageIcon className="size-3.5 text-app-text-faint" />}
             label="Overlay Image"
             enabled={Boolean(section.overlayImage?.enabled)}
             onClick={() => onOverlayImageChange(!section.overlayImage?.enabled)}
@@ -385,7 +385,7 @@ export function AutomationCtaFormatEditor({
           ) : null}
           <CtaDivider />
           <CtaToggleRow
-            icon={<Type className="size-3.5 text-[#999]" />}
+            icon={<Type className="size-3.5 text-app-text-faint" />}
             label="Display text"
             enabled={!section.noText}
             onClick={() => onSectionChange({ noText: !section.noText })}
@@ -410,17 +410,19 @@ function CtaSelectRow({
   onChange: (value: string) => void
 }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <label className="flex items-center gap-2 text-sm font-medium">
+    <div className="grid min-w-0 grid-cols-[minmax(0,88px)_minmax(0,1fr)] items-center gap-3">
+      <label className="flex min-w-0 items-center gap-2 text-sm leading-5 font-medium">
         {icon}
-        {label}
+        <span className="min-w-0">{label}</span>
       </label>
-      <SelectLike
-        value={value}
-        options={options}
-        placement="bottom"
-        onChange={onChange}
-      />
+      <div className="max-w-full min-w-0">
+        <SelectLike
+          value={value}
+          options={options}
+          placement="bottom"
+          onChange={onChange}
+        />
+      </div>
     </div>
   )
 }
@@ -501,7 +503,7 @@ function CtaSingleImagePicker({
           ))}
         </div>
       ) : (
-        <div className="w-full rounded-xl border border-dashed border-[#CCC] bg-[#FAFAFA] px-3 py-5 text-center text-[12px] font-medium text-[#999]">
+        <div className="w-full rounded-xl border border-dashed border-[#CCC] bg-[#FAFAFA] px-3 py-5 text-center text-[12px] font-medium text-app-text-faint">
           <div className="mx-auto mb-2 flex size-8 items-center justify-center rounded-lg bg-[#EEE]">
             <Layers className="size-4" />
           </div>
@@ -513,5 +515,5 @@ function CtaSingleImagePicker({
 }
 
 function CtaDivider() {
-  return <hr className="border-t border-[#E5E7EB]" />
+  return <hr className="border-t border-app-panel-border" />
 }

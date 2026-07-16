@@ -32,11 +32,12 @@ export function AutomationFormatTextToolbar({
     <div
       role={layout === "floating" ? "dialog" : undefined}
       aria-label={layout === "floating" ? "Text styling" : undefined}
+      data-slideshow-text-editor={layout === "floating" ? "toolbar" : undefined}
       className={cn(
-        "flex-shrink-0 space-y-2.5 rounded-xl border-t border-[#E5E7EB] bg-[#F5F5F5] px-4 py-3 shadow-lg",
+        "flex-shrink-0 space-y-2.5 rounded-xl bg-[#F5F5F5] px-4 py-3 shadow-lg",
         layout === "floating"
-          ? "absolute right-0 bottom-0 left-0 z-30 w-full rounded-b-none"
-          : "relative shadow-sm"
+          ? "absolute right-4 bottom-4 left-4 z-30 w-auto border border-app-panel-border"
+          : "relative border-t border-app-panel-border shadow-sm"
       )}
     >
       <div className="space-y-2.5">
@@ -115,12 +116,12 @@ export function AutomationFormatTextToolbar({
             />
           </div>
           <label className="block space-y-1">
-            <span className="text-xs font-medium text-[#242421]">
+            <span className="text-xs font-medium text-app-text">
               Content direction
             </span>
             <textarea
               rows={2}
-              className="w-full resize-none rounded-lg border border-[#E5E7EB] bg-white px-2.5 py-1.5 text-xs font-medium outline-none placeholder:text-[#CCC] focus:border-[#999]"
+              className="w-full resize-none rounded-lg border border-app-panel-border bg-app-surface px-2.5 py-1.5 text-xs font-medium outline-none placeholder:text-[#CCC] focus:border-[#999]"
               value={textItem.contentDirection ?? ""}
               onChange={(event) =>
                 updateTextItem({ contentDirection: event.target.value })
@@ -245,9 +246,9 @@ function CompactTextSelect({
 }) {
   return (
     <label className="flex-1 space-y-1">
-      <span className="block text-xs font-medium text-[#242421]">{label}</span>
+      <span className="block text-xs font-medium text-app-text">{label}</span>
       <span className="flex items-center gap-2">
-        {icon && <span className="shrink-0 text-[#242421]">{icon}</span>}
+        {icon && <span className="shrink-0 text-app-text">{icon}</span>}
         <span className="min-w-0 flex-1">
           <SelectLike
             value={value}

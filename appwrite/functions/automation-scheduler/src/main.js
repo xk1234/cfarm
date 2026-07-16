@@ -1,16 +1,22 @@
 // Appwrite Function: automation-scheduler (cron */5)
 // Runs IN Appwrite. Reads the `automations` table, computes which automations
-// are due (ported from lib/automation-runner.ts due-slot logic), and enqueues
-// `run-automation` jobs into the `jobs` queue table. Deduped per (automation, slot).
+// are due (from the generated canonical lib/automation-slots.ts runtime), and enqueues
+// `run-automation` jobs into the `jobs` queue table.
 //
 // Variables: APPWRITE_API_KEY (full-access key), APPWRITE_DATABASE_ID (default "cfarm"),
-//            LOOKBACK_MINUTES (default 10).
+//            LOOKBACK_MINUTES (default 10), LUMENCLIP_SYSTEM_OWNER_ID (optional).
 import crypto from "node:crypto"
 import { Client, TablesDB, Query } from "node-appwrite"
-import { DateTime } from "luxon"
+import { dueAutomationSlots } from "./automation-slots.js"
+
+export { dueAutomationSlots as dueSlots } from "./automation-slots.js"
 
 const DB = process.env.APPWRITE_DATABASE_ID || "cfarm"
 const LOOKBACK = Number(process.env.LOOKBACK_MINUTES || 10)
+// Slideshow rendering can take several minutes. Queue it ahead of the target
+// slot so PostFast can hold the finished post until the exact scheduled time.
+// This is product behavior, not deployment configuration.
+export const SLIDESHOW_GENERATION_LEAD_MINUTES = 30
 
 function client() {
   return new TablesDB(
@@ -27,79 +33,15 @@ function rowId(basis) {
   )
 }
 
-// ---- ported due-slot logic (luxon) ----
-function parseLocalSlot(nowLocal, time) {
-  const formats = ["h:mm a", "h a", "H:mm", "HH:mm"]
-  const zone = nowLocal.zoneName || "UTC"
-  for (const format of formats) {
-    const parsed = DateTime.fromFormat(
-      String(time).trim().toUpperCase(),
-      format,
-      { zone }
-    )
-    if (parsed.isValid) {
-      return nowLocal.set({
-        hour: parsed.hour,
-        minute: parsed.minute,
-        second: 0,
-        millisecond: 0,
-      })
-    }
-  }
-  return null
-}
-function slotForDays({ nowLocal, earliest, time, days }) {
-  const day = nowLocal.toFormat("ccc")
-  if (!Array.isArray(days) || !days.includes(day)) return []
-  const base = parseLocalSlot(nowLocal, time)
-  if (!base || base > nowLocal || base < earliest) return []
-  const iso =
-    base.toUTC().toISO({ suppressMilliseconds: false }) ?? base.toUTC().toISO()
-  return iso ? [iso] : []
-}
-function dueSlots(schema, now, lookbackMinutes) {
-  const sch = schema?.schedule
-  if (!sch || sch.paused) return []
-  const zone = sch.timezone || DateTime.local().zoneName
-  const nowLocal = DateTime.fromJSDate(now, { zone })
-  const earliest = nowLocal.minus({ minutes: lookbackMinutes })
-  const slots = []
-  for (const pt of sch.posting_times || []) {
-    if (pt.enabled === false) continue
-    slots.push(
-      ...slotForDays({ nowLocal, earliest, time: pt.time, days: pt.days })
-    )
-  }
-  const iv = sch.interval
-  if (
-    iv &&
-    iv.enabled !== false &&
-    Array.isArray(iv.days) &&
-    iv.days.includes(nowLocal.toFormat("ccc"))
-  ) {
-    const start = parseLocalSlot(nowLocal, iv.start_time)
-    const end = parseLocalSlot(nowLocal, iv.end_time)
-    if (start && end && end >= start) {
-      let slot = start
-      while (slot <= end) {
-        if (slot <= nowLocal && slot >= earliest) {
-          const iso =
-            slot.toUTC().toISO({ suppressMilliseconds: false }) ??
-            slot.toUTC().toISO()
-          if (iso) slots.push(iso)
-        }
-        slot = slot.plus({ hours: Number(iv.every_n_hours) || 24 })
-      }
-    }
-  }
-  return [...new Set(slots)]
-}
-
-async function listAutomations(db, table = "automations") {
+export async function listLiveAutomations(db, table = "automations") {
   const out = []
   let cursor = null
   for (;;) {
-    const q = [Query.limit(100), Query.orderAsc("ord")]
+    const q = [
+      Query.equal("status", ["live"]),
+      Query.limit(100),
+      Query.orderAsc("ord"),
+    ]
     if (cursor) q.push(Query.cursorAfter(cursor))
     const res = await db.listRows(DB, table, q)
     for (const row of res.rows) {
@@ -145,12 +87,12 @@ async function enqueue(
   }
 }
 
-export default async ({ log, error }) => {
+async function automationScheduler({ log, error }) {
   try {
     const db = client()
     const now = new Date()
-    const automations = await listAutomations(db)
-    const xAutomations = await listAutomations(db, "x_automations").catch(
+    const automations = await listLiveAutomations(db)
+    const xAutomations = await listLiveAutomations(db, "x_automations").catch(
       (cause) => {
         if (cause?.code === 404) return []
         throw cause
@@ -160,9 +102,16 @@ export default async ({ log, error }) => {
       dup = 0,
       considered = 0
     for (const a of automations) {
-      if (a?.schema?.status !== "live") continue
       considered++
-      for (const slot of dueSlots(a.schema, now, LOOKBACK)) {
+      for (const slot of dueAutomationSlots(
+        a.schema,
+        now,
+        LOOKBACK,
+        a.schema.posting_mode === "review"
+          ? Number(a.schema.generation_lead_minutes) ||
+              SLIDESHOW_GENERATION_LEAD_MINUTES
+          : SLIDESHOW_GENERATION_LEAD_MINUTES
+      )) {
         const res = await enqueue(db, {
           type: "run-automation",
           payload: { automationId: a.id, scheduledFor: slot },
@@ -174,9 +123,8 @@ export default async ({ log, error }) => {
       }
     }
     for (const a of xAutomations) {
-      if (a?.status !== "live") continue
       considered++
-      for (const slot of dueSlots(a, now, LOOKBACK)) {
+      for (const slot of dueAutomationSlots(a, now, LOOKBACK)) {
         const res = await enqueue(db, {
           type: "run-x-automation",
           payload: { automationId: a.id, scheduledFor: slot },
@@ -187,6 +135,7 @@ export default async ({ log, error }) => {
         else dup++
       }
     }
+
     log(
       `scheduler: ${automations.length} slideshow + ${xAutomations.length} X automations, ${considered} live, enqueued ${enqueued}, dedup ${dup}`
     )
@@ -203,3 +152,5 @@ export default async ({ log, error }) => {
     return { ok: false, error: String(e) }
   }
 }
+
+export default automationScheduler

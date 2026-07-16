@@ -13,7 +13,14 @@
       "enabled": true,
       "logging": true,
       "execute": [],
-      "scopes": ["databases.read", "databases.write", "tables.read", "tables.write", "documents.read", "documents.write"],
+      "scopes": [
+        "databases.read",
+        "databases.write",
+        "tables.read",
+        "tables.write",
+        "documents.read",
+        "documents.write"
+      ],
       "path": "appwrite/functions/automation-scheduler",
       "variables": {
         "APPWRITE_DATABASE_ID": "cfarm",
@@ -26,17 +33,26 @@
       "runtime": "node-22",
       "entrypoint": "src/main.js",
       "commands": "npm install",
-      "schedule": "* * * * *",
-      "timeout": 300,
+      "schedule": "*/2 * * * *",
+      "timeout": 900,
       "enabled": true,
       "logging": true,
       "execute": [],
-      "scopes": ["databases.read", "databases.write", "tables.read", "tables.write", "documents.read", "documents.write", "files.read"],
+      "scopes": [
+        "databases.read",
+        "databases.write",
+        "tables.read",
+        "tables.write",
+        "documents.read",
+        "documents.write",
+        "files.read",
+        "files.write"
+      ],
       "path": "appwrite/functions/job-worker",
       "variables": {
         "APPWRITE_DATABASE_ID": "cfarm",
-        "BATCH": "10",
-        "LEASE_MS": "360000"
+        "BATCH": "1",
+        "LEASE_MS": "960000"
       }
     }
   ]

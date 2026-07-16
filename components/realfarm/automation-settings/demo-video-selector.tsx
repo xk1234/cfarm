@@ -17,7 +17,7 @@ export function DemoVideoSelector({
 }) {
   return (
     <fieldset className="min-w-0">
-      <legend className="mb-2 text-[11px] font-bold text-[#77766f]">
+      <legend className="mb-2 text-[11px] font-bold text-app-muted-text">
         {label}
       </legend>
       {videos.length > 0 ? (
@@ -34,7 +34,7 @@ export function DemoVideoSelector({
                   "group min-w-0 overflow-hidden rounded-[8px] border bg-[#f5f4ef] text-left transition focus-visible:ring-2 focus-visible:ring-[#6d28d9] focus-visible:ring-offset-2 focus-visible:outline-none active:scale-[0.98]",
                   selected
                     ? "border-[#6d28d9] ring-1 ring-[#6d28d9]"
-                    : "border-[#deddd5] hover:border-[#aaa8a0]"
+                    : "border-app-panel-border hover:border-[#aaa8a0]"
                 )}
                 onClick={(event) => {
                   event.stopPropagation()
@@ -47,7 +47,7 @@ export function DemoVideoSelector({
                     preload="metadata"
                   />
                   {selected ? (
-                    <span className="absolute top-1.5 right-1.5 grid size-5 place-items-center rounded-full bg-[#6d28d9] text-white shadow-sm">
+                    <span className="absolute top-1.5 right-1.5 grid size-5 place-items-center rounded-full bg-app-action text-white shadow-sm">
                       <IconCheck className="size-3.5" stroke={2.5} />
                     </span>
                   ) : null}
@@ -66,9 +66,9 @@ export function DemoVideoSelector({
           })}
         </div>
       ) : (
-        <div className="grid min-h-24 place-items-center rounded-[8px] border border-dashed border-[#c9c8c0] bg-[#f7f7f3] px-4 text-center">
+        <div className="grid min-h-24 place-items-center rounded-[8px] border border-dashed border-[#c9c8c0] bg-app-surface-subtle px-4 text-center">
           <div>
-            <IconVideoOff className="mx-auto mb-1.5 size-5 text-[#8a8982]" />
+            <IconVideoOff className="mx-auto mb-1.5 size-5 text-app-text-faint" />
             <p className="text-[11px] font-semibold text-[#6a6963]">
               No demo videos uploaded
             </p>

@@ -21,7 +21,7 @@ export function AutomationSettingsNavButton({
       className={cn(
         "flex h-9 w-full items-center gap-3 rounded-[6px] border border-transparent px-3 text-left text-[14px] font-semibold",
         active
-          ? "border-[#92918a] bg-white text-[#242421]"
+          ? "border-[#92918a] bg-app-surface text-app-text"
           : "text-[#7b7a73] hover:bg-white/70",
         disabled && "cursor-not-allowed opacity-35 hover:bg-transparent"
       )}

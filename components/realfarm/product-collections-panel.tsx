@@ -40,9 +40,9 @@ export function ProductCollectionsPanel({
             key={collection.id}
             type="button"
             onClick={() => setSelected(collection)}
-            className="group overflow-hidden rounded-[10px] border border-app-panel-border bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            className="group overflow-hidden rounded-[10px] border border-app-panel-border bg-app-surface text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
           >
-            <div className="grid aspect-[16/9] grid-cols-3 gap-1 bg-[#efeee8] p-1">
+            <div className="grid aspect-[16/9] grid-cols-3 gap-1 bg-app-surface-subtle p-1">
               {collection.items.slice(0, 3).map((item) => (
                 // eslint-disable-next-line @next/next/no-img-element -- Product assets are dynamic Appwrite URLs.
                 <img
@@ -58,7 +58,7 @@ export function ProductCollectionsPanel({
                 <h2 className="text-[15px] font-bold text-app-text">
                   {collection.name}
                 </h2>
-                <span className="shrink-0 rounded-full bg-[#f1f0eb] px-2 py-1 text-[10px] font-bold text-app-muted-text">
+                <span className="shrink-0 rounded-full bg-app-surface-subtle px-2 py-1 text-[10px] font-bold text-app-muted-text">
                   {collection.items.length} items
                 </span>
               </div>
@@ -93,7 +93,7 @@ function ProductCollectionModal({
         accessibleTitle={collection.name}
         className="flex max-h-[92vh] max-w-[1240px] flex-col overflow-hidden rounded-[12px] bg-[#f6f5f0]"
       >
-        <header className="flex items-start justify-between gap-5 border-b border-app-panel-border bg-white px-6 py-5">
+        <header className="flex items-start justify-between gap-5 border-b border-app-panel-border bg-app-surface px-6 py-5">
           <div>
             <h2 className="text-[22px] font-bold text-app-text">
               {collection.name}
@@ -101,7 +101,7 @@ function ProductCollectionModal({
             <p className="mt-1 max-w-[760px] text-[13px] leading-5 font-medium text-app-muted-text">
               {collection.description}
             </p>
-            <p className="mt-2 text-[10px] font-medium text-[#9a9991]">
+            <p className="mt-2 text-[10px] font-medium text-app-text-faint">
               {collection.commissionDisclaimer}
               {collection.commissionSourceUrl ? (
                 <>
@@ -132,7 +132,7 @@ function ProductCollectionModal({
             {collection.items.map((item) => (
               <article
                 key={item.id}
-                className="overflow-hidden rounded-[10px] border border-app-panel-border bg-white shadow-sm"
+                className="overflow-hidden rounded-[10px] border border-app-panel-border bg-app-surface shadow-sm"
               >
                 <div className="aspect-[4/3] bg-app-panel-border">
                   <ProductImage
@@ -185,7 +185,7 @@ function ProductImage({
   alt: string
 }) {
   return (
-    <div className="relative overflow-hidden bg-white">
+    <div className="relative overflow-hidden bg-app-surface">
       {/* eslint-disable-next-line @next/next/no-img-element -- Product assets are dynamic Appwrite URLs. */}
       <img src={imageUrl} alt={alt} className="h-full w-full object-cover" />
       <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-1 text-[9px] font-bold text-white backdrop-blur-sm">

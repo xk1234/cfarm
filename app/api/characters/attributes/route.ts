@@ -4,6 +4,7 @@ import {
   normalizeCharacterAttributes,
   type Character,
 } from "@/lib/character-model"
+import { buildCharacterAttributesPrompt } from "@/lib/character-attributes-prompt"
 import { openRouterChatCompletion } from "@/lib/openrouter"
 import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-registry"
 
@@ -82,39 +83,11 @@ async function extractCharacterAttributes({
       "HTTP-Referer": "http://localhost:3000",
       "X-Title": "LumenClip Character Attribute Extractor",
     },
-    messages: [
-      {
-        role: "system",
-        content: [
-          "Extract a UGC character attribute JSON object from the uploaded image.",
-          "Return only valid JSON, with no markdown fences and no commentary.",
-          "Use visible evidence from the image as the source of truth. Do not invent brand names or identity claims.",
-        ].join(" "),
-      },
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: [
-              "Create a complete character JSON object with these keys:",
-              "name, age, ethnicity, gender, hair, eyes, facial_features, skin, build, clothing, posture_and_mannerisms, emotional_baseline, accessories, voice.",
-              "Nested values should be concise visual descriptors suitable for generating a consistent photorealistic headshot.",
-              `Preferred name: ${name?.trim() || "New character"}.`,
-              currentAttributes
-                ? `Existing attributes to preserve only when not contradicted by the image: ${JSON.stringify(currentAttributes)}`
-                : "",
-            ]
-              .filter(Boolean)
-              .join("\n"),
-          },
-          {
-            type: "image_url",
-            image_url: { url: sourceImageDataUrl },
-          },
-        ],
-      },
-    ],
+    messages: buildCharacterAttributesPrompt({
+      name,
+      sourceImageDataUrl,
+      currentAttributes,
+    }),
   })
 
   const body = payload as OpenRouterResponse

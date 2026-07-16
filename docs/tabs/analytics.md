@@ -2,35 +2,41 @@
 
 Route key: `analytics`
 
-Component: `AnalyticsView` in `components/realfarm-workspace.tsx`
+Component: `AnalyticsView` in `components/realfarm/analytics/analytics-view.tsx`
 
 ## Functionality
 
-Analytics renders a dashboard that can sync platform analytics from PostFast for a selected connected channel.
+A multi-platform analytics dashboard driven by a canonical metric registry and persisted metric snapshots. It reads a single report endpoint and can trigger a fresh sync.
+
+- `GET /api/analytics/report?days=` (via SWR) returns the report.
+- `POST /api/analytics/report` triggers a sync (`syncPostFastAnalytics`).
+- The metric set is driven by `lib/metric-registry.ts` (`canonicalMetricOrder`, `metricLabel`, `providerMetricCapabilities`, `providerSupportsPostAnalytics`).
+- History comes from snapshot tables, time-windowed by `since = now - days`.
+
+Three levels (`AnalyticsLevel = overview | account | posts`): overview, per-account, and a sortable per-post table (joined with slideshow benchmarks). Day ranges `[7, 30, 60, 90]`, default 30.
 
 Main actions:
 
-- Switch time range between 7, 30, 60, and 90 days.
-- Fetch connected PostFast integrations from `/api/postfast/integrations`.
-- Fetch platform analytics from `/api/postfast/analytics/platform`.
-- Render the first views/impressions-style metric in the area chart.
-- Show table/grid controls visually.
+- Switch level (overview / account / posts) and select an account.
+- Filter by source type; sort the per-post table.
+- Change the day range.
+- Refresh — `POST /api/analytics/report` runs a real sync (this is not a no-op button).
 
 ## Objects Used
 
 | Object | Source | Usage |
 | --- | --- | --- |
-| `PostFastIntegration[]` | `/api/postfast/integrations` | Channel selector. |
-| `PostFastMetric[]` | `/api/postfast/analytics/platform` | Chart and table metric rows. |
-| Recharts data object | Local `chartData` | Area chart input. |
+| Analytics report | `GET /api/analytics/report?days=` | All dashboard data. |
+| `PostFastMetricSnapshot[]` | `listMetricSnapshots` (`postfast_metric_snapshots` table) | Metric history. |
+| `AccountFollowerSnapshot[]` | `listFollowerSnapshots` (`account_follower_snapshots` table) | Follower history. |
+| Canonical metrics | `lib/metric-registry.ts` | Metric ordering/labels/capabilities per provider. |
+| Recharts `AreaChart` + `ScatterChart` | Local chart data | Trend and per-post scatter. |
 
 ## Persistence
 
-Platform analytics is fetched from PostFast. Local post mappings can be cached on `PostFastPostRecord`, persisted to the Appwrite `postfast_posts` table (via `lib/json-store.ts`); working file `data/postfast-posts.json` (filesystem fallback).
+Metric and follower history persist in the `postfast_metric_snapshots` and `account_follower_snapshots` tables; the report joins slideshow benchmarks. Snapshots are appended by the analytics sync (see the `sync-post-analytics` job, currently drained only by the local Next.js worker — see [../STATE.md](../STATE.md#5-known-gaps-stubs--half-built-features)). Appwrite is authoritative — no filesystem fallback.
 
 ## Hardcoded / Demo Behavior
 
-- Table/grid toggle is visual only.
-- Refresh button has no handler.
-- Table headers are hardcoded.
 - If PostFast is not configured or no channel is connected, the tab renders an actionable empty state.
+- Provider capability gaps (a metric a platform doesn't report) are driven by the metric registry, not hardcoded per view.

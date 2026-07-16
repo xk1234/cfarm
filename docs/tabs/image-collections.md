@@ -2,7 +2,7 @@
 
 Route key: `collections`
 
-Components:
+Components (in `components/realfarm/collections-view.tsx`):
 
 - `CollectionsView`
 - `CollectionDetailView`
@@ -38,13 +38,14 @@ Main actions:
 
 ## Persistence
 
-Persistence: Appwrite `image_collections` table (via `lib/json-store.ts`); working file `data/image-collections.json` (filesystem fallback)
+Persistence: Appwrite `image_collections` table (via `lib/json-store.ts`) — authoritative, no filesystem fallback. Collection images persist to the `image_collections` Storage bucket.
 
 API:
 
-- `GET /api/image-collections`
-- `POST /api/image-collections`
+- `GET / POST / DELETE /api/image-collections`
 - `POST /api/image-collections/captions`
+- `POST /api/image-collections/import` (add/import images)
+- `POST /api/image-collections/image-actions`
 - `POST /api/pinterest/search?limit=...`
 
 Important conversion helpers:
@@ -55,8 +56,8 @@ Important conversion helpers:
 ## Hardcoded / Demo Behavior
 
 - The "All Images" collection is virtual and read-only.
-- Deleting a collection currently removes it from React state but does not call a delete API.
-- Uploading images inside a collection uses browser object URLs and then persists those URLs if saved; there is no permanent upload pipeline for collection images.
+- Deleting a collection calls `DELETE /api/image-collections` and removes the persisted record.
+- Uploaded/imported images persist via `/api/image-collections/import` into the `image_collections` Storage bucket.
 - Default created collection title is `"Empty collection"`.
 - Default fallback source values include `fallback` and `empty` in the workspace-local type.
 - View options such as columns and images per page are local state only.

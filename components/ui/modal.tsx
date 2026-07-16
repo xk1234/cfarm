@@ -23,7 +23,7 @@ export function AppModal({
       <Dialog.Overlay className={cn("inset-0 z-50", layer)} />
       <div
         className={cn(
-          "inset-0 z-50 grid place-items-center bg-[#24251f]/45 p-4",
+          "inset-0 z-50 grid place-items-center bg-app-overlay p-4",
           layer,
           className
         )}
@@ -59,7 +59,7 @@ export function AppModalPanel({
     <Dialog.Content
       aria-describedby={undefined}
       className={cn(
-        "w-full overflow-hidden rounded-lg bg-white shadow-2xl outline-none",
+        "app-dialog-surface w-full",
         className
       )}
     >
@@ -87,7 +87,7 @@ export function AppModalHeader({
   return (
     <div className="flex items-center justify-between border-b border-app-panel-border px-5 py-4">
       <div>
-        <Dialog.Title className="text-[22px] font-bold text-[#333]">
+        <Dialog.Title className="text-[22px] font-bold text-app-text">
           {title}
         </Dialog.Title>
         {description && (

@@ -4,6 +4,7 @@ import { ApiError, withHandler } from "@/lib/api"
 import {
   benchmarkAndStoreGeneratedSlideshow,
   benchmarkComparisonForSlideshow,
+  benchmarkContextFromSlides,
   benchmarkSlidesFromSlideshow,
   listBenchmarkCorpus,
   listGeneratedSlideshowBenchmarks,
@@ -56,21 +57,17 @@ export const POST = withHandler(async (request: Request) => {
     )
   }
 
-  const existing = await benchmarkComparisonForSlideshow(slideshowId)
-  if (existing?.subject.slides.length === slideshow.output_images.length) {
-    return NextResponse.json({ comparison: existing, generated: false })
-  }
-
+  const slides = benchmarkSlidesFromSlideshow(slideshow)
+  let generated = true
   try {
-    await benchmarkAndStoreGeneratedSlideshow({
+    const benchmark = await benchmarkAndStoreGeneratedSlideshow({
       slideshowId,
       automationId: slideshow.automationId,
       title: slideshow.title,
-      icp:
-        [slideshow.title, slideshow.prompt].filter(Boolean).join(" · ") ||
-        "Infer the intended audience from the slideshow",
-      slides: benchmarkSlidesFromSlideshow(slideshow),
+      icp: benchmarkContextFromSlides({ title: slideshow.title, slides }),
+      slides,
     })
+    generated = !benchmark.cacheHit
   } catch (error) {
     console.error("[api/benchmarks] on-demand generation failed", {
       slideshowId,
@@ -92,5 +89,5 @@ export const POST = withHandler(async (request: Request) => {
     )
   }
 
-  return NextResponse.json({ comparison, generated: true })
+  return NextResponse.json({ comparison, generated })
 })

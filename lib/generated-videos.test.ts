@@ -9,6 +9,7 @@ import {
   createGeneratedVideoExport,
   deleteGeneratedVideoExport,
   listGeneratedVideoExports,
+  markGeneratedVideoExportPublished,
   updateGeneratedVideoExport,
 } from "@/lib/generated-videos"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
@@ -18,7 +19,6 @@ import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 //   data/assets/assets.json            -> assets
 const videoRoot = path.join(process.cwd(), "data", "generated-videos")
 const assetRoot = path.join(process.cwd(), "data", "assets")
-
 
 const clearAll = () => clearTestTables("generated_video_exports", "assets")
 
@@ -87,7 +87,10 @@ describe("generated video exports", () => {
     expect(exportRecord.status).toBe("processing")
     expect(exportRecord.queuePosition).toBe(1)
 
-    const listed = await listGeneratedVideoExports({ rootDir: videoRoot, type: "greenscreen" })
+    const listed = await listGeneratedVideoExports({
+      rootDir: videoRoot,
+      type: "greenscreen",
+    })
     expect(listed[0]).toMatchObject({
       id: exportRecord.id,
       status: "processing",
@@ -120,7 +123,10 @@ describe("generated video exports", () => {
 
     expect(updated?.status).toBe("ready")
 
-    const listed = await listGeneratedVideoExports({ rootDir: videoRoot, type: "ugc_ad" })
+    const listed = await listGeneratedVideoExports({
+      rootDir: videoRoot,
+      type: "ugc_ad",
+    })
     expect(listed).toHaveLength(1)
     expect(listed[0]).toMatchObject({
       id: exportRecord.id,
@@ -143,6 +149,27 @@ describe("generated video exports", () => {
       videoUrl: "/api/local-assets/assets/files/rendered-greenscreen.webm",
       queuePosition: undefined,
     })
+  })
+
+  it("persists a manual published status without scheduling the export", async () => {
+    const exportRecord = await createGeneratedVideoExport({
+      rootDir: videoRoot,
+      type: "template_video",
+      title: "Button-generated video",
+      status: "ready",
+      videoUrl: "/api/local-assets/generated-videos/files/manual.mp4",
+    })
+    const publishedAt = new Date("2026-07-15T12:00:00.000Z")
+
+    const updated = await markGeneratedVideoExportPublished({
+      rootDir: videoRoot,
+      id: exportRecord.id,
+      publishedAt,
+    })
+
+    expect(updated?.manuallyPublishedAt).toBe(publishedAt.toISOString())
+    expect(updated?.status).toBe("ready")
+    expect(updated).not.toHaveProperty("scheduledAt")
   })
 
   it("does not persist remote media URLs in preview or background image fields", async () => {
@@ -175,7 +202,9 @@ describe("generated video exports", () => {
       videoUrl: "https://cdn.pinterest.com/rendered.webm",
     })
 
-    expect(updated?.previewUrl).toBe("/api/local-assets/assets/files/rendered-thumbnail.jpg")
+    expect(updated?.previewUrl).toBe(
+      "/api/local-assets/assets/files/rendered-thumbnail.jpg"
+    )
     expect(updated?.videoUrl).toBeUndefined()
     expect(updated?.sourceConfig).toEqual({
       background: {

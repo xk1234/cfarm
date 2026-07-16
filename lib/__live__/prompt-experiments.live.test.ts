@@ -3,6 +3,7 @@ import { resolve } from "node:path"
 
 import { describe, it } from "vitest"
 
+import { listAutomationTemplateRecords } from "@/lib/automation-templates"
 import {
   automationTemplateToTempSlideTestingAutomation,
   getTempSlidePromptPlaceholders,
@@ -23,13 +24,9 @@ function loadEnvKey(name: string): string | undefined {
 }
 const apiKey = loadEnvKey("OPENROUTER_API_KEY")!
 
-function loadTemplate(nameRe: RegExp) {
-  const t = JSON.parse(
-    readFileSync("data/automation-templates/templates.json", "utf8")
-  )
-  const arr = Array.isArray(t) ? t : t.templates || Object.values(t)
-  return arr.find((x: any) => nameRe.test(x.name || ""))
-}
+const experimentTemplates = process.env.RUN_EXP
+  ? await listAutomationTemplateRecords()
+  : []
 
 const wc = (s: string) => s.trim().split(/\s+/).filter(Boolean).length
 const isLower = (s: string) => s === s.toLowerCase()
@@ -124,8 +121,12 @@ async function callOnce(payload: any) {
 }
 
 function score(out: any, placeholders: any[]) {
-  const titleKeys = placeholders.filter((p) => p.wordLengthMax <= 2).map((p) => p.id)
-  const bodyKeys = placeholders.filter((p) => p.wordLengthMin >= 6).map((p) => p.id)
+  const titleKeys = placeholders
+    .filter((p) => p.wordLengthMax <= 2)
+    .map((p) => p.id)
+  const bodyKeys = placeholders
+    .filter((p) => p.wordLengthMin >= 6)
+    .map((p) => p.id)
   const text = out.text ?? {}
   const titlesOk = titleKeys.every((k: string) => {
     const w = wc(text[k] ?? "")
@@ -135,7 +136,11 @@ function score(out: any, placeholders: any[]) {
     const w = wc(text[k] ?? "")
     return w >= 6 && w <= 10
   })
-  const all = [out.title ?? "", out.caption ?? "", ...Object.values(text)] as string[]
+  const all = [
+    out.title ?? "",
+    out.caption ?? "",
+    ...Object.values(text),
+  ] as string[]
   return {
     hashtags: (out.hashtags ?? "").trim().length > 0,
     titleLower: isLower(out.title ?? ""),
@@ -149,37 +154,48 @@ const MODELS = ["google/gemini-3.1-flash-lite", "google/gemini-2.5-flash"]
 const VARIANTS = ["base", "reorder", "prompt", "combo"] as const
 const TRIALS = 3
 
-describe.skipIf(!process.env.RUN_EXP)("EXPERIMENT: prompt/schema variants (Grid Girl)", () => {
-  const template = loadTemplate(/grid girl/i)
-  const automation = automationTemplateToTempSlideTestingAutomation(template)
-  const hook = automation.hooks[0]
+describe.skipIf(!process.env.RUN_EXP)(
+  "EXPERIMENT: prompt/schema variants (Grid Girl)",
+  () => {
+    const template = experimentTemplates.find((item) =>
+      /grid girl/i.test(item.name)
+    )!
+    const automation = automationTemplateToTempSlideTestingAutomation(template)
+    const hook = automation.hooks[0]
 
-  for (const model of MODELS) {
-    for (const variant of VARIANTS) {
-      it(`${model} | ${variant}`, async () => {
-        const agg = { hashtags: 0, titleLower: 0, allLower: 0, titlesOk: 0, bodiesOk: 0 }
-        for (let i = 0; i < TRIALS; i++) {
-          const { payload, placeholders } = buildPayload({
-            automation,
-            model,
-            selectedHook: hook,
-            variant,
-          })
-          try {
-            const out = await callOnce(payload)
-            const s = score(out, placeholders)
-            for (const k of Object.keys(agg) as (keyof typeof agg)[])
-              if (s[k]) agg[k]++
-          } catch (e) {
-            console.log(`  trial ${i} error: ${String(e).slice(0, 80)}`)
+    for (const model of MODELS) {
+      for (const variant of VARIANTS) {
+        it(`${model} | ${variant}`, async () => {
+          const agg = {
+            hashtags: 0,
+            titleLower: 0,
+            allLower: 0,
+            titlesOk: 0,
+            bodiesOk: 0,
           }
-        }
-        console.log(
-          `RESULT ${model.padEnd(30)} ${variant.padEnd(8)} ` +
-            `hashtags=${agg.hashtags}/${TRIALS} titleLower=${agg.titleLower}/${TRIALS} ` +
-            `allLower=${agg.allLower}/${TRIALS} titles1-2=${agg.titlesOk}/${TRIALS} bodies6-10=${agg.bodiesOk}/${TRIALS}`
-        )
-      }, 120_000)
+          for (let i = 0; i < TRIALS; i++) {
+            const { payload, placeholders } = buildPayload({
+              automation,
+              model,
+              selectedHook: hook,
+              variant,
+            })
+            try {
+              const out = await callOnce(payload)
+              const s = score(out, placeholders)
+              for (const k of Object.keys(agg) as (keyof typeof agg)[])
+                if (s[k]) agg[k]++
+            } catch (e) {
+              console.log(`  trial ${i} error: ${String(e).slice(0, 80)}`)
+            }
+          }
+          console.log(
+            `RESULT ${model.padEnd(30)} ${variant.padEnd(8)} ` +
+              `hashtags=${agg.hashtags}/${TRIALS} titleLower=${agg.titleLower}/${TRIALS} ` +
+              `allLower=${agg.allLower}/${TRIALS} titles1-2=${agg.titlesOk}/${TRIALS} bodies6-10=${agg.bodiesOk}/${TRIALS}`
+          )
+        }, 120_000)
+      }
     }
   }
-})
+)

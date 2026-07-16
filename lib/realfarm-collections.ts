@@ -49,33 +49,6 @@ export function defaultImageCollections(
   ]
 }
 
-export function allImagesCollectionFrom(
-  collections: CreatedImageCollection[]
-): CreatedImageCollection {
-  const seen = new Set<string>()
-  const images = collections
-    .filter((collection) => collection.mediaType !== "video")
-    .flatMap((collection) => collection.images)
-    .filter((image) => {
-      const key = image.id || image.imageUrl
-      if (seen.has(key)) {
-        return false
-      }
-      seen.add(key)
-      return true
-    })
-
-  return {
-    id: "collection-all-images",
-    title: "All Images",
-    mediaType: "image",
-    images,
-    createdAt: "virtual",
-    source: "virtual",
-    virtual: true,
-  }
-}
-
 export function ugcAvatarVideoCollectionFromAssets(
   videos: LocalAsset[],
   categorizedCollections: CreatedImageCollection[] = []

@@ -24,6 +24,7 @@ import {
   slideshowTextColorOptions,
   slideshowTextFontOptions,
   slideshowTextSizeOptions,
+  textStyleUsesStroke,
 } from "@/lib/realfarm-slideshow-text-style-config"
 import {
   characterAttributeOptions,
@@ -116,5 +117,12 @@ describe("RealFarm UI config", () => {
       textAlign: "left",
       fontFamily: "Inter, sans-serif",
     })
+  })
+
+  it("only applies an outline stroke to the Outline style", () => {
+    expect(textStyleUsesStroke("outline")).toBe(true)
+    expect(textStyleUsesStroke("whiteText")).toBe(false)
+    expect(textStyleUsesStroke("yellowText")).toBe(false)
+    expect(textStyleUsesStroke("black50Background")).toBe(false)
   })
 })

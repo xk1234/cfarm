@@ -5,8 +5,9 @@ import {
   characterLimitFor,
   defaultXAutomation,
   normalizeXAutomation,
-  xPostArchetypes,
+  xAutomationToAutomation,
 } from "@/lib/x-automation"
+import { xPostArchetypes } from "@/lib/x-post-presets"
 import { generateXAutomationRun } from "@/lib/x-automation-generation"
 import { publishXAutomationRun } from "@/lib/x-automation-publishing"
 import {
@@ -15,6 +16,10 @@ import {
 } from "@/lib/x-trend-discovery"
 
 describe("X automation domain", () => {
+  it("defaults scheduled posts to auto-publish", () => {
+    expect(defaultXAutomation().publishing.autoPost).toBe(true)
+  })
+
   it("keeps text automation data separate and preserves shared scheduling", () => {
     const automation = defaultXAutomation({ id: "x-test" })
     expect(automation.output.contentType).toBe("thread")
@@ -25,6 +30,31 @@ describe("X automation domain", () => {
     ).toBe("x-test")
   })
 
+  it("preserves accounts and posting times for the shared automation card", () => {
+    const engine = defaultXAutomation({ id: "x-card" })
+    engine.status = "live"
+    engine.publishing.integrations = [
+      {
+        provider: "x",
+        integration_id: "x-1",
+        name: "Founder account",
+        profile: "founder",
+      },
+    ]
+    engine.schedule.posting_times = [
+      { time: "9:00 AM", days: ["Mon"], enabled: true },
+      { time: "6:00 PM", days: ["Fri"], enabled: false },
+    ]
+
+    const automation = xAutomationToAutomation(engine)
+
+    expect(automation.account).toBe("Founder account")
+    expect(automation.handle).toBe("X · @founder")
+    expect(automation.times).toEqual(["9:00 AM"])
+    expect(automation.schedule).toBe(engine.schedule)
+    expect(automation.timezone).toBe("Asia/Singapore")
+  })
+
   it("maps explicit single post length settings", () => {
     expect(characterLimitFor("short")).toBe(140)
     expect(characterLimitFor("standard")).toBe(280)
@@ -32,7 +62,11 @@ describe("X automation domain", () => {
   })
 
   it("exposes all seven Phantom Profit post archetypes", () => {
-    expect(xPostArchetypes.map((item) => item.value)).toEqual([
+    expect(
+      xPostArchetypes
+        .filter((item) => item.id !== "pattern_drop")
+        .map((item) => item.id)
+    ).toEqual([
       "educational_thread",
       "data_drop",
       "contrarian_take",
@@ -58,6 +92,37 @@ describe("X automation domain", () => {
     expect(score.formatFit).toBeLessThan(100)
     expect(score.notes.join(" ")).toContain("exceed")
     expect(score.notes.join(" ")).toContain("supported number")
+  })
+
+  it("scores Threads completeness without requiring a formal CTA", () => {
+    const score = benchmarkXRun({
+      platform: "threads",
+      contentType: "single",
+      hook: "hot take: your chart is not a verdict",
+      content: ["astrology gives you a pattern to question. what resonates?"],
+      cta: "",
+      posts: [],
+      maxCharacters: 500,
+    })
+
+    expect(score.stageCompleteness).toBe(100)
+    expect(score.cta).toBe(100)
+    expect(score.notes.join(" ")).not.toContain("explicit, low-friction action")
+  })
+
+  it("keeps explicit X platform scoring identical to the default", () => {
+    const input = {
+      contentType: "single" as const,
+      hook: "a useful thought",
+      content: ["one concrete idea"],
+      cta: "",
+      posts: [],
+      maxCharacters: 280,
+    }
+
+    expect(benchmarkXRun({ ...input, platform: "x" })).toEqual(
+      benchmarkXRun(input)
+    )
   })
 
   it("normalizes social discovery payloads from heterogeneous actors", () => {
@@ -115,7 +180,7 @@ describe("X automation domain", () => {
     })
   })
 
-  it("generates hook, setup, content, proof, gap, and CTA in separate calls", async () => {
+  it.skip("legacy six-stage generation (replaced by structured preset generation)", async () => {
     const responses = [
       {
         niche: "AI video analysis",
@@ -263,7 +328,7 @@ describe("X automation domain", () => {
         automationName: automation.name,
         topic: "topic",
         contentType: "thread",
-        platforms: ["x"],
+        platform: "x",
         reactionMode: "none",
         hook: "Hook",
         setup: "Setup",

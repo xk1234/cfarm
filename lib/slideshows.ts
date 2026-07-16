@@ -2,17 +2,18 @@ import { clean } from "@/lib/guards"
 import { randomUUID } from "node:crypto"
 import {
   copyFile,
-  mkdir,
+  mkdtemp,
   readFile,
   rename,
   rm,
   writeFile,
 } from "node:fs/promises"
+import os from "node:os"
 import path from "node:path"
 
 import { toDataUrl } from "@/lib/data-url"
 import {
-  mirrorAssetToAppwrite,
+  deleteAssetFromAppwrite,
   mirrorDirToAppwrite,
   readAssetBytes,
 } from "@/lib/asset-storage"
@@ -239,6 +240,105 @@ export async function removeSlideshowSlide(input: {
       artifacts: {
         ...record.artifacts,
         outputImages: outputImages.filter((_, index) => index !== slideIndex),
+      },
+    }),
+  })
+  return updated ? resultRecordToSlideshowRecord(updated) : null
+}
+
+export async function replaceSlideshowSlideImage(input: {
+  rootDir?: string
+  resultRootDir?: string
+  id: string
+  slideIndex: number
+  imageUrl: string
+}) {
+  const slideIndex = Math.floor(input.slideIndex)
+  const resultRecords = await listResultRecords({
+    rootDir: resultRootDirFor(input),
+    limit: Number.MAX_SAFE_INTEGER,
+  })
+  const result = resultRecords.find(
+    (record) =>
+      record.artifacts.slideshowId === input.id || record.id === input.id
+  )
+  if (!result || result.payload?.type !== "slideshow") {
+    return null
+  }
+  const slideshow = resultRecordToSlideshowRecord(result)
+  if (!slideshow) return null
+  if (slideIndex < 0 || slideIndex >= slideshow.images.length) {
+    throw new Error("Slide index is out of range")
+  }
+
+  const now = new Date().toISOString()
+  const rerendered = await writeSlideshowOutputs(input.rootDir, {
+    ...slideshow,
+    updated_at: now,
+    video_url: undefined,
+    thumbnail_url: undefined,
+    images: slideshow.images.map((slide, index) =>
+      index === slideIndex
+        ? {
+            ...slide,
+            image_url: input.imageUrl,
+            source_image_url: input.imageUrl,
+          }
+        : slide
+    ),
+  })
+  const updated = await updateResultRecord({
+    rootDir: resultRootDirFor(input),
+    id: result.id,
+    update: (record) => ({
+      ...record,
+      payload: slideshowRecordToResultPayload(rerendered),
+      artifacts: {
+        ...record.artifacts,
+        outputImages: rerendered.output_images,
+        outputDir: rerendered.output_dir,
+        videoUrl: rerendered.video_url,
+        thumbnailUrl: rerendered.thumbnail_url,
+      },
+    }),
+  })
+  return updated ? resultRecordToSlideshowRecord(updated) : null
+}
+
+export async function updateSlideshowMetadata(input: {
+  rootDir?: string
+  resultRootDir?: string
+  id: string
+  title: string
+  caption: string
+  hashtags: string
+}) {
+  const resultRecords = await listResultRecords({
+    rootDir: resultRootDirFor(input),
+    limit: Number.MAX_SAFE_INTEGER,
+  })
+  const result = resultRecords.find(
+    (record) =>
+      record.artifacts.slideshowId === input.id || record.id === input.id
+  )
+  if (!result || result.payload?.type !== "slideshow") {
+    return null
+  }
+
+  const title = clean(input.title)
+  if (!title) {
+    throw new Error("A slideshow title is required")
+  }
+  const updated = await updateResultRecord({
+    rootDir: resultRootDirFor(input),
+    id: result.id,
+    update: (record) => ({
+      ...record,
+      title,
+      payload: {
+        ...(record.payload as ResultSlideshowPayload),
+        caption: clean(input.caption),
+        hashtags: clean(input.hashtags),
       },
     }),
   })
@@ -514,91 +614,103 @@ async function writeSlideshowOutputs(
   rootDir = defaultRootDir,
   record: SlideshowRecord
 ) {
-  const outputDir = path.join(rootDir, "outputs", record.id)
-  await rm(outputDir, { recursive: true, force: true })
-  await mkdir(outputDir, { recursive: true })
+  const logicalOutputDir = path.join(rootDir, "outputs", record.id)
+  const scratchDir = await mkdtemp(path.join(os.tmpdir(), "cfarm-slideshow-"))
+  await rm(logicalOutputDir, { recursive: true, force: true })
 
-  const outputImages: string[] = []
-  const outputs: Array<{
-    publicUrl: string
-    rasterPublicUrl?: string
-    sourcePublicUrl: string
-    overlayPublicUrl?: string
-  } | null> = []
-  for (const [index, slide] of record.images.entries()) {
-    const sourceUrl = slide.source_image_url || slide.image_url
-    const output = await materializeSlideImage({
-      outputDir,
-      slideshowId: record.id,
-      slideIndex: index,
-      slide,
-      sourceUrl,
-      aspectRatio: record.settings.aspect_ratio,
-      font: record.settings.font,
-    })
-    outputs.push(output)
-    if (output) {
+  try {
+    const outputImages: string[] = []
+    const outputs: Array<{
+      publicUrl: string
+      rasterPublicUrl: string
+      sourcePublicUrl: string
+      overlayPublicUrl?: string
+    }> = []
+    for (const [index, slide] of record.images.entries()) {
+      const sourceUrl = slide.source_image_url || slide.image_url
+      const output = await materializeSlideImage({
+        outputDir: scratchDir,
+        slideshowId: record.id,
+        slideIndex: index,
+        slide,
+        sourceUrl,
+        aspectRatio: record.settings.aspect_ratio,
+        font: record.settings.font,
+      })
+      outputs.push(output)
       outputImages.push(output.publicUrl)
     }
-  }
-  const videoOutput =
-    record.settings.export_as_video && outputImages.length > 0
+    const videoOutput = record.settings.export_as_video
       ? await materializeSlideshowVideo({
-          outputDir,
+          outputDir: scratchDir,
+          storageOutputDir: logicalOutputDir,
           slideshowId: record.id,
           durationSeconds: record.settings.duration,
-          slideImagePaths: outputs.flatMap((output) =>
-            output?.rasterPublicUrl
-              ? [
-                  path.join(
-                    outputDir,
-                    path.basename(
-                      new URL(output.rasterPublicUrl, "http://local").pathname
-                    )
-                  ),
-                ]
-              : []
+          slideImagePaths: outputs.map((output) =>
+            path.join(
+              scratchDir,
+              path.basename(
+                new URL(output.rasterPublicUrl, "http://local").pathname
+              )
+            )
           ),
         })
       : null
 
-  const outputRecord: SlideshowRecord = {
-    ...record,
-    output_dir: outputDirUrl(record.id),
-    output_images: outputImages,
-    video_url: record.video_url || videoOutput?.videoUrl,
-    thumbnail_url: record.thumbnail_url || videoOutput?.thumbnailUrl,
-    images: record.images.map((slide, index) => {
-      const sourceUrl = slide.source_image_url || slide.image_url
-      const output = outputs[index]
-      return {
-        ...slide,
-        source_image_url: output?.sourcePublicUrl || sourceUrl || undefined,
-        overlayImage: slide.overlayImage
-          ? {
-              ...slide.overlayImage,
-              source_image_url:
-                output?.overlayPublicUrl ||
-                slide.overlayImage.source_image_url ||
-                slide.overlayImage.image_url,
-            }
-          : undefined,
-        image_url: output?.publicUrl || slide.image_url,
-      }
-    }),
+    const outputRecord: SlideshowRecord = {
+      ...record,
+      output_dir: outputDirUrl(record.id),
+      output_images: outputImages,
+      video_url: record.video_url || videoOutput?.videoUrl,
+      thumbnail_url: record.thumbnail_url || videoOutput?.thumbnailUrl,
+      images: record.images.map((slide, index) => {
+        const output = outputs[index]
+        return {
+          ...slide,
+          source_image_url: output.sourcePublicUrl,
+          overlayImage: slide.overlayImage
+            ? {
+                ...slide.overlayImage,
+                source_image_url:
+                  output.overlayPublicUrl ||
+                  slide.overlayImage.source_image_url ||
+                  slide.overlayImage.image_url,
+              }
+            : undefined,
+          image_url: output.publicUrl,
+        }
+      }),
+    }
+
+    await mirrorDirToAppwrite(scratchDir, logicalOutputDir)
+    return outputRecord
+  } finally {
+    await rm(scratchDir, { recursive: true, force: true })
   }
-
-  // Upload every generated output to Storage, then discard the local scratch dir.
-  await mirrorDirToAppwrite(outputDir)
-  await rm(outputDir, { recursive: true, force: true })
-
-  return outputRecord
 }
 
 async function deleteSlideshowOutput(
   rootDir = defaultRootDir,
   record: SlideshowRecord
 ) {
+  const outputPrefix = `${outputDirUrl(record.id)}/`
+  const generatedUrls = new Set([
+    ...record.output_images,
+    record.video_url,
+    record.thumbnail_url,
+    ...record.images.flatMap((slide) => [
+      slide.image_url,
+      slide.source_image_url,
+      slide.overlayImage?.source_image_url,
+    ]),
+  ])
+  await Promise.all(
+    [...generatedUrls]
+      .filter((url): url is string => Boolean(url?.startsWith(outputPrefix)))
+      .map((url) => localAssetPathForUrl(url))
+      .filter((assetPath): assetPath is string => Boolean(assetPath))
+      .map((assetPath) => deleteAssetFromAppwrite(assetPath))
+  )
   await rm(path.join(rootDir, "outputs", record.id), {
     recursive: true,
     force: true,
@@ -615,9 +727,6 @@ async function materializeSlideImage(input: {
   font: string
 }) {
   const source = await materializeSlideSource(input)
-  if (!source) {
-    return null
-  }
   const overlaySourceUrl =
     input.slide.overlayImage?.source_image_url ||
     input.slide.overlayImage?.image_url ||
@@ -641,65 +750,51 @@ async function materializeSlideImage(input: {
   await writeFile(svgPath, svg)
   const rasterFileName = `slide-${String(input.slideIndex + 1).padStart(3, "0")}.png`
   const rasterPath = path.join(input.outputDir, rasterFileName)
-  const rasterized = await renderSvgToPng(svg, rasterPath)
+  await renderSvgToPng(svg, rasterPath)
 
   return {
     fileName,
-    publicUrl: outputFileUrl(
-      input.slideshowId,
-      rasterized ? rasterFileName : fileName
-    ),
-    rasterPublicUrl: rasterized
-      ? outputFileUrl(input.slideshowId, rasterFileName)
-      : undefined,
+    publicUrl: outputFileUrl(input.slideshowId, rasterFileName),
+    rasterPublicUrl: outputFileUrl(input.slideshowId, rasterFileName),
     sourcePublicUrl: source.publicUrl,
     overlayPublicUrl: overlaySource?.publicUrl,
   }
 }
 
 async function renderSvgToPng(svg: string, outputPath: string) {
-  try {
-    const sharp = (await import("sharp")).default
-    await sharp(Buffer.from(svg)).png().toFile(outputPath)
-    return true
-  } catch {
-    return false
-  }
+  const sharp = (await import("sharp")).default
+  await sharp(Buffer.from(svg)).png().toFile(outputPath)
 }
 
 async function materializeSlideshowVideo(input: {
   outputDir: string
+  storageOutputDir: string
   slideshowId: string
   durationSeconds: number
   slideImagePaths: string[]
 }) {
   if (input.slideImagePaths.length === 0) {
-    return null
+    throw new Error("Video export requires at least one rendered slide")
   }
   const apiKey = getRendiApiKey()
   if (!apiKey) {
-    return null
+    throw new Error("RENDI_API_KEY is not configured")
   }
 
-  const outputPath = path.join(input.outputDir, "slideshow-export.mp4")
+  const outputPath = path.join(input.storageOutputDir, "slideshow-export.mp4")
+  const localOutputPath = path.join(input.outputDir, "slideshow-export.mp4")
   const thumbnailPath = path.join(input.outputDir, "slideshow-thumbnail.png")
-  await copyFile(input.slideImagePaths[0], thumbnailPath).catch(() => undefined)
-
-  try {
-    await encodePngSequenceToMp4ViaRendi({
-      apiKey,
-      outputPath,
-      durationSeconds: input.durationSeconds,
-      slideImagePaths: input.slideImagePaths,
-    })
-    // runRendiFfmpegAndDownload persists the mp4 to Storage; mirror the thumbnail too.
-    await mirrorAssetToAppwrite(thumbnailPath).catch(() => undefined)
-    return {
-      videoUrl: outputFileUrl(input.slideshowId, "slideshow-export.mp4"),
-      thumbnailUrl: outputFileUrl(input.slideshowId, "slideshow-thumbnail.png"),
-    }
-  } catch {
-    return null
+  await copyFile(input.slideImagePaths[0], thumbnailPath)
+  await encodePngSequenceToMp4ViaRendi({
+    apiKey,
+    outputPath,
+    localOutputPath,
+    durationSeconds: input.durationSeconds,
+    slideImagePaths: input.slideImagePaths,
+  })
+  return {
+    videoUrl: outputFileUrl(input.slideshowId, "slideshow-export.mp4"),
+    thumbnailUrl: outputFileUrl(input.slideshowId, "slideshow-thumbnail.png"),
   }
 }
 
@@ -708,6 +803,7 @@ async function materializeSlideshowVideo(input: {
 async function encodePngSequenceToMp4ViaRendi(input: {
   apiKey: string
   outputPath: string
+  localOutputPath: string
   durationSeconds: number
   slideImagePaths: string[]
 }) {
@@ -751,6 +847,7 @@ async function encodePngSequenceToMp4ViaRendi(input: {
     outputFiles: { out_video: "slideshow-export.mp4" },
     outputAlias: "out_video",
     outputPath: input.outputPath,
+    localOutputPath: input.localOutputPath,
     maxCommandRunSeconds: 300,
     vcpuCount: 4,
     metadata: { workflow: "slideshow_export" },
@@ -812,7 +909,7 @@ async function materializeSlideAsset(input: {
     }
   }
 
-  return null
+  throw new Error(`Unsupported slideshow image URL: ${input.sourceUrl}`)
 }
 
 async function normalizeMaterializedImageSource(input: {
@@ -875,14 +972,10 @@ async function copyLocalAsset(sourceUrl: string, filePath: string) {
     return false
   }
 
-  try {
-    // Source assets live in Appwrite Storage; stage the bytes into the scratch dir.
-    const bytes = await readAssetBytes(sourcePath)
-    await writeFile(filePath, bytes)
-    return true
-  } catch {
-    return false
-  }
+  // Source assets live in Appwrite Storage; stage the bytes into the scratch dir.
+  const bytes = await readAssetBytes(sourcePath)
+  await writeFile(filePath, bytes)
+  return true
 }
 
 function localAssetPathForUrl(sourceUrl: string) {
@@ -922,22 +1015,20 @@ async function fetchRemoteAsset(sourceUrl: string) {
     return null
   }
 
-  try {
-    const response = await fetchWithTimeout(sourceUrl, undefined, {
-      timeoutMs: 120_000,
-    })
-    if (!response.ok) {
-      return null
-    }
-    const body = Buffer.from(await response.arrayBuffer())
-    return {
-      body,
-      extension:
-        imageExtensionFromContentType(response.headers.get("content-type")) ||
-        imageExtensionFromUrl(sourceUrl),
-    }
-  } catch {
-    return null
+  const response = await fetchWithTimeout(sourceUrl, undefined, {
+    timeoutMs: 120_000,
+  })
+  if (!response.ok) {
+    throw new Error(
+      `Could not load slideshow image ${sourceUrl} (${response.status})`
+    )
+  }
+  const body = Buffer.from(await response.arrayBuffer())
+  return {
+    body,
+    extension:
+      imageExtensionFromContentType(response.headers.get("content-type")) ||
+      imageExtensionFromUrl(sourceUrl),
   }
 }
 

@@ -19,15 +19,17 @@ export const GET = withHandler(async (request: Request) => {
   const automationId = searchParams.get("automationId")?.trim()
   const limitValue = Number(searchParams.get("limit"))
   const limit = Number.isFinite(limitValue) && limitValue > 0 ? limitValue : 20
+  const postRecordsPromise = listPostFastPostRecords().catch(() => [])
   const [automationRuns, videoExports, postRecords] = await Promise.all([
     listAutomationRuns({
       automationId: automationId || undefined,
       limit,
+      postRecords: postRecordsPromise,
     }),
     listGeneratedVideoExports({
       automationId: automationId || undefined,
     }),
-    listPostFastPostRecords().catch(() => []),
+    postRecordsPromise,
   ])
   const videoRuns = videoExports.flatMap((item) => {
     const run = generatedVideoRun(item)

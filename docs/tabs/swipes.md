@@ -30,14 +30,13 @@ Main actions:
 
 ## Persistence
 
-Appwrite `swipes` table (via `lib/json-store.ts`); working file `data/swipes/swipes.json` (filesystem fallback). Swipe media/screenshots mirror to the `misc` Storage bucket.
-
-Assets: `data/swipes/assets`
+Appwrite `swipes` table (via `lib/json-store.ts`) — authoritative, no filesystem fallback. Swipe media/screenshots mirror to the `misc` Storage bucket.
 
 API:
 
 - `GET /api/swipes`
 - `POST /api/swipes`
+- `GET / PATCH / DELETE /api/swipes/[id]` (per-swipe)
 - `GET /api/swipes/assets/[file]`
 
 `listSwipes()` filters out records without captured media, so a JSON record may not appear if it has no `screenshotPath` or usable `mediaUrl`.

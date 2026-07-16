@@ -8,6 +8,8 @@ import {
   updateGeneratedVideoExport,
   type GeneratedVideoStatus,
 } from "@/lib/generated-videos"
+import { generatedVideoDeletionBlockReason } from "@/lib/generated-video-deletion"
+import { listPostFastPostRecords } from "@/lib/postfast-posts"
 
 export const dynamic = "force-dynamic"
 
@@ -15,12 +17,26 @@ export const GET = withHandler(async (request: Request) => {
   const { searchParams } = new URL(request.url)
   const rawType = searchParams.get("type")
   const automationId = searchParams.get("automationId")?.trim() || undefined
-  const exports = await listGeneratedVideoExports({
-    type: isGeneratedVideoType(rawType) ? rawType : undefined,
-    automationId,
-  })
+  const rawLimit = Number(searchParams.get("limit"))
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : undefined
+  const [exports, posts] = await Promise.all([
+    listGeneratedVideoExports({
+      type: isGeneratedVideoType(rawType) ? rawType : undefined,
+      automationId,
+      limit,
+    }),
+    listPostFastPostRecords(),
+  ])
 
-  return NextResponse.json({ exports })
+  return NextResponse.json({
+    exports: exports.map((item) => ({
+      ...item,
+      deletionBlockedBy:
+        (item.manuallyPublishedAt
+          ? "published"
+          : generatedVideoDeletionBlockReason(item.id, posts)) ?? undefined,
+    })),
+  })
 })
 
 export const POST = withHandler(async (request: Request) => {

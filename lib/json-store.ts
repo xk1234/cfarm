@@ -2,24 +2,33 @@ import { Query } from "node-appwrite"
 
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import {
-  CREATED_KEYS,
   ID_KEYS,
-  NAME_KEYS,
   ownedRowIdFor,
-  PUBLIC_STORE_TABLES,
-  STATUS_KEYS,
   pickField,
   rowIdFor,
-  tableForStore,
+  routeForStore,
+  type StoreRoute,
 } from "@/lib/appwrite-stores"
+import {
+  canonicalRowFields,
+  extractOutputMedia,
+  hydrateOutputMedia,
+  outputMediaRowFields,
+  outputMediaRowId,
+  type OutputMediaDraft,
+} from "@/lib/consolidated-records"
 import { getCurrentUser } from "@/lib/auth"
 import { sharedOwnerIdsFor } from "@/lib/workspace-members"
+import { systemOwnerId } from "@/lib/system-owner-context"
 
 type JsonArrayStoreInput<T> = {
   rootDir: string
   fileName: string
   key: string
   normalize?: (record: T) => T | null
+  queries?: string[]
+  limit?: number
+  order?: "asc" | "desc" | "none"
 }
 
 type JsonRecordStoreInput<T> = JsonArrayStoreInput<T> & {
@@ -43,8 +52,43 @@ const storeLocks = new Map<string, Promise<void>>()
 export async function readJsonArrayStore<T>(
   input: JsonArrayStoreInput<T>
 ): Promise<T[]> {
-  const table = requireTableFor(input)
-  return awReadTable<T>(table, input.normalize, await ownersForRead(table))
+  const route = requireRouteFor(input)
+  return awReadTable<T>(route, input.normalize, await ownersForRead(route), {
+    queries: input.queries,
+    limit: input.limit,
+    order: input.order,
+  })
+}
+
+/** Read one deterministic domain record without scanning its table. */
+export async function readJsonArrayRecord<T>(
+  input: JsonArrayStoreInput<T> & { id: string }
+): Promise<T | null> {
+  const route = requireRouteFor(input)
+  const ownerIds = await ownersForRead(route)
+  const rowIds = ownerIds?.length
+    ? ownerIds.map((ownerId) => storeOwnedRowId(route, ownerId, input.id, 0))
+    : [storeRowId(route, input.id, 0)]
+  const aw = getAppwrite()
+  if (!aw) throw new Error("Appwrite is not configured.")
+
+  for (const rowId of rowIds) {
+    try {
+      const row = (await aw.tables.getRow(
+        APPWRITE_DATABASE_ID,
+        route.table,
+        rowId
+      )) as Record<string, unknown>
+      const media =
+        route.table === "outputs"
+          ? await listOutputMedia(aw, [String(row.$id)])
+          : []
+      return parseStoredRow(row, route, input.normalize, media)
+    } catch (error) {
+      if (appwriteStatus(error) !== 404) throw error
+    }
+  }
+  return null
 }
 
 export async function writeJsonArrayStore<T>(input: {
@@ -53,11 +97,14 @@ export async function writeJsonArrayStore<T>(input: {
   key: string
   records: T[]
 }) {
-  const table = requireTableFor(input)
-  const ownerId = await ownerForTable(table)
-  await withStoreLock(`aw:${table}:${ownerId ?? "public"}`, async () => {
-    await awWriteTable(table, input.records, ownerId)
-  })
+  const route = requireRouteFor(input)
+  const ownerId = await ownerForRoute(route)
+  await withStoreLock(
+    `aw:${route.table}:${route.sourceKey}:${ownerId ?? "public"}`,
+    async () => {
+      await awWriteTable(route, input.records, ownerId)
+    }
+  )
 }
 
 /**
@@ -67,18 +114,45 @@ export async function writeJsonArrayStore<T>(input: {
 export async function upsertJsonArrayRecord<T>(
   input: JsonRecordStoreInput<T>
 ): Promise<void> {
-  const table = requireTableFor(input)
-  const ownerId = await ownerForTable(table)
+  const route = requireRouteFor(input)
+  const ownerId = await ownerForRoute(route)
   const rid = pickField(input.record, ID_KEYS)
   if (!rid) {
-    throw new Error(`A record id is required to upsert into ${table}.`)
+    throw new Error(`A record id is required to upsert into ${route.table}.`)
   }
   await awUpsertRecord(
-    table,
+    route,
     input.record,
     rid,
     ownerId,
     input.position ?? "first"
+  )
+}
+
+/**
+ * Append domain records without reading or rewriting the rest of the table.
+ * Existing ids are left untouched, which makes deterministic event ids an
+ * idempotent append boundary for snapshot and ledger-style stores.
+ */
+export async function appendJsonArrayRecords<T>(
+  input: JsonArrayStoreInput<T> & { records: T[] }
+): Promise<void> {
+  if (input.records.length === 0) return
+  const route = requireRouteFor(input)
+  const ownerId = await ownerForRoute(route)
+  await withStoreLock(
+    `aw:${route.table}:${route.sourceKey}:${ownerId ?? "public"}`,
+    async () => {
+      await runPool(input.records, 3, async (record) => {
+        const rid = pickField(record, ID_KEYS)
+        if (!rid) {
+          throw new Error(
+            `A record id is required to append into ${route.table}.`
+          )
+        }
+        await awAppendRecord(route, record, rid, ownerId)
+      })
+    }
   )
 }
 
@@ -89,17 +163,18 @@ export async function deleteJsonArrayRecord(input: {
   key: string
   id: string
 }): Promise<boolean> {
-  const table = requireTableFor(input)
-  const ownerId = await ownerForTable(table)
+  const route = requireRouteFor(input)
+  const ownerId = await ownerForRoute(route)
   const rowId = ownerId
-    ? ownedRowIdFor(table, ownerId, input.id, 0)
-    : rowIdFor(table, input.id, 0)
+    ? storeOwnedRowId(route, ownerId, input.id, 0)
+    : storeRowId(route, input.id, 0)
   const aw = getAppwrite()
   if (!aw) throw new Error("Appwrite is not configured.")
   try {
     await retryTransient(() =>
-      aw.tables.deleteRow(APPWRITE_DATABASE_ID, table, rowId)
+      aw.tables.deleteRow(APPWRITE_DATABASE_ID, route.table, rowId)
     )
+    if (route.table === "outputs") await deleteOutputMedia(aw, [rowId])
     return true
   } catch (error) {
     if (appwriteStatus(error) === 404) return false
@@ -114,37 +189,43 @@ export async function withJsonArrayStore<T, R = void>(
     ) => JsonArrayStoreUpdate<T, R> | Promise<JsonArrayStoreUpdate<T, R>>
   }
 ): Promise<R> {
-  const table = requireTableFor(input)
-  const ownerId = await ownerForTable(table)
-  return withStoreLock(`aw:${table}:${ownerId ?? "public"}`, async () => {
-    const records = await awReadTable<T>(
-      table,
-      input.normalize,
-      ownerId ? [ownerId] : null
-    )
-    const next = await input.update(records)
-    await awWriteTable(table, next.records, ownerId)
-    return next.result as R
-  })
+  const route = requireRouteFor(input)
+  const ownerId = await ownerForRoute(route)
+  return withStoreLock(
+    `aw:${route.table}:${route.sourceKey}:${ownerId ?? "public"}`,
+    async () => {
+      const records = await awReadTable<T>(
+        route,
+        input.normalize,
+        ownerId ? [ownerId] : null
+      )
+      const next = await input.update(records)
+      await awWriteTable(route, next.records, ownerId)
+      return next.result as R
+    }
+  )
 }
 
 // ---------------------------------------------------------------------------
 // Routing (Appwrite required)
 // ---------------------------------------------------------------------------
 
-function requireTableFor(input: { rootDir: string; fileName: string }): string {
+function requireRouteFor(input: {
+  rootDir: string
+  fileName: string
+}): StoreRoute {
   if (!getAppwrite()) {
     throw new Error(
       "Appwrite is not configured. Set APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, and APPWRITE_API_KEY — this app is Appwrite-only and has no filesystem fallback."
     )
   }
-  const table = tableForStore(input.rootDir, input.fileName)
-  if (!table) {
+  const route = routeForStore(input.rootDir, input.fileName)
+  if (!route) {
     throw new Error(
       `No Appwrite table is mapped for store "${input.fileName}". Add it to STORE_TABLES in lib/appwrite-stores.ts.`
     )
   }
-  return table
+  return route
 }
 
 // ---------------------------------------------------------------------------
@@ -154,64 +235,106 @@ function requireTableFor(input: { rootDir: string; fileName: string }): string {
 const PAGE = 100
 
 async function awReadTable<T>(
-  table: string,
+  route: StoreRoute,
   normalize: ((record: T) => T | null) | undefined,
-  ownerIds: string[] | null
+  ownerIds: string[] | null,
+  options: {
+    queries?: string[]
+    limit?: number
+    order?: "asc" | "desc" | "none"
+  } = {}
 ): Promise<T[]> {
   const aw = getAppwrite()
   if (!aw) {
     throw new Error("Appwrite is not configured.")
   }
   const out: T[] = []
+  const requestedLimit = Number.isFinite(options.limit)
+    ? Math.max(1, Math.floor(options.limit as number))
+    : Number.POSITIVE_INFINITY
   let cursor: string | null = null
   for (;;) {
-    const queries = [Query.limit(PAGE), Query.orderAsc("ord")]
+    const remaining = requestedLimit - out.length
+    if (remaining <= 0) break
+    const queries = [
+      ...(options.queries ?? []),
+      Query.limit(Math.min(PAGE, remaining)),
+    ]
+    if (isConsolidated(route)) {
+      queries.unshift(Query.equal("source_key", [route.sourceKey]))
+    }
+    if (options.order !== "none") {
+      queries.push(
+        options.order === "desc"
+          ? Query.orderDesc("ord")
+          : Query.orderAsc("ord")
+      )
+    }
     if (ownerIds?.length) queries.unshift(Query.equal("owner_id", ownerIds))
     if (cursor) queries.push(Query.cursorAfter(cursor))
-    const res = await aw.tables.listRows(APPWRITE_DATABASE_ID, table, queries)
+    const res = await aw.tables.listRows(
+      APPWRITE_DATABASE_ID,
+      route.table,
+      queries
+    )
     const rows = res.rows as Array<Record<string, unknown>>
+    const media =
+      route.table === "outputs"
+        ? await listOutputMedia(
+            aw,
+            rows.map((row) => String(row.$id))
+          )
+        : []
     for (const row of rows) {
-      const raw = typeof row.data === "string" ? row.data : "null"
-      let parsed: T
-      try {
-        parsed = JSON.parse(raw) as T
-      } catch {
-        continue
-      }
-      if (parsed == null) continue
-      if (normalize) {
-        const normalized = normalize(parsed)
-        if (normalized) out.push(normalized)
-      } else {
-        out.push(parsed)
-      }
+      const parsed = parseStoredRow(row, route, normalize, media)
+      if (parsed) out.push(parsed)
+      if (out.length >= requestedLimit) break
     }
-    if (rows.length < PAGE) break
+    if (rows.length < Math.min(PAGE, remaining)) break
     cursor = String(rows[rows.length - 1].$id)
   }
   return out
 }
 
-const SHAREABLE_TABLES = new Set([
-  "swipes",
-  "character_generations",
-  "character_video_generations",
-  "results",
-  "slideshows",
-  "generated_video_exports",
-  "slideshow_benchmarks",
-])
+function parseStoredRow<T>(
+  row: Record<string, unknown>,
+  route: StoreRoute,
+  normalize: ((record: T) => T | null) | undefined,
+  media: HydratedOutputMedia[]
+): T | null {
+  const raw = typeof row.data === "string" ? row.data : "null"
+  let parsed: T
+  try {
+    const decoded = JSON.parse(raw) as T
+    parsed = (
+      route.table === "outputs"
+        ? hydrateOutputMedia(
+            route.sourceKey,
+            decoded,
+            media.filter((item) => item.outputId === String(row.$id))
+          )
+        : decoded
+    ) as T
+  } catch {
+    return null
+  }
+  if (parsed == null) return null
+  return normalize ? normalize(parsed) : parsed
+}
 
-async function ownersForRead(table: string): Promise<string[] | null> {
-  if (PUBLIC_STORE_TABLES.has(table)) return null
+async function ownersForRead(route: StoreRoute): Promise<string[] | null> {
+  if (route.public) return null
+  const workerOwner = systemOwnerId()
+  if (workerOwner) return [workerOwner]
   const user = await getCurrentUser()
-  if (!user) throw new Error(`Authentication is required to access ${table}.`)
-  if (!SHAREABLE_TABLES.has(table)) return [user.$id]
+  if (!user)
+    throw new Error(`Authentication is required to access ${route.table}.`)
+  if (!route.shareable) return [user.$id]
   return [user.$id, ...(await sharedOwnerIdsFor(user))]
 }
 
 async function awWriteTable<T>(
-  table: string,
+  route: StoreRoute,
   records: T[],
   ownerId: string | null
 ): Promise<void> {
@@ -223,18 +346,20 @@ async function awWriteTable<T>(
   const desired = records.map((rec, index) => {
     const rid = pickField(rec, ID_KEYS)
     const ownedRecord = ownerId ? attachOwner(rec, ownerId) : rec
+    const extracted =
+      route.table === "outputs"
+        ? extractOutputMedia(route.sourceKey, ownedRecord)
+        : { storedData: ownedRecord, media: [] }
     return {
       id: ownerId
-        ? ownedRowIdFor(table, ownerId, rid, index)
-        : rowIdFor(table, rid, index),
+        ? storeOwnedRowId(route, ownerId, rid, index)
+        : storeRowId(route, rid, index),
+      media: extracted.media,
       payload: {
         rid: (rid ?? `idx-${index}`).slice(0, 1024),
-        name: pickField(rec, NAME_KEYS)?.slice(0, 2048) ?? null,
-        status: pickField(rec, STATUS_KEYS)?.slice(0, 255) ?? null,
-        created_raw: pickField(rec, CREATED_KEYS)?.slice(0, 64) ?? null,
+        ...canonicalRowFields(route, rec, extracted.storedData),
         ord: index,
         ...(ownerId ? { owner_id: ownerId } : {}),
-        data: JSON.stringify(ownedRecord),
       },
     }
   })
@@ -245,9 +370,16 @@ async function awWriteTable<T>(
   let cursor: string | null = null
   for (;;) {
     const queries = [Query.limit(PAGE)]
+    if (isConsolidated(route)) {
+      queries.unshift(Query.equal("source_key", [route.sourceKey]))
+    }
     if (ownerId) queries.unshift(Query.equal("owner_id", [ownerId]))
     if (cursor) queries.push(Query.cursorAfter(cursor))
-    const res = await aw.tables.listRows(APPWRITE_DATABASE_ID, table, queries)
+    const res = await aw.tables.listRows(
+      APPWRITE_DATABASE_ID,
+      route.table,
+      queries
+    )
     const rows = res.rows as Array<Record<string, unknown>>
     for (const row of rows) existingIds.push(String(row.$id))
     if (rows.length < PAGE) break
@@ -261,7 +393,7 @@ async function awWriteTable<T>(
   const toDelete = existingIds.filter((id) => !desiredIds.has(id))
   if (toDelete.length > 10 && toDelete.length > existingIds.length / 2) {
     throw new Error(
-      `Refusing bulk write to ${table}: it would delete ${toDelete.length} of ${existingIds.length} rows. ` +
+      `Refusing bulk write to ${route.table}/${route.sourceKey}: it would delete ${toDelete.length} of ${existingIds.length} rows. ` +
         "If this shrink is intentional, remove records explicitly via deleteJsonArrayRecord."
     )
   }
@@ -269,20 +401,25 @@ async function awWriteTable<T>(
   // Upsert desired rows (bounded concurrency).
   await runPool(desired, 3, async (d) => {
     await retryTransient(() =>
-      aw.tables.upsertRow(APPWRITE_DATABASE_ID, table, d.id, d.payload)
+      aw.tables.upsertRow(APPWRITE_DATABASE_ID, route.table, d.id, d.payload)
     )
+    if (route.table === "outputs") {
+      if (!ownerId) throw new Error("Output records require an owner id.")
+      await syncOutputMedia(aw, d.id, ownerId, d.media)
+    }
   })
 
   // Delete rows no longer present.
   await runPool(toDelete, 3, async (id) => {
     await retryTransient(() =>
-      aw.tables.deleteRow(APPWRITE_DATABASE_ID, table, id)
+      aw.tables.deleteRow(APPWRITE_DATABASE_ID, route.table, id)
     )
+    if (route.table === "outputs") await deleteOutputMedia(aw, [id])
   })
 }
 
 async function awUpsertRecord<T>(
-  table: string,
+  route: StoreRoute,
   record: T,
   rid: string,
   ownerId: string | null,
@@ -291,13 +428,13 @@ async function awUpsertRecord<T>(
   const aw = getAppwrite()
   if (!aw) throw new Error("Appwrite is not configured.")
   const rowId = ownerId
-    ? ownedRowIdFor(table, ownerId, rid, 0)
-    : rowIdFor(table, rid, 0)
+    ? storeOwnedRowId(route, ownerId, rid, 0)
+    : storeRowId(route, rid, 0)
   let existingOrd: number | null = null
   try {
     const existing = (await aw.tables.getRow(
       APPWRITE_DATABASE_ID,
-      table,
+      route.table,
       rowId
     )) as Record<string, unknown>
     existingOrd =
@@ -308,18 +445,58 @@ async function awUpsertRecord<T>(
     if (appwriteStatus(error) !== 404) throw error
   }
   const ownedRecord = ownerId ? attachOwner(record, ownerId) : record
+  const extracted =
+    route.table === "outputs"
+      ? extractOutputMedia(route.sourceKey, ownedRecord)
+      : { storedData: ownedRecord, media: [] }
   const ord = existingOrd ?? (position === "first" ? -Date.now() : Date.now())
   await retryTransient(() =>
-    aw.tables.upsertRow(APPWRITE_DATABASE_ID, table, rowId, {
+    aw.tables.upsertRow(APPWRITE_DATABASE_ID, route.table, rowId, {
       rid: rid.slice(0, 1024),
-      name: pickField(record, NAME_KEYS)?.slice(0, 2048) ?? null,
-      status: pickField(record, STATUS_KEYS)?.slice(0, 255) ?? null,
-      created_raw: pickField(record, CREATED_KEYS)?.slice(0, 64) ?? null,
+      ...canonicalRowFields(route, record, extracted.storedData),
       ord,
       ...(ownerId ? { owner_id: ownerId } : {}),
-      data: JSON.stringify(ownedRecord),
     })
   )
+  if (route.table === "outputs") {
+    if (!ownerId) throw new Error("Output records require an owner id.")
+    await syncOutputMedia(aw, rowId, ownerId, extracted.media)
+  }
+}
+
+async function awAppendRecord<T>(
+  route: StoreRoute,
+  record: T,
+  rid: string,
+  ownerId: string | null
+) {
+  const aw = getAppwrite()
+  if (!aw) throw new Error("Appwrite is not configured.")
+  const rowId = ownerId
+    ? storeOwnedRowId(route, ownerId, rid, 0)
+    : storeRowId(route, rid, 0)
+  const ownedRecord = ownerId ? attachOwner(record, ownerId) : record
+  const extracted =
+    route.table === "outputs"
+      ? extractOutputMedia(route.sourceKey, ownedRecord)
+      : { storedData: ownedRecord, media: [] }
+  try {
+    await retryTransient(() =>
+      aw.tables.createRow(APPWRITE_DATABASE_ID, route.table, rowId, {
+        rid: rid.slice(0, 1024),
+        ...canonicalRowFields(route, record, extracted.storedData),
+        ord: -Date.now(),
+        ...(ownerId ? { owner_id: ownerId } : {}),
+      })
+    )
+    if (route.table === "outputs") {
+      if (!ownerId) throw new Error("Output records require an owner id.")
+      await syncOutputMedia(aw, rowId, ownerId, extracted.media)
+    }
+  } catch (error) {
+    if (appwriteStatus(error) === 409) return
+    throw error
+  }
 }
 
 function appwriteStatus(error: unknown) {
@@ -328,8 +505,10 @@ function appwriteStatus(error: unknown) {
   return typeof value === "number" ? value : Number(value) || null
 }
 
-async function ownerForTable(table: string): Promise<string | null> {
-  if (PUBLIC_STORE_TABLES.has(table)) return null
+async function ownerForRoute(route: StoreRoute): Promise<string | null> {
+  if (route.public) return null
+  const workerOwner = systemOwnerId()
+  if (workerOwner) return workerOwner
   try {
     const user = await getCurrentUser()
     if (user) return user.$id
@@ -338,7 +517,119 @@ async function ownerForTable(table: string): Promise<string | null> {
   }
   const systemOwner = process.env.LUMENCLIP_SYSTEM_OWNER_ID?.trim()
   if (systemOwner) return systemOwner
-  throw new Error(`Authentication is required to access ${table}.`)
+  throw new Error(`Authentication is required to access ${route.table}.`)
+}
+
+type AppwriteClients = NonNullable<ReturnType<typeof getAppwrite>>
+type HydratedOutputMedia = OutputMediaDraft & { outputId: string }
+
+function isConsolidated(route: StoreRoute): boolean {
+  return route.table === "outputs" || route.table === "permanent_assets"
+}
+
+function storeRowNamespace(route: StoreRoute): string {
+  return isConsolidated(route)
+    ? `${route.table}:${route.sourceKey}`
+    : route.table
+}
+
+function storeRowId(route: StoreRoute, rid: string | null, index: number) {
+  return rowIdFor(storeRowNamespace(route), rid, index)
+}
+
+function storeOwnedRowId(
+  route: StoreRoute,
+  ownerId: string,
+  rid: string | null,
+  index: number
+) {
+  return ownedRowIdFor(storeRowNamespace(route), ownerId, rid, index)
+}
+
+async function listOutputMedia(
+  aw: AppwriteClients,
+  outputIds: string[]
+): Promise<HydratedOutputMedia[]> {
+  if (outputIds.length === 0) return []
+  const records: HydratedOutputMedia[] = []
+  let cursor: string | null = null
+  for (;;) {
+    const queries = [
+      Query.equal("output_id", outputIds),
+      Query.orderAsc("position"),
+      Query.limit(PAGE),
+    ]
+    if (cursor) queries.push(Query.cursorAfter(cursor))
+    const response = await aw.tables.listRows(
+      APPWRITE_DATABASE_ID,
+      "output_media",
+      queries
+    )
+    for (const row of response.rows as Array<Record<string, unknown>>) {
+      const url = typeof row.url === "string" ? row.url : ""
+      const role = typeof row.role === "string" ? row.role : "file"
+      const rawKind = typeof row.kind === "string" ? row.kind : "file"
+      const kind =
+        rawKind === "image" || rawKind === "video" || rawKind === "audio"
+          ? rawKind
+          : "file"
+      records.push({
+        outputId: String(row.output_id ?? ""),
+        kind,
+        role,
+        position:
+          typeof row.position === "number" && Number.isFinite(row.position)
+            ? row.position
+            : 0,
+        url,
+      })
+    }
+    if (response.rows.length < PAGE) break
+    cursor = String(response.rows.at(-1)?.$id ?? "")
+  }
+  return records
+}
+
+async function syncOutputMedia(
+  aw: AppwriteClients,
+  outputRowId: string,
+  ownerId: string,
+  media: OutputMediaDraft[]
+) {
+  await deleteOutputMedia(aw, [outputRowId])
+  await runPool(media, 3, async (item) => {
+    await retryTransient(() =>
+      aw.tables.createRow(
+        APPWRITE_DATABASE_ID,
+        "output_media",
+        outputMediaRowId(outputRowId, item),
+        outputMediaRowFields(outputRowId, ownerId, item)
+      )
+    )
+  })
+}
+
+async function deleteOutputMedia(aw: AppwriteClients, outputIds: string[]) {
+  if (outputIds.length === 0) return
+  let cursor: string | null = null
+  const ids: string[] = []
+  for (;;) {
+    const queries = [Query.equal("output_id", outputIds), Query.limit(PAGE)]
+    if (cursor) queries.push(Query.cursorAfter(cursor))
+    const response = await aw.tables.listRows(
+      APPWRITE_DATABASE_ID,
+      "output_media",
+      queries
+    )
+    ids.push(...response.rows.map((row) => row.$id))
+    if (response.rows.length < PAGE) break
+    cursor = response.rows.at(-1)?.$id ?? null
+  }
+  await runPool(ids, 3, async (id) => {
+    await retryTransient(() =>
+      aw.tables.deleteRow(APPWRITE_DATABASE_ID, "output_media", id)
+    )
+  })
 }
 
 function attachOwner<T>(record: T, ownerId: string): T {

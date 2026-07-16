@@ -39,6 +39,8 @@ export type GeneratedVideoExport = {
   previewUrl?: string
   videoUrl?: string
   error?: string
+  manuallyPublishedAt?: string
+  deletionBlockedBy?: "published" | "scheduled"
 }
 
 export type GeneratedVideoCreatePayload = {

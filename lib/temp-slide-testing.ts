@@ -594,7 +594,8 @@ function templateTextItemToPlaceholder(input: {
     textItemWidth: input.textItem.text_item_width,
     textAlign: input.textItem.text_align,
     textAnchor: input.textItem.text_anchor,
-    textVerticalAnchor: "padded",
+    textVerticalAnchor:
+      input.textItem.text_vertical_anchor === "flush" ? "flush" : "padded",
   }
 }
 

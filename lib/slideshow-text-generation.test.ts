@@ -281,11 +281,11 @@ describe("slideshow text structured output", () => {
       generateSlideshowText({ automation, apiKey: "test-key", fetchImpl })
     ).resolves.toMatchObject({
       skippedOpenRouter: false,
-      model: "z-ai/glm-5.2",
+      model: "anthropic/claude-sonnet-5",
     })
     expect(fetchImpl).toHaveBeenCalledTimes(2)
     expect(JSON.parse(String(fetchImpl.mock.calls[1]?.[1]?.body)).model).toBe(
-      "z-ai/glm-5.2"
+      "anthropic/claude-sonnet-5"
     )
   })
 
@@ -323,7 +323,7 @@ describe("slideshow text structured output", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2)
   })
 
-  it("retries with field-specific feedback when content violates constraints", async () => {
+  it("retries with field-specific feedback when required content is missing", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
@@ -332,7 +332,7 @@ describe("slideshow text structured output", () => {
             title: "",
             caption: "change helps geminis keep learning.",
             hashtags: ["#gemini", "#astrology", "#growth"],
-            text: { "content-2__heading": "too short" },
+            text: { "content-2__heading": "" },
           })
         )
       )
@@ -347,7 +347,34 @@ describe("slideshow text structured output", () => {
       "title must not be empty"
     )
     expect(retryBody.messages.at(-1)?.content).toContain(
-      "content-2__heading must contain 3-8 words"
+      "content-2__heading must not be empty"
     )
+  })
+
+  it("treats requested word ranges as guidance instead of failing a run", async () => {
+    const outsideWordRange = JSON.stringify({
+      ...JSON.parse(validContent),
+      title: "gemini",
+      text: {
+        "content-2__heading":
+          "geminis stay curious because change gives them room to keep growing",
+      },
+    })
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(response(outsideWordRange))
+
+    await expect(
+      generateSlideshowText({ automation, apiKey: "test-key", fetchImpl })
+    ).resolves.toMatchObject({
+      result: {
+        title: "gemini",
+        text: {
+          "content-2__heading":
+            "geminis stay curious because change gives them room to keep growing",
+        },
+      },
+    })
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 })

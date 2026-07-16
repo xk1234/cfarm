@@ -10,6 +10,8 @@ const tables = new TablesDB(
 const definitions = [
   ["x_automations", "X automations"],
   ["x_automation_runs", "X automation runs"],
+  ["x_benchmark_corpus", "X benchmark corpus"],
+  ["x_benchmark_scores", "X benchmark scores"],
 ]
 const ignoreConflict = (error) => {
   if (error?.code !== 409) throw error

@@ -13,10 +13,11 @@ import {
 import {
   defaultSlideshowTextModel,
   openRouterModelForUseCase,
-  slideshowTextFallbackModels,
 } from "@/lib/realfarm-generation-model-registry"
 import { clean } from "@/lib/guards"
 import { fetchJson } from "@/lib/http"
+import { llmSlopMatches } from "@/lib/llm-slop"
+import { parseOpenRouterContent } from "@/lib/openrouter"
 
 export { defaultSlideshowTextModel }
 
@@ -116,7 +117,6 @@ export async function generateSlideshowText(input: {
     apiKey,
     fetchImpl: input.fetchImpl,
     model,
-    fallbackModels: slideshowTextFallbackModels,
     promptPayload,
     placeholders,
     selectedHook,
@@ -148,7 +148,6 @@ async function requestStructuredOutput(input: {
   apiKey: string
   fetchImpl?: typeof fetch
   model: string
-  fallbackModels?: readonly string[]
   promptPayload: ReturnType<typeof slideshowTextGenerationPayload>
   placeholders: ReturnType<typeof getTempSlidePromptPlaceholders>
   selectedHook: string
@@ -158,8 +157,7 @@ async function requestStructuredOutput(input: {
   let repairError: unknown
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
-    const attemptModel =
-      attempt === 1 ? input.model : input.fallbackModels?.[0] || input.model
+    const attemptModel = input.model
     const attemptPayload = repairError
       ? promptPayloadWithRepairFeedback(input.promptPayload, repairError)
       : input.promptPayload
@@ -219,10 +217,13 @@ async function requestStructuredOutput(input: {
     const choice = payload.choices?.[0]
     try {
       assertCompleteStructuredChoice(choice)
-      const output = parseOpenRouterContent(choice?.message?.content)
+      const output = JSON.parse(
+        parseOpenRouterContent(choice?.message?.content)
+      )
       const validationErrors = structuredOutputValidationErrors(
         output,
-        input.placeholders
+        input.placeholders,
+        input.selectedHook
       )
       if (validationErrors.length > 0) {
         throw new Error(validationErrors.join("; "))
@@ -305,7 +306,8 @@ function openRouterProviderMetadata(error: unknown) {
 
 function structuredOutputValidationErrors(
   output: unknown,
-  placeholders: ReturnType<typeof getTempSlidePromptPlaceholders>
+  placeholders: ReturnType<typeof getTempSlidePromptPlaceholders>,
+  selectedHook?: string
 ) {
   if (!output || typeof output !== "object" || Array.isArray(output)) {
     return ["output must be a JSON object"]
@@ -316,9 +318,6 @@ function structuredOutputValidationErrors(
   const caption =
     typeof record.caption === "string" ? record.caption.trim() : ""
   if (!title) errors.push("title must not be empty")
-  if (title && !withinWordRange(title, 3, 8)) {
-    errors.push("title must contain 3-8 words")
-  }
   if (!caption) errors.push("caption must not be empty")
 
   const text =
@@ -327,6 +326,7 @@ function structuredOutputValidationErrors(
     !Array.isArray(record.text)
       ? (record.text as Record<string, unknown>)
       : {}
+  const generatedValues: string[] = [title, caption]
   for (const placeholder of placeholders) {
     const rawValue = text[placeholder.id]
     const value = typeof rawValue === "string" ? rawValue.trim() : ""
@@ -334,25 +334,18 @@ function structuredOutputValidationErrors(
       errors.push(`${placeholder.id} must not be empty`)
       continue
     }
-    if (
-      !withinWordRange(
-        value,
-        placeholder.wordLengthMin,
-        placeholder.wordLengthMax
-      )
-    ) {
-      errors.push(
-        `${placeholder.id} must contain ${placeholder.wordLengthMin}-${placeholder.wordLengthMax} words`
-      )
-    }
+    generatedValues.push(value)
+  }
+  // Slop terms echoed from the user-authored hook are exempt — the model must
+  // develop the hook subject and cannot avoid its wording.
+  const hookLower = (selectedHook ?? "").toLowerCase()
+  for (const match of llmSlopMatches(generatedValues.join("\n"))) {
+    if (hookLower && hookLower.includes(match.toLowerCase())) continue
+    errors.push(
+      `banned AI-tell wording: "${match}" — rewrite that line in plain human language`
+    )
   }
   return errors
-}
-
-function withinWordRange(value: string, min: number, max: number) {
-  const count =
-    value.match(/[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu)?.length ?? 0
-  return count >= min && count <= max
 }
 
 async function researchSelectedHook(input: {
@@ -644,37 +637,4 @@ function assertCompleteStructuredChoice(
       `OpenRouter completion ended with finish_reason=${choice.finish_reason}`
     )
   }
-}
-
-function parseOpenRouterContent(content: unknown) {
-  if (typeof content === "string") {
-    return JSON.parse(content)
-  }
-
-  if (Array.isArray(content)) {
-    const text = content
-      .map((part) => {
-        if (typeof part === "string") {
-          return part
-        }
-        if (
-          part &&
-          typeof part === "object" &&
-          "text" in part &&
-          typeof part.text === "string"
-        ) {
-          return part.text
-        }
-        return ""
-      })
-      .join("")
-      .trim()
-    return JSON.parse(text)
-  }
-
-  if (content && typeof content === "object") {
-    return content
-  }
-
-  throw new Error("OpenRouter returned an empty response")
 }

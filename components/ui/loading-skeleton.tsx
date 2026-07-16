@@ -3,8 +3,8 @@ import Skeleton from "react-loading-skeleton"
 import { cn } from "@/lib/utils"
 
 const skeletonColors = {
-  baseColor: "#e7e7e1",
-  highlightColor: "#f7f7f3",
+  baseColor: "var(--app-panel-border)",
+  highlightColor: "var(--app-surface-subtle)",
 }
 
 export function SkeletonBlock({
@@ -44,7 +44,7 @@ export function CardGridSkeleton({
       {Array.from({ length: count }, (_, index) => (
         <div
           key={index}
-          className="rounded-[9px] border border-app-panel-border bg-white p-4"
+          className="rounded-app-control border border-app-panel-border bg-app-surface p-4"
         >
           <SkeletonBlock className="h-10 w-10 rounded-lg" />
           <SkeletonBlock className="mt-4 h-4 w-3/5 rounded" />
@@ -95,7 +95,7 @@ export function AccountGridSkeleton({ count = 5 }: { count?: number }) {
       {Array.from({ length: count }, (_, index) => (
         <div
           key={index}
-          className="rounded-[8px] border border-app-panel-border bg-white p-3"
+          className="rounded-md border border-app-panel-border bg-app-surface p-3"
         >
           <SkeletonBlock className="mx-auto size-10 rounded-full" circle />
           <SkeletonBlock className="mx-auto mt-3 h-3 w-4/5 rounded" />

@@ -20,7 +20,9 @@ import {
 } from "@tabler/icons-react"
 import { toast } from "sonner"
 import { Popover, Tabs } from "radix-ui"
+import type { ColDef, ICellRendererParams } from "ag-grid-community"
 
+import { AgDataTable } from "@/components/ui/ag-data-table"
 import { Button } from "@/components/ui/button"
 import {
   LabelledSelect,
@@ -31,6 +33,8 @@ import {
 } from "@/components/ui/form-controls"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import { UploadDropzone } from "@/components/ui/upload-dropzone"
+import { SkeletonBlock } from "@/components/ui/loading-skeleton"
+import { ViewModeToggle, type ViewMode } from "@/components/ui/view-mode-toggle"
 import { ImageViewerModal } from "@/components/realfarm/image-viewer-modal"
 import {
   CollectionPreview,
@@ -64,23 +68,27 @@ type CaptionProgressState = {
 
 const INITIAL_VISIBLE_ROWS = 3
 const LOAD_MORE_ROWS = 3
-const INITIAL_COLLECTION_VISIBLE_ROWS = 4
-const COLLECTION_LOAD_MORE_ROWS = 4
-const COLLECTION_CARD_WIDTH = 170
-const COLLECTION_GRID_GAP = 20
+const COLLECTION_PAGE_SIZE = 28
 
 type CollectionTab = "images" | "videos" | "products" | "variables"
 type CollectionSort =
-  | "newest"
-  | "oldest"
-  | "name-asc"
-  | "name-desc"
-  | "images-desc"
-  | "images-asc"
+  "newest" | "oldest" | "name-asc" | "name-desc" | "images-desc" | "images-asc"
+
+type CollectionTableRow = {
+  id: string
+  name: string
+  mediaType: "Image" | "Video"
+  previewImage: CreatedImageCollection["images"][number] | null
+  itemCount: number
+  createdAt: string
+  pinned: boolean
+  virtual: boolean
+}
 
 export function CollectionsView({
   collections,
   productCollections,
+  loading = false,
   onCreateCollection,
   onDeleteCollections,
   onOpenCollection,
@@ -88,6 +96,7 @@ export function CollectionsView({
 }: {
   collections: CreatedImageCollection[]
   productCollections: ProductCollection[]
+  loading?: boolean
   onCreateCollection: (collection: CreatedImageCollection) => void
   onDeleteCollections: (ids: string[]) => void
   onOpenCollection: (id: string) => void
@@ -96,16 +105,13 @@ export function CollectionsView({
   const [activeTab, setActiveTab] = useState<CollectionTab>("images")
   const [searchOpen, setSearchOpen] = useState(false)
   const [collectionSearch, setCollectionSearch] = useState("")
-  const [collectionSort, setCollectionSort] =
-    useState<CollectionSort>("newest")
-  const [visibleCollectionRows, setVisibleCollectionRows] = useState(
-    INITIAL_COLLECTION_VISIBLE_ROWS
-  )
-  const [collectionColumns, setCollectionColumns] = useState(1)
+  const [collectionSort, setCollectionSort] = useState<CollectionSort>("newest")
+  const [viewMode, setViewMode] = useState<ViewMode>("grid")
+  const [visibleCollectionCount, setVisibleCollectionCount] =
+    useState(COLLECTION_PAGE_SIZE)
   const [selectedCollectionIds, setSelectedCollectionIds] = useState<
     Set<string>
   >(new Set())
-  const collectionGridRef = useRef<HTMLDivElement | null>(null)
   const selectedIds = Array.from(selectedCollectionIds)
   const mediaCollections = useMemo(
     () =>
@@ -122,8 +128,8 @@ export function CollectionsView({
     const query = collectionSearch.trim().toLowerCase()
     const matchingCollections = query
       ? mediaCollections.filter((collection) =>
-        collection.title.toLowerCase().includes(query)
-      )
+          collection.title.toLowerCase().includes(query)
+        )
       : mediaCollections
     const sortedCollections = [...matchingCollections].sort((left, right) => {
       switch (collectionSort) {
@@ -148,41 +154,134 @@ export function CollectionsView({
     })
     return pinnedCollectionsFirst(sortedCollections)
   }, [mediaCollections, collectionSearch, collectionSort])
-  const visibleCollectionCount = visibleCollectionRows * collectionColumns
   const visibleCollections = filteredCollections.slice(
     0,
     visibleCollectionCount
   )
   const hasMoreCollections =
     visibleCollections.length < filteredCollections.length
-
-  useEffect(() => {
-    const grid = collectionGridRef.current
-    if (!grid) {
-      return
-    }
-
-    function updateColumns() {
-      const width = grid?.clientWidth ?? 0
-      const columns = Math.max(
-        1,
-        Math.floor(
-          (width + COLLECTION_GRID_GAP) /
-            (COLLECTION_CARD_WIDTH + COLLECTION_GRID_GAP)
-        )
-      )
-      setCollectionColumns(columns)
-    }
-
-    updateColumns()
-    const observer = new ResizeObserver(updateColumns)
-    observer.observe(grid)
-    return () => observer.disconnect()
-  }, [filteredCollections.length])
+  const collectionTableRows = useMemo<CollectionTableRow[]>(
+    () =>
+      filteredCollections.map((collection) => ({
+        id: collection.id,
+        name: collection.title,
+        mediaType: collection.mediaType === "video" ? "Video" : "Image",
+        previewImage: collection.images[0] ?? null,
+        itemCount: collection.images.length,
+        createdAt: collection.createdAt,
+        pinned: collection.pinned === true,
+        virtual: collection.virtual === true,
+      })),
+    [filteredCollections]
+  )
+  const collectionTableColumns = useMemo<ColDef<CollectionTableRow>[]>(
+    () => [
+      {
+        field: "name",
+        headerName: "Collection",
+        minWidth: 280,
+        flex: 1.6,
+        cellRenderer: ({ data }: ICellRendererParams<CollectionTableRow>) =>
+          data ? (
+            <div className="flex h-full min-w-0 items-center gap-3">
+              {data.previewImage ? (
+                <PinterestPreviewTile
+                  image={data.previewImage}
+                  index={0}
+                  className="size-9 shrink-0 rounded-md border border-app-panel-border"
+                />
+              ) : (
+                <span className="grid size-9 shrink-0 place-items-center rounded-md border border-app-panel-border bg-app-media-empty text-app-muted-text">
+                  {data.mediaType === "Video" ? (
+                    <IconVideo className="size-4" />
+                  ) : (
+                    <IconPhoto className="size-4" />
+                  )}
+                </span>
+              )}
+              <span className="min-w-0 truncate font-medium text-app-text">
+                {data.name}
+              </span>
+            </div>
+          ) : null,
+      },
+      { field: "mediaType", headerName: "Type", minWidth: 120 },
+      {
+        field: "itemCount",
+        headerName: "Items",
+        minWidth: 110,
+        type: "numericColumn",
+      },
+      {
+        field: "createdAt",
+        headerName: "Created",
+        minWidth: 160,
+        valueFormatter: ({ value }) => formatCollectionDate(String(value)),
+      },
+      {
+        headerName: "Actions",
+        minWidth: 210,
+        sortable: false,
+        filter: false,
+        cellRenderer: ({ data }: ICellRendererParams<CollectionTableRow>) =>
+          data ? (
+            <div className="flex h-full items-center justify-end gap-1.5">
+              <Button
+                type="button"
+                variant="softControl"
+                size="compact"
+                className="h-8 rounded-md"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onOpenCollection(data.id)
+                }}
+              >
+                Open
+              </Button>
+              {!data.virtual ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="iconControl"
+                    size="icon-sm"
+                    className="border border-app-panel-border bg-app-surface"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onToggleCollectionPin(data.id)
+                    }}
+                    aria-label={`${data.pinned ? "Unpin" : "Pin"} ${data.name}`}
+                  >
+                    {data.pinned ? (
+                      <IconPinFilled className="size-4" />
+                    ) : (
+                      <IconPin className="size-4" />
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="iconControl"
+                    size="icon-sm"
+                    className="border border-app-panel-border bg-app-surface text-app-danger"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onDeleteCollections([data.id])
+                    }}
+                    aria-label={`Delete ${data.name}`}
+                  >
+                    <IconTrash className="size-4" />
+                  </Button>
+                </>
+              ) : null}
+            </div>
+          ) : null,
+      },
+    ],
+    [onDeleteCollections, onOpenCollection, onToggleCollectionPin]
+  )
 
   function updateCollectionSearch(value: string) {
     setCollectionSearch(value)
-    setVisibleCollectionRows(INITIAL_COLLECTION_VISIBLE_ROWS)
+    setVisibleCollectionCount(COLLECTION_PAGE_SIZE)
   }
 
   function toggleCollection(id: string) {
@@ -206,7 +305,7 @@ export function CollectionsView({
     setActiveTab(tab)
     setSelectedCollectionIds(new Set())
     setCollectionSearch("")
-    setVisibleCollectionRows(INITIAL_COLLECTION_VISIBLE_ROWS)
+    setVisibleCollectionCount(COLLECTION_PAGE_SIZE)
   }
 
   return (
@@ -276,7 +375,7 @@ export function CollectionsView({
       >
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <Tabs.List
-            className="flex w-fit rounded-[7px] border border-app-panel-border bg-[#f1f0ea] p-1"
+            className="flex w-fit rounded-[7px] border border-app-panel-border bg-app-surface-subtle p-1"
             aria-label="Collection types"
           >
             {(
@@ -293,7 +392,7 @@ export function CollectionsView({
                 className={cn(
                   "flex h-9 items-center gap-2 rounded-[5px] px-4 text-[13px] font-semibold transition",
                   activeTab === tab
-                    ? "bg-white text-app-text shadow-sm"
+                    ? "bg-app-surface text-app-text shadow-sm"
                     : "text-app-muted-text hover:text-app-text"
                 )}
               >
@@ -307,9 +406,7 @@ export function CollectionsView({
               <SearchControl
                 className="w-[min(320px,45vw)]"
                 value={collectionSearch}
-                onChange={(event) =>
-                  updateCollectionSearch(event.target.value)
-                }
+                onChange={(event) => updateCollectionSearch(event.target.value)}
                 placeholder={`Search ${activeTab}`}
                 aria-label={`Search ${activeTab} collections`}
               />
@@ -317,7 +414,7 @@ export function CollectionsView({
                 value={collectionSort}
                 onChange={(event) => {
                   setCollectionSort(event.target.value as CollectionSort)
-                  setVisibleCollectionRows(INITIAL_COLLECTION_VISIBLE_ROWS)
+                  setVisibleCollectionCount(COLLECTION_PAGE_SIZE)
                 }}
                 aria-label="Sort collections"
                 className="max-w-[180px]"
@@ -329,6 +426,7 @@ export function CollectionsView({
                 <option value="images-desc">Most images</option>
                 <option value="images-asc">Fewest images</option>
               </SelectControl>
+              <ViewModeToggle value={viewMode} onChange={setViewMode} />
             </div>
           )}
         </div>
@@ -338,20 +436,26 @@ export function CollectionsView({
           <VariableCollectionsPanel />
         ) : (
           <>
-            {mediaCollections.length === 0 ? (
+            {loading ? (
+              viewMode === "table" ? (
+                <CollectionTableSkeleton />
+              ) : (
+                <CollectionGridSkeleton />
+              )
+            ) : mediaCollections.length === 0 ? (
               <button
                 type="button"
                 className="app-empty-state grid min-h-[470px] w-full place-items-center text-center transition hover:bg-app-control-hover"
                 onClick={() => activeTab === "images" && setSearchOpen(true)}
               >
                 <span className="max-w-[360px]">
-                  <span className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-white text-[#e46954] shadow-sm">
+                  <span className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-app-surface text-[#e46954] shadow-sm">
                     <IconPhotoPlus className="size-6" />
                   </span>
                   <span className="block text-[18px] font-semibold">
                     No {activeTab} collections yet
                   </span>
-                  <span className="mt-2 block text-[13px] leading-5 text-[#77766f]">
+                  <span className="mt-2 block text-[13px] leading-5 text-app-muted-text">
                     {activeTab === "images"
                       ? "Search Pinterest, choose the first batch of images, then create your first collection."
                       : "Video collections appear here when reusable video assets are added."}
@@ -366,21 +470,26 @@ export function CollectionsView({
                       <span className="block text-[18px] font-semibold">
                         No matching collections
                       </span>
-                      <span className="mt-2 block text-[13px] leading-5 text-[#77766f]">
+                      <span className="mt-2 block text-[13px] leading-5 text-app-muted-text">
                         Try another search term.
                       </span>
                     </span>
                   </div>
+                ) : viewMode === "table" ? (
+                  <AgDataTable
+                    rows={collectionTableRows}
+                    columns={collectionTableColumns}
+                    getRowId={(row) => row.id}
+                    onRowClick={(row) => onOpenCollection(row.id)}
+                    emptyMessage="No matching collections"
+                  />
                 ) : (
                   <>
-                    <div
-                      ref={collectionGridRef}
-                      className="grid grid-cols-[repeat(auto-fill,170px)] gap-5"
-                    >
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-5">
                       {visibleCollections.map((collection, index) => (
                         <MediaCardShell
                           key={collection.id}
-                          className="group relative w-[170px] text-left"
+                          className="group relative min-w-0 text-left"
                         >
                           {!collection.virtual && (
                             <>
@@ -448,12 +557,12 @@ export function CollectionsView({
                               collection={collection}
                               index={index}
                             />
-                            <div className="bg-white px-4 py-4">
+                            <div className="bg-app-surface px-4 py-4">
                               <div className="flex min-w-0 items-center gap-1.5">
                                 {collection.mediaType === "video" ? (
-                                  <IconVideo className="size-4 shrink-0 text-[#77766f]" />
+                                  <IconVideo className="size-4 shrink-0 text-app-muted-text" />
                                 ) : (
-                                  <IconPhoto className="size-4 shrink-0 text-[#77766f]" />
+                                  <IconPhoto className="size-4 shrink-0 text-app-muted-text" />
                                 )}
                                 <div className="truncate text-[14px] leading-5 font-semibold text-app-text">
                                   {collection.title}
@@ -473,7 +582,7 @@ export function CollectionsView({
                         <Button
                           type="button"
                           variant="iconControl"
-                          className="grid h-[242px] w-[170px] place-items-center rounded-[7px] border border-dashed border-app-panel-border bg-app-surface-subtle text-app-muted-text hover:bg-app-control-hover"
+                          className="grid h-[242px] min-w-0 place-items-center rounded-[7px] border border-dashed border-app-panel-border bg-app-surface-subtle text-app-muted-text hover:bg-app-control-hover"
                           onClick={() => setSearchOpen(true)}
                           aria-label="Add collection"
                         >
@@ -487,8 +596,8 @@ export function CollectionsView({
                           variant="softControl"
                           size="appDefault"
                           onClick={() =>
-                            setVisibleCollectionRows(
-                              (current) => current + COLLECTION_LOAD_MORE_ROWS
+                            setVisibleCollectionCount(
+                              (current) => current + COLLECTION_PAGE_SIZE
                             )
                           }
                         >
@@ -516,6 +625,64 @@ export function CollectionsView({
   )
 }
 
+function CollectionGridSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading collections"
+      aria-busy="true"
+      className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-5"
+    >
+      {Array.from({ length: 14 }, (_, index) => (
+        <div
+          key={index}
+          className="min-w-0 overflow-hidden rounded-[8px] border border-app-panel-border bg-app-surface"
+        >
+          <SkeletonBlock className="h-[170px] w-full rounded-none" />
+          <div className="px-4 py-4">
+            <SkeletonBlock className="h-3.5 w-4/5 rounded" />
+            <SkeletonBlock className="mt-2 h-3 w-2/5 rounded" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function CollectionTableSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading collections"
+      aria-busy="true"
+      className="overflow-hidden rounded-[8px] border border-app-panel-border bg-app-surface"
+    >
+      <SkeletonBlock className="h-11 w-full rounded-none" />
+      {Array.from({ length: 8 }, (_, index) => (
+        <div
+          key={index}
+          className="grid grid-cols-[minmax(220px,1.6fr)_120px_110px_160px_210px] gap-4 border-t border-app-panel-border px-4 py-4"
+        >
+          {Array.from({ length: 5 }, (_, cellIndex) => (
+            <SkeletonBlock key={cellIndex} className="h-3 w-full rounded" />
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function formatCollectionDate(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+}
+
 function CaptionProgressModal({
   progress,
   onClose,
@@ -538,7 +705,7 @@ function CaptionProgressModal({
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-[22px] font-bold text-[#333]">
+            <h2 className="text-[22px] font-bold text-app-text">
               {failed
                 ? "Captioning stopped"
                 : complete
@@ -800,7 +967,7 @@ export function CollectionDetailView({
           </Button>
           {editingTitle ? (
             <input
-              className="h-8 min-w-[280px] rounded-[6px] border border-[#d9d8d0] bg-white px-2 text-[22px] font-semibold outline-none"
+              className="h-8 min-w-[280px] rounded-[6px] border border-[#d9d8d0] bg-app-surface px-2 text-[22px] font-semibold outline-none"
               value={titleDraft}
               autoFocus
               onChange={(event) => setTitleDraft(event.target.value)}
@@ -877,7 +1044,7 @@ export function CollectionDetailView({
               <Popover.Content
                 sideOffset={8}
                 align="end"
-                className="z-50 w-[210px] rounded-[8px] bg-white p-3 text-[13px] font-semibold shadow-xl outline-none"
+                className="z-50 w-[210px] rounded-[8px] bg-app-surface p-3 text-[13px] font-semibold shadow-xl outline-none"
               >
                 <label className="flex items-center justify-between gap-3">
                   Columns:
@@ -890,7 +1057,7 @@ export function CollectionDetailView({
                     ))}
                   </SelectControl>
                 </label>
-                <div className="mt-3 border-t border-[#ecebe4] pt-3">
+                <div className="mt-3 border-t border-app-panel-border pt-3">
                   <ToggleRow
                     label="No collections only"
                     enabled={noCollectionsOnly}
@@ -927,7 +1094,7 @@ export function CollectionDetailView({
           onFiles={importFiles}
         >
           <span>
-            <IconUpload className="mx-auto mb-2 size-5 text-[#77766f]" />
+            <IconUpload className="mx-auto mb-2 size-5 text-app-muted-text" />
             <span className="block text-[15px] font-semibold">
               Drag and drop (or click to upload)
             </span>
@@ -980,7 +1147,7 @@ export function CollectionDetailView({
             </div>
             {selectedCount > 0 && (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-[8px] bg-white px-3 py-2 text-[13px] font-semibold text-[#55544f] shadow-sm">
+                <span className="rounded-[8px] bg-app-surface px-3 py-2 text-[13px] font-semibold text-app-text-soft shadow-sm">
                   {selectedCount} selected
                   {selectedVisibleCount > 0 ? ` loaded` : ""}
                 </span>
@@ -1033,7 +1200,7 @@ export function CollectionDetailView({
                       image={image}
                       index={index}
                       fit="contain"
-                      className="aspect-square w-full rounded-[3px] bg-white"
+                      className="aspect-square w-full rounded-[3px] bg-app-surface"
                     />
                     {showDescriptions && (
                       <div className="mt-2 line-clamp-3 min-h-12 text-[11px] leading-4 text-[#647084]">
@@ -1041,7 +1208,7 @@ export function CollectionDetailView({
                       </div>
                     )}
                     {image.lastUsedAt ? (
-                      <div className="mt-2 text-[10px] font-semibold tracking-[0.04em] text-[#8a8982] uppercase">
+                      <div className="mt-2 text-[10px] font-semibold tracking-[0.04em] text-app-text-faint uppercase">
                         Last used {formatCollectionImageDate(image.lastUsedAt)}
                       </div>
                     ) : null}
@@ -1178,7 +1345,7 @@ function CollectionAutomationEditor({
         accessibleTitle="Automation editor"
         className="relative grid max-w-[760px] rounded-[10px] bg-[#d0d0cc] md:grid-cols-[255px_1fr]"
       >
-        <div className="flex min-h-[520px] flex-col bg-white p-4">
+        <div className="flex min-h-[520px] flex-col bg-app-surface p-4">
           <div className="mb-5 flex items-center justify-between text-[13px]">
             <Button
               type="button"
@@ -1195,14 +1362,14 @@ function CollectionAutomationEditor({
               <IconLayoutDashboard className="size-4" />
             </div>
           </div>
-          <div className="mb-4 grid grid-cols-3 border-b text-center text-[11px] font-semibold text-[#9a9991]">
+          <div className="mb-4 grid grid-cols-3 border-b text-center text-[11px] font-semibold text-app-text-faint">
             {(["Hook", "Content", "CTA"] as const).map((tab) => (
               <button
                 key={tab}
                 className={cn(
                   "pb-3",
                   activeTab === tab &&
-                    "border-b-2 border-[#242421] text-[#242421]"
+                    "border-b-2 border-app-strong text-app-text"
                 )}
                 onClick={() => setActiveTab(tab)}
               >
@@ -1239,7 +1406,7 @@ function CollectionAutomationEditor({
                 enabled={displayText}
                 onClick={() => setDisplayText((value) => !value)}
               />
-              <div className="mt-6 text-[12px] font-semibold text-[#77766f]">
+              <div className="mt-6 text-[12px] font-semibold text-app-muted-text">
                 Advanced
               </div>
               {activeTab === "Content" && (
@@ -1248,7 +1415,7 @@ function CollectionAutomationEditor({
                     Image overrides{" "}
                     <span className="float-right text-app-action">+ Add</span>
                   </div>
-                  <p className="leading-4 text-[#9a9991]">
+                  <p className="leading-4 text-app-text-faint">
                     Override the image collection for a specific slide.
                   </p>
                 </div>
@@ -1325,12 +1492,12 @@ function CollectionAutomationEditor({
                 key={dot}
                 className={cn(
                   "size-1.5 rounded-full",
-                  dot === 0 ? "bg-white" : "bg-white/45"
+                  dot === 0 ? "bg-app-surface" : "bg-white/45"
                 )}
               />
             ))}
           </div>
-          <div className="mt-5 rounded-[8px] bg-white p-4">
+          <div className="mt-5 rounded-[8px] bg-app-surface p-4">
             <div className="grid grid-cols-3 gap-3">
               <LabelledSelect
                 label={activeTab === "Hook" ? "Font" : "Content direction"}
@@ -1367,7 +1534,7 @@ function CollectionAutomationEditor({
               />
             </div>
             <input
-              className="mt-4 h-10 w-full rounded-[6px] border border-[#ecebe4] px-3 text-[12px] outline-none"
+              className="mt-4 h-10 w-full rounded-[6px] border border-app-panel-border px-3 text-[12px] outline-none"
               placeholder="e.g. A bold hook about..."
             />
             <div className="mt-4 flex items-center justify-between text-[12px]">
@@ -1420,25 +1587,25 @@ function CreateAutomationDialog({
           <label className="mt-5 block text-[12px] font-semibold">
             Automation name
             <input
-              className="mt-2 h-10 w-full rounded-[7px] border border-[#ecebe4] px-3 text-[13px] outline-none"
+              className="mt-2 h-10 w-full rounded-[7px] border border-app-panel-border px-3 text-[13px] outline-none"
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
           </label>
           <div className="mt-4 flex border-b text-[12px] font-semibold">
-            <button className="border-b-2 border-[#242421] pr-6 pb-2">
+            <button className="border-b-2 border-app-strong pr-6 pb-2">
               Hooks (1)
             </button>
             <button className="pb-2 text-[#8b8a83]">Tone & Style</button>
           </div>
           <div className="mt-4 text-[14px] font-semibold">
-            Slideshow Hooks <span className="text-[#aaa9a2]">⊙</span>
+            Slideshow Hooks <span className="text-app-text-faint">⊙</span>
           </div>
           <div className="mt-1 text-[12px] font-semibold text-app-action">
             Each line is a separate hook
           </div>
           <textarea
-            className="mt-3 h-28 w-full resize-none rounded-[8px] border border-[#ecebe4] p-3 text-[13px] outline-none"
+            className="mt-3 h-28 w-full resize-none rounded-[8px] border border-app-panel-border p-3 text-[13px] outline-none"
             defaultValue="uncomfortable things to build extreme confidence"
           />
           <div className="mt-4 flex justify-end gap-2">

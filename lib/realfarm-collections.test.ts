@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  allImagesCollectionFrom,
   collectionAliases,
   defaultImageCollections,
   findCollectionByIdOrAlias,
@@ -128,7 +127,7 @@ describe("realfarm collection helpers", () => {
     ).toBe("Soccer Body")
   })
 
-  it("does not let the virtual all-images collection claim concrete source ids", () => {
+  it("does not let virtual collections claim concrete source ids", () => {
     const soccerHookImage = {
       id: "stored-soccer-hooks-0",
       title: "Soccer hook",
@@ -141,8 +140,9 @@ describe("realfarm collection helpers", () => {
     }
     const collections: CreatedImageCollection[] = [
       {
-        id: "collection-all-images",
-        title: "All Images",
+        id: "collection-ugc-avatar-videos",
+        title: "UGC Avatar Videos",
+        mediaType: "video",
         createdAt: "virtual",
         source: "virtual",
         virtual: true,
@@ -271,48 +271,5 @@ describe("realfarm collection helpers", () => {
     expect(collection.images[1]).toMatchObject({
       id: "categorized-avatar-two",
     })
-  })
-
-  it("builds All Images from photo collections only", () => {
-    const collection = allImagesCollectionFrom([
-      {
-        id: "photos",
-        title: "Photos",
-        mediaType: "image",
-        createdAt: "2026-07-12T00:00:00.000Z",
-        source: "upload",
-        images: [
-          {
-            id: "photo-1",
-            title: "Photo",
-            description: "Photo",
-            imageUrl: "/photo.jpg",
-            sourceUrl: "/photo.jpg",
-            dominantColor: "#ffffff",
-          },
-        ],
-      },
-      {
-        id: "videos",
-        title: "Videos",
-        mediaType: "video",
-        createdAt: "2026-07-12T00:00:00.000Z",
-        source: "virtual",
-        images: [
-          {
-            id: "video-1",
-            title: "Video",
-            description: "Video",
-            imageUrl: "/video.mp4",
-            sourceUrl: "/video.mp4",
-            dominantColor: "#000000",
-          },
-        ],
-      },
-    ])
-
-    expect(collection.images.map((image) => image.imageUrl)).toEqual([
-      "/photo.jpg",
-    ])
   })
 })

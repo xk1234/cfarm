@@ -377,6 +377,150 @@ const aestheticPreset: VideoAutomationTemplatePreset = {
   }),
 }
 
+const storyOverBrollPreset: VideoAutomationTemplatePreset = {
+  id: "story_over_broll",
+  name: "Story over B-roll",
+  tagline: "Four story beats over fast b-roll",
+  description:
+    "A first-person discovery, concrete journey, observable payoff, and comment-gate CTA told over quick b-roll cuts.",
+  buildFormat: () => ({
+    template: "story_over_broll",
+    hookPlacement: "first_segment",
+    globalTextItems: [],
+    segments: [
+      segment({
+        id: "story-hook",
+        label: "Story hook",
+        guidance:
+          "Open the first-person story with a specific discovery that creates an open loop for the later beats.",
+        clipCount: 1,
+        clipDurationMs: 2800,
+        transition: "cut",
+        textItems: [
+          defaultAutomationTextItem({
+            contentDirection:
+              "story-opening hook in first person: the discovery moment ('I found/tried/noticed X'). Specific, casual, lowercase-friendly. Must create an open loop the later beats pay off.",
+            textStyle: "outline",
+            fontSize: "9px",
+            textPosition: "center",
+            textItemWidth: "84%",
+            wordLengthMin: 6,
+            wordLengthMax: 14,
+          }),
+        ],
+      }),
+      segment({
+        id: "story-journey",
+        label: "Story journey",
+        guidance:
+          "Show the two concrete actions the narrator took after the discovery, in chronological order.",
+        clipCount: 2,
+        clipDurationMs: 2600,
+        transition: "cut",
+        textItems: [
+          defaultAutomationTextItem({
+            contentDirection:
+              "the doing-it beats, in order: what the narrator actually did next. Concrete physical actions, no abstractions.",
+            textStyle: "outline",
+            fontSize: "8px",
+            textPosition: "center",
+            textItemWidth: "84%",
+            wordLengthMin: 5,
+            wordLengthMax: 12,
+          }),
+        ],
+      }),
+      segment({
+        id: "story-payoff",
+        label: "Story payoff",
+        guidance:
+          "Land the story with an observable qualitative result; never invent proof, statistics, or numbers.",
+        clipCount: 1,
+        clipDurationMs: 3000,
+        transition: "cut",
+        textItems: [
+          defaultAutomationTextItem({
+            contentDirection:
+              "the result/proof beat: what changed, stated as an observable outcome. NO invented numbers — if no proof is configured, express the outcome qualitatively ('and it actually worked').",
+            textStyle: "outline",
+            fontSize: "9px",
+            textPosition: "center",
+            textItemWidth: "84%",
+            wordLengthMin: 5,
+            wordLengthMax: 12,
+          }),
+        ],
+      }),
+      segment({
+        id: "story-cta",
+        label: "Story CTA",
+        guidance:
+          "Close with one uppercase trigger word and a clear resource the viewer receives for commenting it.",
+        clipCount: 1,
+        clipDurationMs: 2800,
+        transition: "cut",
+        textItems: [
+          defaultAutomationTextItem({
+            contentDirection:
+              'comment-gate CTA: tell the viewer to comment a single trigger word to get the resource. Format: comment "WORD" + what they\'ll get.',
+            textStyle: "background",
+            fontSize: "8px",
+            textPosition: "bottom",
+            textItemWidth: "84%",
+            wordLengthMin: 8,
+            wordLengthMax: 16,
+          }),
+        ],
+      }),
+    ],
+  }),
+}
+
+const facelessReelPreset: VideoAutomationTemplatePreset = {
+  id: "faceless_reel",
+  name: "Faceless Reel",
+  tagline: "One energy clip, one bold claim",
+  description:
+    "A bold native claim held over one aesthetic clip, with a lower comment-gate line that trades one memorable word for a useful resource.",
+  buildFormat: () => ({
+    template: "faceless_reel",
+    hookPlacement: "global",
+    globalTextItems: [
+      defaultAutomationTextItem({
+        contentDirection:
+          "one bold, specific claim or curiosity hook that stops the scroll — a big promise, secret, or identity callout. Native TikTok voice.",
+        textStyle: "outline",
+        fontSize: "10px",
+        textPosition: "center",
+        textItemWidth: "84%",
+        wordLengthMin: 8,
+        wordLengthMax: 18,
+      }),
+      defaultAutomationTextItem({
+        contentDirection:
+          "comment-gate line: \"comment 'WORD' and I'll DM you the full thing\"",
+        textStyle: "background",
+        fontSize: "7px",
+        textPosition: "bottom",
+        textItemWidth: "84%",
+        wordLengthMin: 8,
+        wordLengthMax: 14,
+      }),
+    ],
+    segments: [
+      segment({
+        id: "faceless-clip",
+        label: "Faceless clip",
+        guidance:
+          "One aesthetic or high-energy background clip that supports a bold claim without requiring a literal visual reference.",
+        clipCount: 1,
+        clipDurationMs: 9000,
+        transition: "cut",
+      }),
+    ],
+  }),
+}
+
 export const videoAutomationTemplatePresets: VideoAutomationTemplatePreset[] = [
   ugcAdPreset,
   reactRevealPreset,
@@ -385,6 +529,8 @@ export const videoAutomationTemplatePresets: VideoAutomationTemplatePreset[] = [
   screenRecordPreset,
   screenshotPicturesPreset,
   aestheticPreset,
+  storyOverBrollPreset,
+  facelessReelPreset,
 ]
 
 export function videoAutomationTemplatePreset(

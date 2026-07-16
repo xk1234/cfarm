@@ -10,7 +10,12 @@ import {
   type GeneratedVideoStatus,
   type GeneratedVideoType,
 } from "@/lib/generated-video-types"
-import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
+import {
+  deleteJsonArrayRecord,
+  readJsonArrayRecord,
+  readJsonArrayStore,
+  upsertJsonArrayRecord,
+} from "@/lib/json-store"
 
 export type {
   GeneratedVideoCreatePayload,
@@ -23,6 +28,7 @@ export type GeneratedVideoListFilters = {
   rootDir?: string
   type?: GeneratedVideoType
   automationId?: string
+  limit?: number
 }
 
 const defaultGeneratedVideoRoot = path.join(
@@ -35,13 +41,17 @@ const dbFileName = "exports.json"
 export async function listGeneratedVideoExports(
   filters: GeneratedVideoListFilters = {}
 ) {
-  const records = await readGeneratedVideoExports(filters.rootDir)
-  return records.filter(
-    (record) =>
-      (!filters.type || record.type === filters.type) &&
-      (!filters.automationId ||
-        record.sourceConfig.automationId === filters.automationId)
-  )
+  const records = await readGeneratedVideoExports(filters.rootDir, {
+    limit: !filters.type && !filters.automationId ? filters.limit : undefined,
+  })
+  return records
+    .filter(
+      (record) =>
+        (!filters.type || record.type === filters.type) &&
+        (!filters.automationId ||
+          record.sourceConfig.automationId === filters.automationId)
+    )
+    .slice(0, filters.limit ? Math.max(1, filters.limit) : undefined)
 }
 
 export async function createGeneratedVideoExport(
@@ -73,10 +83,7 @@ export async function createGeneratedVideoExport(
     status === "queued" || status === "processing"
       ? nextQueuePosition(records)
       : undefined
-  await writeGeneratedVideoExports(rootDir, [
-    record,
-    ...records.filter((item) => item.id !== record.id),
-  ])
+  await upsertGeneratedVideoExport(rootDir, record)
   return record
 }
 
@@ -89,30 +96,25 @@ export async function updateGeneratedVideoExport(input: {
   error?: string
 }): Promise<GeneratedVideoExport | null> {
   const rootDir = input.rootDir ?? defaultGeneratedVideoRoot
-  const records = await readGeneratedVideoExports(rootDir)
   const updatedAt = new Date().toISOString()
-  const recordIndex = records.findIndex((record) => record.id === input.id)
-
-  if (recordIndex === -1) {
-    return null
-  }
+  const existing = await getGeneratedVideoExport(input.id, rootDir)
+  if (!existing) return null
 
   const updated: GeneratedVideoExport = {
-    ...records[recordIndex],
-    status: input.status ?? records[recordIndex].status,
+    ...existing,
+    status: input.status ?? existing.status,
     queuePosition:
       input.status === "ready" || input.status === "failed"
         ? undefined
-        : records[recordIndex].queuePosition,
-    previewUrl:
-      localMediaUrl(input.previewUrl) || records[recordIndex].previewUrl,
+        : existing.queuePosition,
+    previewUrl: localMediaUrl(input.previewUrl) || existing.previewUrl,
     videoUrl:
       input.videoUrl === undefined
-        ? records[recordIndex].videoUrl
-        : localMediaUrl(input.videoUrl) || records[recordIndex].videoUrl,
+        ? existing.videoUrl
+        : localMediaUrl(input.videoUrl) || existing.videoUrl,
     error:
       input.error === undefined
-        ? records[recordIndex].error
+        ? existing.error
         : clean(input.error) || undefined,
     updatedAt,
   }
@@ -120,9 +122,26 @@ export async function updateGeneratedVideoExport(input: {
     updated.sourceConfig,
     updated.previewUrl
   )
-  const next = records.toSpliced(recordIndex, 1, updated)
+  await upsertGeneratedVideoExport(rootDir, updated)
+  return updated
+}
 
-  await writeGeneratedVideoExports(rootDir, next)
+export async function markGeneratedVideoExportPublished(input: {
+  rootDir?: string
+  id: string
+  publishedAt?: Date
+}): Promise<GeneratedVideoExport | null> {
+  const rootDir = input.rootDir ?? defaultGeneratedVideoRoot
+  const existing = await getGeneratedVideoExport(input.id, rootDir)
+  if (!existing) return null
+
+  const publishedAt = (input.publishedAt ?? new Date()).toISOString()
+  const updated: GeneratedVideoExport = {
+    ...existing,
+    manuallyPublishedAt: publishedAt,
+    updatedAt: publishedAt,
+  }
+  await upsertGeneratedVideoExport(rootDir, updated)
   return updated
 }
 
@@ -140,7 +159,10 @@ export async function deleteGeneratedVideoExport(input: {
   }
 
   const next = records.filter((record) => record.id !== input.id)
-  await writeGeneratedVideoExports(rootDir, next)
+  await deleteJsonArrayRecord({
+    ...generatedVideoStore(rootDir),
+    id: input.id,
+  })
   await deleteAssetRecordsForUrls({
     rootDir: input.assetRootDir,
     urls: [deleted.previewUrl, deleted.videoUrl].map(clean).filter(Boolean),
@@ -152,25 +174,44 @@ export async function deleteGeneratedVideoExport(input: {
 }
 
 async function readGeneratedVideoExports(
-  rootDir = defaultGeneratedVideoRoot
+  rootDir = defaultGeneratedVideoRoot,
+  options: { limit?: number } = {}
 ): Promise<GeneratedVideoExport[]> {
   return readJsonArrayStore({
     rootDir,
     fileName: dbFileName,
     key: "exports",
     normalize: normalizeGeneratedVideoExport,
+    limit: options.limit,
   })
 }
 
-async function writeGeneratedVideoExports(
-  rootDir: string,
-  records: GeneratedVideoExport[]
+export function getGeneratedVideoExport(
+  id: string,
+  rootDir = defaultGeneratedVideoRoot
 ) {
-  await writeJsonArrayStore({
+  return readJsonArrayRecord<GeneratedVideoExport>({
+    ...generatedVideoStore(rootDir),
+    id,
+    normalize: normalizeGeneratedVideoExport,
+  })
+}
+
+function generatedVideoStore(rootDir: string) {
+  return {
     rootDir,
     fileName: dbFileName,
     key: "exports",
-    records,
+  }
+}
+
+async function upsertGeneratedVideoExport(
+  rootDir: string,
+  record: GeneratedVideoExport
+) {
+  await upsertJsonArrayRecord({
+    ...generatedVideoStore(rootDir),
+    record,
   })
 }
 
@@ -201,6 +242,7 @@ function normalizeGeneratedVideoExport(
     previewUrl: localMediaUrl(record.previewUrl),
     videoUrl: localMediaUrl(record.videoUrl),
     error: clean(record.error) || undefined,
+    manuallyPublishedAt: clean(record.manuallyPublishedAt) || undefined,
   }
 }
 

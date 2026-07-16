@@ -213,14 +213,14 @@ export function PinterestCollectionSearch({
           onClick={onCancel}
           ariaLabel="Close Pinterest search"
         />
-        <div className="border-b border-[#ecebe4] p-4 pb-3">
+        <div className="border-b border-app-panel-border p-4 pb-3">
           <form
-            className="flex items-center gap-2 rounded-[9px] bg-white pr-9"
+            className="flex items-center gap-2 rounded-[9px] bg-app-surface pr-9"
             onSubmit={submitSearch}
           >
-            <IconSearch className="size-5 shrink-0 text-[#9a9991]" />
+            <IconSearch className="size-5 shrink-0 text-app-text-faint" />
             <input
-              className="h-10 min-w-0 flex-1 bg-transparent text-[18px] font-medium outline-none placeholder:text-[#77766f]"
+              className="h-10 min-w-0 flex-1 bg-transparent text-[18px] font-medium outline-none placeholder:text-app-muted-text"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               name="query"
@@ -264,14 +264,14 @@ export function PinterestCollectionSearch({
             </Button>
           </form>
         </div>
-        <div className="mt-3 flex min-h-6 flex-wrap items-center justify-between gap-3 px-4 text-[12px] text-[#77766f]">
+        <div className="mt-3 flex min-h-6 flex-wrap items-center justify-between gap-3 px-4 text-[12px] text-app-muted-text">
           <div className="flex flex-wrap items-center gap-3">
             {results.length > 0 && <span>{results.length} results loaded</span>}
             {(source === "fallback" || source === "pexels-fallback") &&
               results.length > 0 && <span>Showing local preview results</span>}
           </div>
           {results.length > 0 ? (
-            <label className="flex items-center gap-2 font-semibold text-[#62615b]">
+            <label className="flex items-center gap-2 font-semibold text-app-text-soft">
               <SwitchPillButton
                 enabled={showImageLabels}
                 onClick={() => setShowImageLabels((current) => !current)}
@@ -285,7 +285,7 @@ export function PinterestCollectionSearch({
           <div className="min-h-[250px] px-5 pt-2 pb-8">
             <div className="mb-3 text-[12px] font-semibold">Most recent</div>
             {recentSearches.length > 0 ? (
-              <div className="grid gap-3 text-[13px] text-[#62615b]">
+              <div className="grid gap-3 text-[13px] text-app-text-soft">
                 {recentSearches.map((suggestion) => (
                   <Button
                     type="button"
@@ -302,7 +302,7 @@ export function PinterestCollectionSearch({
                 ))}
               </div>
             ) : (
-              <div className="text-[13px] font-medium text-[#9a9991]">
+              <div className="text-[13px] font-medium text-app-text-faint">
                 No recent searches yet
               </div>
             )}
@@ -379,7 +379,7 @@ export function PinterestCollectionSearch({
             >
               Clear
             </Button>
-            <label className="flex items-center gap-2 text-[#77766f]">
+            <label className="flex items-center gap-2 text-app-muted-text">
               <SwitchPillButton
                 enabled={autoCaption}
                 onClick={() => setAutoCaption((current) => !current)}
@@ -448,7 +448,7 @@ function PinterestResultCard({
           "relative overflow-hidden rounded-[6px] border-2 bg-[#d9d8d0] transition",
           selected
             ? "border-[#32d982]"
-            : "border-white group-hover:border-[#deddd5]",
+            : "border-white group-hover:border-app-panel-border",
           !result.imageUrl && thumbTone("pinterest", index)
         )}
         style={
@@ -469,7 +469,7 @@ function PinterestResultCard({
         <span
           className={cn(
             "absolute top-1.5 right-1.5 grid size-6 place-items-center rounded-full text-[12px] font-bold",
-            selected ? "bg-[#32d982] text-white" : "bg-white text-[#55544e]"
+            selected ? "bg-[#32d982] text-white" : "bg-app-surface text-[#55544e]"
           )}
         >
           {selected ? "✓" : "+"}

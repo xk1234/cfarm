@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   IconBrandFacebookFilled,
   IconBrandGoogleFilled,
@@ -15,7 +15,9 @@ import {
 } from "@tabler/icons-react"
 import { toast } from "sonner"
 import { Select } from "radix-ui"
+import type { ColDef, ICellRendererParams } from "ag-grid-community"
 
+import { AgDataTable } from "@/components/ui/ag-data-table"
 import { SwipeDetailPage } from "@/components/realfarm/swipe-detail-page"
 import {
   toSwipeDisplayModel,
@@ -25,9 +27,22 @@ import { SwipeMedia } from "@/components/realfarm/swipe-media"
 import { Button } from "@/components/ui/button"
 import { CardGridSkeleton } from "@/components/ui/loading-skeleton"
 import { SelectLike } from "@/components/ui/form-controls"
+import { ViewModeToggle, type ViewMode } from "@/components/ui/view-mode-toggle"
 import { fetchJsonWithTimeout, toastApiError } from "@/lib/client-api"
 import type { SwipeRecord } from "@/lib/swipes"
 import { cn } from "@/lib/utils"
+
+type SwipeTableRow = {
+  id: string
+  advertiser: string
+  title: string
+  platform: string
+  format: string
+  folder: string
+  processingStatus: string
+  swipedAt: string
+  shared: boolean
+}
 
 export function SwipesView({ currentUserId }: { currentUserId: string }) {
   const [swipes, setSwipes] = useState<SwipeRecord[]>([])
@@ -36,6 +51,7 @@ export function SwipesView({ currentUserId }: { currentUserId: string }) {
   const [platform, setPlatform] = useState("All")
   const [format, setFormat] = useState("All")
   const [sort, setSort] = useState("Recent")
+  const [viewMode, setViewMode] = useState<ViewMode>("grid")
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading")
 
   useEffect(() => {
@@ -88,31 +104,37 @@ export function SwipesView({ currentUserId }: { currentUserId: string }) {
     ? swipes.find((swipe) => swipe.id === selectedSwipeId)
     : undefined
 
-  const filteredSwipes = displaySwipes
-    .filter(({ model }) => {
-      const haystack =
-        `${model.advertiser} ${model.title} ${model.caption} ${model.platform}`.toLowerCase()
-      return haystack.includes(search.trim().toLowerCase())
-    })
-    .filter(({ model }) => platform === "All" || platform === model.platform)
-    .filter(({ model }) => format === "All" || format === model.format)
-    .toSorted((a, b) => {
-      if (sort === "Oldest") {
-        return Date.parse(a.model.swipedAt) - Date.parse(b.model.swipedAt)
-      }
-      return Date.parse(b.model.swipedAt) - Date.parse(a.model.swipedAt)
-    })
+  const filteredSwipes = useMemo(
+    () =>
+      displaySwipes
+        .filter(({ model }) => {
+          const haystack =
+            `${model.advertiser} ${model.title} ${model.caption} ${model.platform}`.toLowerCase()
+          return haystack.includes(search.trim().toLowerCase())
+        })
+        .filter(
+          ({ model }) => platform === "All" || platform === model.platform
+        )
+        .filter(({ model }) => format === "All" || format === model.format)
+        .toSorted((a, b) => {
+          if (sort === "Oldest") {
+            return Date.parse(a.model.swipedAt) - Date.parse(b.model.swipedAt)
+          }
+          return Date.parse(b.model.swipedAt) - Date.parse(a.model.swipedAt)
+        }),
+    [displaySwipes, format, platform, search, sort]
+  )
 
-  function inspectSwipe(id: string) {
+  const inspectSwipe = useCallback((id: string) => {
     history.pushState(
       {},
       document.title,
       `${window.location.pathname}${window.location.search}#swipe=${encodeURIComponent(id)}`
     )
     setSelectedSwipeId(id)
-  }
+  }, [])
 
-  function backToList() {
+  const backToList = useCallback(() => {
     if (window.location.hash.startsWith("#swipe=")) {
       history.pushState(
         {},
@@ -121,31 +143,120 @@ export function SwipesView({ currentUserId }: { currentUserId: string }) {
       )
     }
     setSelectedSwipeId(null)
-  }
+  }, [])
 
-  async function deleteSwipe(id: string) {
-    const deleted = swipes.find((swipe) => swipe.id === id)
-    if (!deleted) {
-      return
-    }
+  const deleteSwipe = useCallback(
+    async (id: string) => {
+      const deleted = swipes.find((swipe) => swipe.id === id)
+      if (!deleted) {
+        return
+      }
 
-    setSwipes((current) => current.filter((swipe) => swipe.id !== id))
-    if (selectedSwipeId === id) {
-      backToList()
-    }
+      setSwipes((current) => current.filter((swipe) => swipe.id !== id))
+      if (selectedSwipeId === id) {
+        backToList()
+      }
 
-    try {
-      await fetchJsonWithTimeout(`/api/swipes/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-        timeoutMs: 12_000,
-        toastOnError: false,
-      })
-      toast.success("Swipe deleted")
-    } catch (error) {
-      setSwipes((current) => [deleted, ...current])
-      toastApiError(error, "Failed to delete swipe")
-    }
-  }
+      try {
+        await fetchJsonWithTimeout(`/api/swipes/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          timeoutMs: 12_000,
+          toastOnError: false,
+        })
+        toast.success("Swipe deleted")
+      } catch (error) {
+        setSwipes((current) => [deleted, ...current])
+        toastApiError(error, "Failed to delete swipe")
+      }
+    },
+    [backToList, selectedSwipeId, swipes]
+  )
+
+  const tableRows = useMemo<SwipeTableRow[]>(
+    () =>
+      filteredSwipes.map(({ swipe, model }) => ({
+        id: model.id,
+        advertiser: model.advertiser,
+        title: model.title,
+        platform: model.platform,
+        format: model.format,
+        folder: model.folder,
+        processingStatus: model.processingStatus || "ready",
+        swipedAt: model.swipedAt,
+        shared: Boolean(swipe.ownerId && swipe.ownerId !== currentUserId),
+      })),
+    [currentUserId, filteredSwipes]
+  )
+  const tableColumns = useMemo<ColDef<SwipeTableRow>[]>(
+    () => [
+      {
+        field: "advertiser",
+        headerName: "Advertiser",
+        minWidth: 180,
+        flex: 1.1,
+      },
+      { field: "title", headerName: "Title", minWidth: 260, flex: 1.7 },
+      { field: "platform", headerName: "Platform", minWidth: 130 },
+      { field: "format", headerName: "Format", minWidth: 120 },
+      { field: "folder", headerName: "Folder", minWidth: 150, flex: 0.8 },
+      {
+        field: "processingStatus",
+        headerName: "Status",
+        minWidth: 120,
+      },
+      {
+        field: "swipedAt",
+        headerName: "Swiped",
+        minWidth: 150,
+        valueFormatter: ({ value }) => formatTableDate(String(value)),
+      },
+      {
+        field: "shared",
+        headerName: "Access",
+        minWidth: 110,
+        cellRenderer: ({ value }: ICellRendererParams<SwipeTableRow>) =>
+          value ? "Shared" : "Mine",
+      },
+      {
+        headerName: "Actions",
+        minWidth: 170,
+        sortable: false,
+        filter: false,
+        cellRenderer: ({ data }: ICellRendererParams<SwipeTableRow>) =>
+          data ? (
+            <div className="flex h-full items-center gap-2">
+              <Button
+                type="button"
+                variant="softControl"
+                size="compact"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  inspectSwipe(data.id)
+                }}
+              >
+                Inspect
+              </Button>
+              {!data.shared ? (
+                <Button
+                  type="button"
+                  variant="iconControl"
+                  size="icon-sm"
+                  className="text-app-danger"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    void deleteSwipe(data.id)
+                  }}
+                  aria-label={`Delete ${data.title}`}
+                >
+                  <IconTrash className="size-4" />
+                </Button>
+              ) : null}
+            </div>
+          ) : null,
+      },
+    ],
+    [deleteSwipe, inspectSwipe]
+  )
 
   if (selectedSwipe) {
     return <SwipeDetailPage swipe={selectedSwipe} onBack={backToList} />
@@ -165,32 +276,41 @@ export function SwipesView({ currentUserId }: { currentUserId: string }) {
         <label className="relative block max-w-[430px]">
           <IconSearch className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#aaa9c6]" />
           <input
-            className="h-10 w-full rounded-[7px] border border-[#e4e3f4] bg-white pr-3 pl-10 text-[13px] font-medium outline-none placeholder:text-[#b5b4ca]"
+            className="h-10 w-full rounded-[7px] border border-[#e4e3f4] bg-app-surface pr-3 pl-10 text-[13px] font-medium outline-none placeholder:text-[#b5b4ca]"
             placeholder="Search By Brand Name"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
         </label>
-        <div className="flex flex-wrap items-center gap-3">
+        <div
+          className="flex flex-nowrap items-center gap-3 overflow-x-auto pb-1"
+          role="group"
+          aria-label="Swipe filters"
+        >
           <PlatformSelect value={platform} onChange={setPlatform} />
-          <SelectLike
-            value={`Sort by: ${sort}`}
-            options={["Sort by: Recent", "Sort by: Oldest"]}
-            onChange={(value) => setSort(value.replace("Sort by: ", ""))}
-            placement="bottom"
-          />
-          <SelectLike
-            value={`Format: ${format}`}
-            options={[
-              "Format: All",
-              "Format: image",
-              "Format: video",
-              "Format: carousel",
-              "Format: unknown",
-            ]}
-            onChange={(value) => setFormat(value.replace("Format: ", ""))}
-            placement="bottom"
-          />
+          <div className="shrink-0">
+            <SelectLike
+              value={`Sort by: ${sort}`}
+              options={["Sort by: Recent", "Sort by: Oldest"]}
+              onChange={(value) => setSort(value.replace("Sort by: ", ""))}
+              placement="bottom"
+            />
+          </div>
+          <div className="shrink-0">
+            <SelectLike
+              value={`Format: ${format}`}
+              options={[
+                "Format: All",
+                "Format: image",
+                "Format: video",
+                "Format: carousel",
+                "Format: unknown",
+              ]}
+              onChange={(value) => setFormat(value.replace("Format: ", ""))}
+              placement="bottom"
+            />
+          </div>
+          <ViewModeToggle value={viewMode} onChange={setViewMode} />
         </div>
       </div>
 
@@ -215,6 +335,14 @@ export function SwipesView({ currentUserId }: { currentUserId: string }) {
             </p>
           </div>
         </div>
+      ) : viewMode === "table" ? (
+        <AgDataTable
+          rows={tableRows}
+          columns={tableColumns}
+          getRowId={(row) => row.id}
+          onRowClick={(row) => inspectSwipe(row.id)}
+          emptyMessage="No matching swipes"
+        />
       ) : (
         <div className="columns-1 gap-5 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5">
           {filteredSwipes.map(({ swipe, model }, index) => (
@@ -263,13 +391,13 @@ function PlatformSelect({
           type="button"
           variant="softControl"
           size="appDefault"
-          className="min-w-[158px] justify-between gap-3"
+          className="min-w-[158px] shrink-0 justify-between gap-3"
         >
           <Select.Value>
             <PlatformOptionContent platform={selected} />
           </Select.Value>
           <Select.Icon asChild>
-            <IconChevronDown className="size-4 text-[#77766f]" />
+            <IconChevronDown className="size-4 text-app-muted-text" />
           </Select.Icon>
         </Button>
       </Select.Trigger>
@@ -308,7 +436,7 @@ function PlatformOptionContent({
 }) {
   return (
     <span className="flex min-w-0 items-center gap-2">
-      <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[#111] text-white">
+      <span className="grid size-5 shrink-0 place-items-center rounded-full bg-app-strong text-white">
         {platformIcon(platform)}
       </span>
       <span className="truncate">{platformLabel(platform)}</span>
@@ -355,14 +483,14 @@ function SwipeCard({
   return (
     <article
       className={cn(
-        "relative mb-5 break-inside-avoid overflow-hidden rounded-[6px] border bg-white shadow-[0_4px_16px_rgba(40,37,93,0.08)]",
+        "relative mb-5 break-inside-avoid overflow-hidden rounded-[6px] border bg-app-surface shadow-[0_4px_16px_rgba(40,37,93,0.08)]",
         shared
           ? "border-[#9b7bea] ring-2 ring-[#6d28d9]/15"
           : "border-[#e6e4f7]"
       )}
     >
       {shared ? (
-        <span className="absolute top-2 left-2 z-10 rounded-full bg-[#6d28d9] px-2 py-1 text-[10px] font-semibold text-white shadow-sm">
+        <span className="absolute top-2 left-2 z-10 rounded-full bg-app-action px-2 py-1 text-[10px] font-semibold text-white shadow-sm">
           Shared
         </span>
       ) : null}
@@ -458,6 +586,17 @@ function formatSwipeDate(value: string) {
     day: "2-digit",
     year: "2-digit",
   })
+}
+
+function formatTableDate(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
 }
 
 function swipeAvatarTone(index: number) {

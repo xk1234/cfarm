@@ -82,7 +82,7 @@ export function renderedSlideSvg(
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
     `<rect width="${width}" height="${height}" fill="#111"/>`,
-    `<image href="${escapeXml(sourceUrl)}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="${slide.imageFit === "fit" ? "none" : `xMidYMid ${slide.imageFit === "cover" ? "slice" : "meet"}`}"/>`,
+    `<image href="${escapeXml(sourceUrl)}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>`,
     overlayAlpha > 0
       ? `<rect data-layer="overlay" width="${width}" height="${height}" fill="#000" opacity="${overlayAlpha}"/>`
       : null,
@@ -175,38 +175,71 @@ export function renderedTextItemBounds(
   width: number,
   height: number
 ): SlideshowTextBounds[] {
-  return layoutRenderedTextItems(items, width, height).map((rendered) => {
-    const { item, x, y, fontSize, lineHeight, lines } = rendered
-    const strokePadding = needsTextStroke(item.textStyle)
-      ? Math.max(6, fontSize * 0.13) / 2
-      : 0
-    const horizontalPadding = strokePadding + 4
-    const verticalPadding = strokePadding + 3
-    const textWidth = Math.max(
-      fontSize * 0.55,
-      ...lines.map((line) => textDisplayUnits(line) * fontSize)
-    )
-    const firstLineTop = y - fontSize * 0.52
-    const lastLineBottom =
-      y + Math.max(0, lines.length - 1) * lineHeight + fontSize * 0.52
-    const left =
-      item.textAlign === "left"
-        ? x
-        : item.textAlign === "right"
-          ? x - textWidth
-          : x - textWidth / 2
+  return layoutRenderedTextItems(items, width, height).map((rendered) =>
+    renderedTextBounds(rendered, width, height)
+  )
+}
 
+// Editing uses the configured text box width, not only the glyph bounds. This
+// makes Width immediately visible and gives the whole wrapping area a stable
+// click target while preserving the tight bounds used by layout tests.
+export function renderedTextItemEditorBounds(
+  items: SlideshowTextItem[],
+  width: number,
+  height: number
+): SlideshowTextBounds[] {
+  return layoutRenderedTextItems(items, width, height).map((rendered) => {
+    const tight = renderedTextBounds(rendered, width, height)
+    const left =
+      rendered.item.textAlign === "left"
+        ? rendered.x
+        : rendered.item.textAlign === "right"
+          ? rendered.x - rendered.textBoxWidth
+          : rendered.x - rendered.textBoxWidth / 2
+    const boundedLeft = Math.max(0, Math.min(width, left))
     return {
-      id: item.id,
-      left: Math.max(0, left - horizontalPadding),
-      top: Math.max(0, firstLineTop - verticalPadding),
-      width: Math.min(width, textWidth + horizontalPadding * 2),
-      height: Math.min(
-        height,
-        lastLineBottom - firstLineTop + verticalPadding * 2
-      ),
+      ...tight,
+      left: boundedLeft,
+      width: Math.max(0, Math.min(rendered.textBoxWidth, width - boundedLeft)),
     }
   })
+}
+
+function renderedTextBounds(
+  rendered: RenderedTextItem,
+  width: number,
+  height: number
+): SlideshowTextBounds {
+  const { item, x, y, fontSize, lineHeight, lines } = rendered
+  const strokePadding = needsTextStroke(item.textStyle)
+    ? Math.max(6, fontSize * 0.13) / 2
+    : 0
+  const horizontalPadding = strokePadding + 4
+  const verticalPadding = strokePadding + 3
+  const textWidth = Math.max(
+    fontSize * 0.55,
+    ...lines.map((line) => textDisplayUnits(line) * fontSize)
+  )
+  const firstLineTop = y - fontSize * 0.52
+  const lastLineBottom =
+    y + Math.max(0, lines.length - 1) * lineHeight + fontSize * 0.52
+  const left =
+    item.textAlign === "left"
+      ? x
+      : item.textAlign === "right"
+        ? x - textWidth
+        : x - textWidth / 2
+
+  return {
+    id: item.id,
+    left: Math.max(0, left - horizontalPadding),
+    top: Math.max(0, firstLineTop - verticalPadding),
+    width: Math.min(width, textWidth + horizontalPadding * 2),
+    height: Math.min(
+      height,
+      lastLineBottom - firstLineTop + verticalPadding * 2
+    ),
+  }
 }
 
 function prepareRenderedTextItem(

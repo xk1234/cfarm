@@ -54,7 +54,7 @@ export function GeneratedSlideshowFrame({
   return (
     <div className="relative grid h-[498px] w-full place-items-center overflow-hidden rounded-[9px] bg-black shadow-xl">
       <div
-        className="relative grid h-full max-h-full w-full max-w-full place-items-center overflow-hidden bg-black"
+        className="relative grid h-full max-h-full w-auto max-w-full place-items-center overflow-hidden bg-black"
         style={{
           aspectRatio: ratioToCss(activeSlideRecord?.aspectRatio),
         }}
@@ -64,7 +64,7 @@ export function GeneratedSlideshowFrame({
           <img
             src={activeSlideRecord.imageUrl}
             alt=""
-            className="h-full w-full object-contain"
+            className="h-full w-full object-cover"
             draggable={false}
           />
         ) : (
@@ -93,7 +93,7 @@ export function GeneratedSlideshowFrame({
         <>
           <button
             type="button"
-            className="absolute top-1/2 left-2 z-10 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-white/88 text-[#242421] shadow-md transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-35"
+            className="absolute top-1/2 left-2 z-10 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-35"
             onClick={() => setActiveSlideIndex(activeSlideIndex - 1)}
             disabled={!canGoPrev}
             aria-label="Previous slide"
@@ -102,7 +102,7 @@ export function GeneratedSlideshowFrame({
           </button>
           <button
             type="button"
-            className="absolute top-1/2 right-2 z-10 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-white/88 text-[#242421] shadow-md transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-35"
+            className="absolute top-1/2 right-2 z-10 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-35"
             onClick={() => setActiveSlideIndex(activeSlideIndex + 1)}
             disabled={!canGoNext}
             aria-label="Next slide"

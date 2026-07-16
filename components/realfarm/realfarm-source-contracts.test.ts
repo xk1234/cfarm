@@ -69,7 +69,7 @@ describe("RealFarm source contracts", () => {
         "let ignoredInitialHashChange = false",
         "window.location.hash === initialHash",
         'window.addEventListener("hashchange", syncSwipeHashView)',
-        'className="h-svh overflow-hidden bg-[#f6f6f2] text-[#242421]"',
+        'className="h-svh overflow-hidden bg-[#f6f6f2] text-app-text"',
         'className="flex h-svh"',
         '"min-w-0 flex-1 overflow-y-auto"',
         '"px-5 py-5 lg:px-7"',
@@ -142,8 +142,8 @@ describe("RealFarm source contracts", () => {
       ])
       expectContains(realfarmDataSource, [
         "demoVideos: LocalAsset[]",
-        "demoVideos: listLocalAssets(",
-        '"assets/demos"',
+        "listMediaLibraryAssets",
+        'assetsFor(mediaAssets, "demo_videos")',
       ])
       expectContains(videoPanelSource, [
         "demoVideos: LocalAsset[]",
@@ -174,6 +174,28 @@ describe("RealFarm source contracts", () => {
         "updateDemoCollection",
         "VideoAutomationTextCard",
         "Demo video collection",
+      ])
+    })
+
+    it("allows parallel automation generations with distinct placeholders", () => {
+      const drawerSource = src(
+        "components/realfarm/automation-settings/drawer.tsx"
+      )
+      const helperSource = src(
+        "components/realfarm/automation-settings/run-helpers.ts"
+      )
+
+      expectContains(drawerSource, [
+        "activeGenerationCount",
+        "crypto.randomUUID()",
+        'generating ? "Generate another" : "Generate"',
+      ])
+      expectContains(helperSource, [
+        "generation-placeholder-${automation.id}${requestId",
+      ])
+      expectNotContains(drawerSource, [
+        "disabled={generating}",
+        "if (generating) {\n      return",
       ])
     })
 
@@ -450,7 +472,7 @@ describe("RealFarm source contracts", () => {
       ])
       expect(sharedSource).not.toContain("Not published")
       expectContains(toolbarSource, [
-        "border-t border-[#E5E7EB]",
+        "border-t border-app-panel-border",
         "bg-[#F5F5F5]",
         "rounded-xl",
         "space-y-2.5",
@@ -605,7 +627,7 @@ describe("RealFarm source contracts", () => {
       expectNotContains(settingsOuterClass, [
         "shadow-2xl",
         "rounded-[8px]",
-        "border border-[#e1e0d8]",
+        "border border-app-panel-border",
         "shadow-sm",
         "h-[min(720px,90vh)]",
         "min-h-[calc(100svh-40px)]",
@@ -616,6 +638,9 @@ describe("RealFarm source contracts", () => {
       const settingsSource = readAutomationSettingsSource()
       const automationsSource = src("components/realfarm/automations-view.tsx")
       const pickerSource = src("components/realfarm/social-account-picker.tsx")
+      const selectionSource = src(
+        "components/realfarm/social-account-selection.tsx"
+      )
       const workspaceSource = src("components/realfarm-workspace.tsx")
       const schemaSource = src("lib/realfarm-automation.ts")
 
@@ -626,16 +651,17 @@ describe("RealFarm source contracts", () => {
       expectNotContains(schemaSource, ["tiktok_account_id: string | null"])
       expectContains(pickerSource, [
         "SocialAccountPickerModal",
-        "/api/postfast/integrations",
-        '"tiktok"',
-        '"youtube"',
-        '"instagram"',
-        '"facebook"',
-        '"x"',
+        "usePostFastIntegrations",
+        "isSlideshowSocialProvider",
         "Available accounts",
         "Selected to run",
-        "AccountTile",
+        "SocialAccountSelectionGrid",
         "selectedIntegrationGrid",
+      ])
+      expectContains(selectionSource, [
+        "/api/postfast/integrations",
+        "SocialAccountSelectionTile",
+        "SocialPlatformIcon",
       ])
       expectNotContains(pickerSource, ["providerIntegrations"])
       expectContains(automationsSource, [
@@ -670,7 +696,7 @@ describe("RealFarm source contracts", () => {
         "onClick={() => setOpen(true)}",
       ])
       expectNotContains(settingsSource, [
-        "mt-6 flex w-full items-center justify-between rounded-[8px] border border-[#ecebe4] bg-white p-5 text-left",
+        "mt-6 flex w-full items-center justify-between rounded-[8px] border border-app-panel-border bg-app-surface p-5 text-left",
       ])
     })
   })
@@ -697,13 +723,13 @@ describe("RealFarm source contracts", () => {
         "initialTemplateData.schemas",
         "templates={templateAutomations}",
         "createLocalAutomation",
-        '"/api/automation-templates"',
         '"/api/automations"',
         "exampleRunsByTemplateId",
         "showcaseRunsByAutomationId",
         "recentRunsByAutomationId={showcaseRunsByAutomationId}",
         "generatedRunsByAutomationId={recentRunsByAutomationId}",
       ])
+      expectNotContains(workspaceSource, ['"/api/automation-templates"'])
       expectContains(templatesSource, [
         "templates: templateAutomations",
         "return templateAutomations",
@@ -725,7 +751,11 @@ describe("RealFarm source contracts", () => {
         'onCreateBlank("slideshow")',
         'onCreateBlank("video")',
       ])
-      expectContains(homeSource, ["ExampleSlideshowModal", "onOpenSlideshow"])
+      expectContains(homeSource, [
+        "ExampleSlideshowModal",
+        "GeneratedSlideshowViewerModal",
+        "onOpenSlideshow",
+      ])
       expectContains(previewSource, [
         "No example slideshow yet",
         "slide.text",
@@ -792,29 +822,52 @@ describe("RealFarm source contracts", () => {
   })
 
   describe("calendar and analytics", () => {
-    it("uses stable PostFast fetch dependencies and AG Grid metric rows", () => {
-      const source = src("components/realfarm/calendar-analytics.tsx")
-      const fetchStart = source.indexOf(
-        "void fetchJsonWithTimeout<{\n      posts?: { posts?: PostFastListedPost[] }\n      configured?: boolean\n    }>(monthRangeKey)"
+    it("uses the canonical calendar and stored cross-account analytics", () => {
+      const barrel = src("components/realfarm/calendar-analytics.tsx")
+      const calendar = src(
+        "components/realfarm/content-calendar/content-calendar-view.tsx"
       )
-      const fetchBlock = source.slice(
-        fetchStart,
-        source.indexOf("\n\n  return (", fetchStart)
-      )
+      const analytics = src("components/realfarm/analytics/analytics-view.tsx")
+      const navigation = src("components/realfarm/navigation.tsx")
 
-      expectContains(source, [
-        "monthRangeKey",
-        "AgGridReact<AnalyticsMetricRow>",
-        "analyticsRows",
-        "analyticsMetricRow",
+      expectContains(barrel, [
+        'from "./content-calendar/content-calendar-view"',
+        'from "./analytics/analytics-view"',
       ])
-      expect(fetchBlock).toContain("}, [monthRangeKey])")
-      expect(fetchBlock).not.toContain("[monthDate, monthEnd]")
-      expectNotContains(source, [
-        '["Account", "Views", "Likes", "Comments", "Shares", "Engagement Rate", "Created"]',
-        "grid grid-cols-[1fr_1fr_1fr_1fr_1fr_1.2fr_1fr]",
-        ">Table</Button>",
-        ">Grid</Button>",
+      expectContains(calendar, [
+        "`/api/calendar?from=${encodeURIComponent(",
+        "MonthCalendar",
+        "CalendarItemDetail",
+        "filterStorageKey",
+        "MultiSelectFilter",
+        "filters.accounts",
+        "filters.statuses",
+        "filters.platform",
+        "filters.automation",
+        "filters.sourceType",
+        "window.localStorage.setItem",
+        'item.status === "scheduled" && item.links.cancel',
+        "function PlatformMark",
+        'case "google-business-profile"',
+      ])
+      expectNotContains(calendar, ["WeekCalendar", "AgendaList", "Reschedule"])
+      expectContains(navigation, [
+        '}>("/api/calendar/summary"',
+        "calendarStatus.summary.needsAction + calendarStatus.summary.failed",
+        'item.key === "schedule" ? scheduleBadge : 0',
+      ])
+      expectContains(analytics, [
+        "const requestKey = `/api/analytics/report?days=${days}`",
+        'type AnalyticsLevel = "overview" | "account" | "posts"',
+        "AnalyticsOverview",
+        "AccountAnalytics",
+        "PostAnalyticsTable",
+        "dailyMetricSeries",
+        "capabilities",
+      ])
+      expectNotContains(analytics, [
+        "domain={[0, 4]}",
+        "Track your TikTok performance",
       ])
     })
   })
@@ -824,7 +877,7 @@ describe("RealFarm source contracts", () => {
       const source = src("components/realfarm/character-create.tsx")
       const loadingTextIndex = source.indexOf("Generating headshot...")
       const separateBelowPortraitIndex = source.indexOf(
-        "mt-3 rounded-[10px] bg-white px-3 py-2 text-center text-[13px] font-bold text-[#555] shadow-sm"
+        "mt-3 rounded-[10px] bg-app-surface px-3 py-2 text-center text-[13px] font-bold text-app-text-soft shadow-sm"
       )
       const portraitContainerIndex = source.indexOf(
         '<div className="relative w-fit">'
@@ -933,14 +986,14 @@ describe("RealFarm source contracts", () => {
       expectNotContains(source, [
         'className="inline-flex max-w-full items-center gap-2 rounded-full bg-[#eef0f5]',
         "presetMenuOpen",
-        'className="overflow-hidden rounded-[14px] border border-[#e1e1dc] bg-white text-left shadow-sm',
+        'className="overflow-hidden rounded-[14px] border border-[#e1e1dc] bg-app-surface text-left shadow-sm',
         "{generation.model} · {generation.aspectRatio}",
       ])
     })
   })
 
-  describe("automation dynamic tags and loading", () => {
-    it("keeps automation dynamic tags and generation loading wired", () => {
+  describe("automation variables and loading", () => {
+    it("keeps compact automation variables and generation loading wired", () => {
       const automationSettingsSource = readAutomationSettingsSource()
       const promptSource = src(
         "components/realfarm/automation-settings/prompt-settings.tsx"
@@ -949,11 +1002,16 @@ describe("RealFarm source contracts", () => {
       const wordCollectionRouteSource = src("app/api/word-collections/route.ts")
 
       expectContains(promptSource, [
-        "Dynamic tags",
-        "dynamicHookSlotPattern",
+        "Variables",
+        "VariableBadge",
+        "variable.name.toUpperCase()",
         "/api/word-collections",
         "schemaWithAutomationHookSlots",
-        "[[{slot}]]",
+        "wordCollectionVariableName(collection).toUpperCase()",
+      ])
+      expectNotContains(promptSource, [
+        "Dynamic tags",
+        "dynamicHookSlotPattern",
       ])
       expectContains(automationSettingsSource, [
         "generationPlaceholderRun",
@@ -982,6 +1040,9 @@ describe("RealFarm source contracts", () => {
       const exportsSource = src(
         "components/realfarm/generated-video-exports.tsx"
       )
+      const accountSelectionSource = src(
+        "components/realfarm/social-account-selection.tsx"
+      )
       const greenscreenSource = src("components/realfarm/greenscreen-view.tsx")
       const ugcSource = src(
         "components/realfarm/automation-settings/automation-video-generation.ts"
@@ -1005,15 +1066,17 @@ describe("RealFarm source contracts", () => {
         'aria-label="Save video"',
         'aria-label="Schedule post"',
         'aria-label="Delete output"',
-        "useVideoThumbnailFrame(item.videoUrl)",
-        'preload="auto"',
+        "item.previewUrl ? undefined : item.videoUrl",
+        'preload={item.previewUrl ? "none" : "metadata"}',
         "ScheduleGeneratedVideoModal",
-        '"/api/postfast/integrations"',
+        "usePostFastIntegrations",
+        "SocialAccountSelectionGrid",
         '"/api/postfast/upload"',
         '"/api/postfast/posts"',
         "datetime-local",
         "/api/generated-videos/",
       ])
+      expectContains(accountSelectionSource, ['"/api/postfast/integrations"'])
       expect(
         greenscreenFlow.indexOf("createGeneratedVideoExportRecord")
       ).toBeLessThan(greenscreenFlow.indexOf("renderAndUploadGreenscreenVideo"))

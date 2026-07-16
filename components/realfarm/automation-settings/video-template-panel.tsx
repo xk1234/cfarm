@@ -224,25 +224,25 @@ export function VideoTemplateFormatPanel({
   }
 
   return (
-    <div className="grid min-h-svh bg-white md:grid-cols-[380px_1fr]">
-      <aside className="flex min-h-0 flex-col border-r border-[#deddd5] bg-[#f7f7f3]">
-        <div className="flex h-12 items-center justify-between border-b border-[#deddd5] px-3">
+    <div className="grid min-h-svh bg-app-surface md:grid-cols-[380px_1fr]">
+      <aside className="flex min-h-0 flex-col border-r border-app-panel-border bg-app-surface-subtle">
+        <div className="flex h-12 items-center justify-between border-b border-app-panel-border px-3">
           <button
-            className="inline-flex items-center gap-2 rounded-[6px] px-2 py-1 text-[13px] font-semibold text-[#56554f] hover:bg-white"
+            className="inline-flex items-center gap-2 rounded-[6px] px-2 py-1 text-[13px] font-semibold text-[#56554f] hover:bg-app-surface"
             onClick={onBack}
           >
             <IconChevronLeft className="size-4" />
             Back
           </button>
-          <div className="inline-flex items-center gap-1.5 text-[13px] font-bold text-[#242421]">
+          <div className="inline-flex items-center gap-1.5 text-[13px] font-bold text-app-text">
             <IconVideo className="size-4" />
             {preset.name}
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <div className="space-y-4">
-            <section className="rounded-[10px] border border-[#e3e2db] bg-white p-3 shadow-sm">
-              <div className="mb-2 text-[14px] font-bold text-[#242421]">
+            <section className="rounded-[10px] border border-app-panel-border bg-app-surface p-3 shadow-sm">
+              <div className="mb-2 text-[14px] font-bold text-app-text">
                 Video template
               </div>
               <SelectControl
@@ -259,13 +259,13 @@ export function VideoTemplateFormatPanel({
                   </option>
                 ))}
               </SelectControl>
-              <p className="mt-2 text-[12px] leading-4 font-medium text-[#77766f]">
+              <p className="mt-2 text-[12px] leading-4 font-medium text-app-muted-text">
                 {preset.description}
               </p>
             </section>
 
-            <section className="rounded-[10px] border border-[#e3e2db] bg-white p-3 shadow-sm">
-              <div className="mb-2 text-[14px] font-bold text-[#242421]">
+            <section className="rounded-[10px] border border-app-panel-border bg-app-surface p-3 shadow-sm">
+              <div className="mb-2 text-[14px] font-bold text-app-text">
                 Music
               </div>
               <SoundSelector
@@ -282,20 +282,20 @@ export function VideoTemplateFormatPanel({
               <button
                 type="button"
                 className={cn(
-                  "w-full rounded-[10px] border bg-white p-3 text-left shadow-sm transition",
+                  "w-full rounded-[10px] border bg-app-surface p-3 text-left shadow-sm transition",
                   selectedTarget.scope === "global"
-                    ? "border-[#242421]"
-                    : "border-[#e3e2db] hover:border-[#c9c8c0]"
+                    ? "border-app-strong"
+                    : "border-app-panel-border hover:border-[#c9c8c0]"
                 )}
                 onClick={() => {
                   setSelectedTarget({ scope: "global" })
                   setSelectedTextIndex(null)
                 }}
               >
-                <div className="text-[14px] font-bold text-[#242421]">
+                <div className="text-[14px] font-bold text-app-text">
                   Persistent text
                 </div>
-                <p className="mt-1 text-[12px] leading-4 font-medium text-[#77766f]">
+                <p className="mt-1 text-[12px] leading-4 font-medium text-app-muted-text">
                   Shown for the whole video.{" "}
                   {format.hookPlacement === "global"
                     ? "The first element carries the hook."
@@ -340,7 +340,7 @@ export function VideoTemplateFormatPanel({
             ))}
           </div>
         </div>
-        <div className="border-t border-[#deddd5] p-3">
+        <div className="border-t border-app-panel-border p-3">
           <Button
             variant="action"
             size="appDefault"
@@ -354,7 +354,7 @@ export function VideoTemplateFormatPanel({
 
       <main className="relative isolate grid min-h-0 place-items-center overflow-y-auto bg-[#b9b9b6] p-8">
         <div className="w-full max-w-[360px]">
-          <div className="mb-3 flex items-center justify-between text-[13px] font-bold text-[#55544f]">
+          <div className="mb-3 flex items-center justify-between text-[13px] font-bold text-app-text-soft">
             <span>{automation.name}</span>
             <span>
               {selectedSegment ? selectedSegment.label : "Persistent text"}
@@ -412,7 +412,7 @@ export function VideoTemplateFormatPanel({
               + Add text element
             </button>
           ) : null}
-          <p className="mt-4 text-center text-[12px] font-semibold text-[#55544f]">
+          <p className="mt-4 text-center text-[12px] font-semibold text-app-text-soft">
             Save, then use Generate. Finished videos appear in Overview.
           </p>
         </div>
@@ -475,35 +475,35 @@ function VideoSegmentCard({
   return (
     <section
       className={cn(
-        "rounded-[10px] border bg-white p-3 shadow-sm transition",
-        active ? "border-[#242421]" : "border-[#e3e2db]"
+        "rounded-[10px] border bg-app-surface p-3 shadow-sm transition",
+        active ? "border-app-strong" : "border-app-panel-border"
       )}
       onClick={onSelect}
     >
       <div className="mb-1 flex items-center justify-between gap-2">
-        <div className="text-[14px] font-bold text-[#242421]">
+        <div className="text-[14px] font-bold text-app-text">
           {index + 1}. {segment.label}
         </div>
         {showsHook ? (
-          <span className="rounded-full bg-[#f0efe9] px-2 py-0.5 text-[10px] font-bold tracking-[0.06em] text-[#77766f] uppercase">
+          <span className="rounded-full bg-[#f0efe9] px-2 py-0.5 text-[10px] font-bold tracking-[0.06em] text-app-muted-text uppercase">
             Hook
           </span>
         ) : null}
       </div>
       {segment.guidance ? (
-        <p className="mb-2 text-[12px] leading-4 font-medium text-[#77766f]">
+        <p className="mb-2 text-[12px] leading-4 font-medium text-app-muted-text">
           {segment.guidance}
         </p>
       ) : null}
 
       <div className="space-y-2">
         {allowsSlidesMode ? (
-          <div className="grid grid-cols-2 rounded-[8px] bg-[#efeee8] p-1">
+          <div className="grid grid-cols-2 rounded-[8px] bg-app-surface-subtle p-1">
             <button
               type="button"
               className={cn(
                 "h-8 rounded-[6px] text-[12px] font-bold",
-                !slidesMode ? "bg-white shadow-sm" : "text-[#77766f]"
+                !slidesMode ? "bg-app-surface shadow-sm" : "text-app-muted-text"
               )}
               onClick={(event) => {
                 event.stopPropagation()
@@ -516,7 +516,7 @@ function VideoSegmentCard({
               type="button"
               className={cn(
                 "h-8 rounded-[6px] text-[12px] font-bold",
-                slidesMode ? "bg-white shadow-sm" : "text-[#77766f]"
+                slidesMode ? "bg-app-surface shadow-sm" : "text-app-muted-text"
               )}
               onClick={(event) => {
                 event.stopPropagation()
@@ -531,7 +531,7 @@ function VideoSegmentCard({
         {!usesSingleFullVideo && !fixedVideoCollection && !allowsSlidesMode ? (
           <div className="grid grid-cols-2 gap-2">
             <label className="block">
-              <span className="text-[11px] font-bold text-[#77766f]">
+              <span className="text-[11px] font-bold text-app-muted-text">
                 Media source
               </span>
               <SelectControl
@@ -550,7 +550,7 @@ function VideoSegmentCard({
               </SelectControl>
             </label>
             <label className="block">
-              <span className="text-[11px] font-bold text-[#77766f]">
+              <span className="text-[11px] font-bold text-app-muted-text">
                 Media type
               </span>
               <SelectControl
@@ -572,7 +572,7 @@ function VideoSegmentCard({
 
         {slidesMode ? (
           <label className="block">
-            <span className="text-[11px] font-bold text-[#77766f]">
+            <span className="text-[11px] font-bold text-app-muted-text">
               Slides automation
             </span>
             <SelectControl
@@ -615,7 +615,7 @@ function VideoSegmentCard({
             )}
           >
             <label className="block">
-              <span className="text-[11px] font-bold text-[#77766f]">
+              <span className="text-[11px] font-bold text-app-muted-text">
                 {slidesMode ? "Slides" : "Clips"}
               </span>
               <SelectControl
@@ -635,7 +635,7 @@ function VideoSegmentCard({
               </SelectControl>
             </label>
             <label className="block">
-              <span className="text-[11px] font-bold text-[#77766f]">
+              <span className="text-[11px] font-bold text-app-muted-text">
                 {slidesMode ? "Secs/slide" : "Secs/clip"}
               </span>
               <SelectControl
@@ -661,7 +661,7 @@ function VideoSegmentCard({
             </label>
             {!slidesMode ? (
               <label className="block">
-                <span className="text-[11px] font-bold text-[#77766f]">
+                <span className="text-[11px] font-bold text-app-muted-text">
                   Cut
                 </span>
                 <SelectControl

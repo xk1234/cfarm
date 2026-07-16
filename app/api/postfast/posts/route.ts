@@ -7,11 +7,13 @@ import {
 } from "@/lib/postfast-client"
 import {
   listPostFastPostRecords,
+  upsertPostFastPostRecord,
   type PostFastPostRecord,
   type PostFastSourceType,
 } from "@/lib/postfast-posts"
 import { postfastRouteError } from "@/lib/postfast-route"
 import { publishPost } from "@/lib/publishing"
+import { enqueueJob } from "@/lib/queue"
 
 export const dynamic = "force-dynamic"
 
@@ -67,8 +69,40 @@ export async function POST(request: Request) {
     )
   }
 
-  const type = postTypeValue(payload?.type) ?? "draft"
+  const requestedType = stringValue(payload?.type)
   const media = mediaValue(payload?.media)
+
+  if (requestedType === "manual" || requestedType === "manual_posted") {
+    const posted = requestedType === "manual_posted"
+    const releaseUrl = stringValue(payload?.releaseUrl)
+    const record = await upsertPostFastPostRecord({
+      sourceType,
+      sourceId,
+      integrationId,
+      provider,
+      status: posted ? "published" : "awaiting_manual_post",
+      scheduledAt: stringValue(payload?.date),
+      releaseUrl,
+      externalPostId: releaseUrl,
+      externallyManaged: true,
+      content,
+      media,
+    })
+    if (!posted && record.scheduledAt) {
+      await enqueueJob({
+        type: "send-notification",
+        payload: {
+          text: `Manual post ready\n${content}\nSlideshow: ${sourceId}`,
+        },
+        availableAt: new Date(record.scheduledAt),
+        dedupeKey: `manual-post:${record.id}:${record.scheduledAt}`,
+        maxAttempts: 5,
+      }).catch(() => undefined)
+    }
+    return NextResponse.json({ record }, { status: 201 })
+  }
+
+  const type = postTypeValue(requestedType) ?? "draft"
 
   const result = await publishPost({
     type,
@@ -107,7 +141,8 @@ function sourceTypeValue(value: unknown): PostFastSourceType | undefined {
     value === "image" ||
     value === "swipe" ||
     value === "slideshow" ||
-    value === "manual"
+    value === "manual" ||
+    value === "external"
     ? value
     : undefined
 }

@@ -43,9 +43,9 @@ function CopyableVideoField({
   }
 
   return (
-    <div className="rounded-[10px] border border-[#e1e0d8] bg-white p-4">
+    <div className="rounded-[10px] border border-app-panel-border bg-app-surface p-4">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="text-[12px] font-bold tracking-[0.08em] text-[#77766f] uppercase">
+        <div className="text-[12px] font-bold tracking-[0.08em] text-app-muted-text uppercase">
           {label}
         </div>
         <Button
@@ -60,7 +60,7 @@ function CopyableVideoField({
           <IconCopy className="size-4" />
         </Button>
       </div>
-      <p className="text-[14px] leading-6 font-medium whitespace-pre-wrap text-[#333]">
+      <p className="text-[14px] leading-6 font-medium whitespace-pre-wrap text-app-text">
         {value}
       </p>
     </div>

@@ -1,6 +1,12 @@
 import path from "node:path"
 
-import { readJsonArrayStore, withJsonArrayStore } from "@/lib/json-store"
+import {
+  deleteJsonArrayRecord,
+  readJsonArrayRecord,
+  readJsonArrayStore,
+  upsertJsonArrayRecord,
+  withJsonArrayStore,
+} from "@/lib/json-store"
 import {
   benchmarkXRun,
   defaultXAutomation,
@@ -20,16 +26,31 @@ export async function listXAutomations() {
   })
 }
 
-export async function createXAutomation(input: { name?: string } = {}) {
-  const existing = await listXAutomations()
-  if (existing[0]) return existing[0]
-  const record = defaultXAutomation({ name: input.name })
-  await withJsonArrayStore<XAutomationRecord>({
+export async function getXAutomation(id: string) {
+  return readJsonArrayRecord<XAutomationRecord>({
     rootDir,
     fileName: "automations.json",
     key: "automations",
+    id,
     normalize: normalizeXAutomation,
-    update: (records) => ({ records: [record, ...records] }),
+  })
+}
+
+export async function createXAutomation(
+  input: {
+    name?: string
+    platform?: XAutomationRecord["platform"]
+  } = {}
+) {
+  const record = defaultXAutomation({
+    name: input.name,
+    platform: input.platform,
+  })
+  await upsertJsonArrayRecord({
+    rootDir,
+    fileName: "automations.json",
+    key: "automations",
+    record,
   })
   return record
 }
@@ -38,32 +59,25 @@ export async function upsertXAutomation(record: XAutomationRecord) {
   const normalized = normalizeXAutomation(record)
   if (!normalized) throw new Error("Invalid X automation")
   normalized.updatedAt = new Date().toISOString()
-  await withJsonArrayStore<XAutomationRecord>({
+  await upsertJsonArrayRecord({
     rootDir,
     fileName: "automations.json",
     key: "automations",
-    normalize: normalizeXAutomation,
-    update: (records) => ({
-      records: [
-        normalized,
-        ...records.filter((item) => item.id !== normalized.id),
-      ],
-    }),
+    record: normalized,
   })
   return normalized
 }
 
 export async function deleteXAutomation(id: string) {
-  return withJsonArrayStore<XAutomationRecord, XAutomationRecord | null>({
+  const existing = await getXAutomation(id)
+  if (!existing) return null
+  await deleteJsonArrayRecord({
     rootDir,
     fileName: "automations.json",
     key: "automations",
-    normalize: normalizeXAutomation,
-    update: (records) => ({
-      records: records.filter((item) => item.id !== id),
-      result: records.find((item) => item.id === id) ?? null,
-    }),
+    id,
   })
+  return existing
 }
 
 export async function listXAutomationRuns(automationId?: string) {
@@ -76,6 +90,16 @@ export async function listXAutomationRuns(automationId?: string) {
   return automationId
     ? runs.filter((run) => run.automationId === automationId)
     : runs
+}
+
+export async function getXAutomationRun(id: string) {
+  return readJsonArrayRecord<XAutomationRun>({
+    rootDir,
+    fileName: "runs.json",
+    key: "runs",
+    id,
+    normalize: normalizeXAutomationRun,
+  })
 }
 
 export async function upsertXAutomationRun(run: XAutomationRun) {
@@ -94,15 +118,40 @@ export async function upsertXAutomationRun(run: XAutomationRun) {
   return run
 }
 
-function normalizeXAutomationRun(run: XAutomationRun) {
+export async function deleteXAutomationRuns(automationId: string) {
+  return withJsonArrayStore<XAutomationRun, XAutomationRun[]>({
+    rootDir,
+    fileName: "runs.json",
+    key: "runs",
+    normalize: normalizeXAutomationRun,
+    update: (runs) => {
+      const deleted = runs.filter((run) => run.automationId === automationId)
+      return {
+        records: runs.filter((run) => run.automationId !== automationId),
+        result: deleted,
+      }
+    },
+  })
+}
+
+function normalizeXAutomationRun(
+  run: XAutomationRun & { platforms?: XAutomationRecord["platform"][] }
+) {
   if (!run?.id || !run?.automationId) return null
   const setup = typeof run.setup === "string" ? run.setup : ""
   const proof = typeof run.proof === "string" ? run.proof : ""
   const curiosityGap =
     typeof run.curiosityGap === "string" ? run.curiosityGap : ""
+  const platform =
+    run.platform === "threads" || run.platform === "x"
+      ? run.platform
+      : run.platforms?.includes("threads") && !run.platforms?.includes("x")
+        ? "threads"
+        : "x"
   const benchmark = run.benchmark?.comparison
     ? run.benchmark
     : benchmarkXRun({
+        platform,
         contentType: run.contentType,
         hook: run.hook,
         setup,
@@ -115,6 +164,7 @@ function normalizeXAutomationRun(run: XAutomationRun) {
       })
   return {
     ...run,
+    platform,
     setup,
     proof,
     curiosityGap,

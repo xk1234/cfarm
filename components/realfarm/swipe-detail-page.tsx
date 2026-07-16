@@ -26,7 +26,7 @@ export function SwipeDetailPage({ swipe, onBack }: { swipe: SwipeRecord; onBack:
         <div className="flex flex-wrap items-center gap-2 text-[12px] font-semibold">
           <StatusBadge status={model.processingStatus} />
           <span className="rounded-full bg-[#eef0ff] px-3 py-1 text-[#343197]">{model.platform}</span>
-          <span className="rounded-full bg-white px-3 py-1 text-[#6d6b90] shadow-sm">{model.format}</span>
+          <span className="rounded-full bg-app-surface px-3 py-1 text-[#6d6b90] shadow-sm">{model.format}</span>
         </div>
       </div>
 
@@ -39,7 +39,7 @@ export function SwipeDetailPage({ swipe, onBack }: { swipe: SwipeRecord; onBack:
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(390px,0.95fr)]">
         <section>
           <SectionTitle title="Creative media" />
-          <SwipeMedia swipe={model} fit="contain" className="aspect-[4/5] max-h-[680px] rounded-[8px] border border-[#e2e0f2] bg-white" />
+          <SwipeMedia swipe={model} fit="contain" className="aspect-[4/5] max-h-[680px] rounded-[8px] border border-[#e2e0f2] bg-app-surface" />
           <div className="mt-4 flex flex-wrap gap-3">
             {model.landingPageUrl && (
               <Button variant="softControl" size="appDefault" asChild>
@@ -94,7 +94,7 @@ export function SwipeDetailPage({ swipe, onBack }: { swipe: SwipeRecord; onBack:
               </Button>
             </div>
             {landingPath ? (
-              <a href={landingPath} target="_blank" rel="noreferrer" className="mt-4 block overflow-hidden rounded-[7px] border border-[#e2e0f2] bg-white">
+              <a href={landingPath} target="_blank" rel="noreferrer" className="mt-4 block overflow-hidden rounded-[7px] border border-[#e2e0f2] bg-app-surface">
                 <img src={landingPath} alt={`${landingView} landing page screenshot`} className="max-h-[460px] w-full object-contain" />
               </a>
             ) : (
@@ -141,7 +141,7 @@ export function SwipeDetailPage({ swipe, onBack }: { swipe: SwipeRecord; onBack:
 
 function InfoSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-[8px] border border-[#e2e0f2] bg-white p-5 shadow-[0_3px_14px_rgba(40,37,93,0.06)]">
+    <section className="rounded-[8px] border border-[#e2e0f2] bg-app-surface p-5 shadow-[0_3px_14px_rgba(40,37,93,0.06)]">
       <SectionTitle title={title} />
       {children}
     </section>

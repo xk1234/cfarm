@@ -1,11 +1,19 @@
 import { clean } from "@/lib/guards"
 import { randomUUID } from "node:crypto"
-import path from "node:path"
 
-import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
+import {
+  listOutputPublications,
+  writeOutputPublications,
+} from "@/lib/output-publications"
 import type { PostFastMedia } from "@/lib/postfast-client"
 
-export type PostFastPostStatus = "draft" | "scheduled" | "published" | "failed"
+export type PostFastPostStatus =
+  | "awaiting_manual_post"
+  | "ready_for_review"
+  | "draft"
+  | "scheduled"
+  | "published"
+  | "failed"
 export type PostFastSourceType =
   | "automation"
   | "x_automation"
@@ -17,6 +25,7 @@ export type PostFastSourceType =
   | "swipe"
   | "slideshow"
   | "manual"
+  | "external"
 
 export type PostFastAnalyticsPoint = {
   date: string
@@ -38,7 +47,10 @@ export type PostFastPostRecord = {
   provider: string
   status: PostFastPostStatus
   scheduledAt?: string
+  publishedAt?: string
   releaseUrl?: string
+  externallyManaged?: boolean
+  externalPostId?: string
   content: string
   media: PostFastMedia[]
   createdAt: string
@@ -48,9 +60,6 @@ export type PostFastPostRecord = {
   analytics?: PostFastAnalyticsMetric[]
   error?: string
 }
-
-const defaultRootDir = path.join(process.cwd(), "data")
-const dbFileName = "postfast-posts.json"
 
 export async function listPostFastPostRecords(
   filters: {
@@ -97,7 +106,14 @@ export async function upsertPostFastPostRecord(
     provider: input.provider,
     status: input.status,
     scheduledAt: clean(input.scheduledAt) || undefined,
+    publishedAt:
+      clean(input.publishedAt) ||
+      (input.status === "published"
+        ? (existing?.publishedAt ?? now)
+        : existing?.publishedAt),
     releaseUrl: clean(input.releaseUrl) || existing?.releaseUrl,
+    externallyManaged: input.externallyManaged ?? existing?.externallyManaged,
+    externalPostId: clean(input.externalPostId) || existing?.externalPostId,
     content: input.content,
     media: input.media,
     analytics: input.analytics ?? existing?.analytics,
@@ -139,6 +155,72 @@ export async function updatePostFastPostAnalytics(input: {
 
   await writePostFastPostRecords(input.rootDir, next)
   return updated
+}
+
+export async function getPostFastPostRecord(id: string) {
+  const records = await readPostFastPostRecords()
+  return records.find((record) => record.id === clean(id)) ?? null
+}
+
+export async function patchPostFastPostRecord(input: {
+  id: string
+  status?: PostFastPostStatus
+  scheduledAt?: string
+  publishedAt?: string | null
+  postfastPostId?: string
+  releaseUrl?: string
+  error?: string | null
+}) {
+  const records = await readPostFastPostRecords()
+  const current = records.find((record) => record.id === clean(input.id))
+  if (!current) return null
+  const now = new Date().toISOString()
+  const updated: PostFastPostRecord = {
+    ...current,
+    status: input.status ?? current.status,
+    scheduledAt:
+      input.scheduledAt === undefined
+        ? current.scheduledAt
+        : clean(input.scheduledAt) || undefined,
+    publishedAt:
+      input.publishedAt === null
+        ? undefined
+        : input.publishedAt !== undefined
+          ? clean(input.publishedAt) || undefined
+          : input.status === "published"
+            ? (current.publishedAt ?? now)
+            : current.publishedAt,
+    postfastPostId:
+      input.postfastPostId === undefined
+        ? current.postfastPostId
+        : clean(input.postfastPostId) || undefined,
+    releaseUrl:
+      input.releaseUrl === undefined
+        ? current.releaseUrl
+        : clean(input.releaseUrl) || undefined,
+    error:
+      input.error === undefined
+        ? current.error
+        : clean(input.error) || undefined,
+    updatedAt: now,
+    lastSyncedAt: now,
+  }
+  await writePostFastPostRecords(
+    undefined,
+    records.map((record) => (record.id === updated.id ? updated : record))
+  )
+  return updated
+}
+
+export async function deletePostFastPostRecordById(id: string) {
+  const records = await readPostFastPostRecords()
+  const current = records.find((record) => record.id === clean(id))
+  if (!current) return null
+  await writePostFastPostRecords(
+    undefined,
+    records.filter((record) => record.id !== current.id)
+  )
+  return current
 }
 
 export async function deletePostFastPostRecords(input: {
@@ -185,26 +267,19 @@ export async function deletePostFastPostRecords(input: {
 }
 
 async function readPostFastPostRecords(
-  rootDir = defaultRootDir
+  _rootDir?: string
 ): Promise<PostFastPostRecord[]> {
-  return readJsonArrayStore({
-    rootDir,
-    fileName: dbFileName,
-    key: "posts",
-    normalize: normalizeRecord,
+  return (await listOutputPublications()).flatMap((record) => {
+    const normalized = normalizeRecord(record)
+    return normalized ? [normalized] : []
   })
 }
 
 async function writePostFastPostRecords(
-  rootDir = defaultRootDir,
+  _rootDir: string | undefined,
   records: PostFastPostRecord[]
 ) {
-  await writeJsonArrayStore({
-    rootDir,
-    fileName: dbFileName,
-    key: "posts",
-    records,
-  })
+  await writeOutputPublications(records)
 }
 
 function normalizeRecord(
@@ -234,6 +309,8 @@ function normalizeRecord(
 
 function isStatus(value: unknown): value is PostFastPostStatus {
   return (
+    value === "awaiting_manual_post" ||
+    value === "ready_for_review" ||
     value === "draft" ||
     value === "scheduled" ||
     value === "published" ||

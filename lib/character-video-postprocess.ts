@@ -2,6 +2,7 @@ import { mkdir, readdir } from "node:fs/promises"
 import path from "node:path"
 
 import { stageAssetToTmp } from "@/lib/asset-storage"
+import { listMediaLibraryAssets } from "@/lib/media-library"
 import {
   getRendiApiKey,
   runRendiFfmpegAndDownload,
@@ -63,9 +64,11 @@ export async function findRandomMusicFile(
     seed?: number
   } = {}
 ) {
-  const rootDir = input.rootDir ?? path.join(process.cwd(), "data", "music")
-  const files = await walkFiles(rootDir)
-  const audioFiles = files.filter(isAudioFilePath)
+  const audioFiles = input.rootDir
+    ? (await walkFiles(input.rootDir)).filter(isAudioFilePath)
+    : (await listMediaLibraryAssets())
+        .filter((asset) => asset.collection === "music")
+        .map((asset) => path.join(process.cwd(), "data", asset.path))
   if (audioFiles.length === 0) {
     return ""
   }

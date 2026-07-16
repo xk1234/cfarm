@@ -1,7 +1,6 @@
-import { readFileSync } from "node:fs"
 import path from "node:path"
 
-import { beforeAll, describe, expect, it } from "vitest"
+import { describe, expect, it } from "vitest"
 
 import {
   automationSchemaToTemplateRecord,
@@ -13,7 +12,6 @@ import {
   listAutomationTemplateExampleRuns,
   type AutomationTemplateRecord,
 } from "@/lib/automation-templates"
-import { writeJsonArrayStore } from "@/lib/json-store"
 import {
   automationFormatSection,
   automationHooks,
@@ -22,22 +20,7 @@ import {
 } from "@/lib/realfarm-automation"
 import type { Automation } from "@/lib/realfarm-data"
 
-// Templates read from the bundled seed file directly; example-runs read only
-// from the store, so seed cfarm's automation_template_runs from the shipped
-// example-runs.json (run against cfarm via vitest.setup.ts).
 const templatesRoot = path.join(process.cwd(), "data", "automation-templates")
-
-beforeAll(async () => {
-  const seed = JSON.parse(
-    readFileSync(path.join(templatesRoot, "example-runs.json"), "utf8")
-  ) as { runs?: unknown[] }
-  await writeJsonArrayStore({
-    rootDir: templatesRoot,
-    fileName: "example-runs.json",
-    key: "runs",
-    records: seed.runs ?? [],
-  })
-})
 
 describe("automation template persistence", () => {
   it("ships imported Reelfarm slideshow automations as compact templates", async () => {

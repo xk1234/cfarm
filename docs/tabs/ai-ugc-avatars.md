@@ -2,70 +2,44 @@
 
 Route key: `avatars`
 
-Component: `AvatarsView` in `components/realfarm-workspace.tsx`
+Component: `AvatarsView` in `components/realfarm/characters-view.tsx`, wrapping the real UI `CharactersView` in `components/realfarm/characters/characters-view.tsx`
 
 ## Functionality
 
-AI UGC Avatars manages saved AI character records and local character generation previews. It can create, edit, rename, delete, and display characters. It also has local UI for image generation prompts, reference uploads, persisted categorized assets, and generated image previews.
+Create and manage AI characters ("avatars") and generate real headshots, images, and videos for them. Generation is backed by the KIE provider and **persists** — it is no longer placeholder/demo behavior.
 
 Main actions:
 
-- Load characters from `/api/characters`.
-- Create a new character with normalized attributes.
-- Generate a headshot through `/api/characters/headshot`.
-- Upload JSON attributes or a source image reference for headshot generation.
-- Edit/rename/delete saved characters.
-- Add local reference images.
-- Create avatar assets by upload or local placeholder generation.
-- Select persisted assets for use in avatar prompts.
-- Debug the final image prompt and attachments before generation.
-- Create in-memory generation cards from prompts.
+- Create, rename, and delete characters.
+- Generate character images via `/api/characters/images` and poll real generations.
+- Upload a reference/source image and reuse it ("Use as source image").
+- Run image→video workflows for a character.
+- Browse persisted image and video generations.
 
 ## Objects Used
 
 | Object | Source | Usage |
 | --- | --- | --- |
-| `CharacterRecord[]` | `GET /api/characters` | Sidebar list and selected character. |
-| `Character` | `CharacterRecord.attributes` | Character profile data and editor fields. |
-| `CharacterPayload` | `POST /api/characters` | Save/create payload. |
-| `defaultCharacterAttributes` | `lib/characters.ts` | Initial character defaults. |
-| `defaultCharacterPreviewUrl` | Component constant | Fallback avatar/headshot image. |
-| `AssetRecord[]` | `GET /api/assets?scope=ugc_avatar&category=...` | Assets panel library and selected prompt assets. |
-| `CharacterPromptAttachment[]` | `buildCharacterPromptPackage()` | Selected character headshot and selected asset attachments. |
+| `CharacterRecord[]` | `GET /api/characters` (`characters` table) | Character list source of truth. |
+| `character_generations` records | `GET /api/characters/images?characterId=` | Persisted image generations. |
+| `character_video_generations` records | Characters video routes | Persisted video generations. |
+| Source image | Uploaded, stored in the `characters` Storage bucket | Reused as generation input. |
 
 ## Persistence
 
-Appwrite `characters` table (via `lib/json-store.ts`); working file `data/characters.json` (filesystem fallback)
+Characters persist in the `characters` table; image and video generations persist in the `character_generations` and `character_video_generations` tables; uploaded/source images live in the `characters` Storage bucket. Appwrite is authoritative — no filesystem fallback.
 
-Headshots: `data/characters/headshots`
+API routes:
 
-Avatar assets: Appwrite `assets` table (via `lib/json-store.ts`); working file `data/assets/assets.json` (filesystem fallback)
+- `GET / POST /api/characters`
+- `DELETE /api/characters/[id]`
+- `POST /api/characters/image` · `GET / POST /api/characters/images`
+- `POST /api/characters/video`
+- `/api/characters/workflows` · `/api/characters/attributes`
 
-Avatar asset files: `data/assets/files`
-
-API:
-
-- `GET /api/characters`
-- `POST /api/characters`
-- `DELETE /api/characters?id=...`
-- `POST /api/characters/headshot`
-- `GET /api/assets?scope=ugc_avatar&category=...`
-- `POST /api/assets/upload`
-- `POST /api/assets/generate`
-- `POST /api/assets/caption`
-
-Prompt generations inside the selected character view are stored in React state only and disappear on reload. The prompt package always includes the selected character attributes JSON and the selected character headshot attachment. Selected assets are added as extra attachments.
-
-Assets created from the Assets panel are persisted in the local asset DB and reload after refresh.
-
-Uploaded source images are passed to Kie/Flux Kontext as `inputImage` references when generating a headshot. The uploaded file is not saved directly as the character headshot.
+Provider: KIE (`kie.ai`) for image and video generation.
 
 ## Hardcoded / Demo Behavior
 
-- `USER_ID` is hardcoded in `lib/characters.ts`.
-- Default character name is `"UU's character 1"`.
-- Character option lists are hardcoded in `characterAttributeOptions`.
-- Generation model names and related model links are hardcoded arrays.
-- Generated image assets currently use a local placeholder SVG generator unless a provider is wired later.
-- Reference images are object URLs in browser memory, not uploaded to permanent storage.
-- The Generate button creates placeholder generation cards; it does not call an image-generation backend.
+- Empty-state and loading copy are static.
+- Model/attribute option lists come from the generation model registry (`lib/realfarm-generation-model-registry.ts`).

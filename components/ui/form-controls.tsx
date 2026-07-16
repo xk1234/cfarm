@@ -12,7 +12,7 @@ export function SwitchPill({ enabled }: { enabled?: boolean }) {
     <span
       className={cn(
         "inline-flex h-7 w-12 shrink-0 rounded-full p-1",
-        enabled ? "bg-app-action" : "bg-[#ececea]"
+        enabled ? "bg-app-action" : "bg-app-panel-border-strong"
       )}
     >
       <span
@@ -35,7 +35,7 @@ export function SwitchPillButton({
       checked={Boolean(enabled)}
       className={cn(
         "inline-flex h-7 w-12 shrink-0 rounded-full p-1 transition outline-none focus-visible:ring-3 focus-visible:ring-app-action/25",
-        enabled ? "bg-app-action" : "bg-[#ececea]",
+        enabled ? "bg-app-action" : "bg-app-panel-border-strong",
         className
       )}
       {...props}
@@ -60,7 +60,7 @@ export function ToggleRow({
   onToggle: () => void
 }) {
   return (
-    <div className="flex h-9 w-full items-center justify-between border-b border-[#ecebe4] text-left text-[13px] font-semibold">
+    <div className="flex h-9 w-full items-center justify-between border-b border-app-panel-border text-left text-[13px] font-semibold">
       <span>{label}</span>
       <SwitchPillButton
         enabled={enabled}
@@ -88,19 +88,18 @@ export function SelectLike({
         <Button
           variant="softControl"
           size="appDefault"
-          className="w-full justify-start text-left"
+          className="w-full max-w-full min-w-0 justify-start overflow-hidden text-left"
         >
-          <Select.Value />
+          <Select.Value className="min-w-0 truncate" />
         </Button>
       </Select.Trigger>
       <Select.Portal>
         <Select.Content
+          data-select-like-content=""
           position="popper"
           side={placement === "bottom" ? "bottom" : "top"}
           sideOffset={8}
-          className={cn(
-            "z-[120] min-w-32 overflow-hidden rounded-lg border border-app-panel-border bg-app-control-bg p-1 text-sm shadow-xl"
-          )}
+          className="app-popover z-[120] min-w-32 p-1 text-sm"
         >
           <Select.Viewport>
             {options.map((option) => (
@@ -131,7 +130,7 @@ export function LabelledSelect({
   onChange?: (value: string) => void
 }) {
   return (
-    <label className="text-[11px] font-semibold text-[#6c6b66]">
+    <label className="app-field-label text-[11px]">
       {label}
       <SelectLike value={value} options={options} onChange={onChange} />
     </label>
@@ -160,7 +159,7 @@ export function CheckedDropdownButton({
         >
           <Select.Value />
           <Select.Icon asChild>
-            <ChevronDown className="size-4 text-[#77766f]" />
+            <ChevronDown className="size-4 text-app-muted-text" />
           </Select.Icon>
         </Button>
       </Select.Trigger>
@@ -169,7 +168,7 @@ export function CheckedDropdownButton({
           position="popper"
           sideOffset={4}
           align="end"
-          className="z-[120] min-w-[142px] overflow-hidden rounded-lg border border-app-panel-border bg-app-control-bg py-1 text-sm shadow-xl"
+          className="app-popover z-[120] min-w-[142px] py-1 text-sm"
         >
           <Select.Viewport>
             {options.map((option) => (
@@ -180,7 +179,7 @@ export function CheckedDropdownButton({
               >
                 <Select.ItemText>{option}</Select.ItemText>
                 <Select.ItemIndicator>
-                  <Check className="size-3.5 text-[#242421]" />
+                  <Check className="size-3.5 text-app-text" />
                 </Select.ItemIndicator>
               </Select.Item>
             ))}
@@ -198,7 +197,7 @@ export function SelectControl({
   return (
     <select
       className={cn(
-        "h-9 rounded-lg border border-app-panel-border bg-app-control-bg px-4 text-sm font-medium outline-none",
+        "app-control px-4 text-sm font-medium",
         className
       )}
       {...props}
@@ -216,7 +215,7 @@ export function SearchControl({
   return (
     <label
       className={cn(
-        "relative block h-9 rounded-lg border border-app-panel-border bg-app-control-bg shadow-sm focus-within:border-app-muted-text",
+        "app-control relative block",
         className
       )}
     >
@@ -268,7 +267,7 @@ export function FormatLabeledSelect({
 }) {
   return (
     <label>
-      <div className="mb-1 text-[11px] font-semibold text-[#6b6a64]">
+      <div className="app-field-label mb-1 text-[11px]">
         {label}
       </div>
       <FormatSelect value={value} options={options} onChange={onChange} />

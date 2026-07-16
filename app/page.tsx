@@ -68,7 +68,7 @@ const faqs = [
 
 export default function LandingPage() {
   return (
-    <main className="min-h-[100dvh] bg-[#f7f7fa] text-[#111117]">
+    <main className="min-h-[100dvh] bg-brand-canvas text-brand-ink">
       <a href="#main" className="sr-only focus:not-sr-only">
         Skip to content
       </a>
@@ -81,36 +81,36 @@ export default function LandingPage() {
             <h1 className="max-w-[10.5ch] text-5xl leading-[0.96] font-semibold tracking-[-0.06em] sm:text-6xl lg:text-7xl">
               Stop rebuilding every piece of content from scratch.
             </h1>
-            <p className="mt-6 max-w-[54ch] text-lg leading-7 text-[#686875]">
+            <p className="mt-6 max-w-[54ch] text-lg leading-7 text-brand-muted">
               Turn saved creative research into repeatable workflows, reusable
               assets, and approved content runs.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href="/login?mode=register"
-                className="inline-flex items-center gap-2 rounded-[10px] bg-[#6d28d9] px-5 py-3 text-sm font-semibold text-white hover:bg-[#5b21b6]"
+                className="inline-flex items-center gap-2 rounded-app-control bg-brand-accent px-5 py-3 text-sm font-semibold text-white hover:bg-brand-accent-hover"
               >
                 Create account <IconArrowRight className="size-4" />
               </Link>
               <Link
                 href="/product"
-                className="inline-flex items-center gap-2 rounded-[10px] border border-[#dedee7] bg-white px-5 py-3 text-sm font-semibold hover:bg-[#f0eef8]"
+                className="inline-flex items-center gap-2 rounded-app-control border border-brand-border-strong bg-white px-5 py-3 text-sm font-semibold hover:bg-brand-accent-soft"
               >
                 <IconPlayerPlay className="size-4" /> See the product
               </Link>
             </div>
           </div>
 
-          <div className="relative overflow-hidden rounded-[22px] bg-[#111117] p-3 shadow-[0_30px_90px_rgba(35,24,67,0.22)] sm:p-4">
+          <div className="relative overflow-hidden rounded-2xl bg-brand-ink p-3 shadow-app-dialog sm:p-4">
             <div className="grid min-h-[520px] gap-3 sm:grid-cols-[1.08fr_0.92fr]">
-              <div className="lc-placeholder-studio rounded-[16px] bg-cover bg-center" />
+              <div className="lc-placeholder-studio rounded-app-panel bg-cover bg-center" />
               <div className="grid gap-3">
-                <div className="rounded-[16px] bg-white p-5">
+                <div className="rounded-app-panel bg-white p-5">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-[#686875]">
+                    <span className="text-xs font-semibold text-brand-muted">
                       Source record
                     </span>
-                    <span className="size-2 rounded-full bg-[#168a55]" />
+                    <span className="size-2 rounded-full bg-brand-success" />
                   </div>
                   <p className="mt-12 text-xl font-semibold tracking-[-0.03em]">
                     The hook, transcript, visual, and angle stay connected.
@@ -119,21 +119,21 @@ export default function LandingPage() {
                     {["Hook", "Assets", "Proof"].map((label) => (
                       <div
                         key={label}
-                        className="rounded-[8px] bg-[#f0eef8] px-2 py-3 text-center text-xs font-medium"
+                        className="rounded-md bg-brand-accent-soft px-2 py-3 text-center text-xs font-medium"
                       >
                         {label}
                       </div>
                     ))}
                   </div>
                 </div>
-                <div className="lc-placeholder-creator rounded-[16px] bg-cover bg-center" />
+                <div className="lc-placeholder-creator rounded-app-panel bg-cover bg-center" />
               </div>
             </div>
           </div>
         </section>
 
-        <section className="border-y border-[#e7e7ee] bg-white">
-          <div className="mx-auto grid max-w-[1280px] divide-y divide-[#e7e7ee] px-5 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4 lg:px-8">
+        <section className="border-y border-brand-border bg-white">
+          <div className="mx-auto grid max-w-[1280px] divide-y divide-brand-border px-5 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4 lg:px-8">
             {[
               [
                 "Source records",
@@ -151,7 +151,7 @@ export default function LandingPage() {
             ].map(([title, body]) => (
               <div key={title} className="px-5 py-7 first:pl-0 last:pr-0">
                 <p className="text-sm font-semibold">{title}</p>
-                <p className="mt-2 text-sm leading-6 text-[#686875]">{body}</p>
+                <p className="mt-2 text-sm leading-6 text-brand-muted">{body}</p>
               </div>
             ))}
           </div>
@@ -162,29 +162,29 @@ export default function LandingPage() {
             <h2 className="max-w-[12ch] text-4xl leading-[1.02] font-semibold tracking-[-0.05em] sm:text-5xl">
               Your swipe folder is not a content system.
             </h2>
-            <p className="mt-6 max-w-[55ch] text-base leading-7 text-[#686875]">
+            <p className="mt-6 max-w-[55ch] text-base leading-7 text-brand-muted">
               Screenshots lose context. Prompts drift. Good outputs disappear
               into export folders. The next campaign still starts with a blank
               document.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-[18px] bg-[#ececf2] p-6 sm:translate-y-8">
-              <IconFolders className="size-7 text-[#686875]" />
+            <div className="rounded-app-dialog bg-brand-surface-muted p-6 sm:translate-y-8">
+              <IconFolders className="size-7 text-brand-muted" />
               <p className="mt-16 text-2xl font-semibold tracking-[-0.035em]">
                 Before
               </p>
-              <p className="mt-3 text-sm leading-6 text-[#686875]">
+              <p className="mt-3 text-sm leading-6 text-brand-muted">
                 Loose links, unlabeled screenshots, copied prompts, and no clear
                 path from research to output.
               </p>
             </div>
-            <div className="rounded-[18px] bg-[#111117] p-6 text-white">
-              <IconSparkles className="size-7 text-[#d9c7ff]" />
+            <div className="rounded-app-dialog bg-brand-ink p-6 text-white">
+              <IconSparkles className="size-7 text-brand-accent-highlight" />
               <p className="mt-16 text-2xl font-semibold tracking-[-0.035em]">
                 With LumenClip
               </p>
-              <p className="mt-3 text-sm leading-6 text-[#c7c7d2]">
+              <p className="mt-3 text-sm leading-6 text-brand-muted-on-dark">
                 One record connects the source, angle, assets, workflow,
                 generated result, and next decision.
               </p>
@@ -197,17 +197,17 @@ export default function LandingPage() {
             <h2 className="max-w-[13ch] text-4xl leading-[1.02] font-semibold tracking-[-0.05em] sm:text-5xl">
               A straight path from evidence to output.
             </h2>
-            <div className="mt-14 grid gap-px overflow-hidden rounded-[18px] bg-[#e7e7ee] md:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-14 grid gap-px overflow-hidden rounded-app-dialog bg-brand-border md:grid-cols-2 lg:grid-cols-4">
               {steps.map((step) => (
                 <article
                   key={step.title}
                   className="bg-white p-6 lg:min-h-[300px]"
                 >
-                  <step.icon className="size-6 text-[#6d28d9]" />
+                  <step.icon className="size-6 text-brand-accent" />
                   <h3 className="mt-20 text-xl font-semibold tracking-[-0.03em]">
                     {step.title}
                   </h3>
-                  <p className="mt-3 text-sm leading-6 text-[#686875]">
+                  <p className="mt-3 text-sm leading-6 text-brand-muted">
                     {step.body}
                   </p>
                 </article>
@@ -221,50 +221,50 @@ export default function LandingPage() {
             One workspace for the parts that usually scatter.
           </h2>
           <div className="mt-14 grid gap-4 lg:grid-cols-12">
-            <article className="relative min-h-[440px] overflow-hidden rounded-[20px] bg-[#111117] p-7 text-white lg:col-span-7">
+            <article className="relative min-h-[440px] overflow-hidden rounded-2xl bg-brand-ink p-7 text-white lg:col-span-7">
               <Image
                 src="/brand/lumenclip-brandkit.png"
                 alt="LumenClip visual system and product surface"
                 fill
                 className="object-cover opacity-55"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#111117] via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-brand-ink via-transparent to-transparent" />
               <div className="relative flex h-full flex-col justify-end">
                 <IconFileSearch className="size-7" />
                 <h3 className="mt-4 max-w-[16ch] text-3xl font-semibold tracking-[-0.04em]">
                   Creative research that stays usable.
                 </h3>
-                <p className="mt-3 max-w-[48ch] text-sm leading-6 text-[#d4d4dd]">
+                <p className="mt-3 max-w-[48ch] text-sm leading-6 text-brand-muted-on-dark-soft">
                   Capture the source and keep the extracted promise, objection,
                   CTA, media, and notes beside it.
                 </p>
               </div>
             </article>
-            <article className="rounded-[20px] bg-[#ececf2] p-7 lg:col-span-5">
-              <IconBolt className="size-7 text-[#6d28d9]" />
+            <article className="rounded-2xl bg-brand-surface-muted p-7 lg:col-span-5">
+              <IconBolt className="size-7 text-brand-accent" />
               <h3 className="mt-20 text-3xl font-semibold tracking-[-0.04em]">
                 Automations with visible inputs.
               </h3>
-              <p className="mt-4 text-sm leading-6 text-[#686875]">
+              <p className="mt-4 text-sm leading-6 text-brand-muted">
                 Choose collections, characters, templates, and schedules. Every
                 run saves its artifacts and status.
               </p>
             </article>
-            <article className="rounded-[20px] bg-white p-7 shadow-[0_12px_40px_rgba(35,24,67,0.08)] lg:col-span-5">
-              <IconUsers className="size-7 text-[#6d28d9]" />
+            <article className="rounded-2xl bg-brand-surface p-7 shadow-app-card lg:col-span-5">
+              <IconUsers className="size-7 text-brand-accent" />
               <h3 className="mt-18 text-2xl font-semibold tracking-[-0.035em]">
                 Reusable creator assets
               </h3>
-              <p className="mt-3 text-sm leading-6 text-[#686875]">
+              <p className="mt-3 text-sm leading-6 text-brand-muted">
                 Keep characters, references, captions, prompt attachments, and
                 generated media tied to a source of truth.
               </p>
             </article>
-            <article className="lc-placeholder-product min-h-[320px] rounded-[20px] bg-cover bg-center lg:col-span-7" />
+            <article className="lc-placeholder-product min-h-[320px] rounded-2xl bg-cover bg-center lg:col-span-7" />
           </div>
         </section>
 
-        <section className="border-y border-[#e7e7ee] bg-white py-24 lg:py-32">
+        <section className="border-y border-brand-border bg-white py-24 lg:py-32">
           <div className="mx-auto max-w-[1280px] px-5 lg:px-8">
             <h2 className="max-w-[13ch] text-4xl leading-[1.02] font-semibold tracking-[-0.05em] sm:text-5xl">
               Built for teams that need fewer blank starts.
@@ -286,17 +286,17 @@ export default function LandingPage() {
               ].map(([title, body]) => (
                 <article
                   key={title}
-                  className="border-l-2 border-[#6d28d9] pl-5"
+                  className="border-l-2 border-brand-accent pl-5"
                 >
                   <h3 className="text-xl font-semibold tracking-[-0.03em]">
                     {title}
                   </h3>
-                  <p className="mt-3 text-sm leading-6 text-[#686875]">
+                  <p className="mt-3 text-sm leading-6 text-brand-muted">
                     {body}
                   </p>
                   <Link
                     href="/solutions"
-                    className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-[#6d28d9]"
+                    className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-brand-accent"
                   >
                     See the workflow <IconArrowRight className="size-4" />
                   </Link>
@@ -308,11 +308,11 @@ export default function LandingPage() {
 
         <section className="mx-auto grid max-w-[1280px] gap-12 px-5 py-24 lg:grid-cols-[0.85fr_1.15fr] lg:px-8 lg:py-32">
           <div>
-            <IconLock className="size-8 text-[#6d28d9]" />
+            <IconLock className="size-8 text-brand-accent" />
             <h2 className="mt-8 max-w-[12ch] text-4xl leading-[1.02] font-semibold tracking-[-0.05em] sm:text-5xl">
               Your creative library belongs to your account.
             </h2>
-            <p className="mt-6 max-w-[54ch] text-base leading-7 text-[#686875]">
+            <p className="mt-6 max-w-[54ch] text-base leading-7 text-brand-muted">
               Appwrite authentication protects the workspace. Automations,
               swipes, assets, generations, jobs, and results are scoped to the
               signed-in user.
@@ -337,10 +337,10 @@ export default function LandingPage() {
                 "Saved runs and artifacts make useful attempts inspectable later.",
               ],
             ].map(([title, body]) => (
-              <div key={title} className="rounded-[16px] bg-[#ececf2] p-5">
-                <IconCheck className="size-5 text-[#168a55]" />
+              <div key={title} className="rounded-app-panel bg-brand-surface-muted p-5">
+                <IconCheck className="size-5 text-brand-success" />
                 <p className="mt-8 font-semibold">{title}</p>
-                <p className="mt-2 text-sm leading-6 text-[#686875]">{body}</p>
+                <p className="mt-2 text-sm leading-6 text-brand-muted">{body}</p>
               </div>
             ))}
           </div>
@@ -351,19 +351,19 @@ export default function LandingPage() {
             <h2 className="max-w-[14ch] text-4xl leading-[1.02] font-semibold tracking-[-0.05em] sm:text-5xl">
               Start with the workflow you already repeat.
             </h2>
-            <p className="mt-5 max-w-[60ch] text-base leading-7 text-[#686875]">
+            <p className="mt-5 max-w-[60ch] text-base leading-7 text-brand-muted">
               LumenClip is in private beta. Individual workspaces are free while
               plan limits and team features are finalized.
             </p>
             <div className="mt-12 grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
-              <div className="rounded-[18px] bg-[#ececf2] p-7">
-                <p className="text-sm font-semibold text-[#686875]">
+              <div className="rounded-app-dialog bg-brand-surface-muted p-7">
+                <p className="text-sm font-semibold text-brand-muted">
                   Private workspace
                 </p>
                 <p className="mt-6 text-5xl font-semibold tracking-[-0.05em]">
                   $0
                 </p>
-                <p className="mt-2 text-sm text-[#686875]">
+                <p className="mt-2 text-sm text-brand-muted">
                   During private beta
                 </p>
                 <ul className="mt-8 space-y-3 text-sm">
@@ -374,32 +374,32 @@ export default function LandingPage() {
                     "Manual review gates",
                   ].map((item) => (
                     <li key={item} className="flex items-center gap-2">
-                      <IconCheck className="size-4 text-[#168a55]" />
+                      <IconCheck className="size-4 text-brand-success" />
                       {item}
                     </li>
                   ))}
                 </ul>
                 <Link
                   href="/login?mode=register"
-                  className="mt-9 inline-flex rounded-[10px] bg-[#6d28d9] px-5 py-3 text-sm font-semibold text-white"
+                  className="mt-9 inline-flex rounded-app-control bg-brand-accent px-5 py-3 text-sm font-semibold text-white"
                 >
                   Create account
                 </Link>
               </div>
-              <div className="rounded-[18px] bg-[#111117] p-7 text-white">
-                <p className="text-sm font-semibold text-[#c7c7d2]">
+              <div className="rounded-app-dialog bg-brand-ink p-7 text-white">
+                <p className="text-sm font-semibold text-brand-muted-on-dark">
                   Team workspace
                 </p>
                 <p className="mt-6 text-4xl font-semibold tracking-[-0.045em]">
                   Designed around your approval flow.
                 </p>
-                <p className="mt-5 max-w-[50ch] text-sm leading-6 text-[#c7c7d2]">
+                <p className="mt-5 max-w-[50ch] text-sm leading-6 text-brand-muted-on-dark">
                   Shared libraries, roles, team review, higher run volume, and
                   assisted migration are being shaped with early teams.
                 </p>
                 <Link
                   href="/pricing"
-                  className="mt-9 inline-flex rounded-[10px] bg-white px-5 py-3 text-sm font-semibold text-[#111117]"
+                  className="mt-9 inline-flex rounded-app-control bg-white px-5 py-3 text-sm font-semibold text-brand-ink"
                 >
                   Compare plans
                 </Link>
@@ -418,7 +418,7 @@ export default function LandingPage() {
                 <h3 className="text-lg font-semibold tracking-[-0.02em]">
                   {question}
                 </h3>
-                <p className="mt-3 text-sm leading-6 text-[#686875]">
+                <p className="mt-3 text-sm leading-6 text-brand-muted">
                   {answer}
                 </p>
               </article>

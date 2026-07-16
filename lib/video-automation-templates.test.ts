@@ -97,3 +97,103 @@ describe("react-and-reveal video template", () => {
     })
   })
 })
+
+describe.each(["story_over_broll", "faceless_reel"] as const)(
+  "%s video template normalization",
+  (templateId) => {
+    it("round-trips its template id through normalization", () => {
+      const format = videoAutomationTemplatePreset(templateId).buildFormat()
+
+      expect(normalizeVideoFormat(format)?.template).toBe(templateId)
+    })
+  }
+)
+
+describe("story-over-broll video template", () => {
+  it("builds the four planned story beats with exact copy bounds", () => {
+    const format =
+      videoAutomationTemplatePreset("story_over_broll").buildFormat()
+
+    expect(format.hookPlacement).toBe("first_segment")
+    expect(format.globalTextItems).toHaveLength(0)
+    expect(
+      format.segments.map((segment) => ({
+        id: segment.id,
+        clipCount: segment.clipCount,
+        clipDurationMs: segment.clipDurationMs,
+        transition: segment.transition,
+        textItemCount: segment.textItems.length,
+        wordBounds: segment.textItems.map((item) => [
+          item.wordLengthMin,
+          item.wordLengthMax,
+        ]),
+      }))
+    ).toEqual([
+      {
+        id: "story-hook",
+        clipCount: 1,
+        clipDurationMs: 2800,
+        transition: "cut",
+        textItemCount: 1,
+        wordBounds: [[6, 14]],
+      },
+      {
+        id: "story-journey",
+        clipCount: 2,
+        clipDurationMs: 2600,
+        transition: "cut",
+        textItemCount: 1,
+        wordBounds: [[5, 12]],
+      },
+      {
+        id: "story-payoff",
+        clipCount: 1,
+        clipDurationMs: 3000,
+        transition: "cut",
+        textItemCount: 1,
+        wordBounds: [[5, 12]],
+      },
+      {
+        id: "story-cta",
+        clipCount: 1,
+        clipDurationMs: 2800,
+        transition: "cut",
+        textItemCount: 1,
+        wordBounds: [[8, 16]],
+      },
+    ])
+    expect(
+      format.segments.every(
+        (segment) =>
+          segment.mediaSource === "collection" && segment.mediaKind === "video"
+      )
+    ).toBe(true)
+  })
+})
+
+describe("faceless-reel video template", () => {
+  it("builds one long clip with claim and comment-gate overlays", () => {
+    const format = videoAutomationTemplatePreset("faceless_reel").buildFormat()
+
+    expect(format.hookPlacement).toBe("global")
+    expect(
+      format.globalTextItems.map((item) => ({
+        position: item.textPosition,
+        wordBounds: [item.wordLengthMin, item.wordLengthMax],
+      }))
+    ).toEqual([
+      { position: "center", wordBounds: [8, 18] },
+      { position: "bottom", wordBounds: [8, 14] },
+    ])
+    expect(format.segments).toHaveLength(1)
+    expect(format.segments[0]).toMatchObject({
+      id: "faceless-clip",
+      mediaSource: "collection",
+      mediaKind: "video",
+      clipCount: 1,
+      clipDurationMs: 9000,
+      transition: "cut",
+      textItems: [],
+    })
+  })
+})

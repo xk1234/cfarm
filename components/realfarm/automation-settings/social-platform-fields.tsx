@@ -237,7 +237,7 @@ function PublishAsSettingsRow({
         title="Publish as"
         description="Video automations always publish their rendered video."
         control={
-          <span className="inline-flex h-10 items-center rounded-[8px] border border-[#d8d7cf] bg-[#f7f7f3] px-3 text-[14px] font-semibold text-[#242421]">
+          <span className="inline-flex h-10 items-center rounded-[8px] border border-app-panel-border bg-app-surface-subtle px-3 text-[14px] font-semibold text-app-text">
             Video
           </span>
         }
@@ -285,8 +285,8 @@ function SelectedPlatformAccounts({
   integrations: AutomationSocialIntegration[]
 }) {
   return (
-    <div className="rounded-[8px] border border-dashed border-[#d8d7cf] bg-[#fbfbf7] p-5">
-      <div className="text-[14px] font-bold text-[#242421]">
+    <div className="rounded-[8px] border border-dashed border-app-panel-border bg-app-surface-subtle p-5">
+      <div className="text-[14px] font-bold text-app-text">
         Selected accounts
       </div>
       {integrations.length > 0 ? (
@@ -294,12 +294,12 @@ function SelectedPlatformAccounts({
           {integrations.map((integration) => (
             <div
               key={`${integration.provider}:${integration.integration_id}`}
-              className="flex items-center justify-between gap-3 rounded-[8px] border border-[#e4e2d8] bg-white px-3 py-2"
+              className="flex items-center justify-between gap-3 rounded-[8px] border border-[#e4e2d8] bg-app-surface px-3 py-2"
             >
-              <span className="truncate text-[13px] font-semibold text-[#242421]">
+              <span className="truncate text-[13px] font-semibold text-app-text">
                 {integration.name}
               </span>
-              <span className="shrink-0 text-[12px] font-semibold text-[#77766f]">
+              <span className="shrink-0 text-[12px] font-semibold text-app-muted-text">
                 {integration.profile
                   ? `@${integration.profile.replace(/^@/, "")}`
                   : "connected"}
@@ -308,7 +308,7 @@ function SelectedPlatformAccounts({
           ))}
         </div>
       ) : (
-        <div className="mt-2 text-[13px] font-semibold text-[#77766f]">
+        <div className="mt-2 text-[13px] font-semibold text-app-muted-text">
           No accounts added for this platform.
         </div>
       )}
@@ -385,7 +385,7 @@ function SettingsTextInput({
       description={description}
       control={
         <input
-          className="h-11 min-w-[240px] rounded-[8px] border border-[#d8d7cf] bg-white px-3 text-[14px] font-semibold text-[#242421] outline-none focus:border-[#9f9e96]"
+          className="h-11 min-w-[240px] rounded-[8px] border border-app-panel-border bg-app-surface px-3 text-[14px] font-semibold text-app-text outline-none focus:border-[#9f9e96]"
           value={value}
           placeholder={placeholder}
           onChange={(event) => onChange(event.target.value)}

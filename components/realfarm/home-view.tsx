@@ -9,8 +9,10 @@ import {
   IconPlayerPlay,
   IconPlus,
   IconSlideshow,
+  IconTrash,
   IconVideo,
 } from "@tabler/icons-react"
+import { toast } from "sonner"
 
 import {
   TemplateGeneratedPreview,
@@ -24,8 +26,10 @@ import {
   MediaPendingState,
 } from "@/components/realfarm/shared-media"
 import { ExampleSlideshowModal } from "@/components/realfarm/example-slideshow-modal"
+import { GeneratedSlideshowViewerModal } from "@/components/realfarm/automation-settings/generated-slideshow-viewer"
+import type { AutomationRunApiRecord } from "@/components/realfarm/automation-settings/types"
 import { Button } from "@/components/ui/button"
-import { fetchJsonWithTimeout } from "@/lib/client-api"
+import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import type { GeneratedVideoExport } from "@/lib/generated-video-types"
 import type { Automation, RealFarmData } from "@/lib/realfarm-data"
 import { cn } from "@/lib/utils"
@@ -70,6 +74,7 @@ export function HomeView({
   )
   const [videos, setVideos] = useState<GeneratedVideoExport[]>([])
   const [videosLoading, setVideosLoading] = useState(true)
+  const [videosLoaded, setVideosLoaded] = useState(false)
   const [page, setPage] = useState(1)
   const [quickStartPage, setQuickStartPage] = useState(1)
   const [selectedExample, setSelectedExample] = useState<{
@@ -77,13 +82,15 @@ export function HomeView({
     slideshowId?: string
   } | null>(null)
   const [selectedGeneratedSlideshow, setSelectedGeneratedSlideshow] = useState<{
-    title: string
     runs: GeneratedShowcaseRun[]
-    slideshowId: string
+    runId: string
   } | null>(null)
   const quickStartTemplates = templates
   const generatedSlideshowCards = generatedHomeSlideshowCards(
     generatedRunsByAutomationId
+  )
+  const selectedGeneratedRun = selectedGeneratedSlideshow?.runs.find(
+    (run) => run.id === selectedGeneratedSlideshow.runId
   )
 
   const totalItems =
@@ -110,13 +117,14 @@ export function HomeView({
   )
 
   useEffect(() => {
+    if (activeTab !== "videos" || videosLoaded) return
     let active = true
 
     async function loadGeneratedVideos() {
       try {
         const payload = await fetchJsonWithTimeout<{
           exports?: GeneratedVideoExport[]
-        }>("/api/generated-videos", {
+        }>("/api/generated-videos?limit=50", {
           timeoutMs: 12_000,
           toastOnError: false,
         })
@@ -130,6 +138,7 @@ export function HomeView({
       } finally {
         if (active) {
           setVideosLoading(false)
+          setVideosLoaded(true)
         }
       }
     }
@@ -139,7 +148,7 @@ export function HomeView({
     return () => {
       active = false
     }
-  }, [])
+  }, [activeTab, videosLoaded])
 
   function switchTab(tab: "slideshows" | "videos") {
     setActiveTab(tab)
@@ -158,17 +167,17 @@ export function HomeView({
             className="size-8 object-contain"
           />
         </span>
-        <span className="text-[16px] font-semibold tracking-[-0.03em] text-[#111117]">
+        <span className="text-[16px] font-semibold tracking-[-0.03em] text-app-text">
           LumenClip
         </span>
       </div>
       <section className="py-10 text-center lg:py-14">
         <div className="mx-auto max-w-[980px]">
           <div className="lc-spectrum mx-auto mb-5 h-1 w-14 rounded-full" />
-          <h1 className="mx-auto max-w-[17ch] text-[42px] leading-[0.98] font-semibold tracking-[-0.05em] text-[#111117] sm:text-[56px]">
+          <h1 className="mx-auto max-w-[17ch] text-[42px] leading-[0.98] font-semibold tracking-[-0.05em] text-app-text sm:text-[56px]">
             Turn creative sources into content that ships.
           </h1>
-          <p className="mx-auto mt-5 max-w-[52ch] text-[16px] leading-6 font-medium text-[#686875]">
+          <p className="mx-auto mt-5 max-w-[52ch] text-[16px] leading-6 font-medium text-app-muted-text">
             Save what works, build repeatable workflows, and keep every output
             ready for review.
           </p>
@@ -196,8 +205,8 @@ export function HomeView({
               className={cn(
                 "rounded-[7px] px-4 py-2 text-[14px] font-semibold transition",
                 activeTab === "slideshows"
-                  ? "bg-[#111117] text-white"
-                  : "text-[#686875] hover:bg-[#f0eef8]"
+                  ? "bg-app-strong text-white"
+                  : "text-app-muted-text hover:bg-app-control-hover"
               )}
               onClick={() => switchTab("slideshows")}
             >
@@ -207,8 +216,8 @@ export function HomeView({
               className={cn(
                 "rounded-[7px] px-4 py-2 text-[14px] font-semibold transition",
                 activeTab === "videos"
-                  ? "bg-[#111117] text-white"
-                  : "text-[#686875] hover:bg-[#f0eef8]"
+                  ? "bg-app-strong text-white"
+                  : "text-app-muted-text hover:bg-app-control-hover"
               )}
               onClick={() => switchTab("videos")}
             >
@@ -247,9 +256,8 @@ export function HomeView({
                 shared={Boolean(item.ownerId && item.ownerId !== currentUserId)}
                 onOpen={() =>
                   setSelectedGeneratedSlideshow({
-                    title: item.title,
                     runs: item.runs,
-                    slideshowId: item.slideshow.id,
+                    runId: item.slideshow.id,
                   })
                 }
               />
@@ -258,7 +266,7 @@ export function HomeView({
         ) : activeTab === "slideshows" && generatedRunsLoading ? (
           <HomeCardSkeletonRow />
         ) : activeTab === "slideshows" ? (
-          <div className="grid min-h-[86px] place-items-center text-[16px] font-medium text-[#667085]">
+          <div className="grid min-h-[86px] place-items-center text-[16px] font-medium text-app-muted-text">
             No generated slideshows yet. Run a slideshow automation to create
             one.
           </div>
@@ -269,13 +277,18 @@ export function HomeView({
                 key={item.id}
                 item={item}
                 shared={Boolean(item.ownerId && item.ownerId !== currentUserId)}
+                onDeleted={() =>
+                  setVideos((current) =>
+                    current.filter((video) => video.id !== item.id)
+                  )
+                }
               />
             ))}
           </div>
         ) : videosLoading ? (
           <HomeCardSkeletonRow />
         ) : (
-          <div className="grid min-h-[86px] place-items-center text-[16px] font-medium text-[#667085]">
+          <div className="grid min-h-[86px] place-items-center text-[16px] font-medium text-app-muted-text">
             No videos yet. Generate a video from the Greenscreen or UGC Ads
             editors.
           </div>
@@ -284,7 +297,7 @@ export function HomeView({
 
       <section className="mx-auto mt-24 max-w-[1210px]">
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-[20px] font-semibold tracking-[-0.025em] text-[#111117]">
+          <h2 className="text-[20px] font-semibold tracking-[-0.025em] text-app-text">
             Start from a proven workflow
           </h2>
           <div className="flex items-center gap-3 text-[14px] font-semibold text-[#6f7888]">
@@ -329,7 +342,7 @@ export function HomeView({
             ))}
           </div>
         ) : (
-          <div className="grid min-h-[120px] place-items-center rounded-[7px] border border-dashed border-[#d7d6cf] bg-white/55 px-6 text-center text-[16px] font-medium text-[#667085]">
+          <div className="grid min-h-[120px] place-items-center rounded-[7px] border border-dashed border-[#d7d6cf] bg-white/55 px-6 text-center text-[16px] font-medium text-app-muted-text">
             No templates available.
           </div>
         )}
@@ -343,12 +356,18 @@ export function HomeView({
           onClose={() => setSelectedExample(null)}
         />
       ) : null}
-      {selectedGeneratedSlideshow ? (
-        <ExampleSlideshowModal
-          title={selectedGeneratedSlideshow.title}
-          runs={selectedGeneratedSlideshow.runs}
-          initialSlideshowId={selectedGeneratedSlideshow.slideshowId}
-          onDeleted={onGenerationRunRemove}
+      {selectedGeneratedSlideshow && selectedGeneratedRun ? (
+        <GeneratedSlideshowViewerModal
+          run={selectedGeneratedRun as AutomationRunApiRecord}
+          runs={selectedGeneratedSlideshow.runs as AutomationRunApiRecord[]}
+          allowDelete={
+            !selectedGeneratedRun.ownerId ||
+            selectedGeneratedRun.ownerId === currentUserId
+          }
+          onDeleted={(runId) => {
+            onGenerationRunRemove(runId)
+            setSelectedGeneratedSlideshow(null)
+          }}
           onClose={() => setSelectedGeneratedSlideshow(null)}
         />
       ) : null}
@@ -396,12 +415,14 @@ function GeneratedSlideshowCard({
       )}
     >
       {shared ? (
-        <span className="absolute top-2 left-2 z-20 rounded-full bg-[#6d28d9] px-2 py-1 text-[10px] font-semibold text-white">
+        <span className="absolute top-2 left-2 z-20 rounded-full bg-app-action px-2 py-1 text-[10px] font-semibold text-white">
           Shared
         </span>
       ) : null}
       <span className="absolute top-2 right-2 z-20 rounded-full bg-black/75 px-2 py-1 text-[10px] font-semibold text-white">
-        {item.slideshow.status === "generating" ? "Generating" : "Completed"}
+        {item.slideshow.status === "generating"
+          ? "Generating"
+          : "Not published"}
       </span>
       <MediaCardShell>
         <button
@@ -474,7 +495,7 @@ function QuickStartTemplateCard({
   const coverSlides = slideshows.map((slideshow) => slideshow.slides[0])
 
   return (
-    <article className="overflow-hidden rounded-[7px] border border-[#deddd5] bg-white shadow-sm">
+    <article className="overflow-hidden rounded-[7px] border border-app-panel-border bg-app-surface shadow-sm">
       <div className="h-[128px] w-full">
         <TemplateGeneratedPreview
           exampleSlides={coverSlides}
@@ -523,14 +544,48 @@ function QuickStartTemplateCard({
 function VideoCard({
   item,
   shared,
+  onDeleted,
 }: {
   item: GeneratedVideoExport
   shared: boolean
+  onDeleted: () => void
 }) {
-  const { videoRef, thumbnailReady } = useVideoThumbnailFrame(item.videoUrl)
+  const { videoRef, thumbnailReady } = useVideoThumbnailFrame(
+    item.previewUrl ? undefined : item.videoUrl
+  )
   const [playing, setPlaying] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const isPending =
     !item.videoUrl && (item.status === "queued" || item.status === "processing")
+  const canDelete = !shared && !item.deletionBlockedBy
+
+  async function deleteVideo() {
+    if (!canDelete || deleting) return
+    setDeleting(true)
+    try {
+      await toast.promise(
+        fetchJsonWithTimeout(
+          `/api/generated-videos/${encodeURIComponent(item.id)}`,
+          {
+            method: "DELETE",
+            timeoutMs: 15_000,
+            toastOnError: false,
+          }
+        ),
+        {
+          loading: "Deleting video…",
+          success: "Video deleted",
+          error: (error) =>
+            getApiErrorMessage(error, "The video could not be deleted"),
+        }
+      )
+      onDeleted()
+    } catch {
+      // toast.promise already presents the API error.
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   function togglePlay() {
     const video = videoRef.current
@@ -553,9 +608,12 @@ function VideoCard({
         )}
       >
         {shared ? (
-          <span className="absolute top-2 left-2 z-20 rounded-full bg-[#6d28d9] px-2 py-1 text-[10px] font-semibold text-white">
+          <span className="absolute top-2 left-2 z-20 rounded-full bg-app-action px-2 py-1 text-[10px] font-semibold text-white">
             Shared
           </span>
+        ) : null}
+        {canDelete ? (
+          <VideoDeleteButton deleting={deleting} onDelete={deleteVideo} />
         ) : null}
         <MediaCardShell>
           <MediaPendingState label="Creating hook video..." />
@@ -572,9 +630,12 @@ function VideoCard({
       )}
     >
       {shared ? (
-        <span className="absolute top-2 left-2 z-20 rounded-full bg-[#6d28d9] px-2 py-1 text-[10px] font-semibold text-white">
+        <span className="absolute top-2 left-2 z-20 rounded-full bg-app-action px-2 py-1 text-[10px] font-semibold text-white">
           Shared
         </span>
+      ) : null}
+      {canDelete ? (
+        <VideoDeleteButton deleting={deleting} onDelete={deleteVideo} />
       ) : null}
       <MediaCardShell>
         <MediaFrame>
@@ -584,12 +645,13 @@ function VideoCard({
                 ref={videoRef}
                 className="absolute inset-0 h-full w-full object-cover"
                 src={item.videoUrl}
+                poster={item.previewUrl}
                 muted
                 playsInline
-                preload="auto"
+                preload={item.previewUrl ? "none" : "metadata"}
                 onEnded={() => setPlaying(false)}
               />
-              {!thumbnailReady && !playing ? (
+              {!item.previewUrl && !thumbnailReady && !playing ? (
                 <div className="app-media-poster-fallback pointer-events-none absolute inset-0" />
               ) : null}
               <button
@@ -618,5 +680,28 @@ function VideoCard({
         </MediaFrame>
       </MediaCardShell>
     </div>
+  )
+}
+
+function VideoDeleteButton({
+  deleting,
+  onDelete,
+}: {
+  deleting: boolean
+  onDelete: () => void
+}) {
+  return (
+    <Button
+      type="button"
+      variant="iconControl"
+      size="icon-control-sm"
+      className="absolute top-2 right-2 z-30 bg-white/90 text-app-danger-muted shadow-sm hover:bg-app-surface"
+      onClick={onDelete}
+      disabled={deleting}
+      aria-label="Delete video"
+      title="Delete video"
+    >
+      <IconTrash className="size-4" />
+    </Button>
   )
 }

@@ -1,6 +1,6 @@
 import {
   renderedSlideSvg,
-  renderedTextItemBounds,
+  renderedTextItemEditorBounds,
   slideDimensions,
 } from "@/lib/slideshow-renderer"
 import { cn } from "@/lib/utils"
@@ -17,7 +17,7 @@ import {
 
 function FormatEmptyCollectionTile() {
   return (
-    <div className="grid h-full place-items-center bg-[#deddd8] px-2 text-center text-[10px] font-semibold tracking-[0.04em] text-[#77766f] uppercase">
+    <div className="grid h-full place-items-center bg-[#deddd8] px-2 text-center text-[10px] font-semibold tracking-[0.04em] text-app-muted-text uppercase">
       Select collection
     </div>
   )
@@ -93,7 +93,7 @@ export function AutomationFormatPreviewCard({
           }}
         >
           <div
-            className="mb-2 text-left text-[12px] font-bold text-[#77766f]"
+            className="mb-2 text-left text-[12px] font-bold text-app-muted-text"
             style={{ width: size.width }}
           >
             {item.label}
@@ -125,6 +125,7 @@ export function AutomationFormatPreviewCard({
                   return (
                     <button
                       key={previewText.id}
+                      data-slideshow-text-editor="text-target"
                       className={cn(
                         "absolute cursor-text bg-transparent text-transparent",
                         selected &&
@@ -182,7 +183,7 @@ function textSelectionBoxes(
   aspectRatio: string
 ) {
   const dimensions = slideDimensions(aspectRatio)
-  return renderedTextItemBounds(
+  return renderedTextItemEditorBounds(
     slide.textItems,
     dimensions.width,
     dimensions.height

@@ -37,7 +37,7 @@ export function BuilderStep({
         <div>
           {labelPrefix && <span className="mr-1">{labelPrefix}</span>}
           <span>{title}</span>
-          {meta && <span className="ml-2 text-[11px] text-[#77766f]">{meta}</span>}
+          {meta && <span className="ml-2 text-[11px] text-app-muted-text">{meta}</span>}
         </div>
         <div className="flex items-center gap-2 text-[#8f8e87]">
           {actions}
@@ -76,7 +76,7 @@ export function CreatorBuilderPanel({
   return (
     <section
       className={cn(
-        "grid overflow-hidden rounded-[12px] border border-[#d8d7d0] bg-[#efefea] p-4 shadow-[0_1px_2px_rgba(30,30,25,0.05)] sm:p-7 lg:grid-cols-[minmax(0,1fr)_520px] lg:gap-5",
+        "grid overflow-hidden rounded-[12px] border border-app-panel-border bg-[#efefea] p-4 shadow-[0_1px_2px_rgba(30,30,25,0.05)] sm:p-7 lg:grid-cols-[minmax(0,1fr)_520px] lg:gap-5",
         className
       )}
     >
@@ -178,7 +178,7 @@ export function SoundSelector({
         >
           <span className={cn(
             "grid size-7 shrink-0 place-items-center overflow-hidden rounded-[5px] text-white",
-            currentSound ? musicThumbTone(music.findIndex((s) => s.id === currentSound.id)) : "bg-[#ddd] text-[#77766f]"
+            currentSound ? musicThumbTone(music.findIndex((s) => s.id === currentSound.id)) : "bg-[#ddd] text-app-muted-text"
           )}>
             {currentSound ? <IconPlayerPlay className="size-4" /> : <IconVolume className="size-4" />}
           </span>
@@ -200,7 +200,7 @@ export function SoundSelector({
               <span className="block text-[16px] font-semibold text-app-muted-text">
                 TikTok Sounds
               </span>
-              <span className="mt-1 block truncate text-[14px] font-medium text-[#aaa9a2]">
+              <span className="mt-1 block truncate text-[14px] font-medium text-app-text-faint">
                 {currentSound?.name ||
                   "All sounds - a random song will be selected"}
               </span>
@@ -233,13 +233,13 @@ export function SoundSelector({
             <AppModalHeader title="Choose background music" closeLabel="Close background music picker" onClose={closeModal} />
             <div className="mb-3 grid grid-cols-2 rounded-[7px] bg-[#f1f1f1] p-1">
               <button
-                className={cn("h-8 rounded-[6px] text-[14px] font-semibold", tab === "templates" ? "border border-[#dfdfdf] bg-white shadow-sm" : "text-[#6d6c67]")}
+                className={cn("h-8 rounded-[6px] text-[14px] font-semibold", tab === "templates" ? "border border-[#dfdfdf] bg-app-surface shadow-sm" : "text-[#6d6c67]")}
                 onClick={() => setTab("templates")}
               >
                 Templates
               </button>
               <button
-                className={cn("h-8 rounded-[6px] text-[14px] font-semibold", tab === "uploaded" ? "border-2 border-[#111] bg-white" : "text-[#6d6c67]")}
+                className={cn("h-8 rounded-[6px] text-[14px] font-semibold", tab === "uploaded" ? "border-2 border-[#111] bg-app-surface" : "text-[#6d6c67]")}
                 onClick={() => setTab("uploaded")}
               >
                 Uploaded Sounds
@@ -247,7 +247,7 @@ export function SoundSelector({
             </div>
 
             {tab === "templates" ? (
-              <div className="max-h-[430px] overflow-y-auto border-2 border-[#242421] px-5 py-4">
+              <div className="max-h-[430px] overflow-y-auto border-2 border-app-strong px-5 py-4">
                 <div className="grid gap-x-6 gap-y-4 md:grid-cols-3">
                   <MusicOption
                     sound={null}
@@ -284,10 +284,10 @@ export function SoundSelector({
                   onFiles={(files) => void uploadAudio(files)}
                 >
                   <IconUpload className="size-4" />
-                  <span className="text-[15px] font-bold text-[#333]">{uploading ? "Uploading..." : "Upload audio"}</span>
+                  <span className="text-[15px] font-bold text-app-text">{uploading ? "Uploading..." : "Upload audio"}</span>
                 </UploadDropzone>
                 {uploadedSounds.length === 0 ? (
-                  <div className="grid h-28 place-items-center text-[18px] font-medium text-[#667085]">
+                  <div className="grid h-28 place-items-center text-[18px] font-medium text-app-muted-text">
                     No uploaded sounds yet
                   </div>
                 ) : (
@@ -355,7 +355,7 @@ function MusicOption({
         type="button"
         className={cn(
           "relative grid size-[42px] shrink-0 place-items-center overflow-hidden rounded-[9px] text-white",
-          sound ? musicThumbTone(index) : "bg-[#e6ebe9] text-[#77766f]"
+          sound ? musicThumbTone(index) : "bg-[#e6ebe9] text-app-muted-text"
         )}
         onClick={(event) => {
           event.stopPropagation()
@@ -370,7 +370,7 @@ function MusicOption({
           <IconX className="size-5" />
         )}
       </button>
-      <span className={cn("line-clamp-2 text-[15px] font-bold leading-[19px]", selected ? "text-white" : "text-[#111]")}>
+      <span className={cn("line-clamp-2 text-[15px] font-bold leading-[19px]", selected ? "text-white" : "text-app-text")}>
         {sound?.name ?? emptyLabel}
       </span>
     </div>

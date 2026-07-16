@@ -1,49 +1,48 @@
-import { useMemo, useState } from "react"
-import { IconBug, IconChartBar, IconTrash, IconX } from "@tabler/icons-react"
+import { useEffect, useMemo, useState } from "react"
+import { IconX } from "@tabler/icons-react"
 import { Pencil } from "lucide-react"
 
 import { AvatarDot } from "@/components/realfarm/shared-media"
-import { SocialAccountStatusRow } from "@/components/realfarm/social-account-status"
+import { SocialAccountIconList } from "@/components/realfarm/social-account-status"
 import { GeneratedVideoThumbnail } from "@/components/realfarm/generated-video-thumbnail"
-import { BenchmarkComparisonModal } from "@/components/realfarm/benchmark-comparison-modal"
-import { DeleteSlideshowDialog } from "@/components/realfarm/delete-slideshow-dialog"
 import { GeneratedVideoExports } from "@/components/realfarm/generated-video-exports"
+import {
+  AutomationGenerationEmptyState,
+  AutomationGenerationGrid,
+} from "./automation-generation-grid"
+import { GeneratedSlideshowViewerModal } from "./generated-slideshow-viewer"
 import { AppModal, AppModalPanel } from "@/components/ui/modal"
 import { CheckedDropdownButton } from "@/components/ui/form-controls"
 import { SkeletonBlock } from "@/components/ui/loading-skeleton"
-import {
-  benchmarkErrorMessage,
-  generateSlideshowBenchmark,
-} from "@/lib/client-slideshow-benchmarks"
 import type { Automation } from "@/lib/realfarm-data"
+import {
+  automationPostingMode,
+  type AutomationSchema,
+} from "@/lib/realfarm-automation"
 import type { GeneratedVideoExport } from "@/lib/generated-video-types"
-import type { SlideshowBenchmarkComparison } from "@/lib/slideshow-benchmarks"
-import { toast } from "sonner"
-import { cn } from "@/lib/utils"
-import { GeneratedSlideshowFrame } from "./generated-slideshow-frame"
 
 import {
   automationRunSlides,
+  automationOverviewRunState,
   formatRunDate,
   formatRunDuration,
-  formatRunSchedule,
   runDurationSeconds,
-  runScheduleDurationLine,
-  runStatusBadgeClass,
-  runStatusLabel,
-  canDeleteCompletedSlideshow,
+  runPublishedAt,
   isSlideshowLifecycleRun,
+  isGeneratingSlideshowRun,
   sortAutomationRuns,
-  slideshowCaption,
   slideshowTitle,
 } from "./run-helpers"
 import type { AutomationRunApiRecord } from "./types"
 import type { AutomationRunSort } from "./run-helpers"
+import { RunPublicationStatusSelect } from "./run-publication-status-select"
 
 const automationRunSortOptions: AutomationRunSort[] = ["Recent", "Most viewed"]
 
 export function AutomationOverviewPanel({
   automation,
+  initialRunId,
+  config,
   editingName,
   draftName,
   recentRuns,
@@ -56,8 +55,11 @@ export function AutomationOverviewPanel({
   onSaveName,
   onCancelNameEdit,
   onDeleteRun,
+  onRunChanged,
 }: {
   automation: Automation
+  initialRunId?: string
+  config: AutomationSchema
   editingName: boolean
   draftName: string
   recentRuns: AutomationRunApiRecord[]
@@ -70,10 +72,12 @@ export function AutomationOverviewPanel({
   onSaveName: () => void
   onCancelNameEdit: () => void
   onDeleteRun: (run: AutomationRunApiRecord) => Promise<void>
+  onRunChanged: (run: AutomationRunApiRecord) => void
 }) {
   const [viewerRun, setViewerRun] = useState<AutomationRunApiRecord | null>(
     null
   )
+  const [openedInitialRun, setOpenedInitialRun] = useState(false)
   const [debugRun, setDebugRun] = useState<AutomationRunApiRecord | null>(null)
   const [runSort, setRunSort] = useState<AutomationRunSort>("Recent")
   const isVideoAutomation = automation.automationKind === "video"
@@ -85,6 +89,10 @@ export function AutomationOverviewPanel({
     () => sortAutomationRuns(slideshowRuns, runSort),
     [slideshowRuns, runSort]
   )
+  const recentRunState = automationOverviewRunState(
+    slideshowRuns,
+    recentRunsLoading
+  )
   const totalViews = slideshowRuns.reduce(
     (total, run) => total + (run.views ?? 0),
     0
@@ -93,8 +101,20 @@ export function AutomationOverviewPanel({
     ? videoExportsLoading
     : recentRunsLoading
 
+  useEffect(() => {
+    if (!initialRunId || recentRunsLoading || openedInitialRun) return
+    const requestedRun = recentRuns.find(
+      (run) => run.id === initialRunId || run.slideshowId === initialRunId
+    )
+    const timeout = window.setTimeout(() => {
+      if (requestedRun) setViewerRun(requestedRun)
+      setOpenedInitialRun(true)
+    }, 0)
+    return () => window.clearTimeout(timeout)
+  }, [initialRunId, openedInitialRun, recentRuns, recentRunsLoading])
+
   return (
-    <div className="min-h-full bg-white">
+    <div className="min-h-full bg-app-surface">
       <div className="h-[106px] bg-gradient-to-r from-[#90464b] via-[#9a707d] to-[#94a1b0]" />
       <div className="px-6 pb-8">
         <div className="-mt-8 flex justify-center">
@@ -107,7 +127,7 @@ export function AutomationOverviewPanel({
         <div className="mt-4 flex justify-center">
           {editingName ? (
             <input
-              className="h-9 min-w-[260px] rounded-[7px] border border-[#d8d7cf] bg-white px-3 text-center text-[19px] font-semibold ring-2 ring-app-action/20 outline-none"
+              className="h-9 min-w-[260px] rounded-[7px] border border-app-panel-border bg-app-surface px-3 text-center text-[19px] font-semibold ring-2 ring-app-action/20 outline-none"
               value={draftName}
               autoFocus
               onChange={(event) => onDraftNameChange(event.target.value)}
@@ -127,7 +147,7 @@ export function AutomationOverviewPanel({
                 {automation.name}
               </h2>
               <button
-                className="grid size-6 place-items-center rounded-full text-[#9a9991] hover:bg-[#f1f0eb] hover:text-[#242421]"
+                className="grid size-6 place-items-center rounded-full text-app-text-faint hover:bg-app-surface-subtle hover:text-app-text"
                 onClick={onStartNameEdit}
                 aria-label="Edit automation name"
               >
@@ -135,6 +155,16 @@ export function AutomationOverviewPanel({
               </button>
             </div>
           )}
+        </div>
+
+        <div className="mt-3 flex justify-center">
+          <span className="rounded-[5px] bg-app-surface-subtle px-2.5 py-1 text-[11px] font-semibold text-app-text-soft">
+            {automationPostingMode(config) === "review"
+              ? "Review before publish"
+              : automationPostingMode(config) === "auto"
+                ? "Auto publishing"
+                : "Manual publishing"}
+          </span>
         </div>
 
         <div className="mx-auto mt-4 grid max-w-[494px] grid-cols-4 overflow-hidden rounded-[10px] border border-[#e2e1da]">
@@ -151,11 +181,11 @@ export function AutomationOverviewPanel({
               {resultsLoading ? (
                 <SkeletonBlock className="mx-auto h-[22px] w-12 rounded" />
               ) : (
-                <div className="text-[18px] font-bold text-[#171714]">
+                <div className="text-[18px] font-bold text-app-text">
                   {value}
                 </div>
               )}
-              <div className="mt-1 text-[11px] font-medium text-[#77766f]">
+              <div className="mt-1 text-[11px] font-medium text-app-muted-text">
                 {label}
               </div>
             </div>
@@ -163,26 +193,26 @@ export function AutomationOverviewPanel({
         </div>
 
         {isVideoAutomation ? (
-          <div className="mx-auto mt-5 max-w-[960px]">
+          <div className="mx-auto mt-5 max-w-[494px]">
             {videoExportsLoading ? (
-              <div
-                className="flex gap-3 overflow-hidden pb-2"
+              <AutomationGenerationGrid
                 role="status"
                 aria-label="Loading generated videos"
               >
                 {Array.from({ length: 3 }, (_, index) => (
                   <SkeletonBlock
                     key={index}
-                    className="aspect-[9/16] min-w-[148px] rounded-[8px]"
+                    className="aspect-[9/16] w-full rounded-[8px]"
                   />
                 ))}
-              </div>
+              </AutomationGenerationGrid>
             ) : (
               <GeneratedVideoExports
                 title="Generated videos"
                 exports={videoExports}
                 emptyMessage="No generated videos yet. Use Generate to create one."
                 onDeleted={onVideoDeleted}
+                variant="automation"
               />
             )}
           </div>
@@ -200,40 +230,40 @@ export function AutomationOverviewPanel({
                 className="w-full"
               />
             </div>
-            {recentRunsLoading ? (
-              <div
-                className="flex gap-3 overflow-hidden pb-2"
-                role="status"
-                aria-label="Loading recent slideshows"
-              >
-                {Array.from({ length: 3 }, (_, index) => (
-                  <SkeletonBlock
-                    key={index}
-                    className="h-[198px] min-w-[148px] rounded-[8px]"
-                  />
-                ))}
-              </div>
-            ) : slideshowRuns.length > 0 ? (
-              <div className="flex gap-3 overflow-x-auto pb-2">
+            {recentRunState === "runs" ? (
+              <AutomationGenerationGrid>
                 {sortedRuns.slice(0, 3).map((run) => (
                   <AutomationRecentRunCard
                     key={run.id}
                     run={run}
                     mediaKind="slideshow"
                     onOpen={() => setViewerRun(run)}
+                    onRunChanged={onRunChanged}
                   />
                 ))}
-              </div>
+              </AutomationGenerationGrid>
+            ) : recentRunState === "loading" ? (
+              <AutomationGenerationGrid
+                role="status"
+                aria-label="Loading recent slideshows"
+              >
+                {Array.from({ length: 3 }, (_, index) => (
+                  <SkeletonBlock
+                    key={index}
+                    className="aspect-[9/16] w-full rounded-[8px]"
+                  />
+                ))}
+              </AutomationGenerationGrid>
             ) : (
-              <div className="rounded-[8px] border border-dashed border-[#d8d7cf] bg-[#f8f8f4] px-4 py-6 text-center text-[13px] font-semibold text-[#77766f]">
+              <AutomationGenerationEmptyState>
                 No generated slideshows yet.
-              </div>
+              </AutomationGenerationEmptyState>
             )}
           </div>
         )}
       </div>
       {viewerRun ? (
-        <AutomationGeneratedSlideshowViewer
+        <GeneratedSlideshowViewerModal
           run={viewerRun}
           onClose={() => setViewerRun(null)}
           onDebug={() => setDebugRun(viewerRun)}
@@ -241,6 +271,7 @@ export function AutomationOverviewPanel({
             await onDeleteRun(viewerRun)
             setViewerRun(null)
           }}
+          onRunChanged={onRunChanged}
         />
       ) : null}
       {debugRun && (
@@ -257,39 +288,30 @@ function AutomationRecentRunCard({
   run,
   mediaKind,
   onOpen,
+  onRunChanged,
 }: {
   run: AutomationRunApiRecord
   mediaKind: "slideshow" | "video"
   onOpen: () => void
+  onRunChanged: (run: AutomationRunApiRecord) => void
 }) {
   const slides = automationRunSlides(run)
   const firstSlide = slides[0]
   const title = slideshowTitle(run)
   const thumbnailUrl = run.thumbnailUrl?.trim() || firstSlide?.imageUrl
-  const inFlight = run.status === "running"
+  const inFlight = isGeneratingSlideshowRun(run)
+  const publishedAt = runPublishedAt(run)
 
   return (
-    <article className="w-[150px] shrink-0">
-      <div className="relative aspect-[9/16] w-full overflow-hidden rounded-[6px] bg-[#111] shadow-sm">
+    <article className="min-w-0">
+      <div className="relative aspect-[9/16] w-full overflow-hidden rounded-[6px] bg-app-strong shadow-sm">
         <button
           type="button"
           className="absolute inset-0 text-left"
           onClick={onOpen}
           aria-label={`Open generated ${mediaKind} ${title}`}
         >
-          {mediaKind === "video" && run.videoUrl ? (
-            <GeneratedVideoThumbnail
-              videoUrl={run.videoUrl}
-              className="bg-black object-contain"
-            />
-          ) : thumbnailUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- Automation previews render generated/local asset URLs directly.
-            <img
-              src={thumbnailUrl}
-              alt=""
-              className="absolute inset-0 h-full w-full bg-black object-contain"
-            />
-          ) : inFlight ? (
+          {inFlight ? (
             <span className="absolute inset-0 grid animate-pulse place-items-center bg-[#202020] px-3 text-center text-[11px] font-semibold text-white/80">
               <span>
                 {run.progress?.stage ?? "Generating…"}
@@ -300,297 +322,52 @@ function AutomationRecentRunCard({
                 ) : null}
               </span>
             </span>
+          ) : mediaKind === "video" && run.videoUrl ? (
+            <GeneratedVideoThumbnail
+              videoUrl={run.videoUrl}
+              className="bg-black object-contain"
+            />
+          ) : thumbnailUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- Automation previews render generated/local asset URLs directly.
+            <img
+              src={thumbnailUrl}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+            />
           ) : (
             <span className="absolute inset-0 grid place-items-center bg-[#202020] px-3 text-center text-[11px] font-semibold text-white/65">
               No rendered image
             </span>
           )}
-          {!inFlight ? (
-            <span
-              className={cn(
-                "absolute top-2 right-2 rounded-full px-2 py-1 text-[10px] font-bold shadow-sm",
-                runStatusBadgeClass(run.status)
-              )}
-            >
-              {runStatusLabel(run.status)}
-            </span>
-          ) : null}
           {run.videoUrl ? (
             <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-1 text-[10px] font-bold text-white shadow-sm">
               Video
             </span>
           ) : null}
         </button>
+        <RunPublicationStatusSelect
+          run={run}
+          onRunChanged={onRunChanged}
+          className="absolute top-2 right-2 z-20 max-w-[calc(100%-1rem)]"
+        />
+        <SocialAccountIconList
+          items={run.socialStatuses ?? []}
+          className="absolute right-2 bottom-2 z-20"
+          onClick={onOpen}
+        />
       </div>
-      <SocialAccountStatusRow
-        items={run.socialStatuses ?? []}
-        size="compact"
-        className="mt-2"
-        emptyLabel="No accounts"
-      />
-      <div className="mt-2 truncate text-[11px] font-semibold text-[#77766f]">
-        {runScheduleDurationLine(run)}
+      <div className="mt-2 space-y-0.5 text-[10px] font-semibold text-app-muted-text">
+        <div className="truncate">Created {formatRunDate(run.createdAt)}</div>
+        <div className="truncate">
+          Published {publishedAt ? formatRunDate(publishedAt) : "None"}
+        </div>
+        {run.plan?.publishType === "video" || run.videoUrl ? (
+          <div className="truncate">
+            Duration {formatRunDuration(runDurationSeconds(run))}
+          </div>
+        ) : null}
       </div>
     </article>
-  )
-}
-
-function AutomationGeneratedSlideshowViewer({
-  run,
-  onClose,
-  onDebug,
-  onDelete,
-}: {
-  run: AutomationRunApiRecord
-  onClose: () => void
-  onDebug: () => void
-  onDelete: () => Promise<void>
-}) {
-  const slides = automationRunSlides(run)
-  const [activeSlide, setActiveSlide] = useState(0)
-  const [benchmark, setBenchmark] =
-    useState<SlideshowBenchmarkComparison | null>(null)
-  const [benchmarkOpen, setBenchmarkOpen] = useState(false)
-  const [benchmarkLoading, setBenchmarkLoading] = useState(false)
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const activeSlideIndex = Math.min(activeSlide, Math.max(0, slides.length - 1))
-
-  async function openBenchmark() {
-    if (!run.slideshowId) return
-    setBenchmarkOpen(true)
-    if (benchmark) return
-    setBenchmarkLoading(true)
-    try {
-      setBenchmark(await generateSlideshowBenchmark(run.slideshowId))
-    } catch (error) {
-      setBenchmarkOpen(false)
-      toast.error("Benchmark generation failed", {
-        description: benchmarkErrorMessage(error),
-      })
-    } finally {
-      setBenchmarkLoading(false)
-    }
-  }
-
-  return (
-    <>
-      <AppModal onClose={onClose}>
-        <AppModalPanel
-          accessibleTitle={slideshowTitle(run)}
-          className="h-[min(680px,90vh)] max-w-[920px] overflow-hidden rounded-[10px] bg-white"
-        >
-          <header className="flex h-[60px] items-center justify-between border-b border-[#d7d6d0] bg-white px-3">
-            <div className="min-w-0">
-              <h2 className="truncate text-[18px] font-semibold text-[#242421]">
-                {slideshowTitle(run)}
-              </h2>
-              <div className="truncate text-[12px] font-medium text-[#77766f]">
-                {runScheduleDurationLine(run)}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {canDeleteCompletedSlideshow(run) ? (
-                <button
-                  type="button"
-                  className="inline-flex h-8 items-center gap-2 rounded-[6px] border border-red-200 bg-white px-3 text-[12px] font-semibold text-red-600 hover:bg-red-50"
-                  onClick={() => setDeleteOpen(true)}
-                >
-                  <IconTrash className="size-4" />
-                  Delete
-                </button>
-              ) : null}
-              {run.slideshowId ? (
-                <button
-                  type="button"
-                  className="inline-flex h-8 items-center gap-2 rounded-[6px] border border-[#d8d7cf] bg-white px-3 text-[12px] font-semibold text-[#242421] hover:bg-[#f1f0eb] disabled:opacity-60"
-                  onClick={() => void openBenchmark()}
-                  disabled={benchmarkLoading}
-                >
-                  <IconChartBar className="size-4" />
-                  {benchmarkLoading ? "Loading…" : "Benchmark"}
-                </button>
-              ) : null}
-              <button
-                className="grid size-8 place-items-center rounded-[5px] text-[#77766f] hover:bg-[#f1f0eb]"
-                onClick={onDebug}
-                aria-label="Show generation debug prompt"
-              >
-                <IconBug className="size-4" />
-              </button>
-              <button
-                className="grid size-8 place-items-center rounded-[5px] text-[#77766f] hover:bg-[#f1f0eb]"
-                onClick={onClose}
-                aria-label="Close generated slideshow"
-              >
-                <IconX className="size-5" />
-              </button>
-            </div>
-          </header>
-          <main className="grid h-[calc(100%-60px)] gap-5 overflow-y-auto bg-[#f7f7f4] p-5 lg:grid-cols-[280px_1fr]">
-            <section className="min-w-0">
-              <GeneratedSlideshowFrame
-                slides={slides}
-                statusLabel={runStatusLabel(run.status)}
-                statusClassName={runStatusBadgeClass(run.status)}
-                onSlideChange={({ index }) => setActiveSlide(index)}
-              />
-              <div className="mt-2 text-[12px] font-semibold text-[#6f6e69]">
-                {runScheduleDurationLine(run)}
-              </div>
-              {run.videoUrl ? (
-                <div className="mt-4 overflow-hidden rounded-[9px] border border-[#d8d7cf] bg-black">
-                  <video
-                    src={run.videoUrl}
-                    poster={run.thumbnailUrl}
-                    controls
-                    className="block aspect-[4/5] w-full bg-black object-contain"
-                    preload="metadata"
-                  />
-                </div>
-              ) : null}
-            </section>
-
-            <section className="min-w-0 space-y-4">
-              <div className="grid grid-cols-2 gap-3 rounded-[10px] border border-[#e1e0d8] bg-white p-4">
-                <AutomationRunDetail
-                  label="Status"
-                  value={runStatusLabel(run.status)}
-                />
-                <AutomationRunDetail
-                  label="Post timing"
-                  value={formatRunSchedule(run.scheduledFor)}
-                />
-                <AutomationRunDetail
-                  label="Duration"
-                  value={formatRunDuration(runDurationSeconds(run))}
-                />
-                <AutomationRunDetail
-                  label="Slides"
-                  value={`${slides.length}`}
-                />
-                <AutomationRunDetail
-                  label="Created"
-                  value={formatRunDate(run.createdAt)}
-                />
-                <AutomationRunDetail
-                  label="Type"
-                  value={run.plan?.publishType || "slideshow"}
-                />
-                <AutomationRunDetail
-                  label="Language"
-                  value={run.plan?.language || "default"}
-                />
-                <AutomationRunDetail
-                  label="Current slide"
-                  value={
-                    slides.length ? `Slide ${activeSlideIndex + 1}` : "None"
-                  }
-                />
-              </div>
-              <div className="rounded-[10px] border border-[#e1e0d8] bg-white p-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div className="text-[12px] font-bold tracking-[0.08em] text-[#77766f] uppercase">
-                    Account status
-                  </div>
-                  <div className="text-[12px] font-semibold text-[#77766f]">
-                    {(run.socialStatuses ?? []).length} accounts
-                  </div>
-                </div>
-                <SocialAccountStatusRow
-                  items={run.socialStatuses ?? []}
-                  showLabels
-                  emptyLabel="No social accounts selected"
-                />
-              </div>
-              <div className="rounded-[10px] border border-[#e1e0d8] bg-white p-4">
-                <div className="mb-2 text-[12px] font-bold tracking-[0.08em] text-[#77766f] uppercase">
-                  Title
-                </div>
-                <p className="text-[14px] leading-6 font-medium text-[#333]">
-                  {slideshowTitle(run)}
-                </p>
-              </div>
-              {run.plan?.reuseWarnings?.length ? (
-                <div className="rounded-[10px] border border-[#f0d28a] bg-[#fff9e8] p-4">
-                  <div className="mb-2 text-[12px] font-bold tracking-[0.08em] text-[#8a6a16] uppercase">
-                    Reuse warnings
-                  </div>
-                  <div className="space-y-2">
-                    {run.plan.reuseWarnings.map((warning, index) => (
-                      <p
-                        key={`${warning.kind}-${warning.key}-${index}`}
-                        className="text-[13px] leading-5 font-semibold text-[#6f5510]"
-                      >
-                        {warning.slideId ? `${warning.slideId}: ` : ""}
-                        {warning.reason}
-                        {warning.lastUsedAt
-                          ? ` Last used ${formatRunDate(warning.lastUsedAt)}.`
-                          : ""}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              <div className="rounded-[10px] border border-[#e1e0d8] bg-white p-4">
-                <div className="mb-2 text-[12px] font-bold tracking-[0.08em] text-[#77766f] uppercase">
-                  Caption
-                </div>
-                <p className="text-[14px] leading-6 font-medium text-[#333]">
-                  {slideshowCaption(run)}
-                </p>
-              </div>
-              {run.plan?.hashtags ? (
-                <div className="rounded-[10px] border border-[#e1e0d8] bg-white p-4">
-                  <div className="mb-2 text-[12px] font-bold tracking-[0.08em] text-[#77766f] uppercase">
-                    Hashtags
-                  </div>
-                  <p className="text-[14px] leading-6 font-medium text-[#333]">
-                    {run.plan.hashtags}
-                  </p>
-                </div>
-              ) : null}
-              {run.error ? (
-                <div className="rounded-[10px] border border-[#f0c7c7] bg-[#fff6f6] p-4 text-[13px] font-semibold text-[#b73737]">
-                  {run.error}
-                </div>
-              ) : null}
-            </section>
-          </main>
-        </AppModalPanel>
-      </AppModal>
-      {benchmarkOpen && benchmark ? (
-        <BenchmarkComparisonModal
-          comparison={benchmark}
-          title={`${slideshowTitle(run)} benchmark`}
-          onClose={() => setBenchmarkOpen(false)}
-        />
-      ) : null}
-      {deleteOpen ? (
-        <DeleteSlideshowDialog
-          onCancel={() => setDeleteOpen(false)}
-          onConfirm={onDelete}
-        />
-      ) : null}
-    </>
-  )
-}
-
-function AutomationRunDetail({
-  label,
-  value,
-}: {
-  label: string
-  value: string
-}) {
-  return (
-    <div className="min-w-0">
-      <div className="text-[11px] font-bold tracking-[0.08em] text-[#9a9991] uppercase">
-        {label}
-      </div>
-      <div className="mt-1 truncate text-[13px] font-semibold text-[#242421]">
-        {value}
-      </div>
-    </div>
   )
 }
 
@@ -610,20 +387,20 @@ function AutomationRunDebugModal({
     <AppModal onClose={onClose}>
       <AppModalPanel
         accessibleTitle="Generation debug"
-        className="max-w-[720px] rounded-[8px] bg-white p-4"
+        className="max-w-[720px] rounded-[8px] bg-app-surface p-4"
       >
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-[18px] font-bold text-[#242421]">
+            <h2 className="text-[18px] font-bold text-app-text">
               Generation debug
             </h2>
-            <div className="text-[12px] font-medium text-[#77766f]">
+            <div className="text-[12px] font-medium text-app-muted-text">
               Model: {run.plan?.textModel || "not run"} · Source hook #
               {(run.plan?.debug?.selectedHookIndex ?? 0) + 1}
             </div>
           </div>
           <button
-            className="grid size-8 place-items-center rounded-[5px] text-[#77766f] hover:bg-[#f1f0eb]"
+            className="grid size-8 place-items-center rounded-[5px] text-app-muted-text hover:bg-app-surface-subtle"
             onClick={onClose}
             aria-label="Close generation debug"
           >
@@ -631,7 +408,7 @@ function AutomationRunDebugModal({
           </button>
         </div>
         {run.plan?.hookCandidates?.length ? (
-          <div className="mb-3 rounded-[6px] bg-[#f7f7f3] p-3 text-[12px] font-medium text-[#555]">
+          <div className="mb-3 rounded-[6px] bg-app-surface-subtle p-3 text-[12px] font-medium text-app-text-soft">
             {run.plan.hookCandidates.join(" | ")}
           </div>
         ) : null}

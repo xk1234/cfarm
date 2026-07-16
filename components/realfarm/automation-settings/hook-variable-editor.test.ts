@@ -15,6 +15,14 @@ const collections: WordCollectionRecord[] = [
     created_at: "2026-07-12T00:00:00.000Z",
     updated_at: "2026-07-12T00:00:00.000Z",
   },
+  {
+    id: "word-collection-0d218126-b128-405f-b817-806dc3299178",
+    name: "Audience age",
+    words: ["18-24", "25-34"],
+    source: "manual",
+    created_at: "2026-07-12T00:00:00.000Z",
+    updated_at: "2026-07-12T00:00:00.000Z",
+  },
 ]
 
 describe("hook variable editor", () => {
@@ -43,5 +51,8 @@ describe("hook variable editor", () => {
         collections,
       })?.id
     ).toBe("singapore_areas")
+    expect(
+      collectionForHookSlot({ slot: "audience_age", collections })?.id
+    ).toBe("word-collection-0d218126-b128-405f-b817-806dc3299178")
   })
 })

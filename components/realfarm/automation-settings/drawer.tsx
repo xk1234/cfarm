@@ -28,6 +28,7 @@ import {
   automationGenerationIssue,
   cloneAutomationSchema,
   generationPlaceholderRun,
+  reconcileGenerationPlaceholders,
   wait,
 } from "./run-helpers"
 import type {
@@ -49,6 +50,7 @@ import {
 
 export function AutomationSettingsDrawer({
   automation,
+  initialRunId,
   config,
   collections,
   selectedSound,
@@ -65,6 +67,7 @@ export function AutomationSettingsDrawer({
   onClose,
 }: {
   automation: Automation
+  initialRunId?: string
   config: AutomationSchema
   collections: CreatedImageCollection[]
   selectedSound: LocalAsset | null
@@ -86,7 +89,8 @@ export function AutomationSettingsDrawer({
   const [draftConfig, setDraftConfig] = useState(() =>
     cloneAutomationSchema(config)
   )
-  const [generating, setGenerating] = useState(false)
+  const [activeGenerationCount, setActiveGenerationCount] = useState(0)
+  const generating = activeGenerationCount > 0
   const [duplicating, setDuplicating] = useState(false)
   const [recentRuns, setRecentRuns] = useState<AutomationRunApiRecord[]>([])
   const [loadedRunsAutomationId, setLoadedRunsAutomationId] = useState<
@@ -106,6 +110,17 @@ export function AutomationSettingsDrawer({
     let active = true
     let timer: ReturnType<typeof setTimeout> | undefined
 
+    function scheduleRunRefresh(delay: number) {
+      timer = setTimeout(() => {
+        if (!active) return
+        if (document.visibilityState === "hidden") {
+          scheduleRunRefresh(30_000)
+          return
+        }
+        void loadRuns()
+      }, delay)
+    }
+
     async function loadRuns() {
       try {
         const payload = await fetchJsonWithTimeout<{
@@ -122,27 +137,25 @@ export function AutomationSettingsDrawer({
         const runs = payload.runs ?? []
         const hasInFlight = runs.some((run) => run.status === "running")
         setRecentRuns((current) => {
-          // Keep the instant client-side placeholder only until the runner's
-          // own "running" record lands in the store (a few seconds).
-          const placeholder = current.find(
-            (run) => run.id === `generation-placeholder-${automation.id}`
-          )
-          return placeholder && generating && !hasInFlight
-            ? [placeholder, ...runs]
-            : runs
+          return reconcileGenerationPlaceholders({
+            current,
+            persisted: runs,
+            automationId: automation.id,
+            generating,
+          })
         })
         setLoadedRunsAutomationId(automation.id)
         // While anything is generating (including a run discovered after a
         // page reload), keep polling so the live progress stage updates.
         if (hasInFlight || generating) {
-          timer = setTimeout(loadRuns, 4000)
+          scheduleRunRefresh(15_000)
         }
       } catch {
         if (active) {
           setLoadedRunsAutomationId(automation.id)
         }
         if (active && generating) {
-          timer = setTimeout(loadRuns, 8000)
+          scheduleRunRefresh(30_000)
         }
       }
     }
@@ -169,10 +182,6 @@ export function AutomationSettingsDrawer({
   }
 
   async function generateAutomation() {
-    if (generating) {
-      return
-    }
-
     const preflightError =
       automationKind === "video"
         ? automationVideoGenerationIssue(draftConfig, collections, demoVideos)
@@ -185,7 +194,7 @@ export function AutomationSettingsDrawer({
 
     if (automationKind === "video") {
       const loadingStartedAt = Date.now()
-      setGenerating(true)
+      setActiveGenerationCount((count) => count + 1)
       setActiveTab("overview")
       try {
         await persistDraftConfig(automation.id, draftConfig)
@@ -211,18 +220,20 @@ export function AutomationSettingsDrawer({
       } finally {
         const remainingLoadingMs = 450 - (Date.now() - loadingStartedAt)
         if (remainingLoadingMs > 0) await wait(remainingLoadingMs)
-        setGenerating(false)
+        setActiveGenerationCount((count) => Math.max(0, count - 1))
       }
       return
     }
 
     const loadingStartedAt = Date.now()
+    const requestId = crypto.randomUUID()
     const placeholderRun = generationPlaceholderRun({
       automation,
       config: draftConfig,
+      requestId,
     })
     flushSync(() => {
-      setGenerating(true)
+      setActiveGenerationCount((count) => count + 1)
       setActiveTab("overview")
       setRecentRuns((current) =>
         [
@@ -248,6 +259,7 @@ export function AutomationSettingsDrawer({
             automationId: automation.id,
             force: true,
             now: new Date().toISOString(),
+            requestId,
           }),
         }
       )
@@ -260,7 +272,7 @@ export function AutomationSettingsDrawer({
             : payload.skipped?.some(
                   (item) => item.reason === "insufficient_unique_images"
                 )
-              ? "There are not enough unique images to generate every slide without duplicates."
+              ? "There are not enough distinct slide-and-image combinations to generate this slideshow."
               : payload.skipped?.some((item) => item.reason === "no_images")
                 ? "Choose an image collection with at least one image before generating."
                 : "No slideshow slides were generated for this automation.")
@@ -296,7 +308,7 @@ export function AutomationSettingsDrawer({
       if (remainingLoadingMs > 0) {
         await wait(remainingLoadingMs)
       }
-      setGenerating(false)
+      setActiveGenerationCount((count) => Math.max(0, count - 1))
     }
   }
 
@@ -335,20 +347,19 @@ export function AutomationSettingsDrawer({
   return (
     <div
       className={cn(
-        "grid min-h-svh overflow-hidden bg-white",
+        "grid min-h-svh overflow-hidden bg-app-surface",
         activeTab !== "format" && "md:grid-cols-[246px_1fr]"
       )}
     >
       {activeTab !== "format" && (
-        <aside className="flex min-h-0 flex-col border-r border-[#e1e0d8] bg-[#f7f7f3] p-2">
+        <aside className="flex min-h-0 flex-col border-r border-app-panel-border bg-app-surface-subtle p-2">
           <button
-            className="mb-2 flex h-10 items-center justify-center gap-2 rounded-[8px] border border-[#d8d7cf] bg-white px-3 text-[14px] font-semibold text-[#242421] shadow-sm disabled:cursor-not-allowed disabled:opacity-55"
+            className="mb-2 flex h-10 items-center justify-center gap-2 rounded-[8px] border border-app-panel-border bg-app-surface px-3 text-[14px] font-semibold text-app-text shadow-sm disabled:cursor-not-allowed disabled:opacity-55"
             onClick={generateAutomation}
-            disabled={generating}
             aria-busy={generating}
           >
             <IconPlus className="size-4" />
-            {generating ? "Generating..." : "Generate"}
+            {generating ? "Generate another" : "Generate"}
           </button>
           <div className="space-y-1">
             <AutomationSettingsNavButton
@@ -394,7 +405,7 @@ export function AutomationSettingsDrawer({
           <div className="mt-auto space-y-4 pb-4 pl-3 text-[15px] font-semibold">
             <button
               type="button"
-              className="flex items-center gap-2 text-[#85847d] disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex items-center gap-2 text-app-text-faint disabled:cursor-not-allowed disabled:opacity-50"
               disabled={duplicating}
               onClick={() => {
                 if (duplicating) return
@@ -415,10 +426,10 @@ export function AutomationSettingsDrawer({
           </div>
         </aside>
       )}
-      <div className="relative min-h-0 overflow-y-auto bg-white">
+      <div className="relative min-h-0 overflow-y-auto bg-app-surface">
         {activeTab !== "format" && (
           <button
-            className="absolute top-4 right-4 z-10 inline-flex h-8 items-center gap-1 rounded-[6px] px-2 text-[12px] font-semibold text-[#62615b] hover:bg-[#f1f0eb] hover:text-[#242421]"
+            className="absolute top-4 right-4 z-10 inline-flex h-8 items-center gap-1 rounded-[6px] px-2 text-[12px] font-semibold text-app-text-soft hover:bg-app-surface-subtle hover:text-app-text"
             onClick={onClose}
             aria-label="Back to automations"
           >
@@ -429,6 +440,8 @@ export function AutomationSettingsDrawer({
         {activeTab === "overview" && (
           <AutomationOverviewPanel
             automation={automation}
+            initialRunId={initialRunId}
+            config={draftConfig}
             editingName={editingName}
             draftName={draftName}
             onDraftNameChange={setDraftName}
@@ -448,6 +461,12 @@ export function AutomationSettingsDrawer({
               )
             }
             onDeleteRun={deleteGeneratedSlideshow}
+            onRunChanged={(run) => {
+              setRecentRuns((current) =>
+                current.map((item) => (item.id === run.id ? run : item))
+              )
+              onGenerationRunUpdate(run)
+            }}
           />
         )}
         {activeTab === "format" && (

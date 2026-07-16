@@ -7,7 +7,11 @@ import {
   listSlideshowRecords,
   type CreateSlideshowInput,
 } from "@/lib/slideshows"
-import { benchmarkAndStoreGeneratedSlideshow } from "@/lib/slideshow-benchmarks"
+import {
+  benchmarkAndStoreGeneratedSlideshow,
+  benchmarkContextFromSlides,
+  benchmarkSlidesFromSlideshow,
+} from "@/lib/slideshow-benchmarks"
 
 export const dynamic = "force-dynamic"
 
@@ -15,14 +19,14 @@ export const GET = withHandler(async (request: Request) => {
   const { searchParams } = new URL(request.url)
   const limitValue = Number(searchParams.get("limit"))
   const id = searchParams.get("id")?.trim()
-  const [slideshows, allSlideshows] = await Promise.all([
-    listSlideshowRecords({
-      id: id || undefined,
-      limit:
-        Number.isFinite(limitValue) && limitValue > 0 ? limitValue : undefined,
-    }),
-    listSlideshowRecords({ limit: Number.MAX_SAFE_INTEGER }),
-  ])
+  const limit =
+    Number.isFinite(limitValue) && limitValue > 0 ? limitValue : undefined
+  const allSlideshows = await listSlideshowRecords({
+    limit: Number.MAX_SAFE_INTEGER,
+  })
+  const slideshows = allSlideshows
+    .filter((slideshow) => !id || slideshow.id === id)
+    .slice(0, Math.max(1, limit ?? 100))
 
   return NextResponse.json({
     slideshows,
@@ -42,21 +46,17 @@ export const POST = withHandler(async (request: Request) => {
   let benchmark = null
   let benchmarkError = ""
   try {
+    const benchmarkSlides = benchmarkSlidesFromSlideshow(slideshow)
     benchmark = await benchmarkAndStoreGeneratedSlideshow({
       slideshowId: slideshow.id,
       runId: result.runId,
       automationId: slideshow.automationId,
       title: slideshow.title,
-      icp: [slideshow.title, slideshow.prompt].filter(Boolean).join(" · "),
-      slides: slideshow.output_images.map((imageUrl, index) => ({
-        id: `${slideshow.id}-slide-${index + 1}`,
-        imageUrl,
-        text: slideshow.images[index]?.textItems
-          ?.map((item) => item.text)
-          .filter(Boolean)
-          .join("\n"),
-        role: index === 0 ? "hook" : "content",
-      })),
+      icp: benchmarkContextFromSlides({
+        title: slideshow.title,
+        slides: benchmarkSlides,
+      }),
+      slides: benchmarkSlides,
     })
   } catch (error) {
     benchmarkError =
@@ -64,8 +64,12 @@ export const POST = withHandler(async (request: Request) => {
   }
 
   return NextResponse.json(
-    { slideshow, result, benchmark, benchmarkError: benchmarkError || undefined },
+    {
+      slideshow,
+      result,
+      benchmark,
+      benchmarkError: benchmarkError || undefined,
+    },
     { status: 201 }
   )
 })
-

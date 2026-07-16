@@ -783,7 +783,7 @@ export function CharactersView({
                   {generation.imageUrl && (
                     <button
                       type="button"
-                      className="absolute top-2 left-2 z-10 rounded-full border border-white/70 bg-white/90 px-3 py-1 text-[12px] font-semibold text-[#252520] shadow-sm backdrop-blur hover:bg-white"
+                      className="absolute top-2 left-2 z-10 rounded-full border border-white/70 bg-white/90 px-3 py-1 text-[12px] font-semibold text-[#252520] shadow-sm backdrop-blur hover:bg-app-surface"
                       aria-label="Use as source image"
                       title="Use as source"
                       onClick={(event) => {

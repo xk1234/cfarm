@@ -204,6 +204,59 @@ describe("runDueAutomations", () => {
     )
   })
 
+  it("rejects missing hook collections before persisting a run", async () => {
+    const automation = createLocalAutomationRecord({
+      name: "Broken hook variable",
+      overrides: {
+        status: "live",
+        schedule: {
+          timezone: "America/New_York",
+          posting_times: [{ time: "11:00 AM", days: ["Fri"] }],
+        },
+      },
+    })
+    automation.schema.formatting = automation.schema.formatting.map(
+      (section) =>
+        section.id === "hook"
+          ? {
+              ...section,
+              textItems: [
+                {
+                  ...section.textItems[0],
+                  contentDirection: "I’m [[ZODIAC_WITH_ARTICLE]]",
+                },
+              ],
+            }
+          : section
+    )
+    selectDailyScenesCollection(automation)
+    await upsertAutomationRecords({
+      rootDir: automationRootDir,
+      records: [automation],
+    })
+    await writeImageCollections([
+      {
+        image_link: "/api/local-assets/image-collections/files/astro.jpg",
+        caption: "Astrology scene",
+      },
+    ])
+
+    await expect(
+      runDueAutomations({
+        automationRootDir,
+        runRootDir,
+        postfastRootDir: dataDir,
+        usageLedgerRootDir,
+        wordCollectionRootDir,
+        imageCollectionDbPath,
+        now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
+      })
+    ).rejects.toThrow(
+      "Hook slot ZODIAC_WITH_ARTICLE has no words in database collection ZODIAC_WITH_ARTICLE"
+    )
+    expect(await readRuns()).toEqual([])
+  })
+
   it("avoids recently used images and hook combinations across forced runs", async () => {
     const automation = createLocalAutomationRecord({
       name: "Dedup stress",
@@ -338,7 +391,7 @@ describe("runDueAutomations", () => {
     ).toBe("[[occasion]] balloon setups that broke our group chat")
   })
 
-  it("refuses to generate when the slideshow needs more unique images than are available", async () => {
+  it("reuses an image when a slideshow has more slides than unique images", async () => {
     const automation = createLocalAutomationRecord({
       name: "Reuse warning",
       overrides: {
@@ -351,9 +404,18 @@ describe("runDueAutomations", () => {
     })
     automation.schema.formatting = automation.schema.formatting.map(
       (section) =>
-        section.id === "body" || section.id === "cta"
-          ? { ...section, slideCount: 0 }
-          : section
+        section.id === "body"
+          ? {
+              ...section,
+              slideCount: 2,
+              slideOverrides: [
+                { slideIndex: 1, contentDirection: "first angle" },
+                { slideIndex: 2, contentDirection: "second angle" },
+              ],
+            }
+          : section.id === "cta"
+            ? { ...section, slideCount: 0 }
+            : section
     )
     selectDailyScenesCollection(automation)
     await upsertAutomationRecords({
@@ -394,18 +456,13 @@ describe("runDueAutomations", () => {
       random: () => 0.9,
     })
 
-    expect(result.created[0]).toMatchObject({
-      status: "failed",
-      error: expect.stringMatching(
-        /needs \d+ unique images, but only 1 (?:is|are) available/
-      ),
-    })
-    expect(result.skipped).toEqual([
-      expect.objectContaining({
-        automationId: automation.id,
-        reason: "insufficient_unique_images",
-      }),
-    ])
+    expect(result.created[0]).toMatchObject({ status: "succeeded" })
+    expect(result.skipped).toEqual([])
+    const slides = result.created[0].plan.slides
+    expect(slides.length).toBeGreaterThan(1)
+    expect(new Set(slides.map((slide) => slide.imageUrl))).toEqual(
+      new Set(["/api/local-assets/image-collections/files/old.jpg"])
+    )
   })
 
   it("routes usage ledger writes to the temp run root when no ledger root is passed", async () => {
@@ -914,7 +971,7 @@ describe("runDueAutomations", () => {
     ])
   })
 
-  it("does not fall back to the automation title for body slide text when generation is unavailable", async () => {
+  it("fails the run instead of substituting text when generation is unavailable", async () => {
     vi.stubEnv("OPENROUTER_API_KEY", "")
     const automation = createLocalAutomationRecord({
       name: "UAT Zodiac lucky charms",
@@ -987,28 +1044,27 @@ describe("runDueAutomations", () => {
       },
     ])
 
-    const result = await runDueAutomations({
-      automationRootDir,
-      runRootDir,
-      postfastRootDir: dataDir,
-      usageLedgerRootDir,
-      wordCollectionRootDir,
-      imageCollectionDbPath,
-      now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
-      random: () => 0,
-    })
+    await expect(
+      runDueAutomations({
+        automationRootDir,
+        runRootDir,
+        postfastRootDir: dataDir,
+        usageLedgerRootDir,
+        wordCollectionRootDir,
+        imageCollectionDbPath,
+        now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
+        random: () => 0,
+      })
+    ).rejects.toThrow("OPENROUTER_API_KEY is not configured")
 
-    expect(result.created[0].status).toBe("succeeded")
-    expect(result.created[0].plan.slides[1]).toMatchObject({
-      role: "content",
-      text: "Zodiac gift table",
-    })
-    expect(result.created[0].plan.slides[1].text).not.toBe(
-      "UAT Zodiac lucky charms"
-    )
-    expect(result.created[0].plan.hashtags).toBeTruthy()
-    expect(result.created[0].plan.debug?.textGenerationError).toContain(
-      "OPENROUTER_API_KEY"
+    await expect(readRuns()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          automationId: automation.id,
+          status: "failed",
+          error: "OPENROUTER_API_KEY is not configured",
+        }),
+      ])
     )
   })
 
@@ -1926,6 +1982,7 @@ describe("runDueAutomations", () => {
       automationId: automation.id,
       status: "succeeded",
       scheduledFor: "2026-07-03T15:05:00.000Z",
+      generationSource: "manual",
     })
     expect(second.created[0]).toMatchObject({
       automationId: automation.id,
@@ -1935,7 +1992,7 @@ describe("runDueAutomations", () => {
     expect(runs.runs).toHaveLength(2)
   })
 
-  it("uses a schema override when force generating a selected automation", async () => {
+  it("force generates from the schema persisted in the database", async () => {
     const automation = createLocalAutomationRecord({
       name: "Daily hooks",
       overrides: {
@@ -1995,7 +2052,7 @@ describe("runDueAutomations", () => {
     }
     await upsertAutomationRecords({
       rootDir: automationRootDir,
-      records: [automation],
+      records: [{ ...automation, schema: schemaOverride }],
     })
     await writeJsonArrayStore({
       rootDir: dataDir,
@@ -2024,7 +2081,6 @@ describe("runDueAutomations", () => {
       wordCollectionRootDir,
       imageCollectionDbPath,
       automationId: automation.id,
-      schemaOverride,
       force: true,
       now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
     })

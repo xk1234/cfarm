@@ -3,7 +3,15 @@ import os from "node:os"
 import path from "node:path"
 
 import { Query } from "node-appwrite"
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
@@ -198,5 +206,37 @@ describe("GET /api/postfast/posts", () => {
 
     expect(response.status).toBe(200)
     expect(payload.posts.posts).toEqual([])
+  })
+})
+
+describe("POST /api/postfast/posts", () => {
+  it("can mark a generated post as published without a release URL", async () => {
+    const remoteFetch = vi.fn()
+    vi.stubGlobal("fetch", remoteFetch)
+    const { POST } = await import("./route")
+    const response = await POST(
+      new Request("http://localhost/api/postfast/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "manual_posted",
+          integrationId: "tiktok-1",
+          provider: "tiktok",
+          content: "Generated caption #creator",
+          sourceType: "slideshow",
+          sourceId: "slideshow-generated-1",
+        }),
+      })
+    )
+    const payload = await response.json()
+
+    expect(response.status).toBe(201)
+    expect(payload.record).toMatchObject({
+      sourceType: "slideshow",
+      sourceId: "slideshow-generated-1",
+      status: "published",
+      externallyManaged: true,
+    })
+    expect(remoteFetch).not.toHaveBeenCalled()
   })
 })
