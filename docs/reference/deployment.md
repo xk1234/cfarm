@@ -68,21 +68,29 @@ variables available in its invoking environment.
 ## Deployment order
 
 1. Apply or verify the production Appwrite schema and Storage buckets.
-2. Confirm generated worker modules are synchronized:
+2. After introducing the consolidated stores, preview and apply the additive
+   legacy-data migration:
+
+   ```bash
+   pnpm appwrite:migrate-consolidated -- --env-file=.env
+   pnpm appwrite:migrate-consolidated -- --env-file=.env --apply
+   ```
+
+3. Confirm generated worker modules are synchronized:
 
    ```bash
    pnpm appwrite:check-shared
    ```
 
-3. Deploy Appwrite Functions when scheduler or worker code changed:
+4. Deploy Appwrite Functions when scheduler or worker code changed:
 
    ```bash
    node appwrite/functions/deploy.mjs
    ```
 
-4. Create a preview web deployment with the production-equivalent environment.
-5. Run the smoke checks below against the preview URL.
-6. Promote the verified artifact to production.
+5. Create a preview web deployment with the production-equivalent environment.
+6. Run the smoke checks below against the preview URL.
+7. Promote the verified artifact to production.
 
 ## Appwrite console configuration
 

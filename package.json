@@ -11,6 +11,7 @@
     "env:check": "node scripts/check-env.mjs",
     "appwrite:clone-schema": "node scripts/clone-appwrite-schema.mjs",
     "appwrite:consolidated-stores": "node scripts/provision-consolidated-stores.mjs",
+    "appwrite:migrate-consolidated": "tsx scripts/migrate-consolidated-data.ts",
     "appwrite:local:setup": "node scripts/setup-local-appwrite.mjs",
     "appwrite:local:sync-automations": "node scripts/sync-local-automations.mjs",
     "appwrite:local:sync-reference": "node scripts/sync-local-reference-data.mjs",
