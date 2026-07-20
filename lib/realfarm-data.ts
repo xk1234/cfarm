@@ -8,6 +8,7 @@ import {
 } from "@/lib/media-library"
 import type {
   AutomationLifecycleStatus,
+  AutomationPostingMode,
   AutomationSchedule,
 } from "@/lib/realfarm-automation"
 import type { MediaKind } from "@/lib/media-kind"
@@ -37,6 +38,8 @@ export type Automation = {
   id: string
   name: string
   automationKind?: "slideshow" | "video" | "x_threads"
+  postingMode?: AutomationPostingMode
+  generationLeadMinutes?: number
   platform?: "x" | "threads"
   status: AutomationLifecycleStatus
   account: string
@@ -58,27 +61,16 @@ export type ImageCollectionSummary = {
   theme: string
 }
 
-type GeneratedAssets = Record<string, unknown> & {
-  higgsfieldCharacter?: {
-    name: string
-    model: string
-    type: string
-    url: string
-  }
-}
-
 type RealFarmJson = Omit<
   typeof realfarmData,
-  "projects" | "automations" | "generatedAssets" | "imageCollections"
+  "projects" | "automations" | "imageCollections"
 > & {
   projects: Project[]
   automations: Automation[]
-  generatedAssets: GeneratedAssets
   imageCollections: ImageCollectionSummary[]
 }
 
 type RealFarmDemoSeed = {
-  generatedAssets?: RealFarmJson["generatedAssets"]
   imageCollections?: RealFarmJson["imageCollections"]
 }
 
@@ -115,10 +107,6 @@ export async function loadRealFarmData(
   const seededData = options.includeDemoSeed
     ? {
         ...data,
-        generatedAssets: {
-          ...data.generatedAssets,
-          ...(demoSeed.generatedAssets ?? {}),
-        },
         imageCollections: [
           ...data.imageCollections,
           ...(demoSeed.imageCollections ?? []),

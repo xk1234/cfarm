@@ -2,7 +2,7 @@
 
 Publish content to social platforms through PostFast: connect integrations, upload media, create scheduled/immediate posts, and sync analytics back. Invoked directly from export cards and automatically by the automation run (workflow 06).
 
-Entry: `/api/postfast/{integrations,connect-url,upload,posts,analytics/platform}`
+Entry: `/api/postfast/{integrations,connect-url,upload,posts}` and `/api/analytics/report`
 Core: `lib/postfast-client.ts`, `lib/postfast-posts.ts`, `lib/publishing.ts`
 
 ```mermaid
@@ -22,7 +22,7 @@ flowchart TD
     OK -->|No| ERRREC["Record error on PostFastPostRecord"]
     OK -->|Yes| REC["upsertPostFastPostRecord (status: scheduled | published)"]
 
-    REC --> SYNC["GET /api/postfast/analytics/platform"]
+    REC --> SYNC["POST /api/analytics/report"]
     ERRREC --> STORE
     SYNC --> UPDA["updatePostFastPostAnalytics"]
     UPDA --> STORE["'postfast posts' store"]

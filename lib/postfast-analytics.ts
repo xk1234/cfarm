@@ -11,7 +11,11 @@ import {
   type AccountFollowerSnapshot,
   type PostFastMetricSnapshot,
 } from "@/lib/postfast-metric-snapshots"
-import { listPostFastPostRecords } from "@/lib/postfast-posts"
+import {
+  listPostFastPostRecords,
+  patchPostFastPostRecord,
+} from "@/lib/postfast-posts"
+import { inferPostContentType } from "@/lib/post-content-type"
 
 export async function listAnalyticsIntegrations() {
   const payload = await postfastRequest<unknown[]>(
@@ -77,6 +81,8 @@ export async function syncPostFastAnalytics(input: {
           rawMetric,
           integration.provider
         )
+        const remoteMedia = postMedia(post)
+        const media = local?.media?.length ? local.media : remoteMedia
         metricSnapshots.push({
           postId,
           platformPostId: platformPostId || undefined,
@@ -91,11 +97,28 @@ export async function syncPostFastAnalytics(input: {
             clean(post.releaseURL || post.releaseUrl) || local?.releaseUrl,
           sourceType: local?.sourceType || "external",
           sourceId: local?.sourceId,
+          contentType: inferPostContentType({
+            sourceType: local?.sourceType || "external",
+            media,
+            metrics: rawMetric,
+          }),
+          mediaCount: media.length,
           metrics,
           latestMetric,
           rawMetrics: rawMetric,
           observedKeys,
         })
+        const publishedAt = clean(post.publishedAt)
+        if (local && publishedAt && local.status !== "published") {
+          await patchPostFastPostRecord({
+            id: local.id,
+            status: "published",
+            publishedAt,
+            postfastPostId: remotePostId || local.postfastPostId,
+            releaseUrl:
+              clean(post.releaseURL || post.releaseUrl) || local.releaseUrl,
+          })
+        }
       }
     } catch (error) {
       errors.push({
@@ -150,15 +173,19 @@ function numericRecord(value: unknown) {
 }
 
 function firstMediaUrl(post: Record<string, unknown>) {
-  const media = Array.isArray(post.mediaItems)
-    ? post.mediaItems
-    : Array.isArray(post.media)
-      ? post.media
-      : []
+  const media = postMedia(post)
   const first = isRecord(media[0]) ? media[0] : {}
   return (
     clean(first.url || first.thumbnailUrl || post.thumbnailUrl) || undefined
   )
+}
+
+function postMedia(post: Record<string, unknown>) {
+  return Array.isArray(post.mediaItems)
+    ? post.mediaItems
+    : Array.isArray(post.media)
+      ? post.media
+      : []
 }
 
 function normalizeFollowerHistory(

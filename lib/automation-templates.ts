@@ -64,6 +64,7 @@ export type AutomationTemplateFormat = {
     image_grid: AutomationImageGrid
     overlay: boolean
     display_text: boolean
+    ai_image_selection?: boolean
     text_items: AutomationTemplateTextItem[]
   }
   content: {
@@ -80,6 +81,7 @@ export type AutomationTemplateFormat = {
       height: number
     }
     display_text: boolean
+    ai_image_selection?: boolean
     text_items: AutomationTemplateTextItem[]
   }
   cta: {
@@ -89,6 +91,7 @@ export type AutomationTemplateFormat = {
     image_grid: AutomationImageGrid
     overlay: boolean
     display_text: boolean
+    ai_image_selection?: boolean
     text_items: AutomationTemplateTextItem[]
   }
   tone?: AutomationTemplateTone
@@ -129,6 +132,7 @@ export type AutomationTemplateExampleRun = {
       imageUrl?: string
       text?: string
       imageCaption?: string
+      aspectRatio?: string
     }[]
   }
 }
@@ -274,6 +278,7 @@ export function automationTemplateRecordToSchema(
       title: record.name,
       status: "live",
       social_integrations: [],
+      aspect_ratio: record.template.format.hook.aspect_ratio,
       prompt_formatting: {
         style: record.template.format.custom_tone,
         narrative: record.template.hooks.join("\n"),
@@ -350,6 +355,7 @@ export function automationTemplateRecordToRuntimeTemplate(
     image_fit: schema.image_fit,
     language: schema.language,
     prompt_formatting: schema.prompt_formatting,
+    hooks: schema.hooks,
     image_collection_ids: schema.image_collection_ids,
     tone: schema.tone,
     formatting: schema.formatting,
@@ -407,6 +413,7 @@ function automationSchemaToTemplateFormat(
       image_grid: hook.imageGrid,
       overlay: hook.overlay,
       display_text: !hook.noText,
+      ai_image_selection: hook.aiImageSelection === true,
       text_items: hook.textItems.map(textItemToTemplate),
     },
     content: {
@@ -425,6 +432,7 @@ function automationSchemaToTemplateFormat(
           }
         : undefined,
       display_text: !content.noText,
+      ai_image_selection: content.aiImageSelection === true,
       text_items: content.textItems.map(textItemToTemplate),
     },
     cta: {
@@ -436,6 +444,7 @@ function automationSchemaToTemplateFormat(
       image_grid: cta.imageGrid,
       overlay: cta.overlay,
       display_text: !cta.noText,
+      ai_image_selection: cta.aiImageSelection === true,
       text_items: cta.textItems.map(textItemToTemplate),
     },
     tone,
@@ -455,6 +464,7 @@ function templateFormatToRuntime(
       slideCount: 1,
       noText: !format.hook.display_text,
       overlay: format.hook.overlay,
+      aiImageSelection: format.hook.ai_image_selection === true,
       textItems: format.hook.text_items.map(templateTextItemToRuntime),
     },
     {
@@ -471,6 +481,7 @@ function templateFormatToRuntime(
       slideCountMax: format.content.slide_count_max,
       noText: !format.content.display_text,
       overlay: format.content.overlay,
+      aiImageSelection: format.content.ai_image_selection === true,
       overlayImage: format.content.overlay_image
         ? {
             enabled: format.content.overlay_image.enabled,
@@ -488,6 +499,7 @@ function templateFormatToRuntime(
       slideCount: format.cta.enabled ? 1 : 0,
       noText: !format.cta.display_text,
       overlay: format.cta.overlay,
+      aiImageSelection: format.cta.ai_image_selection === true,
       imageMode: format.cta.image_mode,
       textItems: format.cta.text_items.map(templateTextItemToRuntime),
     },
@@ -596,6 +608,7 @@ function normalizeAutomationTemplateExampleRun(
           imageUrl: clean(slide.imageUrl),
           text: clean(slide.text),
           imageCaption: clean(slide.imageCaption),
+          aspectRatio: clean(slide.aspectRatio) || undefined,
         }))
         .filter((slide) => slide.imageUrl)
     : []
@@ -620,6 +633,7 @@ function normalizeTemplateFormat(
       image_grid: format?.hook?.image_grid ?? "none",
       overlay: Boolean(format?.hook?.overlay),
       display_text: format?.hook?.display_text !== false,
+      ai_image_selection: format?.hook?.ai_image_selection === true,
       text_items: Array.isArray(format?.hook?.text_items)
         ? format.hook.text_items
         : [],
@@ -634,6 +648,7 @@ function normalizeTemplateFormat(
       overlay: Boolean(format?.content?.overlay),
       overlay_image: format?.content?.overlay_image,
       display_text: format?.content?.display_text !== false,
+      ai_image_selection: format?.content?.ai_image_selection === true,
       text_items: Array.isArray(format?.content?.text_items)
         ? format.content.text_items
         : [],
@@ -645,6 +660,7 @@ function normalizeTemplateFormat(
       image_grid: format?.cta?.image_grid ?? "none",
       overlay: Boolean(format?.cta?.overlay),
       display_text: format?.cta?.display_text !== false,
+      ai_image_selection: format?.cta?.ai_image_selection === true,
       text_items: Array.isArray(format?.cta?.text_items)
         ? format.cta.text_items
         : [],

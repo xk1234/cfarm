@@ -1,8 +1,10 @@
 import { clean, isRecord } from "@/lib/guards"
 import { randomUUID } from "node:crypto"
 import path from "node:path"
+import { Query } from "node-appwrite"
 
 import {
+  countJsonArrayStore,
   deleteJsonArrayRecord,
   readJsonArrayRecord,
   readJsonArrayStore,
@@ -83,6 +85,7 @@ export async function listResultRecords(
     id?: string
     automationId?: string
     runId?: string
+    slideshowIds?: string[]
     limit?: number
   } = {}
 ) {
@@ -95,20 +98,40 @@ export async function listResultRecords(
     if (input.runId && record.runId !== input.runId) return []
     return [record]
   }
+  const slideshowIds = [...new Set((input.slideshowIds ?? []).map(clean))]
+    .filter(Boolean)
+    .slice(0, 100)
+  const runId = clean(input.runId)
+  const automationId = clean(input.automationId)
+  if (input.slideshowIds && slideshowIds.length === 0) return []
   const records = await readResultRecords(input.rootDir, {
-    limit:
-      !input.automationId && !input.runId
-        ? Math.max(1, input.limit ?? 100)
-        : undefined,
+    queries: slideshowIds.length
+      ? [Query.equal("source_entity_id", slideshowIds)]
+      : runId
+        ? [Query.equal("source_run_id", [runId])]
+        : automationId
+          ? [Query.equal("source_automation_id", [automationId])]
+          : undefined,
+    limit: slideshowIds.length
+      ? Math.max(1, Math.min(input.limit ?? slideshowIds.length, 100))
+      : Math.max(1, input.limit ?? 100),
+    order: slideshowIds.length || runId || automationId ? "none" : undefined,
   })
   const filtered = records.filter((record) => {
     if (input.id && record.id !== input.id) {
       return false
     }
-    if (input.automationId && record.automationId !== input.automationId) {
+    if (automationId && record.automationId !== automationId) {
       return false
     }
-    if (input.runId && record.runId !== input.runId) {
+    if (runId && record.runId !== runId) {
+      return false
+    }
+    if (
+      slideshowIds.length &&
+      (!record.artifacts.slideshowId ||
+        !slideshowIds.includes(record.artifacts.slideshowId))
+    ) {
       return false
     }
     return true
@@ -117,8 +140,30 @@ export async function listResultRecords(
   return filtered.slice(0, Math.max(1, input.limit ?? 100))
 }
 
+export function countResultRecords(input: {
+  rootDir?: string
+  workflowType?: ResultWorkflowType
+  hasVideo?: boolean
+}) {
+  return countJsonArrayStore<ResultRecord>({
+    ...resultStore(input.rootDir),
+    queries: [
+      ...(input.workflowType
+        ? [Query.equal("kind", [input.workflowType])]
+        : []),
+      ...(input.hasVideo !== undefined
+        ? [Query.equal("has_video", [input.hasVideo])]
+        : []),
+    ],
+  })
+}
+
 export async function createResultRecord(input: CreateResultInput) {
-  const records = await readResultRecords(input.rootDir)
+  const records = await listResultRecords({
+    rootDir: input.rootDir,
+    runId: input.runId,
+    limit: 100,
+  })
   const now = new Date().toISOString()
   const record = normalizeResultRecord({
     ...input,
@@ -220,14 +265,20 @@ export async function deleteResultRecordsForAutomation(input: {
 
 function readResultRecords(
   rootDir = defaultRootDir(),
-  options: { limit?: number } = {}
+  options: {
+    queries?: string[]
+    limit?: number
+    order?: "asc" | "desc" | "none"
+  } = {}
 ) {
   return readJsonArrayStore<ResultRecord>({
     rootDir,
     fileName: dbFileName,
     key: "results",
     normalize: normalizeResultRecord,
+    queries: options.queries,
     limit: options.limit,
+    order: options.order,
   })
 }
 

@@ -1,0 +1,63 @@
+---
+title: Social automations [WIP]
+description: Current X and Threads automation behavior plus incomplete LinkedIn and publishing support.
+---
+
+> **WIP:** X and Threads automation creation and draft generation exist, but
+> publishing capability differs by platform/account. LinkedIn does not yet have
+> a complete automation editor in the product UI.
+
+Social automations live on the same [main Automations page](./index) as
+slideshows and videos. They are shown as normal automation cards, not a separate
+X/Threads navigation tab.
+
+![WIP X automation content engine with one editor, strategy, topic, hooks, trend discovery, and native preview](/docs/automations/social-x-editor.png)
+
+## X and Threads cards
+
+The card shows:
+
+- platform identity;
+- Live or Paused state;
+- up to three recent generations;
+- first-post or hook preview;
+- content type and benchmark score when a run exists;
+- selected accounts and upcoming schedule; and
+- Pause/Resume and Edit actions.
+
+## Current editor model
+
+An X or Threads automation stores a reusable niche/content strategy and then
+generates a draft from a topic. The editor supports the platform, niche,
+audience, content pillars, content types, voice, hook/content/CTA generation,
+benchmarks, media policy, schedule, and selected publishing accounts where the
+current schema exposes them.
+
+Supported draft shapes are designed to include:
+
+- single post with length settings;
+- thread/reply sequence;
+- article-style content where supported;
+- image, gallery, or video attachment policy; and
+- reaction/quote drafts that preserve source attribution.
+
+## Platform status
+
+| Platform     | Current status                                                                                                                                                               |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **X**        | Editor and draft generation exist. Single-post publishing depends on connected-account capability; reply-chain/thread and discovery-based reaction workflows remain limited. |
+| **Threads**  | Editor and draft generation exist. Multi-post publishing is capability-limited and must remain a draft when unsupported.                                                     |
+| **LinkedIn** | Strategy/template work exists in the repository, but there is no complete user-facing automation editor yet.                                                                 |
+
+## Still WIP
+
+- Reliable trending X/TikTok/Instagram discovery with attribution and safe
+  reaction/quote handling.
+- Complete reply-chain publishing for X and Threads.
+- LinkedIn editor, generation, preview, and publishing parity.
+- Provider-aware preview that exactly matches every native composer.
+- Broader benchmark datasets and repeatable quality evaluation.
+
+Generation must never silently flatten a thread into one post or publish an
+unsupported shape. It should preserve the draft and explain the capability
+gap.

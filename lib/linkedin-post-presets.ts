@@ -1,10 +1,9 @@
 /**
  * LinkedIn post presets + prompt builders.
  *
- * Ported from the linkedin-lab experiment (scripts/linkedin-lab/presets.mjs,
- * frozen at PRESET_VERSION v6-outcome-cadence) after it cleared the content
- * quality bar. Distilled from Matt Barker's "30 Days of Proven LinkedIn
- * Templates" (see scripts/linkedin-lab/PLAYBOOK.md).
+ * Production presets frozen at PRESET_VERSION v6-outcome-cadence after prompt
+ * iteration. Distilled from Matt Barker's "30 Days of Proven LinkedIn
+ * Templates".
  *
  * The lab's per-cell hook exemplars/outcome anchors were tuned to three test
  * niches; here they act as optional accelerants and fall back cleanly for any

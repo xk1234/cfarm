@@ -3,7 +3,15 @@ import os from "node:os"
 import path from "node:path"
 
 import { Query } from "node-appwrite"
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
@@ -31,7 +39,7 @@ afterEach(async () => {
 afterAll(clearAssets)
 
 describe("POST /api/assets/upload", () => {
-  it("stores uploaded avatar motion reference videos as assets", async () => {
+  it("stores uploaded UGC ad motion reference videos as assets", async () => {
     const { POST } = await import("./route")
     const formData = new FormData()
     formData.set(
@@ -40,7 +48,7 @@ describe("POST /api/assets/upload", () => {
         type: "video/mp4",
       })
     )
-    formData.set("scope", "ugc_avatar")
+    formData.set("scope", "ugc_ad")
     formData.set("category", "reference")
     formData.set("name", "motion ref")
 
@@ -55,7 +63,7 @@ describe("POST /api/assets/upload", () => {
     expect(response.status).toBe(201)
     expect(payload.asset).toMatchObject({
       kind: "video",
-      scope: "ugc_avatar",
+      scope: "ugc_ad",
       category: "reference",
       source: "upload",
       status: "ready",
@@ -76,7 +84,7 @@ describe("POST /api/assets/upload", () => {
       id: payload.asset.id,
       fileUrl: payload.asset.fileUrl,
       kind: "video",
-      scope: "ugc_avatar",
+      scope: "ugc_ad",
       category: "reference",
     })
 

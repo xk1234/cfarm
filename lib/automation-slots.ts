@@ -14,6 +14,13 @@ export type AutomationSlot = {
   paused: boolean
 }
 
+export const SLIDESHOW_GENERATION_LEAD_MINUTES = 30
+
+export type SlideshowGenerationTimingInput = {
+  posting_mode?: unknown
+  generation_lead_minutes?: unknown
+}
+
 type LegacyScheduleInterval = {
   every_n_hours: number
   start_time: string
@@ -31,6 +38,27 @@ type SlotOptions = {
   random?: (slotISO: string) => number
 }
 
+/** Canonical lead used by both the scheduler and calendar projections. */
+export function slideshowGenerationLeadMinutes(
+  input: SlideshowGenerationTimingInput
+) {
+  if (input.posting_mode !== "review") {
+    return SLIDESHOW_GENERATION_LEAD_MINUTES
+  }
+  const configured = Number(input.generation_lead_minutes)
+  return Number.isFinite(configured) && configured > 0
+    ? configured
+    : SLIDESHOW_GENERATION_LEAD_MINUTES
+}
+
+export function generationExpectedAt(publishedAt: string, leadMinutes: number) {
+  const timestamp = Date.parse(publishedAt)
+  if (!Number.isFinite(timestamp)) return undefined
+  return new Date(
+    timestamp - Math.max(0, Number(leadMinutes) || 0) * 60_000
+  ).toISOString()
+}
+
 const weekdays: AutomationDay[] = [
   "Mon",
   "Tue",
@@ -44,7 +72,7 @@ const weekdays: AutomationDay[] = [
 /**
  * Canonical slot projection used by the runner, Appwrite scheduler, calendar,
  * and automation-card preview. Keep this file runtime-portable: the Appwrite
- * deployment transpiles it to the function bundle via scripts/sync-automation-slots.mjs.
+ * deployment transpiles it to the function bundle via scripts/sync-function-shared.mjs.
  */
 export function automationSlotsInRange(
   automation: Pick<

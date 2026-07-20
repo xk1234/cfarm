@@ -134,6 +134,18 @@ export async function deleteXAutomationRuns(automationId: string) {
   })
 }
 
+export async function deleteXAutomationRun(id: string) {
+  const existing = await getXAutomationRun(id)
+  if (!existing) return null
+  await deleteJsonArrayRecord({
+    rootDir,
+    fileName: "runs.json",
+    key: "runs",
+    id,
+  })
+  return existing
+}
+
 function normalizeXAutomationRun(
   run: XAutomationRun & { platforms?: XAutomationRecord["platform"][] }
 ) {

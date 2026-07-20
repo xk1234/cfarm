@@ -20,6 +20,10 @@ import type {
   SlideshowTextItem,
 } from "@/lib/slideshow-renderer"
 import { slideshowTextPositionX } from "@/lib/slideshow-renderer"
+import {
+  createOvalIconLayout,
+  seededOvalIconRandom,
+} from "@/lib/slideshow-oval-icons"
 
 export function previewSlideshowSlide(
   item: AutomationFormatPreviewItem,
@@ -28,6 +32,18 @@ export function previewSlideshowSlide(
   const overlayImage =
     item.section.overlayImage?.enabled && item.overlayImages.length > 0
       ? item.overlayImages[index % item.overlayImages.length]
+      : undefined
+  const ovalIconLayout =
+    item.section.imageGrid === "oval-icons" && item.image
+      ? createOvalIconLayout({
+          candidates: item.images.map((image) => ({
+            key: image.id,
+            imageUrl: image.imageUrl,
+            imageCaption: image.description || image.title,
+          })),
+          focalKey: item.image.id,
+          random: seededOvalIconRandom(`${item.id}:${index}`),
+        })
       : undefined
 
   return {
@@ -40,6 +56,20 @@ export function previewSlideshowSlide(
         }
       : undefined,
     overlay: item.section.overlay,
+    iconLayout: ovalIconLayout
+      ? {
+          kind: "oval-icons",
+          surrounding: ovalIconLayout.surrounding.map((icon) => ({
+            image_url: icon.imageUrl,
+            image_caption: icon.imageCaption,
+            key: icon.key,
+            x: icon.x,
+            y: icon.y,
+            scale: icon.scale,
+            rotation: icon.rotation,
+          })),
+        }
+      : undefined,
     textItems: previewSlideshowTextItems(item),
   }
 }

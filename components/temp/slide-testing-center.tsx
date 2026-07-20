@@ -1,25 +1,20 @@
 "use client"
 
 import {
-  BarChart3,
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Pencil,
-  Play,
-  RefreshCcw,
-  Search,
-} from "lucide-react"
+  LuCheck,
+  LuChevronDown,
+  LuChevronLeft,
+  LuChevronRight,
+  LuPencil,
+  LuPlay,
+  LuRefreshCcw,
+  LuSearch,
+} from "react-icons/lu"
 import { useEffect, useMemo, useState, type CSSProperties } from "react"
 import { Popover } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
-import {
-  BenchmarkComparisonModal,
-  BenchmarkCorpusModal,
-} from "@/components/realfarm/benchmark-comparison-modal"
 import type { AutomationTemplateExampleRun } from "@/lib/automation-templates"
 import type { OpenRouterModelSummary } from "@/lib/openrouter-models"
 import { tempTestingCenterFallbackModels } from "@/lib/realfarm-generation-model-registry"
@@ -33,10 +28,6 @@ import type {
   TempSlideTestingAutomation,
   TempSlideTextPlaceholder,
 } from "@/lib/temp-slide-testing"
-import type {
-  BenchmarkCorpusRecord,
-  SlideshowBenchmarkComparison,
-} from "@/lib/slideshow-benchmarks"
 import {
   buildTempSlideStructuredOutputSchema,
   defaultTempSlideSystemPrompt,
@@ -58,8 +49,6 @@ type GenerationRun = {
   selectedHook?: string
   result?: TempSlideStructuredOutput
   error?: string
-  benchmarkComparison?: SlideshowBenchmarkComparison
-  benchmarkError?: string
 }
 
 type SlideTestingCenterProps = {
@@ -67,7 +56,6 @@ type SlideTestingCenterProps = {
   automationJsonById: Record<string, unknown>
   collections: TempSlideImageCollection[]
   exampleRunsByAutomationId: Record<string, AutomationTemplateExampleRun[]>
-  benchmarkCorpus: BenchmarkCorpusRecord[]
 }
 
 export function SlideTestingCenter({
@@ -75,7 +63,6 @@ export function SlideTestingCenter({
   automationJsonById,
   collections,
   exampleRunsByAutomationId,
-  benchmarkCorpus,
 }: SlideTestingCenterProps) {
   const [selectedAutomationId, setSelectedAutomationId] = useState(
     automations[0]?.id ?? ""
@@ -101,9 +88,6 @@ export function SlideTestingCenter({
   )
   const [promptModalOpen, setPromptModalOpen] = useState(false)
   const [automationModalOpen, setAutomationModalOpen] = useState(false)
-  const [benchmarkCorpusOpen, setBenchmarkCorpusOpen] = useState(false)
-  const [benchmarkComparison, setBenchmarkComparison] =
-    useState<SlideshowBenchmarkComparison | null>(null)
   const [automationDetailsTab, setAutomationDetailsTab] = useState<
     "info" | "json"
   >("info")
@@ -271,8 +255,6 @@ export function SlideTestingCenter({
         selectedHook?: string
         result?: TempSlideStructuredOutput
         error?: string
-        benchmarkComparison?: SlideshowBenchmarkComparison
-        benchmarkError?: string
       }
 
       if (!response.ok || !payload.result) {
@@ -287,8 +269,6 @@ export function SlideTestingCenter({
                 status: "success",
                 selectedHook: payload.selectedHook,
                 result: payload.result,
-                benchmarkComparison: payload.benchmarkComparison,
-                benchmarkError: payload.benchmarkError,
               }
             : run
         )
@@ -425,18 +405,9 @@ export function SlideTestingCenter({
               type="button"
               variant="softControl"
               size="sm"
-              onClick={() => setBenchmarkCorpusOpen(true)}
-            >
-              <BarChart3 aria-hidden="true" />
-              Benchmark corpus ({benchmarkCorpus.length})
-            </Button>
-            <Button
-              type="button"
-              variant="softControl"
-              size="sm"
               onClick={openPromptModal}
             >
-              <Pencil aria-hidden="true" />
+              <LuPencil aria-hidden="true" />
               Change prompt
             </Button>
             <Button
@@ -445,7 +416,7 @@ export function SlideTestingCenter({
               size="sm"
               onClick={clearRuns}
             >
-              <RefreshCcw aria-hidden="true" />
+              <LuRefreshCcw aria-hidden="true" />
               Clear runs
             </Button>
           </div>
@@ -558,7 +529,7 @@ export function SlideTestingCenter({
                 onClick={generateSelectedModels}
                 disabled={!selectedAutomation || runnableModels.length === 0}
               >
-                <Play aria-hidden="true" />
+                <LuPlay aria-hidden="true" />
                 Generate selected models
               </Button>
             </div>
@@ -598,11 +569,6 @@ export function SlideTestingCenter({
                         "next"
                       )
                     }
-                    onOpenBenchmark={() =>
-                      run.benchmarkComparison
-                        ? setBenchmarkComparison(run.benchmarkComparison)
-                        : undefined
-                    }
                   />
                 ))}
               </div>
@@ -634,19 +600,6 @@ export function SlideTestingCenter({
           onClose={() => setAutomationModalOpen(false)}
           onSelect={selectAutomation}
           onNavigateExample={navigateAutomationExample}
-        />
-      ) : null}
-      {benchmarkCorpusOpen ? (
-        <BenchmarkCorpusModal
-          records={benchmarkCorpus}
-          onClose={() => setBenchmarkCorpusOpen(false)}
-        />
-      ) : null}
-      {benchmarkComparison ? (
-        <BenchmarkComparisonModal
-          comparison={benchmarkComparison}
-          title="Debug generation benchmark"
-          onClose={() => setBenchmarkComparison(null)}
         />
       ) : null}
     </main>
@@ -705,7 +658,7 @@ function AutomationTemplateInfo({
             className="grid place-items-center rounded border border-[#dfddd3] bg-white text-[#5f5e57] hover:bg-[#f1f0ea] disabled:cursor-default disabled:opacity-35"
             aria-label="Previous hook"
           >
-            <ChevronLeft aria-hidden="true" className="size-3.5" />
+            <LuChevronLeft aria-hidden="true" className="size-3.5" />
           </button>
           <div className="min-h-16 rounded border border-[#e4e2d9] bg-white px-2.5 py-2 leading-4 text-[#4f4e48]">
             {activeHook || "No hooks stored"}
@@ -717,7 +670,7 @@ function AutomationTemplateInfo({
             className="grid place-items-center rounded border border-[#dfddd3] bg-white text-[#5f5e57] hover:bg-[#f1f0ea] disabled:cursor-default disabled:opacity-35"
             aria-label="Next hook"
           >
-            <ChevronRight aria-hidden="true" className="size-3.5" />
+            <LuChevronRight aria-hidden="true" className="size-3.5" />
           </button>
         </div>
       </section>
@@ -842,7 +795,7 @@ function ModelMultiSelect({
               </span>
             ) : null}
           </span>
-          <ChevronDown
+          <LuChevronDown
             aria-hidden="true"
             className={cn(
               "size-4 shrink-0 text-[#77766f] transition",
@@ -858,7 +811,7 @@ function ModelMultiSelect({
           className="z-50 w-[var(--radix-popover-trigger-width)] min-w-[320px] overflow-hidden rounded-md border border-[#d8d6cc] bg-white shadow-xl outline-none"
         >
           <label className="flex items-center gap-2 border-b border-[#ecebe4] px-3">
-            <Search aria-hidden="true" className="size-4 text-[#8a887f]" />
+            <LuSearch aria-hidden="true" className="size-4 text-[#8a887f]" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -895,7 +848,7 @@ function ModelMultiSelect({
                           : "border-[#c9c7bd] bg-white"
                       )}
                     >
-                      {selected ? <Check className="size-3" /> : null}
+                      {selected ? <LuCheck className="size-3" /> : null}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-xs font-semibold">
@@ -1025,7 +978,7 @@ function AutomationPickerModal({
                         className="absolute top-[42%] left-2 grid size-8 place-items-center rounded-full bg-white/90 text-[#22221f] shadow hover:bg-white"
                         aria-label={`Previous ${automation.name} example`}
                       >
-                        <ChevronLeft aria-hidden="true" className="size-4" />
+                        <LuChevronLeft aria-hidden="true" className="size-4" />
                       </button>
                       <button
                         type="button"
@@ -1037,7 +990,7 @@ function AutomationPickerModal({
                         className="absolute top-[42%] right-2 grid size-8 place-items-center rounded-full bg-white/90 text-[#22221f] shadow hover:bg-white"
                         aria-label={`Next ${automation.name} example`}
                       >
-                        <ChevronRight aria-hidden="true" className="size-4" />
+                        <LuChevronRight aria-hidden="true" className="size-4" />
                       </button>
                     </>
                   ) : null}
@@ -1158,7 +1111,6 @@ function RunResult({
   activeSlideIndex,
   onPreviousSlide,
   onNextSlide,
-  onOpenBenchmark,
 }: {
   run: GenerationRun
   automation: TempSlideTestingAutomation
@@ -1167,7 +1119,6 @@ function RunResult({
   activeSlideIndex: number
   onPreviousSlide: () => void
   onNextSlide: () => void
-  onOpenBenchmark: () => void
 }) {
   const normalizedSlideIndex =
     activeSlideIndex % Math.max(1, automation.slides.length)
@@ -1226,7 +1177,7 @@ function RunResult({
               className="absolute top-1/2 left-2 z-20 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-[#22221f] shadow hover:bg-white focus-visible:ring-3 focus-visible:ring-[#22221f]/25 focus-visible:outline-none"
               aria-label="Previous generated slide"
             >
-              <ChevronLeft aria-hidden="true" className="size-4" />
+              <LuChevronLeft aria-hidden="true" className="size-4" />
             </button>
             <button
               type="button"
@@ -1234,27 +1185,10 @@ function RunResult({
               className="absolute top-1/2 right-2 z-20 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-[#22221f] shadow hover:bg-white focus-visible:ring-3 focus-visible:ring-[#22221f]/25 focus-visible:outline-none"
               aria-label="Next generated slide"
             >
-              <ChevronRight aria-hidden="true" className="size-4" />
+              <LuChevronRight aria-hidden="true" className="size-4" />
             </button>
           </div>
           <SlideContentDirection slide={activeSlide} />
-          {run.benchmarkComparison ? (
-            <div className="border-t border-[#ecebe4] p-3">
-              <button
-                type="button"
-                onClick={onOpenBenchmark}
-                className="flex h-9 w-full items-center justify-center gap-2 rounded-[6px] bg-[#242421] px-3 text-[12px] font-bold text-white hover:bg-[#34342f]"
-              >
-                <BarChart3 className="size-4" />
-                Benchmark {run.benchmarkComparison.subject.scores.overall}/10
-              </button>
-            </div>
-          ) : null}
-          {run.benchmarkError ? (
-            <p className="border-t border-[#ecebe4] px-3 py-2 text-[10px] font-medium text-amber-700">
-              Benchmark unavailable: {run.benchmarkError}
-            </p>
-          ) : null}
         </div>
       ) : null}
     </article>

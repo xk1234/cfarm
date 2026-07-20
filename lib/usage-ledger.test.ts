@@ -6,8 +6,10 @@ import { clearTestTables } from "@/lib/test-helpers"
 import {
   appendUsageRecords,
   deleteUsageRecords,
+  listUsageRecords,
   recentUsageRecords,
   recentUsageKeys,
+  usageRecordsForPublishedRuns,
   usageKeyForHookCombination,
 } from "@/lib/usage-ledger"
 
@@ -104,6 +106,88 @@ describe("usage ledger", () => {
         zodiac: "taurus",
       })
     ).toBe("hello [[zodiac]] with [[charm]]::charm=jade ring|zodiac=taurus")
+  })
+
+  it("uses only published runs for cross-generation deduplication", () => {
+    const records = [
+      {
+        automation_id: "automation-a",
+        kind: "image" as const,
+        key: "published-image",
+        run_id: "published-run",
+        used_at: "2026-07-07T10:00:00.000Z",
+      },
+      {
+        automation_id: "automation-a",
+        kind: "text" as const,
+        key: "published text",
+        run_id: "published-run",
+        used_at: "2026-07-07T10:00:00.000Z",
+      },
+      {
+        automation_id: "automation-a",
+        kind: "hook_published" as const,
+        key: "published hook",
+        run_id: "published-run",
+        used_at: "2026-07-07T11:00:00.000Z",
+      },
+      {
+        automation_id: "automation-a",
+        kind: "image" as const,
+        key: "draft-image",
+        run_id: "draft-run",
+        used_at: "2026-07-07T12:00:00.000Z",
+      },
+      {
+        automation_id: "automation-a",
+        kind: "text" as const,
+        key: "draft text",
+        run_id: "draft-run",
+        used_at: "2026-07-07T12:00:00.000Z",
+      },
+    ]
+
+    expect(usageRecordsForPublishedRuns(records, "automation-a")).toEqual([
+      { ...records[0], used_at: "2026-07-07T11:00:00.000Z" },
+      { ...records[1], used_at: "2026-07-07T11:00:00.000Z" },
+      records[2],
+    ])
+  })
+
+  it("persists publication markers used to activate deduplication", async () => {
+    await appendUsageRecords({
+      rootDir,
+      records: [
+        {
+          automation_id: "automation-a",
+          kind: "image",
+          key: "published-image",
+          run_id: "published-run",
+          used_at: "2026-07-07T10:00:00.000Z",
+        },
+        {
+          automation_id: "automation-a",
+          kind: "hook_published",
+          key: "published hook",
+          run_id: "published-run",
+          used_at: "2026-07-07T11:00:00.000Z",
+        },
+        {
+          automation_id: "automation-a",
+          kind: "image",
+          key: "draft-image",
+          run_id: "draft-run",
+          used_at: "2026-07-07T12:00:00.000Z",
+        },
+      ],
+    })
+
+    const records = await listUsageRecords({ rootDir })
+    expect(
+      usageRecordsForPublishedRuns(records, "automation-a")
+        .filter((record) => record.kind === "image")
+        .map((record) => record.key)
+    ).toEqual(["published-image"])
   })
 
   it("keeps hook history permanently available after other usage is pruned", async () => {

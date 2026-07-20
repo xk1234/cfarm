@@ -3,14 +3,18 @@ import path from "node:path"
 import { randomUUID } from "node:crypto"
 
 import { deleteAssetFromAppwrite, persistAsset } from "@/lib/asset-storage"
-import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
+import {
+  readJsonArrayRecord,
+  readJsonArrayStore,
+  upsertJsonArrayRecord,
+  writeJsonArrayStore,
+} from "@/lib/json-store"
 import type { MediaKind } from "@/lib/media-kind"
 
 export type AssetKind = MediaKind
 export type AssetSource = "upload" | "ai_generated"
 export type AssetStatus = "processing" | "ready" | "failed"
-export type AssetScope =
-  "ugc_avatar" | "ugc_ad" | "ugc_demo" | "greenscreen" | "global"
+export type AssetScope = "ugc_ad" | "ugc_demo" | "greenscreen" | "global"
 export type AssetCategory =
   | "outfit"
   | "accessory"
@@ -22,7 +26,6 @@ export type AssetCategory =
 
 export const assetKinds: AssetKind[] = ["image", "video", "audio", "text"]
 export const assetScopes: AssetScope[] = [
-  "ugc_avatar",
   "ugc_ad",
   "ugc_demo",
   "greenscreen",
@@ -215,15 +218,15 @@ export async function updateAssetCaption(input: {
   caption: string
 }) {
   const rootDir = input.rootDir ?? defaultAssetRoot
-  const records = await readAssetRecords(rootDir)
-  const updatedAt = new Date().toISOString()
-  const next = records.map((record) =>
-    record.id === input.id
-      ? { ...record, caption: clean(input.caption), updatedAt }
-      : record
-  )
-  await writeAssetRecords(rootDir, next)
-  return next.find((record) => record.id === input.id) ?? null
+  const existing = await readAssetRecord(rootDir, input.id)
+  if (!existing) return null
+  const updated: AssetRecord = {
+    ...existing,
+    caption: clean(input.caption),
+    updatedAt: new Date().toISOString(),
+  }
+  await upsertAssetRecord(rootDir, updated)
+  return updated
 }
 
 export async function deleteAssetRecordsForUrls(input: {
@@ -268,11 +271,31 @@ export async function deleteAssetRecordsForUrls(input: {
 }
 
 async function prependAssetRecord(rootDir: string, record: AssetRecord) {
-  const records = await readAssetRecords(rootDir)
-  await writeAssetRecords(rootDir, [
+  await upsertAssetRecord(rootDir, record, "first")
+}
+
+function readAssetRecord(rootDir: string, id: string) {
+  return readJsonArrayRecord<AssetRecord>({
+    rootDir,
+    fileName: assetDbFileName,
+    key: "assets",
+    id,
+    normalize: normalizeAssetRecord,
+  })
+}
+
+function upsertAssetRecord(
+  rootDir: string,
+  record: AssetRecord,
+  position?: "first" | "last"
+) {
+  return upsertJsonArrayRecord({
+    rootDir,
+    fileName: assetDbFileName,
+    key: "assets",
     record,
-    ...records.filter((item) => item.id !== record.id),
-  ])
+    position,
+  })
 }
 
 async function readAssetRecords(

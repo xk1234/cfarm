@@ -77,6 +77,35 @@ describe("automation video media resolution", () => {
       "Choose or create a video collection with at least one video before generating."
     )
   })
+
+  it("requires both greenscreen meme videos and background images", () => {
+    const format =
+      videoAutomationTemplatePreset("greenscreen_meme").buildFormat()
+    format.segments = format.segments.map((segment) =>
+      segment.id === "greenscreen-background"
+        ? { ...segment, collectionId: imageCollection.id }
+        : segment
+    )
+    const config = {
+      ...defaultAutomationSchema(automation),
+      video_format: format,
+    }
+    const memeCollection = {
+      ...videoCollection,
+      id: "collection-greenscreen-memes",
+    }
+
+    expect(automationVideoGenerationIssue(config, [imageCollection], [])).toBe(
+      'Choose or create a video collection for "Greenscreen meme clip" before generating.'
+    )
+    expect(
+      automationVideoGenerationIssue(
+        config,
+        [imageCollection, memeCollection],
+        []
+      )
+    ).toBeUndefined()
+  })
 })
 
 function collection(

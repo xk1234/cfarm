@@ -15,6 +15,8 @@ export type StoredImageCollection = {
   created_at: string
   pinned?: boolean
   mediaType?: "image" | "video"
+  deletedAt?: string
+  deletedUntil?: string
   images: {
     image_link: string
     caption: string
@@ -44,12 +46,42 @@ const IMAGE_COLLECTION_PUBLIC_PREFIX =
 const MAX_IMPORT_IMAGES = 80
 const MAX_IMPORT_IMAGE_BYTES = 16 * 1024 * 1024
 
-export async function listImageCollections() {
-  return collectionsWithLastUsedAt(await readImageCollectionsFile())
+export async function listImageCollections(
+  options: { includeDeleted?: boolean } = {}
+) {
+  const collections = await purgeExpiredImageCollections(
+    await readImageCollectionsFile()
+  )
+  return collectionsWithLastUsedAt(
+    options.includeDeleted
+      ? collections
+      : collections.filter((collection) => !collection.deletedAt)
+  )
+}
+
+async function purgeExpiredImageCollections(
+  collections: StoredImageCollection[],
+  now = Date.now()
+) {
+  const expired = collections.filter(
+    (collection) =>
+      Boolean(collection.deletedAt) &&
+      Boolean(collection.deletedUntil) &&
+      Date.parse(collection.deletedUntil!) <= now
+  )
+  if (expired.length === 0) return collections
+  const remaining = collections.filter(
+    (collection) => !expired.includes(collection)
+  )
+  await writeImageCollectionsFile(remaining)
+  await deleteUnusedLocalCollectionFiles(expired, remaining)
+  return remaining
 }
 
 export async function upsertImageCollection(collection: StoredImageCollection) {
-  const current = await readImageCollectionsFile()
+  const current = await purgeExpiredImageCollections(
+    await readImageCollectionsFile()
+  )
   const nextCollection = normalizeCollection(
     await collectionWithLocalImageHashes(collection)
   )
@@ -98,17 +130,54 @@ export async function deleteImageCollections(
   const deleted = current.filter((collection) =>
     requestedKeys.has(collectionKey(collection))
   )
-  const next = current.filter(
-    (collection) => !requestedKeys.has(collectionKey(collection))
+  const deletedAt = new Date().toISOString()
+  const deletedUntil = new Date(
+    Date.parse(deletedAt) + 30 * 24 * 60 * 60 * 1000
+  ).toISOString()
+  const next = current.map((collection) =>
+    requestedKeys.has(collectionKey(collection))
+      ? { ...collection, deletedAt, deletedUntil }
+      : collection
   )
 
   await writeImageCollectionsFile(next)
-  const deletedFiles = await deleteUnusedLocalCollectionFiles(deleted, next)
 
   return {
     deleted: deleted.length,
-    deletedFiles,
+    deletedFiles: 0,
+    deletedAt,
+    deletedUntil,
+    collections: deleted,
   }
+}
+
+export async function restoreImageCollections(
+  collections: ImageCollectionDeleteInput[]
+) {
+  const requestedKeys = new Set(
+    collections.map((collection) =>
+      collectionKey({ ...collection, images: [] })
+    )
+  )
+  const current = await purgeExpiredImageCollections(
+    await readImageCollectionsFile()
+  )
+  let restored = 0
+  const next = current.map((collection) => {
+    if (
+      !requestedKeys.has(collectionKey(collection)) ||
+      !collection.deletedAt
+    ) {
+      return collection
+    }
+    restored += 1
+    const active = { ...collection }
+    delete active.deletedAt
+    delete active.deletedUntil
+    return active
+  })
+  await writeImageCollectionsFile(next)
+  return { restored }
 }
 
 export async function importRemoteImagesToCollection(input: {
@@ -209,6 +278,12 @@ function normalizeCollection(
     pinned: collection.pinned === true,
     ...(collection.mediaType === "video"
       ? { mediaType: "video" as const }
+      : {}),
+    ...(clean(collection.deletedAt)
+      ? { deletedAt: clean(collection.deletedAt) }
+      : {}),
+    ...(clean(collection.deletedUntil)
+      ? { deletedUntil: clean(collection.deletedUntil) }
       : {}),
     images: Array.isArray(collection.images)
       ? collection.images.flatMap((image) => {

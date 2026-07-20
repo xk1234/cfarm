@@ -1,0 +1,73 @@
+---
+title: "Workflows"
+description: "Task-oriented guides for creating content, importing outside media, and analyzing or exporting LumenClip data."
+---
+
+These guides describe complete outcomes rather than individual screens. Every
+workflow title identifies its operator or availability:
+
+- **[User]** — performed in the LumenClip web app with current screenshots.
+- **[Proposed user workflow]** — intended app behavior that is not implemented.
+- **[MCP]** — callable through the partially implemented MCP server.
+- **[Proposed MCP]** — requires tools or resources that are not callable yet.
+
+## Creating content with templates and automations
+
+| Workflow                                                        | Outcome                                                                  | Status                                                      |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| [Astrology slideshow](/docs/workflows/astrology-slideshow)      | Build, generate, review, and export a slideshow from a blank automation. | Available with publishing limitations                       |
+| [Study Tips template](/docs/workflows/study-tips-template)      | Clone and customize a slideshow template for finals preparation.         | Available; verified through PNG export                      |
+| [AI UGC reaction video](/docs/workflows/astrology-ugc-reaction) | Configure a React & Reveal automation and publish a rendered video.      | Available when required media and an account are configured |
+| [Greenscreen meme video](/docs/workflows/astrology-greenscreen) | Combine a reusable greenscreen clip with astrology backgrounds.          | Available when both collections contain media               |
+| [X automation](/docs/workflows/astrology-x)                     | Build a reusable strategy and generate an X draft.                       | Available with bounded strategy retry/fallback              |
+| [Threads automation](/docs/workflows/astrology-threads)         | Build a reusable strategy and generate a Threads draft.                  | UI available; multi-post publishing is limited              |
+| [LinkedIn automation](/docs/workflows/astrology-linkedin)       | Create and generate a persistent LinkedIn automation.                    | Not yet available in the user interface                     |
+
+## Importing outside content into LumenClip
+
+| Workflow                                                          | Outcome                                                                                     | Status                                     |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| [Collection CRUD with Pinterest](/docs/workflows/collection-crud) | Curate an ocean-app image set, caption it, inspect it, rename it, extend it, and delete it. | Available with dependency preview and undo |
+| [Merge collections](/docs/workflows/merge-collections)            | Safely combine compatible collections with deduplication and dependency review.             | Proposed; merge action is not implemented  |
+
+## Analyzing and exporting data
+
+| Workflow                                               | Outcome                                                                        | Status                                       |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------ | -------------------------------------------- |
+| [Content analysis](/docs/workflows/content-analysis)   | Sync metrics and turn attributed performance into content decisions.           | Available; semantic interpretation is manual |
+| [Manual post linking](/docs/scheduling/manual-linking) | Mark a generated output published or attach its live URL and account evidence. | Available for generated slideshows           |
+
+## AI agents through MCP
+
+> **Partially implemented.** Twenty owner-scoped tools cover automation,
+> schedule, collection, output, account, publishing, analytics, and TikTok
+> reconciliation workflows. Workspace resources, template discovery/creation,
+> OAuth scopes, and direct saved-video execution remain proposed.
+
+The [MCP tools and workflows folder](/docs/workflows/mcp) is organized into the
+same task families:
+
+1. [Creating content tools](/docs/workflows/mcp/creating-content)
+2. [Importing outside content tools](/docs/workflows/mcp/importing-content)
+3. [Analyzing and exporting data tools](/docs/workflows/mcp/analyzing-exporting)
+
+Task-specific agent examples in [MCP workflows](/docs/workflows/agent) state
+whether their required tools are callable or still proposed.
+
+## Shared rules
+
+1. A manual **Generate** action creates an unpublished, unscheduled draft.
+2. Scheduled live automations can auto-publish only when a compatible account
+   is selected and the provider supports the output type.
+3. Review generated claims, media rights, captions, and platform settings before
+   publishing.
+4. **Mark as published** records local evidence only. Use **Post to social** to
+   send a slideshow through PostFast or **Link published post** to save a live
+   URL and provider-native ID.
+5. If the UI does not expose a documented action, do not substitute an internal
+   endpoint unless the guide explicitly labels it as a developer fallback.
+
+![LumenClip home showing generated astrology slides and workflow templates](/docs/workflows/workflow-home.jpg)
+
+_Start at **Home** for generated outputs or open **Automations** to configure a
+reusable workflow._

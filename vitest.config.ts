@@ -13,7 +13,7 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     // Provider smoke tests are opt-in: they use real credentials, cost money,
     // and are not deterministic enough for the local regression suite.
-    exclude: ["lib/__live__/**", "node_modules/**", ".next/**"],
+    exclude: ["lib/__live__/**", "e2e/**", "node_modules/**", ".next/**"],
     // Test files share cfarm tables (the store rewrites whole tables), so
     // files must run sequentially — parallel workers would clobber each other.
     fileParallelism: false,

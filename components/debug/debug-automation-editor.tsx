@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
-  CheckCircle2,
-  Copy,
-  Play,
-  RotateCcw,
-  TriangleAlert,
-} from "lucide-react"
+  LuCircleCheckBig,
+  LuCopy,
+  LuPlay,
+  LuRotateCcw,
+  LuTriangleAlert,
+} from "react-icons/lu"
 
 import { GeneratedSlideshowFrame } from "@/components/realfarm/automation-settings/generated-slideshow-frame"
 import { StandardGenerationLoadingScreen } from "@/components/realfarm/generation-loading"
@@ -155,9 +155,9 @@ export function DebugAutomationEditor({
               )}
             >
               {isDirty ? (
-                <TriangleAlert className="size-3.5" />
+                <LuTriangleAlert className="size-3.5" />
               ) : (
-                <CheckCircle2 className="size-3.5" />
+                <LuCircleCheckBig className="size-3.5" />
               )}
               {isDirty ? "Local edits only" : "DB copy loaded"}
             </span>
@@ -196,7 +196,7 @@ export function DebugAutomationEditor({
                   onClick={resetJson}
                   className="inline-flex h-10 items-center gap-2 rounded-[6px] border border-[#d8d7cf] bg-white px-3 text-[13px] font-bold text-[#242421] hover:bg-[#f4f4ef]"
                 >
-                  <RotateCcw className="size-4" />
+                  <LuRotateCcw className="size-4" />
                   Reset
                 </button>
               </div>
@@ -224,7 +224,7 @@ export function DebugAutomationEditor({
                 disabled={generating || Boolean(parsedAutomation.error)}
                 className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[6px] bg-[#242421] px-4 text-[13px] font-bold text-white hover:bg-[#34342f] disabled:cursor-not-allowed disabled:bg-[#aaa9a1]"
               >
-                <Play className="size-4" />
+                <LuPlay className="size-4" />
                 {generating ? "Generating" : "Generate Slides"}
               </button>
             </div>
@@ -250,8 +250,8 @@ export function DebugAutomationEditor({
                   }
                   className="inline-flex h-9 items-center gap-2 rounded-[6px] border border-[#d8d7cf] bg-white px-3 text-[12px] font-bold text-[#242421] hover:bg-[#f4f4ef]"
                 >
-                  <Copy className="size-3.5" />
-                  Copy Plan
+                  <LuCopy className="size-3.5" />
+                  LuCopy Plan
                 </button>
               )}
             </div>

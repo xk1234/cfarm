@@ -5,7 +5,10 @@ import {
   calendarLifecycleForJob,
   calendarLifecycleForLocalPost,
   calendarLifecycleForPostFast,
+  calendarTimingEntries,
   dedupeCalendarItems,
+  reconcileCalendarFilterValue,
+  reconcileCalendarFilterValues,
   type CalendarItem,
 } from "@/lib/calendar-items"
 
@@ -24,6 +27,46 @@ describe("calendar lifecycle mapping", () => {
     expect(calendarLifecycleForPostFast("SCHEDULED")).toBe("scheduled")
     expect(calendarLifecycleForPostFast("PUBLISHED")).toBe("published")
     expect(calendarLifecycleForPostFast("FAILED")).toBeNull()
+  })
+})
+
+describe("calendar hover timing", () => {
+  it("prefers actual generation and publication timestamps", () => {
+    const item = calendarItem({
+      source: "postfast",
+      timestamps: {
+        generatedAt: "2026-07-15T00:32:00.000Z",
+        expectedGenerationAt: "2026-07-15T00:30:00.000Z",
+        publishedAt: "2026-07-15T01:01:00.000Z",
+        expectedPublishedAt: "2026-07-15T01:00:00.000Z",
+      },
+    })
+
+    expect(calendarTimingEntries(item)).toEqual([
+      { label: "Generated on", at: "2026-07-15T00:32:00.000Z" },
+      { label: "Published on", at: "2026-07-15T01:01:00.000Z" },
+    ])
+  })
+
+  it("uses expected scheduler timestamps before generation and publishing", () => {
+    const item = calendarItem({
+      source: "projection",
+      timestamps: {
+        expectedGenerationAt: "2026-07-15T00:30:00.000Z",
+        expectedPublishedAt: "2026-07-15T01:00:00.000Z",
+      },
+    })
+
+    expect(calendarTimingEntries(item)).toEqual([
+      {
+        label: "Expected to be generated on",
+        at: "2026-07-15T00:30:00.000Z",
+      },
+      {
+        label: "Expected to be published on",
+        at: "2026-07-15T01:00:00.000Z",
+      },
+    ])
   })
 })
 
@@ -71,6 +114,23 @@ describe("calendar item merging", () => {
         sourceTypes: new Set(["automation"]),
       })
     ).toBe(true)
+  })
+})
+
+describe("calendar filter availability", () => {
+  it("replaces stale single values and removes stale multi-select values", () => {
+    expect(
+      reconcileCalendarFilterValue("deleted-automation", ["automation-1"])
+    ).toBe("all")
+    expect(reconcileCalendarFilterValue("automation-1", ["automation-1"])).toBe(
+      "automation-1"
+    )
+    expect(
+      reconcileCalendarFilterValues(
+        ["deleted-account", "account-1"],
+        ["account-1", "account-2"]
+      )
+    ).toEqual(["account-1"])
   })
 })
 

@@ -1,7 +1,18 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { DateTime } from "luxon"
+import FullCalendar from "@fullcalendar/react"
+import dayGridPlugin from "@fullcalendar/daygrid"
+import interactionPlugin from "@fullcalendar/interaction"
+import timeGridPlugin from "@fullcalendar/timegrid"
+import type {
+  DatesSetArg,
+  EventClickArg,
+  EventContentArg,
+  EventDropArg,
+  EventInput,
+} from "@fullcalendar/core"
 import {
   IconBrandBluesky,
   IconBrandFacebookFilled,
@@ -14,25 +25,35 @@ import {
   IconBrandTiktok,
   IconBrandX,
   IconBrandYoutubeFilled,
+  IconActivity,
   IconCalendar,
+  IconCheck,
   IconChevronDown,
-  IconChevronLeft,
-  IconChevronRight,
+  IconDatabase,
   IconExternalLink,
   IconFilter,
   IconLoader2,
   IconRefresh,
   IconSparkles,
+  IconUsers,
+  IconWorld,
   IconX,
 } from "@tabler/icons-react"
+import { DropdownMenu, Select } from "radix-ui"
 import useSWR from "swr"
 
 import { Button } from "@/components/ui/button"
-import { SelectControl } from "@/components/ui/form-controls"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { SkeletonBlock } from "@/components/ui/loading-skeleton"
+import { AppModal, AppModalPanel } from "@/components/ui/modal"
 import type {
   CalendarItem,
   CalendarLifecycleStatus,
+} from "@/lib/calendar-items"
+import {
+  calendarTimingEntries,
+  reconcileCalendarFilterValue,
+  reconcileCalendarFilterValues,
 } from "@/lib/calendar-items"
 import { fetchJsonWithTimeout } from "@/lib/client-api"
 import { clientSWRFetcher } from "@/lib/client-swr"
@@ -51,6 +72,13 @@ type CalendarFilters = {
   sourceType: string
 }
 
+type CalendarFilterOption = {
+  value: string
+  label: string
+  provider?: string
+  status?: CalendarLifecycleStatus
+}
+
 const filterStorageKey = "realfarm:calendar-filters:v1"
 const defaultFilters: CalendarFilters = {
   accounts: [],
@@ -59,18 +87,19 @@ const defaultFilters: CalendarFilters = {
   automation: "all",
   sourceType: "all",
 }
-const lifecycleOptions: Array<{
-  value: CalendarLifecycleStatus
-  label: string
-}> = [
-  { value: "planned", label: "Planned" },
-  { value: "generating", label: "Generating" },
-  { value: "generation_failed", label: "Generation failed" },
-  { value: "needs_action", label: "Needs action" },
-  { value: "draft", label: "Draft" },
-  { value: "failed", label: "Failed" },
-  { value: "scheduled", label: "Scheduled" },
-  { value: "published", label: "Published" },
+const lifecycleOptions: CalendarFilterOption[] = [
+  { value: "planned", label: "Planned", status: "planned" },
+  { value: "generating", label: "Generating", status: "generating" },
+  {
+    value: "generation_failed",
+    label: "Generation failed",
+    status: "generation_failed",
+  },
+  { value: "needs_action", label: "Needs action", status: "needs_action" },
+  { value: "draft", label: "Draft", status: "draft" },
+  { value: "failed", label: "Failed", status: "failed" },
+  { value: "scheduled", label: "Scheduled", status: "scheduled" },
+  { value: "published", label: "Published", status: "published" },
 ]
 
 export function ContentCalendarView({
@@ -78,21 +107,28 @@ export function ContentCalendarView({
 }: {
   onGoAutomations: () => void
 }) {
-  const [month, setMonth] = useState<DateTime<boolean>>(() => DateTime.local())
+  const [visibleRange, setVisibleRange] = useState(() => {
+    const range = monthRange(DateTime.local())
+    return {
+      from: range.from.toUTC().toISO() ?? "",
+      to: range.to.toUTC().toISO() ?? "",
+    }
+  })
   const [selectedItem, setSelectedItem] = useState<CalendarItem | null>(null)
+  const [calendarActionError, setCalendarActionError] = useState("")
   const [filters, setFilters] = useState<CalendarFilters>(defaultFilters)
   const [filtersHydrated, setFiltersHydrated] = useState(false)
-  const range = monthRange(month)
-  const requestKey = `/api/calendar?from=${encodeURIComponent(range.from.toUTC().toISO() ?? "")}&to=${encodeURIComponent(range.to.toUTC().toISO() ?? "")}`
-  const { data, error, isLoading, mutate } = useSWR<CalendarPayload>(
-    requestKey,
-    clientSWRFetcher,
-    { keepPreviousData: true }
-  )
+  const requestKey = `/api/calendar?from=${encodeURIComponent(visibleRange.from)}&to=${encodeURIComponent(visibleRange.to)}`
+  const { data, error, isLoading, isValidating, mutate } =
+    useSWR<CalendarPayload>(requestKey, clientSWRFetcher, {
+      keepPreviousData: true,
+    })
 
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(filterStorageKey)
+      // Browser-only persisted state cannot be read during the server render.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (stored) setFilters(normalizeStoredFilters(JSON.parse(stored)))
     } catch {
       // Ignore unavailable or malformed browser storage.
@@ -108,42 +144,38 @@ export function ContentCalendarView({
 
   const items = useMemo(() => data?.items ?? [], [data?.items])
   const accounts = useMemo(() => accountOptions(items), [items])
-  const platforms = useMemo(
+  const platforms = useMemo<CalendarFilterOption[]>(
     () =>
       [
         ...new Set(
           items.flatMap((item) => item.targets.map((target) => target.provider))
         ),
       ]
+        .map((provider) => provider.trim())
         .filter(Boolean)
-        .sort(),
+        .sort()
+        .map((provider) => ({
+          value: provider,
+          label: providerLabel(provider),
+          provider,
+        })),
     [items]
   )
-  const automations = useMemo(
+  const automations = useMemo(() => automationOptions(items), [items])
+  const sourceTypes = useMemo(() => sourceTypeOptions(items), [items])
+  const activeFilters = useMemo(
     () =>
-      [
-        ...new Map(
-          items.flatMap((item) =>
-            item.automationId
-              ? [
-                  [
-                    item.automationId,
-                    item.automationName || "Automation",
-                  ] as const,
-                ]
-              : []
-          )
-        ).entries(),
-      ].sort((a, b) => a[1].localeCompare(b[1])),
-    [items]
-  )
-  const sourceTypes = useMemo(
-    () => [...new Set(items.map((item) => item.sourceType))].sort(),
-    [items]
+      reconcileAvailableFilters(filters, {
+        accounts,
+        automations,
+        platforms,
+        sourceTypes,
+      }),
+    [accounts, automations, filters, platforms, sourceTypes]
   )
   const visibleItems = useMemo(
-    () => items.filter((item) => matchesFilters(item, filters)),
-    [filters, items]
+    () => items.filter((item) => matchesFilters(item, activeFilters)),
+    [activeFilters, items]
   )
   const visibleSummary = useMemo(
     () => ({
@@ -154,6 +186,65 @@ export function ContentCalendarView({
     }),
     [visibleItems]
   )
+  const events = useMemo<EventInput[]>(
+    () =>
+      visibleItems.map((item) => ({
+        id: item.id,
+        title: item.automationName || item.title,
+        start: item.datetime,
+        editable: Boolean(item.links.reschedule),
+        startEditable: Boolean(item.links.reschedule),
+        durationEditable: false,
+        classNames: [
+          `cfarm-calendar-event--${item.status.replaceAll("_", "-")}`,
+          ...(item.paused ? ["cfarm-calendar-event--paused"] : []),
+        ],
+        extendedProps: { item },
+      })),
+    [visibleItems]
+  )
+
+  function handleDatesSet(info: DatesSetArg) {
+    const next = {
+      from: info.start.toISOString(),
+      to: info.end.toISOString(),
+    }
+    setVisibleRange((current) =>
+      current.from === next.from && current.to === next.to ? current : next
+    )
+  }
+
+  function handleEventClick(info: EventClickArg) {
+    setSelectedItem(info.event.extendedProps.item as CalendarItem)
+  }
+
+  async function rescheduleCalendarItem(info: EventDropArg) {
+    const item = info.event.extendedProps.item as CalendarItem
+    const scheduledAt = info.event.start
+    if (!item.links.reschedule || !scheduledAt || scheduledAt <= new Date()) {
+      info.revert()
+      setCalendarActionError("Choose a future time for the scheduled post.")
+      return
+    }
+
+    setCalendarActionError("")
+    try {
+      await fetchJsonWithTimeout(item.links.reschedule, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduledAt: scheduledAt.toISOString() }),
+      })
+      setSelectedItem(null)
+      await mutate()
+    } catch (error) {
+      info.revert()
+      setCalendarActionError(
+        error instanceof Error
+          ? error.message
+          : "The post could not be rescheduled."
+      )
+    }
+  }
 
   return (
     <div className="mx-auto max-w-[1380px] pb-12">
@@ -175,10 +266,10 @@ export function ContentCalendarView({
             variant="softControl"
             size="compact"
             onClick={() => void mutate()}
-            disabled={isLoading}
+            disabled={isValidating}
           >
             <IconRefresh
-              className={cn("size-4", isLoading && "animate-spin")}
+              className={cn("size-4", isValidating && "animate-spin")}
             />
             Refresh
           </Button>
@@ -213,35 +304,52 @@ export function ContentCalendarView({
           </span>
           <MultiSelectFilter
             label="Accounts"
+            allLabel="All accounts"
+            emptyLabel="No accounts in range"
+            icon={<IconUsers className="size-4" />}
             options={accounts}
-            selected={filters.accounts}
+            selected={activeFilters.accounts}
+            renderOptionIcon={(option) => (
+              <PlatformMark provider={option.provider || "unassigned"} />
+            )}
             onChange={(accounts) =>
               setFilters((current) => ({ ...current, accounts }))
             }
           />
-          <SelectControl
-            value={filters.platform}
-            onChange={(event) =>
+          <CalendarSelectFilter
+            label="Platform"
+            allLabel="All platforms"
+            emptyLabel="No platforms in range"
+            icon={<IconWorld className="size-4" />}
+            options={platforms}
+            value={activeFilters.platform}
+            renderOptionIcon={(option) => (
+              <PlatformMark provider={option.provider || option.value} />
+            )}
+            onChange={(platform) =>
               setFilters((current) => ({
                 ...current,
-                platform: event.target.value,
+                platform,
               }))
             }
-          >
-            <option value="all">All platforms</option>
-            {platforms.map((provider) => (
-              <option key={provider} value={provider}>
-                {providerLabel(provider)}
-              </option>
-            ))}
-          </SelectControl>
+          />
           <MultiSelectFilter
             label="Lifecycle"
-            options={lifecycleOptions.map((option) => [
-              option.value,
-              option.label,
-            ])}
-            selected={filters.statuses}
+            allLabel="All lifecycle states"
+            emptyLabel="No lifecycle states"
+            icon={<IconActivity className="size-4" />}
+            options={lifecycleOptions}
+            selected={activeFilters.statuses}
+            renderOptionIcon={(option) => (
+              <span
+                className={cn(
+                  "size-2 rounded-full",
+                  lifecycleDotClass(
+                    option.status || (option.value as CalendarLifecycleStatus)
+                  )
+                )}
+              />
+            )}
             onChange={(statuses) =>
               setFilters((current) => ({
                 ...current,
@@ -249,39 +357,37 @@ export function ContentCalendarView({
               }))
             }
           />
-          <SelectControl
-            value={filters.automation}
-            onChange={(event) =>
+          <CalendarSelectFilter
+            label="Automation"
+            allLabel="All automations"
+            emptyLabel="No automations in range"
+            icon={<IconSparkles className="size-4" />}
+            options={automations}
+            value={activeFilters.automation}
+            renderOptionIcon={() => <IconSparkles className="size-3.5" />}
+            onChange={(automation) =>
               setFilters((current) => ({
                 ...current,
-                automation: event.target.value,
+                automation,
               }))
             }
-          >
-            <option value="all">All automations</option>
-            {automations.map(([id, name]) => (
-              <option key={id} value={id}>
-                {name}
-              </option>
-            ))}
-          </SelectControl>
-          <SelectControl
-            value={filters.sourceType}
-            onChange={(event) =>
+          />
+          <CalendarSelectFilter
+            label="Source"
+            allLabel="All sources"
+            emptyLabel="No sources in range"
+            icon={<IconDatabase className="size-4" />}
+            options={sourceTypes}
+            value={activeFilters.sourceType}
+            renderOptionIcon={() => <IconDatabase className="size-3.5" />}
+            onChange={(sourceType) =>
               setFilters((current) => ({
                 ...current,
-                sourceType: event.target.value,
+                sourceType,
               }))
             }
-          >
-            <option value="all">All sources</option>
-            {sourceTypes.map((sourceType) => (
-              <option key={sourceType} value={sourceType}>
-                {humanize(sourceType)}
-              </option>
-            ))}
-          </SelectControl>
-          {hasFilters(filters) ? (
+          />
+          {hasFilters(activeFilters) ? (
             <button
               type="button"
               onClick={() => setFilters(defaultFilters)}
@@ -293,33 +399,7 @@ export function ContentCalendarView({
         </div>
       </section>
 
-      <div className="mb-4 flex items-center justify-between rounded-[12px] bg-app-surface-subtle p-2">
-        <Button
-          variant="iconControl"
-          size="icon-control-sm"
-          onClick={() => setMonth((current) => current.minus({ months: 1 }))}
-          aria-label="Previous month"
-        >
-          <IconChevronLeft className="size-4" />
-        </Button>
-        <button
-          type="button"
-          className="lc-focus-ring rounded-[7px] px-4 py-1.5 text-[14px] font-semibold text-app-text"
-          onClick={() => setMonth(DateTime.local())}
-        >
-          {month.toFormat("LLLL yyyy")}
-        </button>
-        <Button
-          variant="iconControl"
-          size="icon-control-sm"
-          onClick={() => setMonth((current) => current.plus({ months: 1 }))}
-          aria-label="Next month"
-        >
-          <IconChevronRight className="size-4" />
-        </Button>
-      </div>
-
-      {error ? (
+      {error && !data ? (
         <InlineState
           title="Calendar data could not be loaded"
           description={
@@ -328,31 +408,52 @@ export function ContentCalendarView({
         />
       ) : isLoading && !data ? (
         <CalendarSkeleton />
-      ) : visibleItems.length === 0 ? (
-        <InlineState
-          title={
-            items.length
-              ? "No items match these filters"
-              : "Nothing planned in this month"
-          }
-          description={
-            items.length
-              ? "Clear a filter to bring more accounts and lifecycle states back into view."
-              : "Upcoming automation slots will appear before their content is generated."
-          }
-        />
       ) : (
-        <div
-          className={cn(
-            "grid gap-4",
-            selectedItem && "xl:grid-cols-[1fr_340px]"
-          )}
-        >
-          <MonthCalendar
-            month={month}
-            items={visibleItems}
-            onSelect={setSelectedItem}
-          />
+        <>
+          {error && data ? (
+            <div className="mb-3 rounded-[9px] border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] font-semibold text-amber-900">
+              Showing the last loaded calendar data. Refresh failed.
+            </div>
+          ) : null}
+          {calendarActionError ? (
+            <div className="mb-3 rounded-[9px] bg-[#fff0ed] px-4 py-3 text-[12px] font-semibold text-[#9b342a]">
+              {calendarActionError}
+            </div>
+          ) : null}
+          <section className="cfarm-calendar min-w-0 overflow-hidden rounded-[14px] border border-app-panel-border bg-app-surface p-3 sm:p-4">
+            <FullCalendar
+              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+              initialView="dayGridMonth"
+              firstDay={1}
+              headerToolbar={{
+                left: "prev,next today",
+                center: "title",
+                right: "dayGridMonth,timeGridWeek",
+              }}
+              buttonText={{ month: "Month", week: "Week", today: "Today" }}
+              events={events}
+              editable
+              eventStartEditable
+              eventDurationEditable={false}
+              eventAllow={(_dropInfo, draggedEvent) =>
+                Boolean(draggedEvent?.extendedProps.item?.links?.reschedule)
+              }
+              datesSet={handleDatesSet}
+              eventClick={handleEventClick}
+              eventDrop={(info) => void rescheduleCalendarItem(info)}
+              eventContent={renderCalendarEvent}
+              dayMaxEvents={4}
+              nowIndicator
+              height="auto"
+            />
+            {!visibleItems.length ? (
+              <p className="pointer-events-none mt-3 text-center text-[12px] font-medium text-app-muted-text">
+                {items.length
+                  ? "No items match the active filters."
+                  : "Nothing is planned in this range yet."}
+              </p>
+            ) : null}
+          </section>
           {selectedItem ? (
             <CalendarItemDetail
               key={selectedItem.id}
@@ -364,99 +465,19 @@ export function ContentCalendarView({
               }}
             />
           ) : null}
-        </div>
+        </>
       )}
     </div>
   )
 }
 
-function MonthCalendar({
-  month,
-  items,
-  onSelect,
-}: {
-  month: DateTime
-  items: CalendarItem[]
-  onSelect: (item: CalendarItem) => void
-}) {
-  const monthStart = month.startOf("month")
-  const gridStart = monthStart.startOf("week")
-  const days = Array.from({ length: 42 }, (_, index) =>
-    gridStart.plus({ days: index })
-  )
-  return (
-    <section className="min-w-0 overflow-hidden rounded-[14px] border border-app-panel-border bg-app-surface">
-      <div className="grid grid-cols-7 border-b border-[#e8e6de] bg-app-surface-subtle">
-        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
-          <div
-            key={day}
-            className="px-3 py-2 text-[11px] font-semibold text-app-muted-text"
-          >
-            {day}
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7">
-        {days.map((day) => {
-          const dayItems = itemsForDay(items, day)
-          return (
-            <div
-              key={day.toISODate()}
-              className={cn(
-                "min-h-[132px] min-w-0 border-r border-b border-[#eceae3] p-2",
-                !day.hasSame(monthStart, "month") &&
-                  "bg-app-surface-subtle text-app-text-faint"
-              )}
-            >
-              <div
-                className={cn(
-                  "mb-2 grid size-6 place-items-center rounded-full text-[12px] font-semibold tabular-nums",
-                  day.hasSame(DateTime.local(), "day") &&
-                    "bg-app-strong text-white"
-                )}
-              >
-                {day.day}
-              </div>
-              <div className="space-y-1">
-                {dayItems.slice(0, 4).map((item) => (
-                  <CalendarItemButton
-                    key={item.id}
-                    item={item}
-                    onClick={() => onSelect(item)}
-                  />
-                ))}
-                {dayItems.length > 4 ? (
-                  <div className="px-1 text-[10px] font-semibold text-app-muted-text">
-                    +{dayItems.length - 4} more
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </section>
-  )
-}
-
-function CalendarItemButton({
-  item,
-  onClick,
-}: {
-  item: CalendarItem
-  onClick: () => void
-}) {
+function renderCalendarEvent(info: EventContentArg) {
+  const item = info.event.extendedProps.item as CalendarItem
   const provider = primaryProvider(item)
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "lc-focus-ring group w-full overflow-hidden rounded-[6px] border px-2 py-1.5 text-left transition duration-200 hover:-translate-y-px hover:shadow-sm active:translate-y-0",
-        lifecycleClass(item.status),
-        item.paused && "line-through opacity-45"
-      )}
-      title={`${statusLabel(item.status)} · ${item.timezone} · Your time ${DateTime.fromISO(item.datetime).toFormat("ccc, LLL d · h:mm a")}`}
+    <div
+      className="min-w-0 overflow-hidden px-1.5 py-1"
+      title={calendarEventHoverText(item)}
     >
       <div className="flex min-w-0 items-center gap-1.5">
         {item.status === "generating" ? (
@@ -465,13 +486,13 @@ function CalendarItemButton({
           <PlatformMark provider={provider} />
         )}
         <span className="truncate text-[10px] font-bold tabular-nums">
-          {automationDateTime(item).toFormat("h:mm a")}
+          {info.timeText}
         </span>
       </div>
       <div className="mt-0.5 truncate text-[10px] font-semibold">
         {item.automationName || item.title}
       </div>
-    </button>
+    </div>
   )
 }
 
@@ -485,6 +506,8 @@ function CalendarItemDetail({
   onChanged: () => Promise<void>
 }) {
   const [cancelling, setCancelling] = useState(false)
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [actionError, setActionError] = useState("")
 
   async function cancelPost() {
@@ -500,136 +523,190 @@ function CalendarItemDetail({
           ? error.message
           : "The post could not be cancelled."
       )
+      throw error
     } finally {
       setCancelling(false)
     }
   }
 
+  async function retryGeneration() {
+    if (!item.links.retry) return
+    setRetrying(true)
+    setActionError("")
+    try {
+      await fetchJsonWithTimeout(item.links.retry, { method: "POST" })
+      await onChanged()
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "The generation could not be retried."
+      )
+    } finally {
+      setRetrying(false)
+    }
+  }
+
   return (
-    <aside className="h-fit rounded-[14px] border border-app-panel-border bg-app-surface p-5 shadow-[0_18px_50px_rgba(70,62,38,0.12)] xl:sticky xl:top-4">
-      <div className="flex items-start justify-between gap-4">
-        <StatusBadge status={item.status} />
-        <button
-          type="button"
-          onClick={onClose}
-          className="lc-focus-ring grid size-7 place-items-center rounded-[6px] text-app-muted-text transition hover:bg-app-surface-subtle hover:text-app-text"
-          aria-label="Close details"
+    <>
+      <AppModal className="z-[70] bg-[#24251f]/45" onClose={onClose}>
+        <AppModalPanel
+          accessibleTitle={item.title}
+          className="max-h-[calc(100vh-2rem)] max-w-[560px] overflow-y-auto p-0"
         >
-          <IconX className="size-4" />
-        </button>
-      </div>
-      <h2 className="mt-5 text-[20px] leading-6 font-semibold tracking-[-0.02em] text-app-text">
-        {item.title}
-      </h2>
-      {item.automationName ? (
-        <p className="mt-1 text-[12px] font-semibold text-app-text-faint">
-          {item.automationName}
-        </p>
-      ) : null}
-      {item.previewUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element -- Generated and provider preview URLs are dynamic.
-        <img
-          src={item.previewUrl}
-          alt="Content preview"
-          className="mt-4 aspect-[4/3] w-full rounded-[9px] object-cover"
-        />
-      ) : null}
-      <p className="mt-4 line-clamp-6 text-[13px] leading-5 font-medium text-app-text-soft">
-        {item.excerpt || "No caption is available yet."}
-      </p>
-
-      <dl className="mt-5 grid grid-cols-[92px_1fr] gap-y-3 border-y border-[#eceae3] py-4 text-[12px]">
-        <DetailRow
-          label="Scheduled"
-          value={formatTimestamp(item.datetime, item.timezone)}
-        />
-        <DetailRow label="Timezone" value={item.timezone} />
-        <DetailRow label="Source" value={humanize(item.sourceType)} />
-        {Object.entries(item.timestamps).flatMap(([label, value]) =>
-          value && value !== item.datetime
-            ? [
-                <DetailRow
-                  key={label}
-                  label={timestampLabel(label)}
-                  value={formatTimestamp(value, item.timezone)}
-                />,
-              ]
-            : []
-        )}
-      </dl>
-
-      <div className="mt-4 space-y-2">
-        <div className="text-[10px] font-bold tracking-[0.05em] text-app-text-faint uppercase">
-          Targets
-        </div>
-        {item.targets.length ? (
-          item.targets.map((target, index) => (
-            <div
-              key={`${target.integrationId || target.provider}:${index}`}
-              className="flex items-center justify-between gap-3 rounded-[8px] bg-[#f7f6f1] px-3 py-2.5"
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                <PlatformMark provider={target.provider} />
-                <div className="min-w-0">
-                  <div className="truncate text-[11px] font-semibold text-app-text">
-                    {target.integrationName || providerLabel(target.provider)}
-                  </div>
-                  <div className="text-[10px] font-medium text-app-text-faint">
-                    {providerLabel(target.provider)}
-                  </div>
-                </div>
-              </div>
-              <StatusBadge status={target.status} />
+          <article className="p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <StatusBadge status={item.status} />
+              <button
+                type="button"
+                onClick={onClose}
+                className="lc-focus-ring grid size-7 place-items-center rounded-[6px] text-app-muted-text transition hover:bg-app-surface-subtle hover:text-app-text"
+                aria-label="Close details"
+              >
+                <IconX className="size-4" />
+              </button>
             </div>
-          ))
-        ) : (
-          <p className="rounded-[8px] bg-[#f7f6f1] px-3 py-2 text-[11px] font-medium text-app-text-faint">
-            No publishing target is connected.
-          </p>
-        )}
-      </div>
-
-      {item.error ? (
-        <div className="mt-4 rounded-[8px] bg-[#fff0ed] p-3 text-[12px] leading-5 font-semibold text-[#9b342a]">
-          {item.error}
-        </div>
-      ) : null}
-      {actionError ? (
-        <p className="mt-3 text-[11px] font-semibold text-[#9b342a]">
-          {actionError}
-        </p>
-      ) : null}
-
-      <div className="mt-5 flex flex-wrap gap-2">
-        {item.links.content || item.links.automation ? (
-          <Button variant="action" size="compact" asChild>
-            <a href={item.links.content || item.links.automation}>
-              View content
-            </a>
-          </Button>
-        ) : null}
-        {item.links.live ? (
-          <Button variant="softControl" size="compact" asChild>
-            <a href={item.links.live} target="_blank" rel="noreferrer">
-              Live post <IconExternalLink className="size-3.5" />
-            </a>
-          </Button>
-        ) : null}
-        {item.status === "scheduled" && item.links.cancel ? (
-          <Button
-            variant="softControl"
-            size="compact"
-            disabled={cancelling}
-            onClick={() => void cancelPost()}
-          >
-            {cancelling ? (
-              <IconLoader2 className="size-3.5 animate-spin" />
+            <h2 className="mt-5 text-[20px] leading-6 font-semibold tracking-[-0.02em] text-app-text">
+              {item.title}
+            </h2>
+            {item.automationName ? (
+              <p className="mt-1 text-[12px] font-semibold text-app-text-faint">
+                {item.automationName}
+              </p>
             ) : null}
-            Cancel
-          </Button>
-        ) : null}
-      </div>
-    </aside>
+            {item.previewUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- Generated and provider preview URLs are dynamic.
+              <img
+                src={item.previewUrl}
+                alt="Content preview"
+                className="mt-4 aspect-[4/3] w-full rounded-[9px] object-cover"
+              />
+            ) : null}
+            <p className="mt-4 line-clamp-6 text-[13px] leading-5 font-medium text-app-text-soft">
+              {item.excerpt || "No caption is available yet."}
+            </p>
+
+            <dl className="mt-5 grid grid-cols-[92px_1fr] gap-y-3 border-y border-[#eceae3] py-4 text-[12px]">
+              <DetailRow
+                label="Scheduled"
+                value={formatTimestamp(item.datetime, item.timezone)}
+              />
+              <DetailRow label="Timezone" value={item.timezone} />
+              <DetailRow label="Source" value={humanize(item.sourceType)} />
+              {Object.entries(item.timestamps).flatMap(([label, value]) =>
+                value && value !== item.datetime
+                  ? [
+                      <DetailRow
+                        key={label}
+                        label={timestampLabel(label)}
+                        value={formatTimestamp(value, item.timezone)}
+                      />,
+                    ]
+                  : []
+              )}
+            </dl>
+
+            <div className="mt-4 space-y-2">
+              <div className="text-[10px] font-bold tracking-[0.05em] text-app-text-faint uppercase">
+                Targets
+              </div>
+              {item.targets.length ? (
+                item.targets.map((target, index) => (
+                  <div
+                    key={`${target.integrationId || target.provider}:${index}`}
+                    className="flex items-center justify-between gap-3 rounded-[8px] bg-[#f7f6f1] px-3 py-2.5"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <PlatformMark provider={target.provider} />
+                      <div className="min-w-0">
+                        <div className="truncate text-[11px] font-semibold text-app-text">
+                          {target.integrationName ||
+                            providerLabel(target.provider)}
+                        </div>
+                        <div className="text-[10px] font-medium text-app-text-faint">
+                          {providerLabel(target.provider)}
+                        </div>
+                      </div>
+                    </div>
+                    <StatusBadge status={target.status} />
+                  </div>
+                ))
+              ) : (
+                <p className="rounded-[8px] bg-[#f7f6f1] px-3 py-2 text-[11px] font-medium text-app-text-faint">
+                  No publishing target is connected.
+                </p>
+              )}
+            </div>
+
+            {item.error ? (
+              <div className="mt-4 rounded-[8px] bg-[#fff0ed] p-3 text-[12px] leading-5 font-semibold text-[#9b342a]">
+                {item.error}
+              </div>
+            ) : null}
+            {actionError ? (
+              <p className="mt-3 text-[11px] font-semibold text-[#9b342a]">
+                {actionError}
+              </p>
+            ) : null}
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              {item.status === "generation_failed" && item.links.retry ? (
+                <Button
+                  variant="action"
+                  size="compact"
+                  disabled={retrying}
+                  onClick={() => void retryGeneration()}
+                >
+                  {retrying ? (
+                    <IconLoader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <IconRefresh className="size-3.5" />
+                  )}
+                  {retrying ? "Retrying" : "Retry generation"}
+                </Button>
+              ) : null}
+              {item.links.content || item.links.automation ? (
+                <Button variant="action" size="compact" asChild>
+                  <a href={item.links.content || item.links.automation}>
+                    View content
+                  </a>
+                </Button>
+              ) : null}
+              {item.links.live ? (
+                <Button variant="softControl" size="compact" asChild>
+                  <a href={item.links.live} target="_blank" rel="noreferrer">
+                    Live post <IconExternalLink className="size-3.5" />
+                  </a>
+                </Button>
+              ) : null}
+              {item.status === "scheduled" && item.links.cancel ? (
+                <Button
+                  variant="softControl"
+                  size="compact"
+                  disabled={cancelling}
+                  onClick={() => setCancelOpen(true)}
+                >
+                  {cancelling ? (
+                    <IconLoader2 className="size-3.5 animate-spin" />
+                  ) : null}
+                  Cancel
+                </Button>
+              ) : null}
+            </div>
+          </article>
+        </AppModalPanel>
+      </AppModal>
+      {cancelOpen ? (
+        <ConfirmDialog
+          title="Cancel this scheduled post?"
+          description="This removes the scheduled post from the publishing queue. You can schedule it again later."
+          confirmLabel="Cancel post"
+          pendingLabel="Cancelling…"
+          onCancel={() => setCancelOpen(false)}
+          onConfirm={cancelPost}
+        />
+      ) : null}
+    </>
   )
 }
 
@@ -644,60 +721,193 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 function MultiSelectFilter({
   label,
+  allLabel,
+  emptyLabel,
+  icon,
   options,
   selected,
+  renderOptionIcon,
   onChange,
 }: {
   label: string
-  options: Array<readonly [string, string]>
+  allLabel: string
+  emptyLabel: string
+  icon: ReactNode
+  options: CalendarFilterOption[]
   selected: string[]
+  renderOptionIcon?: (option: CalendarFilterOption) => ReactNode
   onChange: (values: string[]) => void
 }) {
+  const selectedOptions = options.filter((option) =>
+    selected.includes(option.value)
+  )
+  const displayValue = !options.length
+    ? emptyLabel
+    : selectedOptions.length === 0
+      ? allLabel
+      : selectedOptions.length === 1
+        ? selectedOptions[0].label
+        : `${selectedOptions.length} ${label.toLowerCase()}`
+
   return (
-    <details className="group relative">
-      <summary className="lc-focus-ring flex h-9 cursor-pointer list-none items-center gap-2 rounded-[7px] border border-[#d8d6cc] bg-app-surface px-3 text-[12px] font-semibold text-[#4e4d48] transition hover:border-[#bdbab0] [&::-webkit-details-marker]:hidden">
-        {selected.length
-          ? `${label} · ${selected.length}`
-          : `All ${label.toLowerCase()}`}
-        <IconChevronDown className="size-3.5 transition group-open:rotate-180" />
-      </summary>
-      <div className="absolute top-11 left-0 z-20 min-w-[230px] rounded-[10px] border border-[#dedcd3] bg-app-surface p-2 shadow-[0_16px_40px_rgba(60,55,40,0.16)]">
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild disabled={!options.length}>
         <button
           type="button"
-          className="lc-focus-ring mb-1 w-full rounded-[6px] px-2 py-1.5 text-left text-[11px] font-semibold text-app-muted-text hover:bg-app-surface-subtle"
-          onClick={() => onChange([])}
+          className={calendarFilterTriggerClass}
+          aria-label={`${label}: ${displayValue}`}
         >
-          Select all
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="shrink-0 text-app-muted-text">{icon}</span>
+            <span className="truncate">{displayValue}</span>
+          </span>
+          <IconChevronDown className="size-3.5 shrink-0 text-app-text-faint" />
         </button>
-        <div className="max-h-64 overflow-y-auto">
-          {options.map(([value, optionLabel]) => {
-            const checked = selected.includes(value)
-            return (
-              <label
-                key={value}
-                className="flex cursor-pointer items-center gap-2 rounded-[6px] px-2 py-2 text-[12px] font-semibold text-[#3f3e3a] hover:bg-[#f7f6f1]"
-              >
-                <input
-                  type="checkbox"
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          sideOffset={6}
+          align="start"
+          className="app-popover z-[120] min-w-[240px] p-1"
+        >
+          <DropdownMenu.CheckboxItem
+            checked={selectedOptions.length === 0}
+            onSelect={(event) => event.preventDefault()}
+            onCheckedChange={() => onChange([])}
+            className={calendarFilterMenuItemClass}
+          >
+            <span className="grid size-4 shrink-0 place-items-center text-app-muted-text">
+              {icon}
+            </span>
+            <span className="truncate">{allLabel}</span>
+            <DropdownMenu.ItemIndicator className="absolute right-2">
+              <IconCheck className="size-3.5" />
+            </DropdownMenu.ItemIndicator>
+          </DropdownMenu.CheckboxItem>
+          <DropdownMenu.Separator className="my-1 h-px bg-app-panel-border" />
+          <div className="max-h-64 overflow-y-auto">
+            {options.map((option) => {
+              const checked = selected.includes(option.value)
+              return (
+                <DropdownMenu.CheckboxItem
+                  key={option.value}
                   checked={checked}
-                  onChange={() =>
+                  onSelect={(event) => event.preventDefault()}
+                  onCheckedChange={() =>
                     onChange(
                       checked
-                        ? selected.filter((item) => item !== value)
-                        : [...selected, value]
+                        ? selected.filter((item) => item !== option.value)
+                        : [...selected, option.value]
                     )
                   }
-                  className="size-3.5 accent-[#242421]"
-                />
-                <span className="truncate">{optionLabel}</span>
-              </label>
-            )
-          })}
-        </div>
-      </div>
-    </details>
+                  className={calendarFilterMenuItemClass}
+                >
+                  <span className="grid size-4 shrink-0 place-items-center text-app-muted-text">
+                    {renderOptionIcon?.(option)}
+                  </span>
+                  <span className="truncate">{option.label}</span>
+                  <DropdownMenu.ItemIndicator className="absolute right-2">
+                    <IconCheck className="size-3.5" />
+                  </DropdownMenu.ItemIndicator>
+                </DropdownMenu.CheckboxItem>
+              )
+            })}
+          </div>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   )
 }
+
+function CalendarSelectFilter({
+  label,
+  allLabel,
+  emptyLabel,
+  icon,
+  options,
+  value,
+  renderOptionIcon,
+  onChange,
+}: {
+  label: string
+  allLabel: string
+  emptyLabel: string
+  icon: ReactNode
+  options: CalendarFilterOption[]
+  value: string
+  renderOptionIcon?: (option: CalendarFilterOption) => ReactNode
+  onChange: (value: string) => void
+}) {
+  const selectedOption = options.find((option) => option.value === value)
+  const displayValue = !options.length
+    ? emptyLabel
+    : value === "all"
+      ? allLabel
+      : selectedOption?.label || allLabel
+
+  return (
+    <Select.Root
+      value={value}
+      disabled={!options.length}
+      onValueChange={onChange}
+    >
+      <Select.Trigger
+        className={calendarFilterTriggerClass}
+        aria-label={`${label}: ${displayValue}`}
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 text-app-muted-text">{icon}</span>
+          <span className="truncate">{displayValue}</span>
+        </span>
+        <Select.Icon asChild>
+          <IconChevronDown className="size-3.5 shrink-0 text-app-text-faint" />
+        </Select.Icon>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content
+          position="popper"
+          sideOffset={6}
+          align="start"
+          className="app-popover z-[120] min-w-[240px] p-1"
+        >
+          <Select.Viewport className="max-h-72">
+            <Select.Item value="all" className={calendarFilterMenuItemClass}>
+              <span className="grid size-4 shrink-0 place-items-center text-app-muted-text">
+                {icon}
+              </span>
+              <Select.ItemText>{allLabel}</Select.ItemText>
+              <Select.ItemIndicator className="absolute right-2">
+                <IconCheck className="size-3.5" />
+              </Select.ItemIndicator>
+            </Select.Item>
+            <Select.Separator className="my-1 h-px bg-app-panel-border" />
+            {options.map((option) => (
+              <Select.Item
+                key={option.value}
+                value={option.value}
+                className={calendarFilterMenuItemClass}
+              >
+                <span className="grid size-4 shrink-0 place-items-center text-app-muted-text">
+                  {renderOptionIcon?.(option)}
+                </span>
+                <Select.ItemText>{option.label}</Select.ItemText>
+                <Select.ItemIndicator className="absolute right-2">
+                  <IconCheck className="size-3.5" />
+                </Select.ItemIndicator>
+              </Select.Item>
+            ))}
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
+  )
+}
+
+const calendarFilterTriggerClass =
+  "lc-focus-ring flex h-9 min-w-[168px] max-w-[230px] items-center justify-between gap-3 rounded-[7px] border border-app-panel-border-strong bg-app-control-bg px-3 text-left text-[12px] font-semibold text-app-text-soft shadow-app-control transition hover:border-app-text-faint hover:bg-app-control-hover disabled:cursor-not-allowed disabled:bg-app-surface-subtle disabled:text-app-text-faint disabled:opacity-80"
+
+const calendarFilterMenuItemClass =
+  "relative flex h-9 cursor-default select-none items-center gap-2 rounded-[6px] px-3 pr-8 text-[12px] font-semibold text-app-text outline-none data-[highlighted]:bg-app-control-hover data-[disabled]:opacity-50"
 
 function SummaryCard({
   label,
@@ -822,19 +1032,7 @@ function monthRange(month: DateTime) {
   }
 }
 
-function itemsForDay(items: CalendarItem[], day: DateTime) {
-  return items.filter(
-    (item) => automationDateTime(item).toISODate() === day.toISODate()
-  )
-}
-
-function automationDateTime(item: CalendarItem) {
-  return DateTime.fromISO(item.datetime, { zone: item.timezone })
-}
-
-function accountOptions(
-  items: CalendarItem[]
-): Array<readonly [string, string]> {
+function accountOptions(items: CalendarItem[]): CalendarFilterOption[] {
   return [
     ...new Map(
       items.flatMap((item) =>
@@ -843,14 +1041,90 @@ function accountOptions(
             ? [
                 [
                   target.integrationId,
-                  target.integrationName || target.integrationId,
+                  {
+                    value: target.integrationId,
+                    label:
+                      target.integrationName?.trim() ||
+                      `${providerLabel(target.provider)} account (${target.integrationId.slice(-6)})`,
+                    provider: target.provider,
+                  },
                 ] as const,
               ]
             : []
         )
       )
-    ).entries(),
-  ].sort((a, b) => a[1].localeCompare(b[1]))
+    ).values(),
+  ].sort((a, b) => a.label.localeCompare(b.label))
+}
+
+function automationOptions(items: CalendarItem[]): CalendarFilterOption[] {
+  return [
+    ...new Map(
+      items.flatMap((item) =>
+        item.automationId
+          ? [
+              [
+                item.automationId,
+                {
+                  value: item.automationId,
+                  label:
+                    item.automationName?.trim() ||
+                    `Automation ${item.automationId.slice(0, 8)}`,
+                },
+              ] as const,
+            ]
+          : []
+      )
+    ).values(),
+  ].sort((a, b) => a.label.localeCompare(b.label))
+}
+
+function sourceTypeOptions(items: CalendarItem[]): CalendarFilterOption[] {
+  return [
+    ...new Map(
+      items.flatMap((item) => {
+        const sourceType = item.sourceType.trim()
+        return sourceType
+          ? [
+              [
+                sourceType,
+                { value: sourceType, label: humanize(sourceType) },
+              ] as const,
+            ]
+          : []
+      })
+    ).values(),
+  ].sort((a, b) => a.label.localeCompare(b.label))
+}
+
+function reconcileAvailableFilters(
+  filters: CalendarFilters,
+  options: {
+    accounts: CalendarFilterOption[]
+    automations: CalendarFilterOption[]
+    platforms: CalendarFilterOption[]
+    sourceTypes: CalendarFilterOption[]
+  }
+): CalendarFilters {
+  return {
+    ...filters,
+    accounts: reconcileCalendarFilterValues(
+      filters.accounts,
+      options.accounts.map((option) => option.value)
+    ),
+    platform: reconcileCalendarFilterValue(
+      filters.platform,
+      options.platforms.map((option) => option.value)
+    ),
+    automation: reconcileCalendarFilterValue(
+      filters.automation,
+      options.automations.map((option) => option.value)
+    ),
+    sourceType: reconcileCalendarFilterValue(
+      filters.sourceType,
+      options.sourceTypes.map((option) => option.value)
+    ),
+  }
 }
 
 function matchesFilters(item: CalendarItem, filters: CalendarFilters) {
@@ -863,10 +1137,13 @@ function matchesFilters(item: CalendarItem, filters: CalendarFilters) {
       )) &&
     (!filters.statuses.length || filters.statuses.includes(item.status)) &&
     (filters.platform === "all" ||
-      item.targets.some((target) => target.provider === filters.platform)) &&
+      item.targets.some(
+        (target) => target.provider.trim() === filters.platform
+      )) &&
     (filters.automation === "all" ||
       item.automationId === filters.automation) &&
-    (filters.sourceType === "all" || item.sourceType === filters.sourceType)
+    (filters.sourceType === "all" ||
+      item.sourceType.trim() === filters.sourceType)
   )
 }
 
@@ -905,21 +1182,6 @@ function hasFilters(filters: CalendarFilters) {
 
 function primaryProvider(item: CalendarItem) {
   return item.targets[0]?.provider || "unassigned"
-}
-
-function lifecycleClass(status: CalendarLifecycleStatus) {
-  if (status === "planned")
-    return "border-dashed border-[#aaa89d] bg-[#f7f6f1]/70 text-[#5f5e58]"
-  if (status === "generating")
-    return "border-[#b8aee3] bg-[#f1edff] text-[#544c78] shadow-[0_0_0_2px_rgba(135,117,210,0.08)]"
-  if (status === "needs_action")
-    return "border-[#e2b75e] bg-[#fff2d8] text-[#785511]"
-  if (isFailed(status)) return "border-[#dd8a7f] bg-[#fde9e5] text-[#8e342c]"
-  if (status === "published")
-    return "border-[#75aa87] bg-[#dceee1] text-[#356746]"
-  if (status === "scheduled")
-    return "border-[#819acb] bg-[#dde5f5] text-[#405a8f]"
-  return "border-[#c9c7be] bg-[#eeede8] text-app-text-soft"
 }
 
 function lifecycleBadgeClass(status: CalendarLifecycleStatus) {
@@ -981,12 +1243,24 @@ function formatTimestamp(value: string, timezone: string) {
   )
 }
 
+function calendarEventHoverText(item: CalendarItem) {
+  return calendarTimingEntries(item)
+    .map(
+      ({ label, at }) =>
+        `${label}: ${at ? `${formatTimestamp(at, item.timezone)} (${item.timezone})` : "Unavailable"}`
+    )
+    .join("\n")
+}
+
 function timestampLabel(value: string) {
   const labels: Record<string, string> = {
     createdAt: "Created",
     updatedAt: "Updated",
     scheduledAt: "Scheduled",
     publishedAt: "Published",
+    generatedAt: "Generated",
+    expectedGenerationAt: "Expected generation",
+    expectedPublishedAt: "Expected publication",
   }
   return labels[value] || humanize(value)
 }

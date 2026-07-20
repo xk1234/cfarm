@@ -1,0 +1,79 @@
+---
+title: Automations page
+description: Create, scan, pause, resume, and open slideshow, video, X, and Threads automations from one page.
+---
+
+The main **Automations** page is the shared library for repeatable content
+workflows. It mixes slideshow, video, X, and Threads automations in the same
+grid; each card keeps its own format-specific editor and generation history.
+
+![Main Automations page showing slideshow, video, X, and Threads automation cards](/docs/automations/main-page.png)
+
+## Page structure
+
+The top-right **New automation** action opens the template catalog. The grid
+below shows one card per saved automation.
+
+Each slideshow or video card contains:
+
+- the Live or Paused state;
+- editable automation name and favorite control;
+- up to three recent generated-output previews;
+- connected publishing-account summary;
+- upcoming schedule times;
+- Pause/Resume; and
+- Edit, which opens the format-specific automation editor.
+
+X and Threads cards use the same grid but show the platform mark, recent post
+copy, content type, and benchmark score instead of slideshow/video thumbnails.
+They intentionally do not use a separate top-level navigation tab.
+
+## Creating an automation
+
+![New automation template catalog with Slideshow, Video, and Other social media tabs](/docs/automations/main-page-new-automation.png)
+
+The template catalog has three format tabs:
+
+| Tab                    | Current behavior                                                                                                                                   |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Slideshow**          | Browse the slideshow catalog, inspect examples, use a template, or create a blank slideshow automation.                                            |
+| **Video**              | Choose a supported video format or create a blank video automation. Video formats remain WIP; see [Video automations](./video-automations).        |
+| **Other social media** | Create X or Threads automations. LinkedIn is described but not yet available as a complete editor. See [Social automations](./social-automations). |
+
+Search filters the selected format. Sorting changes catalog order without
+changing saved automations. Selecting a catalog template creates or previews a
+user-owned automation; it does not edit the repository template.
+
+## Card behavior
+
+- **Pause/Resume** changes whether scheduled automation slots are active.
+- Selecting **Edit** opens the matching editor: slideshow, video, or social.
+- Selecting a recent preview opens the shared slideshow or video viewer.
+- Account selection belongs to the automation and is summarized directly on
+  the card.
+- Empty preview cells mean the automation has no recent generation; they are
+  not failed-generation records.
+- Deletion is available inside the editor, not directly below or on the card.
+
+## Documentation by automation type
+
+| Automation type        | Documentation                                    | Status                                                                                            |
+| ---------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Slideshow              | [Slideshow automations](./slideshow-automations) | Implemented and screenshot-backed.                                                                |
+| Video                  | [Video automations](./video-automations)         | **WIP** — shared shell exists; format and runner support varies by template.                      |
+| X / Threads / LinkedIn | [Social automations](./social-automations)       | **WIP** — X and Threads editor/generation exist; publishing and LinkedIn coverage are incomplete. |
+
+For the system, user, structured-output, and repair shapes used by each
+generator, see [Automation prompt structures](./prompt-structures).
+
+## Template catalogs and renderer experiments
+
+Automation definitions and renderer inspection tools live with the automation
+guides because they describe how automations are created and rendered—not
+general reusable media assets.
+
+- [Slideshow automation templates](./slideshow-automation-templates)
+- [Video automation templates](./video-automation-templates)
+- [Other automation templates](./other-automation-templates)
+- [Slideshow editor setting atlas](./slideshow-editor-settings)
+- [Experimental slide generator](./experimental-slide-generator)

@@ -3,18 +3,18 @@ import { NextResponse } from "next/server"
 import { withHandler, readRouteId } from "@/lib/api"
 import {
   deleteAutomationRuns,
-  listAutomationRuns,
+  getAutomationRunForSlideshow,
   markAutomationRunPublished,
   removeAutomationRunSlide,
   replaceAutomationRunSlideImage,
   updateAutomationRunMetadata,
+  type AutomationRunRecord,
 } from "@/lib/automation-runner"
 import { listImageCollections } from "@/lib/image-collections"
 import {
   deletePostFastPostRecords,
   listPostFastPostRecords,
 } from "@/lib/postfast-posts"
-import { deleteGeneratedSlideshowBenchmarks } from "@/lib/slideshow-benchmarks"
 import { slideshowDeletionBlockReason } from "@/lib/slideshow-lifecycle"
 import {
   deleteSlideshowRecord,
@@ -39,8 +39,11 @@ export const GET = withHandler<{ params: Promise<{ id: string }> }>(
         { status: 400 }
       )
     }
-    const runs = await listAutomationRuns({ limit: Number.MAX_SAFE_INTEGER })
-    const run = runs.find((item) => item.slideshowId === id)
+    const [slideshow] = await listSlideshowRecords({ id, limit: 1 })
+    const run = await getAutomationRunForSlideshow({
+      slideshowId: id,
+      runId: slideshow?.runId,
+    })
     if (!run) {
       return NextResponse.json(
         { error: "Automation run not found" },
@@ -88,7 +91,11 @@ export const PATCH = withHandler<{ params: Promise<{ id: string }> }>(
     }
 
     if (publicationAction) {
-      const updatedRun = await markAutomationRunPublished({ slideshowId: id })
+      const [slideshow] = await listSlideshowRecords({ id, limit: 1 })
+      const updatedRun = await markAutomationRunPublished({
+        slideshowId: id,
+        runId: slideshow?.runId,
+      })
       if (!updatedRun) {
         return NextResponse.json(
           { error: "Automation run not found" },
@@ -98,9 +105,14 @@ export const PATCH = withHandler<{ params: Promise<{ id: string }> }>(
       return NextResponse.json({ run: updatedRun })
     }
 
-    const runs = await listAutomationRuns({ limit: Number.MAX_SAFE_INTEGER })
-    const run = runs.find((item) => item.slideshowId === id)
-    const posts = await listPostFastPostRecords().catch(() => [])
+    const [existingSlideshow] = await listSlideshowRecords({ id, limit: 1 })
+    const run = await getAutomationRunForSlideshow({
+      slideshowId: id,
+      runId: existingSlideshow?.runId,
+    })
+    const posts = await listPostFastPostRecords({
+      sourceIds: [id, ...(run?.id ? [run.id] : [])],
+    }).catch(() => [])
     const blocked = slideshowDeletionBlockReason({
       slideshowStatus: "exported",
       runStatus: run?.status,
@@ -143,6 +155,7 @@ export const PATCH = withHandler<{ params: Promise<{ id: string }> }>(
         }
         const updatedRun = await updateAutomationRunMetadata({
           slideshowId: id,
+          runId: run.id,
           title: slideshow.title,
           caption: slideshow.caption,
           hashtags: slideshow.hashtags,
@@ -186,6 +199,7 @@ export const PATCH = withHandler<{ params: Promise<{ id: string }> }>(
         }
         const updatedRun = await replaceAutomationRunSlideImage({
           slideshowId: id,
+          runId: run.id,
           slideIndex: payload.slideIndex!,
           imageUrl: image.imageUrl,
           imageKey: image.imageKey,
@@ -221,6 +235,7 @@ export const PATCH = withHandler<{ params: Promise<{ id: string }> }>(
     }
     const updatedRun = await removeAutomationRunSlide({
       slideshowId: id,
+      runId: run?.id,
       slideIndex: payload.slideIndex!,
     })
 
@@ -228,9 +243,7 @@ export const PATCH = withHandler<{ params: Promise<{ id: string }> }>(
   }
 )
 
-async function availableRunImages(
-  run: Awaited<ReturnType<typeof listAutomationRuns>>[number]
-) {
+async function availableRunImages(run: AutomationRunRecord) {
   const requested = new Set(run.plan.imageCollectionIds)
   const collections = (await listImageCollections())
     .map(storedToCollection)
@@ -283,9 +296,13 @@ export const DELETE = withHandler<{ params: Promise<{ id: string }> }>(
       )
     }
 
-    const runs = await listAutomationRuns({ limit: Number.MAX_SAFE_INTEGER })
-    const run = runs.find((item) => item.slideshowId === id)
-    const posts = await listPostFastPostRecords().catch(() => [])
+    const run = await getAutomationRunForSlideshow({
+      slideshowId: id,
+      runId: slideshow.runId,
+    })
+    const posts = await listPostFastPostRecords({
+      sourceIds: [id, ...(run?.id ? [run.id] : [])],
+    }).catch(() => [])
     const blocked = slideshowDeletionBlockReason({
       slideshowStatus: slideshow.status,
       runStatus: run?.status,
@@ -312,8 +329,10 @@ export const DELETE = withHandler<{ params: Promise<{ id: string }> }>(
     }
 
     const [deletedRuns] = await Promise.all([
-      deleteAutomationRuns({ slideshowIds: [id] }),
-      deleteGeneratedSlideshowBenchmarks(id),
+      deleteAutomationRuns({
+        runIds: run?.id ? [run.id] : undefined,
+        slideshowIds: run ? undefined : [id],
+      }),
       deletePostFastPostRecords({
         sourceType: "slideshow",
         sourceIds: [id],

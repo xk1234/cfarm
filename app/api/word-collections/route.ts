@@ -14,7 +14,7 @@ const wordCollectionSchema = z.object({
   name: z.string().trim().min(1, "name is required"),
   description: z.string().optional(),
   words: z.array(z.string()).default([]),
-  source: z.enum(["manual", "ai", "research"]).optional(),
+  source: z.enum(["manual", "ai"]).optional(),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
 })
@@ -43,4 +43,3 @@ export async function POST(request: Request) {
     )
   }
 }
-

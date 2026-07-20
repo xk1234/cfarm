@@ -1,0 +1,90 @@
+---
+title: LumenClip engineering documentation
+description: The working reference for the product, frontend, backend, automations, and operations.
+---
+
+This site documents the application as it exists in the repository. Start with
+the current product state, then follow the reference that matches the change you
+are making.
+
+<Cards>
+  <Card title="Current state" href="/docs/STATE">
+    Shipped surfaces, lifecycle rules, integrations, and known constraints.
+  </Card>
+  <Card title="Roadmap" href="/docs/roadmap">
+    Active work, queued initiatives, and verified workflow gaps.
+  </Card>
+  <Card title="Assets" href="/docs/assets/greenscreen-memes">
+    Browse the reusable greenscreen meme and music libraries used by generation
+    and rendering workflows.
+  </Card>
+  <Card title="Automations" href="/docs/automations">
+    Browse every automation type, editor, template catalog, and slideshow
+    renderer experiment.
+  </Card>
+  <Card title="Components" href="/docs/components">
+    React component boundaries, shared UI, workspace views, settings, and media
+    viewers.
+  </Card>
+  <Card title="Routes" href="/docs/routes">
+    Browser routes, access boundaries, API handlers, and worker entry points.
+  </Card>
+  <Card
+    title="Backend architecture"
+    href="/docs/reference/backend-architecture"
+  >
+    Appwrite persistence, consolidated stores, Storage paths, and provider
+    boundaries.
+  </Card>
+  <Card title="Data structures" href="/docs/reference/data-objects">
+    Canonical records for automations, outputs, collections, schedules, and
+    analytics.
+  </Card>
+  <Card title="Libraries" href="/docs/reference/libraries">
+    Direct runtime and development dependencies, responsibilities, usage
+    locations, and maintenance rules.
+  </Card>
+  <Card title="Analytics" href="/docs/analytics/overall">
+    Cross-platform reporting, metric semantics, screenshots, and one guide per
+    supported platform.
+  </Card>
+  <Card title="Collections" href="/docs/collections/overview">
+    Image, video, product, and variable collection contracts, CRUD lifecycles,
+    persistence, and automation use.
+  </Card>
+  <Card title="Scheduling" href="/docs/scheduling">
+    Read the content calendar, understand backend generation/posting timing, and
+    link manually published outputs.
+  </Card>
+  <Card title="Run locally" href="/docs/reference/local-appwrite">
+    Start the web app, local worker, and self-hosted Appwrite dependencies.
+  </Card>
+</Cards>
+
+## Product lifecycle
+
+```text
+Template or automation
+  -> input collections and runtime variables
+  -> manual or scheduled run
+  -> slideshow, video, or social draft output
+  -> review and edit
+  -> PostFast publication or manual-published evidence
+  -> calendar and analytics projections
+```
+
+## Documentation rules
+
+- `docs/components/` explains frontend ownership and reuse boundaries.
+- `docs/routes/` explains browser and server entry points.
+- `docs/collections/` is the canonical collection-type, CRUD, and usage
+  reference.
+- `docs/reference/` contains implementation contracts that describe shipped
+  behavior.
+- `docs/tabs/` contains user-facing workflow notes for product surfaces.
+- `docs/roadmap/` contains planned work that is not necessarily implemented.
+- Update the relevant document in the same change as a route, persistent shape,
+  lifecycle rule, or major component boundary.
+
+The repository-level `docs/README.md` remains a compact maintainer index. This
+page is the rendered documentation home at `/docs`.

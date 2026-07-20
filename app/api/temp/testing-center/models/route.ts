@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 
+import { internalToolsEnabled } from "@/lib/internal-tools"
+
 import { filterOpenRouterTextStructuredModels } from "@/lib/openrouter-models"
 
 export const dynamic = "force-dynamic"
@@ -9,6 +11,10 @@ type OpenRouterModelsResponse = {
 }
 
 export async function GET() {
+  if (!internalToolsEnabled()) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 })
+  }
+
   try {
     const response = await fetch("https://openrouter.ai/api/v1/models", {
       headers: {

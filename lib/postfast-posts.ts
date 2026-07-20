@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto"
 
 import {
   listOutputPublications,
+  listOutputPublicationsForSources,
   writeOutputPublications,
 } from "@/lib/output-publications"
 import type { PostFastMedia } from "@/lib/postfast-client"
@@ -22,7 +23,7 @@ export type PostFastSourceType =
   | "greenscreen"
   | "ugc_ad"
   | "image"
-  | "swipe"
+  | "swipe" // legacy
   | "slideshow"
   | "manual"
   | "external"
@@ -65,15 +66,36 @@ export async function listPostFastPostRecords(
   filters: {
     rootDir?: string
     sourceType?: PostFastSourceType
+    sourceIds?: string[]
     integrationId?: string
   } = {}
 ) {
-  const records = await readPostFastPostRecords(filters.rootDir)
+  const sourceIds = new Set(
+    (filters.sourceIds ?? []).map(clean).filter(Boolean)
+  )
+  const records = sourceIds.size
+    ? await readTargetedPostFastPostRecords([...sourceIds])
+    : await readPostFastPostRecords(filters.rootDir)
   return records.filter(
     (record) =>
       (!filters.sourceType || record.sourceType === filters.sourceType) &&
+      (sourceIds.size === 0 ||
+        sourceIds.has(record.sourceId) ||
+        sourceIds.has(baseSourceId(record.sourceId))) &&
       (!filters.integrationId || record.integrationId === filters.integrationId)
   )
+}
+
+async function readTargetedPostFastPostRecords(sourceIds: string[]) {
+  return (
+    await listOutputPublicationsForSources({
+      entityIds: sourceIds,
+      runIds: sourceIds,
+    })
+  ).flatMap((record) => {
+    const normalized = normalizeRecord(record)
+    return normalized ? [normalized] : []
+  })
 }
 
 export async function upsertPostFastPostRecord(
@@ -129,6 +151,7 @@ export async function upsertPostFastPostRecord(
     record,
     ...records.filter((item) => item.id !== record.id),
   ])
+  await recordHookPublication(record)
   return record
 }
 
@@ -209,7 +232,15 @@ export async function patchPostFastPostRecord(input: {
     undefined,
     records.map((record) => (record.id === updated.id ? updated : record))
   )
+  await recordHookPublication(updated)
   return updated
+}
+
+async function recordHookPublication(record: PostFastPostRecord) {
+  if (record.status !== "published") return
+  await import("@/lib/hook-publications")
+    .then(({ recordPublishedHookUsage }) => recordPublishedHookUsage(record))
+    .catch(() => undefined)
 }
 
 export async function deletePostFastPostRecordById(id: string) {
@@ -267,8 +298,9 @@ export async function deletePostFastPostRecords(input: {
 }
 
 async function readPostFastPostRecords(
-  _rootDir?: string
+  rootDir?: string
 ): Promise<PostFastPostRecord[]> {
+  void rootDir
   return (await listOutputPublications()).flatMap((record) => {
     const normalized = normalizeRecord(record)
     return normalized ? [normalized] : []

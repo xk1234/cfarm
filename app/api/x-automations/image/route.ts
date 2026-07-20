@@ -2,9 +2,9 @@ import path from "node:path"
 import { NextResponse } from "next/server"
 
 import { ApiError, withHandler } from "@/lib/api"
-import { buildNanoBananaProPayload } from "@/lib/character-workflows"
 import { clean } from "@/lib/guards"
 import {
+  buildNanoBananaProPayload,
   downloadRemoteImageToLocalAsset,
   getKieApiKey,
   runKieMarketTask,

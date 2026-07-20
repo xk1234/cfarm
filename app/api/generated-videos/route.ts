@@ -10,6 +10,7 @@ import {
 } from "@/lib/generated-videos"
 import { generatedVideoDeletionBlockReason } from "@/lib/generated-video-deletion"
 import { listPostFastPostRecords } from "@/lib/postfast-posts"
+import { enqueueReminder } from "@/lib/reminders"
 
 export const dynamic = "force-dynamic"
 
@@ -64,6 +65,12 @@ export const POST = withHandler(async (request: Request) => {
     previewUrl: stringValue(payload.previewUrl),
     videoUrl,
   })
+  if (generatedExport.status === "ready") {
+    await enqueueGeneratedVideoReminder(
+      generatedExport.id,
+      generatedExport.title
+    )
+  }
 
   return NextResponse.json({ export: generatedExport }, { status: 201 })
 })
@@ -92,9 +99,24 @@ export const PATCH = withHandler(async (request: Request) => {
       { status: 404 }
     )
   }
+  if (generatedExport.status === "ready") {
+    await enqueueGeneratedVideoReminder(
+      generatedExport.id,
+      generatedExport.title
+    )
+  }
 
   return NextResponse.json({ export: generatedExport })
 })
+
+async function enqueueGeneratedVideoReminder(id: string, title: string) {
+  await enqueueReminder({
+    event: "generated",
+    sourceType: "video",
+    sourceId: id,
+    text: `Video generated\n${title}`,
+  }).catch(() => undefined)
+}
 
 function isGeneratedVideoStatus(value: unknown): value is GeneratedVideoStatus {
   return (

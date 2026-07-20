@@ -4,9 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import { toast } from "sonner"
 import type { SocialAccountStatusItem } from "@/components/realfarm/social-account-status"
-import { Sidebar, type ViewKey } from "@/components/realfarm/navigation"
 import {
-  defaultAutomationTemplate,
+  MobileNavigation,
+  Sidebar,
+  type ViewKey,
+} from "@/components/realfarm/navigation"
+import {
   mergeAutomationSchema,
   type AutomationSchedule,
   type AutomationSchema,
@@ -14,10 +17,10 @@ import {
   type AutomationStatus,
   type RuntimeAutomationTemplate,
 } from "@/lib/realfarm-automation"
-import { videoAutomationTemplatePreset } from "@/lib/video-automation-templates"
 import {
   collectionToStored,
   defaultImageCollections,
+  greenscreenMemeCollectionFromAssets,
   storedToCollection,
   ugcAvatarVideoCollectionFromAssets,
   type CreatedImageCollection,
@@ -38,21 +41,6 @@ import { cn } from "@/lib/utils"
 const HomeView = dynamic(() =>
   import("@/components/realfarm/home-view").then((module) => module.HomeView)
 )
-const SwipesView = dynamic(() =>
-  import("@/components/realfarm/swipes-view").then(
-    (module) => module.SwipesView
-  )
-)
-const AvatarsView = dynamic(() =>
-  import("@/components/realfarm/characters-view").then(
-    (module) => module.AvatarsView
-  )
-)
-const GreenscreenMemesView = dynamic(() =>
-  import("@/components/realfarm/greenscreen-view").then(
-    (module) => module.GreenscreenMemesView
-  )
-)
 const ContentCalendarView = dynamic(() =>
   import("@/components/realfarm/content-calendar/content-calendar-view").then(
     (module) => module.ContentCalendarView
@@ -61,11 +49,6 @@ const ContentCalendarView = dynamic(() =>
 const AnalyticsView = dynamic(() =>
   import("@/components/realfarm/analytics/analytics-view").then(
     (module) => module.AnalyticsView
-  )
-)
-const KnowledgeBasesPanel = dynamic(() =>
-  import("@/components/realfarm/knowledge-bases-panel").then(
-    (module) => module.KnowledgeBasesPanel
   )
 )
 const CollectionsView = dynamic(() =>
@@ -174,15 +157,21 @@ async function loadRecentAutomationRuns() {
 export function RealFarmWorkspace({
   data,
   initialTemplateData = emptyInitialTemplateData,
+  initialNavigation,
   user,
 }: {
   data: RealFarmData
   initialTemplateData?: InitialTemplateData
+  initialNavigation?: {
+    view?: ViewKey
+    automationId?: string
+    runId?: string
+  }
   user: { id: string; email: string; emailVerified: boolean }
 }) {
-  const [view, setView] = useState<ViewKey>("home")
+  const [view, setView] = useState<ViewKey>(initialNavigation?.view ?? "home")
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [selectedSoundId, setSelectedSoundId] = useState("")
+  const [selectedSoundId] = useState("")
   const [workspaceAssets, setWorkspaceAssets] = useState(data.assets)
   const [workspaceAssetsLoaded, setWorkspaceAssetsLoaded] = useState(
     Object.values(data.assets).some((assets) => assets.length > 0)
@@ -233,6 +222,7 @@ export function RealFarmWorkspace({
   )
   const templateExampleRunsById = initialTemplateData.exampleRunsByTemplateId
   const [recentRunsLoaded, setRecentRunsLoaded] = useState(false)
+  const [recentRunsError, setRecentRunsError] = useState("")
   const [recentAutomationRuns, setRecentAutomationRuns] = useState<
     AutomationRunSummary[]
   >([])
@@ -240,8 +230,8 @@ export function RealFarmWorkspace({
   const [editingAutomation, setEditingAutomation] = useState<Automation | null>(
     null
   )
-  const [linkedAutomationId, setLinkedAutomationId] = useState("")
-  const [linkedAutomationRunId, setLinkedAutomationRunId] = useState("")
+  const linkedAutomationId = initialNavigation?.automationId?.trim() ?? ""
+  const linkedAutomationRunId = initialNavigation?.runId?.trim() ?? ""
   const [socialAccountAutomation, setSocialAccountAutomation] =
     useState<Automation | null>(null)
   const [templateFolderOpen, setTemplateFolderOpen] = useState(false)
@@ -287,13 +277,13 @@ export function RealFarmWorkspace({
       ),
     [collections, workspaceAssets.ugcAvatarVideos]
   )
-  const visibleCollections = useMemo(
-    () => [ugcAvatarVideoCollection, ...collections],
-    [ugcAvatarVideoCollection, collections]
+  const greenscreenMemeCollection = useMemo(
+    () => greenscreenMemeCollectionFromAssets(workspaceAssets.greenscreenMemes),
+    [workspaceAssets.greenscreenMemes]
   )
-  const workspaceData = useMemo(
-    () => ({ ...data, assets: workspaceAssets }),
-    [data, workspaceAssets]
+  const visibleCollections = useMemo(
+    () => [ugcAvatarVideoCollection, greenscreenMemeCollection, ...collections],
+    [ugcAvatarVideoCollection, greenscreenMemeCollection, collections]
   )
   const selectedCollection =
     visibleCollections.find(
@@ -327,44 +317,8 @@ export function RealFarmWorkspace({
   )
 
   useEffect(() => {
-    const search = new URLSearchParams(window.location.search)
-    if (search.get("view") === "automations") {
-      setView("automations")
-      setLinkedAutomationId(search.get("automation")?.trim() || "")
-      setLinkedAutomationRunId(search.get("run")?.trim() || "")
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!linkedAutomationId) return
-    const automation = automations.find(
-      (candidate) => candidate.id === linkedAutomationId
-    )
-    if (automation) setEditingAutomation(automation)
-  }, [automations, linkedAutomationId])
-
-  useEffect(() => {
-    const initialHash = window.location.hash
-    let ignoredInitialHashChange = false
-
-    function syncSwipeHashView() {
-      if (!ignoredInitialHashChange && window.location.hash === initialHash) {
-        ignoredInitialHashChange = true
-        return
-      }
-      ignoredInitialHashChange = true
-      if (window.location.hash.startsWith("#swipe=")) {
-        setView("swipes")
-      }
-    }
-
-    window.addEventListener("hashchange", syncSwipeHashView)
-    return () => window.removeEventListener("hashchange", syncSwipeHashView)
-  }, [])
-
-  useEffect(() => {
     const needsAssets =
-      view === "greenscreen" ||
+      templateFolderOpen ||
       (view === "automations" &&
         Boolean(editingAutomation?.id) &&
         editingAutomation?.automationKind !== "x_threads")
@@ -386,16 +340,14 @@ export function RealFarmWorkspace({
   }, [
     editingAutomation?.automationKind,
     editingAutomation?.id,
+    templateFolderOpen,
     view,
     workspaceAssetsLoaded,
   ])
 
   useEffect(() => {
     const needsCollections =
-      view === "greenscreen" ||
-      view === "collections" ||
-      view === "automations" ||
-      templateFolderOpen
+      view === "collections" || view === "automations" || templateFolderOpen
     if (!needsCollections || collectionsLoaded) return
     let active = true
     void fetchJsonWithTimeout<{ collections?: StoredImageCollection[] }>(
@@ -430,8 +382,13 @@ export function RealFarmWorkspace({
     ])
       .then(([automationPayload, runPayload]) => {
         if (!active) return
-        setXAutomations(automationPayload.automations ?? [])
+        const loadedAutomations = automationPayload.automations ?? []
+        setXAutomations(loadedAutomations)
         setXAutomationRuns(runPayload.runs ?? [])
+        const linked = loadedAutomations
+          .map(xAutomationToAutomation)
+          .find((automation) => automation.id === linkedAutomationId)
+        if (linked) setEditingAutomation(linked)
       })
       .catch(() => undefined)
       .finally(() => {
@@ -440,7 +397,7 @@ export function RealFarmWorkspace({
     return () => {
       active = false
     }
-  }, [view, xAutomationsLoaded])
+  }, [linkedAutomationId, view, xAutomationsLoaded])
 
   useEffect(() => {
     if (view !== "collections" || productCollectionsLoaded) return
@@ -472,6 +429,10 @@ export function RealFarmWorkspace({
           return
         }
         setPersistedAutomations(payload.automations)
+        const linked = payload.automations.find(
+          (automation) => automation.id === linkedAutomationId
+        )
+        if (linked) setEditingAutomation(linked)
         setAutomationConfigEdits((current) => ({
           ...Object.fromEntries(
             (payload.records ?? []).map((record) => [
@@ -490,7 +451,7 @@ export function RealFarmWorkspace({
     return () => {
       active = false
     }
-  }, [])
+  }, [linkedAutomationId])
 
   useEffect(() => {
     let active = true
@@ -499,9 +460,16 @@ export function RealFarmWorkspace({
       .then((runs) => {
         if (active && requestRevision === recentRunsRevisionRef.current) {
           setRecentAutomationRuns(runs)
+          setRecentRunsError("")
         }
       })
-      .catch(() => undefined)
+      .catch((error) => {
+        if (active) {
+          setRecentRunsError(
+            getApiErrorMessage(error, "Failed to load recent generations")
+          )
+        }
+      })
       .finally(() => {
         if (active) {
           setRecentRunsLoaded(true)
@@ -513,15 +481,41 @@ export function RealFarmWorkspace({
     }
   }, [])
 
-  function persistCollection(collection: CreatedImageCollection) {
+  async function persistCollection(collection: CreatedImageCollection) {
     if (collection.virtual) {
       return
     }
-    void fetchJsonWithTimeout("/api/image-collections", {
+    await fetchJsonWithTimeout("/api/image-collections", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(collectionToStored(collection)),
-    }).catch(() => undefined)
+    })
+  }
+
+  async function commitCollection(
+    previous: CreatedImageCollection | null,
+    next: CreatedImageCollection,
+    failureMessage: string
+  ) {
+    setCollections((current) => [
+      next,
+      ...current.filter((collection) => collection.id !== next.id),
+    ])
+    try {
+      await persistCollection(next)
+      return true
+    } catch (error) {
+      setCollections((current) =>
+        previous
+          ? [
+              previous,
+              ...current.filter((collection) => collection.id !== previous.id),
+            ]
+          : current.filter((collection) => collection.id !== next.id)
+      )
+      toast.error(getApiErrorMessage(error, failureMessage))
+      return false
+    }
   }
 
   function toggleCollectionPin(id: string) {
@@ -563,7 +557,7 @@ export function RealFarmWorkspace({
     )
   }
 
-  function deleteCollections(ids: string[]) {
+  async function deleteCollections(ids: string[]) {
     const deletedCollections = collections.filter((collection) =>
       ids.includes(collection.id)
     )
@@ -577,14 +571,50 @@ export function RealFarmWorkspace({
       return
     }
 
-    void fetchJsonWithTimeout("/api/image-collections", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      toastOnError: false,
-      body: JSON.stringify({
-        collections: persistedCollections.map(collectionToStored),
-      }),
-    }).catch((error) => {
+    const storedCollections = persistedCollections.map(collectionToStored)
+    try {
+      await fetchJsonWithTimeout("/api/image-collections", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        toastOnError: false,
+        body: JSON.stringify({ collections: storedCollections }),
+      })
+      toast.success(
+        `${persistedCollections.length} collection${persistedCollections.length === 1 ? "" : "s"} deleted`,
+        {
+          duration: 10_000,
+          action: {
+            label: "Undo",
+            onClick: () => {
+              void fetchJsonWithTimeout("/api/image-collections", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                toastOnError: false,
+                body: JSON.stringify({
+                  action: "restore",
+                  collections: storedCollections,
+                }),
+              })
+                .then(() => {
+                  setCollections((current) => {
+                    const currentIds = new Set(
+                      current.map((collection) => collection.id)
+                    )
+                    return [
+                      ...deletedCollections.filter(
+                        (collection) => !currentIds.has(collection.id)
+                      ),
+                      ...current,
+                    ]
+                  })
+                  toast.success("Collection deletion undone")
+                })
+                .catch((error) => toast.error(getApiErrorMessage(error)))
+            },
+          },
+        }
+      )
+    } catch (error) {
       setCollections((current) => {
         const currentIds = new Set(current.map((collection) => collection.id))
         return [
@@ -595,11 +625,8 @@ export function RealFarmWorkspace({
         ]
       })
       toast.error(getApiErrorMessage(error))
-    })
-  }
-
-  function createDraft() {
-    return undefined
+      throw error
+    }
   }
 
   function persistAutomationPatch(
@@ -694,11 +721,29 @@ export function RealFarmWorkspace({
       setXAutomations((items) =>
         items.map((item) => (item.id === engine.id ? nextEngine : item))
       )
-      void fetch("/api/x-automations", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ automation: nextEngine }),
-      })
+      void fetchJsonWithTimeout<{ automation: XAutomationRecord }>(
+        "/api/x-automations",
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ automation: nextEngine }),
+        }
+      )
+        .then(({ automation: savedAutomation }) => {
+          setXAutomations((items) =>
+            items.map((item) =>
+              item.id === savedAutomation.id ? savedAutomation : item
+            )
+          )
+        })
+        .catch((error) => {
+          setXAutomations((items) =>
+            items.map((item) => (item.id === engine.id ? engine : item))
+          )
+          toast.error(
+            getApiErrorMessage(error, "Failed to update automation status")
+          )
+        })
       return
     }
     const currentConfig = mergeAutomationSchema(
@@ -864,9 +909,15 @@ export function RealFarmWorkspace({
         // the editor; the next refresh will include the persisted record.
         if (requestRevision === recentRunsRevisionRef.current) {
           setRecentAutomationRuns(runs)
+          setRecentRunsError("")
         }
       })
-      .catch(() => undefined)
+      .catch((error) => {
+        setRecentRunsError(
+          getApiErrorMessage(error, "Failed to load recent generations")
+        )
+      })
+      .finally(() => setRecentRunsLoaded(true))
   }
 
   const fillsWorkspace = view === "automations" && Boolean(editingAutomation)
@@ -884,9 +935,12 @@ export function RealFarmWorkspace({
           onNewAutomation={() => setTemplateFolderOpen(true)}
           onSettings={() => setSettingsOpen(true)}
         />
+        {!fillsWorkspace ? (
+          <MobileNavigation view={view} onViewChange={changeView} />
+        ) : null}
         <section
           className={cn(
-            "min-w-0 flex-1 overflow-y-auto",
+            "min-w-0 flex-1 overflow-y-auto pb-20 md:pb-0",
             fillsWorkspace ? "p-0" : "px-4 py-4 sm:px-5 sm:py-5 lg:px-7"
           )}
         >
@@ -898,6 +952,11 @@ export function RealFarmWorkspace({
               recentRunsByAutomationId={showcaseRunsByAutomationId}
               generatedRunsByAutomationId={recentRunsByAutomationId}
               generatedRunsLoading={!recentRunsLoaded}
+              generatedRunsError={recentRunsError}
+              onRetryGeneratedRuns={() => {
+                setRecentRunsLoaded(false)
+                refreshRecentAutomationRuns()
+              }}
               onCreate={() => setTemplateFolderOpen(true)}
               onUseTemplate={(automation) => {
                 const templateSource = mergeAutomationSchema(
@@ -929,42 +988,10 @@ export function RealFarmWorkspace({
               onGenerationRunRemove={removeRecentAutomationRun}
             />
           )}
-          {view === "swipes" && <SwipesView currentUserId={user.id} />}
-          {view === "avatars" && <AvatarsView />}
-          {view === "greenscreen" && (
-            <GreenscreenMemesView
-              data={workspaceData}
-              collections={visibleCollections}
-              selectedSound={selectedSound}
-              music={workspaceAssets.music}
-              onSoundSelect={setSelectedSoundId}
-              onCreateCollection={(collection) => {
-                setCollections((current) => [
-                  collection,
-                  ...current.filter((item) => item.id !== collection.id),
-                ])
-                persistCollection(collection)
-              }}
-              onCreate={createDraft}
-            />
-          )}
           {view === "schedule" && (
             <ContentCalendarView onGoAutomations={showAutomationList} />
           )}
           {view === "analytics" && <AnalyticsView />}
-          {view === "knowledge" && (
-            <div className="mx-auto max-w-[1540px]">
-              <div className="mb-6">
-                <h1 className="text-[24px] font-semibold tracking-normal">
-                  Knowledge Bases
-                </h1>
-                <p className="mt-1 text-[13px] font-medium text-app-muted-text">
-                  Build reusable research context for your automations.
-                </p>
-              </div>
-              <KnowledgeBasesPanel />
-            </div>
-          )}
           {view === "collections" &&
             (selectedCollection ? (
               <CollectionDetailView
@@ -979,14 +1006,11 @@ export function RealFarmWorkspace({
                     ...selectedCollection,
                     images: [...images, ...selectedCollection.images],
                   }
-                  setCollections((current) =>
-                    current.map((collection) =>
-                      collection.id === selectedCollection.id
-                        ? nextCollection
-                        : collection
-                    )
+                  return commitCollection(
+                    selectedCollection,
+                    nextCollection,
+                    "Failed to add images to the collection"
                   )
-                  persistCollection(nextCollection)
                 }}
                 onRemoveImages={(keys) => {
                   if (selectedCollection.virtual) {
@@ -998,41 +1022,32 @@ export function RealFarmWorkspace({
                       (image) => !keys.includes(image.id || image.imageUrl)
                     ),
                   }
-                  setCollections((current) =>
-                    current.map((collection) =>
-                      collection.id === selectedCollection.id
-                        ? nextCollection
-                        : collection
-                    )
+                  void commitCollection(
+                    selectedCollection,
+                    nextCollection,
+                    "Failed to remove images from the collection"
                   )
-                  persistCollection(nextCollection)
                 }}
                 onUpdateCollection={(nextCollection) => {
                   if (selectedCollection.virtual) {
                     return
                   }
-                  setCollections((current) =>
-                    current.map((collection) =>
-                      collection.id === selectedCollection.id
-                        ? nextCollection
-                        : collection
-                    )
+                  void commitCollection(
+                    selectedCollection,
+                    nextCollection,
+                    "Failed to update the collection"
                   )
-                  persistCollection(nextCollection)
                 }}
                 onRename={(title) => {
                   if (selectedCollection.virtual) {
                     return
                   }
                   const nextCollection = { ...selectedCollection, title }
-                  setCollections((current) =>
-                    current.map((collection) =>
-                      collection.id === selectedCollection.id
-                        ? nextCollection
-                        : collection
-                    )
+                  void commitCollection(
+                    selectedCollection,
+                    nextCollection,
+                    "Failed to rename the collection"
                   )
-                  persistCollection(nextCollection)
                   setSelectedCollectionId(selectedCollection.id)
                 }}
                 onCreateAutomation={(name) => {
@@ -1051,12 +1066,13 @@ export function RealFarmWorkspace({
                 productCollections={productCollections}
                 loading={!collectionsLoaded}
                 onCreateCollection={(collection) => {
-                  setCollections((current) => [collection, ...current])
-                  persistCollection(collection)
+                  void commitCollection(
+                    null,
+                    collection,
+                    "Failed to create the collection"
+                  )
                 }}
-                onDeleteCollections={(ids) => {
-                  deleteCollections(ids)
-                }}
+                onDeleteCollections={deleteCollections}
                 onOpenCollection={setSelectedCollectionId}
                 onToggleCollectionPin={toggleCollectionPin}
               />
@@ -1104,11 +1120,12 @@ export function RealFarmWorkspace({
                   music={workspaceAssets.music}
                   demoVideos={workspaceAssets.demoVideos}
                   onCreateCollection={(collection) => {
-                    setCollections((current) => [
+                    void commitCollection(
+                      collections.find((item) => item.id === collection.id) ??
+                        null,
                       collection,
-                      ...current.filter((item) => item.id !== collection.id),
-                    ])
-                    persistCollection(collection)
+                      "Failed to save the collection"
+                    )
                   }}
                   onRename={(name) => {
                     setAutomationNameEdits((current) => ({
@@ -1153,9 +1170,6 @@ export function RealFarmWorkspace({
                       ...current,
                       [editingAutomation.id]: config,
                     }))
-                    persistAutomationPatch(editingAutomation.id, {
-                      schema: config,
-                    })
                   }}
                   onGenerationRunUpdate={upsertRecentAutomationRun}
                   onGenerationRunRemove={removeRecentAutomationRun}
@@ -1276,41 +1290,26 @@ export function RealFarmWorkspace({
       ) : null}
       {templateFolderOpen && (
         <TemplateFolderModal
-          data={data}
           templates={templateAutomations}
-          automationConfigs={templateConfigEdits}
           collections={visibleCollections}
           recentRunsByAutomationId={showcaseRunsByAutomationId}
           onClose={() => setTemplateFolderOpen(false)}
-          onCreateVideoTemplate={(templateId) => {
-            const preset = videoAutomationTemplatePreset(templateId)
-            const summary: Automation = {
-              id: "new-video-template",
-              name: `${preset.name} automation`,
+          onCreateVideoTemplate={async ({ name, schema }) => {
+            const automation = await createLocalAutomation({
+              name,
               automationKind: "video",
-              status: "live",
-              account: "No social account",
-              handle: "",
-              times: [],
-              favorite: false,
-              theme: "ugc",
-              socialIntegrations: [],
-            }
-            void createLocalAutomation({
-              name: summary.name,
-              automationKind: "video",
-              template: {
-                ...defaultAutomationTemplate(summary),
-                automationKind: "video",
-                video_format: preset.buildFormat(),
-              },
+              schema,
             })
-              .then((automation) => {
-                setTemplateFolderOpen(false)
-                setView("automations")
-                setEditingAutomation(automation)
-              })
-              .catch(() => undefined)
+            setTemplateFolderOpen(false)
+            setView("automations")
+            setEditingAutomation(automation)
+          }}
+          onCreateCollection={(collection) => {
+            void commitCollection(
+              collections.find((item) => item.id === collection.id) ?? null,
+              collection,
+              "Failed to save the collection"
+            )
           }}
           onCreateBlank={(automationKind, platform) => {
             if (automationKind === "x_threads") {
@@ -1354,7 +1353,14 @@ export function RealFarmWorkspace({
                     created_at: automation.createdAt,
                   })
                 })
-                .catch(() => undefined)
+                .catch((error) => {
+                  toast.error(
+                    getApiErrorMessage(
+                      error,
+                      `Could not create ${selectedPlatform === "threads" ? "Threads" : "X"} automation`
+                    )
+                  )
+                })
               return
             }
             void createLocalAutomation({ automationKind })
@@ -1363,7 +1369,11 @@ export function RealFarmWorkspace({
                 setView("automations")
                 setEditingAutomation(automation)
               })
-              .catch(() => undefined)
+              .catch((error) => {
+                toast.error(
+                  getApiErrorMessage(error, "Could not create automation")
+                )
+              })
           }}
           onUseTemplate={(automation) => {
             const templateSource = mergeAutomationSchema(
@@ -1393,7 +1403,11 @@ export function RealFarmWorkspace({
                 setView("automations")
                 setEditingAutomation(createdAutomation)
               })
-              .catch(() => undefined)
+              .catch((error) => {
+                toast.error(
+                  getApiErrorMessage(error, "Could not create automation")
+                )
+              })
           }}
         />
       )}

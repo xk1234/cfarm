@@ -1,0 +1,85 @@
+---
+title: Hook catalog and analytics
+description: Add, paste, retire, and compare automation hooks using publication-backed history.
+---
+
+Each slideshow or video automation owns a hook catalog. Open the automation,
+then select **Hooks & Style** or **Hooks & Voice** to manage it.
+
+![Hook catalog with a locked published hook, an editable hook, and a disabled hook](/docs/automations/hook-catalog-editor.png)
+
+## Add and paste hooks
+
+Every hook is a single row with its own enabled toggle. Select **Add hook** or
+press `Enter` in an editable row to create the next row. A blank new automation
+starts with one empty row. Select the copy icon beside the casing control to
+copy every populated hook in its current order, one hook per line. The copied
+list includes enabled, disabled, unused, and published hooks.
+
+Pasting multiline text into an unused row creates one hook for every non-empty
+line. Clipboard order is preserved, surrounding whitespace is removed, and
+case-insensitive duplicates are skipped. Existing runtime and word-collection
+tokens such as `[[CURRENT_DATE]]` remain supported.
+
+Disabled hooks stay in the catalog and keep their history, but the interactive
+runner and scheduled Appwrite worker do not select them. Re-enable a row to
+restore normal eligibility.
+
+## When a hook becomes used
+
+Generating an output does not use or lock its hook. Drafts, review items,
+scheduled posts, and failed publication attempts also leave it unused.
+
+A hook becomes **Used** only when either:
+
+- PostFast confirms the linked output as published, including a successful
+  publish-now action or a scheduled post later observed as published; or
+- a user marks the output as published and links its provider-native public
+  post URL.
+
+The output must resolve to an automation run that preserved the hook ID.
+Unrelated external posts do not create hook history.
+
+A used row shows its publication count and lock. Its text cannot be renamed and
+the row cannot be deleted, including through a stale or direct API request.
+Its enabled toggle remains available, so a published hook can be retired
+without losing attribution. **Duplicate** creates a new unused variation.
+
+The permanent Used marker is separate from the automation's
+`hook_exclusion_days` setting. The exclusion window controls when an enabled
+hook may be selected again; publication history and delete protection remain
+after the window expires.
+
+## Hook analytics
+
+Select **Analytics** inside the automation editor to compare only the hooks
+that have published evidence.
+
+![Hook analytics table with publication count, platforms, views, interactions, and engagement](/docs/automations/hook-analytics.png)
+
+The table shows published-post count, most recent publication, platforms,
+views, likes, comments, shares, saves, and engagement rate. Values use the
+latest stored metric snapshot for each attributed publication, then aggregate
+those snapshots by hook. A disabled hook remains in this table.
+
+Draft and merely scheduled posts are excluded. Refreshing the table reads the
+latest locally synchronized PostFast snapshots; it does not turn an
+unconfirmed schedule into a publication.
+
+## Persistence and enforcement
+
+- `AutomationSchema.hooks[]` stores stable `id`, `text`, `enabled`, and
+  creation/update timestamps. Legacy newline hooks receive deterministic IDs
+  when normalized.
+- `AutomationRunPlan.hookId` preserves the selected catalog identity alongside
+  the expanded hook text, template, and substitutions.
+- Publication evidence appends `hook_published` and, where applicable,
+  `hook_combination_published` usage records. Normal generation records only
+  image and generated-text reuse.
+- `PATCH /api/automations` returns `409` if published evidence would be renamed
+  or removed, while allowing its `enabled` value to change.
+- `GET /api/automations/[id]/hook-analytics` returns hook lock state and the
+  publication-backed analytics rows used by both editor pages.
+
+The documentation images are reproducible with
+`node scripts/capture-hook-docs.mjs` against the shared local Appwrite stack.

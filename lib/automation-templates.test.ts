@@ -19,8 +19,7 @@ import {
   schemaWithAutomationHooks,
 } from "@/lib/realfarm-automation"
 import type { Automation } from "@/lib/realfarm-data"
-
-const templatesRoot = path.join(process.cwd(), "data", "automation-templates")
+import { automationTemplateToTempSlideTestingAutomation } from "@/lib/temp-slide-testing"
 
 describe("automation template persistence", () => {
   it("ships imported Reelfarm slideshow automations as compact templates", async () => {
@@ -187,6 +186,7 @@ describe("automation template persistence", () => {
     expect(schema).toMatchObject({
       title: "Study Tips",
       status: "live",
+      aspect_ratio: "9:16",
       social_integrations: [],
       prompt_formatting: {
         num_of_slides: 6,
@@ -309,7 +309,48 @@ describe("automation template persistence", () => {
     expect(record.automationKind).toBe("video")
     expect(record.template.video_format).toEqual(schema.video_format)
     expect(restored.automationKind).toBe("video")
-    expect(restored.video_format).toEqual(schema.video_format)
+    expect(restored.video_format).toMatchObject(schema.video_format!)
+  })
+
+  it("round-trips AI image selection so template runs can repair text-image coherence", () => {
+    const summary: Automation = {
+      id: "coherent-slideshow",
+      automationKind: "slideshow",
+      name: "Coherent slideshow",
+      status: "live",
+      account: "",
+      handle: "",
+      times: [],
+      favorite: false,
+      theme: "coherent-slideshow",
+      socialIntegrations: [],
+    }
+    const schema = defaultAutomationSchema(summary)
+    schema.formatting = schema.formatting.map((section) => ({
+      ...section,
+      aiImageSelection: section.id === "body",
+    }))
+
+    const record = automationSchemaToTemplateRecord({
+      id: "template-coherent-slideshow",
+      name: summary.name,
+      theme: summary.theme,
+      createdAt: "2026-07-19T00:00:00.000Z",
+      updatedAt: "2026-07-19T00:00:00.000Z",
+      schema,
+    })
+    const restored = automationTemplateRecordToSchema(record)
+
+    expect(record.template.format.content.ai_image_selection).toBe(true)
+    expect(record.template.format.hook.ai_image_selection).toBe(false)
+    expect(automationFormatSection(restored, "content").aiImageSelection).toBe(
+      true
+    )
+    expect(
+      automationTemplateToTempSlideTestingAutomation(record).slides.find(
+        (slide) => slide.section === "content"
+      )?.aiImageSelection
+    ).toBe(true)
   })
 
   it("reports imported template collection ids that do not resolve locally", () => {
@@ -415,6 +456,7 @@ describe("automation template persistence", () => {
 
     const schemaWithPlaceholder = {
       ...schema,
+      hooks: [],
       prompt_formatting: {
         ...schema.prompt_formatting,
         narrative: "",

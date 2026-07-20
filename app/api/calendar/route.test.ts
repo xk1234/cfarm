@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   listAutomationRuns: vi.fn(),
   listJobs: vi.fn(),
   listPostFastPostRecords: vi.fn(),
+  listResultRecords: vi.fn(),
   listXAutomations: vi.fn(),
   listXAutomationRuns: vi.fn(),
   postfastRequest: vi.fn(),
@@ -24,6 +25,9 @@ vi.mock("@/lib/postfast-posts", () => ({
 vi.mock("@/lib/postfast-client", () => ({
   postfastRequest: mocks.postfastRequest,
 }))
+vi.mock("@/lib/results", () => ({
+  listResultRecords: mocks.listResultRecords,
+}))
 vi.mock("@/lib/x-automation-store", () => ({
   listXAutomations: mocks.listXAutomations,
   listXAutomationRuns: mocks.listXAutomationRuns,
@@ -38,6 +42,7 @@ beforeEach(() => {
   mocks.listAutomationRuns.mockResolvedValue([])
   mocks.listJobs.mockResolvedValue([])
   mocks.listPostFastPostRecords.mockResolvedValue([])
+  mocks.listResultRecords.mockResolvedValue([])
   mocks.listXAutomations.mockResolvedValue([])
   mocks.listXAutomationRuns.mockResolvedValue([])
   mocks.postfastRequest.mockResolvedValue({ data: [] })
@@ -58,6 +63,13 @@ describe("GET /api/calendar", () => {
         createdAt: "2099-07-14T23:00:00.000Z",
         updatedAt: "2099-07-15T00:00:00.000Z",
         plan: { caption: "A useful caption" },
+      },
+    ])
+    mocks.listResultRecords.mockResolvedValue([
+      {
+        id: "result-1",
+        runId: "run-1",
+        createdAt: "2099-07-15T00:12:00.000Z",
       },
     ])
     mocks.listJobs.mockResolvedValue([
@@ -110,6 +122,10 @@ describe("GET /api/calendar", () => {
           id: "job:job-1",
           status: "generating",
           datetime: "2099-07-15T01:00:00.000Z",
+          timestamps: expect.objectContaining({
+            expectedGenerationAt: "2099-07-15T00:30:00.000Z",
+            expectedPublishedAt: "2099-07-15T01:00:00.000Z",
+          }),
         }),
         expect.objectContaining({
           id: "local:local-action",
@@ -127,6 +143,11 @@ describe("GET /api/calendar", () => {
           ],
           links: expect.objectContaining({
             cancel: "/api/calendar/items/local-scheduled",
+            reschedule: "/api/calendar/items/local-scheduled",
+          }),
+          timestamps: expect.objectContaining({
+            generatedAt: "2099-07-15T00:12:00.000Z",
+            expectedPublishedAt: "2099-07-15T01:00:00.000Z",
           }),
         }),
       ])
@@ -184,6 +205,42 @@ describe("GET /api/calendar", () => {
       }),
     ])
     expect(payload.summary).toMatchObject({ failed: 1, needsAction: 0 })
+  })
+
+  it("exposes a manual retry action for failed generation jobs", async () => {
+    mocks.listAutomationRecords.mockResolvedValue([
+      { summary: automationSummary() },
+    ])
+    mocks.listJobs.mockResolvedValue([
+      job({
+        id: "job-failed",
+        status: "dead",
+        error: "Provider returned error",
+        payload: {
+          automationId: "automation-1",
+          scheduledFor: "2099-07-15T01:00:00.000Z",
+        },
+      }),
+    ])
+
+    const { GET } = await import("./route")
+    const response = await GET(
+      new Request(
+        "http://localhost/api/calendar?from=2099-07-15T00:00:00.000Z&to=2099-07-15T23:59:59.999Z"
+      )
+    )
+    const payload = await response.json()
+
+    expect(payload.items).toEqual([
+      expect.objectContaining({
+        id: "job:job-failed",
+        status: "generation_failed",
+        error: "Provider returned error",
+        links: expect.objectContaining({
+          retry: "/api/jobs/job-failed/retry",
+        }),
+      }),
+    ])
   })
 
   it("rejects invalid or reversed ranges", async () => {

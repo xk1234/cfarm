@@ -100,6 +100,8 @@ describe("syncPostFastAnalytics", () => {
       capturedAt: capturedAt.toISOString(),
       sourceType: "automation",
       sourceId: "run-1",
+      contentType: "slideshow",
+      mediaCount: 0,
       metrics: { views: 120, likes: 14, saves: 6 },
       rawMetrics: { videoViews: 120, likes: 14, bookmarks: 6 },
       latestMetric: {
@@ -113,7 +115,59 @@ describe("syncPostFastAnalytics", () => {
       postId: "native-post-2",
       platformPostId: "native-post-2",
       sourceType: "external",
+      contentType: "video",
       latestMetric: { videoViews: 45, comments: 3 },
+    })
+  })
+
+  it("attributes manually linked analytics through the provider-native id", async () => {
+    mocks.listPostFastPostRecords.mockResolvedValue([
+      {
+        id: "linked-publication-1",
+        sourceType: "slideshow",
+        sourceId: "slideshow-42",
+        externalPostId: "native-linked-42",
+        integrationId: "integration-1",
+        provider: "tiktok",
+        status: "published",
+        content: "Linked slideshow",
+        media: [],
+        createdAt: "2026-07-14T00:00:00.000Z",
+        updatedAt: "2026-07-14T00:00:00.000Z",
+      },
+    ])
+    mocks.postfastRequest.mockImplementation(async (path: string) => {
+      if (path === "/social-posts/analytics") {
+        return {
+          data: [
+            {
+              id: "unrelated-postfast-id",
+              platformPostId: "native-linked-42",
+              latestMetric: { videoViews: 300, likes: 20 },
+            },
+          ],
+        }
+      }
+      throw new Error("Follower history unavailable")
+    })
+
+    await syncPostFastAnalytics({
+      capturedAt: new Date("2026-07-15T02:00:00.000Z"),
+      integrations: [
+        {
+          integration_id: "integration-1",
+          provider: "tiktok",
+          name: "Brand TikTok",
+        },
+      ],
+    })
+
+    expect(mocks.appendMetricSnapshots.mock.calls[0][0][0]).toMatchObject({
+      postId: "linked-publication-1",
+      sourceType: "slideshow",
+      sourceId: "slideshow-42",
+      platformPostId: "native-linked-42",
+      metrics: { views: 300, likes: 20 },
     })
   })
 })

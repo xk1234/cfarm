@@ -20,10 +20,10 @@ describe("client API helpers", () => {
     const fetchMock = vi.fn(async () => Response.json({ ok: true }))
     vi.stubGlobal("fetch", fetchMock)
 
-    await fetchJsonWithTimeout("/api/benchmarks", { method: "POST" })
+    await fetchJsonWithTimeout("/api/automations/run", { method: "POST" })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/benchmarks",
+      "/api/automations/run",
       expect.objectContaining({
         credentials: "same-origin",
         method: "POST",
@@ -40,7 +40,7 @@ describe("client API helpers", () => {
     )
 
     await expect(
-      fetchJsonWithTimeout("/api/characters/headshot")
+      fetchJsonWithTimeout("/api/image-collections/captions")
     ).rejects.toMatchObject({
       message: "Image generation timed out",
       status: 504,

@@ -528,6 +528,7 @@ function buildSlideSpec(input: {
     image_grid: string
     overlay: boolean
     display_text: boolean
+    ai_image_selection?: boolean
     overlay_image?: {
       enabled: boolean
       collection_id?: string
@@ -547,7 +548,7 @@ function buildSlideSpec(input: {
     aspectRatio: input.templateSection.aspect_ratio,
     imageGrid: input.templateSection.image_grid,
     overlay: input.templateSection.overlay,
-    aiImageSelection: false,
+    aiImageSelection: input.templateSection.ai_image_selection === true,
     displayText: input.templateSection.display_text,
     collectionId: input.collectionId,
     overlayImage: input.templateSection.overlay_image?.enabled

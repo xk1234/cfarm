@@ -210,7 +210,7 @@ describe("GET /api/postfast/posts", () => {
 })
 
 describe("POST /api/postfast/posts", () => {
-  it("can mark a generated post as published without a release URL", async () => {
+  it("links a published post with its canonical provider id", async () => {
     const remoteFetch = vi.fn()
     vi.stubGlobal("fetch", remoteFetch)
     const { POST } = await import("./route")
@@ -225,6 +225,8 @@ describe("POST /api/postfast/posts", () => {
           content: "Generated caption #creator",
           sourceType: "slideshow",
           sourceId: "slideshow-generated-1",
+          releaseUrl:
+            "https://www.tiktok.com/@creator/video/7512345678901234567?utm_source=test",
         }),
       })
     )
@@ -236,7 +238,56 @@ describe("POST /api/postfast/posts", () => {
       sourceId: "slideshow-generated-1",
       status: "published",
       externallyManaged: true,
+      externalPostId: "7512345678901234567",
+      releaseUrl: "https://www.tiktok.com/@creator/video/7512345678901234567",
     })
     expect(remoteFetch).not.toHaveBeenCalled()
+  })
+
+  it("rejects URLs from a different provider", async () => {
+    const { POST } = await import("./route")
+    const response = await POST(
+      new Request("http://localhost/api/postfast/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "manual_posted",
+          integrationId: "x-1",
+          provider: "x",
+          content: "Generated caption",
+          sourceType: "slideshow",
+          sourceId: "slideshow-generated-1",
+          releaseUrl: "https://www.instagram.com/p/ABC123/",
+        }),
+      })
+    )
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.stringContaining("does not match"),
+    })
+  })
+
+  it("is idempotent for the same output and rejects cross-output duplicates", async () => {
+    const { POST } = await import("./route")
+    const request = (sourceId: string) =>
+      POST(
+        new Request("http://localhost/api/postfast/posts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "manual_posted",
+            integrationId: "x-1",
+            provider: "x",
+            content: "Generated caption",
+            sourceType: "slideshow",
+            sourceId,
+            releaseUrl: "https://x.com/creator/status/1234567890",
+          }),
+        })
+      )
+    const first = await request("slideshow-1")
+    const second = await request("slideshow-1")
+    expect((await second.json()).record.id).toBe((await first.json()).record.id)
+    expect((await request("slideshow-2")).status).toBe(409)
   })
 })

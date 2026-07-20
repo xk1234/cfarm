@@ -12,8 +12,10 @@ import {
   patchAutomationRecord,
 } from "@/lib/automations"
 import {
+  automationHookId,
+  automationHookItems,
   automationHooks,
-  schemaWithAutomationHooks,
+  schemaWithAutomationHookItems,
 } from "@/lib/realfarm-automation"
 import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-registry"
 import { recentUsageKeys, usageKeyForHook } from "@/lib/usage-ledger"
@@ -44,19 +46,18 @@ export const POST = withHandler(async (request: Request) => {
     return NextResponse.json({ error: "Automation not found" }, { status: 404 })
   }
 
-  const currentHooks = uniqueHooks(automationHooks(record.schema))
-  if (currentHooks.length === 0) {
+  const currentItems = automationHookItems(record.schema)
+  const seedHooks = uniqueHooks(automationHooks(record.schema))
+  const currentHooks = uniqueHooks(currentItems.map((item) => item.text))
+  if (seedHooks.length === 0) {
     return NextResponse.json(
       { error: "Add at least one hook before generating more" },
       { status: 400 }
     )
   }
 
-  const sampleHooks = randomSample(
-    currentHooks,
-    Math.min(10, currentHooks.length)
-  )
-  const recentHookKeys = await recentUsageKeys("hook", record.id, {
+  const sampleHooks = randomSample(seedHooks, Math.min(10, seedHooks.length))
+  const recentHookKeys = await recentUsageKeys("hook_published", record.id, {
     withinDays: record.schema.reuse_policy?.hook_exclusion_days ?? 45,
   })
   const {
@@ -132,8 +133,17 @@ export const POST = withHandler(async (request: Request) => {
     )
   }
 
-  const hooks = uniqueHooks([...currentHooks, ...generatedHooks])
-  const schema = schemaWithAutomationHooks(record.schema, hooks)
+  const createdAt = new Date().toISOString()
+  const schema = schemaWithAutomationHookItems(record.schema, [
+    ...currentItems,
+    ...generatedHooks.map((text) => ({
+      id: automationHookId(text),
+      text,
+      enabled: true,
+      createdAt,
+    })),
+  ])
+  const hooks = automationHookItems(schema).map((item) => item.text)
   const updated = await patchAutomationRecord({ id: record.id, schema })
 
   if (!updated) {

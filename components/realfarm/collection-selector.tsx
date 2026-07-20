@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { IconPhoto, IconVideo } from "@tabler/icons-react"
-import { ChevronRight, Images, Plus, Search, X } from "lucide-react"
+import { LuChevronRight, LuImages, LuPlus, LuSearch, LuX } from "react-icons/lu"
 
 import { PinterestCollectionSearch } from "@/components/realfarm/pinterest-collection-search"
 import { PinterestPreviewTile } from "@/components/realfarm/shared-media"
@@ -62,7 +62,7 @@ export function CollectionSelector({
         <div className="flex w-full items-center justify-between gap-3">
           <span className="flex min-w-0 items-center text-[13px] font-bold text-app-text">
             {label}
-            <ChevronRight className="ml-1 size-4 shrink-0 stroke-[3]" />
+            <LuChevronRight className="ml-1 size-4 shrink-0 stroke-[3]" />
           </span>
           <span className="max-w-[140px] truncate text-[12px] font-normal text-[#666]">
             {collection?.title ?? "Select collection"}
@@ -85,7 +85,7 @@ export function CollectionSelector({
               ))
             ) : (
               <div className="grid aspect-[2/3] w-1/3 max-w-[96px] place-items-center rounded-md bg-gray-200 text-[#8c8b84]">
-                <Images className="size-5" />
+                <LuImages className="size-5" />
               </div>
             )}
           </div>
@@ -105,7 +105,7 @@ export function CollectionSelector({
                 onClick={() => setOpen(false)}
                 aria-label="Close collection selector"
               >
-                <X className="size-4" />
+                <LuX className="size-4" />
               </button>
               <div className="min-w-0 flex-1">
                 <h2 className="text-[18px] font-bold text-app-text">
@@ -121,7 +121,7 @@ export function CollectionSelector({
                 size="appDefault"
                 onClick={() => setShowPinterestSearch(true)}
               >
-                <Plus className="size-4" />
+                <LuPlus className="size-4" />
                 Add collection
               </Button>
             </div>
@@ -168,7 +168,7 @@ function CollectionSelectorBody({
     <>
       <div className="border-b border-app-panel-border px-4 py-3">
         <label className="relative block">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#8c8b84]" />
+          <LuSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#8c8b84]" />
           <input
             className="h-10 w-full rounded-[8px] border border-[#e4e3dc] bg-app-surface pr-3 pl-10 text-[14px] font-medium outline-none placeholder:text-app-text-faint focus:border-[#b8b7ae]"
             value={query}
@@ -201,7 +201,7 @@ function CollectionSelectorBody({
           <div className="grid h-full min-h-[300px] place-items-center text-center">
             <div>
               <div className="mx-auto grid size-12 place-items-center rounded-full bg-app-surface-subtle text-app-muted-text">
-                <Images className="size-5" />
+                <LuImages className="size-5" />
               </div>
               <div className="mt-3 text-[15px] font-bold text-app-text">
                 No collections found
@@ -252,7 +252,7 @@ function CollectionOption({
             {collection.images.length} {collectionMediaLabel(collection)}
           </span>
         </span>
-        <ChevronRight className="size-4 shrink-0 text-app-text-faint" />
+        <LuChevronRight className="size-4 shrink-0 text-app-text-faint" />
       </button>
     )
   }
@@ -280,7 +280,7 @@ function CollectionOption({
           />
         ) : (
           <div className="grid h-full place-items-center text-[#8c8b84]">
-            <Images className="size-6" />
+            <LuImages className="size-6" />
           </div>
         )}
         <div className="absolute inset-x-0 bottom-0 translate-y-full bg-black/70 px-2 py-2 text-[11px] leading-tight font-semibold text-white transition group-hover:translate-y-0">

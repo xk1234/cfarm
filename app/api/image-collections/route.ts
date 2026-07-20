@@ -5,6 +5,7 @@ import { validate, providerFail } from "@/lib/api"
 import {
   deleteImageCollections,
   listImageCollections,
+  restoreImageCollections,
   upsertImageCollection,
 } from "@/lib/image-collections"
 
@@ -32,16 +33,20 @@ const deleteSchema = z.object({
     .default([]),
 })
 
+const restoreSchema = deleteSchema.extend({ action: z.literal("restore") })
+
 export async function GET() {
   return NextResponse.json({ collections: await listImageCollections() })
 }
 
 export async function POST(request: Request) {
   try {
-    const collection = validate(
-      collectionSchema,
-      await request.json().catch(() => null)
-    )
+    const payload = await request.json().catch(() => null)
+    if (payload?.action === "restore") {
+      const { collections } = validate(restoreSchema, payload)
+      return NextResponse.json(await restoreImageCollections(collections))
+    }
+    const collection = validate(collectionSchema, payload)
     const saved = await upsertImageCollection(collection)
     return NextResponse.json({ collection: saved }, { status: 201 })
   } catch (error) {

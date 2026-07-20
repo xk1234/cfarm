@@ -1,0 +1,57 @@
+---
+title: Video automations [WIP]
+description: Current video automation shell, supported format concepts, and unfinished areas.
+---
+
+> **WIP:** Video automations share the main Automations page and settings shell,
+> but format-specific creation, generation, preview, and publishing support is
+> not yet equally complete for every template.
+
+Video automations appear alongside slideshows on the
+[main Automations page](./index). Their cards show recent rendered-video
+previews when available, connected accounts, schedule times, status, and an
+Edit action.
+
+![WIP video automation Overview using the shared vertical editor shell](/docs/automations/video-editor-overview.png)
+
+## What exists
+
+- A **Video** tab in the New automation catalog.
+- Blank video automation creation and format presets.
+- The shared vertical editor navigation: Overview, Video Format, Hooks & Voice,
+  Schedule, Social Media Settings, and Settings.
+- Video collection selection, generated-video viewing, account selection, and
+  the shared scheduling/publishing configuration.
+- Template-specific fields for media segments, copy, playback, audio, timing,
+  and preview where the selected template implements them.
+
+## Known video format concepts
+
+Depending on the selected template, Video Format may include:
+
+![WIP UGC video format editor with template, avatar collection, demo video, music, and preview](/docs/automations/video-editor-format.png)
+
+- an avatar or source-video collection;
+- one demo/reveal video that must play in full;
+- video-collection segments that use clips or full playback;
+- mutually exclusive Videos and Slides modes on supported segments;
+- a slideshow automation, slide count, and seconds per slide in Slides mode;
+- segment ordering and overlay copy; and
+- soundtrack, timing, cuts, and preview controls.
+
+Controls should only appear when the renderer consumes them. For example, a
+full demo-video segment should not expose slideshow-style clip count or
+seconds-per-clip settings.
+
+## Still WIP
+
+- Not every visible video template has the same end-to-end runner coverage.
+- Required media preflight and empty states vary by template.
+- Some templates still need stronger generated-output examples and benchmark
+  documentation.
+- Character/avatar training and arbitrary provider/model invocation are not
+  part of the stable editor contract.
+- Auto-publishing depends on the connected account supporting video upload.
+
+Until these areas are complete, treat the UI as a template-specific editor,
+not a promise that every combination can render and publish successfully.

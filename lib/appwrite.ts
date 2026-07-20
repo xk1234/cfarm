@@ -1,4 +1,7 @@
-// Server-side Appwrite client (TablesDB + Storage). Server-only: uses the API key.
+import "server-only"
+
+// Server-side Appwrite client (TablesDB + Storage). Never import from a Client
+// Component: this module has access to the Appwrite API key.
 import { Client, Storage, TablesDB } from "node-appwrite"
 
 export const APPWRITE_ENDPOINT = process.env.APPWRITE_ENDPOINT ?? ""
@@ -13,7 +16,7 @@ export function appwriteEnabled(): boolean {
 type AppwriteClients = { tables: TablesDB; storage: Storage }
 let cached: AppwriteClients | null = null
 
-/** Returns Appwrite clients, or null when Appwrite is not configured (falls back to filesystem). */
+/** Returns Appwrite clients, or null when Appwrite is not configured. */
 export function getAppwrite(): AppwriteClients | null {
   if (!appwriteEnabled()) return null
   if (cached) return cached

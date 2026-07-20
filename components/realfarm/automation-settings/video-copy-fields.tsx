@@ -38,8 +38,12 @@ function CopyableVideoField({
 }) {
   async function copy() {
     if (!copyValue) return
-    await navigator.clipboard.writeText(copyValue)
-    toast.success(`${label} copied`)
+    try {
+      await navigator.clipboard.writeText(copyValue)
+      toast.success(`${label} copied`)
+    } catch {
+      toast.error(`${label} could not be copied`)
+    }
   }
 
   return (

@@ -4,10 +4,21 @@ import {
   renderedSlideSvg,
   renderedTextItemEditorBounds,
   renderedTextItemBounds,
+  slideDimensions,
   slideshowTextPositionX,
 } from "@/lib/slideshow-renderer"
 
 describe("slideshow renderer", () => {
+  it.each([
+    ["9:16", 1080, 1920],
+    ["4:5", 1080, 1350],
+    ["3:4", 1080, 1440],
+    ["3:2", 1080, 720],
+    ["1:1", 1080, 1080],
+  ])("renders the editor's %s aspect ratio", (ratio, width, height) => {
+    expect(slideDimensions(ratio)).toEqual({ width, height })
+  })
+
   it("uses a pronounced 10% inset for padded left and right text", () => {
     expect(slideshowTextPositionX("left", "padded")).toBe(10)
     expect(slideshowTextPositionX("right", "padded")).toBe(90)

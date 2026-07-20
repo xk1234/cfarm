@@ -1,32 +1,34 @@
-# 09 — Asset Management
+# 09 — Asset management
 
-Create reusable media assets by upload, AI generation, or remote import, then optionally caption them. Assets are consumed by UGC ad / greenscreen video exports (workflow 11).
+Create reusable asset records by upload or configured generation, edit captions,
+and serve their bytes through the Storage-backed compatibility URL.
 
-Entry: `/api/assets` (GET), `/api/assets/upload`, `/api/assets/generate`, `/api/assets/reference-import`, `/api/assets/caption`
-Core: `lib/assets.ts`, `lib/asset-storage.ts`, `lib/kie-image.ts`
+Entry: `/api/assets`, `/api/assets/upload`, `/api/assets/generate`,
+`/api/assets/caption`, `/api/local-assets/**`
+
+Core: `lib/assets.ts`, `lib/asset-storage.ts`, `lib/appwrite-stores.ts`
 
 ```mermaid
 flowchart TD
-    START(["User adds an asset"]) --> KIND{"how?"}
+    START(["User adds an asset"]) --> KIND{"Source"}
 
-    KIND -->|Upload file| UP["POST /api/assets/upload"]
-    UP --> STORE1["persistAsset: store binary (Appwrite Storage + data/ tree)"]
-    STORE1 --> REC
+    KIND -->|"Upload"| UP["POST /api/assets/upload"]
+    KIND -->|"Configured generation"| GEN["POST /api/assets/generate"]
 
-    KIND -->|AI generate| GEN["POST /api/assets/generate"]
-    GEN --> MODEL["Image model (KIE) generates media"]
-    MODEL --> STORE2["persistAsset"]
-    STORE2 --> REC
+    UP --> STORE["persistAsset -> Appwrite Storage"]
+    GEN --> RECORD
+    STORE --> RECORD["AssetRecord -> permanent_assets\nsource_key=uploaded_asset"]
 
-    KIND -->|Import remote| IMP["POST /api/assets/reference-import"]
-    IMP --> DLR["Download remote URL"]
-    DLR --> STORE3["persistAsset"]
-    STORE3 --> REC["AssetRecord (kind, source, scope, category) in 'assets' store"]
+    RECORD --> CAP{"Edit caption?"}
+    CAP -->|"Yes"| CAPREQ["POST /api/assets/caption"]
+    CAPREQ --> RECORD
+    CAP -->|"No"| LIST
+    RECORD --> LIST["GET /api/assets?scope=&category=&kind="]
+    LIST --> USE["Automation / greenscreen / publishing input"]
 
-    REC --> CAP{"Caption it?"}
-    CAP -->|Yes| CAPREQ["POST /api/assets/caption -> LLM caption"]
-    CAPREQ --> REC
-    CAP -->|No| LIST["GET /api/assets?scope=&category=&kind="]
-    REC --> LIST
-    LIST --> DONE(["Asset available to video exports"])
+    USE --> URL["GET /api/local-assets/... streams deterministic Storage file"]
 ```
+
+The removed character/reference-import workflow is not part of the current
+asset API. Legacy `ugc_avatar` and `reference` enum values remain in
+`AssetRecord` for compatibility with existing rows.

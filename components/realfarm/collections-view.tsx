@@ -24,6 +24,7 @@ import type { ColDef, ICellRendererParams } from "ag-grid-community"
 
 import { AgDataTable } from "@/components/ui/ag-data-table"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   LabelledSelect,
   SearchControl,
@@ -54,6 +55,7 @@ import {
   type StoredImageCollection,
 } from "@/lib/realfarm-collections"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
+import type { AssetRecord } from "@/lib/assets"
 import type { PinterestSearchResult } from "@/lib/pinterest-search"
 import type { ProductCollection } from "@/lib/product-collections"
 import { cn } from "@/lib/utils"
@@ -85,6 +87,14 @@ type CollectionTableRow = {
   virtual: boolean
 }
 
+type CollectionDeletePreview = {
+  collections: { name: string; created_at: string; itemCount: number }[]
+  itemCount: number
+  dependentAutomations: { id: string; name: string }[]
+  dependentTemplates: { id: string; name: string }[]
+  recoveryDays: number
+}
+
 export function CollectionsView({
   collections,
   productCollections,
@@ -98,7 +108,7 @@ export function CollectionsView({
   productCollections: ProductCollection[]
   loading?: boolean
   onCreateCollection: (collection: CreatedImageCollection) => void
-  onDeleteCollections: (ids: string[]) => void
+  onDeleteCollections: (ids: string[]) => void | Promise<void>
   onOpenCollection: (id: string) => void
   onToggleCollectionPin: (id: string) => void
 }) {
@@ -112,6 +122,11 @@ export function CollectionsView({
   const [selectedCollectionIds, setSelectedCollectionIds] = useState<
     Set<string>
   >(new Set())
+  const [deleteRequestIds, setDeleteRequestIds] = useState<string[]>([])
+  const [deletePreview, setDeletePreview] =
+    useState<CollectionDeletePreview | null>(null)
+  const [deletePreviewLoading, setDeletePreviewLoading] = useState(false)
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false)
   const selectedIds = Array.from(selectedCollectionIds)
   const mediaCollections = useMemo(
     () =>
@@ -264,7 +279,7 @@ export function CollectionsView({
                     className="border border-app-panel-border bg-app-surface text-app-danger"
                     onClick={(event) => {
                       event.stopPropagation()
-                      onDeleteCollections([data.id])
+                      void requestCollectionDelete([data.id])
                     }}
                     aria-label={`Delete ${data.name}`}
                   >
@@ -276,7 +291,10 @@ export function CollectionsView({
           ) : null,
       },
     ],
-    [onDeleteCollections, onOpenCollection, onToggleCollectionPin]
+    // requestCollectionDelete intentionally reads the latest collection set;
+    // the renderer is rebuilt whenever collections changes through its rows.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [collections, onOpenCollection, onToggleCollectionPin]
   )
 
   function updateCollectionSearch(value: string) {
@@ -296,9 +314,48 @@ export function CollectionsView({
     })
   }
 
-  function deleteCollections(ids: string[]) {
-    onDeleteCollections(ids)
-    setSelectedCollectionIds(new Set())
+  async function requestCollectionDelete(ids: string[]) {
+    const selected = collections.filter(
+      (collection) => ids.includes(collection.id) && !collection.virtual
+    )
+    if (selected.length === 0) return
+    setDeleteRequestIds(ids)
+    setDeletePreview(null)
+    setDeletePreviewLoading(true)
+    try {
+      const preview = await fetchJsonWithTimeout<CollectionDeletePreview>(
+        "/api/image-collections/delete-preview",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            collections: selected.map(collectionToStored),
+          }),
+          toastOnError: false,
+        }
+      )
+      setDeletePreview(preview)
+    } catch (error) {
+      setDeleteRequestIds([])
+      toast.error(getApiErrorMessage(error))
+    } finally {
+      setDeletePreviewLoading(false)
+    }
+  }
+
+  async function confirmCollectionDelete() {
+    if (deleteRequestIds.length === 0) return
+    setDeleteSubmitting(true)
+    try {
+      await onDeleteCollections(deleteRequestIds)
+      setSelectedCollectionIds(new Set())
+      setDeleteRequestIds([])
+      setDeletePreview(null)
+    } catch {
+      // The workspace restores the optimistic state and reports the API error.
+    } finally {
+      setDeleteSubmitting(false)
+    }
   }
 
   function selectTab(tab: CollectionTab) {
@@ -313,13 +370,22 @@ export function CollectionsView({
       <div className="mb-6 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-[24px] font-semibold tracking-normal">
           Collections
-          <span className="group relative grid size-6 place-items-center rounded-full border border-[#aeb5c0] text-[14px] font-semibold text-[#7b8492]">
+          <button
+            type="button"
+            aria-label="About collections"
+            aria-describedby="collections-help"
+            className="group relative grid size-6 place-items-center rounded-full border border-[#aeb5c0] text-[14px] font-semibold text-[#7b8492]"
+          >
             ?
-            <span className="pointer-events-none absolute top-7 left-1/2 z-20 hidden w-[280px] -translate-x-1/2 rounded-[8px] bg-[#2f2f2d] px-3 py-2 text-left text-[12px] leading-5 font-medium text-white shadow-lg group-hover:block">
+            <span
+              id="collections-help"
+              role="tooltip"
+              className="pointer-events-none absolute top-7 left-1/2 z-20 hidden w-[280px] -translate-x-1/2 rounded-[8px] bg-[#2f2f2d] px-3 py-2 text-left text-[12px] leading-5 font-medium text-white shadow-lg group-hover:block group-focus:block"
+            >
               Collections organize images, videos, and reusable variables for
               automations.
             </span>
-          </span>
+          </button>
         </h1>
         {activeTab !== "variables" && selectedIds.length > 0 ? (
           <div className="flex items-center gap-2">
@@ -333,7 +399,7 @@ export function CollectionsView({
             <Button
               variant="destructive"
               size="appDefault"
-              onClick={() => deleteCollections(selectedIds)}
+              onClick={() => void requestCollectionDelete(selectedIds)}
             >
               <IconTrash className="size-4" />
               Delete {selectedIds.length}{" "}
@@ -498,7 +564,7 @@ export function CollectionsView({
                                 variant="iconControl"
                                 size="icon-control-sm"
                                 className={cn(
-                                  "absolute top-2 left-2 z-10 opacity-0 shadow-sm group-hover:opacity-100",
+                                  "absolute top-2 left-2 z-10 opacity-100 shadow-sm md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100",
                                   selectedCollectionIds.has(collection.id) &&
                                     "opacity-100"
                                 )}
@@ -517,7 +583,7 @@ export function CollectionsView({
                                 variant="iconControl"
                                 size="icon-control-sm"
                                 className={cn(
-                                  "absolute top-2 right-2 z-10 opacity-0 shadow-sm group-hover:opacity-100",
+                                  "absolute top-2 right-2 z-10 opacity-100 shadow-sm md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100",
                                   collection.pinned &&
                                     "bg-app-accent hover:bg-app-accent text-white opacity-100"
                                 )}
@@ -538,10 +604,10 @@ export function CollectionsView({
                                 type="button"
                                 variant="iconControl"
                                 size="icon-control-sm"
-                                className="absolute top-11 right-2 z-10 text-app-danger opacity-0 shadow-sm group-hover:opacity-100"
+                                className="absolute top-11 right-2 z-10 text-app-danger opacity-100 shadow-sm md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
                                 onClick={(event) => {
                                   event.stopPropagation()
-                                  deleteCollections([collection.id])
+                                  void requestCollectionDelete([collection.id])
                                 }}
                                 aria-label={`Delete ${collection.title}`}
                               >
@@ -612,6 +678,99 @@ export function CollectionsView({
           </>
         )}
       </Tabs.Root>
+      {deleteRequestIds.length > 0 ? (
+        <AppModal
+          className="z-[80]"
+          onClose={() => {
+            if (!deleteSubmitting) {
+              setDeleteRequestIds([])
+              setDeletePreview(null)
+            }
+          }}
+        >
+          <AppModalPanel
+            className="max-w-[520px] overflow-hidden rounded-[10px]"
+            accessibleTitle="Delete collections"
+          >
+            <AppModalHeader
+              title={`Delete ${deleteRequestIds.length === 1 ? "collection" : `${deleteRequestIds.length} collections`}?`}
+              description="This is a recoverable soft deletion."
+              onClose={() => {
+                setDeleteRequestIds([])
+                setDeletePreview(null)
+              }}
+            />
+            <div className="space-y-4 p-5 text-sm">
+              {deletePreviewLoading || !deletePreview ? (
+                <SkeletonBlock className="h-28 w-full rounded-lg" />
+              ) : (
+                <>
+                  <div className="rounded-lg border border-app-panel-border bg-app-surface-subtle p-3">
+                    <div className="font-semibold text-app-text">
+                      {deletePreview.collections
+                        .map((item) => item.name)
+                        .join(", ")}
+                    </div>
+                    <div className="mt-1 text-app-muted-text">
+                      {deletePreview.itemCount} media item
+                      {deletePreview.itemCount === 1 ? "" : "s"} · recoverable
+                      for {deletePreview.recoveryDays} days
+                    </div>
+                  </div>
+                  {deletePreview.dependentAutomations.length > 0 ||
+                  deletePreview.dependentTemplates.length > 0 ? (
+                    <div className="rounded-lg border border-[#f0d3cc] bg-[#fff7f5] p-3 text-[#8f3d31]">
+                      <div className="font-semibold">Referenced by</div>
+                      <ul className="mt-2 list-disc space-y-1 pl-5">
+                        {deletePreview.dependentAutomations.map((item) => (
+                          <li key={`automation-${item.id}`}>
+                            Automation: {item.name}
+                          </li>
+                        ))}
+                        {deletePreview.dependentTemplates.map((item) => (
+                          <li key={`template-${item.id}`}>
+                            Template: {item.name}
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="mt-2 text-xs">
+                        Those workflows will need another collection unless you
+                        undo.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-app-muted-text">
+                      No automations or templates depend on these collections.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-app-panel-border px-5 py-4">
+              <Button
+                variant="softControl"
+                onClick={() => {
+                  setDeleteRequestIds([])
+                  setDeletePreview(null)
+                }}
+                disabled={deleteSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => void confirmCollectionDelete()}
+                disabled={
+                  deletePreviewLoading || !deletePreview || deleteSubmitting
+                }
+              >
+                <IconTrash className="size-4" />
+                {deleteSubmitting ? "Deleting…" : "Delete"}
+              </Button>
+            </div>
+          </AppModalPanel>
+        </AppModal>
+      ) : null}
       {searchOpen && activeTab === "images" && (
         <PinterestCollectionSearch
           onCancel={() => setSearchOpen(false)}
@@ -713,7 +872,9 @@ function CaptionProgressModal({
                   : "Generating captions"}
             </h2>
             <p className="mt-1 text-[13px] font-semibold text-app-muted-text">
-              {progress.completed} of {progress.total} captions generated
+              {complete || failed
+                ? `${progress.completed} of ${progress.total} captions generated`
+                : `Processing ${progress.total} image${progress.total === 1 ? "" : "s"}. This can take a few minutes.`}
             </p>
           </div>
           {(complete || failed) && (
@@ -737,15 +898,19 @@ function CaptionProgressModal({
                   ? "Complete"
                   : `Captioning ${progress.currentTitle}`}
             </span>
-            <span>{percent}%</span>
+            <span>{complete || failed ? `${percent}%` : "Working…"}</span>
           </div>
           <div className="h-3 overflow-hidden rounded-md bg-app-control-bg">
             <div
               className={cn(
                 "h-full rounded-md transition-all",
-                failed ? "bg-destructive" : "bg-app-action"
+                failed
+                  ? "bg-destructive"
+                  : complete
+                    ? "bg-app-action"
+                    : "w-1/3 animate-pulse bg-app-action"
               )}
-              style={{ width: `${percent}%` }}
+              style={complete || failed ? { width: `${percent}%` } : undefined}
             />
           </div>
         </div>
@@ -784,7 +949,9 @@ export function CollectionDetailView({
   collection: CreatedImageCollection
   readonly?: boolean
   onBack: () => void
-  onAddImages: (images: PinterestSearchResult[]) => void
+  onAddImages: (
+    images: PinterestSearchResult[]
+  ) => void | boolean | Promise<void | boolean>
   onRemoveImages: (keys: string[]) => void
   onUpdateCollection: (collection: CreatedImageCollection) => void
   onRename: (title: string) => void
@@ -797,14 +964,15 @@ export function CollectionDetailView({
   const [columns, setColumns] = useState(5)
   const [visibleRows, setVisibleRows] = useState(INITIAL_VISIBLE_ROWS)
   const [showDescriptions, setShowDescriptions] = useState(false)
-  const [noCollectionsOnly, setNoCollectionsOnly] = useState(false)
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const [captionEdits, setCaptionEdits] = useState<Record<string, string>>({})
   const [captioning, setCaptioning] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [captionProgress, setCaptionProgress] =
     useState<CaptionProgressState | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [selectedImageKeys, setSelectedImageKeys] = useState<string[]>([])
+  const [deleteImagesOpen, setDeleteImagesOpen] = useState(false)
   const visibleImageCount = visibleRows * columns
   const visibleImages = collection.images.slice(0, visibleImageCount)
   const visibleImageKeys = visibleImages.map(imageKey)
@@ -931,24 +1099,66 @@ export function CollectionDetailView({
     setSelectedImageKeys([])
   }
 
-  function importFiles(fileList: FileList | null) {
-    if (!fileList || readonly) {
+  async function importFiles(fileList: FileList | null) {
+    if (!fileList || readonly || uploading) {
       return
     }
 
-    const uploadedImages = Array.from(fileList)
-      .filter((file) => file.type.startsWith("image/"))
-      .map((file, index): PinterestSearchResult => ({
-        id: `upload-${Date.now()}-${index}`,
-        title: file.name.replace(/\.[^.]+$/, ""),
-        description: "",
-        imageUrl: URL.createObjectURL(file),
-        sourceUrl: "",
-        dominantColor: "#d9d8d0",
-      }))
+    const files = Array.from(fileList).filter((file) =>
+      file.type.startsWith("image/")
+    )
+    if (files.length === 0) {
+      toast.error("Choose at least one image file")
+      return
+    }
 
-    if (uploadedImages.length > 0) {
-      onAddImages(uploadedImages)
+    setUploading(true)
+    try {
+      const results = await Promise.allSettled(
+        files.map(async (file): Promise<PinterestSearchResult> => {
+          const formData = new FormData()
+          formData.set("file", file)
+          formData.set("scope", "global")
+          formData.set("category", "reference")
+          formData.set("name", file.name.replace(/\.[^.]+$/, ""))
+          const payload = await fetchJsonWithTimeout<{ asset: AssetRecord }>(
+            "/api/assets/upload",
+            { method: "POST", body: formData }
+          )
+          if (!payload.asset.fileUrl) {
+            throw new Error(`Upload did not return a URL for ${file.name}`)
+          }
+          return {
+            id: payload.asset.id,
+            title: payload.asset.name,
+            description: payload.asset.caption,
+            imageUrl: payload.asset.fileUrl,
+            sourceUrl: payload.asset.fileUrl,
+            dominantColor: "#d9d8d0",
+          }
+        })
+      )
+      const uploadedImages = results.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : []
+      )
+      const failed = results.length - uploadedImages.length
+      if (uploadedImages.length > 0) {
+        const saved = await onAddImages(uploadedImages)
+        if (saved !== false) {
+          toast.success(
+            `Uploaded ${uploadedImages.length} image${uploadedImages.length === 1 ? "" : "s"}`
+          )
+        }
+      }
+      if (failed > 0) {
+        toast.error(
+          `${failed} image${failed === 1 ? "" : "s"} could not be uploaded`
+        )
+      }
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Failed to upload images"))
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -1059,11 +1269,6 @@ export function CollectionDetailView({
                 </label>
                 <div className="mt-3 border-t border-app-panel-border pt-3">
                   <ToggleRow
-                    label="No collections only"
-                    enabled={noCollectionsOnly}
-                    onToggle={() => setNoCollectionsOnly((current) => !current)}
-                  />
-                  <ToggleRow
                     label="Show descriptions"
                     enabled={showDescriptions}
                     onToggle={() => setShowDescriptions((current) => !current)}
@@ -1090,13 +1295,16 @@ export function CollectionDetailView({
           inputRef={fileInputRef}
           accept="image/*"
           multiple
+          disabled={uploading}
           className="mb-6 min-h-[150px]"
-          onFiles={importFiles}
+          onFiles={(files) => void importFiles(files)}
         >
           <span>
             <IconUpload className="mx-auto mb-2 size-5 text-app-muted-text" />
             <span className="block text-[15px] font-semibold">
-              Drag and drop (or click to upload)
+              {uploading
+                ? "Uploading images…"
+                : "Drag and drop (or click to upload)"}
             </span>
             <span className="mt-2 block text-[12px] text-[#8b8a83]">
               Upload your images (PNG, JPEG up to 10MB each)
@@ -1155,7 +1363,7 @@ export function CollectionDetailView({
                   <Button
                     variant="destructive"
                     size="compact"
-                    onClick={deleteSelectedImages}
+                    onClick={() => setDeleteImagesOpen(true)}
                   >
                     <IconTrash className="size-4" />
                     Delete
@@ -1242,6 +1450,15 @@ export function CollectionDetailView({
           }}
         />
       )}
+      {deleteImagesOpen ? (
+        <ConfirmDialog
+          title={`Delete ${selectedImageKeys.length} selected image${selectedImageKeys.length === 1 ? "" : "s"}?`}
+          description="This permanently removes the selected images from this collection."
+          confirmLabel="Delete images"
+          onCancel={() => setDeleteImagesOpen(false)}
+          onConfirm={deleteSelectedImages}
+        />
+      ) : null}
       {captionProgress && (
         <CaptionProgressModal
           progress={captionProgress}

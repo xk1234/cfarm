@@ -8,13 +8,14 @@ import {
   IconStar,
   IconStarFilled,
 } from "@tabler/icons-react"
-import { Pause, Pencil } from "lucide-react"
+import { LuPause, LuPencil } from "react-icons/lu"
 
 import { Button } from "@/components/ui/button"
 import { CardGridSkeleton } from "@/components/ui/loading-skeleton"
 import { GeneratedSlideshowViewerModal } from "@/components/realfarm/automation-settings/generated-slideshow-viewer"
 import { GeneratedAutomationVideoViewer } from "@/components/realfarm/automation-settings/generated-video-viewer"
 import { GeneratedVideoThumbnail } from "@/components/realfarm/generated-video-thumbnail"
+import { GenerationFailurePlaceholder } from "@/components/realfarm/shared-media"
 import { XThreadsBrandIcon } from "@/components/realfarm/x-threads-brand-icon"
 import type { AutomationRunApiRecord } from "@/components/realfarm/automation-settings/types"
 import {
@@ -32,6 +33,7 @@ type AutomationRunPreview = {
   automationId: string
   createdAt: string
   status?: string
+  error?: string
   slideshowId?: string
   videoUrl?: string
   thumbnailUrl?: string
@@ -207,18 +209,18 @@ function XThreadsAutomationCard({
           onClick={() => onToggleStatus(automation)}
         >
           {live ? (
-            <Pause className="size-3.5" />
+            <LuPause className="size-3.5" />
           ) : (
             <IconPlayerPlay className="size-3.5" />
           )}
-          {live ? "Pause" : "Resume"}
+          {live ? "LuPause" : "Resume"}
         </Button>
         <Button
           variant="softControl"
           size="xs"
           onClick={() => onEdit(automation)}
         >
-          <Pencil className="size-3.5" />
+          <LuPencil className="size-3.5" />
           Edit
         </Button>
       </div>
@@ -263,7 +265,7 @@ function AutomationGridCard({
         onClick={() => onToggleStatus(automation)}
         aria-label={
           status === "live"
-            ? `Pause ${automation.name}`
+            ? `LuPause ${automation.name}`
             : `Resume ${automation.name}`
         }
       >
@@ -299,8 +301,10 @@ function AutomationGridCard({
         {[0, 1, 2].map((slot) => {
           const slotRun = previewRuns[slot]
           const imageUrl = slotRun ? firstRunPreviewImage(slotRun) : null
+          const failed = slotRun?.status === "failed"
           const openable = Boolean(
             slotRun &&
+            !failed &&
             (imageUrl ||
               (automation.automationKind === "video" && slotRun.videoUrl))
           )
@@ -313,7 +317,14 @@ function AutomationGridCard({
                 slot < 2 && "border-r border-white"
               )}
             >
-              {automation.automationKind === "video" && slotRun?.videoUrl ? (
+              {failed ? (
+                <GenerationFailurePlaceholder
+                  compact
+                  message={
+                    slotRun?.error || "This output could not be generated."
+                  }
+                />
+              ) : automation.automationKind === "video" && slotRun?.videoUrl ? (
                 <button
                   type="button"
                   className="block h-full w-full cursor-pointer transition hover:brightness-110 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-app-action"
@@ -431,18 +442,18 @@ function AutomationGridCard({
           onClick={() => onToggleStatus(automation)}
         >
           {status === "live" ? (
-            <Pause className="size-3.5" />
+            <LuPause className="size-3.5" />
           ) : (
             <IconPlayerPlay className="size-3.5" />
           )}
-          {status === "live" ? "Pause" : "Resume"}
+          {status === "live" ? "LuPause" : "Resume"}
         </Button>
         <Button
           variant="softControl"
           size="xs"
           onClick={() => onEdit(automation)}
         >
-          <Pencil className="size-3.5" />
+          <LuPencil className="size-3.5" />
           Edit
         </Button>
       </div>
@@ -565,7 +576,10 @@ export function automationRunPreviewRuns(
 ) {
   const runsWithImages = sortedRunsWithPreviewImage(runs)
     .filter(
-      (run) => firstRunPreviewImage(run) !== null || Boolean(run.videoUrl)
+      (run) =>
+        run.status === "failed" ||
+        firstRunPreviewImage(run) !== null ||
+        Boolean(run.videoUrl)
     )
     .slice(0, count)
 
@@ -684,7 +698,7 @@ function AutomationCardTitle({
         onClick={() => setEditing(true)}
         aria-label={`Edit ${automation.name} name`}
       >
-        <Pencil className="size-3.5" />
+        <LuPencil className="size-3.5" />
       </button>
     </div>
   )

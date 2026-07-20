@@ -267,7 +267,11 @@ describe("POST /api/automations/run", () => {
         slideshowId: payload.created[0].slideshowId,
       },
     })
-    const resultsRows = await readJsonArrayStore<Record<string, any>>({
+    const resultsRows = await readJsonArrayStore<
+      Record<string, unknown> & {
+        payload: { slides: Array<Record<string, unknown>> }
+      }
+    >({
       rootDir: path.join(tempRoot, "data", "results"),
       fileName: "results.json",
       key: "results",

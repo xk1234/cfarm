@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "ag-grid-community/styles/ag-grid.css";
@@ -276,7 +278,7 @@
   }
   body {
     @apply bg-background font-sans text-foreground;
-    background: var(--lc-cloud);
+    background: var(--background);
   }
   html {
     @apply font-sans;
@@ -407,6 +409,7 @@
     border: 1px solid var(--lc-line);
     border-radius: var(--app-radius-dialog);
     background: var(--lc-white);
+    color: var(--lc-ink);
     box-shadow: var(--app-shadow-dialog);
   }
 
@@ -555,4 +558,157 @@
   color: var(--app-muted-text);
   font-size: 0.875rem;
   font-weight: 600;
+}
+
+.cfarm-calendar {
+  --fc-border-color: #eceae3;
+  --fc-button-bg-color: #ffffff;
+  --fc-button-border-color: #d8d6cc;
+  --fc-button-text-color: var(--app-text-soft);
+  --fc-button-hover-bg-color: #f7f6f1;
+  --fc-button-hover-border-color: #bdbab0;
+  --fc-button-active-bg-color: #242421;
+  --fc-button-active-border-color: #242421;
+  --fc-today-bg-color: #fbfaf4;
+  --fc-neutral-bg-color: #f7f6f1;
+  --fc-page-bg-color: #ffffff;
+}
+
+.cfarm-calendar .fc {
+  color: var(--app-text);
+  font-family: var(--font-sans);
+}
+
+.cfarm-calendar .fc-toolbar {
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.cfarm-calendar .fc-toolbar-title {
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.cfarm-calendar .fc-button {
+  background: var(--app-control-bg);
+  border-color: var(--app-panel-border-strong);
+  border-radius: 7px;
+  box-shadow: none !important;
+  color: var(--app-text-soft);
+  font-size: 0.72rem;
+  font-weight: 650;
+  line-height: 1;
+  padding: 0.6rem 0.7rem;
+  text-transform: capitalize;
+}
+
+.cfarm-calendar .fc-button:hover:not(:disabled) {
+  background: var(--app-control-hover);
+  border-color: var(--app-panel-border-strong);
+  color: var(--app-text);
+}
+
+.cfarm-calendar .fc-button-primary:not(:disabled).fc-button-active,
+.cfarm-calendar .fc-button-primary:not(:disabled):active {
+  background: var(--app-strong);
+  border-color: var(--app-strong);
+  color: var(--app-on-strong);
+}
+
+.cfarm-calendar .fc-button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.cfarm-calendar .fc-button:disabled {
+  background: var(--app-surface-subtle);
+  border-color: var(--app-panel-border);
+  color: var(--app-muted-text);
+  opacity: 0.72;
+}
+
+.cfarm-calendar .fc-col-header-cell-cushion,
+.cfarm-calendar .fc-daygrid-day-number {
+  color: var(--app-muted-text);
+  font-size: 0.7rem;
+  font-weight: 650;
+  padding: 0.55rem;
+}
+
+.cfarm-calendar .fc-daygrid-day-frame {
+  min-height: 128px;
+}
+
+.cfarm-calendar .fc-event {
+  border-radius: 6px;
+  cursor: pointer;
+  margin: 1px 3px;
+  overflow: hidden;
+}
+
+.cfarm-calendar .fc-event-dragging {
+  box-shadow: 0 10px 28px rgb(55 51 39 / 20%);
+}
+
+.cfarm-calendar .cfarm-calendar-event--planned {
+  border-color: #aaa89d;
+  border-style: dashed;
+  background: rgb(247 246 241 / 70%);
+  color: #5f5e58;
+}
+
+.cfarm-calendar .cfarm-calendar-event--generating {
+  border-color: #b8aee3;
+  background: #f1edff;
+  color: #544c78;
+}
+
+.cfarm-calendar .cfarm-calendar-event--needs-action {
+  border-color: #e2b75e;
+  background: #fff2d8;
+  color: #785511;
+}
+
+.cfarm-calendar .cfarm-calendar-event--generation-failed,
+.cfarm-calendar .cfarm-calendar-event--failed {
+  border-color: #dd8a7f;
+  background: #fde9e5;
+  color: #8e342c;
+}
+
+.cfarm-calendar .cfarm-calendar-event--published {
+  border-color: #75aa87;
+  background: #dceee1;
+  color: #356746;
+}
+
+.cfarm-calendar .cfarm-calendar-event--scheduled {
+  border-color: #819acb;
+  background: #dde5f5;
+  color: #405a8f;
+}
+
+.cfarm-calendar .cfarm-calendar-event--draft {
+  border-color: #c9c7be;
+  background: #eeede8;
+  color: var(--app-text-soft);
+}
+
+.cfarm-calendar .cfarm-calendar-event--paused {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+
+@media (max-width: 640px) {
+  .cfarm-calendar .fc-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .cfarm-calendar .fc-toolbar-chunk {
+    display: flex;
+    justify-content: center;
+  }
 }

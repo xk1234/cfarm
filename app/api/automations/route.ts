@@ -5,6 +5,7 @@ import { withHandler } from "@/lib/api"
 import {
   automationRecordToSummary,
   createLocalAutomationRecord,
+  getAutomationRecord,
   listAutomationRecords,
   patchAutomationRecord,
   upsertAutomationRecords,
@@ -16,6 +17,8 @@ import type {
   AutomationStatus,
   RuntimeAutomationTemplate,
 } from "@/lib/realfarm-automation"
+import { automationHookItems } from "@/lib/realfarm-automation"
+import { usedHookIdsForAutomation } from "@/lib/hook-publications"
 
 export const dynamic = "force-dynamic"
 
@@ -84,6 +87,46 @@ export const PATCH = withHandler(async (request: Request) => {
     )
   }
 
+  if (isRecord(payload.schema)) {
+    const current = await getAutomationRecord(id)
+    if (!current) {
+      return NextResponse.json(
+        { error: "Automation not found" },
+        { status: 404 }
+      )
+    }
+    const currentItems = new Map(
+      automationHookItems(current.schema).map((item) => [item.id, item])
+    )
+    const nextItems = new Map(
+      automationHookItems(payload.schema as AutomationSchema).map((item) => [
+        item.id,
+        item,
+      ])
+    )
+    const catalogIds = new Set([...currentItems.keys(), ...nextItems.keys()])
+    const changedHookIds = [...catalogIds].filter((hookId) => {
+      const before = currentItems.get(hookId)
+      const after = nextItems.get(hookId)
+      return !before || !after || before.text !== after.text
+    })
+    const usedIds =
+      changedHookIds.length > 0
+        ? await usedHookIdsForAutomation(id)
+        : new Set<string>()
+    const changedUsedHook = changedHookIds.find((hookId) => usedIds.has(hookId))
+    if (changedUsedHook) {
+      return NextResponse.json(
+        {
+          error:
+            "Published hooks cannot be deleted or renamed. Disable the hook to prevent future use.",
+          hookId: changedUsedHook,
+        },
+        { status: 409 }
+      )
+    }
+  }
+
   const record = await patchAutomationRecord({
     id,
     name: typeof payload.name === "string" ? payload.name : undefined,
@@ -107,5 +150,3 @@ export const PATCH = withHandler(async (request: Request) => {
     automation: automationRecordToSummary(record),
   })
 })
-
-

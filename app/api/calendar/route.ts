@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server"
 
-import { automationSlotsInRange } from "@/lib/automation-slots"
+import {
+  automationSlotsInRange,
+  generationExpectedAt,
+  slideshowGenerationLeadMinutes,
+} from "@/lib/automation-slots"
 import {
   listAutomationRuns,
   type AutomationRunRecord,
@@ -28,6 +32,7 @@ import {
 } from "@/lib/postfast-posts"
 import { listJobs, type Job } from "@/lib/queue"
 import type { Automation } from "@/lib/realfarm-data"
+import { listResultRecords, type ResultRecord } from "@/lib/results"
 import {
   xAutomationToAutomation,
   type XAutomationRun,
@@ -44,6 +49,7 @@ type RunContext = {
   previewUrl?: string
   createdAt?: string
   updatedAt?: string
+  generatedAt?: string
 }
 
 export async function GET(request: Request) {
@@ -69,15 +75,23 @@ export async function GET(request: Request) {
     )
   }
 
-  const [automationRecords, xAutomations, runs, xRuns, localPosts, jobs] =
-    await Promise.all([
-      listAutomationRecords(),
-      listXAutomations(),
-      listAutomationRuns({ limit: 500 }),
-      listXAutomationRuns(),
-      listPostFastPostRecords(),
-      listJobs({ limit: 500 }).catch(() => []),
-    ])
+  const [
+    automationRecords,
+    xAutomations,
+    runs,
+    xRuns,
+    results,
+    localPosts,
+    jobs,
+  ] = await Promise.all([
+    listAutomationRecords(),
+    listXAutomations(),
+    listAutomationRuns({ limit: 500 }),
+    listXAutomationRuns(),
+    listResultRecords({ limit: 500 }),
+    listPostFastPostRecords(),
+    listJobs({ limit: 500 }).catch(() => []),
+  ])
   const automations = [
     ...automationRecords.map(automationRecordToSummary),
     ...xAutomations.map(xAutomationToAutomation),
@@ -85,7 +99,7 @@ export async function GET(request: Request) {
   const automationById = new Map(
     automations.map((automation) => [automation.id, automation])
   )
-  const runContexts = runContextMap(runs, xRuns)
+  const runContexts = runContextMap(runs, xRuns, results)
   const localByPostFastId = new Map(
     localPosts.flatMap((post) =>
       post.postfastPostId ? [[post.postfastPostId, post] as const] : []
@@ -155,7 +169,14 @@ function projectionItems(
             links: {
               automation: automationLink(slot.automationId),
             },
-            timestamps: { scheduledAt: slot.scheduledFor },
+            timestamps: {
+              scheduledAt: slot.scheduledFor,
+              expectedGenerationAt: expectedGenerationAt(
+                automation,
+                slot.scheduledFor
+              ),
+              expectedPublishedAt: slot.scheduledFor,
+            },
           },
         ]
       }
@@ -209,11 +230,21 @@ function jobCalendarItem(
         automation: automationId ? automationLink(automationId) : undefined,
         content:
           automationId && runId ? contentLink(automationId, runId) : undefined,
+        retry:
+          status === "generation_failed"
+            ? `/api/jobs/${encodeURIComponent(job.id)}/retry`
+            : undefined,
       },
       timestamps: {
         createdAt: job.createdAt || undefined,
         updatedAt: job.updatedAt || undefined,
         scheduledAt: slot || undefined,
+        expectedGenerationAt: expectedGenerationAt(
+          automation,
+          slot || datetime,
+          job.type === "run-x-automation"
+        ),
+        expectedPublishedAt: slot || undefined,
       },
     },
   ]
@@ -263,6 +294,18 @@ function localPostCalendarItem(
         createdAt: post.createdAt,
         updatedAt: post.updatedAt,
         scheduledAt: post.scheduledAt || context?.slot,
+        generatedAt: context?.generatedAt,
+        expectedGenerationAt: context?.generatedAt
+          ? undefined
+          : expectedGenerationAt(
+              automation,
+              context?.slot || post.scheduledAt || datetime,
+              post.sourceType === "x_automation"
+            ),
+        expectedPublishedAt: post.publishedAt
+          ? undefined
+          : post.scheduledAt || context?.slot,
+        publishedAt: post.publishedAt,
       },
     },
   ]
@@ -359,21 +402,44 @@ async function remoteCalendarItems(input: {
             status === "scheduled" && postId
               ? `/api/calendar/items/${encodeURIComponent(local?.id || `postfast:${postId}`)}`
               : undefined,
+          reschedule:
+            status === "scheduled" && postId && local?.id
+              ? `/api/calendar/items/${encodeURIComponent(local.id)}`
+              : undefined,
         },
         timestamps: {
           createdAt: clean(post.createdAt) || local?.createdAt,
           updatedAt: clean(post.updatedAt) || local?.updatedAt,
           scheduledAt: scheduledAt || undefined,
           publishedAt: publishedAt || undefined,
+          generatedAt: context?.generatedAt,
+          expectedGenerationAt: context?.generatedAt
+            ? undefined
+            : expectedGenerationAt(
+                targetAutomation,
+                context?.slot || scheduledAt || datetime,
+                local?.sourceType === "x_automation"
+              ),
+          expectedPublishedAt: publishedAt
+            ? undefined
+            : scheduledAt || context?.slot || undefined,
         },
       },
     ]
   })
 }
 
-function runContextMap(runs: AutomationRunRecord[], xRuns: XAutomationRun[]) {
+function runContextMap(
+  runs: AutomationRunRecord[],
+  xRuns: XAutomationRun[],
+  results: ResultRecord[]
+) {
   const contexts = new Map<string, RunContext>()
+  const resultByRunId = new Map(
+    results.map((result) => [result.runId, result] as const)
+  )
   for (const run of runs) {
+    const result = resultByRunId.get(run.id)
     const context = {
       automationId: run.automationId,
       slot: run.scheduledFor,
@@ -382,6 +448,7 @@ function runContextMap(runs: AutomationRunRecord[], xRuns: XAutomationRun[]) {
       previewUrl: run.thumbnailUrl,
       createdAt: run.createdAt,
       updatedAt: run.updatedAt,
+      generatedAt: result?.createdAt,
     }
     contexts.set(run.id, context)
     if (run.slideshowId) contexts.set(run.slideshowId, context)
@@ -394,6 +461,7 @@ function runContextMap(runs: AutomationRunRecord[], xRuns: XAutomationRun[]) {
       excerpt: run.posts[0]?.text || run.hook,
       createdAt: run.createdAt,
       updatedAt: run.updatedAt,
+      generatedAt: run.createdAt,
     })
   }
   return contexts
@@ -449,6 +517,21 @@ function automationForIntegration(
 
 function automationTimezone(automation: Automation | undefined) {
   return automation?.schedule?.timezone || automation?.timezone || "UTC"
+}
+
+function expectedGenerationAt(
+  automation: Automation | undefined,
+  publishedAt: string,
+  xThreads = false
+) {
+  const leadMinutes =
+    xThreads || automation?.automationKind === "x_threads"
+      ? 0
+      : slideshowGenerationLeadMinutes({
+          posting_mode: automation?.postingMode,
+          generation_lead_minutes: automation?.generationLeadMinutes,
+        })
+  return generationExpectedAt(publishedAt, leadMinutes)
 }
 
 function localPostTitle(status: PostFastPostRecord["status"]) {

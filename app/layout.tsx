@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
+import { RootProvider } from "fumadocs-ui/provider/next"
 import "react-loading-skeleton/dist/skeleton.css"
 
 import "./globals.css"
@@ -28,7 +29,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "LumenClip",
     description:
-      "Turn saved creative research into repeatable workflows, reusable assets, and approved content runs.",
+      "Turn reusable assets and templates into repeatable, approved content runs.",
     type: "website",
   },
   icons: {
@@ -53,9 +54,9 @@ export default function RootLayout({
         geistHeading.variable
       )}
     >
-      <body>
+      <body className="flex min-h-screen flex-col">
         <ThemeProvider defaultTheme="light" enableSystem={false}>
-          {children}
+          <RootProvider theme={{ enabled: false }}>{children}</RootProvider>
           <AppToaster />
         </ThemeProvider>
       </body>

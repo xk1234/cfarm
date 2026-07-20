@@ -21,6 +21,8 @@ export type SocialAccountStatusItem = {
   status: SocialAccountPublishStatus
   scheduledAt?: string
   publishedAt?: string
+  releaseUrl?: string
+  externalPostId?: string
   error?: string
 }
 

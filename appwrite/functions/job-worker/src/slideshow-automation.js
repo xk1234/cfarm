@@ -16,7 +16,13 @@ import {
 } from "./slideshow-renderer.js"
 import { expandAllHookCombinations } from "./hook-expansion.js"
 import { applyResolvedHookCase } from "./hook-casing.js"
+import {
+  llmSlopMatches,
+  llmSlopPromptLine,
+  llmSlopViolations,
+} from "./llm-slop.js"
 import { defaultPostFastProviderControls as providerControls } from "./postfast-provider-controls.js"
+import { openRouterModelForUseCase } from "./realfarm-generation-model-registry.js"
 
 const AUTOMATIONS = "automations"
 const RUNS = "automation_runs"
@@ -26,8 +32,7 @@ const PERMANENT_ASSETS = "permanent_assets"
 const USAGE = "usage_ledger"
 const JOBS = "jobs"
 const SLIDESHOW_BUCKET = "slideshows"
-const defaultTextModel = "anthropic/claude-sonnet-5"
-const benchmarkModel = "google/gemini-2.5-flash"
+const defaultTextModel = openRouterModelForUseCase("slideshowText")
 const PAGE = 100
 
 export function slideshowRunId(automationId, scheduledFor) {
@@ -139,7 +144,6 @@ export async function runSlideshowAutomation({
       updatedAt: new Date().toISOString(),
     }
     await upsertStoredRecord(tables, databaseId, RUNS, ownerId, run)
-
     const context = await loadGenerationContext({
       tables,
       databaseId,
@@ -168,23 +172,6 @@ export async function runSlideshowAutomation({
     })
     await upsertResultOutput(tables, databaseId, ownerId, result)
 
-    let benchmarkId
-    let benchmarkError
-    try {
-      const benchmark = await benchmarkSlideshow({
-        automation,
-        ownerId,
-        runId,
-        slideshow,
-        plan,
-      })
-      benchmarkId = benchmark.id
-      result.evaluation = benchmark
-      await upsertResultOutput(tables, databaseId, ownerId, result)
-    } catch (error) {
-      benchmarkError = errorMessage(error)
-    }
-
     run = {
       ...run,
       status: "generated",
@@ -195,11 +182,19 @@ export async function runSlideshowAutomation({
       videoUrl: slideshow.videoUrl,
       thumbnailUrl: slideshow.thumbnailUrl,
       renderedSlides: slideshow.renderedSlides,
-      benchmarkId,
-      benchmarkError,
       updatedAt: new Date().toISOString(),
     }
     await upsertStoredRecord(tables, databaseId, RUNS, ownerId, run)
+    await enqueueNotification({
+      tables,
+      databaseId,
+      ownerId,
+      event: "generated",
+      sourceType: "slideshow",
+      sourceId: slideshow.id,
+      runId,
+      text: `Slideshow generated\n${plan.title}\n${plan.hook}`,
+    })
 
     const activeIntegrations = (
       automation.schema.social_integrations || []
@@ -245,6 +240,19 @@ export async function runSlideshowAutomation({
           `PostFast scheduling failed for ${publishing.failed} integration(s)`
         )
       }
+      if (publishing.published > 0) {
+        await enqueueNotification({
+          tables,
+          databaseId,
+          ownerId,
+          event: "scheduled_to_post",
+          sourceType: "slideshow",
+          sourceId: slideshow.id,
+          runId,
+          scheduledFor,
+          text: `Slideshow scheduled to post\n${plan.title}\nScheduled for ${scheduledFor}`,
+        })
+      }
       run = {
         ...run,
         status: activeIntegrations.length ? "posted" : "generated",
@@ -274,8 +282,12 @@ export async function runSlideshowAutomation({
         tables,
         databaseId,
         ownerId,
-        runId,
+        event: "ready_to_post",
+        sourceType: "slideshow",
+        sourceId: slideshow.id,
         scheduledFor,
+        availableAt: scheduledFor,
+        requiresPostConfirmation: true,
         text:
           mode === "review"
             ? `Slideshow ready for review\n${content}\nSlideshow: ${slideshow.id}`
@@ -343,31 +355,23 @@ async function loadGenerationContext({
   ownerId,
   automation,
 }) {
-  const [rawCollections, wordCollections, usage, knowledgeBases] =
-    await Promise.all([
-      listStoredRecords(
-        tables,
-        databaseId,
-        PERMANENT_ASSETS,
-        ownerId,
-        "image_collection"
-      ),
-      listStoredRecords(
-        tables,
-        databaseId,
-        PERMANENT_ASSETS,
-        ownerId,
-        "word_collection"
-      ),
-      listStoredRecords(tables, databaseId, USAGE, ownerId),
-      listStoredRecords(
-        tables,
-        databaseId,
-        PERMANENT_ASSETS,
-        ownerId,
-        "knowledge_base"
-      ),
-    ])
+  const [rawCollections, wordCollections, usage] = await Promise.all([
+    listStoredRecords(
+      tables,
+      databaseId,
+      PERMANENT_ASSETS,
+      ownerId,
+      "image_collection"
+    ),
+    listStoredRecords(
+      tables,
+      databaseId,
+      PERMANENT_ASSETS,
+      ownerId,
+      "word_collection"
+    ),
+    listStoredRecords(tables, databaseId, USAGE, ownerId),
+  ])
   const collections = rawCollections.map(normalizeCollection)
   const requested = new Set(automationCollectionIds(automation.schema))
   const available = collections.some((collection) =>
@@ -376,7 +380,7 @@ async function loadGenerationContext({
   if (!available) {
     throw new Error("No images are available for the automation collections")
   }
-  return { collections, wordCollections, usage, knowledgeBases }
+  return { collections, wordCollections, usage }
 }
 
 async function createPlan({
@@ -386,7 +390,6 @@ async function createPlan({
   collections,
   wordCollections,
   usage,
-  knowledgeBases,
 }) {
   const schema = automation.schema
   const seed = seededBytes(`${runId}:${scheduledFor}`)
@@ -410,7 +413,6 @@ async function createPlan({
     automation,
     hook,
     placeholders,
-    knowledgeBases,
   })
   const selectedImages = await selectImages({
     schema,
@@ -436,6 +438,18 @@ async function createPlan({
       collections,
       `${hook} ${textItems.map((item) => item.text).join(" ")}`
     )
+    const iconLayout =
+      spec.imageGrid === "oval-icons"
+        ? createOvalIconLayout({
+            candidates: imagesForCollectionIds(collections, [
+              spec.collectionId,
+            ]),
+            focalKey: image.key,
+            random: seededRandom(
+              `${runId}:${scheduledFor}:${spec.id}:oval-icons`
+            ),
+          })
+        : undefined
     return {
       id: `slide-${index + 1}`,
       role: spec.section === "cta" ? "cta" : spec.section,
@@ -450,6 +464,7 @@ async function createPlan({
       displayText: spec.displayText,
       overlayImage,
       textItems,
+      iconLayout,
     }
   })
   await translatePlan(schema, slides)
@@ -462,6 +477,7 @@ async function createPlan({
       normalizeHashtags(generated.hashtags)
     ),
     hook,
+    hookId: hookSelection.hookId,
     hookTemplate: hookSelection.template,
     hookSubstitutions: hookSelection.substitutions,
     imageCollectionIds: automationCollectionIds(schema),
@@ -482,7 +498,7 @@ async function createPlan({
   }
 }
 
-function selectHook({
+export function selectHook({
   schema,
   wordCollections,
   usage,
@@ -490,12 +506,21 @@ function selectHook({
   scheduledFor,
   seed,
 }) {
-  const candidates = automationHooks(schema)
+  const candidates = automationHookItems(schema)
+  const cutoff =
+    Date.parse(scheduledFor) -
+    Math.max(0, Number(schema.reuse_policy?.hook_exclusion_days) || 45) *
+      24 *
+      60 *
+      60 *
+      1000
   const usedHooks = new Set(
     usage
       .filter(
         (record) =>
-          record.automation_id === automationId && record.kind === "hook"
+          record.automation_id === automationId &&
+          record.kind === "hook_published" &&
+          Date.parse(record.used_at) >= cutoff
       )
       .map((record) => normalizeSignature(record.key))
   )
@@ -504,17 +529,23 @@ function selectHook({
       .filter(
         (record) =>
           record.automation_id === automationId &&
-          record.kind === "hook_combination"
+          record.kind === "hook_combination_published" &&
+          Date.parse(record.used_at) >= cutoff
       )
       .map((record) => record.key)
   )
-  const expanded = candidates.flatMap((template) =>
-    expandAllHookCombinations(template, schema.hook_slots, wordCollections, {
-      noDuplicates: schema.hook_no_duplicate_slots,
-      caseMode: schema.prompt_formatting?.hook_case || "mixed",
-      now: new Date(scheduledFor),
-      timeZone: schema.schedule?.timezone,
-    })
+  const expanded = candidates.flatMap((hookItem) =>
+    expandAllHookCombinations(
+      hookItem.text,
+      schema.hook_slots,
+      wordCollections,
+      {
+        noDuplicates: schema.hook_no_duplicate_slots,
+        caseMode: schema.prompt_formatting?.hook_case || "mixed",
+        now: new Date(scheduledFor),
+        timeZone: schema.schedule?.timezone,
+      }
+    ).map((expansion) => ({ ...expansion, hookId: hookItem.id }))
   )
   const available = expanded.filter((item) => {
     const combinationKey = hookCombinationKey(item.template, item.substitutions)
@@ -531,11 +562,38 @@ function selectHook({
 }
 
 function automationHooks(schema) {
+  return automationHookItems(schema).map((item) => item.text)
+}
+
+export function automationHookItems(schema) {
+  const catalog = Array.isArray(schema.hooks)
+    ? schema.hooks
+        .map((item) => ({
+          id: clean(item?.id),
+          text: clean(item?.text),
+          enabled: item?.enabled !== false,
+        }))
+        .filter((item) => item.id && item.text && !isHookInstruction(item.text))
+    : []
+  if (
+    Array.isArray(schema.hooks) &&
+    (schema.hooks.length > 0 || !clean(schema.prompt_formatting?.narrative))
+  ) {
+    const enabled = catalog.filter((item) => item.enabled)
+    if (enabled.length) return enabled
+    throw new Error("The automation database record has no enabled hooks")
+  }
   const narrative = clean(schema.prompt_formatting?.narrative)
     .split(/\r?\n/)
     .map((line) => line.trim().replace(/^\d+[.)]\s*/, ""))
     .filter((line) => line && !isHookInstruction(line))
-  if (narrative.length) return narrative
+  if (narrative.length) {
+    return narrative.map((text) => ({
+      id: legacyHookId(text),
+      text,
+      enabled: true,
+    }))
+  }
   const stored = (formatSection(schema, "hook").textItems || [])
     .map((item) =>
       item.textMode === "static"
@@ -543,8 +601,24 @@ function automationHooks(schema) {
         : clean(item.contentDirection || item.text)
     )
     .filter((line) => line && !isHookInstruction(line))
-  if (stored.length) return stored
+  if (stored.length) {
+    return stored.map((text) => ({
+      id: legacyHookId(text),
+      text,
+      enabled: true,
+    }))
+  }
   throw new Error("The automation database record has no usable hooks")
+}
+
+function legacyHookId(text) {
+  const normalized = normalizeSignature(text)
+  let hash = 2166136261
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash ^= normalized.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `hook_${(hash >>> 0).toString(36).padStart(7, "0")}`
 }
 
 function isHookInstruction(value) {
@@ -643,35 +717,9 @@ function specForSection(schema, section, role, index, collectionOverride) {
   }
 }
 
-async function generateText({
-  schema,
-  automation,
-  hook,
-  placeholders,
-  knowledgeBases,
-}) {
+async function generateText({ schema, automation, hook, placeholders }) {
   const apiKey = clean(process.env.OPENROUTER_API_KEY)
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-  const knowledgeIds = new Set(schema.knowledge_base_ids || [])
-  const selectedKnowledgeBases = knowledgeBases.filter((base) =>
-    knowledgeIds.has(base.id)
-  )
-  const missingKnowledgeIds = [...knowledgeIds].filter(
-    (id) => !selectedKnowledgeBases.some((base) => base.id === id)
-  )
-  if (missingKnowledgeIds.length) {
-    throw new Error(
-      `Knowledge bases are missing from the database: ${missingKnowledgeIds.join(", ")}`
-    )
-  }
-  const knowledge = selectedKnowledgeBases
-    .map((base) => clean(base.compiledText))
-    .filter(Boolean)
-    .join("\n\n")
-    .slice(0, 60_000)
-  if (knowledgeIds.size && !knowledge) {
-    throw new Error("Configured knowledge bases contain no compiled text")
-  }
   const properties = Object.fromEntries(
     placeholders.map((placeholder) => [
       placeholder.id,
@@ -710,15 +758,16 @@ async function generateText({
       },
     },
   }
-  const system =
-    "You fill metadata and text placeholders for TikTok slideshow posts. The selected hook is the source of truth. Every body slide must directly develop that exact hook. Return only JSON matching the schema. Never invent studies, statistics, personal experience, results, testimonials, or sources."
+  const system = [
+    "You fill metadata and text placeholders for TikTok slideshow posts. The selected hook is the source of truth. Every body slide must directly develop that exact hook. Return only JSON matching the schema. Never invent studies, statistics, personal experience, results, testimonials, or sources.",
+    llmSlopPromptLine(),
+  ].join("\n")
   const user = [
     `Automation: ${automation.name}`,
     `Hook: ${hook}`,
     `Tone: ${schema.tone?.value || "Conversational & Relatable"}`,
     `Style: ${schema.prompt_formatting?.style || "native social slideshow"}`,
     `Narrative direction: ${schema.prompt_formatting?.narrative || ""}`,
-    knowledge ? `Approved knowledge context:\n${knowledge}` : "",
     "Fill every placeholder. Follow its direction and word range. Use 3-5 broad niche hashtags.",
     ...placeholders.map(
       (item) =>
@@ -762,19 +811,37 @@ async function generateText({
         },
       })
       const parsed = parseJsonContent(payload.choices?.[0]?.message?.content)
+      const validationErrors = []
       if (!clean(parsed?.title) || !clean(parsed?.caption)) {
-        throw new Error("OpenRouter returned empty slideshow metadata")
+        validationErrors.push("OpenRouter returned empty slideshow metadata")
       }
       const hashtags = Array.isArray(parsed?.hashtags)
         ? parsed.hashtags.map(clean).filter(Boolean)
         : []
       if (hashtags.length < 3 || hashtags.length > 5) {
-        throw new Error("OpenRouter must return 3-5 slideshow hashtags")
+        validationErrors.push("OpenRouter must return 3-5 slideshow hashtags")
       }
       for (const placeholder of placeholders) {
         if (!clean(parsed?.text?.[placeholder.id])) {
-          throw new Error(`OpenRouter omitted ${placeholder.id}`)
+          validationErrors.push(`OpenRouter omitted ${placeholder.id}`)
         }
+      }
+      const generatedText = [
+        clean(parsed?.title),
+        clean(parsed?.caption),
+        ...placeholders.map((placeholder) =>
+          clean(parsed?.text?.[placeholder.id])
+        ),
+      ].join("\n")
+      const hookLower = hook.toLowerCase()
+      const slopMatches = llmSlopMatches(generatedText)
+      const slopViolations = llmSlopViolations(generatedText)
+      for (const [index, match] of slopMatches.entries()) {
+        if (hookLower && hookLower.includes(match.toLowerCase())) continue
+        validationErrors.push(slopViolations[index])
+      }
+      if (validationErrors.length) {
+        throw new Error(validationErrors.join("; "))
       }
       const lowercase = /all\s+lowercase/i.test(
         schema.prompt_formatting?.style || ""
@@ -806,7 +873,6 @@ async function generateText({
 }
 
 async function selectImages({
-  schema,
   automation,
   hook,
   specs,
@@ -815,8 +881,9 @@ async function selectImages({
   usage,
   seed,
 }) {
+  const publishedUsage = usageForPublishedRuns(usage, automation.id)
   const recent = new Map(
-    usage
+    publishedUsage
       .filter(
         (record) =>
           record.automation_id === automation.id && record.kind === "image"
@@ -859,6 +926,24 @@ async function selectImages({
     selected.push(image)
   }
   return selected
+}
+
+export function usageForPublishedRuns(usage, automationId) {
+  const publishedRunIds = new Set(
+    usage
+      .filter(
+        (record) =>
+          record.automation_id === automationId &&
+          (record.kind === "hook_published" ||
+            record.kind === "hook_combination_published")
+      )
+      .map((record) => record.run_id)
+  )
+  return usage.filter(
+    (record) =>
+      record.automation_id === automationId &&
+      publishedRunIds.has(record.run_id)
+  )
 }
 
 async function aiSelectImage({ candidates, text }) {
@@ -1044,16 +1129,22 @@ async function renderAndStoreSlideshow({
   const storedSlides = []
 
   for (const [index, planSlide] of plan.slides.entries()) {
-    const [sourceBytes, overlayBytes] = await Promise.all([
+    const [sourceBytes, overlayBytes, iconBytes] = await Promise.all([
       loadAssetBytes(storage, planSlide.imageUrl),
       planSlide.overlayImage?.imageUrl
         ? loadAssetBytes(storage, planSlide.overlayImage.imageUrl)
         : Promise.resolve(null),
+      Promise.all(
+        (planSlide.iconLayout?.surrounding || []).map((icon) =>
+          loadAssetBytes(storage, icon.imageUrl)
+        )
+      ),
     ])
     const sourceUrl = await imageDataUrl(sourceBytes)
     const overlayUrl = overlayBytes
       ? await imageDataUrl(overlayBytes)
       : undefined
+    const iconUrls = await Promise.all(iconBytes.map(imageDataUrl))
     const storedSlide = {
       id: planSlide.id,
       image_url: planSlide.imageUrl,
@@ -1067,11 +1158,27 @@ async function renderAndStoreSlideshow({
         : undefined,
       overlay: planSlide.overlay,
       imageFit: automation.schema.image_fit,
+      iconLayout: planSlide.iconLayout
+        ? {
+            kind: "oval-icons",
+            surrounding: planSlide.iconLayout.surrounding.map((icon) => ({
+              image_url: icon.imageUrl,
+              source_image_url: icon.imageUrl,
+              image_caption: icon.imageCaption,
+              key: icon.key,
+              x: icon.x,
+              y: icon.y,
+              scale: icon.scale,
+              rotation: icon.rotation,
+            })),
+          }
+        : undefined,
       textItems: planSlide.textItems,
     }
     const svg = renderedSlideSvg(storedSlide, sourceUrl, overlayUrl, {
       aspectRatio: settings.aspect_ratio,
       font: settings.font,
+      iconUrls,
     })
     const png = await sharp(Buffer.from(svg)).png().toBuffer()
     const fileName = `slide-${String(index + 1).padStart(3, "0")}.png`
@@ -1351,125 +1458,6 @@ function resultRecord({ automation, ownerId, runId, plan, slideshow }) {
   }
 }
 
-async function benchmarkSlideshow({
-  automation,
-  ownerId,
-  runId,
-  slideshow,
-  plan,
-}) {
-  const apiKey = clean(process.env.OPENROUTER_API_KEY)
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-  const content = [
-    {
-      type: "text",
-      text: `Grade this ${slideshow.renderedBuffers.length}-slide social carousel from 0-10 on hookVirality, pictureTextFit, usefulnessToIcp, and conversationPotential. Title: ${plan.title}. Return strict JSON.`,
-    },
-  ]
-  for (const [index, bytes] of slideshow.renderedBuffers.entries()) {
-    const compact = await sharp(bytes)
-      .resize({ width: 640, height: 960, fit: "inside" })
-      .jpeg({ quality: 68 })
-      .toBuffer()
-    content.push({
-      type: "text",
-      text: `Slide ${index + 1}: ${plan.slides[index]?.text || ""}`,
-    })
-    content.push({
-      type: "image_url",
-      image_url: {
-        url: `data:image/jpeg;base64,${compact.toString("base64")}`,
-      },
-    })
-  }
-  const keys = [
-    "hookVirality",
-    "pictureTextFit",
-    "usefulnessToIcp",
-    "conversationPotential",
-  ]
-  const scoreProperties = Object.fromEntries(
-    keys.map((key) => [key, { type: "integer", minimum: 0, maximum: 10 }])
-  )
-  const rationaleProperties = Object.fromEntries(
-    keys.map((key) => [key, { type: "string" }])
-  )
-  const response = await openRouterRequest({
-    apiKey,
-    timeoutMs: 90_000,
-    body: {
-      model: benchmarkModel,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a strict short-form slideshow benchmarker. Judge rendered pixels, text legibility, image relevance, specificity, narrative progression, and the close. A 5 is average; 8+ requires unusually strong evidence.",
-        },
-        { role: "user", content },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "slideshow_benchmark",
-          strict: true,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              scores: {
-                type: "object",
-                additionalProperties: false,
-                properties: scoreProperties,
-                required: keys,
-              },
-              rationales: {
-                type: "object",
-                additionalProperties: false,
-                properties: rationaleProperties,
-                required: keys,
-              },
-            },
-            required: ["scores", "rationales"],
-          },
-        },
-      },
-    },
-  })
-  const grade = parseJsonContent(response.choices?.[0]?.message?.content)
-  const scores = Object.fromEntries(
-    keys.map((key) => [
-      key,
-      Math.max(0, Math.min(10, Math.round(Number(grade?.scores?.[key]) || 0))),
-    ])
-  )
-  scores.overall =
-    Math.round(
-      (keys.reduce((sum, key) => sum + scores[key], 0) / keys.length) * 10
-    ) / 10
-  return {
-    id: `benchmark-${runId}`,
-    slideshowId: slideshow.id,
-    runId,
-    automationId: automation.id,
-    title: plan.title,
-    icp: [plan.title, ...plan.slides.map((slide) => slide.text)].join(" · "),
-    slides: slideshow.renderedSlides.map((slide) => ({
-      id: slide.id,
-      imageUrl: slide.imageUrl,
-      originalImageUrl: slide.sourceImageUrl,
-      text: slide.text,
-      role: slide.role,
-    })),
-    scores,
-    rationales: Object.fromEntries(
-      keys.map((key) => [key, clean(grade?.rationales?.[key])])
-    ),
-    model: benchmarkModel,
-    createdAt: new Date().toISOString(),
-    ownerId,
-  }
-}
-
 async function uploadPostFastMedia(sources) {
   if (!sources.length) {
     throw new Error("PostFast upload requires generated media")
@@ -1650,22 +1638,43 @@ async function enqueueNotification({
   tables,
   databaseId,
   ownerId,
-  runId,
+  event,
+  sourceType,
+  sourceId,
   scheduledFor,
+  availableAt,
+  requiresPostConfirmation,
   text,
 }) {
+  const settings = await reminderSettings(tables, databaseId, ownerId)
+  if (!settings || settings.events?.[event] !== true) return
   const now = new Date().toISOString()
-  const dedupe = `manual-post:${runId}:${scheduledFor}`
+  const dedupe = [
+    "reminder",
+    event,
+    sourceType,
+    sourceId,
+    event === "ready_to_post" ? scheduledFor : "",
+  ]
+    .filter(Boolean)
+    .join(":")
   const id = jobId(`${ownerId}:${dedupe}`)
   try {
     await tables.createRow(databaseId, JOBS, id, {
       type: "send-notification",
       status: "queued",
-      payload: JSON.stringify({ text }),
+      payload: JSON.stringify({
+        event,
+        sourceType,
+        sourceId,
+        scheduledFor,
+        requiresPostConfirmation: requiresPostConfirmation === true,
+        text,
+      }),
       priority: 0,
       attempts: 0,
       max_attempts: 5,
-      available_at: Date.parse(scheduledFor) > Date.now() ? scheduledFor : now,
+      available_at: Date.parse(availableAt) > Date.now() ? availableAt : now,
       dedupe_key: dedupe,
       created_at: now,
       updated_at: now,
@@ -1674,6 +1683,16 @@ async function enqueueNotification({
   } catch (error) {
     if (error?.code !== 409) throw error
   }
+}
+
+async function reminderSettings(tables, databaseId, ownerId) {
+  const response = await tables.listRows(databaseId, PERMANENT_ASSETS, [
+    Query.equal("owner_id", [ownerId]),
+    Query.equal("source_key", ["reminder_settings"]),
+    Query.limit(1),
+  ])
+  const value = safeJson(response.rows[0]?.data)
+  return value?.channel === "telegram" ? value : null
 }
 
 async function recordUsage({
@@ -1686,15 +1705,6 @@ async function recordUsage({
   usedAt,
 }) {
   const records = []
-  if (!isHookInstruction(plan.hook)) {
-    records.push({ kind: "hook", key: normalizeSignature(plan.hook) })
-  }
-  if (plan.hookTemplate && Object.keys(plan.hookSubstitutions || {}).length) {
-    records.push({
-      kind: "hook_combination",
-      key: hookCombinationKey(plan.hookTemplate, plan.hookSubstitutions),
-    })
-  }
   for (const slide of plan.slides) {
     records.push({ kind: "image", key: slide.imageKey || slide.imageUrl })
   }
@@ -1978,7 +1988,7 @@ async function upsertResultOutput(tables, databaseId, ownerId, record) {
     primary_post_id: publicationSummary(publications).postId,
     primary_release_url: publicationSummary(publications).releaseUrl,
     publications: JSON.stringify(publications),
-    evaluation: JSON.stringify(record.evaluation || null),
+    evaluation: "null",
     error: clean(record.error).slice(0, 100000) || null,
     created_raw: clean(record.createdAt).slice(0, 64) || null,
     updated_at: clean(record.updatedAt || record.createdAt) || null,
@@ -2379,8 +2389,6 @@ function bucketForPath(path) {
     ugc_avatar_videos: "ugc_videos",
     backgrounds: "backgrounds",
     assets: "assets",
-    "knowledge-base-files": "knowledge_base_files",
-    benchmarks: "benchmark_images",
     "product-collections": "product_images",
   }
   return buckets[top] || "misc"
@@ -2424,6 +2432,121 @@ function normalizeSignature(value) {
 
 function seededBytes(value) {
   return crypto.createHash("sha256").update(value).digest()
+}
+
+function seededRandom(value) {
+  let counter = 0
+  return () => {
+    const bytes = crypto
+      .createHash("sha256")
+      .update(`${value}:${counter++}`)
+      .digest()
+    return bytes.readUInt32BE(0) / 4294967296
+  }
+}
+
+function createOvalIconLayout({ candidates, focalKey, random }) {
+  const available = shuffled(
+    candidates.filter((candidate) => candidate.key !== focalKey),
+    random
+  )
+  const targetCount = Math.min(available.length, 4 + Math.floor(random() * 5))
+  const surrounding = []
+  const sectorSize = (Math.PI * 2) / Math.max(1, targetCount)
+  const phase =
+    -Math.PI / 2 + sectorSize * 0.5 + (random() - 0.5) * sectorSize * 0.2
+  for (const [index, candidate] of available.slice(0, targetCount).entries()) {
+    const placement = placeOvalIcon({
+      candidate,
+      existing: surrounding,
+      baseAngle: phase + index * sectorSize,
+      sectorSize,
+      random,
+    })
+    if (placement) surrounding.push(placement)
+  }
+  if (surrounding.length < Math.min(4, available.length)) {
+    throw new Error(
+      "Oval icons layout needs at least four non-overlapping surrounding icons"
+    )
+  }
+  return { kind: "oval-icons", surrounding }
+}
+
+function placeOvalIcon({ candidate, existing, baseAngle, sectorSize, random }) {
+  const width = 1080
+  const height = 1920
+  const oval = {
+    cx: width * 0.5,
+    cy: height * 0.5,
+    rx: width * 0.372,
+    ry: height * 0.318,
+  }
+  const baseSize = 146
+  for (let attempt = 0; attempt < 400; attempt += 1) {
+    const angle = baseAngle + (random() - 0.5) * sectorSize * 0.2
+    const scale = 0.7 + random() * 0.6
+    const radius = (baseSize * scale) / 2
+    const cosine = Math.cos(angle)
+    const sine = Math.sin(angle)
+    const normalLength = Math.hypot(cosine / oval.rx, sine / oval.ry)
+    const normalX = cosine / oval.rx / normalLength
+    const normalY = sine / oval.ry / normalLength
+    const boundaryX = oval.cx + oval.rx * cosine
+    const boundaryY = oval.cy + oval.ry * sine
+    const frameMargin = 24
+    const minX = frameMargin + radius
+    const maxX = width - frameMargin - radius
+    const minY = frameMargin + radius
+    const maxY = height - frameMargin - radius
+    const horizontal =
+      Math.abs(normalX) < 1e-6
+        ? Number.POSITIVE_INFINITY
+        : ((normalX > 0 ? maxX : minX) - boundaryX) / normalX
+    const vertical =
+      Math.abs(normalY) < 1e-6
+        ? Number.POSITIVE_INFINITY
+        : ((normalY > 0 ? maxY : minY) - boundaryY) / normalY
+    const maximumClearance = Math.min(horizontal, vertical) - 2
+    const minimumClearance = 4
+    if (maximumClearance <= minimumClearance) continue
+    const clearance =
+      minimumClearance + random() * (maximumClearance - minimumClearance)
+    const x = boundaryX + normalX * clearance
+    const y = boundaryY + normalY * clearance
+    if (
+      x - radius < frameMargin ||
+      x + radius > width - frameMargin ||
+      y - radius < frameMargin ||
+      y + radius > height - frameMargin
+    ) {
+      continue
+    }
+    const overlaps = existing.some((placed) => {
+      const placedX = (placed.x / 100) * width
+      const placedY = (placed.y / 100) * height
+      const minimum = radius + (baseSize * placed.scale) / 2 + 30
+      return (x - placedX) ** 2 + (y - placedY) ** 2 < minimum ** 2
+    })
+    if (overlaps) continue
+    return {
+      ...candidate,
+      x: (x / width) * 100,
+      y: (y / height) * 100,
+      scale,
+      rotation: -90 + random() * 180,
+    }
+  }
+  return null
+}
+
+function shuffled(items, random) {
+  const result = [...items]
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1))
+    ;[result[index], result[swapIndex]] = [result[swapIndex], result[index]]
+  }
+  return result
 }
 
 function slugify(value) {

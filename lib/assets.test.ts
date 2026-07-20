@@ -34,8 +34,16 @@ afterAll(clearAssets)
 describe("asset records", () => {
   it("exports canonical asset option lists and parsers", () => {
     expect(assetKinds).toEqual(["image", "video", "audio", "text"])
-    expect(assetScopes).toEqual(["ugc_avatar", "ugc_ad", "ugc_demo", "greenscreen", "global"])
-    expect(assetCategories).toEqual(["outfit", "accessory", "background", "product", "reference", "sound", "other"])
+    expect(assetScopes).toEqual(["ugc_ad", "ugc_demo", "greenscreen", "global"])
+    expect(assetCategories).toEqual([
+      "outfit",
+      "accessory",
+      "background",
+      "product",
+      "reference",
+      "sound",
+      "other",
+    ])
     expect(parseAssetKind(" video ")).toBe("video")
     expect(parseAssetScope("ugc_demo")).toBe("ugc_demo")
     expect(parseAssetCategory("sound")).toBe("sound")
@@ -50,7 +58,7 @@ describe("asset records", () => {
       fileName: "Product Shot.PNG",
       mimeType: "image/png",
       bytes: Buffer.from("image-bytes"),
-      scope: "ugc_avatar",
+      scope: "ugc_ad",
       category: "product",
       name: "Product Shot",
     })
@@ -59,7 +67,7 @@ describe("asset records", () => {
       kind: "image",
       source: "upload",
       status: "ready",
-      scope: "ugc_avatar",
+      scope: "ugc_ad",
       category: "product",
       name: "Product Shot",
       caption: "Uploaded image asset: Product Shot.",
@@ -67,7 +75,11 @@ describe("asset records", () => {
     })
     expect(asset.fileUrl).toMatch(/^\/api\/local-assets\/assets\/files\//)
 
-    const listed = await listAssetRecords({ rootDir, scope: "ugc_avatar", category: "product" })
+    const listed = await listAssetRecords({
+      rootDir,
+      scope: "ugc_ad",
+      category: "product",
+    })
     expect(listed).toHaveLength(1)
     expect(listed[0].id).toBe(asset.id)
   })
@@ -90,15 +102,19 @@ describe("asset records", () => {
       mimeType: "video/mp4",
     })
     expect(asset.fileUrl).toMatch(/^\/api\/local-assets\/assets\/demos\//)
-    expect(await listAssetRecords({ rootDir, scope: "ugc_demo", kind: "video" })).toHaveLength(1)
-    expect(await listAssetRecords({ rootDir, scope: "ugc_ad", kind: "video" })).toHaveLength(0)
+    expect(
+      await listAssetRecords({ rootDir, scope: "ugc_demo", kind: "video" })
+    ).toHaveLength(1)
+    expect(
+      await listAssetRecords({ rootDir, scope: "ugc_ad", kind: "video" })
+    ).toHaveLength(0)
   })
 
   it("creates a generated placeholder asset with prompt and model metadata", async () => {
     const asset = await createGeneratedAssetRecord({
       rootDir,
       kind: "image",
-      scope: "ugc_avatar",
+      scope: "ugc_ad",
       category: "background",
       name: "Studio background",
       prompt: "warm studio wall",
@@ -109,7 +125,7 @@ describe("asset records", () => {
       kind: "image",
       source: "ai_generated",
       status: "ready",
-      scope: "ugc_avatar",
+      scope: "ugc_ad",
       category: "background",
       name: "Studio background",
       prompt: "warm studio wall",
@@ -119,7 +135,7 @@ describe("asset records", () => {
     })
     expect(asset.fileName).toMatch(/\.svg$/)
 
-    const listed = await listAssetRecords({ rootDir, scope: "ugc_avatar" })
+    const listed = await listAssetRecords({ rootDir, scope: "ugc_ad" })
     expect(listed.map((item) => item.id)).toEqual([asset.id])
   })
 
@@ -134,12 +150,13 @@ describe("asset records", () => {
           kind: "image",
           source: "upload",
           status: "ready",
-          scope: "ugc_avatar",
+          scope: "ugc_ad",
           category: "background",
           name: "Background",
           caption: "A background.",
           fileUrl: "/api/local-assets/backgrounds/reddit-travel/background.jpg",
-          thumbnailUrl: "/api/local-assets/backgrounds/reddit-travel/background.jpg",
+          thumbnailUrl:
+            "/api/local-assets/backgrounds/reddit-travel/background.jpg",
           createdAt: "2026-07-03T00:00:00.000Z",
           updatedAt: "2026-07-03T00:00:00.000Z",
           metadata: {
@@ -155,8 +172,10 @@ describe("asset records", () => {
     const [asset] = await listAssetRecords({ rootDir })
 
     expect(asset.metadata).toEqual({
-      originalImageUrl: "/api/local-assets/backgrounds/reddit-travel/background.jpg",
-      sourceImageUrl: "/api/local-assets/backgrounds/reddit-travel/background.jpg",
+      originalImageUrl:
+        "/api/local-assets/backgrounds/reddit-travel/background.jpg",
+      sourceImageUrl:
+        "/api/local-assets/backgrounds/reddit-travel/background.jpg",
     })
   })
 })

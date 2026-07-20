@@ -45,26 +45,36 @@ export function EmailVerificationCard() {
 
   async function resend() {
     setPending(true)
-    const response = await fetch("/api/auth/verification/resend", {
-      method: "POST",
-    })
-    const payload = (await response.json().catch(() => null)) as {
-      error?: string
-      alreadyVerified?: boolean
-    } | null
-    if (payload?.alreadyVerified) {
-      setState("verified")
-      setMessage("Your email is already verified.")
-    } else if (response.ok) {
-      setState("waiting")
-      setMessage(
-        "A new verification email is on its way. Check your inbox and spam folder."
-      )
-    } else {
+    try {
+      const response = await fetch("/api/auth/verification/resend", {
+        method: "POST",
+      })
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string
+        alreadyVerified?: boolean
+      } | null
+      if (payload?.alreadyVerified) {
+        setState("verified")
+        setMessage("Your email is already verified.")
+      } else if (response.ok) {
+        setState("waiting")
+        setMessage(
+          "A new verification email is on its way. Check your inbox and spam folder."
+        )
+      } else {
+        setState("error")
+        setMessage(payload?.error || "We couldn't resend the email.")
+      }
+    } catch (resendError) {
       setState("error")
-      setMessage(payload?.error || "We couldn't resend the email.")
+      setMessage(
+        resendError instanceof Error
+          ? resendError.message
+          : "We couldn't resend the email."
+      )
+    } finally {
+      setPending(false)
     }
-    setPending(false)
   }
 
   return (

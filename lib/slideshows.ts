@@ -40,12 +40,14 @@ import {
   defaultSlideshowFont,
   renderedSlideSvg,
   type SlideshowOverlayImage,
+  type SlideshowOvalIconLayout,
   type SlideshowSlide,
   type SlideshowTextItem,
 } from "@/lib/slideshow-renderer"
 import { fetchWithTimeout } from "@/lib/http"
 export type {
   SlideshowOverlayImage,
+  SlideshowOvalIconLayout,
   SlideshowSlide,
   SlideshowTextItem,
 } from "@/lib/slideshow-renderer"
@@ -72,6 +74,7 @@ export type SlideshowSettings = {
 export type SlideshowDraft = {
   ownerId?: string
   id: string
+  runId?: string
   automationId?: string
   title: string
   caption: string
@@ -113,6 +116,7 @@ export type CreateSlideshowInput = {
   images?: Partial<SlideshowSlide>[]
   video_url?: string
   thumbnail_url?: string
+  createdAt?: string
 }
 
 type RawSlideshowRecord = Omit<Partial<SlideshowRecord>, "images"> & {
@@ -127,22 +131,25 @@ export async function listSlideshowRecords(
     resultRootDir?: string
     limit?: number
     id?: string
+    ids?: string[]
   } = {}
 ) {
+  if (input.id) {
+    const result = await resultRecordForSlideshow(input, input.id)
+    const slideshow = result ? resultRecordToSlideshowRecord(result) : null
+    return slideshow ? [slideshow] : []
+  }
+  const ids = [...new Set((input.ids ?? []).map(clean))].filter(Boolean)
+  if (input.ids && ids.length === 0) return []
   const resultRecords = await listResultRecords({
     rootDir: resultRootDirFor(input),
-    limit: Number.MAX_SAFE_INTEGER,
+    slideshowIds: ids.length ? ids : undefined,
+    limit: Math.max(1, input.limit ?? (ids.length || 100)),
   })
   const resultSlideshows = resultRecords
     .map(resultRecordToSlideshowRecord)
     .filter((record): record is SlideshowRecord => Boolean(record))
-  const filtered = resultSlideshows.filter((record) => {
-    if (input.id && record.id !== input.id) {
-      return false
-    }
-    return true
-  })
-  return filtered.slice(0, Math.max(1, input.limit ?? 100))
+  return resultSlideshows.slice(0, Math.max(1, input.limit ?? 100))
 }
 
 export async function createSlideshowRecord(input: CreateSlideshowInput) {
@@ -151,7 +158,7 @@ export async function createSlideshowRecord(input: CreateSlideshowInput) {
 }
 
 export async function createSlideshowResultRecord(input: CreateSlideshowInput) {
-  const now = new Date().toISOString()
+  const now = normalizeDate(input.createdAt, new Date().toISOString())
   const id = `slideshow-${randomUUID()}`
   const record = normalizeSlideshowRecord({
     id,
@@ -208,14 +215,7 @@ export async function removeSlideshowSlide(input: {
   slideIndex: number
 }) {
   const slideIndex = Math.floor(input.slideIndex)
-  const resultRecords = await listResultRecords({
-    rootDir: resultRootDirFor(input),
-    limit: Number.MAX_SAFE_INTEGER,
-  })
-  const result = resultRecords.find(
-    (record) =>
-      record.artifacts.slideshowId === input.id || record.id === input.id
-  )
+  const result = await resultRecordForSlideshow(input, input.id)
   if (!result || result.payload?.type !== "slideshow") {
     return null
   }
@@ -254,14 +254,7 @@ export async function replaceSlideshowSlideImage(input: {
   imageUrl: string
 }) {
   const slideIndex = Math.floor(input.slideIndex)
-  const resultRecords = await listResultRecords({
-    rootDir: resultRootDirFor(input),
-    limit: Number.MAX_SAFE_INTEGER,
-  })
-  const result = resultRecords.find(
-    (record) =>
-      record.artifacts.slideshowId === input.id || record.id === input.id
-  )
+  const result = await resultRecordForSlideshow(input, input.id)
   if (!result || result.payload?.type !== "slideshow") {
     return null
   }
@@ -313,14 +306,7 @@ export async function updateSlideshowMetadata(input: {
   caption: string
   hashtags: string
 }) {
-  const resultRecords = await listResultRecords({
-    rootDir: resultRootDirFor(input),
-    limit: Number.MAX_SAFE_INTEGER,
-  })
-  const result = resultRecords.find(
-    (record) =>
-      record.artifacts.slideshowId === input.id || record.id === input.id
-  )
+  const result = await resultRecordForSlideshow(input, input.id)
   if (!result || result.payload?.type !== "slideshow") {
     return null
   }
@@ -350,14 +336,7 @@ export async function deleteSlideshowRecord(input: {
   resultRootDir?: string
   id: string
 }) {
-  const resultRecords = await listResultRecords({
-    rootDir: resultRootDirFor(input),
-    limit: Number.MAX_SAFE_INTEGER,
-  })
-  const result = resultRecords.find(
-    (record) =>
-      record.artifacts.slideshowId === input.id || record.id === input.id
-  )
+  const result = await resultRecordForSlideshow(input, input.id)
   if (result) {
     const deletedResult = await deleteResultRecord({
       rootDir: resultRootDirFor(input),
@@ -430,6 +409,27 @@ function resultRootDirFor(input: { rootDir?: string; resultRootDir?: string }) {
   return input.resultRootDir ?? input.rootDir
 }
 
+async function resultRecordForSlideshow(
+  input: { rootDir?: string; resultRootDir?: string },
+  slideshowId: string
+) {
+  const [targeted] = await listResultRecords({
+    rootDir: resultRootDirFor(input),
+    slideshowIds: [slideshowId],
+    limit: 1,
+  })
+  if (targeted) return targeted
+
+  // Legacy records may use the slideshow id as the result id and predate the
+  // denormalized source_entity_id column.
+  const [legacy] = await listResultRecords({
+    rootDir: resultRootDirFor(input),
+    id: slideshowId,
+    limit: 1,
+  })
+  return legacy ?? null
+}
+
 function resultRecordToSlideshowRecord(
   result: ResultRecord
 ): SlideshowRecord | null {
@@ -442,6 +442,7 @@ function resultRecordToSlideshowRecord(
 
   return normalizeSlideshowRecord({
     id: slideshowId,
+    runId: result.runId,
     automationId: result.automationId.startsWith("compat-automation-")
       ? undefined
       : result.automationId,
@@ -486,6 +487,7 @@ function normalizeSlideshowRecord(record: RawSlideshowRecord): SlideshowRecord {
 
   return {
     id,
+    runId: clean(record.runId) || undefined,
     automationId: clean(record.automationId) || undefined,
     output_dir: clean(record.output_dir) || undefined,
     output_images: Array.isArray(record.output_images)
@@ -518,12 +520,43 @@ function normalizeSlide(
     source_image_url: clean(slide.source_image_url) || undefined,
     overlayImage: normalizeOverlayImage(slide.overlayImage),
     overlay: Boolean(slide.overlay),
+    iconLayout: normalizeOvalIconLayout(slide.iconLayout),
     textItems: Array.isArray(slide.textItems)
       ? slide.textItems.map((item, textIndex) =>
           normalizeTextItem(item, textIndex)
         )
       : [],
   }
+}
+
+function normalizeOvalIconLayout(
+  value: Partial<SlideshowOvalIconLayout> | undefined
+): SlideshowOvalIconLayout | undefined {
+  if (value?.kind !== "oval-icons" || !Array.isArray(value.surrounding)) {
+    return undefined
+  }
+  const surrounding = value.surrounding.flatMap((icon) => {
+    const imageUrl = clean(icon.image_url)
+    if (!imageUrl) return []
+    return [
+      {
+        image_url: imageUrl,
+        source_image_url: clean(icon.source_image_url) || undefined,
+        image_caption: clean(icon.image_caption) || undefined,
+        key: clean(icon.key) || undefined,
+        x: normalizeNumber(icon.x, 50),
+        y: normalizeNumber(icon.y, 50),
+        scale: Math.max(0.7, Math.min(1.3, normalizeNumber(icon.scale, 1))),
+        rotation: Math.max(
+          -90,
+          Math.min(90, normalizeNumber(icon.rotation, 0))
+        ),
+      },
+    ]
+  })
+  return surrounding.length > 0
+    ? { kind: "oval-icons", surrounding }
+    : undefined
 }
 
 function normalizeOverlayImage(
@@ -625,6 +658,7 @@ async function writeSlideshowOutputs(
       rasterPublicUrl: string
       sourcePublicUrl: string
       overlayPublicUrl?: string
+      iconPublicUrls?: string[]
     }> = []
     for (const [index, slide] of record.images.entries()) {
       const sourceUrl = slide.source_image_url || slide.image_url
@@ -677,6 +711,20 @@ async function writeSlideshowOutputs(
                   slide.overlayImage.image_url,
               }
             : undefined,
+          iconLayout: slide.iconLayout
+            ? {
+                ...slide.iconLayout,
+                surrounding: slide.iconLayout.surrounding.map(
+                  (icon, iconIndex) => ({
+                    ...icon,
+                    source_image_url:
+                      output.iconPublicUrls?.[iconIndex] ||
+                      icon.source_image_url ||
+                      icon.image_url,
+                  })
+                ),
+              }
+            : undefined,
           image_url: output.publicUrl,
         }
       }),
@@ -702,6 +750,10 @@ async function deleteSlideshowOutput(
       slide.image_url,
       slide.source_image_url,
       slide.overlayImage?.source_image_url,
+      ...(slide.iconLayout?.surrounding.flatMap((icon) => [
+        icon.image_url,
+        icon.source_image_url,
+      ]) ?? []),
     ]),
   ])
   await Promise.all(
@@ -737,6 +789,15 @@ async function materializeSlideImage(input: {
         sourceUrl: overlaySourceUrl,
       })
     : null
+  const iconSources = await Promise.all(
+    (input.slide.iconLayout?.surrounding ?? []).map((icon, iconIndex) =>
+      materializeSlideAsset({
+        ...input,
+        sourceUrl: icon.source_image_url || icon.image_url,
+        prefix: `icon-${String(iconIndex + 1).padStart(2, "0")}`,
+      })
+    )
+  )
   const fileName = `slide-${String(input.slideIndex + 1).padStart(3, "0")}.svg`
   const svg = renderedSlideSvg(
     input.slide,
@@ -744,7 +805,13 @@ async function materializeSlideImage(input: {
     overlaySource
       ? await imageDataUri(overlaySource.filePath, overlaySource.extension)
       : undefined,
-    { aspectRatio: input.aspectRatio, font: input.font }
+    {
+      aspectRatio: input.aspectRatio,
+      font: input.font,
+      iconUrls: await Promise.all(
+        iconSources.map((icon) => imageDataUri(icon.filePath, icon.extension))
+      ),
+    }
   )
   const svgPath = path.join(input.outputDir, fileName)
   await writeFile(svgPath, svg)
@@ -758,6 +825,7 @@ async function materializeSlideImage(input: {
     rasterPublicUrl: outputFileUrl(input.slideshowId, rasterFileName),
     sourcePublicUrl: source.publicUrl,
     overlayPublicUrl: overlaySource?.publicUrl,
+    iconPublicUrls: iconSources.map((icon) => icon.publicUrl),
   }
 }
 
@@ -821,7 +889,7 @@ async function encodePngSequenceToMp4ViaRendi(input: {
     if (!stored.storage_url) {
       throw new Error("Rendi did not accept a slide image")
     }
-    const alias = `slide_${index + 1}`
+    const alias = `in_slide_${index + 1}`
     inputFiles[alias] = stored.storage_url
     command.push("-loop", "1", "-t", String(duration), "-i", `{{${alias}}}`)
   }
@@ -877,7 +945,7 @@ async function materializeSlideAsset(input: {
   slideshowId: string
   slideIndex: number
   sourceUrl: string
-  prefix: "source" | "overlay"
+  prefix: string
 }) {
   const requestedExtension = imageExtensionFromUrl(input.sourceUrl)
   const fileName = `${input.prefix}-${String(input.slideIndex + 1).padStart(3, "0")}${requestedExtension}`
@@ -918,7 +986,7 @@ async function normalizeMaterializedImageSource(input: {
   slideIndex: number
   filePath: string
   fallbackExtension: string
-  prefix: "source" | "overlay"
+  prefix: string
 }) {
   const bytes = await readFile(input.filePath)
   const extension = imageExtensionFromBuffer(bytes) ?? input.fallbackExtension

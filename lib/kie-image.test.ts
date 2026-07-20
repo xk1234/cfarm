@@ -12,6 +12,7 @@ import {
 import {
   buildFluxKontextGeneratePayload,
   buildFluxKontextEditPayload,
+  buildNanoBananaProPayload,
   buildTopazImageUpscalePayload,
   getKieApiKey,
   prepareKieInputImageUrl,
@@ -23,6 +24,25 @@ import {
 } from "./kie-image"
 
 describe("kie image helpers", () => {
+  it("builds a Nano Banana Pro payload for generic image generation", () => {
+    expect(
+      buildNanoBananaProPayload({
+        prompt: "Create an editorial football graphic",
+        imageUrls: ["https://example.com/reference.png"],
+        aspectRatio: "16:9",
+      })
+    ).toEqual({
+      model: "nano-banana-pro",
+      input: {
+        prompt: "Create an editorial football graphic",
+        image_input: ["https://example.com/reference.png"],
+        aspect_ratio: "16:9",
+        resolution: "1K",
+        output_format: "png",
+      },
+    })
+  })
+
   it("builds a Flux Kontext edit payload for image editing", () => {
     expect(
       buildFluxKontextEditPayload({
@@ -40,7 +60,7 @@ describe("kie image helpers", () => {
     })
   })
 
-  it("builds a Flux Kontext generation payload with the same default model as character image routes", () => {
+  it("builds a Flux Kontext generation payload with the shared image-edit model", () => {
     expect(
       buildFluxKontextGeneratePayload({
         prompt: "make a product photo",
@@ -117,14 +137,14 @@ describe("kie image helpers", () => {
       path.join(os.tmpdir(), "cfarm-kie-image-asset-")
     )
     vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
-    const headshotPath = path.join(
+    const imagePath = path.join(
       tempRoot,
       "data",
-      "characters",
-      "headshots",
-      "jade-homeysg-preview.png"
+      "image-collections",
+      "product-shots",
+      "product-preview.png"
     )
-    await mirrorAssetToAppwrite(headshotPath, new Uint8Array([0, 1, 2, 3]))
+    await mirrorAssetToAppwrite(imagePath, new Uint8Array([0, 1, 2, 3]))
 
     const fetchImpl = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -135,7 +155,7 @@ describe("kie image helpers", () => {
             success: true,
             data: {
               downloadUrl:
-                "https://tempfile.redpandaai.co/images/realfarm/jade-homeysg-preview.png",
+                "https://tempfile.redpandaai.co/images/realfarm/product-preview.png",
             },
           }),
           { status: 200 }
@@ -145,13 +165,13 @@ describe("kie image helpers", () => {
 
     const imageUrl = await prepareKieInputImageUrl({
       imageUrl:
-        "http://localhost:3000/api/local-assets/characters/headshots/jade-homeysg-preview.png",
+        "http://localhost:3000/api/local-assets/image-collections/product-shots/product-preview.png",
       apiKey: "kie-test-key",
       fetchImpl,
     })
 
     expect(imageUrl).toBe(
-      "https://tempfile.redpandaai.co/images/realfarm/jade-homeysg-preview.png"
+      "https://tempfile.redpandaai.co/images/realfarm/product-preview.png"
     )
     expect(fetchImpl).toHaveBeenCalledWith(
       "https://kieai.redpandaai.co/api/file-base64-upload",
@@ -171,9 +191,9 @@ describe("kie image helpers", () => {
       uploadPath: string
     }
     expect(requestBody.base64Data).toMatch(/^data:image\/png;base64,/)
-    expect(requestBody.fileName).toContain("jade-homeysg-preview.png")
+    expect(requestBody.fileName).toContain("product-preview.png")
     expect(requestBody.uploadPath).toBe("images/realfarm")
-    await deleteAssetFromAppwrite(headshotPath)
+    await deleteAssetFromAppwrite(imagePath)
     await rm(tempRoot, { recursive: true, force: true })
     vi.restoreAllMocks()
   })

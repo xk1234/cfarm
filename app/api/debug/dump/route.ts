@@ -4,11 +4,17 @@ import path from "node:path"
 
 import { NextResponse } from "next/server"
 
+import { internalToolsEnabled } from "@/lib/internal-tools"
+
 export const dynamic = "force-dynamic"
 
 // Dev utility: persist a JSON payload from the browser to a local tmp file so
 // debugging sessions can hand large blobs to CLI tooling without copy/paste.
 export async function POST(request: Request) {
+  if (!internalToolsEnabled()) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 })
+  }
+
   const payload = (await request.json().catch(() => null)) as {
     name?: string
     data?: unknown

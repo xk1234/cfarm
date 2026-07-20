@@ -1,0 +1,14 @@
+{
+  "title": "Reference",
+  "pages": [
+    "libraries",
+    "deployment",
+    "backend-architecture",
+    "backend-endpoints",
+    "data-objects",
+    "auth-and-multitenancy",
+    "local-appwrite",
+    "automation-templates",
+    "browser-test-workflows"
+  ]
+}

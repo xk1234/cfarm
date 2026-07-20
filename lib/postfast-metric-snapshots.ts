@@ -7,6 +7,10 @@ import {
   withJsonArrayStore,
 } from "@/lib/json-store"
 import type { CanonicalMetric } from "@/lib/metric-registry"
+import {
+  inferPostContentType,
+  type PostContentType,
+} from "@/lib/post-content-type"
 
 export type PostFastMetricSnapshot = {
   id: string
@@ -21,19 +25,12 @@ export type PostFastMetricSnapshot = {
   releaseUrl?: string
   sourceType?: string
   sourceId?: string
+  contentType?: PostContentType
+  mediaCount?: number
   metrics: Partial<Record<CanonicalMetric, number>>
   latestMetric: Record<string, unknown>
   rawMetrics: Record<string, number>
   observedKeys: string[]
-  benchmark?: {
-    id: string
-    overall: number
-    hookVirality: number
-    pictureTextFit: number
-    usefulnessToIcp: number
-    conversationPotential: number
-    automationId?: string
-  }
 }
 
 export type AccountFollowerSnapshot = {
@@ -133,6 +130,13 @@ function normalizeMetricSnapshot(value: PostFastMetricSnapshot) {
   return {
     ...value,
     provider: value.provider || "unknown",
+    contentType:
+      value.contentType ||
+      inferPostContentType({
+        sourceType: value.sourceType,
+        metrics: value.rawMetrics,
+      }),
+    mediaCount: Math.max(0, Number(value.mediaCount) || 0),
     metrics: value.metrics ?? {},
     latestMetric: value.latestMetric ?? value.rawMetrics ?? {},
     rawMetrics: value.rawMetrics ?? {},

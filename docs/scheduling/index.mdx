@@ -1,0 +1,123 @@
+---
+title: "Schedule page"
+description: "Read the content calendar, understand lifecycle states, filter work, inspect items, and manage scheduled posts."
+---
+
+The **Schedule** page is the workspace-wide content calendar. It combines future
+automation slots, generation jobs, manual tasks, scheduled posts, published
+posts, and failures. It is a planning and operations view; editing an
+automation's recurring posting times still happens in that automation's
+settings.
+
+For execution timing and queue behavior, see [Backend scheduling](./backend).
+For Telegram lifecycle notifications and the one-tap manual-post confirmation,
+see [Reminders](./reminders).
+For posts published outside LumenClip, see
+[Manual publication and linking](./manual-linking).
+
+## Page overview
+
+![Schedule page showing summary cards, filters, and the monthly content calendar](/docs/scheduling/schedule-overview.png)
+
+### Header actions
+
+- **Refresh** reloads the merged calendar data.
+- **Automations** opens the automation list, where recurring posting times,
+  timezone, publishing mode, and live/paused state are configured.
+
+### Summary cards
+
+| Card              | Meaning                                                                                               |
+| ----------------- | ----------------------------------------------------------------------------------------------------- |
+| **Needs action**  | Generated content in manual or review mode is waiting for a person.                                   |
+| **Failures**      | Generation or publication failed and needs investigation.                                             |
+| **Planned slots** | Future automation occurrences have been projected, but no job or provider post has replaced them yet. |
+
+The counts reflect the active filters, not necessarily the entire workspace.
+
+### Filters
+
+| Filter          | What it narrows                                                                              |
+| --------------- | -------------------------------------------------------------------------------------------- |
+| **Accounts**    | One or more connected social accounts.                                                       |
+| **Platforms**   | TikTok, Instagram, X, Threads, LinkedIn, and other providers present in the current results. |
+| **Lifecycle**   | Planned, generating, failed, needs-action, draft, scheduled, or published work.              |
+| **Automations** | Content belonging to one recurring automation.                                               |
+| **Sources**     | The output family, such as slideshow automation or X automation.                             |
+
+Filters persist in the browser under `realfarm:calendar-filters:v1`. **Clear**
+appears when at least one filter is active.
+
+### Calendar controls
+
+- Use the previous and next buttons to change the visible date range.
+- **Today** returns to the current date.
+- **Month** shows the broad publishing plan; **Week** shows exact times with
+  more vertical detail.
+- The time displayed on an event is converted for the viewer. Open the event to
+  see the automation timezone and stored timestamps.
+
+## Event states
+
+| State                 | What it means                                                           | What happens next                                                       |
+| --------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **Planned**           | A future recurring slot exists. No durable job or post has replaced it. | The scheduler creates a job when the slot enters its generation window. |
+| **Generating**        | A queued or processing generation job exists.                           | The worker creates the output or records a failure.                     |
+| **Generation failed** | Generation exhausted its current attempt or dead-lettered.              | Inspect the job/run error and provider configuration.                   |
+| **Needs action**      | Manual or review content is ready for a person.                         | Review, post, schedule, or link the externally published post.          |
+| **Draft**             | A PostFast draft exists.                                                | Finish or publish it in the provider workflow.                          |
+| **Failed**            | Content generated, but publication failed.                              | Inspect the publication error and retry deliberately.                   |
+| **Scheduled**         | PostFast holds a post for a future time.                                | It becomes published when the provider reports it live.                 |
+| **Published**         | The provider reports a live post or manual evidence was recorded.       | Analytics can attribute results to the generated output.                |
+
+An event color represents lifecycle, while its platform icon represents the
+primary target. A projected event can be marked paused when its automation is
+paused; paused projections are informational and do not enqueue work.
+
+## Item details
+
+Select an event to open its details panel.
+
+![Schedule item detail showing lifecycle, timestamps, target account, and available actions](/docs/scheduling/schedule-item-detail.png)
+
+The panel shows:
+
+- lifecycle status, output title, automation name, and available excerpt;
+- the effective scheduled time and automation timezone;
+- created, updated, scheduled, or published timestamps when they differ;
+- every target account and its per-account lifecycle;
+- links to generated content or the live post when available;
+- **Cancel** for cancellable scheduled posts.
+
+## Reschedule and cancel
+
+A scheduled event is draggable only when LumenClip has a durable local
+publication record with the content snapshot needed to recreate it. Dragging it
+to a future time creates a replacement PostFast schedule, removes the previous
+remote schedule, and updates the local record.
+
+Remote-only PostFast events are intentionally not draggable. They can still be
+cancelled when the provider identifier is known. Cancelling or dragging one
+event does not change the automation's recurring posting times; edit the
+automation to change future occurrences.
+
+## Where calendar events come from
+
+The page merges and deduplicates four sources:
+
+| Source       | Represents                                                                      |
+| ------------ | ------------------------------------------------------------------------------- |
+| `projection` | Future slots calculated from live or paused automation schedules.               |
+| `job`        | Queued, processing, retried, or dead generation work.                           |
+| `local_post` | Durable publication records, including manual/review tasks and failures.        |
+| `postfast`   | Live provider drafts, schedules, and published posts returned through PostFast. |
+
+When a job or post exists for the same automation and exact slot, it replaces
+the projection so one logical occurrence appears only once.
+
+## Implementation reference
+
+- View: `components/realfarm/content-calendar/content-calendar-view.tsx`
+- Calendar aggregation: `app/api/calendar/route.ts`
+- Lifecycle and deduplication: `lib/calendar-items.ts`
+- Reschedule and cancel: `app/api/calendar/items/[id]/route.ts`

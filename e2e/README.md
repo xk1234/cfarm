@@ -5,7 +5,7 @@ End-to-end tests for the real user journeys in `docs/browser-test-workflows.md`
 
 ## Why these run "mocked" by default
 
-Every content journey in CFarm calls external providers (**KIE**, **OpenRouter**,
+Every content journey in LumenClip calls external providers (**KIE**, **OpenRouter**,
 **Rendi**, **PostFast**, Apify) — but those calls happen **server-side** inside the
 Next `/api/*` route handlers, so a browser test can't intercept them directly.
 
@@ -18,10 +18,10 @@ expects (see `fixtures.ts`). That makes the UI journeys:
 - focused on the **front-end journey** (navigation, forms, list/render/persist,
   optimistic updates, error handling).
 
-This validates the *user experience*. It does **not** exercise the real server
+This validates the _user experience_. It does **not** exercise the real server
 pipeline or providers — for that, run in **live mode** (below) against a real
-environment, or keep the provider-integration checks manual (extension swipes,
-real Rendi renders, real PostFast posting).
+environment, or keep the provider-integration checks manual (real Rendi
+renders and real PostFast posting).
 
 ## Setup
 
@@ -57,8 +57,5 @@ button, generation cards, automation form fields, viewer controls, etc.).
 
 ## What's NOT automated here (do manually / in live mode)
 
-- **Browser extension** swipe capture (Journey 3 step 1) — can't be driven from
-  the page context. Seed a swipe via the API stub instead, or test the extension
-  separately.
 - **Real media rendering** (Rendi MP4 encode) and **real PostFast posting**.
 - **Real provider output quality** — mocks return fixed, valid-shaped responses.

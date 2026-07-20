@@ -43,6 +43,15 @@ const generatedModules = [
       "appwrite/functions/job-worker/src/realfarm-slideshow-text-style-config.js",
   },
   {
+    source: "lib/realfarm-generation-model-registry.ts",
+    target:
+      "appwrite/functions/job-worker/src/realfarm-generation-model-registry.js",
+  },
+  {
+    source: "lib/llm-slop.ts",
+    target: "appwrite/functions/job-worker/src/llm-slop.js",
+  },
+  {
     source: "lib/slideshow-renderer.ts",
     target: "appwrite/functions/job-worker/src/slideshow-renderer.js",
     imports: {
@@ -80,9 +89,10 @@ function syncModule({ source, target, imports = {} }) {
     },
     fileName: sourcePath,
   })
+  const withInlinedJson = inlineLocalJsonImports(output.outputText, sourcePath)
   const generated = Object.entries(imports).reduce(
     (code, [from, to]) => code.replaceAll(`from "${from}"`, `from "${to}"`),
-    output.outputText
+    withInlinedJson
   )
 
   const expected = `// Generated from ${source}. Do not edit by hand.\n${generated}`
@@ -98,4 +108,29 @@ function syncModule({ source, target, imports = {} }) {
 
   fs.mkdirSync(path.dirname(targetPath), { recursive: true })
   fs.writeFileSync(targetPath, expected)
+}
+
+function inlineLocalJsonImports(code, sourcePath) {
+  return code.replace(
+    /^import\s+([A-Za-z_$][\w$]*)\s+from\s+(["'])([^"']+\.json)\2(?:\s+(?:with|assert)\s+\{[^}]*\})?;?\s*$/gm,
+    (statement, localName, _quote, specifier) => {
+      const jsonPath = resolveLocalJsonImport(sourcePath, specifier)
+      if (!jsonPath) return statement
+      const json = JSON.parse(fs.readFileSync(jsonPath, "utf8"))
+      const literal = JSON.stringify(json, null, 2)
+        .replaceAll("\u2028", "\\u2028")
+        .replaceAll("\u2029", "\\u2029")
+      return `const ${localName} = ${literal};`
+    }
+  )
+}
+
+function resolveLocalJsonImport(sourcePath, specifier) {
+  if (specifier.startsWith("@/")) {
+    return path.join(repoRoot, specifier.slice(2))
+  }
+  if (specifier.startsWith(".")) {
+    return path.resolve(path.dirname(sourcePath), specifier)
+  }
+  return null
 }

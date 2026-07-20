@@ -10,6 +10,7 @@ import { clearTestTables } from "@/lib/test-helpers"
 import {
   deleteAssetFromAppwrite,
   mirrorAssetToAppwrite,
+  readAssetBytes,
 } from "@/lib/asset-storage"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
@@ -38,7 +39,7 @@ afterEach(async () => {
 afterAll(clearAll)
 
 describe("DELETE /api/image-collections", () => {
-  it("deletes selected collection records and their unused collection files", async () => {
+  it("soft deletes selected collections, retains files, and restores them", async () => {
     await mirrorAssetToAppwrite(
       path.join(
         tempRoot,
@@ -68,7 +69,7 @@ describe("DELETE /api/image-collections", () => {
       ],
     })
 
-    const { DELETE } = await import("./route")
+    const { DELETE, GET, POST } = await import("./route")
     const response = await DELETE(
       new Request("http://localhost/api/image-collections", {
         method: "DELETE",
@@ -87,8 +88,42 @@ describe("DELETE /api/image-collections", () => {
     })
 
     expect(response.status).toBe(200)
-    expect(payload).toEqual({ deleted: 1, deletedFiles: 1 })
-    expect(stored).toEqual([])
+    expect(payload).toMatchObject({ deleted: 1, deletedFiles: 0 })
+    expect(stored).toEqual([
+      expect.objectContaining({
+        name: "Delete me",
+        deletedAt: expect.any(String),
+        deletedUntil: expect.any(String),
+      }),
+    ])
+    await expect((await GET()).json()).resolves.toMatchObject({ collections: [] })
+    await expect(
+      readAssetBytes(
+        path.join(
+          tempRoot,
+          "data",
+          "image-collections",
+          "files",
+          "collection-image.jpg"
+        )
+      )
+    ).resolves.toBeTruthy()
+
+    const restoreResponse = await POST(
+      new Request("http://localhost/api/image-collections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "restore",
+          collections: [
+            { name: "Delete me", created_at: "2026-07-03T01:00:00.000Z" },
+          ],
+        }),
+      })
+    )
+    expect(restoreResponse.status).toBe(200)
+    expect(await restoreResponse.json()).toEqual({ restored: 1 })
+    expect((await (await GET()).json()).collections).toHaveLength(1)
 
     await deleteAssetFromAppwrite(
       path.join(

@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react"
 import { IconX } from "@tabler/icons-react"
-import { Pencil } from "lucide-react"
+import { LuPencil } from "react-icons/lu"
 
-import { AvatarDot } from "@/components/realfarm/shared-media"
+import {
+  AvatarDot,
+  GenerationFailurePlaceholder,
+} from "@/components/realfarm/shared-media"
 import { SocialAccountIconList } from "@/components/realfarm/social-account-status"
 import { GeneratedVideoThumbnail } from "@/components/realfarm/generated-video-thumbnail"
 import { GeneratedVideoExports } from "@/components/realfarm/generated-video-exports"
@@ -28,6 +31,7 @@ import {
   formatRunDuration,
   runDurationSeconds,
   runPublishedAt,
+  runScheduledAt,
   isSlideshowLifecycleRun,
   isGeneratingSlideshowRun,
   sortAutomationRuns,
@@ -47,6 +51,8 @@ export function AutomationOverviewPanel({
   draftName,
   recentRuns,
   recentRunsLoading,
+  recentRunsError,
+  onRetryRecentRuns,
   videoExports,
   videoExportsLoading,
   onVideoDeleted,
@@ -64,6 +70,8 @@ export function AutomationOverviewPanel({
   draftName: string
   recentRuns: AutomationRunApiRecord[]
   recentRunsLoading: boolean
+  recentRunsError: string
+  onRetryRecentRuns: () => void
   videoExports: GeneratedVideoExport[]
   videoExportsLoading: boolean
   onVideoDeleted: (id: string) => void
@@ -151,7 +159,7 @@ export function AutomationOverviewPanel({
                 onClick={onStartNameEdit}
                 aria-label="Edit automation name"
               >
-                <Pencil className="size-3.5" />
+                <LuPencil className="size-3.5" />
               </button>
             </div>
           )}
@@ -230,7 +238,18 @@ export function AutomationOverviewPanel({
                 className="w-full"
               />
             </div>
-            {recentRunState === "runs" ? (
+            {recentRunsError ? (
+              <AutomationGenerationEmptyState>
+                <p>{recentRunsError}</p>
+                <button
+                  type="button"
+                  className="mt-3 rounded-[7px] border border-app-panel-border bg-app-surface px-3 py-2 text-[12px] font-semibold"
+                  onClick={onRetryRecentRuns}
+                >
+                  Try again
+                </button>
+              </AutomationGenerationEmptyState>
+            ) : recentRunState === "runs" ? (
               <AutomationGenerationGrid>
                 {sortedRuns.slice(0, 3).map((run) => (
                   <AutomationRecentRunCard
@@ -300,7 +319,9 @@ function AutomationRecentRunCard({
   const title = slideshowTitle(run)
   const thumbnailUrl = run.thumbnailUrl?.trim() || firstSlide?.imageUrl
   const inFlight = isGeneratingSlideshowRun(run)
+  const failed = run.status === "failed"
   const publishedAt = runPublishedAt(run)
+  const scheduledAt = runScheduledAt(run)
 
   return (
     <article className="min-w-0">
@@ -308,10 +329,20 @@ function AutomationRecentRunCard({
         <button
           type="button"
           className="absolute inset-0 text-left"
+          disabled={failed}
           onClick={onOpen}
-          aria-label={`Open generated ${mediaKind} ${title}`}
+          aria-label={
+            failed
+              ? `${title} generation failed`
+              : `Open generated ${mediaKind} ${title}`
+          }
         >
-          {inFlight ? (
+          {failed ? (
+            <GenerationFailurePlaceholder
+              compact
+              message={run.error || "This slideshow could not be generated."}
+            />
+          ) : inFlight ? (
             <span className="absolute inset-0 grid animate-pulse place-items-center bg-[#202020] px-3 text-center text-[11px] font-semibold text-white/80">
               <span>
                 {run.progress?.stage ?? "Generating…"}
@@ -361,6 +392,9 @@ function AutomationRecentRunCard({
         <div className="truncate">
           Published {publishedAt ? formatRunDate(publishedAt) : "None"}
         </div>
+        {scheduledAt ? (
+          <div className="truncate">Scheduled {formatRunDate(scheduledAt)}</div>
+        ) : null}
         {run.plan?.publishType === "video" || run.videoUrl ? (
           <div className="truncate">
             Duration {formatRunDuration(runDurationSeconds(run))}

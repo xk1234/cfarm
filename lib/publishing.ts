@@ -6,6 +6,7 @@ import {
   type PostFastSocialIntegration,
 } from "@/lib/postfast-client"
 import { defaultPostFastProviderControls } from "@/lib/postfast-provider-controls"
+import { enqueueReminder } from "@/lib/reminders"
 import {
   upsertPostFastPostRecord,
   type PostFastPostRecord,
@@ -105,6 +106,22 @@ export async function publishPost(
       content: input.content,
       media: input.media ?? [],
     })
+    if (type === "schedule") {
+      await enqueueReminder({
+        event: "scheduled_to_post",
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        scheduledFor: input.date,
+        dedupeSuffix: `${input.integrationId}:${input.date ?? "now"}`,
+        text: [
+          "Post scheduled",
+          input.content,
+          input.date ? `Scheduled for ${input.date}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      }).catch(() => undefined)
+    }
     return { ok: true, record, postfastPosts }
   } catch (error) {
     const message =

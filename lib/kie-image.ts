@@ -23,11 +23,47 @@ const KIE_FILE_UPLOAD_BASE_URL = "https://kieai.redpandaai.co"
 const FLUX_RESULT_POLL_LIMIT = 40
 const TOPAZ_RESULT_POLL_LIMIT = 80
 const LOCAL_ASSET_PREFIX = "/api/local-assets/"
+const NANO_BANANA_PRO_MODEL = "nano-banana-pro"
 
 type FetchLike = typeof fetch
 
 export function getKieApiKey(env: Partial<NodeJS.ProcessEnv> = process.env) {
   return clean(env.KIE_KEY)
+}
+
+export function buildNanoBananaProPayload(input: {
+  prompt: string
+  imageUrls: string[]
+  aspectRatio?: string
+  resolution?: "1K" | "2K" | "4K"
+}) {
+  const requestedRatio = clean(input.aspectRatio)
+  const aspectRatio = [
+    "1:1",
+    "2:3",
+    "3:2",
+    "3:4",
+    "4:3",
+    "4:5",
+    "5:4",
+    "9:16",
+    "16:9",
+    "21:9",
+    "auto",
+  ].includes(requestedRatio)
+    ? requestedRatio
+    : "9:16"
+
+  return {
+    model: NANO_BANANA_PRO_MODEL,
+    input: {
+      prompt: clean(input.prompt),
+      image_input: input.imageUrls.map(clean).filter(Boolean).slice(0, 8),
+      aspect_ratio: aspectRatio,
+      resolution: input.resolution ?? "1K",
+      output_format: "png",
+    },
+  }
 }
 
 export function buildFluxKontextGeneratePayload(input: {
@@ -584,7 +620,7 @@ function fluxKontextModelSlug(value: unknown) {
 }
 
 // --- Combined create+poll helpers -------------------------------------------
-// The character routes all follow the same "create a task, then poll it to
+// Kie image operations follow the same "create a task, then poll it to
 // completion" shape; these collapse the pair so callers only pass inputs +
 // poll cadence and get back the finished asset URL.
 

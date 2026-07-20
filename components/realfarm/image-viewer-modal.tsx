@@ -10,8 +10,8 @@ import { SelectControl } from "@/components/ui/form-controls"
 import { AppModal, AppModalPanel } from "@/components/ui/modal"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import {
-  characterImageActionModelOptions,
-  defaultCharacterImageActionModel,
+  imageActionModelOptions,
+  defaultImageActionModel,
 } from "@/lib/realfarm-generation-model-registry"
 import { cn } from "@/lib/utils"
 
@@ -44,7 +44,7 @@ export function ImageViewerModal({
   const [activeTool, setActiveTool] = useState<"edit" | "upscale">("edit")
   const [prompt, setPrompt] = useState("")
   const [upscaleFactor, setUpscaleFactor] = useState("2")
-  const [model, setModel] = useState(defaultCharacterImageActionModel)
+  const [model, setModel] = useState(defaultImageActionModel)
   const [working, setWorking] = useState(false)
   const [error, setError] = useState("")
 
@@ -205,7 +205,7 @@ function CollectionImageActionEditor({
           value={model}
           onChange={(event) => onModelChange(event.target.value)}
         >
-          {characterImageActionModelOptions.map((model) => (
+          {imageActionModelOptions.map((model) => (
             <option key={model.model} value={model.model}>
               {model.label}
             </option>

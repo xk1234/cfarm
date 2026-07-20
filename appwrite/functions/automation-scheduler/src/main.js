@@ -7,17 +7,21 @@
 //            LOOKBACK_MINUTES (default 10), LUMENCLIP_SYSTEM_OWNER_ID (optional).
 import crypto from "node:crypto"
 import { Client, TablesDB, Query } from "node-appwrite"
-import { dueAutomationSlots } from "./automation-slots.js"
+import {
+  dueAutomationSlots,
+  slideshowGenerationLeadMinutes,
+} from "./automation-slots.js"
 
-export { dueAutomationSlots as dueSlots } from "./automation-slots.js"
+export {
+  dueAutomationSlots as dueSlots,
+  SLIDESHOW_GENERATION_LEAD_MINUTES,
+} from "./automation-slots.js"
 
 const DB = process.env.APPWRITE_DATABASE_ID || "cfarm"
 const LOOKBACK = Number(process.env.LOOKBACK_MINUTES || 10)
 // Slideshow rendering can take several minutes. Queue it ahead of the target
 // slot so PostFast can hold the finished post until the exact scheduled time.
 // This is product behavior, not deployment configuration.
-export const SLIDESHOW_GENERATION_LEAD_MINUTES = 30
-
 function client() {
   return new TablesDB(
     new Client()
@@ -107,10 +111,7 @@ async function automationScheduler({ log, error }) {
         a.schema,
         now,
         LOOKBACK,
-        a.schema.posting_mode === "review"
-          ? Number(a.schema.generation_lead_minutes) ||
-              SLIDESHOW_GENERATION_LEAD_MINUTES
-          : SLIDESHOW_GENERATION_LEAD_MINUTES
+        slideshowGenerationLeadMinutes(a.schema)
       )) {
         const res = await enqueue(db, {
           type: "run-automation",

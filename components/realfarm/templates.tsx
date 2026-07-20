@@ -17,6 +17,7 @@ import {
   type TemplateExampleSlide,
 } from "@/components/realfarm/template-showcase-preview"
 import { ExampleSlideshowModal } from "@/components/realfarm/example-slideshow-modal"
+import { VideoAutomationCreateDialog } from "@/components/realfarm/video-automation-create-dialog"
 import { XThreadsBrandIcon } from "@/components/realfarm/x-threads-brand-icon"
 import { Button } from "@/components/ui/button"
 import { CheckedDropdownButton } from "@/components/ui/form-controls"
@@ -28,7 +29,7 @@ import {
 } from "@/lib/realfarm-automation"
 import { videoAutomationTemplatePresets } from "@/lib/video-automation-templates"
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
-import type { Automation, RealFarmData } from "@/lib/realfarm-data"
+import type { Automation } from "@/lib/realfarm-data"
 import { xThreadsPlatformForDisplay } from "@/lib/x-automation-platform"
 import { cn } from "@/lib/utils"
 
@@ -42,19 +43,16 @@ const templateSortOptions: TemplateSortOption[] = [
 ]
 
 export function TemplateFolderModal({
-  data,
   templates: templateAutomations,
-  automationConfigs,
   collections,
   recentRunsByAutomationId,
   onClose,
   onCreateBlank,
   onCreateVideoTemplate,
+  onCreateCollection,
   onUseTemplate,
 }: {
-  data: RealFarmData
   templates: Automation[]
-  automationConfigs: Record<string, AutomationSchema>
   collections: CreatedImageCollection[]
   recentRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
   onClose: () => void
@@ -62,7 +60,11 @@ export function TemplateFolderModal({
     automationKind: Automation["automationKind"],
     platform?: "x" | "threads"
   ) => void
-  onCreateVideoTemplate: (templateId: AutomationVideoTemplateId) => void
+  onCreateVideoTemplate: (input: {
+    name: string
+    schema: AutomationSchema
+  }) => Promise<void>
+  onCreateCollection: (collection: CreatedImageCollection) => void
   onUseTemplate: (automation: Automation) => void
 }) {
   const [search, setSearch] = useState("")
@@ -72,6 +74,8 @@ export function TemplateFolderModal({
   const [selectedTemplate, setSelectedTemplate] = useState<Automation | null>(
     null
   )
+  const [selectedVideoTemplate, setSelectedVideoTemplate] =
+    useState<AutomationVideoTemplateId | null>(null)
   const templates = useMemo(() => {
     const query = search.trim().toLowerCase()
     return templateAutomations
@@ -109,6 +113,18 @@ export function TemplateFolderModal({
         title={selectedTemplate.name}
         runs={recentRunsByAutomationId[selectedTemplate.id]}
         onClose={() => setSelectedTemplate(null)}
+      />
+    )
+  }
+
+  if (selectedVideoTemplate) {
+    return (
+      <VideoAutomationCreateDialog
+        templateId={selectedVideoTemplate}
+        collections={collections}
+        onCreateCollection={onCreateCollection}
+        onBack={() => setSelectedVideoTemplate(null)}
+        onCreate={onCreateVideoTemplate}
       />
     )
   }
@@ -219,7 +235,7 @@ export function TemplateFolderModal({
                     key={preset.id}
                     type="button"
                     className="group rounded-[10px] border border-app-panel-border bg-app-surface p-3 text-left transition hover:border-app-strong"
-                    onClick={() => onCreateVideoTemplate(preset.id)}
+                    onClick={() => setSelectedVideoTemplate(preset.id)}
                   >
                     <div className="flex items-center gap-2 text-[14px] font-bold text-app-text">
                       <IconVideo className="size-4 shrink-0" />
@@ -347,7 +363,7 @@ function TemplateCard({
           {automationKindLabel(automation)}
         </div>
       </div>
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2 opacity-0 transition group-hover:opacity-100">
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2 opacity-100 transition md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
         <button
           className="pointer-events-auto inline-flex h-10 items-center gap-2 rounded-full bg-app-surface px-4 text-[15px] font-bold text-app-text shadow-sm"
           onClick={onOpen}

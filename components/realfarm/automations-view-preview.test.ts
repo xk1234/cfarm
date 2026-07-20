@@ -7,6 +7,7 @@ import {
   automationAccountStatusItems,
   automationAccountSummary,
   automationRunPreviewImages,
+  automationRunPreviewRuns,
   automationRunPreviewSlots,
 } from "@/components/realfarm/automations-view"
 
@@ -91,6 +92,29 @@ describe("automation grid previews", () => {
         3
       )
     ).toEqual([null, null, null])
+  })
+
+  it("keeps a failed generation in the automation preview slots", () => {
+    expect(
+      automationRunPreviewRuns(
+        [
+          {
+            id: "failed-run",
+            automationId: "automation-1",
+            createdAt: "2026-07-05T10:00:00.000Z",
+            status: "failed",
+            error: "Rendering service unavailable",
+          },
+          {
+            id: "successful-run",
+            automationId: "automation-1",
+            createdAt: "2026-07-04T10:00:00.000Z",
+            renderedSlides: [{ imageUrl: "/successful.jpg" }],
+          },
+        ],
+        3
+      ).map((run) => run?.id ?? null)
+    ).toEqual(["failed-run", "successful-run", null])
   })
 
   it("uses rendered or snake_case slide image fields when plan imageUrl is absent", () => {

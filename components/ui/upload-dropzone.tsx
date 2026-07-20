@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, type ReactNode, type RefObject } from "react"
-import { Upload } from "lucide-react"
+import { LuUpload } from "react-icons/lu"
 import { useDropzone, type Accept } from "react-dropzone"
+import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
 
@@ -35,6 +36,10 @@ export function UploadDropzone({
     disabled,
     noClick: true,
     onDropAccepted: (files) => onFiles(asFileList(files)),
+    onDropRejected: (rejections) => {
+      const firstError = rejections[0]?.errors[0]?.message
+      toast.error(firstError || "The selected file type is not supported")
+    },
   })
 
   useEffect(() => {
@@ -60,7 +65,7 @@ export function UploadDropzone({
       <input {...inputProps} />
       {children ?? (
         <span>
-          <Upload className="mx-auto mb-3 size-8 text-app-muted-text" />
+          <LuUpload className="mx-auto mb-3 size-8 text-app-muted-text" />
           <span className="block text-[15px] font-bold text-app-text">
             Choose file
           </span>

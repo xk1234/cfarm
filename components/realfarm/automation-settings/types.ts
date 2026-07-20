@@ -5,7 +5,14 @@ import type {
 } from "@/lib/automation-run-contract"
 
 export type AutomationDrawerTab =
-  "overview" | "format" | "hooks" | "schedule" | "tiktok" | "settings"
+  | "overview"
+  | "format"
+  | "hooks"
+  | "analytics"
+  | "schedule"
+  | "tiktok"
+  | "published-posts"
+  | "settings"
 
 export type AutomationRunApiPayload = {
   created?: AutomationRunApiRecord[]
@@ -46,14 +53,13 @@ export type AutomationRunApiRecord = {
   createdAt: string
   updatedAt?: string
   views?: number
-  benchmarkId?: string
-  benchmarkError?: string
   error?: string
   plan?: {
     title?: string
     caption?: string
     hashtags?: string
     hook?: string
+    hookId?: string
     hookCandidates?: string[]
     textModel?: string
     publishType?: string

@@ -27,7 +27,7 @@ export type AutomationStatus = "paused" | "live"
 export type AutomationLifecycleStatus = AutomationStatus | "unknown"
 export type AutomationAspectRatio = "9:16" | "4:5" | "3:4" | "3:2" | "1:1"
 export type AutomationImageFit = "cover" | "contain" | "fit"
-export type AutomationImageGrid = "none" | "2x2" | "1x2" | "1x3"
+export type AutomationImageGrid = "none" | "2x2" | "1x2" | "1x3" | "oval-icons"
 export type AutomationImageMode = "collection" | "single_image"
 export type AutomationTextAlign = "left" | "center" | "right"
 export type AutomationTextAnchor = "padded" | "flush"
@@ -165,6 +165,7 @@ export type RuntimeAutomationTemplate = Pick<
   | "web_search_enabled"
   | "video_format"
 > & {
+  hooks?: AutomationHookItem[]
   social_post_settings?: AutomationSocialPostSettings
   social_publish_as?: AutomationSocialPublishAs
 }
@@ -213,6 +214,14 @@ export type AutomationReusePolicy = {
   text_similarity_threshold?: number
 }
 
+export type AutomationHookItem = {
+  id: string
+  text: string
+  enabled: boolean
+  createdAt: string
+  updatedAt?: string
+}
+
 export type AutomationContentFormat =
   "visual_decision" | "mistake_replacement" | "designer_recommendation"
 
@@ -233,6 +242,7 @@ export type AutomationContentStrategy = {
 
 export type AutomationVideoTemplateId =
   | "ugc_ad"
+  | "greenscreen_meme"
   | "react_reveal"
   | "compilation"
   | "birdseye_pov"
@@ -244,6 +254,7 @@ export type AutomationVideoTemplateId =
 
 export const automationVideoTemplateIds: AutomationVideoTemplateId[] = [
   "ugc_ad",
+  "greenscreen_meme",
   "react_reveal",
   "compilation",
   "birdseye_pov",
@@ -290,6 +301,7 @@ export type AutomationSchema = {
   status: AutomationStatus
   social_integrations: AutomationSocialIntegration[]
   prompt_formatting: PromptFormatting
+  hooks: AutomationHookItem[]
   image_collection_ids: ImageCollectionConfig
   tone: AutomationToneSection
   formatting: AutomationFormattingItem[]
@@ -320,8 +332,6 @@ export type AutomationSchema = {
   generation_lead_minutes?: number
   hook_slots?: Record<string, string>
   hook_no_duplicate_slots?: boolean
-  knowledge_context_enabled?: boolean
-  knowledge_base_ids?: string[]
   web_search_enabled?: boolean
   reuse_policy?: AutomationReusePolicy
   content_strategy?: AutomationContentStrategy
@@ -340,6 +350,7 @@ export const automationImageGrids: AutomationImageGrid[] = [
   "2x2",
   "1x2",
   "1x3",
+  "oval-icons",
 ]
 export const automationWordLengths = [2, 3, 5, 7, 10, 15, 30]
 export const automationAlignments: AutomationTextAlign[] = [
@@ -398,7 +409,7 @@ export function defaultAutomationSchema(
     status,
     social_integrations: [],
     ...template,
-    knowledge_context_enabled: false,
+    hooks: template.hooks ?? [],
     social_post_settings:
       template.social_post_settings ?? defaultSocialPostSettings(),
     social_publish_as: normalizeSocialPublishAs(template.social_publish_as, {}),
@@ -453,6 +464,11 @@ export function defaultAutomationTemplate(
     prompt_formatting: {
       ...defaultAutomationTemplateDefaults.prompt_formatting,
     },
+    hooks: hookItemsFromTexts(
+      cleanHookLines(
+        defaultAutomationTemplateDefaults.prompt_formatting.narrative
+      )
+    ),
     image_collection_ids: defaultImageCollectionConfig(),
     tone: { value: tone, preset: "custom" },
     formatting: [
@@ -540,6 +556,7 @@ export function mergeAutomationSchema(
       ...defaults.prompt_formatting,
       ...normalizedDraft.prompt_formatting,
     },
+    hooks: normalizeAutomationHookItems(normalizedDraft.hooks, []),
     image_collection_ids: normalizeImageCollectionConfig(
       normalizedDraft.image_collection_ids,
       defaults.image_collection_ids
@@ -584,9 +601,6 @@ export function mergeAutomationSchema(
     },
     hook_slots: normalizeHookSlots(normalizedDraft.hook_slots),
     hook_no_duplicate_slots: Boolean(normalizedDraft.hook_no_duplicate_slots),
-    knowledge_context_enabled:
-      normalizedDraft.knowledge_context_enabled === true,
-    knowledge_base_ids: normalizeIdList(normalizedDraft.knowledge_base_ids),
     web_search_enabled: Boolean(normalizedDraft.web_search_enabled),
     reuse_policy: normalizeReusePolicy(normalizedDraft.reuse_policy),
     content_strategy: normalizeContentStrategy(
@@ -603,6 +617,9 @@ export function normalizeAutomationSchema(
   const defaults = defaultAutomationSchema(automation)
   const source = schema
   const sourceRecord = source as unknown as Record<string, unknown>
+  const sourceWithoutResearch = { ...sourceRecord }
+  delete sourceWithoutResearch.knowledge_context_enabled
+  delete sourceWithoutResearch.knowledge_base_ids
   const sourceSchedule = source.schedule as AutomationSchedule & {
     interval?: LegacyAutomationScheduleInterval
   }
@@ -613,10 +630,14 @@ export function normalizeAutomationSchema(
   const normalizedContent = normalizedFormatting.find(
     (item) => item.id === "body"
   )
+  const narrativeHooks = cleanHookLines(source.prompt_formatting?.narrative)
+  const storedHooks = automationStoredHooks({
+    formatting: normalizedFormatting,
+  }).filter((hook) => !isAutomationHookInstruction(hook))
 
   return {
     ...defaults,
-    ...source,
+    ...sourceWithoutResearch,
     automationKind: source.automationKind === "video" ? "video" : "slideshow",
     aspect_ratio: automationAspectRatios.includes(
       sourceRecord.aspect_ratio as AutomationAspectRatio
@@ -638,6 +659,17 @@ export function normalizeAutomationSchema(
     prompt_formatting: normalizePromptFormatting(
       source.prompt_formatting,
       defaults.prompt_formatting
+    ),
+    hooks: normalizeAutomationHookItems(
+      sourceRecord.hooks,
+      hasExplicitEmptyHookCatalog(
+        sourceRecord.hooks,
+        source.prompt_formatting?.narrative
+      )
+        ? []
+        : narrativeHooks.length > 0
+          ? narrativeHooks
+          : storedHooks
     ),
     image_collection_ids: normalizeImageCollectionConfig(
       source.image_collection_ids,
@@ -694,24 +726,11 @@ export function normalizeAutomationSchema(
     ),
     hook_slots: normalizeHookSlots(source.hook_slots),
     hook_no_duplicate_slots: Boolean(source.hook_no_duplicate_slots),
-    knowledge_context_enabled: source.knowledge_context_enabled === true,
-    knowledge_base_ids: normalizeIdList(source.knowledge_base_ids),
     web_search_enabled: Boolean(source.web_search_enabled),
     reuse_policy: normalizeReusePolicy(source.reuse_policy),
     content_strategy: normalizeContentStrategy(source.content_strategy),
     video_format: normalizeVideoFormat(source.video_format),
   }
-}
-
-export function automationKnowledgeBaseIds(
-  schema: Pick<
-    AutomationSchema,
-    "knowledge_context_enabled" | "knowledge_base_ids"
-  >
-) {
-  return schema.knowledge_context_enabled === true
-    ? normalizeIdList(schema.knowledge_base_ids)
-    : []
 }
 
 export function normalizeVideoFormat(
@@ -900,19 +919,51 @@ export function updateAutomationFormatSection<
 
 export function automationHooks(
   schema: Pick<AutomationSchema, "formatting" | "title"> &
-    Partial<Pick<AutomationSchema, "prompt_formatting">>
+    Partial<Pick<AutomationSchema, "prompt_formatting" | "hooks">>
 ) {
+  const catalog = automationHookItems(schema)
+  if (
+    Array.isArray(schema.hooks) &&
+    (schema.hooks.length > 0 || !clean(schema.prompt_formatting?.narrative))
+  ) {
+    return catalog.filter((item) => item.enabled).map((item) => item.text)
+  }
   const narrativeHooks = cleanHookLines(schema.prompt_formatting?.narrative)
   const hooks = automationStoredHooks(schema).filter(
     (hook) => !isAutomationHookInstruction(hook)
   )
-  if (shouldUseNarrativeHooks(narrativeHooks, hooks)) {
+  if (narrativeHooks.length > 0) {
     return narrativeHooks
   }
   if (hooks.length > 0) {
     return hooks
   }
   return narrativeHooks
+}
+
+export function automationHookItems(
+  schema: Pick<AutomationSchema, "formatting" | "title"> &
+    Partial<Pick<AutomationSchema, "prompt_formatting" | "hooks">>
+): AutomationHookItem[] {
+  const narrativeHooks = cleanHookLines(schema.prompt_formatting?.narrative)
+  const storedHooks = automationStoredHooks(schema).filter(
+    (hook) => !isAutomationHookInstruction(hook)
+  )
+  return normalizeAutomationHookItems(
+    schema.hooks,
+    hasExplicitEmptyHookCatalog(
+      schema.hooks,
+      schema.prompt_formatting?.narrative
+    )
+      ? []
+      : narrativeHooks.length > 0
+        ? narrativeHooks
+        : storedHooks
+  )
+}
+
+function hasExplicitEmptyHookCatalog(value: unknown, narrative: unknown) {
+  return Array.isArray(value) && value.length === 0 && !clean(narrative)
 }
 
 export function automationStoredHooks(
@@ -962,26 +1013,111 @@ export function isAutomationHookInstruction(value: string) {
   )
 }
 
-function shouldUseNarrativeHooks(
-  narrativeHooks: string[],
-  _storedHooks: string[]
-) {
-  return narrativeHooks.length > 0
-}
-
 export function schemaWithAutomationHooks(
   schema: AutomationSchema,
   hooks: string[]
 ): AutomationSchema {
-  const nextHooks = hooks.filter(Boolean)
+  return schemaWithAutomationHookItems(
+    schema,
+    mergeHookTextsWithCatalog(schema.hooks, hooks)
+  )
+}
+
+export function schemaWithAutomationHookItems(
+  schema: AutomationSchema,
+  hooks: AutomationHookItem[]
+): AutomationSchema {
+  const nextHooks = normalizeAutomationHookItems(hooks, [])
 
   return {
     ...schema,
+    hooks: nextHooks,
     prompt_formatting: {
       ...schema.prompt_formatting,
-      narrative: nextHooks.join("\n"),
+      narrative: nextHooks.map((item) => item.text).join("\n"),
     },
   }
+}
+
+export function automationHookId(text: string) {
+  const normalized = normalizedHookText(text)
+  let hash = 2166136261
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash ^= normalized.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `hook_${(hash >>> 0).toString(36).padStart(7, "0")}`
+}
+
+function normalizeAutomationHookItems(
+  value: unknown,
+  fallback: string[]
+): AutomationHookItem[] {
+  const source = Array.isArray(value) ? value : []
+  const normalized = source.flatMap((raw) => {
+    if (!isRecord(raw)) return []
+    const text = clean(raw.text)
+    if (!text || isAutomationHookInstruction(text)) return []
+    return [
+      {
+        id: clean(raw.id) || automationHookId(text),
+        text,
+        enabled: raw.enabled !== false,
+        createdAt: clean(raw.createdAt) || new Date(0).toISOString(),
+        ...(clean(raw.updatedAt) ? { updatedAt: clean(raw.updatedAt) } : {}),
+      } satisfies AutomationHookItem,
+    ]
+  })
+  return dedupeHookItems(
+    normalized.length > 0 ? normalized : hookItemsFromTexts(fallback)
+  )
+}
+
+function hookItemsFromTexts(texts: string[]): AutomationHookItem[] {
+  const createdAt = new Date(0).toISOString()
+  return texts.map((text) => ({
+    id: automationHookId(text),
+    text: clean(text),
+    enabled: true,
+    createdAt,
+  }))
+}
+
+function mergeHookTextsWithCatalog(
+  current: AutomationHookItem[] | undefined,
+  texts: string[]
+): AutomationHookItem[] {
+  const byText = new Map(
+    (current ?? []).map((item) => [normalizedHookText(item.text), item])
+  )
+  const createdAt = new Date().toISOString()
+  return texts.map((text) => {
+    const existing = byText.get(normalizedHookText(text))
+    return existing
+      ? { ...existing, text: clean(text) }
+      : {
+          id: automationHookId(text),
+          text: clean(text),
+          enabled: true,
+          createdAt,
+        }
+  })
+}
+
+function dedupeHookItems(items: AutomationHookItem[]) {
+  const seenIds = new Set<string>()
+  const seenText = new Set<string>()
+  return items.filter((item) => {
+    const textKey = normalizedHookText(item.text)
+    if (!textKey || seenIds.has(item.id) || seenText.has(textKey)) return false
+    seenIds.add(item.id)
+    seenText.add(textKey)
+    return true
+  })
+}
+
+function normalizedHookText(value: string) {
+  return clean(value).toLowerCase().replace(/\s+/g, " ")
 }
 
 export function schemaWithAutomationHookCase(
@@ -1444,11 +1580,15 @@ export function aspectRatioLabel(value: AutomationAspectRatio) {
 }
 
 export function labelToImageGrid(value: string): AutomationImageGrid {
-  return value === "None" ? "none" : (value as AutomationImageGrid)
+  if (value === "None") return "none"
+  if (value === "Oval icons") return "oval-icons"
+  return value as AutomationImageGrid
 }
 
 export function imageGridLabel(value: AutomationImageGrid) {
-  return value === "none" ? "None" : value
+  if (value === "none") return "None"
+  if (value === "oval-icons") return "Oval icons"
+  return value
 }
 
 export function wordLengthLabel(value: number) {

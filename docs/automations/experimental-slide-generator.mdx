@@ -1,0 +1,20 @@
+---
+title: "Experimental slide generator"
+description: "Generate a 50-case visual matrix for testing slideshow text wrapping, placement, fonts, colors, overlays, and aspect ratios."
+full: true
+---
+
+import { ExperimentalSlideGenerator } from "@/components/docs/experimental-slide-generator"
+
+This page isolates visual rendering from text generation. It creates Lorem
+Ipsum text locally, randomizes production slide-editor settings, and passes the
+result directly to the slideshow SVG renderer. When image collections are
+available, it randomly samples their images and uses that pool across all 50
+cases. Generated gradients remain only as the no-collection fallback.
+
+Each grid item is square so different slide aspect ratios can be compared at a
+consistent footprint. The complete slide is contained inside the tile rather
+than cropped. Hover a tile to reveal its inspection icon, then open it to see a
+larger render and the exact input JSON.
+
+<ExperimentalSlideGenerator />

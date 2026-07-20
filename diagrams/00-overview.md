@@ -1,79 +1,83 @@
-# cfarm — Workflow Overview
+# LumenClip — workflow overview
 
-System map of the distinct end-to-end workflows and the stores they read/write. Each workflow has its own diagram file in this folder.
+Current end-to-end workflow map. Data boxes use active physical Appwrite tables,
+with logical output categories shown in parentheses. Backend structure and the
+full logical-to-physical map live in
+[`docs/reference/backend-architecture.md`](../docs/reference/backend-architecture.md).
 
 ```mermaid
 flowchart TB
     subgraph Inputs["Sources"]
-        EXT["Browser extension"]
-        USER["User / UI"]
-        CRON["Cron trigger"]
-        REEL["Reelfarm export"]
+        USER["User / browser"]
+        CRON["Appwrite cron"]
+        REEL["ReelFarm-shaped template export"]
+        SOCIAL["Connected PostFast accounts"]
     end
 
-    subgraph Char["Character"]
-        W1["01 Character creation"]
-        W2["02 Character image generation"]
-        W3["03 Character video + post-process"]
+    subgraph Product["Content production"]
+        HOME["Home"]
+        COL["07 Collections + captions"]
+        ASSET["09 Asset management"]
+        GREEN["11 Generated video export"]
+        AUTO["Automations"]
+        XAUTO["X / Threads automations"]
+        RENDER["04 Slideshow render"]
     end
 
-    subgraph Content["Content production"]
-        W4["04 Slideshow render"]
-        W7["07 Image collection + captions"]
-        W9["09 Asset management"]
-        W11["11 Generated video export"]
+    subgraph Operations["Scheduling and distribution"]
+        SCHED["06 Automation scheduler"]
+        JOB["Job worker"]
+        PUB["10 Social publishing"]
+        CAL["Schedule calendar"]
+        ANA["Analytics snapshots"]
     end
 
-    subgraph Auto["Automation"]
-        W5["05 Automation import"]
-        W6["06 Automation scheduled run"]
+    subgraph Tables["Active Appwrite TablesDB"]
+        PA["permanent_assets\n(collections, templates, assets)"]
+        AUTOT["automations"]
+        RUNS["automation_runs"]
+        XAUTOT["x_automations"]
+        OUT["outputs\n(results, generated videos, X runs, publications)"]
+        MEDIA["output_media"]
+        JOBS["jobs"]
+        METRICS["metric + follower snapshots"]
     end
 
-    subgraph Research["Research"]
-        W8["08 Swipe capture + processing"]
-    end
+    USER --> HOME
+    USER --> COL --> PA
+    USER --> ASSET --> PA
+    USER --> GREEN --> OUT
+    USER --> AUTO --> AUTOT
+    USER --> XAUTO --> XAUTOT
+    REEL -->|"05 template import"| PA
 
-    subgraph Publish["Distribution"]
-        W10["10 Social publishing (PostFast)"]
-    end
+    AUTO -->|"manual generate"| RENDER
+    RENDER --> RUNS
+    RENDER --> OUT
+    OUT --> MEDIA
 
-    subgraph Stores["Appwrite stores (JSON blob rows)"]
-        S_CH["characters"]
-        S_GEN["character_generations"]
-        S_SS["slideshows"]
-        S_AUTO["automations"]
-        S_RUN["automation runs"]
-        S_RES["results"]
-        S_USE["usage ledger"]
-        S_COL["image collections"]
-        S_SW["swipes"]
-        S_AS["assets"]
-        S_GV["generated videos"]
-        S_PF["postfast posts"]
-    end
+    CRON --> SCHED --> JOBS --> JOB
+    JOB --> AUTOT
+    JOB --> XAUTOT
+    JOB --> RUNS
+    JOB --> OUT
+    JOB --> PUB
 
-    USER --> W1 --> S_CH
-    USER --> W2 --> S_GEN
-    W2 --> W3 --> S_GEN
-    USER --> W7 --> S_COL
-    USER --> W9 --> S_AS
-    USER --> W11 --> S_GV
-    W9 --> W11
-
-    REEL --> W5 --> S_AUTO
-    CRON --> W6
-    W6 --> S_RUN
-    W6 --> W4
-    W6 --> S_USE
-    W6 -->|auto_post| W10
-
-    W7 --> W4
-    W4 --> S_SS
-    W4 --> S_RES
-
-    EXT --> W8 --> S_SW
-
-    USER --> W10 --> S_PF
-    W11 --> W10
-    W4 --> W10
+    USER --> PUB
+    SOCIAL --> PUB
+    PUB --> OUT
+    OUT --> CAL
+    JOBS --> CAL
+    AUTOT --> CAL
+    SOCIAL --> ANA --> METRICS
 ```
+
+## Detailed workflows
+
+- [04 — Slideshow render](04-slideshow-render.md)
+- [05 — Automation import](05-automation-import.md)
+- [06 — Automation scheduled run](06-automation-scheduled-run.md)
+- [07 — Image collection and captioning](07-image-collection.md)
+- [09 — Asset management](09-asset-management.md)
+- [10 — Social publishing](10-social-publishing.md)
+- [11 — Generated video export](11-generated-video-export.md)

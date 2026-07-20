@@ -70,13 +70,15 @@ export function generatedExampleSlides(
 }
 
 export function generatedExampleSlideshows(
-  runs: GeneratedShowcaseRun[] | undefined
+  runs: GeneratedShowcaseRun[] | undefined,
+  options: { includeFailed?: boolean } = {}
 ) {
   return (
     runs
       ?.map<TemplateExampleSlideshow | null>((run, runIndex) => {
+        const failed = run.status === "failed"
         const stage = slideshowStageForRunStatus(run.status ?? "completed")
-        if (!stage) {
+        if (!stage && !(failed && options.includeFailed)) {
           return null
         }
         const slides = showcaseRunSlides(run)
@@ -101,7 +103,7 @@ export function generatedExampleSlideshows(
           })
           .filter((slide): slide is TemplateExampleSlide => Boolean(slide))
 
-        if (slides.length === 0) {
+        if (slides.length === 0 && !(failed && options.includeFailed)) {
           return null
         }
 
@@ -113,11 +115,11 @@ export function generatedExampleSlideshows(
             run.plan?.hook?.trim() ||
             run.automationTitle?.trim() ||
             `Slideshow ${runIndex + 1}`,
-          status: stage,
+          status: failed ? "failed" : stage || "completed",
           scheduledFor: run.scheduledFor,
           createdAt: run.createdAt,
           durationSeconds: slideshowDurationSeconds(slides),
-          caption: run.plan?.hook?.trim() || slides[0]?.text || "",
+          caption: run.plan?.hook?.trim() || slides[0]?.text || run.error || "",
           publishType: run.plan?.publishType,
           language: run.plan?.language,
           error: run.error,
@@ -195,6 +197,7 @@ export function TemplateGeneratedPreview({
             )}
           >
             {slide ? (
+              // eslint-disable-next-line @next/next/no-img-element -- Generated previews can use local or provider asset URLs without a stable optimization host.
               <img
                 src={slide.imageUrl}
                 alt={slide.text || "Generated slideshow example"}

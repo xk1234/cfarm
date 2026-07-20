@@ -43,6 +43,27 @@ export type XAutomationBrief = {
   derivedAt: string
 }
 
+export type XAutomationOperationAttempt = {
+  model: string
+  attempt: number
+  status?: number
+  code: string
+  message: string
+  retryable: boolean
+}
+
+export type XAutomationOperation = {
+  id: string
+  kind: "derive_brief"
+  status: "succeeded" | "failed"
+  startedAt: string
+  completedAt: string
+  selectedModel?: string
+  retryable: boolean
+  message?: string
+  attempts: XAutomationOperationAttempt[]
+}
+
 export type XAutomationBenchmark = {
   id: string
   url: string
@@ -120,6 +141,7 @@ export type XAutomationRecord = {
     recentHooks: string[]
     recentBodies: { body: string; hook: string; at: string }[]
   }
+  operations: XAutomationOperation[]
 }
 
 export type XInferredContentBrief = {
@@ -201,6 +223,7 @@ export type XAutomationBenchmarkScore = {
 export type XAutomationRun = {
   id: string
   ownerId?: string
+  requestId?: string
   automationId: string
   automationName: string
   topic: string
@@ -425,6 +448,7 @@ export function defaultXAutomation(
       min_gap_minutes: 180,
     },
     usage: { recentArchetypes: [], recentHooks: [], recentBodies: [] },
+    operations: [],
   }
 }
 
@@ -643,9 +667,51 @@ export function normalizeXAutomation(value: unknown): XAutomationRecord | null {
     } as XAutomationRecord["publishing"],
     schedule: { ...defaults.schedule, ...schedule } as AutomationSchedule,
     usage: normalizeUsage(value.usage),
+    operations: normalizeOperations(value.operations),
     createdAt: clean(value.createdAt) || defaults.createdAt,
     updatedAt: clean(value.updatedAt) || defaults.updatedAt,
   }
+}
+
+function normalizeOperations(value: unknown): XAutomationOperation[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .flatMap((operation) => {
+      if (!isRecord(operation) || operation.kind !== "derive_brief") return []
+      const attempts = Array.isArray(operation.attempts)
+        ? operation.attempts.flatMap((attempt) => {
+            if (!isRecord(attempt) || !clean(attempt.model)) return []
+            return [
+              {
+                model: clean(attempt.model),
+                attempt: Math.max(1, Number(attempt.attempt) || 1),
+                ...(Number(attempt.status) > 0
+                  ? { status: Number(attempt.status) }
+                  : {}),
+                code: clean(attempt.code) || "unknown_error",
+                message: clean(attempt.message) || "Strategy derivation failed",
+                retryable: attempt.retryable === true,
+              },
+            ]
+          })
+        : []
+      const status: XAutomationOperation["status"] =
+        operation.status === "succeeded" ? "succeeded" : "failed"
+      return [
+        {
+          id: clean(operation.id) || `derive-${crypto.randomUUID()}`,
+          kind: "derive_brief" as const,
+          status,
+          startedAt: clean(operation.startedAt) || new Date().toISOString(),
+          completedAt: clean(operation.completedAt) || new Date().toISOString(),
+          selectedModel: clean(operation.selectedModel) || undefined,
+          retryable: operation.retryable === true,
+          message: clean(operation.message) || undefined,
+          attempts,
+        },
+      ]
+    })
+    .slice(-20)
 }
 
 function stringArray(value: unknown) {

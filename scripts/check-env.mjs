@@ -107,12 +107,16 @@ function loadActualEnvironment(directory) {
       states.set(key, populated)
     }
   }
+  const populatedRuntimeKeys = Object.entries(process.env)
+    .filter(([, value]) => Boolean(value?.trim()))
+    .map(([key]) => key)
   return {
     files,
     keys: new Set(states.keys()),
-    setKeys: new Set(
-      [...states].filter(([, populated]) => populated).map(([key]) => key)
-    ),
+    setKeys: new Set([
+      ...[...states].filter(([, populated]) => populated).map(([key]) => key),
+      ...populatedRuntimeKeys,
+    ]),
   }
 }
 
@@ -163,7 +167,11 @@ function sourceFiles(target) {
     return sourceExtensions.has(path.extname(target)) ? [target] : []
   }
   return readdirSync(target, { withFileTypes: true }).flatMap((entry) => {
-    if (entry.name === "node_modules" || entry.name === ".next") {
+    if (
+      entry.name === "node_modules" ||
+      entry.name === ".next" ||
+      entry.name === ".local"
+    ) {
       return []
     }
     return sourceFiles(path.join(target, entry.name))

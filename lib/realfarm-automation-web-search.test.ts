@@ -33,4 +33,19 @@ describe("automation web search setting", () => {
       ).web_search_enabled
     ).toBe(true)
   })
+
+  it("drops deprecated research context keys from stored schemas", () => {
+    const schema = defaultAutomationSchema(automation)
+    const normalized = normalizeAutomationSchema(
+      {
+        ...schema,
+        knowledge_context_enabled: true,
+        knowledge_base_ids: ["retired-source"],
+      } as typeof schema,
+      automation
+    ) as unknown as Record<string, unknown>
+
+    expect(normalized).not.toHaveProperty("knowledge_context_enabled")
+    expect(normalized).not.toHaveProperty("knowledge_base_ids")
+  })
 })

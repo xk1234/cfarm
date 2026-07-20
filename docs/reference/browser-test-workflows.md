@@ -1,208 +1,172 @@
-# User journey test workflows
-
-Real end-to-end journeys an actual creator takes in CFarm — organized by the
-job they're trying to get done, not by feature. Each journey crosses several
-parts of the app and touches live services (Appwrite, KIE, OpenRouter, Rendi,
-PostFast, the browser extension, Apify/Pinterest/Pexels). Run them in a browser
-against a real environment.
-
-Each journey: **Who / why** → **Path** (the click-path a user follows) →
-**Success** (what the user should end up with).
-
+---
+title: "User journey test workflows"
 ---
 
-## Journey 1 — First run: create a character and generate content
-**Who / why:** A brand-new user lands in the app and wants to produce their first
-AI UGC image.
+End-to-end browser journeys for the current LumenClip product. They are organized by
+the job a user is trying to complete rather than by component. Run them against
+an environment with the relevant Appwrite and provider configuration.
 
-**Path:**
-1. Open the app → **AI UGC avatars**.
-2. **New Character** → give it a name, fill in attributes (or upload a photo and
-   auto-extract attributes).
-3. Save → the character shows in the sidebar and is selected.
-4. In the composer, type a prompt, choose a model + aspect ratio → **Generate**.
-5. Generate a couple more; use one result **as a source image** and generate an
-   edit from it.
+For automated browser setup, see [../../e2e/README.md](../../e2e/README.md).
+For the endpoint calls behind each journey, see
+[backend-endpoints.md](backend-endpoints.md).
 
-**Success:** A character exists with a preview; several generations sit in the
-grid; the user can preview them full-screen; everything is still there after a
-refresh.
+Each journey contains a path and a concrete success condition. Provider-backed
+steps should also be exercised with a missing key or failed upstream response.
 
----
+## Journey 1 — Create a scheduled slideshow automation
 
-## Journey 2 — The flagship: stand up a daily faceless TikTok automation
-**Who / why:** A creator wants a "set it and forget it" pipeline that posts a
-fresh slideshow to TikTok every day. This is the core product loop and touches
-the most surface area.
+**Goal:** Turn a reusable collection into a recurring slideshow pipeline.
 
-**Path:**
-1. **Collections** → import a batch of images (Pinterest/Tumblr URL) → let them
-   download → caption them.
-2. (Optional) **Variable collections** → create word lists (e.g. `zodiac`,
-   `occasion`) for dynamic hooks.
-3. **Automations** → new automation.
-4. Configure: pick the image collection, set the schedule + timezone/posting
-   times, write the hook (with `[[slot]]` dynamic tags), body, and CTA text
-   items, choose slideshow vs video.
-5. **Connect a TikTok account** (PostFast) and attach it to the automation.
-6. Set the automation to **Live**.
-7. Force-run it once to preview the output; open the automation's recent runs.
-8. **Schedule** view → confirm the generated post appears on the calendar.
+1. Open **Collections** and create/import an image collection.
+2. Caption the images; verify captions persist after refresh.
+3. Optionally create variable collections for hook slots.
+4. Open **Automations** and create a slideshow automation.
+5. Select the collection, configure hook/body/CTA sections, schedule/timezone,
+   language, and slideshow/video output.
+6. Connect or select a PostFast account.
+7. Save the automation, set it live, and generate one manual draft.
+8. Open the generated slideshow and inspect its text, images, caption, and
+   publication status.
+9. Open **Schedule** and confirm future automation slots are projected.
 
-**Success:** A live automation exists; a forced run produces a real slideshow
-(text + selected images rendered, hooks filled from the word lists, no duplicate
-image/hook reuse), a result + run are recorded, and the scheduled post shows on
-the calendar tied to the connected account.
+**Success:** The automation and collection persist; the manual run creates a run
+and result without an automatic publication date; scheduled slots target the
+selected account and timezone.
 
----
+## Journey 2 — Review, edit, and mark a slideshow published
 
-## Journey 3 — Swipe a winning ad and recreate it
-**Who / why:** A performance marketer sees a competitor ad, saves it to their
-swipe file, studies why it works, and recreates the concept with their own
-character.
+**Goal:** Exercise the generated-content lifecycle without relying on automatic
+publishing.
 
-**Path:**
-1. Install the browser extension. Visit a supported platform (TikTok Creative
-   Center / Facebook Ads Library / Google Ads Transparency / X) → click **Swipe**
-   on an ad.
-2. Back in the app → **Swipes** → the ad appears with media + screenshots.
-3. Open a **video** swipe → read the auto transcript + UGC aesthetic analysis.
-4. Filter/search the swipe file to compare a few saved ads.
-5. Go to **AI UGC avatars** → use the swipe as inspiration: set a reference image
-   / prompt and run **recreate reference** (or a matching workflow) with a
-   character.
+1. Open an automation's recent runs.
+2. Open a generated slideshow.
+3. Edit title/caption/hashtags.
+4. Replace one image with another unused image from the automation's configured
+   collections.
+5. Remove a content slide while keeping at least one slide.
+6. Choose **Mark as published** from the not-published status control.
+7. Attempt another edit or deletion.
 
-**Success:** The ad is saved locally with downloaded media; a video swipe finishes
-analysis (transcript + breakdown); the user can browse/filter their swipe file
-and produce a new on-brand asset inspired by it.
+**Success:** Metadata and slide changes update both result and run views. Marking
+published records publication evidence and blocks later destructive edits.
 
----
+## Journey 3 — Publish or schedule through PostFast
 
-## Journey 4 — Turn a character image into a UGC video
-**Who / why:** A creator wants a short talking/motion UGC clip, not just a still.
+**Goal:** Send prepared content to an explicit connected account.
 
-**Path:**
-1. **AI UGC avatars** → select a character → generate (or pick) an image.
-2. Run an **image → video** workflow (motion control / pose-variation cut video).
-3. Wait through the progress state; the card switches to showing the video.
-4. Play it back; download / use it.
+1. Open a ready slideshow or generated video.
+2. Open its publishing flow.
+3. Select an integration and choose draft, post-now, scheduled, or manual.
+4. For scheduled mode, choose an explicit date/time.
+5. Confirm the item appears in **Schedule** with the correct account/platform.
+6. Cancel one scheduled item from the calendar.
 
-**Success:** A video is generated from the image, attached to the character, plays
-in the browser, and persists (and cascade-deletes with the generation if removed).
+**Success:** PostFast receives media and copy, local output publication state is
+updated, the calendar merges local/remote records without duplicates, and
+cancellation removes both the remote schedule and its local publication record.
 
----
+## Journey 4 — Produce a greenscreen meme export
 
-## Journey 5 — Produce and post a greenscreen meme video
-**Who / why:** A creator makes greenscreen meme content and schedules it.
+**Goal:** Produce a reusable short video and take it through export state.
 
-**Path:**
-1. **Greenscreen Memes** → configure the meme (background, text, source) →
-   generate.
-2. Watch the export go queued → ready; play it.
-3. From the exports list, **schedule** it to a social account.
+1. Open **Greenscreen Memes**.
+2. Choose a greenscreen source and image collection/background.
+3. Configure text and layout.
+4. Start an export and watch `queued -> processing -> ready`.
+5. Play the finished media and open the publishing flow.
 
-**Success:** A rendered greenscreen video export exists and plays; scheduling opens
-the PostFast flow and creates a scheduled post.
+**Success:** The generated-video record persists, queue position disappears when
+ready, media plays from Storage, and published/scheduled exports cannot be
+deleted.
 
----
+**Known gap:** The workspace `onCreate` callback is currently documented as a
+no-op in `STATE.md`; record the failure until that gap is fixed rather than
+mistaking the preview for a completed export.
 
-## Journey 6 — Build a one-off slideshow by hand
-**Who / why:** A creator wants a single custom slideshow, not an automation.
+## Journey 5 — Curate collections and assets
 
-**Path:**
-1. From a collection or the slideshow flow, assemble slides: pick images, add
-   hook/body text with styles, set aspect ratio, add an overlay, pick a sound.
-2. Enable "export as video" and render.
-3. Open the slideshow viewer and play it; export/download.
-4. Optionally schedule/post it.
+**Goal:** Maintain the reusable content library used by automations.
 
-**Success:** Slides render with correct text/styles/overlays; a playable MP4 +
-thumbnail are produced (via Rendi); the slideshow is viewable and postable.
+1. Import more images into an existing collection and verify URL/hash
+   deduplication.
+2. Caption one image, then caption a full small collection.
+3. Edit or upscale an image and save the resulting URL where the UI permits.
+4. Create image and video collections; verify media-type filtering in selectors.
+5. Upload an asset and edit its caption.
+6. Upload an MP3/WAV through the sound picker and verify it appears after reload.
+7. Delete a stale collection and verify unreferenced imported files disappear
+   without breaking remaining collections.
 
----
+**Success:** Collection/asset records persist in `permanent_assets`, media loads
+through `/api/local-assets/**`, and shared file cleanup does not remove bytes
+still referenced elsewhere.
 
-## Journey 7 — Research-driven content with knowledge bases + variables
-**Who / why:** A creator grounds their automations in real source material and
-rotates dynamic copy.
+## Journey 6 — Run X or Threads automation
 
-**Path:**
-1. **Knowledge bases** → create one → upload sources (PDF/text) → queue a refresh
-   → wait for ready.
-2. **Variable collections** → create/curate word lists.
-3. **Automations** → build an automation that uses the knowledge base context and
-   `[[slot]]` variables in its hooks → run.
+**Goal:** Configure and generate native text-platform content.
 
-**Success:** Sources are ingested and refreshed; variables expand in generated
-hooks; the automation output reflects the researched material.
+1. Open **Automations** and create an X or Threads automation.
+2. Set niche, audience/promise, output type, generation voice, media policy,
+   publishing integration, and schedule.
+3. Derive the content brief.
+4. Generate a draft from a topic or discovered trend candidate.
+5. Review the run's posts, plan, benchmark result, and review warnings.
+6. Publish an approved single post through its configured integration.
+7. Reload and verify the run remains in automation history.
 
----
+**Success:** Definitions persist in `x_automations`, runs persist as
+`outputs/source_key=x_automation_run`, recent-use memory updates, and publishing
+state is reflected in the run and schedule.
 
-## Journey 8 — Curate and maintain a content library
-**Who / why:** Ongoing housekeeping a heavy user does between campaigns.
+## Journey 7 — Monitor multiple accounts
 
-**Path:**
-1. **Collections** → import more images; re-caption; edit/upscale individual
-   images; delete a stale collection (confirm shared images aren't lost).
-2. **Assets** → upload outfit/reference assets; run reference import + analysis;
-   caption/generate assets.
-3. Reuse those assets inside a character generation (attach as prompt inputs).
+**Goal:** Validate calendar and analytics behavior across several pipelines.
 
-**Success:** The library stays consistent — imports, captions, edits, and deletes
-behave correctly, and assets are selectable in the character composer.
+1. Create two or three automations with different schedules and integrations.
+2. Generate/schedule content across them.
+3. Open **Schedule** and filter by account, platform, status, automation, and
+   source type.
+4. Confirm projected slots, queued work, failures, manual actions, scheduled
+   posts, and published posts use distinct lifecycle states.
+5. Open **Analytics**, select accounts/range, and trigger refresh.
+6. Confirm unsupported platform metrics are not shown as misleading zero rows.
 
----
+**Success:** Cross-account items are attributed correctly, filters are stable,
+snapshots persist, and analytics capability labels match each provider.
 
-## Journey 9 — Scale to multiple automations + accounts, then monitor
-**Who / why:** An agency/power user running several content streams at once.
+## Journey 8 — Team access and private demos
 
-**Path:**
-1. Create 2–3 automations targeting different collections/schedules/accounts.
-2. Connect multiple social integrations.
-3. Let them run (or force-run) across a few days.
-4. **Schedule** view → see all posts on the calendar without collisions.
-5. **Analytics** → review performance.
-6. Adjust one automation (pause it, edit hooks) and confirm the change takes.
+**Goal:** Verify settings data and workspace read-sharing boundaries.
 
-**Success:** Multiple pipelines coexist; the calendar shows each account's posts
-correctly; analytics render; pausing/editing an automation is reflected
-immediately and persists.
+1. Invite a second email from team settings.
+2. Accept the invitation while logged in as that user.
+3. Verify the member can read shareable outputs but cannot mutate the owner's
+   automations or private collections.
+4. Upload a settings demo video as the owner.
+5. Verify the owner can stream it and an unrelated user cannot.
 
----
+**Success:** `workspace_members` and Appwrite Teams agree on accepted state,
+shareable output reads work, private writes remain owner-only, and demo bytes
+are owner-protected.
 
-## Journey 10 — Iterate on a losing automation
-**Who / why:** A creator reviews results and tunes an underperformer.
+## Cross-journey checks
 
-**Path:**
-1. **Automations** → open an automation → review its recent runs + generated
-   slideshows.
-2. Delete weak runs/slideshows.
-3. Edit the automation (swap collection, rewrite hooks, change slide count) →
-   re-run → compare the new output.
-4. If abandoning it, delete the whole automation and confirm its runs/slideshows/
-   scheduled posts are cleaned up.
-
-**Success:** The user can inspect, prune, re-generate, and fully remove an
-automation and all its downstream artifacts.
-
----
-
-## Cross-journey things a real user will hit (weave into the above)
-- **Empty states** on every view (new account with no data) render helpfully.
-- **Reloads mid-journey** never lose data (Appwrite persistence).
-- **Provider failures** (KIE/OpenRouter quota or bad input) show a clear,
-  actionable message rather than a hang or generic error.
-- **Long-running generations** show progress and don't block the rest of the UI.
-- **Media everywhere** (thumbnails, previews, exported video) loads from Storage
-  and isn't cropped/broken.
-- **Navigation** between views mid-task preserves in-progress state where expected.
-
----
+- Empty states are useful and do not throw on a new workspace.
+- Refreshing never loses persisted records.
+- Loading indicators appear for generation, rendering, syncing, and upload.
+- Missing provider keys produce actionable errors rather than hangs.
+- Media supports thumbnails and byte ranges where required.
+- Manual generation remains `not_published` and unscheduled by default.
+- A scheduled or published output cannot be deleted through an alternate UI.
+- Disconnected PostFast integrations disappear from selectors and are removed
+  from automation targets.
+- No UI/API response exposes Appwrite or provider credentials.
 
 ## Suggested run order
-Highest coverage-per-minute for real usage:
-1. **Journey 2** (daily automation) — exercises the most of the app in one path.
-2. **Journey 3** (swipe → recreate) — extension + swipes + character.
-3. **Journey 1 & 4** (character create → image → video).
-4. **Journey 6** (manual slideshow) + **Journey 5** (greenscreen).
-5. **Journey 9 & 10** (scale + iterate) for multi-entity and lifecycle behavior.
-6. **Journey 7 & 8** (knowledge/variables + library upkeep).
+
+1. Journey 1 (collection -> automation -> result).
+2. Journeys 2 and 3 (content lifecycle and publishing).
+3. Journey 7 (calendar and analytics across accounts).
+4. Journey 6 (X/Threads generation and publishing).
+5. Journeys 4 and 5 (video export and library maintenance).
+6. Journey 8 (multitenancy and private media).

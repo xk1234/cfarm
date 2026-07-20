@@ -1,7 +1,10 @@
 "use client"
 
 import { useEffect, useEffectEvent, useState } from "react"
+import { IconCopy } from "@tabler/icons-react"
+import { toast } from "sonner"
 
+import { Button } from "@/components/ui/button"
 import {
   SelectControl,
   SwitchPill,
@@ -10,8 +13,9 @@ import {
 import { fetchJsonWithTimeout } from "@/lib/client-api"
 import {
   aspectRatioLabel,
+  automationHookId,
   automationAspectRatios,
-  automationHooks,
+  automationHookItems,
   automationSharedSlideStyle,
   automationTonePresetOptions,
   automationToneRawValue,
@@ -19,10 +23,11 @@ import {
   labelToAspectRatio,
   schemaWithAutomationHookSlots,
   schemaWithAutomationHookCase,
-  schemaWithAutomationHooks,
+  schemaWithAutomationHookItems,
   schemaWithAutomationTone,
   schemaWithAutomationSharedSlideStyle,
   type AutomationSchema,
+  type AutomationHookItem,
 } from "@/lib/realfarm-automation"
 import {
   applyHookCase,
@@ -38,11 +43,12 @@ import {
   wordCollectionVariableName,
 } from "@/lib/hook-variables"
 import type { Automation } from "@/lib/realfarm-data"
+import type { HookUsageState } from "@/lib/hook-publications"
 import type { WordCollectionRecord } from "@/lib/word-collections"
 import { cn } from "@/lib/utils"
 
 import { SettingsFooter, SettingsPage, SettingsRow } from "./settings-layout"
-import { HookVariableEditor } from "./hook-variable-editor"
+import { HookRowsEditor } from "./hook-rows-editor"
 
 export function PromptTextarea({
   title,
@@ -58,9 +64,7 @@ export function PromptTextarea({
   return (
     <label className="block">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[15px] font-semibold text-app-text">
-          {title}
-        </span>
+        <span className="text-[15px] font-semibold text-app-text">{title}</span>
         <span className="flex items-center gap-2 text-[13px] font-semibold text-app-text-soft">
           Use prompt <SwitchPill enabled />
         </span>
@@ -83,14 +87,16 @@ export function PromptConfigPanel({
   onConfigChange,
   onCancel,
   onSave,
+  hideFooter = false,
 }: {
   automation: Automation
   config: AutomationSchema
   onConfigChange: (config: AutomationSchema) => void
   onCancel: () => void
   onSave: () => void
+  hideFooter?: boolean
 }) {
-  const hooks = automationHooks(config)
+  const initialHooks = automationHookItems(config)
   const [wordCollections, setWordCollections] = useState<
     WordCollectionRecord[]
   >([])
@@ -102,18 +108,17 @@ export function PromptConfigPanel({
   const tabs = isVideoAutomation
     ? (["hooks", "style"] as const)
     : (["hooks", "style", "slides"] as const)
-  // Raw editor text. Normalizing (trim/dedupe empty lines) on every keystroke
-  // would rewrite the textarea under the caret — e.g. pressing Enter would be
-  // undone instantly — so the editor edits this draft and only the cleaned
-  // lines are written to the config.
-  const [hooksDraft, setHooksDraft] = useState(() =>
-    normalizeHookVariables(hooks.join("\n"))
+  const [hookItemsDraft, setHookItemsDraft] = useState<AutomationHookItem[]>(
+    () => (initialHooks.length > 0 ? initialHooks : [emptyHookItem()])
   )
+  const [existingHookIds] = useState(() => initialHooks.map((item) => item.id))
+  const [hookUsage, setHookUsage] = useState<HookUsageState[]>([])
+  const [hookUsageStatus, setHookUsageStatus] = useState<
+    "loading" | "ready" | "error"
+  >("loading")
+  const [hookUsageRevision, setHookUsageRevision] = useState(0)
   const detectedHookCase = detectHookCaseMode(
-    hooksDraft
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
+    hookItemsDraft.map((item) => item.text.trim()).filter(Boolean)
   )
   const selectedHookCase =
     config.prompt_formatting.hook_case ?? detectedHookCase
@@ -121,21 +126,24 @@ export function PromptConfigPanel({
     (collections: WordCollectionRecord[]) => {
       setWordCollections(collections)
       const migration = migrateLegacyHookVariableReferences({
-        text: hooksDraft,
+        text: hookItemsDraft.map((item) => item.text).join("\n"),
         hookSlots: config.hook_slots,
         collections,
       })
       if (!migration.changed) return
 
-      const migratedDraft = normalizeHookVariables(migration.text)
-      const migratedHooks = migratedDraft
+      const migratedHooks = normalizeHookVariables(migration.text)
         .split("\n")
         .map((line) => line.replace(/^\s*\d+\.\s*/, "").trim())
         .filter(Boolean)
-      setHooksDraft(migratedDraft)
+      const nextItems = migratedHooks.map((text, index) => ({
+        ...(hookItemsDraft[index] ?? emptyHookItem()),
+        text,
+      }))
+      setHookItemsDraft(nextItems)
       onConfigChange(
         schemaWithAutomationHookSlots(
-          schemaWithAutomationHooks(config, migratedHooks),
+          schemaWithAutomationHookItems(config, nextItems),
           migration.hookSlots
         )
       )
@@ -158,38 +166,77 @@ export function PromptConfigPanel({
     }
   }, [])
 
-  function updateHooks(value: string) {
-    // Variables are case-insensitive; canonicalize them to uppercase as you
-    // type. The transform preserves string length, so the caret never moves.
-    const normalized = normalizeHookVariables(value)
-    const cased = normalized
-      .split("\n")
-      .map((line) => applyHookCase(line, selectedHookCase))
-      .join("\n")
-    setHooksDraft(cased)
-    const hooks = cased
-      .split("\n")
-      .map((line) => line.replace(/^\s*\d+\.\s*/, "").trim())
-      .filter(Boolean)
-    onConfigChange(schemaWithAutomationHooks(config, hooks))
+  useEffect(() => {
+    let active = true
+    void fetchJsonWithTimeout<{ hooks?: HookUsageState[] }>(
+      `/api/automations/${encodeURIComponent(automation.id)}/hook-analytics`,
+      { toastOnError: false }
+    )
+      .then((payload) => {
+        if (active) {
+          setHookUsage(payload.hooks ?? [])
+          setHookUsageStatus("ready")
+        }
+      })
+      .catch(() => {
+        if (active) setHookUsageStatus("error")
+      })
+    return () => {
+      active = false
+    }
+  }, [automation.id, hookUsageRevision])
+
+  function updateHooks(items: AutomationHookItem[]) {
+    const usedIds = new Set(
+      hookUsage.filter((item) => item.used).map((item) => item.hookId)
+    )
+    const savedById = new Map(
+      automationHookItems(config).map((item) => [item.id, item])
+    )
+    const nextItems = items.map((item) => ({
+      ...item,
+      text:
+        usedIds.has(item.id) && savedById.has(item.id)
+          ? savedById.get(item.id)!.text
+          : applyHookCase(normalizeHookVariables(item.text), selectedHookCase),
+    }))
+    setHookItemsDraft(nextItems)
+    onConfigChange(schemaWithAutomationHookItems(config, nextItems))
   }
 
   function updateHookCase(mode: HookCaseMode) {
-    const nextDraft = hooksDraft
-      .split("\n")
-      .map((line) => applyHookCase(line, mode))
-      .join("\n")
-    const nextHooks = nextDraft
-      .split("\n")
-      .map((line) => line.replace(/^\s*\d+\.\s*/, "").trim())
-      .filter(Boolean)
-    setHooksDraft(nextDraft)
+    if (hookUsageStatus !== "ready") {
+      toast.error("Hook usage must load before changing existing hooks")
+      return
+    }
+    const usedIds = new Set(
+      hookUsage.filter((item) => item.used).map((item) => item.hookId)
+    )
+    const nextItems = hookItemsDraft.map((item) =>
+      usedIds.has(item.id)
+        ? item
+        : { ...item, text: applyHookCase(item.text, mode) }
+    )
+    setHookItemsDraft(nextItems)
     onConfigChange(
       schemaWithAutomationHookCase(
-        schemaWithAutomationHooks(config, nextHooks),
+        schemaWithAutomationHookItems(config, nextItems),
         mode
       )
     )
+  }
+
+  async function copyAllHooks() {
+    const text = hooksClipboardText(hookItemsDraft)
+    const hookCount = text ? text.split("\n").length : 0
+    if (!text) return
+
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(`Copied ${hookCount} ${hookCount === 1 ? "hook" : "hooks"}`)
+    } catch {
+      toast.error("Hooks could not be copied")
+    }
   }
 
   function updateTone(value: string) {
@@ -239,44 +286,79 @@ export function PromptConfigPanel({
       <div className="space-y-6">
         {activeTab === "hooks" ? (
           <>
-            <label className="block">
+            <div className="block">
               <div className="mb-2 flex items-end justify-between gap-4">
                 <div>
                   <div className="text-[16px] font-semibold text-app-text">
                     Hooks
                   </div>
                   <div className="mt-1 text-[14px] font-medium text-app-muted-text">
-                    One hook per line. Variables stay uppercase here and inherit
-                    the selected casing when resolved.
+                    Add hooks one at a time or paste a multiline list. Published
+                    hooks stay locked but can be disabled.
                   </div>
                 </div>
-                <SelectControl
-                  className="w-48 shrink-0"
-                  aria-label="Hook casing"
-                  value={selectedHookCase}
-                  onChange={(event) =>
-                    updateHookCase(event.target.value as HookCaseMode)
-                  }
-                >
-                  {hookCaseModes
-                    .filter(
-                      (mode) => mode !== "mixed" || detectedHookCase === "mixed"
-                    )
-                    .map((mode) => (
-                      <option key={mode} value={mode}>
-                        {hookCaseLabel(mode)}
-                      </option>
-                    ))}
-                </SelectControl>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="iconControl"
+                    size="icon-control-lg"
+                    disabled={!hookItemsDraft.some((item) => item.text.trim())}
+                    aria-label="Copy all hooks"
+                    title="Copy all hooks"
+                    onClick={() => void copyAllHooks()}
+                  >
+                    <IconCopy className="size-4" />
+                  </Button>
+                  <SelectControl
+                    className="w-48 shrink-0"
+                    aria-label="Hook casing"
+                    value={selectedHookCase}
+                    disabled={hookUsageStatus !== "ready"}
+                    onChange={(event) =>
+                      updateHookCase(event.target.value as HookCaseMode)
+                    }
+                  >
+                    {hookCaseModes
+                      .filter(
+                        (mode) =>
+                          mode !== "mixed" || detectedHookCase === "mixed"
+                      )
+                      .map((mode) => (
+                        <option key={mode} value={mode}>
+                          {hookCaseLabel(mode)}
+                        </option>
+                      ))}
+                  </SelectControl>
+                </div>
               </div>
-              <HookVariableEditor
-                value={hooksDraft}
-                collections={wordCollections}
-                hookSlots={config.hook_slots}
-                timeZone={config.schedule.timezone}
+              <HookRowsEditor
+                items={hookItemsDraft}
+                usage={hookUsage}
+                safetyLockedIds={
+                  hookUsageStatus === "ready" ? [] : existingHookIds
+                }
                 onChange={updateHooks}
               />
-            </label>
+              {hookUsageStatus === "error" ? (
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-900">
+                  <span>
+                    Existing hooks are locked because usage could not be
+                    verified.
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    onClick={() => {
+                      setHookUsageStatus("loading")
+                      setHookUsageRevision((revision) => revision + 1)
+                    }}
+                  >
+                    Try again
+                  </Button>
+                </div>
+              ) : null}
+            </div>
             <section className="rounded-[9px] border border-app-panel-border bg-app-surface-subtle px-3 py-3">
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <h3 className="text-[14px] font-semibold text-app-text">
@@ -475,9 +557,18 @@ export function PromptConfigPanel({
           </>
         ) : null}
       </div>
-      <SettingsFooter onCancel={onCancel} onSave={onSave} />
+      {hideFooter ? null : (
+        <SettingsFooter onCancel={onCancel} onSave={onSave} />
+      )}
     </SettingsPage>
   )
+}
+
+export function hooksClipboardText(items: AutomationHookItem[]) {
+  return items
+    .map((item) => item.text.trim())
+    .filter(Boolean)
+    .join("\n")
 }
 
 function hookCaseLabel(mode: HookCaseMode) {
@@ -486,6 +577,16 @@ function hookCaseLabel(mode: HookCaseMode) {
   if (mode === "title") return "Title Case"
   if (mode === "sentence") return "First word uppercase"
   return "Mixed"
+}
+
+function emptyHookItem(): AutomationHookItem {
+  const createdAt = new Date().toISOString()
+  return {
+    id: `${automationHookId(createdAt)}_${crypto.randomUUID().slice(0, 6)}`,
+    text: "",
+    enabled: true,
+    createdAt,
+  }
 }
 
 function VariableBadge({

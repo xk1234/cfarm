@@ -123,12 +123,14 @@ export function SocialMediaSettingsPanel({
   onConfigChange,
   onCancel,
   onSave,
+  hideFooter = false,
 }: {
   config: AutomationSchema
   onEditSocialAccounts: () => void
   onConfigChange: (config: AutomationSchema) => void
   onCancel: () => void
   onSave: () => void
+  hideFooter?: boolean
 }) {
   const [activeProvider, setActiveProvider] =
     useState<PostFastSocialProvider>("tiktok")
@@ -353,11 +355,13 @@ export function SocialMediaSettingsPanel({
           />
         </div>
       </div>
-      <SettingsFooter
-        saveLabel="Save Settings"
-        onCancel={onCancel}
-        onSave={onSave}
-      />
+      {hideFooter ? null : (
+        <SettingsFooter
+          saveLabel="Save Settings"
+          onCancel={onCancel}
+          onSave={onSave}
+        />
+      )}
     </SettingsPage>
   )
 }

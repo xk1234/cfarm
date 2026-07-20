@@ -64,7 +64,7 @@ async function storedCollectionNames() {
 }
 
 describe("deleteImageCollections", () => {
-  it("removes selected collection records and reports unused files", async () => {
+  it("soft deletes selected collections without removing their media", async () => {
     await seedCollections([
       {
         name: "Keep",
@@ -104,8 +104,22 @@ describe("deleteImageCollections", () => {
       { name: "Delete me", created_at: "2026-07-03T01:00:00.000Z" },
     ])
 
-    expect(result).toEqual({ deleted: 1, deletedFiles: 1 })
-    expect(await storedCollectionNames()).toEqual(["Keep"])
+    expect(result).toMatchObject({ deleted: 1, deletedFiles: 0 })
+    expect(result.deletedUntil).toBeTruthy()
+    expect(await storedCollectionNames()).toEqual(["Keep", "Delete me"])
+    const { listImageCollections, restoreImageCollections } =
+      await import("./image-collections")
+    expect((await listImageCollections()).map((item) => item.name)).toEqual([
+      "Keep",
+    ])
+    await expect(readAssetBytes(filePath("delete-me.jpg"))).resolves.toBeTruthy()
+    await restoreImageCollections([
+      { name: "Delete me", created_at: "2026-07-03T01:00:00.000Z" },
+    ])
+    expect((await listImageCollections()).map((item) => item.name)).toEqual([
+      "Keep",
+      "Delete me",
+    ])
   })
 })
 

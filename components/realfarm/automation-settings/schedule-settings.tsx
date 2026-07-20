@@ -1,5 +1,9 @@
 import { Button } from "@/components/ui/button"
-import type { AutomationDay, AutomationSchedule, AutomationSchema } from "@/lib/realfarm-automation"
+import type {
+  AutomationDay,
+  AutomationSchedule,
+  AutomationSchema,
+} from "@/lib/realfarm-automation"
 import { cn } from "@/lib/utils"
 
 import {
@@ -39,11 +43,13 @@ export function PostingSchedulePanel({
   onScheduleChange,
   onCancel,
   onSave,
+  hideFooter = false,
 }: {
   schedule: AutomationSchedule
   onScheduleChange: (schedule: AutomationSchedule) => void
   onCancel: () => void
   onSave: () => void
+  hideFooter?: boolean
 }) {
   const postingTimes = schedulePostingTimes({ schedule } as AutomationSchema)
   const weeklyPostCount = postingTimes.reduce(
@@ -175,8 +181,9 @@ export function PostingSchedulePanel({
       >
         Add posting time
       </Button>
-      <SettingsFooter onCancel={onCancel} onSave={onSave} />
+      {hideFooter ? null : (
+        <SettingsFooter onCancel={onCancel} onSave={onSave} />
+      )}
     </SettingsPage>
   )
 }
-

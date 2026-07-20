@@ -3,9 +3,9 @@ import { describe, expect, it, vi } from "vitest"
 import { defaultXAutomation, normalizeXAutomation } from "@/lib/x-automation"
 import {
   buildPostStructuredOutputSchema,
+  derivePillarsFromNicheWithDiagnostics,
   generateXAutomationRun,
   normalizeStructuredOutput,
-  retrieveViralHookExamples,
   selectPostPlan,
   threadsRecycleCandidate,
   validateGeneratedPost,
@@ -33,6 +33,36 @@ function configuredAutomation() {
 }
 
 describe("preset-driven X generation", () => {
+  it("retries the primary strategy model and falls back with diagnostics", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ error: { message: "busy" } }, { status: 503 }))
+      .mockResolvedValueOnce(Response.json({ error: { message: "still busy" } }, { status: 503 }))
+      .mockResolvedValueOnce(
+        Response.json({
+          choices: [{ message: { content: JSON.stringify({
+            audience: "solo creators",
+            promise: "repeatable distribution",
+            pillars: [{ label: "systems" }, { label: "research" }, { label: "distribution" }],
+            keywords: ["content"],
+            painPoints: ["inconsistency"],
+          }) } }],
+        })
+      )
+
+    const result = await derivePillarsFromNicheWithDiagnostics({
+      niche: "creator systems",
+      model: "anthropic/claude-sonnet-5",
+      apiKey: "test-key",
+      fetchImpl,
+    })
+
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
+    expect(result.selectedModel).toBe("google/gemini-3.1-flash-lite")
+    expect(result.attempts).toHaveLength(2)
+    expect(result.attempts.every((attempt) => attempt.retryable)).toBe(true)
+    expect(result.brief.pillars).toHaveLength(3)
+  })
   it("migrates manual niche fields and custom stage prompts", () => {
     const migrated = normalizeXAutomation({
       id: "legacy",
@@ -193,15 +223,6 @@ describe("preset-driven X generation", () => {
     expect(errors).toContain(
       "Off-niche: post never references the niche (creator systems) or any brief keyword."
     )
-  })
-
-  it("returns no viral hooks when the corpus has no niche-token match", async () => {
-    await expect(
-      retrieveViralHookExamples({
-        niche: "zzzxxyy",
-        topic: "qqqwwwee",
-      })
-    ).resolves.toEqual([])
   })
 
   it("enforces X character limits and rejects generic filler", () => {

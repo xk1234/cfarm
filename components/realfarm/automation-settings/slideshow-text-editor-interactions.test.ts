@@ -33,7 +33,9 @@ describe("slideshow text editor interactions", () => {
     )
 
     expect(panel).toContain("onPointerDown={(event) =>")
-    expect(panel).toContain('target.closest("[data-slideshow-text-editor]")')
+    expect(panel).toContain(
+      "[data-slideshow-text-editor], [data-select-like-content]"
+    )
     expect(panel).toContain("setSelectedTextIndex(null)")
     expect(card).toContain('data-slideshow-text-editor="text-target"')
     expect(toolbar).toContain(

@@ -1,0 +1,175 @@
+---
+title: Slideshow automations
+description: Configure generation, slide format, hooks, styling, scheduling, publishing, and outputs for a slideshow automation.
+---
+
+This page documents the **slideshow automation editor**. Open **Automations**,
+select a slideshow automation card, then use the left navigation to configure
+it or inspect generated slideshows. Video and social editors are documented
+separately because their controls and current implementation status differ.
+
+## Editor map
+
+| Area                              | What it controls                                                                                                                   |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Generate**                      | Validates the current configuration, saves the exact editor draft, and starts a new run. More than one generation can run at once. |
+| **Overview**                      | Automation name, publishing mode, aggregate metrics, generated outputs, run status, and created/published dates.                   |
+| **Slideshow Format**              | Image sources, slide structure, layout, text placement, and a visual preview.                                                      |
+| **Hooks & Style**                 | Hook variants, variables, casing, tone, writing instructions, and shared slide style.                                              |
+| **Analytics**                     | Publication-backed hook usage and performance metrics for this automation.                                                         |
+| **Schedule**                      | Posting times and weekdays in the automation timezone.                                                                             |
+| **Social Media Settings**         | Destination accounts, publishing workflow, and per-platform options.                                                               |
+| **Settings**                      | Language, optional video export, audio/transition settings, and AI web search.                                                     |
+| **Duplicate / Delete automation** | Copies the complete automation or permanently removes it.                                                                          |
+
+Edits on settings pages stay in the editor draft until **Save Changes** or
+**Save Settings** is selected. **Cancel** restores the last saved configuration
+and returns to Overview. **Generate** also persists the current draft before it
+starts a run.
+
+## Overview and generated outputs
+
+![Automation editor Overview showing navigation, metrics, and generated outputs](/docs/automations/editor-overview.png)
+
+Use Overview to:
+
+- rename the automation with the pencil beside its name;
+- confirm whether its publishing workflow is Manual, Review, or Auto;
+- compare views and engagement totals;
+- sort generated slideshows by **Recent** or **Most viewed**;
+- open an output to review, edit, export, publish, debug, or delete it; and
+- change an output's publication status and see its selected social accounts,
+  created date, and published date.
+
+An output displays **Published None** until it has an estimated publication
+time or is manually marked as published. Marking it published records that time
+as its published date.
+
+## Slideshow Format
+
+![Slideshow Format editor with Hook, Content, and CTA controls and the visual canvas](/docs/automations/editor-format.png)
+
+The slideshow format editor has three content sections:
+
+- **Hook** selects the opening-slide collection and controls whether hook text
+  is displayed.
+- **Content** selects the main image collection, uses a fixed or varying slide
+  count, and can apply per-slide content-direction or collection overrides.
+- **CTA** can be disabled, use a collection or one image, and has its own
+  aspect ratio, overlay, and text settings.
+
+All three sections can use AI image matching. Content and CTA can also use an
+overlay image collection. Select text directly on a preview slide to open the
+full-width text styling controls for style, size, position, width, word length,
+alignment, and padding.
+
+The canvas supports:
+
+- the dots or preview cards for moving between slides;
+- dragging to pan and pinching or the controls to zoom;
+- fit/reset view; and
+- undo and redo, including `Cmd/Ctrl+Z` and `Cmd/Ctrl+Shift+Z`.
+
+Select **Save Changes** before leaving the format editor. Its **Back** button
+returns to the editor Overview; it does not close the whole automation editor.
+
+## Hooks & Style
+
+![Hooks and Style editor showing a published hook lock, enabled rows, and a disabled row](/docs/automations/hook-catalog-editor.png)
+
+It contains:
+
+- **Hooks** — one editable row per hook, multiline paste, enabled/disabled
+  state, one-click copying of the whole catalog, hook casing, runtime or
+  variable-collection tokens, and an option to prevent repeated variables from
+  resolving to the same value inside one hook;
+- **Style** — a tone preset or custom tone plus free-form slideshow writing
+  instructions; and
+- **Slide Settings** — one shared aspect ratio, font, cover
+  image fitting, and dark-overlay setting across Hook, Content, and CTA.
+
+Runtime variables such as `[[CURRENT_DATE]]`, `[[CURRENT_TIME]]`, and
+`[[CURRENT_YEAR]]` resolve when a run is generated. Variable collections appear
+in the same badge list and draw from their stored values.
+
+Generated drafts do not lock hooks. A hook is marked **Used** only after
+PostFast confirms publication or a user links the output to an already
+published post. Used hooks cannot be renamed or deleted, but their enabled
+toggle can retire them from future selection. See
+[Hook catalog and analytics](./hook-catalog-and-analytics) for paste behavior,
+publication semantics, and the per-automation analytics table.
+
+## Hook analytics
+
+![Per-automation hook analytics table](/docs/automations/hook-analytics.png)
+
+The editor's **Analytics** page aggregates the latest stored PostFast metrics
+for every published output attributed to a hook. Drafts and scheduled posts
+remain excluded until publication is confirmed.
+
+## Schedule
+
+![Automation posting schedule with timezone, weekly count, time, and weekday controls](/docs/automations/editor-schedule.png)
+
+Each row combines one posting time with its active weekdays. Select a weekday
+to include or exclude it, edit the time directly, or add another posting time.
+The editor supports up to five posting-time rows and always keeps at least one
+weekday on each row.
+
+The timezone badge is the timezone used to interpret every displayed time. The
+summary above the rows shows the resulting cadence and total weekly post count.
+For worker timing, retries, and the distinction between generation and
+publication, see [Backend scheduling](../scheduling/backend.md).
+
+## Social Media Settings
+
+![Social Media Settings showing destinations, publishing workflow, provider tabs, and TikTok options](/docs/automations/editor-social-media.png)
+
+**Social destinations** opens the account selector. The icon row then switches
+between TikTok, YouTube, Instagram, Facebook, X, LinkedIn, Pinterest, Threads,
+Telegram, and Bluesky settings.
+
+The **Publishing workflow** determines what happens after scheduled generation:
+
+- **Manual** creates the output and reminds you to publish it yourself.
+- **Review** generates it early and waits for approval; the additional lead-time
+  field controls how early it is prepared.
+- **Auto** schedules publishing automatically to the selected destinations.
+
+Provider fields change with the platform and output type. They include options
+such as publish format, privacy or visibility, drafts, music, comments, tags,
+boards, destination links, disclosures, and platform interaction permissions.
+Unsupported combinations are disabled rather than silently accepted.
+
+## Settings
+
+![Automation Settings showing language, video export controls, sound, and AI web search](/docs/automations/editor-settings.png)
+
+**Language** sets the language of generated slideshow copy. **AI web search**
+allows the generation model to look up current facts when it decides a run
+needs them; enabling it can add provider cost.
+
+For slideshow automations, **Export as video** enables video-only controls:
+
+- transition style;
+- seconds per slide; and
+- a selected TikTok sound, or a random sound when none is selected.
+
+Turning slideshow video export off also removes video timing from the generated
+slideshow workflow.
+
+## Safe editing checklist
+
+Before the first run, confirm:
+
+1. Every required format section has a compatible image source.
+2. Hooks contain usable text and every variable token has a runtime or
+   collection value.
+3. The schedule shows the intended timezone, days, and weekly count.
+4. The publishing workflow matches whether the output needs review.
+5. Destination accounts and provider-specific publish formats are correct.
+6. Slideshow video export is enabled only when a rendered video is wanted.
+
+Generation performs its own media-source preflight. If a required collection is
+missing, the editor returns to Overview and reports the issue without leaving a
+permanent run stuck in the queue.

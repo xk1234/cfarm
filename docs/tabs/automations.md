@@ -1,57 +1,70 @@
-# Automations Tab
+---
+title: "Automations Tab"
+---
 
 Route key: `automations`
 
-Component: `AutomationsView` in `components/realfarm/automations-view.tsx`
+Primary component: `AutomationsView` in
+`components/realfarm/automations-view.tsx`.
 
-Related drawer/components:
+The tab is a shared automation library, not a slideshow-only page. It displays
+slideshow, video, X, and Threads automation cards in one grid and opens the
+matching editor for each type.
 
-- `AutomationSettingsDrawer`
-- `AutomationOverviewPanel`
-- `AutomationFormatPanel`
-- `TikTokSettingsPanel`
-- `PromptConfigPanel`
-- `SchedulePanel`
+For the screenshot-backed product guides, see:
 
-## Functionality
+- [Main Automations page](../automations/index.mdx)
+- [Slideshow automations](../automations/slideshow-automations.mdx)
+- [Video automations — WIP](../automations/video-automations.mdx)
+- [Social automations — WIP](../automations/social-automations.mdx)
 
-Automations lists slideshow automation cards and opens a settings drawer for editing automation configuration. It now loads persisted imported/local automation records from this app's automation DB when available, falling back to seed data only when the DB is empty.
+## Main functionality
 
-Main actions:
+- Display persisted slideshow, video, X, and Threads automations.
+- Open the template catalog or create a blank format-specific automation.
+- Rename and favorite slideshow/video automation cards.
+- Pause or resume scheduled automation activity.
+- Show up to three recent generations on each card.
+- Summarize connected accounts and upcoming schedule slots.
+- Open the format-specific editor.
+- Add, paste, disable, and inspect publication-locked hook catalog rows.
+- Compare published hook performance inside each slideshow/video automation.
+- Open generated slideshow/video viewers from card previews.
 
-- Display built-in and locally created automation cards.
-- Rename an automation card.
-- Toggle favorite state.
-- Open the template/new automation modal.
-- Open the edit drawer.
-- Edit generated or imported `AutomationSchema` settings.
-- Persist imported automation renames, favorites, and settings through `/api/automations`.
+## Card variants
 
-## Objects Used
+| Variant     | Card content                                                                                          | Editor status                                               |
+| ----------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Slideshow   | Rendered slide previews, accounts, schedule, favorite, Pause/Resume, Edit.                            | Implemented; see the slideshow editor guide.                |
+| Video       | Rendered video/thumbnail previews, accounts, schedule, favorite, Pause/Resume, Edit.                  | WIP; support varies by video template.                      |
+| X / Threads | Platform mark, generated copy, content type, benchmark score, accounts, schedule, Pause/Resume, Edit. | WIP; draft generation exists, publishing capabilities vary. |
+| LinkedIn    | Intended to use the social automation model.                                                          | WIP; no complete editor in the current UI.                  |
 
-| Object | Source | Usage |
-| --- | --- | --- |
-| `AutomationRecord[]` | Appwrite `automations` table via `/api/automations` | Imported/local persisted automation source of truth. |
-| `Automation[]` | Persisted automation summaries, falling back to `data.automations` plus local `createdAutomations` | Cards and template entries. |
-| `AutomationSchema` | Imported schema or `defaultAutomationSchema()` / `mergeAutomationSchema()` | Edit drawer settings. |
-| `ImageCollectionConfig` | `AutomationSchema.image_collection_ids` | Format/settings collection references. |
-| `AutomationTextItem` | `AutomationSchema.formatting[].textItems` | Reelfarm-shaped text controls in format editor. |
+## Objects used
+
+| Object                     | Source                                                  | Usage                                                         |
+| -------------------------- | ------------------------------------------------------- | ------------------------------------------------------------- |
+| `AutomationRecord[]`       | Appwrite `automations` table through `/api/automations` | Persisted slideshow/video automation source of truth.         |
+| `Automation[]`             | Persisted summaries plus X/Threads projections          | Shared automation-card view models.                           |
+| `AutomationSchema`         | Stored slideshow/video automation schema                | Shared editor configuration.                                  |
+| `XAutomation[]`            | `/api/x-automations`                                    | X and Threads strategy/editor state.                          |
+| `AutomationRunApiRecord[]` | `/api/automations/runs`                                 | Slideshow/video recent-generation previews.                   |
+| `XAutomationRun[]`         | X automation run store/API                              | X/Threads recent-generation previews and benchmark summaries. |
 
 ## Persistence
 
-Persisted automations live in the Appwrite `automations` table (via `lib/json-store.ts`) — authoritative, no filesystem fallback. The `AutomationSchema` includes the `posting_mode` tri-state (`manual` / `review` / `auto`) and knowledge-context fields (`knowledge_context_enabled`, `knowledge_base_ids`). The API supports:
+- Slideshow/video records: `GET`, `POST`, and `PATCH /api/automations`.
+- X/Threads records: `GET`, `POST`, and `PATCH /api/x-automations`.
+- Recent slideshow/video runs: `/api/automations/runs`.
+- Hook lock and performance state:
+  `/api/automations/[id]/hook-analytics`.
+- Template definitions and examples are repository-owned catalog data; using a
+  template creates a user-owned automation instead of mutating the template.
 
-- `GET /api/automations`
-- `POST /api/automations`
-- `PATCH /api/automations`
+## Current limitations
 
-Chrome extraction status: the app-side DB/import path exists, but direct structured extraction from the logged-in Chrome Reelfarm tab was blocked because Chrome has JavaScript execution from Apple Events disabled and the available accessibility tree did not expose page content.
-
-## Hardcoded / Demo Behavior
-
-- Built-in automations from `data/realfarm.json` are fallback/demo data when the local automation DB is empty.
-- Locally created automations may still get IDs like `auto-local-${Date.now()}` or `auto-template-${Date.now()}` when created from flows that have not been fully migrated.
-- `defaultAutomationSchema()` hardcodes default Reelfarm-shaped `prompt_formatting`, `formatting[]`, TikTok settings, collection IDs, prompt text, schedule day sets, and format defaults.
-- Pause button is visual only.
-- Filter button is visual only.
-- Preview cards use generated thumbnails and placeholder text.
+- Video templates do not all have equivalent end-to-end generation support.
+- X/Threads reply-chain and discovery-based reaction publishing remain
+  capability-limited.
+- LinkedIn automation is not complete in the UI.
+- Empty card preview cells are valid “no recent generation” states.

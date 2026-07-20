@@ -13,7 +13,12 @@ import {
 } from "@/lib/postfast-posts"
 import { postfastRouteError } from "@/lib/postfast-route"
 import { publishPost } from "@/lib/publishing"
-import { enqueueJob } from "@/lib/queue"
+import { enqueueReminder } from "@/lib/reminders"
+import { getCurrentUser } from "@/lib/auth"
+import {
+  linkPublishedOutput,
+  manualPublicationErrorStatus,
+} from "@/lib/manual-publication-linking"
 
 export const dynamic = "force-dynamic"
 
@@ -52,6 +57,13 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const user = await getCurrentUser()
+  if (!user) {
+    return NextResponse.json(
+      { error: "Authentication required" },
+      { status: 401 }
+    )
+  }
   const payload = await request.json().catch(() => null)
   const integrationId = stringValue(payload?.integrationId)
   const provider = stringValue(payload?.provider)
@@ -75,6 +87,35 @@ export async function POST(request: Request) {
   if (requestedType === "manual" || requestedType === "manual_posted") {
     const posted = requestedType === "manual_posted"
     const releaseUrl = stringValue(payload?.releaseUrl)
+    if (posted) {
+      try {
+        const record = await linkPublishedOutput({
+          sourceType,
+          sourceId,
+          integrationId,
+          provider,
+          releaseUrl,
+          publishedAt: stringValue(payload?.date),
+          content,
+          media,
+        })
+        return NextResponse.json({ record }, { status: 201 })
+      } catch (error) {
+        const status = manualPublicationErrorStatus(error)
+        if (status) {
+          return NextResponse.json(
+            {
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "The published post could not be linked",
+            },
+            { status }
+          )
+        }
+        throw error
+      }
+    }
     const record = await upsertPostFastPostRecord({
       sourceType,
       sourceId,
@@ -82,21 +123,23 @@ export async function POST(request: Request) {
       provider,
       status: posted ? "published" : "awaiting_manual_post",
       scheduledAt: stringValue(payload?.date),
+      publishedAt: posted ? stringValue(payload?.date) : undefined,
       releaseUrl,
-      externalPostId: releaseUrl,
       externallyManaged: true,
       content,
       media,
     })
     if (!posted && record.scheduledAt) {
-      await enqueueJob({
-        type: "send-notification",
-        payload: {
-          text: `Manual post ready\n${content}\nSlideshow: ${sourceId}`,
-        },
+      await enqueueReminder({
+        event: "ready_to_post",
+        sourceType,
+        sourceId,
+        scheduledFor: record.scheduledAt,
         availableAt: new Date(record.scheduledAt),
-        dedupeKey: `manual-post:${record.id}:${record.scheduledAt}`,
-        maxAttempts: 5,
+        dedupeSuffix: `${record.id}:${record.scheduledAt}`,
+        requiresPostConfirmation:
+          sourceType === "slideshow" || sourceType === "generated_video",
+        text: `Manual post ready\n${content}\nSource: ${sourceId}`,
       }).catch(() => undefined)
     }
     return NextResponse.json({ record }, { status: 201 })
@@ -139,7 +182,6 @@ function sourceTypeValue(value: unknown): PostFastSourceType | undefined {
     value === "greenscreen" ||
     value === "ugc_ad" ||
     value === "image" ||
-    value === "swipe" ||
     value === "slideshow" ||
     value === "manual" ||
     value === "external"

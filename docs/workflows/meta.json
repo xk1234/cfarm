@@ -1,0 +1,21 @@
+{
+  "title": "Workflows",
+  "pages": [
+    "index",
+    "---Creating content---",
+    "astrology-slideshow",
+    "study-tips-template",
+    "astrology-ugc-reaction",
+    "astrology-greenscreen",
+    "astrology-x",
+    "astrology-threads",
+    "astrology-linkedin",
+    "---Importing outside content---",
+    "collection-crud",
+    "merge-collections",
+    "---Analyzing and exporting---",
+    "content-analysis",
+    "---AI agents via MCP---",
+    "mcp"
+  ]
+}

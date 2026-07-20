@@ -6,32 +6,24 @@ const LIVE = process.env.E2E_MODE === "live"
 
 /** A tiny in-memory store the API stubs read/write so a journey feels stateful. */
 export type MockState = {
-  characters: any[]
-  generations: any[]
   collections: any[]
   automations: any[] // summary view-models
   automationRecords: any[]
   runs: any[]
-  swipes: any[]
   generatedVideos: any[]
   slideshows: any[]
-  knowledgeBases: any[]
   wordCollections: any[]
   assets: any[]
 }
 
 export function emptyState(): MockState {
   return {
-    characters: [],
-    generations: [],
     collections: [],
     automations: [],
     automationRecords: [],
     runs: [],
-    swipes: [],
     generatedVideos: [],
     slideshows: [],
-    knowledgeBases: [],
     wordCollections: [],
     assets: [],
   }
@@ -56,94 +48,6 @@ const id = () => Math.random().toString(36).slice(2)
 export async function mockApi(page: Page, state: MockState) {
   if (LIVE) return
 
-  // --- Characters ---------------------------------------------------------
-  await page.route("**/api/characters", async (route) => {
-    if (route.request().method() === "GET") {
-      return json(route, { characters: state.characters })
-    }
-    if (route.request().method() === "POST") {
-      const payload = route.request().postDataJSON() as any
-      const character = {
-        id: `char-${id()}`,
-        user_id: "test",
-        name: payload.name,
-        attributes: { ...(payload.attributes ?? {}), name: payload.name },
-        collection_id: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        preview_url: payload.preview_url ?? "",
-      }
-      // simple validation parity: empty name -> 400
-      if (!payload.name || !String(payload.name).trim()) {
-        return json(route, { error: "name: name is required" }, 400)
-      }
-      state.characters = [character, ...state.characters]
-      return json(route, { character }, 201)
-    }
-    return route.continue()
-  })
-
-  await page.route("**/api/characters/*", async (route) => {
-    // DELETE /api/characters/:id  (path param, not ?id=)
-    if (route.request().method() === "DELETE") {
-      const charId = route.request().url().split("/").pop()!.split("?")[0]
-      state.characters = state.characters.filter((c) => c.id !== charId)
-      return json(route, { deleted: true, deletedFiles: 0 })
-    }
-    return route.continue()
-  })
-
-  await page.route("**/api/characters/images**", async (route) => {
-    if (route.request().method() === "GET") {
-      return json(route, { generations: state.generations })
-    }
-    return route.continue()
-  })
-
-  await page.route("**/api/characters/image", async (route) => {
-    // Successful image generation
-    const generation = {
-      id: `gen-${id()}`,
-      characterId: state.characters[0]?.id,
-      prompt: "test",
-      model: "Flux 2",
-      createdAt: new Date().toISOString(),
-      attachments: [],
-      aspectRatio: "9:16",
-      status: "ready",
-      imageUrl: "/api/local-assets/characters/images/mock.png",
-      progress: 100,
-    }
-    state.generations = [generation, ...state.generations]
-    return json(route, {
-      imageUrl: generation.imageUrl,
-      taskId: generation.id,
-      prompt: "test",
-      aspectRatio: "9:16",
-      generation,
-    })
-  })
-
-  await page.route("**/api/characters/workflows", async (route) => {
-    // image->video / recreate etc. Returns a composed generation view.
-    const generation = {
-      id: `gen-${id()}`,
-      characterId: state.characters[0]?.id,
-      prompt: "workflow",
-      model: "Kling 2.6",
-      createdAt: new Date().toISOString(),
-      attachments: [],
-      aspectRatio: "9:16",
-      status: "ready",
-      imageUrl: "/api/local-assets/characters/images/mock.png",
-      videoUrl: "/api/local-assets/characters/videos/mock.mp4",
-      videoStatus: "ready",
-      progress: 100,
-    }
-    state.generations = [generation, ...state.generations]
-    return json(route, { imageUrl: generation.imageUrl, videoUrl: generation.videoUrl, generation })
-  })
-
   // --- Image collections --------------------------------------------------
   await page.route("**/api/image-collections", async (route) => {
     if (route.request().method() === "GET") {
@@ -151,12 +55,19 @@ export async function mockApi(page: Page, state: MockState) {
     }
     if (route.request().method() === "DELETE") {
       const body = route.request().postDataJSON() as any
-      const toDelete: { name: string; created_at: string }[] = body?.collections ?? []
+      const toDelete: { name: string; created_at: string }[] =
+        body?.collections ?? []
       const before = state.collections.length
       state.collections = state.collections.filter(
-        (c) => !toDelete.some((d) => d.name === c.name && d.created_at === c.created_at)
+        (c) =>
+          !toDelete.some(
+            (d) => d.name === c.name && d.created_at === c.created_at
+          )
       )
-      return json(route, { deleted: before - state.collections.length, deletedFiles: 1 })
+      return json(route, {
+        deleted: before - state.collections.length,
+        deletedFiles: 1,
+      })
     }
     return route.continue()
   })
@@ -165,8 +76,14 @@ export async function mockApi(page: Page, state: MockState) {
       name: "Imported collection",
       created_at: new Date().toISOString(),
       images: [
-        { image_link: "/api/local-assets/image-collections/files/a.jpg", caption: "" },
-        { image_link: "/api/local-assets/image-collections/files/b.jpg", caption: "" },
+        {
+          image_link: "/api/local-assets/image-collections/files/a.jpg",
+          caption: "",
+        },
+        {
+          image_link: "/api/local-assets/image-collections/files/b.jpg",
+          caption: "",
+        },
       ],
     }
     state.collections = [collection, ...state.collections]
@@ -179,13 +96,30 @@ export async function mockApi(page: Page, state: MockState) {
   // --- Automations --------------------------------------------------------
   await page.route("**/api/automations", async (route) => {
     if (route.request().method() === "GET") {
-      return json(route, { records: state.automationRecords, automations: state.automations })
+      return json(route, {
+        records: state.automationRecords,
+        automations: state.automations,
+      })
     }
     if (route.request().method() === "POST") {
       const payload = route.request().postDataJSON() as any
       const aid = `automation-${id()}`
-      const record = { id: aid, name: payload.name ?? "Untitled automation", status: "live", schema: payload.schema ?? {} }
-      const summary = { id: aid, name: record.name, status: "live", account: "No social account", handle: "", times: [], favorite: false, theme: "ugc" }
+      const record = {
+        id: aid,
+        name: payload.name ?? "Untitled automation",
+        status: "live",
+        schema: payload.schema ?? {},
+      }
+      const summary = {
+        id: aid,
+        name: record.name,
+        status: "live",
+        account: "No social account",
+        handle: "",
+        times: [],
+        favorite: false,
+        theme: "ugc",
+      }
       state.automationRecords = [record, ...state.automationRecords]
       state.automations = [summary, ...state.automations]
       return json(route, { automation: summary, record }, 201)
@@ -193,9 +127,29 @@ export async function mockApi(page: Page, state: MockState) {
     return route.continue()
   })
   await page.route("**/api/automations/run", async (route) => {
-    const created = [{ id: `run-${id()}`, automationId: state.automationRecords[0]?.id, status: "succeeded", scheduledFor: new Date().toISOString(), slideshowId: `slideshow-${id()}`, renderedSlides: [{ imageUrl: "/api/local-assets/slideshows/outputs/x/slide-001.svg", sourceImageUrl: "/api/local-assets/slideshows/outputs/x/source-001.jpg", aspectRatio: "9:16" }] }]
+    const created = [
+      {
+        id: `run-${id()}`,
+        automationId: state.automationRecords[0]?.id,
+        status: "succeeded",
+        scheduledFor: new Date().toISOString(),
+        slideshowId: `slideshow-${id()}`,
+        renderedSlides: [
+          {
+            imageUrl: "/api/local-assets/slideshows/outputs/x/slide-001.svg",
+            sourceImageUrl:
+              "/api/local-assets/slideshows/outputs/x/source-001.jpg",
+            aspectRatio: "9:16",
+          },
+        ],
+      },
+    ]
     state.runs = [...created, ...state.runs]
-    return json(route, { created, results: [{ id: `result-${created[0].id}`, workflowType: "slideshow" }], skipped: [] })
+    return json(route, {
+      created,
+      results: [{ id: `result-${created[0].id}`, workflowType: "slideshow" }],
+      skipped: [],
+    })
   })
   await page.route("**/api/automations/runs**", async (route) => {
     return json(route, { runs: state.runs })
@@ -204,23 +158,25 @@ export async function mockApi(page: Page, state: MockState) {
     if (route.request().method() === "DELETE") {
       const aid = route.request().url().split("/").pop()!.split("?")[0]
       state.automations = state.automations.filter((a) => a.id !== aid)
-      state.automationRecords = state.automationRecords.filter((a) => a.id !== aid)
-      return json(route, { record: { id: aid }, deletedRunsCount: 0, deletedSlideshowsCount: 0, deletedPostFastPostsCount: 0 })
+      state.automationRecords = state.automationRecords.filter(
+        (a) => a.id !== aid
+      )
+      return json(route, {
+        record: { id: aid },
+        deletedRunsCount: 0,
+        deletedSlideshowsCount: 0,
+        deletedPostFastPostsCount: 0,
+      })
     }
     // Allow more-specific mocked routes such as /api/automations/run and /runs
     // to handle the request instead of bypassing all Playwright routes.
     return route.fallback()
   })
 
-  // --- Swipes -------------------------------------------------------------
-  await page.route("**/api/swipes", async (route) => {
-    if (route.request().method() === "GET") return json(route, { swipes: state.swipes })
-    return route.continue()
-  })
-
   // --- Generated videos ---------------------------------------------------
   await page.route("**/api/generated-videos**", async (route) => {
-    if (route.request().method() === "GET") return json(route, { exports: state.generatedVideos })
+    if (route.request().method() === "GET")
+      return json(route, { exports: state.generatedVideos })
     if (route.request().method() === "POST") {
       const video = {
         id: `gv-${id()}`,
@@ -241,14 +197,28 @@ export async function mockApi(page: Page, state: MockState) {
       return json(route, {
         slideshows: state.slideshows,
         slideshowsCount: state.slideshows.length,
-        videosCount: state.slideshows.filter((s) => s.settings?.export_as_video).length,
+        videosCount: state.slideshows.filter((s) => s.settings?.export_as_video)
+          .length,
       })
     }
     if (route.request().method() === "POST") {
       const payload = route.request().postDataJSON() as any
-      const slideshow = { id: `slideshow-${id()}`, title: payload.title ?? "New Slideshow", ...payload, status: "exported", output_images: ["/api/local-assets/slideshows/outputs/x/slide-001.svg"], video_url: payload.settings?.export_as_video ? "/api/local-assets/slideshows/outputs/x/slideshow-export.mp4" : undefined }
+      const slideshow = {
+        id: `slideshow-${id()}`,
+        title: payload.title ?? "New Slideshow",
+        ...payload,
+        status: "exported",
+        output_images: ["/api/local-assets/slideshows/outputs/x/slide-001.svg"],
+        video_url: payload.settings?.export_as_video
+          ? "/api/local-assets/slideshows/outputs/x/slideshow-export.mp4"
+          : undefined,
+      }
       state.slideshows = [slideshow, ...state.slideshows]
-      return json(route, { slideshow, result: { id: `result-${slideshow.id}` } }, 201)
+      return json(
+        route,
+        { slideshow, result: { id: `result-${slideshow.id}` } },
+        201
+      )
     }
     return route.continue()
   })
@@ -256,43 +226,10 @@ export async function mockApi(page: Page, state: MockState) {
   // --- PostFast (schedule/calendar) --------------------------------------
   await page.route("**/api/postfast/**", async (route) => {
     const url = route.request().url()
-    if (url.includes("/posts")) return json(route, { configured: false, posts: { posts: [] } })
+    if (url.includes("/posts"))
+      return json(route, { configured: false, posts: { posts: [] } })
     if (url.includes("/integrations")) return json(route, { integrations: [] })
     return json(route, {})
-  })
-
-  // --- Knowledge bases ----------------------------------------------------
-  await page.route("**/api/knowledge-bases", async (route) => {
-    if (route.request().method() === "GET") {
-      return json(route, { knowledgeBases: state.knowledgeBases })
-    }
-    if (route.request().method() === "POST") {
-      const payload = route.request().postDataJSON() as any
-      const kb = { id: `kb-${id()}`, name: payload?.name ?? "Knowledge base", status: "idle", sources: [] }
-      state.knowledgeBases = [kb, ...state.knowledgeBases]
-      return json(route, { knowledgeBase: kb }, 201)
-    }
-    return route.continue()
-  })
-  await page.route("**/api/knowledge-bases/upload", async (route) => {
-    // A source file is attached to the most recent KB.
-    const kb = state.knowledgeBases[0] ?? { id: `kb-${id()}`, name: "Knowledge base", status: "idle", sources: [] }
-    kb.sources = [...(kb.sources ?? []), { id: `src-${id()}`, name: "source.pdf", status: "ready" }]
-    if (!state.knowledgeBases.includes(kb)) state.knowledgeBases = [kb, ...state.knowledgeBases]
-    return json(route, { knowledgeBase: kb }, 201)
-  })
-  await page.route("**/api/knowledge-bases/*", async (route) => {
-    const kbId = route.request().url().split("/").pop()!.split("?")[0]
-    if (route.request().method() === "PATCH") {
-      const kb = state.knowledgeBases.find((k) => k.id === kbId)
-      if (kb) kb.status = "ready" // refresh queued -> (mock) resolves to ready
-      return kb ? json(route, { knowledgeBase: kb }) : json(route, { error: "Knowledge base not found" }, 404)
-    }
-    if (route.request().method() === "DELETE") {
-      state.knowledgeBases = state.knowledgeBases.filter((k) => k.id !== kbId)
-      return json(route, { knowledgeBase: { id: kbId } })
-    }
-    return route.continue()
   })
 
   // --- Variable (word) collections ---------------------------------------
@@ -305,7 +242,15 @@ export async function mockApi(page: Page, state: MockState) {
       if (!payload?.name || !String(payload.name).trim()) {
         return json(route, { error: "name: name is required" }, 400)
       }
-      const collection = { id: `word-${id()}`, name: payload.name, description: payload.description, words: payload.words ?? [], source: "manual", created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+      const collection = {
+        id: `word-${id()}`,
+        name: payload.name,
+        description: payload.description,
+        words: payload.words ?? [],
+        source: "manual",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
       state.wordCollections = [collection, ...state.wordCollections]
       return json(route, { collection }, 201)
     }
@@ -322,28 +267,42 @@ export async function mockApi(page: Page, state: MockState) {
 
   // --- Assets -------------------------------------------------------------
   await page.route("**/api/assets", async (route) => {
-    if (route.request().method() === "GET") return json(route, { assets: state.assets })
+    if (route.request().method() === "GET")
+      return json(route, { assets: state.assets })
     return route.continue()
   })
   await page.route("**/api/assets/upload", async (route) => {
-    const asset = { id: `asset-${id()}`, kind: "image", source: "upload", status: "ready", scope: "ugc_avatar", category: "outfit", name: "Uploaded asset", caption: "", fileUrl: "/api/local-assets/assets/files/mock.png", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+    const asset = {
+      id: `asset-${id()}`,
+      kind: "image",
+      source: "upload",
+      status: "ready",
+      scope: "ugc_ad",
+      category: "product",
+      name: "Uploaded asset",
+      caption: "",
+      fileUrl: "/api/local-assets/assets/files/mock.png",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
     state.assets = [asset, ...state.assets]
     return json(route, { asset }, 201)
   })
-  await page.route("**/api/assets/reference-import", async (route) => {
-    const asset = { id: `asset-${id()}`, kind: "image", source: "upload", status: "ready", scope: "ugc_avatar", category: "reference", name: "Reference image", caption: "", fileUrl: "/api/local-assets/assets/files/ref.png", metadata: { analysisStatus: "ready", sourceUpload: true, analysis: { pose: { body_orientation: "angled" } } }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
-    state.assets = [asset, ...state.assets]
-    return json(route, { asset }, 201)
-  })
-
   // --- Image collection edit/upscale + delete ----------------------------
   await page.route("**/api/image-collections/image-actions", async (route) => {
-    return json(route, { imageUrl: "/api/local-assets/image-collections/files/edited.jpg", taskId: `img-${id()}` })
+    return json(route, {
+      imageUrl: "/api/local-assets/image-collections/files/edited.jpg",
+      taskId: `img-${id()}`,
+    })
   })
 
   // Media requests -> tiny transparent asset so <img>/<video> don't 404 loudly.
   await page.route("**/api/local-assets/**", (route) =>
-    route.fulfill({ status: 200, contentType: "image/svg+xml", body: "<svg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/>" })
+    route.fulfill({
+      status: 200,
+      contentType: "image/svg+xml",
+      body: "<svg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/>",
+    })
   )
 }
 
@@ -365,7 +324,10 @@ export async function appApi(
     async ({ path, method, data }) => {
       const response = await fetch(path, {
         method: method ?? "GET",
-        headers: data === undefined ? undefined : { "Content-Type": "application/json" },
+        headers:
+          data === undefined
+            ? undefined
+            : { "Content-Type": "application/json" },
         body: data === undefined ? undefined : JSON.stringify(data),
       })
       const text = await response.text()

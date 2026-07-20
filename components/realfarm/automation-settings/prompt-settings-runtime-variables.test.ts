@@ -3,7 +3,7 @@ import path from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { PromptConfigPanel } from "./prompt-settings"
+import { hooksClipboardText, PromptConfigPanel } from "./prompt-settings"
 
 describe("automation prompt runtime variables", () => {
   it("shows runtime and collection variables in one compact badge list", () => {
@@ -24,5 +24,30 @@ describe("automation prompt runtime variables", () => {
     expect(source).not.toContain("Dynamic tags")
     expect(source).toContain("migrateLegacyHookVariableReferences")
     expect(source).toContain("wordCollectionVariableName")
+  })
+
+  it("copies every populated hook in editor order", () => {
+    expect(
+      hooksClipboardText([
+        {
+          id: "disabled",
+          text: "  Disabled hook  ",
+          enabled: false,
+          createdAt: "2026-07-18T00:00:00.000Z",
+        },
+        {
+          id: "used",
+          text: "Published hook",
+          enabled: true,
+          createdAt: "2026-07-18T00:00:00.000Z",
+        },
+        {
+          id: "blank",
+          text: "   ",
+          enabled: true,
+          createdAt: "2026-07-18T00:00:00.000Z",
+        },
+      ])
+    ).toBe("Disabled hook\nPublished hook")
   })
 })

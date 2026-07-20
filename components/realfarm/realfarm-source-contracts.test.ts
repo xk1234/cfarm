@@ -46,15 +46,11 @@ function section(source: string, start: string, end: string) {
 }
 
 function expectContains(source: string, values: string[]) {
-  for (const value of values) {
-    expect(source).toContain(value)
-  }
+  expect(values.filter((value) => !source.includes(value))).toEqual([])
 }
 
 function expectNotContains(source: string, values: string[]) {
-  for (const value of values) {
-    expect(source).not.toContain(value)
-  }
+  expect(values.filter((value) => source.includes(value))).toEqual([])
 }
 
 describe("RealFarm source contracts", () => {
@@ -64,21 +60,17 @@ describe("RealFarm source contracts", () => {
       const navigationSource = src("components/realfarm/navigation.tsx")
 
       expectContains(workspaceSource, [
-        'const [view, setView] = useState<ViewKey>("home")',
-        "const initialHash = window.location.hash",
-        "let ignoredInitialHashChange = false",
-        "window.location.hash === initialHash",
-        'window.addEventListener("hashchange", syncSwipeHashView)',
-        'className="h-svh overflow-hidden bg-[#f6f6f2] text-app-text"',
+        'initialNavigation?.view ?? "home"',
+        'className="relative h-svh overflow-hidden bg-[#f7f7fa] text-app-text"',
         'className="flex h-svh"',
-        '"min-w-0 flex-1 overflow-y-auto"',
-        '"px-5 py-5 lg:px-7"',
+        '"min-w-0 flex-1 overflow-y-auto pb-20 md:pb-0"',
+        '"px-4 py-4 sm:px-5 sm:py-5 lg:px-7"',
       ])
       expectContains(navigationSource, [
-        "hidden h-svh w-[214px] shrink-0 overflow-y-auto",
+        "hidden h-svh w-56 shrink-0 overflow-y-auto",
+        "export function MobileNavigation",
       ])
       expectNotContains(workspaceSource, [
-        "\n    syncSwipeHashView()\n",
         "CreatorsView",
         'view === "creators"',
       ])
@@ -148,14 +140,17 @@ describe("RealFarm source contracts", () => {
       expectContains(videoPanelSource, [
         "demoVideos: LocalAsset[]",
         "selectedDemoVideoId",
-        "const activeDemoVideo =",
-        "demoVideos.find((video) => video.id === selectedDemoVideoId)",
         "VideoAutomationPreviewText",
         "AutomationFormatTextToolbar",
         "addVideoTextItem",
         "selectedVideoTextIndex",
         "updateVideoTextItem",
         "deleteSelectedVideoTextItem",
+      ])
+      expectContains(generationSource, [
+        "const activeDemoVideo =",
+        "input.demoVideos.find(",
+        "input.config.image_collection_ids.video_demo_asset_id",
       ])
       expectNotContains(videoPanelSource, [
         "GeneratedVideoExports",
@@ -188,7 +183,12 @@ describe("RealFarm source contracts", () => {
       expectContains(drawerSource, [
         "activeGenerationCount",
         "crypto.randomUUID()",
-        'generating ? "Generate another" : "Generate"',
+        "function settleGeneration(run?: AutomationRunApiRecord)",
+        "settleGeneration(run)",
+        "loadFailedRunForRequest(",
+        'run.requestId === requestId && run.status === "failed"',
+        'generating ? "Generating…" : "Generate"',
+        "disabled={generating || savingConfig}",
       ])
       expectContains(helperSource, [
         "generation-placeholder-${automation.id}${requestId",
@@ -205,9 +205,9 @@ describe("RealFarm source contracts", () => {
       expectContains(homeSource, [
         "fetchJsonWithTimeout<{",
         "exports?: GeneratedVideoExport[]",
-        '}>("/api/generated-videos"',
+        '}>("/api/generated-videos?limit=50"',
         "void loadGeneratedVideos()",
-        "Quick start",
+        "Start from a proven workflow",
         "templates: Automation[]",
         "quickStartTemplates",
         "QUICK_START_ITEMS_PER_PAGE = 6",
@@ -215,6 +215,11 @@ describe("RealFarm source contracts", () => {
         "pagedQuickStartTemplates",
         "generatedRunsByAutomationId",
         "generatedHomeSlideshowCards",
+        "includeFailed: true",
+        "GenerationFailurePlaceholder",
+        'item.slideshow.status === "failed"',
+        'const isFailed = !item.videoUrl && item.status === "failed"',
+        'item.error || "This video could not be generated."',
         "Slideshows ({generatedSlideshowCards.length})",
         "GeneratedSlideshowCard",
         "No generated slideshows yet. Run a slideshow automation",
@@ -280,13 +285,17 @@ describe("RealFarm source contracts", () => {
       expectContains(pinterestSource, [
         'import { toast } from "sonner"',
         "toast.error",
-        'const [searchStatus, setSearchStatus] = useState<"idle" | "searching" | "loadingMore">("idle")',
+        "const [searchStatus, setSearchStatus] = useState<",
+        '"idle" | "searching" | "loadingMore"',
         "const [creatingCollection, setCreatingCollection] = useState(false)",
         'const loadingMore = searchStatus === "loadingMore"',
         'const searching = searchStatus === "searching"',
         'const searchBusy = searchStatus !== "idle"',
         "disabled={!canCreate || creatingCollection}",
-        '{creatingCollection ? (autoCaption ? "Captioning..." : "Adding...") : `Add ${selectedResults.length} images`}',
+        "{creatingCollection",
+        '? "Captioning..."',
+        ': "Adding..."',
+        ": `Add ${selectedResults.length} images`",
         "timeoutMs: 180_000",
         '"/api/image-collections/import"',
         "collectionCreatedAt",
@@ -372,7 +381,6 @@ describe("RealFarm source contracts", () => {
         'activeTab === "settings"',
         "AutomationGeneralSettingsPanel",
         'SettingsPage title="Settings"',
-        "New Slide Editor",
         "SelectControl",
         "SwitchPillButton",
         "SettingsRow",
@@ -387,7 +395,6 @@ describe("RealFarm source contracts", () => {
       ])
       expectContains(settingsSource, [
         "config.language",
-        "config.image_fit",
         "updateLanguage",
         "SoundSelector",
         "updateTransitionStyle",
@@ -446,7 +453,7 @@ describe("RealFarm source contracts", () => {
 
       expectContains(source, [
         "collections: CreatedImageCollection[]",
-        "formatCollection(config, collections, activeKey)",
+        "formatCollection(config, photoCollections, activeKey)",
         "buildFormatPreviewItems(config, collections)",
         "CollectionSelector",
         "updateImageCollectionId",
@@ -468,7 +475,6 @@ describe("RealFarm source contracts", () => {
         "Pinterest - space",
         "Nisi ut aliquip",
         "Incididunt ut labore",
-        "Not published",
       ])
       expect(sharedSource).not.toContain("Not published")
       expectContains(toolbarSource, [
@@ -509,19 +515,16 @@ describe("RealFarm source contracts", () => {
       ])
       expectContains(ctaSource, [
         "Enable CTA",
-        "Slide Placement",
         "Collection or Image",
         "Single image",
         "CTA collection",
         "Aspect Ratio",
-        "Image Grid",
         "Overlay Image",
         "Display text",
         "CtaSingleImagePicker",
       ])
       expectContains(source, [
         "function updateCtaEnabled",
-        "function updateCtaPlacement",
         "function updateCtaImageMode",
         "function updateCtaSingleImage",
         "ctaEnabled(config, cta)",
@@ -542,18 +545,18 @@ describe("RealFarm source contracts", () => {
         "async function generateAutomation()",
         '"/api/automations/run"',
         "automationId: automation.id",
-        "schema: draftConfig",
+        "config: effectiveDraftConfig",
         "flushSync",
         "remainingLoadingMs",
         "setRecentRuns",
         "AutomationRecentRunCard",
-        "AutomationGeneratedSlideshowViewer",
+        "GeneratedSlideshowViewerModal",
         "runScheduleDurationLine",
         "renderedSlides",
         "ratioToCss(activeSlideRecord?.aspectRatio)",
         "absolute top-1/2 left-2",
         "absolute top-1/2 right-2",
-        "AutomationRunDetail",
+        "AutomationRunDebugModal",
         "No generated slideshows yet.",
       ])
       expectContains(workspaceSource, [
@@ -589,7 +592,6 @@ describe("RealFarm source contracts", () => {
     })
 
     it("renders automation settings inline on the automations page instead of a modal overlay", () => {
-      const settingsSource = readAutomationSettingsSource()
       const workspaceSource = src("components/realfarm-workspace.tsx")
       const automationViewBranch = section(
         workspaceSource,
@@ -597,9 +599,9 @@ describe("RealFarm source contracts", () => {
         "</section>"
       )
       const settingsShell = section(
-        settingsSource,
+        src("components/realfarm/automation-settings/drawer.tsx"),
         "export function AutomationSettingsDrawer",
-        "function DrawerNavButton"
+        "async function persistDraftConfig"
       )
       const settingsOuterClass = section(
         settingsShell,
@@ -610,13 +612,13 @@ describe("RealFarm source contracts", () => {
       expectContains(automationViewBranch, [
         "editingAutomation ? (",
         "<AutomationSettingsDrawer",
-        "onClose={() => setEditingAutomation(null)}",
+        "refreshRecentAutomationRuns()",
         ") : (",
         "<AutomationsView",
       ])
       expectContains(workspaceSource, [
         'const fillsWorkspace = view === "automations" && Boolean(editingAutomation)',
-        'fillsWorkspace ? "p-0" : "px-5 py-5 lg:px-7"',
+        'fillsWorkspace ? "p-0" : "px-4 py-4 sm:px-5 sm:py-5 lg:px-7"',
       ])
       expectContains(settingsShell, [
         "min-h-svh",
@@ -759,7 +761,7 @@ describe("RealFarm source contracts", () => {
       expectContains(previewSource, [
         "No example slideshow yet",
         "slide.text",
-        'slide.section !== "hook"',
+        "exampleSlideSection(slide, index)",
         "slide.imageUrl",
         "run.renderedSlides?.length",
         "slide.sourceImageUrl",
@@ -775,7 +777,7 @@ describe("RealFarm source contracts", () => {
         "boundedActiveSlide - 1",
         "boundedActiveSlide + 1",
         "initialSlideshowId",
-        'aria-hidden="true"',
+        'aria-label="Close slideshow"',
       ])
       expectNotContains(slideshowViewerSource, [
         "CheckedDropdownButton",
@@ -823,23 +825,40 @@ describe("RealFarm source contracts", () => {
 
   describe("calendar and analytics", () => {
     it("uses the canonical calendar and stored cross-account analytics", () => {
-      const barrel = src("components/realfarm/calendar-analytics.tsx")
       const calendar = src(
         "components/realfarm/content-calendar/content-calendar-view.tsx"
       )
       const analytics = src("components/realfarm/analytics/analytics-view.tsx")
+      const accountProfile = src(
+        "components/realfarm/analytics/account-profile-icon.tsx"
+      )
+      const analyticsPagination = src(
+        "components/realfarm/analytics/pagination-controls.tsx"
+      )
       const navigation = src("components/realfarm/navigation.tsx")
+      const globalStyles = src("app/globals.css")
 
-      expectContains(barrel, [
-        'from "./content-calendar/content-calendar-view"',
-        'from "./analytics/analytics-view"',
-      ])
       expectContains(calendar, [
         "`/api/calendar?from=${encodeURIComponent(",
-        "MonthCalendar",
+        "FullCalendar",
+        'initialView="dayGridMonth"',
+        'right: "dayGridMonth,timeGridWeek"',
         "CalendarItemDetail",
         "filterStorageKey",
         "MultiSelectFilter",
+        "CalendarSelectFilter",
+        "<DropdownMenu.Root>",
+        "<Select.Root",
+        "reconcileAvailableFilters",
+        "activeFilters",
+        "No accounts in range",
+        "No platforms in range",
+        "No automations in range",
+        "No sources in range",
+        '<IconUsers className="size-4" />',
+        '<IconWorld className="size-4" />',
+        '<IconActivity className="size-4" />',
+        '<IconDatabase className="size-4" />',
         "filters.accounts",
         "filters.statuses",
         "filters.platform",
@@ -847,10 +866,36 @@ describe("RealFarm source contracts", () => {
         "filters.sourceType",
         "window.localStorage.setItem",
         'item.status === "scheduled" && item.links.cancel',
+        'item.status === "generation_failed" && item.links.retry',
+        'item.links.retry, { method: "POST" }',
+        "calendarEventHoverText(item)",
+        "calendarTimingEntries(item)",
+        '<AppModal className="z-[70] bg-[#24251f]/45"',
+        "accessibleTitle={item.title}",
+        'className="max-h-[calc(100vh-2rem)] max-w-[560px] overflow-y-auto p-0"',
         "function PlatformMark",
         'case "google-business-profile"',
       ])
-      expectNotContains(calendar, ["WeekCalendar", "AgendaList", "Reschedule"])
+      expectNotContains(calendar, [
+        "WeekCalendar",
+        "AgendaList",
+        "Reschedule",
+        "xl:grid-cols-[1fr_340px]",
+        "<aside",
+        "SelectControl",
+        "Select all",
+      ])
+      expectContains(globalStyles, [
+        "--fc-button-text-color: var(--app-text-soft);",
+        ".cfarm-calendar .fc-button {",
+        "background: var(--app-control-bg);",
+        "color: var(--app-text-soft);",
+        ".cfarm-calendar .fc-button:hover:not(:disabled)",
+        ".cfarm-calendar .fc-button-primary:not(:disabled).fc-button-active",
+        ".cfarm-calendar .fc-button:focus-visible",
+        ".cfarm-calendar .fc-button:disabled",
+        "color: var(--app-muted-text);",
+      ])
       expectContains(navigation, [
         '}>("/api/calendar/summary"',
         "calendarStatus.summary.needsAction + calendarStatus.summary.failed",
@@ -858,136 +903,38 @@ describe("RealFarm source contracts", () => {
       ])
       expectContains(analytics, [
         "const requestKey = `/api/analytics/report?days=${days}`",
-        'type AnalyticsLevel = "overview" | "account" | "posts"',
         "AnalyticsOverview",
+        "AccountSelectorRail",
+        "PortfolioMetricCard",
+        "PlatformAnalytics",
+        "ComparisonChart",
+        "AccountPerformanceTable",
+        "RecentPosts",
+        "`/app/analytics/posts/${encodeURIComponent(post.postId)}`",
+        "capabilities",
+        "<AccountProfileIcon",
+        "<PaginationControls",
+        "const pageSize = 4",
+        "const pageSize = 8",
+      ])
+      expectContains(accountProfile, [
+        "export function AccountProfileIcon",
+        "<Tooltip.Portal>",
+        "providerName(integration.provider)",
+      ])
+      expectContains(analyticsPagination, [
+        "export function PaginationControls",
+        "Previous ${label} page",
+        "Next ${label} page",
+      ])
+      expectNotContains(analytics, [
+        'type AnalyticsLevel = "overview" | "account" | "posts"',
         "AccountAnalytics",
         "PostAnalyticsTable",
-        "dailyMetricSeries",
-        "capabilities",
       ])
       expectNotContains(analytics, [
         "domain={[0, 4]}",
         "Track your TikTok performance",
-      ])
-    })
-  })
-
-  describe("characters", () => {
-    it("keeps character creation attributes and headshot loading wired", () => {
-      const source = src("components/realfarm/character-create.tsx")
-      const loadingTextIndex = source.indexOf("Generating headshot...")
-      const separateBelowPortraitIndex = source.indexOf(
-        "mt-3 rounded-[10px] bg-app-surface px-3 py-2 text-center text-[13px] font-bold text-app-text-soft shadow-sm"
-      )
-      const portraitContainerIndex = source.indexOf(
-        '<div className="relative w-fit">'
-      )
-
-      expectContains(source, [
-        "CharacterAttributeCardControl",
-        "updateCreateAttribute",
-        "setCharacterFieldValue(current, key",
-        "characterSummaryFields.map(([label, key]) => (",
-        "field={key}",
-        "onChange={updateCreateAttribute}",
-        "characterAttributeOptions[field]?.length",
-        "SelectControl",
-        "<SelectControl",
-        "value={selectedValue}",
-        "onChange={(event) => onChange(field, event.target.value)}",
-        "currentValueIsKnown",
-        "Regenerate face",
-        "regenerateFace",
-        "generateHeadshot(cleanName, normalizeCharacterAttributes({ ...attributes, name: cleanName })",
-        "absolute inset-0",
-      ])
-      expect(loadingTextIndex).toBeGreaterThan(portraitContainerIndex)
-      expect(separateBelowPortraitIndex).toBe(-1)
-      expectNotContains(source, [
-        "aria-pressed={selected}",
-        "<select",
-        "<CharacterCreateAttributeSelector",
-        "Edit attributes",
-      ])
-    })
-
-    it("keeps character assets, generated images, and fixed editor layout in place", () => {
-      const source = src("components/realfarm/characters/characters-view.tsx")
-      const modalsSource = src("components/realfarm/characters/modals.tsx")
-      const sharedSource = src(
-        "components/realfarm/characters/shared-components.tsx"
-      )
-      const gridSource = section(
-        modalsSource,
-        "function AssetImageTile",
-        "function AssetThumb"
-      )
-      const debugButtonIndex = source.indexOf('aria-label="Debug prompt"')
-      const composerIndex = source.indexOf(
-        'aria-label="Edit AI UGC character prompt"'
-      )
-
-      expectContains(source, [
-        "PromptInputRow",
-        "characterImageAspectRatios",
-        'aria-label="Image aspect ratio"',
-        "fetchJsonWithTimeout<{",
-        "imageUrl?: string",
-        "generation?: CharacterGenerationView",
-        '"/api/characters/image"',
-        'status: "processing"',
-        "setPreviewGeneration(generation)",
-        'aria-label="Use as source image"',
-        "setSelectedGeneration(generation)",
-        "generations?: CharacterGenerationView[]",
-        "`/api/characters/images?characterId=${selectedCharacter.id}`",
-        "setGenerations(payload.generations ?? [])",
-        "characterId: input.selectedCharacter.id",
-        'className="relative h-[calc(100svh-72px)] overflow-hidden bg-app-surface-subtle px-7 py-6"',
-        '"absolute inset-x-0 top-[104px] bottom-0 overflow-y-auto px-7 pt-8 pb-64"',
-        'className="absolute inset-x-8 bottom-6 z-30 mx-auto max-w-[760px] overflow-hidden rounded-2xl border border-app-panel-border bg-app-surface shadow-[0_12px_32px_rgba(30,30,25,0.12)]"',
-        "videoUrl?: string",
-        "group relative block overflow-hidden rounded-[10px] bg-transparent p-0",
-      ])
-      expect(debugButtonIndex).toBeGreaterThan(-1)
-      expect(composerIndex).toBeGreaterThan(-1)
-      expect(debugButtonIndex).toBeLessThan(composerIndex)
-      expectContains(gridSource, [
-        "const caption =",
-        'asset.caption || asset.prompt || asset.name || "No caption yet"',
-      ])
-      expectContains(sharedSource, [
-        "src={attachment.url}",
-        "alt={attachment.label}",
-        "style={{ width: `${generation.progress}%` }}",
-        'alt={generation.prompt || "Generated character image"}',
-      ])
-      expectContains(modalsSource, [
-        "@/lib/realfarm-asset-ui-config",
-        "assetCategoryByTab",
-        "assetTabs.map((tab) => (",
-        'activeTab === "outfits"',
-        'activeTab === "background"',
-        "function AssetImageGrid",
-        "function AssetImageTile",
-        "grid grid-cols-3 gap-2",
-        "aspect-square",
-        "group-hover:opacity-100",
-        "group-focus-visible:opacity-100",
-        "debug-attachments-bottom",
-        "src={generation.imageUrl}",
-        "CharacterImageEditorModal",
-        'aria-label="Video generation prompt"',
-        "characterImageToVideoModels",
-        "taskId?: string",
-        '"/api/characters/video"',
-      ])
-      expectNotContains(gridSource, ["asset.source", "replace"])
-      expectNotContains(source, [
-        'className="inline-flex max-w-full items-center gap-2 rounded-full bg-[#eef0f5]',
-        "presetMenuOpen",
-        'className="overflow-hidden rounded-[14px] border border-[#e1e1dc] bg-app-surface text-left shadow-sm',
-        "{generation.model} · {generation.aspectRatio}",
       ])
     })
   })

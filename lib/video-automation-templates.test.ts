@@ -31,6 +31,33 @@ describe("screen-record video template", () => {
   })
 })
 
+describe("greenscreen-meme video template", () => {
+  it("uses separate meme-video and background-image collections", () => {
+    const format =
+      videoAutomationTemplatePreset("greenscreen_meme").buildFormat()
+
+    expect(format.hookPlacement).toBe("global")
+    expect(format.globalTextItems).toHaveLength(1)
+    expect(format.segments).toMatchObject([
+      {
+        id: "greenscreen-meme",
+        mediaSource: "collection",
+        mediaKind: "video",
+        collectionId: "collection-greenscreen-memes",
+        clipCount: 1,
+        playFullVideo: true,
+      },
+      {
+        id: "greenscreen-background",
+        mediaSource: "collection",
+        mediaKind: "image",
+        clipCount: 1,
+      },
+    ])
+    expect(normalizeVideoFormat(format)?.template).toBe("greenscreen_meme")
+  })
+})
+
 describe("react-and-reveal video template", () => {
   it("plays one collection video and one demo video in full", () => {
     const format = videoAutomationTemplatePreset("react_reveal").buildFormat()

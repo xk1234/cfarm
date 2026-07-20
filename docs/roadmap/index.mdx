@@ -1,0 +1,54 @@
+---
+title: "Roadmap"
+description: "Current LumenClip priorities, queued initiatives, and links to concrete work items."
+---
+
+> **Living folder.** Only incomplete product work belongs here. Active work is
+> promoted into a concrete child page with its outcome and completion criteria.
+> Shipped behavior is documented in [STATE.md](/docs/STATE) and the reference
+> guides; Git history is the archive.
+>
+> Last updated: 2026-07-18
+
+## Now
+
+| Initiative                                                                           | Remaining work                                                                                                                                                   | Supporting detail                                                          |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| [Appwrite read reduction](/docs/roadmap/appwrite-read-reduction)                     | Remove the remaining broad list/count reads, target slideshow hydration by ID, paginate large libraries, and add bounded retention/archive behavior.             | [Backend architecture](/docs/reference/backend-architecture)               |
+| [Release test stabilization](/docs/roadmap/release-test-stabilization)               | Migrate the remaining 19 `automation-runner.test.ts` fixtures to explicit hooks and deterministic text-generation doubles; the updated focused set passes 38/38. | [Deployment checks](/docs/reference/deployment#required-pre-deploy-checks) |
+| [Manual TikTok publication linking](/docs/roadmap/manual-tiktok-publication-linking) | Generalize the shipped TikTok inspection, matching, recovery, and confirmation workflow to more providers while keeping evidence and ownership rules explicit.   | [MCP server roadmap](/docs/roadmap/lumenclip-mcp-server)                   |
+
+## Next
+
+Detailed initiatives may have their own roadmap page before implementation so
+product decisions, completion criteria, and rollout constraints stay together.
+
+| Initiative                          | Remaining work                                                                                                                                                    | Detail                                                                  |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| LinkedIn automation product surface | Add an owner-scoped store, automation studio, scheduler/job integration, and PostFast publishing around the existing generation template.                         | [Automation templates](/docs/reference/automation-templates)            |
+| Scheduled X/Threads publishing      | Publish threads and multi-post scheduled drafts; grade drafts during generation instead of storing the placeholder benchmark.                                     | [STATE known gaps](/docs/STATE#5-known-gaps-stubs--half-built-features) |
+| Durable analytics synchronization   | Move `sync-post-analytics` from the optional local process into a durable cloud worker/function, or explicitly remove the queued path in favor of manual refresh. | [Scheduling](/docs/scheduling)                                          |
+
+## Later
+
+| Initiative                                                 | Remaining work                                                                                                                                                         | Detail           |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| [LumenClip MCP server](/docs/roadmap/lumenclip-mcp-server) | Build the tenant-safe remote MCP interface for discovering automations/collections, generating drafts, inspecting outputs, and explicitly publishing approved content. | Detailed roadmap |
+| Billing and plans                                          | Replace the settings stub with plan, usage, and seat management.                                                                                                       | Not yet detailed |
+
+## Backlog audits
+
+The [verified workflow gaps](/docs/roadmap/workflow-gaps) remain a reproduced
+backlog. Promote a gap into a concrete roadmap page when it is scheduled.
+
+## Adding roadmap work
+
+When an initiative moves to **Now**:
+
+1. Add a focused page in this folder.
+2. State the intended outcome and observable completion criteria.
+3. Link workflow evidence and implementation references rather than copying
+   them into the task page.
+4. Add the page to `roadmap/meta.json` and link it from the **Now** table.
+5. Delete the page after the work ships and fold durable facts into `STATE.md`
+   and the appropriate reference guides.

@@ -3,7 +3,15 @@ import os from "node:os"
 import path from "node:path"
 
 import { Query } from "node-appwrite"
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
@@ -148,7 +156,7 @@ describe("POST /api/automations/hooks", () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it("filters generated hooks that were recently used by the automation", async () => {
+  it("filters generated hooks that were recently published by the automation", async () => {
     vi.stubEnv("OPENROUTER_API_KEY", "openrouter-test-key")
     const { createLocalAutomationRecord, upsertAutomationRecords } =
       await import("@/lib/automations")
@@ -170,7 +178,7 @@ describe("POST /api/automations/hooks", () => {
       records: [
         {
           automation_id: automation.id,
-          kind: "hook",
+          kind: "hook_published",
           key: "recently used hook",
           run_id: "run-recent",
           used_at: "2026-07-07T10:00:00.000Z",

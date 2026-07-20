@@ -26,9 +26,9 @@ export default function PrivacyPage() {
             Workspace data
           </h2>
           <p className="mt-3">
-            Private records include saved sources, assets, characters,
-            collections, automations, runs, results, and generation history.
-            These records are scoped to the signed-in user.
+            Private records include saved sources, assets, collections,
+            automations, runs, results, and generation history. These records
+            are scoped to the signed-in user.
           </p>
         </section>
         <section>

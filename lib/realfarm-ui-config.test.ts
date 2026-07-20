@@ -2,22 +2,6 @@ import { describe, expect, it } from "vitest"
 
 import { assetCategoryByTab, assetTabs } from "@/lib/realfarm-asset-ui-config"
 import {
-  characterAttributeOptionsConfig,
-  characterEditorFieldsConfig,
-  characterEditorTabsConfig,
-  characterSummaryFieldsConfig,
-  defaultCharacterHeadshotPromptConfig,
-  defaultCharacterPreviewUrlConfig,
-  characterImageAspectRatiosConfig,
-} from "@/lib/realfarm-character-ui-config"
-import {
-  characterImageGenerationModelOptions,
-  characterImageToVideoModelOptions,
-  defaultCharacterImageGenerationModel,
-  defaultCharacterImageToVideoModel,
-  generationModelRegistry,
-} from "@/lib/realfarm-generation-model-registry"
-import {
   automationTextPreviewClassName,
   automationTextPreviewStyle,
   defaultSlideshowTextStyle,
@@ -26,48 +10,7 @@ import {
   slideshowTextSizeOptions,
   textStyleUsesStroke,
 } from "@/lib/realfarm-slideshow-text-style-config"
-import {
-  characterAttributeOptions,
-  characterEditorFields,
-  characterEditorTabs,
-  characterGenerationModels,
-  characterImageAspectRatios,
-  characterImageToVideoModels,
-  characterSummaryFields,
-  defaultCharacterHeadshotPrompt,
-  defaultCharacterPreviewUrl,
-  defaultImageGenerationModel,
-  defaultImageToVideoModel,
-} from "@/lib/realfarm-character-ui"
-
 describe("RealFarm UI config", () => {
-  it("loads character attributes, tabs, summary fields, and defaults from config", () => {
-    expect(characterAttributeOptions).toBe(characterAttributeOptionsConfig)
-    expect(characterEditorTabs).toBe(characterEditorTabsConfig)
-    expect(characterEditorFields).toBe(characterEditorFieldsConfig)
-    expect(characterSummaryFields).toBe(characterSummaryFieldsConfig)
-    expect(defaultCharacterPreviewUrl).toBe(defaultCharacterPreviewUrlConfig)
-    expect(defaultCharacterHeadshotPrompt).toBe(
-      defaultCharacterHeadshotPromptConfig
-    )
-    expect(characterImageAspectRatios).toBe(characterImageAspectRatiosConfig)
-    expect(characterAttributeOptionsConfig["hair.color"]).toContain("black")
-  })
-
-  it("loads character generation model options from the central registry", () => {
-    expect(defaultImageGenerationModel).toBe(
-      defaultCharacterImageGenerationModel
-    )
-    expect(defaultImageToVideoModel).toBe(defaultCharacterImageToVideoModel)
-    expect(characterGenerationModels).toEqual(
-      characterImageGenerationModelOptions.map((model) => model.label)
-    )
-    expect(characterImageToVideoModels).toBe(characterImageToVideoModelOptions)
-    expect(generationModelRegistry.character.image.defaultModel).toBe(
-      "Nano Banana Pro"
-    )
-  })
-
   it("loads asset tabs and categories from config", () => {
     expect(assetTabs).toEqual([
       "outfits",

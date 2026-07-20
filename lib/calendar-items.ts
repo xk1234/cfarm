@@ -44,13 +44,23 @@ export type CalendarItem = {
     automation?: string
     live?: string
     cancel?: string
+    reschedule?: string
+    retry?: string
   }
   timestamps: {
     createdAt?: string
     updatedAt?: string
     scheduledAt?: string
     publishedAt?: string
+    generatedAt?: string
+    expectedGenerationAt?: string
+    expectedPublishedAt?: string
   }
+}
+
+export type CalendarTimingEntry = {
+  label: string
+  at?: string
 }
 
 export type CalendarFilters = {
@@ -108,6 +118,27 @@ export function calendarLifecycleForJob(
   return null
 }
 
+export function calendarTimingEntries(
+  item: CalendarItem
+): CalendarTimingEntry[] {
+  const generatedAt = item.timestamps.generatedAt
+  const publishedAt = item.timestamps.publishedAt
+  return [
+    generatedAt
+      ? { label: "Generated on", at: generatedAt }
+      : {
+          label: "Expected to be generated on",
+          at: item.timestamps.expectedGenerationAt,
+        },
+    publishedAt
+      ? { label: "Published on", at: publishedAt }
+      : {
+          label: "Expected to be published on",
+          at: item.timestamps.expectedPublishedAt,
+        },
+  ]
+}
+
 export function calendarLifecycleForLocalPost(
   status: PostFastPostStatus
 ): CalendarLifecycleStatus | null {
@@ -154,6 +185,22 @@ export function calendarItemMatchesFilters(
       item.targets.map((target) => target.provider.toLowerCase())
     )
   )
+}
+
+export function reconcileCalendarFilterValue(
+  value: string,
+  availableValues: Iterable<string>
+) {
+  if (value === "all") return value
+  return new Set(availableValues).has(value) ? value : "all"
+}
+
+export function reconcileCalendarFilterValues(
+  values: string[],
+  availableValues: Iterable<string>
+) {
+  const available = new Set(availableValues)
+  return values.filter((value) => available.has(value))
 }
 
 function matches(filter: Set<string> | undefined, values: string[]) {

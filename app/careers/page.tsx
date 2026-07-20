@@ -12,7 +12,7 @@ export default function CareersPage() {
       <MarketingNav />
       <PageHero
         title="Build tools that respect creative judgment."
-        description="LumenClip is creating the operating layer between creative research and published output."
+        description="LumenClip is creating the operating layer between reusable creative inputs and published output."
         action={false}
       />
       <section className="border-y border-brand-border bg-white py-24 lg:py-32">

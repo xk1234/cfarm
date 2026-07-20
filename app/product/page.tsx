@@ -17,18 +17,18 @@ import {
 const groups = [
   {
     icon: IconFileSearch,
-    title: "Research with context",
-    body: "Save the source URL, media, transcript, landing-page capture, notes, and the reason the creative mattered.",
+    title: "Reusable inputs with context",
+    body: "Keep approved media, prompts, brand direction, and templates organized for the next content run.",
     bullets: [
-      "Keep proof beside the claim it supports",
-      "Organize sources into boards and tags",
-      "Return to the original angle before generating variants",
+      "Keep approved assets beside their instructions",
+      "Organize media into reusable collections",
+      "Reuse a proven direction without rebuilding it",
     ],
   },
   {
     icon: IconRoute,
     title: "Workflows with visible inputs",
-    body: "Build an automation from named collections, templates, characters, schedules, and destination settings.",
+    body: "Build an automation from named collections, templates, schedules, and destination settings.",
     bullets: [
       "Inspect every input before a run",
       "Persist run history and generated artifacts",
@@ -38,7 +38,7 @@ const groups = [
   {
     icon: IconSparkles,
     title: "Reusable creator assets",
-    body: "Keep characters, headshots, captions, prompt attachments, references, and generated videos attached to a stable record.",
+    body: "Keep assets, captions, prompt attachments, references, and generated videos attached to a stable record.",
     bullets: [
       "Reduce prompt drift between campaigns",
       "Reuse approved references and collections",
@@ -53,7 +53,7 @@ export default function ProductPage() {
       <MarketingNav />
       <PageHero
         title="The operating layer around your creative tools."
-        description="LumenClip connects research, reusable media, generation workflows, review, and output history without replacing the tools you already trust."
+        description="LumenClip connects reusable media, generation workflows, review, scheduling, and output history without replacing the tools you already trust."
       />
       <section className="border-y border-brand-border bg-white py-24">
         <div className="mx-auto max-w-[1280px] space-y-24 px-5 lg:px-8">

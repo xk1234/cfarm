@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { AlignCenter, AlignLeft, AlignRight, MapPin, Plus } from "lucide-react"
+import { LuAlignCenter, LuAlignLeft, LuAlignRight, LuMapPin, LuPlus } from "react-icons/lu"
 
 import { SelectLike } from "@/components/ui/form-controls"
 import {
@@ -63,7 +63,7 @@ export function AutomationFormatTextToolbar({
               label="Position"
               value={textPositionLabel(textItem.textPosition)}
               options={automationTextPositionLabels}
-              icon={<MapPin className="size-3.5" />}
+              icon={<LuMapPin className="size-3.5" />}
               onChange={(value) =>
                 updateTextItem({ textPosition: labelToTextPosition(value) })
               }
@@ -100,7 +100,7 @@ export function AutomationFormatTextToolbar({
               label="Left/Right Padding"
               value={anchorLabel(textItem.textAnchor ?? "padded")}
               options={automationAnchors.map(anchorLabel)}
-              icon={<MapPin className="size-3.5" />}
+              icon={<LuMapPin className="size-3.5" />}
               onChange={(value) =>
                 updateTextItem({ textAnchor: labelToAnchor(value) })
               }
@@ -109,7 +109,7 @@ export function AutomationFormatTextToolbar({
               label="Top/Bottom Padding"
               value={anchorLabel(textItem.textVerticalAnchor ?? "padded")}
               options={automationAnchors.map(anchorLabel)}
-              icon={<MapPin className="size-3.5" />}
+              icon={<LuMapPin className="size-3.5" />}
               onChange={(value) =>
                 updateTextItem({ textVerticalAnchor: labelToAnchor(value) })
               }
@@ -139,7 +139,7 @@ export function AutomationFormatTextToolbar({
             className="flex items-center gap-1 rounded-md p-1.5 text-xs font-medium text-blue-500 transition-colors hover:bg-blue-50"
             onClick={onAdd}
           >
-            <Plus className="size-3.5 stroke-[2.5]" />
+            <LuPlus className="size-3.5 stroke-[2.5]" />
             Add text
           </button>
           <button
@@ -265,10 +265,10 @@ function CompactTextSelect({
 function alignmentIcon(alignment: AutomationTextItem["textAlign"]) {
   switch (alignment) {
     case "left":
-      return <AlignLeft className="size-3.5" />
+      return <LuAlignLeft className="size-3.5" />
     case "right":
-      return <AlignRight className="size-3.5" />
+      return <LuAlignRight className="size-3.5" />
     default:
-      return <AlignCenter className="size-3.5" />
+      return <LuAlignCenter className="size-3.5" />
   }
 }

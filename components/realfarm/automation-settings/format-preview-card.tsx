@@ -4,7 +4,7 @@ import {
   slideDimensions,
 } from "@/lib/slideshow-renderer"
 import { cn } from "@/lib/utils"
-import { Plus } from "lucide-react"
+import { LuPlus } from "react-icons/lu"
 
 import {
   formatAspectRatioCss,
@@ -57,6 +57,7 @@ export function AutomationFormatPreviewCard({
     ? renderedSlideSvg(slide, item.image.imageUrl, overlayUrl, {
         aspectRatio,
         font,
+        iconUrls: slide.iconLayout?.surrounding.map((icon) => icon.image_url),
       })
     : ""
   const previewTextItems = slide.textItems
@@ -167,7 +168,7 @@ export function AutomationFormatPreviewCard({
                   onAddText()
                 }}
               >
-                <Plus className="size-3" />
+                <LuPlus className="size-3" />
                 Add text
               </button>
             ) : null}

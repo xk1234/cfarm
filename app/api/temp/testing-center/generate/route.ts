@@ -1,12 +1,9 @@
 import { clean } from "@/lib/guards"
-import { randomUUID } from "node:crypto"
 import { NextResponse } from "next/server"
 
-import {
-  automationRunSlidesToSlideshowSlides,
-  automationSlideshowSettings,
-  previewAutomationRunPlan,
-} from "@/lib/automation-runner"
+import { internalToolsEnabled } from "@/lib/internal-tools"
+
+import { previewAutomationRunPlan } from "@/lib/automation-runner"
 import {
   automationTemplateRecordToSchema,
   listAutomationTemplateRecords,
@@ -15,13 +12,6 @@ import {
   defaultTempSlideSystemPrompt,
   defaultTempSlideUserInstructions,
 } from "@/lib/temp-slide-testing"
-import {
-  listBenchmarkCorpus,
-  randomBenchmarkReferences,
-  renderSlidesForBenchmark,
-  scoreSlideshowBenchmark,
-  type GeneratedSlideshowBenchmark,
-} from "@/lib/slideshow-benchmarks"
 
 export const dynamic = "force-dynamic"
 
@@ -33,6 +23,10 @@ type GenerateRequestBody = {
 }
 
 export async function POST(request: Request) {
+  if (!internalToolsEnabled()) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 })
+  }
+
   try {
     const body = (await request.json()) as GenerateRequestBody
     const automationId = clean(body.automationId)
@@ -91,56 +85,6 @@ export async function POST(request: Request) {
       )
     }
 
-    let benchmarkComparison
-    let benchmarkError = ""
-    try {
-      const benchmarkSchema = automationTemplateRecordToSchema(record)
-      const benchmarkSlides = automationRunSlidesToSlideshowSlides(
-        benchmarkSchema,
-        preview.plan
-      )
-      const benchmarkSettings = automationSlideshowSettings(benchmarkSchema)
-      const benchmarkImageBytes = await renderSlidesForBenchmark(
-        benchmarkSlides,
-        {
-          aspectRatio: benchmarkSettings.aspect_ratio,
-          font: benchmarkSettings.font,
-        }
-      )
-      const displaySlides = preview.plan.slides.map((slide, index) => ({
-        id: `debug-${automationId}-${index + 1}`,
-        imageUrl: slide.imageUrl,
-        text: slide.text,
-        role: slide.role,
-      }))
-      const icp = [record.name, record.theme, `Hook topic: ${preview.plan.hook}`]
-        .filter(Boolean)
-        .join(" · ")
-      const grade = await scoreSlideshowBenchmark({
-        title: preview.plan.title || record.name,
-        icp,
-        slides: displaySlides,
-        imageBytes: benchmarkImageBytes,
-      })
-      const benchmarkSubject: GeneratedSlideshowBenchmark = {
-        id: `debug-benchmark-${randomUUID()}`,
-        slideshowId: `debug-${randomUUID()}`,
-        automationId,
-        title: preview.plan.title || record.name,
-        icp,
-        slides: displaySlides,
-        ...grade,
-        createdAt: new Date().toISOString(),
-      }
-      benchmarkComparison = {
-        subject: benchmarkSubject,
-        references: randomBenchmarkReferences(await listBenchmarkCorpus(), 3),
-      }
-    } catch (error) {
-      benchmarkError =
-        error instanceof Error ? error.message : "Debug benchmark failed"
-    }
-
     return NextResponse.json({
       automationId,
       model: preview.plan.textModel || model,
@@ -148,8 +92,6 @@ export async function POST(request: Request) {
       result,
       plan: preview.plan,
       status: preview.status,
-      benchmarkComparison,
-      benchmarkError: benchmarkError || undefined,
     })
   } catch (error) {
     return NextResponse.json(

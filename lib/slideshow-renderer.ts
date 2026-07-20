@@ -29,6 +29,22 @@ export type SlideshowOverlayImage = {
   padding: number
 }
 
+export type SlideshowOvalIcon = {
+  image_url: string
+  source_image_url?: string
+  image_caption?: string
+  key?: string
+  x: number
+  y: number
+  scale: number
+  rotation: number
+}
+
+export type SlideshowOvalIconLayout = {
+  kind: "oval-icons"
+  surrounding: SlideshowOvalIcon[]
+}
+
 export type SlideshowSlide = {
   id: string
   image_url: string
@@ -37,6 +53,7 @@ export type SlideshowSlide = {
   overlay?: boolean
   imageFit?: "cover" | "contain" | "fit"
   textItems: SlideshowTextItem[]
+  iconLayout?: SlideshowOvalIconLayout
 }
 
 export const slideshowOverlayOpacity = 0.2
@@ -66,7 +83,7 @@ export function renderedSlideSvg(
   slide: SlideshowSlide,
   sourceUrl: string,
   overlayUrl?: string,
-  opts?: { aspectRatio?: string; font?: string }
+  opts?: { aspectRatio?: string; font?: string; iconUrls?: string[] }
 ) {
   const { width, height } = slideDimensions(
     opts?.aspectRatio || defaultSlideshowAspectRatio
@@ -79,10 +96,22 @@ export function renderedSlideSvg(
       : null
   const overlayAlpha = slide.overlay ? slideshowOverlayOpacity : 0
 
+  const baseLayers = slide.iconLayout
+    ? renderedOvalIconsSvg(
+        slide.iconLayout,
+        sourceUrl,
+        opts?.iconUrls,
+        width,
+        height
+      )
+    : [
+        `<rect width="${width}" height="${height}" fill="#111"/>`,
+        `<image href="${escapeXml(sourceUrl)}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>`,
+      ]
+
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
-    `<rect width="${width}" height="${height}" fill="#111"/>`,
-    `<image href="${escapeXml(sourceUrl)}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>`,
+    ...baseLayers,
     overlayAlpha > 0
       ? `<rect data-layer="overlay" width="${width}" height="${height}" fill="#000" opacity="${overlayAlpha}"/>`
       : null,
@@ -94,16 +123,57 @@ export function renderedSlideSvg(
     .join("")
 }
 
+function renderedOvalIconsSvg(
+  layout: SlideshowOvalIconLayout,
+  focalUrl: string,
+  iconUrls: string[] | undefined,
+  width: number,
+  height: number
+) {
+  const cx = width * 0.5
+  const cy = height * 0.5
+  const rx = width * 0.372
+  const ry = height * 0.318
+  const baseSize = width * 0.135
+  const surrounding = layout.surrounding.map((icon, index) => {
+    const x = (icon.x / 100) * width
+    const y = (icon.y / 100) * height
+    const size = baseSize * Math.max(0.7, Math.min(1.3, icon.scale))
+    const imageUrl = iconUrls?.[index] || icon.image_url
+    return [
+      `<g transform="translate(${round(x)} ${round(y)}) rotate(${round(icon.rotation)})">`,
+      `<rect x="${round(-size / 2)}" y="${round(-size / 2)}" width="${round(size)}" height="${round(size)}" rx="${round(size * 0.22)}" fill="#fffdf8" stroke="#27231f" stroke-width="5"/>`,
+      `<image href="${escapeXml(imageUrl)}" x="${round(-size * 0.37)}" y="${round(-size * 0.37)}" width="${round(size * 0.74)}" height="${round(size * 0.74)}" preserveAspectRatio="xMidYMid meet"/>`,
+      `</g>`,
+    ].join("")
+  })
+  const focalSize = width * 0.16
+  const focalY = cy - ry * 0.5
+  return [
+    `<rect width="${width}" height="${height}" fill="#f6f1e8"/>`,
+    `<ellipse cx="${round(cx)}" cy="${round(cy)}" rx="${round(rx)}" ry="${round(ry)}" fill="#fffdf9" stroke="#27231f" stroke-width="7"/>`,
+    ...surrounding,
+    `<rect x="${round(cx - focalSize / 2)}" y="${round(focalY - focalSize / 2)}" width="${round(focalSize)}" height="${round(focalSize)}" rx="${round(focalSize * 0.22)}" fill="#eee6f7" stroke="#27231f" stroke-width="5"/>`,
+    `<image href="${escapeXml(focalUrl)}" x="${round(cx - focalSize * 0.37)}" y="${round(focalY - focalSize * 0.37)}" width="${round(focalSize * 0.74)}" height="${round(focalSize * 0.74)}" preserveAspectRatio="xMidYMid meet"/>`,
+  ]
+}
+
+function round(value: number) {
+  return Math.round(value * 100) / 100
+}
+
 export function slideDimensions(aspectRatio: string) {
-  switch (aspectRatio) {
-    case "4:5":
-      return { width: 1080, height: 1350 }
-    case "1:1":
-      return { width: 1080, height: 1080 }
-    case "9:16":
-    default:
-      return { width: 1080, height: 1920 }
+  const [widthRatio, heightRatio] = aspectRatio.split(":").map(Number)
+  if (
+    Number.isFinite(widthRatio) &&
+    Number.isFinite(heightRatio) &&
+    widthRatio > 0 &&
+    heightRatio > 0
+  ) {
+    const width = 1080
+    return { width, height: Math.round((width * heightRatio) / widthRatio) }
   }
+  return { width: 1080, height: 1920 }
 }
 
 function renderedOverlayImageSvg(

@@ -1,4 +1,6 @@
-# Home Tab
+---
+title: "Home Tab"
+---
 
 Route key: `home`
 
@@ -18,16 +20,18 @@ Main actions:
 
 ## Objects Used
 
-| Object | Source | Usage |
-| --- | --- | --- |
-| `Automation[]` (`templates`) | Server-loaded automation templates | Quick-start cards, paged via `quickStartTemplates`/`quickStartPage`. |
-| `recentRunsByAutomationId` | Server props | Recent run status per automation. |
-| `generatedRunsByAutomationId` | Server props | Completed generation output per automation. |
-| `GeneratedVideoExport[]` | Backend (`generated_video_exports`) | Recent video output in the slideshows/videos toggle. |
+| Object                        | Source                              | Usage                                                                |
+| ----------------------------- | ----------------------------------- | -------------------------------------------------------------------- |
+| `Automation[]` (`templates`)  | Server-loaded automation templates  | Quick-start cards, paged via `quickStartTemplates`/`quickStartPage`. |
+| `recentRunsByAutomationId`    | Server props                        | Recent run status per automation.                                    |
+| `generatedRunsByAutomationId` | Server props                        | Completed generation output per automation.                          |
+| `GeneratedVideoExport[]`      | Backend (`generated_video_exports`) | Recent video output in the slideshows/videos toggle.                 |
 
 ## Persistence
 
-Home is read-only. Template cards come from the `automation_templates` store; generated output comes from the `generated_video_exports` and `automation_runs` tables. Appwrite is authoritative — there is no `data/*.json` fallback for these mapped stores.
+Home is read-only. Template cards come from local Appwrite
+`permanent_assets` template categories; generated output comes from the
+`outputs` and `automation_runs` tables.
 
 ## Hardcoded / Demo Behavior
 

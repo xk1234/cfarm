@@ -1,12 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import {
-  IconChevronLeft,
-  IconChevronRight,
-  IconSwitch,
-  IconVolume,
-} from "@tabler/icons-react"
+import { IconChevronLeft, IconChevronRight, IconSwitch } from "@tabler/icons-react"
 
 import {
   BuilderStep,
@@ -240,13 +235,6 @@ export function GreenscreenMemesView({
                 value={caption}
                 onChange={(event) => setCaption(event.target.value)}
               />
-              <Button
-                variant="action"
-                size="appDefault"
-                className="mt-2 w-full"
-              >
-                Generate a text caption
-              </Button>
             </div>
           </BuilderStep>
           <BuilderStep
@@ -377,9 +365,6 @@ export function GreenscreenMemesView({
         </div>
         <div className="min-w-0 pt-6 lg:pt-0">
           <div className="relative rounded-[10px] bg-[#bebdb8] p-5">
-            <button className="absolute top-7 right-7 z-10 grid size-8 place-items-center rounded-full bg-black/35 text-white">
-              <IconVolume className="size-4" />
-            </button>
             <div
               className="relative mx-auto h-[390px] w-[232px] overflow-hidden rounded-[2px] bg-[#07c80f] bg-cover bg-center"
               style={

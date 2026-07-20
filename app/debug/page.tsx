@@ -1,4 +1,5 @@
 import { SlideTestingCenter } from "@/components/temp/slide-testing-center"
+import { internalToolsEnabled } from "@/lib/internal-tools"
 import {
   groupAutomationTemplateExampleRunsByTemplateId,
   listAutomationTemplateExampleRuns,
@@ -9,16 +10,17 @@ import {
   automationTemplateToTempSlideTestingAutomation,
   storedCollectionsToTempSlideCollections,
 } from "@/lib/temp-slide-testing"
-import { listBenchmarkCorpus } from "@/lib/slideshow-benchmarks"
+import { notFound } from "next/navigation"
 
 export const dynamic = "force-dynamic"
 
 export default async function DebugPage() {
-  const [templateRecords, imageCollections, exampleRuns, benchmarkCorpus] = await Promise.all([
+  if (!internalToolsEnabled()) notFound()
+
+  const [templateRecords, imageCollections, exampleRuns] = await Promise.all([
     listAutomationTemplateRecords(),
     listImageCollections(),
     listAutomationTemplateExampleRuns(),
-    listBenchmarkCorpus(),
   ])
 
   return (
@@ -33,7 +35,6 @@ export default async function DebugPage() {
       exampleRunsByAutomationId={groupAutomationTemplateExampleRunsByTemplateId(
         exampleRuns
       )}
-      benchmarkCorpus={benchmarkCorpus}
     />
   )
 }

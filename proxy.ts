@@ -1,8 +1,33 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { getUserFromSession, SESSION_COOKIE } from "@/lib/auth"
+import { internalToolsEnabled } from "@/lib/internal-tools"
+
+const INTERNAL_PATH_PREFIXES = [
+  "/debug",
+  "/api/debug",
+  "/api/temp/testing-center",
+] as const
 
 export async function proxy(request: NextRequest) {
+  if (
+    !internalToolsEnabled() &&
+    INTERNAL_PATH_PREFIXES.some(
+      (prefix) =>
+        request.nextUrl.pathname === prefix ||
+        request.nextUrl.pathname.startsWith(`${prefix}/`)
+    )
+  ) {
+    return new NextResponse(null, { status: 404 })
+  }
+
+  if (
+    request.nextUrl.pathname === "/api/search" ||
+    request.nextUrl.pathname === "/api/telegram/webhook"
+  ) {
+    return NextResponse.next()
+  }
+
   const user = await getUserFromSession(
     request.cookies.get(SESSION_COOKIE)?.value
   )
@@ -30,5 +55,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/login", "/app/:path*", "/api/((?!auth/).*)"],
+  matcher: ["/login", "/app/:path*", "/debug/:path*", "/api/((?!auth/).*)"],
 }

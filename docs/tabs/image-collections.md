@@ -1,4 +1,6 @@
-# Image Collections Tab
+---
+title: "Collections tab"
+---
 
 Route key: `collections`
 
@@ -9,14 +11,21 @@ Components (in `components/realfarm/collections-view.tsx`):
 - `PinterestCollectionSearch`
 - `ImageViewerModal`
 
+> Canonical reference: [Collections overview](../collections/overview.md),
+> [CRUD and lifecycle](../collections/crud.md), and
+> [collection usage](../collections/usage.md).
+
 ## Functionality
 
-Image Collections manages collections of image URLs for use in slideshow generation. It can load saved collections, create empty collections, search Pinterest for images, add uploads, edit captions, rename collections, delete local UI collections, and view collection images.
+Collections manages four current types: images, videos, products, and variables.
+The image/video library can load saved collections, create or import image
+collections, edit captions, rename and pin persisted media collections, preview
+delete dependencies, and view individual media. Products use a read-only
+catalog panel; variables use their own CRUD panel.
 
 Main actions:
 
 - Load stored collections from `/api/image-collections`.
-- Build an "All Images" virtual collection from current collections.
 - Create empty collections.
 - Search Pinterest and create collections from selected results.
 - Open a collection detail page.
@@ -24,21 +33,21 @@ Main actions:
 - Rename collections.
 - Edit image captions.
 - Caption uncaptured images through the captions API.
-- Create a local automation from a collection.
+- Browse virtual AI UGC Avatar Videos and Greenscreen Memes collections.
 
 ## Objects Used
 
-| Object | Source | Usage |
-| --- | --- | --- |
-| `CreatedImageCollection[]` | Workspace state | Primary UI collection shape. |
-| `StoredImageCollection[]` | `GET /api/image-collections` | Persisted collection shape. |
-| `PinterestSearchResult[]` | Pinterest search/default/uploads | Images in collections. |
-| Virtual `CreatedImageCollection` | `allImagesCollectionFrom()` | Read-only merged image view. |
-| `PinterestCollectionCreatePayload` | `lib/realfarm-collections.ts` | Payload shape for collection creation flow. |
+| Object                             | Source                           | Usage                                         |
+| ---------------------------------- | -------------------------------- | --------------------------------------------- |
+| `CreatedImageCollection[]`         | Workspace state                  | Primary UI collection shape.                  |
+| `StoredImageCollection[]`          | `GET /api/image-collections`     | Persisted collection shape.                   |
+| `PinterestSearchResult[]`          | Pinterest search/default/uploads | Images in collections.                        |
+| Virtual `CreatedImageCollection`   | Workspace media projections      | Read-only avatar and greenscreen video views. |
+| `PinterestCollectionCreatePayload` | `lib/realfarm-collections.ts`    | Payload shape for collection creation flow.   |
 
 ## Persistence
 
-Persistence: Appwrite `image_collections` table (via `lib/json-store.ts`) — authoritative, no filesystem fallback. Collection images persist to the `image_collections` Storage bucket.
+Persistence: owner-scoped `permanent_assets` rows with `source_key=image_collection` (via `lib/json-store.ts`) and the `image_collections` Storage bucket. Cloud collections can be copied into the shared local project with `pnpm appwrite:local:sync-reference`; the copy does not remove cloud rows or files.
 
 API:
 
@@ -55,11 +64,11 @@ Important conversion helpers:
 
 ## Hardcoded / Demo Behavior
 
-- The "All Images" collection is virtual and read-only.
-- Deleting a collection calls `DELETE /api/image-collections` and removes the persisted record.
+- There is no current "All Images" virtual collection.
+- Deleting a persisted media collection soft-deletes it for 30 days; expired
+  rows and unreferenced files are purged later.
 - Uploaded/imported images persist via `/api/image-collections/import` into the `image_collections` Storage bucket.
 - Default created collection title is `"Empty collection"`.
 - Default fallback source values include `fallback` and `empty` in the workspace-local type.
 - View options such as columns and images per page are local state only.
-- "Create automation" from a collection creates a local in-memory automation.
 - Captioning API currently saves the collection shape back; actual caption quality depends on that route implementation.

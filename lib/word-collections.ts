@@ -5,7 +5,7 @@ import path from "node:path"
 import { readJsonArrayStore, withJsonArrayStore } from "@/lib/json-store"
 import { hookVariableNameFromLabel } from "@/lib/hook-variables"
 
-export type WordCollectionSource = "manual" | "ai" | "research"
+export type WordCollectionSource = "manual" | "ai"
 
 export type WordCollectionRecord = {
   id: string
@@ -143,5 +143,5 @@ function normalizeWords(value: unknown) {
 }
 
 function normalizeSource(value: unknown): WordCollectionSource {
-  return value === "ai" || value === "research" ? value : "manual"
+  return value === "ai" ? value : "manual"
 }

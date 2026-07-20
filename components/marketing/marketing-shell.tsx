@@ -5,6 +5,7 @@ const navigation = [
   ["Product", "/product"],
   ["Solutions", "/solutions"],
   ["Pricing", "/pricing"],
+  ["Docs", "/docs"],
   ["Careers", "/careers"],
 ] as const
 
@@ -120,10 +121,7 @@ export function PageHero({
           >
             Create account
           </Link>
-          <Link
-            href="/product"
-            className="brand-button brand-button-secondary"
-          >
+          <Link href="/product" className="brand-button brand-button-secondary">
             See the product
           </Link>
         </div>

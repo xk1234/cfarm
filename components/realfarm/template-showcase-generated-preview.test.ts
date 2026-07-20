@@ -6,6 +6,30 @@ import {
 } from "@/components/realfarm/template-showcase-preview"
 
 describe("template showcase generated previews", () => {
+  it("keeps failed runs as empty slideshow records when requested", () => {
+    const failedRun = {
+      id: "failed-run",
+      automationTitle: "Daily update",
+      status: "failed",
+      error: "Image renderer unavailable",
+      createdAt: "2026-07-17T10:00:00.000Z",
+      plan: { slides: [] },
+    }
+
+    expect(generatedExampleSlideshows([failedRun])).toEqual([])
+    expect(
+      generatedExampleSlideshows([failedRun], { includeFailed: true })
+    ).toMatchObject([
+      {
+        id: "failed-run",
+        title: "Daily update",
+        status: "failed",
+        error: "Image renderer unavailable",
+        slides: [],
+      },
+    ])
+  })
+
   it("keeps example slideshow runs grouped for the modal selector", () => {
     const slideshows = generatedExampleSlideshows([
       {

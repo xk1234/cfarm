@@ -5,9 +5,11 @@ import {
   canDeleteCompletedSlideshow,
   exportableAutomationRunSlides,
   isGeneratingSlideshowRun,
+  isSlideshowLifecycleRun,
   reconcileGenerationPlaceholders,
   runPublishSchedule,
   runPublishedAt,
+  runScheduledAt,
   runScheduleDurationLine,
   runStatusLabel,
   sortAutomationRuns,
@@ -106,12 +108,15 @@ describe("automation overview run sorting", () => {
     expect(exportedVideo).toContain(" · 36s")
   })
 
-  it("shows actual, scheduled, and queue-estimated publish dates in that order", () => {
+  it("keeps actual publication dates separate from scheduled dates", () => {
     expect(
       runPublishedAt({ ...newerQuiet, generationSource: "manual" })
     ).toBeUndefined()
     expect(
       runPublishedAt({ ...newerQuiet, generationSource: "scheduled" })
+    ).toBeUndefined()
+    expect(
+      runScheduledAt({ ...newerQuiet, generationSource: "scheduled" })
     ).toBe(newerQuiet.scheduledFor)
     expect(
       runPublishedAt({
@@ -121,7 +126,7 @@ describe("automation overview run sorting", () => {
       })
     ).toBe("2026-07-12T09:15:00.000Z")
     expect(
-      runPublishedAt({
+      runScheduledAt({
         ...newerQuiet,
         generationSource: "manual",
         socialStatuses: [
@@ -159,6 +164,13 @@ describe("automation overview run sorting", () => {
     expect(automationOverviewRunState([generatingRun], true)).toBe("runs")
     expect(automationOverviewRunState([], true)).toBe("loading")
     expect(automationOverviewRunState([], false)).toBe("empty")
+  })
+
+  it("keeps failed runs in the overview generation history", () => {
+    const failedRun = { ...newestQuiet, status: "failed" as const }
+
+    expect(isSlideshowLifecycleRun(failedRun)).toBe(true)
+    expect(automationOverviewRunState([failedRun], false)).toBe("runs")
   })
 
   it("replaces only the matching placeholder when concurrent runs persist", () => {

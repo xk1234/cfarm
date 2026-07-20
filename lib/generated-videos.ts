@@ -308,7 +308,6 @@ function localMediaUrl(value: unknown) {
 function isLocalAppUrl(url: string) {
   return (
     url.startsWith("/api/local-assets/") ||
-    url.startsWith("/api/swipes/assets/") ||
     (url.startsWith("/") && !url.startsWith("//"))
   )
 }

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import {
   IconBrandInstagram,
+  IconBrandTelegram,
   IconBrandTiktok,
   IconBrandYoutube,
   IconCheck,
@@ -10,6 +11,7 @@ import {
   IconExternalLink,
   IconPlus,
   IconRefresh,
+  IconBell,
   IconSettings,
   IconTrash,
   IconUpload,
@@ -19,7 +21,9 @@ import {
 import useSWR from "swr"
 
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
+import { useDirtyGuard } from "@/components/ui/use-dirty-guard"
 import {
   CardGridSkeleton,
   ListSkeleton,
@@ -30,9 +34,10 @@ import {
   type PostFastSocialIntegration,
 } from "@/lib/postfast-client"
 import { clientSWRFetcher } from "@/lib/client-swr"
+import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { cn } from "@/lib/utils"
 
-type Tab = "billing" | "accounts" | "team" | "demos"
+type Tab = "billing" | "accounts" | "reminders" | "team" | "demos"
 type Member = {
   id: string
   email: string
@@ -40,10 +45,25 @@ type Member = {
   createdAt: string
 }
 type Demo = { id: string; title: string; url: string; createdAt: string }
+type ReminderEvent = "generated" | "ready_to_post" | "scheduled_to_post"
+type ReminderSettings = {
+  channel: "none" | "telegram"
+  telegramChatId?: string
+  events: Record<ReminderEvent, boolean>
+}
+type ReminderResponse = {
+  settings: ReminderSettings
+  telegram: {
+    botConfigured: boolean
+    defaultChatConfigured: boolean
+    interactiveConfigured: boolean
+  }
+}
 
 const tabs = [
   { id: "billing", label: "Billing & plans", icon: IconCreditCard },
   { id: "accounts", label: "Connected accounts", icon: IconExternalLink },
+  { id: "reminders", label: "Reminders", icon: IconBell },
   { id: "team", label: "Team members", icon: IconUsers },
   { id: "demos", label: "Demos", icon: IconVideo },
 ] as const
@@ -58,49 +78,384 @@ export function UserSettingsModal({
   onSocialAccountDisconnected?: (integrationId: string) => void
 }) {
   const [tab, setTab] = useState<Tab>("billing")
+  const [remindersDirty, setRemindersDirty] = useState(false)
+  const dirtyGuard = useDirtyGuard(remindersDirty)
+
+  function requestClose() {
+    dirtyGuard.run(onClose)
+  }
+
+  function selectTab(nextTab: Tab) {
+    if (nextTab === tab) return
+    dirtyGuard.run(() => {
+      setRemindersDirty(false)
+      setTab(nextTab)
+    })
+  }
+
   return (
-    <AppModal className="z-[100] bg-[#242136]/45" onClose={onClose}>
-      <AppModalPanel className="max-w-[980px] overflow-hidden p-0">
-        <AppModalHeader
-          title="Workspace settings"
-          description={email}
-          closeLabel="Close settings"
-          onClose={onClose}
-        />
-        <div className="grid min-h-[600px] md:grid-cols-[220px_1fr]">
-          <nav className="border-b border-app-panel-border bg-[#fafafd] p-3 md:border-r md:border-b-0">
-            {tabs.map((item) => {
-              const Icon = item.icon
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setTab(item.id)}
-                  className={cn(
-                    "mb-1 flex h-10 w-full items-center gap-2.5 rounded-[10px] px-3 text-left text-sm font-medium",
-                    tab === item.id
-                      ? "bg-app-strong text-white"
-                      : "text-app-muted-text hover:bg-app-control-hover hover:text-app-text"
-                  )}
-                >
-                  <Icon className="size-4" />
-                  {item.label}
-                </button>
-              )
-            })}
-          </nav>
-          <div className="min-w-0 p-6 sm:p-8">
-            {tab === "billing" && <BillingPanel />}
-            {tab === "accounts" && (
-              <AccountsPanel
-                onSocialAccountDisconnected={onSocialAccountDisconnected}
+    <>
+      <AppModal className="z-[100] bg-[#242136]/45" onClose={requestClose}>
+        <AppModalPanel className="max-h-[calc(100vh-2rem)] max-w-[980px] overflow-hidden p-0">
+          <AppModalHeader
+            title="Workspace settings"
+            description={email}
+            closeLabel="Close settings"
+            onClose={requestClose}
+          />
+          <div className="grid h-[calc(100vh-7rem)] max-h-[600px] min-h-0 md:grid-cols-[220px_1fr]">
+            <nav className="overflow-y-auto border-b border-app-panel-border bg-[#fafafd] p-3 md:border-r md:border-b-0">
+              {tabs.map((item) => {
+                const Icon = item.icon
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => selectTab(item.id)}
+                    className={cn(
+                      "mb-1 flex h-10 w-full items-center gap-2.5 rounded-[10px] px-3 text-left text-sm font-medium",
+                      tab === item.id
+                        ? "bg-app-strong text-white"
+                        : "text-app-muted-text hover:bg-app-control-hover hover:text-app-text"
+                    )}
+                  >
+                    <Icon className="size-4" />
+                    {item.label}
+                  </button>
+                )
+              })}
+            </nav>
+            <div className="min-w-0 overflow-y-auto p-6 sm:p-8">
+              {tab === "billing" && <BillingPanel />}
+              {tab === "accounts" && (
+                <AccountsPanel
+                  onSocialAccountDisconnected={onSocialAccountDisconnected}
+                />
+              )}
+              {tab === "reminders" && (
+                <RemindersPanel onDirtyChange={setRemindersDirty} />
+              )}
+              {tab === "team" && <TeamPanel />}
+              {tab === "demos" && <DemosPanel />}
+            </div>
+          </div>
+        </AppModalPanel>
+      </AppModal>
+      {dirtyGuard.confirmation}
+    </>
+  )
+}
+
+const reminderEventOptions: Array<{
+  id: ReminderEvent
+  title: string
+  description: string
+}> = [
+  {
+    id: "generated",
+    title: "Generation complete",
+    description: "Send as soon as a slideshow or video finishes generating.",
+  },
+  {
+    id: "ready_to_post",
+    title: "Ready to post",
+    description:
+      "Send at the post's due time when a review or manual post is ready.",
+  },
+  {
+    id: "scheduled_to_post",
+    title: "Scheduled to post",
+    description: "Send when a post is successfully scheduled with PostFast.",
+  },
+]
+
+function RemindersPanel({
+  onDirtyChange,
+}: {
+  onDirtyChange: (dirty: boolean) => void
+}) {
+  const {
+    data,
+    error: loadError,
+    isLoading,
+    mutate,
+  } = useSWR<ReminderResponse>("/api/settings/reminders", clientSWRFetcher)
+  const [draft, setDraft] = useState<ReminderSettings | null>(null)
+  const [pending, setPending] = useState<"save" | "test" | "">("")
+  const [message, setMessage] = useState("")
+  const [error, setError] = useState("")
+  const settings = draft ?? data?.settings ?? null
+  const dirty = Boolean(
+    draft &&
+    data?.settings &&
+    JSON.stringify(draft) !== JSON.stringify(data.settings)
+  )
+
+  useEffect(() => {
+    onDirtyChange(dirty)
+    return () => onDirtyChange(false)
+  }, [dirty, onDirtyChange])
+
+  function edit(update: (current: ReminderSettings) => ReminderSettings) {
+    if (settings) setDraft(update(settings))
+  }
+
+  async function save() {
+    if (!settings) return
+    setPending("save")
+    setError("")
+    setMessage("")
+    try {
+      const payload = await fetchJsonWithTimeout<ReminderResponse>(
+        "/api/settings/reminders",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(settings),
+          toastOnError: false,
+        }
+      )
+      setDraft(payload.settings)
+      await mutate(payload, false)
+      setMessage("Reminder settings saved.")
+    } catch (saveError) {
+      setError(
+        getApiErrorMessage(saveError, "Reminder settings could not be saved.")
+      )
+    } finally {
+      setPending("")
+    }
+  }
+
+  async function testTelegram() {
+    if (!settings) return
+    setPending("test")
+    setError("")
+    setMessage("")
+    try {
+      await fetchJsonWithTimeout("/api/settings/reminders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ telegramChatId: settings.telegramChatId }),
+        toastOnError: false,
+      })
+      setMessage("Test reminder sent to Telegram.")
+    } catch (testError) {
+      setError(
+        getApiErrorMessage(testError, "The Telegram test could not be sent.")
+      )
+    } finally {
+      setPending("")
+    }
+  }
+
+  return (
+    <div>
+      <PanelHeading
+        title="Reminders"
+        description="Choose where LumenClip should notify you as content moves through generation and publishing."
+      />
+      {loadError && !settings ? (
+        <div className="rounded-[8px] border border-red-200 bg-red-50 p-4">
+          <p className="text-sm font-medium text-destructive">
+            Reminder settings could not be loaded.
+          </p>
+          <Button
+            className="mt-3"
+            variant="outline"
+            onClick={() => void mutate()}
+          >
+            Try again
+          </Button>
+        </div>
+      ) : isLoading || !settings ? (
+        <ListSkeleton count={4} className="border-y border-app-panel-border" />
+      ) : (
+        <div className="space-y-7">
+          <section>
+            <h3 className="text-sm font-semibold">Reminder method</h3>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <ReminderMethodButton
+                active={settings.channel === "none"}
+                icon={IconBell}
+                title="No reminders"
+                description="Do not send lifecycle notifications."
+                onClick={() =>
+                  edit((current) => ({ ...current, channel: "none" }))
+                }
               />
-            )}
-            {tab === "team" && <TeamPanel />}
-            {tab === "demos" && <DemosPanel />}
+              <ReminderMethodButton
+                active={settings.channel === "telegram"}
+                icon={IconBrandTelegram}
+                title="Telegram"
+                description="Send reminders through the LumenClip bot."
+                onClick={() =>
+                  edit((current) => ({ ...current, channel: "telegram" }))
+                }
+              />
+            </div>
+          </section>
+
+          {settings.channel === "telegram" ? (
+            <section className="rounded-xl border border-app-panel-border bg-app-control-bg p-4">
+              <label className="block text-sm font-semibold">
+                Telegram chat or channel ID
+                <input
+                  value={settings.telegramChatId ?? ""}
+                  onChange={(event) =>
+                    edit((current) => ({
+                      ...current,
+                      telegramChatId: event.target.value,
+                    }))
+                  }
+                  placeholder={
+                    data?.telegram.defaultChatConfigured
+                      ? "Using the workspace default"
+                      : "123456789 or @channelname"
+                  }
+                  className="mt-2 h-10 w-full rounded-lg border border-app-panel-border bg-background px-3 text-sm outline-none focus:border-app-action focus:ring-2 focus:ring-app-action/15"
+                />
+              </label>
+              <p className="mt-2 text-xs leading-5 text-app-text-faint">
+                Start a chat with the bot first. Leave this empty to use the
+                workspace default destination when one is configured.
+              </p>
+              {!data?.telegram.botConfigured ? (
+                <p className="mt-3 text-xs font-medium text-destructive">
+                  Telegram delivery needs a server bot token before it can be
+                  enabled.
+                </p>
+              ) : !data?.telegram.interactiveConfigured ? (
+                <p className="mt-3 text-xs font-medium text-amber-700">
+                  Messages can be delivered, but the one-tap posted button needs
+                  a public app URL and Telegram webhook secret.
+                </p>
+              ) : null}
+            </section>
+          ) : null}
+
+          <section>
+            <h3 className="text-sm font-semibold">Remind me when</h3>
+            <div className="mt-3 divide-y divide-app-panel-border rounded-xl border border-app-panel-border">
+              {reminderEventOptions.map((option) => (
+                <div
+                  key={option.id}
+                  className="flex items-center gap-4 px-4 py-3.5"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">{option.title}</p>
+                    <p className="mt-0.5 text-xs leading-5 text-app-text-faint">
+                      {option.description}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-label={option.title}
+                    aria-checked={settings.events[option.id]}
+                    onClick={() =>
+                      edit((current) => ({
+                        ...current,
+                        events: {
+                          ...current.events,
+                          [option.id]: !current.events[option.id],
+                        },
+                      }))
+                    }
+                    className={cn(
+                      "relative ml-auto h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-app-action/30 focus-visible:outline-none",
+                      settings.events[option.id]
+                        ? "bg-app-action"
+                        : "bg-app-control-hover"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "absolute top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform",
+                        settings.events[option.id]
+                          ? "translate-x-5"
+                          : "translate-x-0.5"
+                      )}
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {loadError || error ? (
+            <p className="text-sm font-medium text-destructive">
+              {error || "Reminder settings could not be loaded."}
+            </p>
+          ) : null}
+          {message ? (
+            <p className="text-sm font-medium text-emerald-700">{message}</p>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="action"
+              disabled={pending !== ""}
+              onClick={() => void save()}
+            >
+              {pending === "save" ? "Saving…" : "Save reminders"}
+            </Button>
+            {settings.channel === "telegram" ? (
+              <Button
+                variant="outline"
+                disabled={pending !== "" || !data?.telegram.botConfigured}
+                onClick={() => void testTelegram()}
+              >
+                {pending === "test" ? "Sending…" : "Send test"}
+              </Button>
+            ) : null}
           </div>
         </div>
-      </AppModalPanel>
-    </AppModal>
+      )}
+    </div>
+  )
+}
+
+function ReminderMethodButton({
+  active,
+  icon: Icon,
+  title,
+  description,
+  onClick,
+}: {
+  active: boolean
+  icon: typeof IconBell
+  title: string
+  description: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        "flex min-h-24 items-start gap-3 rounded-xl border p-4 text-left transition-colors focus-visible:ring-2 focus-visible:ring-app-action/30 focus-visible:outline-none",
+        active
+          ? "border-app-action bg-app-control-bg"
+          : "border-app-panel-border hover:bg-app-control-bg"
+      )}
+    >
+      <span
+        className={cn(
+          "grid size-9 shrink-0 place-items-center rounded-lg",
+          active
+            ? "bg-app-action text-white"
+            : "bg-app-control-hover text-app-muted-text"
+        )}
+      >
+        <Icon className="size-4.5" />
+      </span>
+      <span>
+        <span className="block text-sm font-semibold">{title}</span>
+        <span className="mt-1 block text-xs leading-5 text-app-text-faint">
+          {description}
+        </span>
+      </span>
+    </button>
   )
 }
 
@@ -114,7 +469,9 @@ function PanelHeading({
   return (
     <div className="mb-7">
       <h2 className="text-2xl font-semibold tracking-[-0.035em]">{title}</h2>
-      <p className="mt-1 text-sm leading-6 text-app-muted-text">{description}</p>
+      <p className="mt-1 text-sm leading-6 text-app-muted-text">
+        {description}
+      </p>
     </div>
   )
 }
@@ -175,6 +532,8 @@ function AccountsPanel({
   )
   const [actionError, setActionError] = useState("")
   const [pendingId, setPendingId] = useState("")
+  const [disconnectingAccount, setDisconnectingAccount] =
+    useState<PostFastSocialIntegration | null>(null)
   const error = loadError ? "Could not load accounts." : actionError
   async function connect() {
     const r = await fetch("/api/postfast/connect-url")
@@ -183,36 +542,46 @@ function AccountsPanel({
     else setActionError(p?.error || "Could not create a connection link.")
   }
   async function disconnect(account: PostFastSocialIntegration) {
-    const confirmed = window.confirm(
-      `Disconnect ${account.name || account.profile || account.provider} from LumenClip? It will be removed from every automation.`
-    )
-    if (!confirmed) return
     setPendingId(account.integration_id)
     setActionError("")
-    const response = await fetch("/api/postfast/integrations", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ integrationId: account.integration_id }),
-    })
-    const payload = await response.json().catch(() => null)
-    if (response.ok) {
+    try {
+      await fetchJsonWithTimeout("/api/postfast/integrations", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ integrationId: account.integration_id }),
+        toastOnError: false,
+      })
       onSocialAccountDisconnected?.(account.integration_id)
       await mutate()
-    } else setActionError(payload?.error || "Could not disconnect account.")
-    setPendingId("")
+    } catch (disconnectError) {
+      const message = getApiErrorMessage(
+        disconnectError,
+        "Could not disconnect account."
+      )
+      setActionError(message)
+      throw new Error(message)
+    } finally {
+      setPendingId("")
+    }
   }
   async function restore(account: PostFastSocialIntegration) {
     setPendingId(account.integration_id)
     setActionError("")
-    const response = await fetch("/api/postfast/integrations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ integrationId: account.integration_id }),
-    })
-    const payload = await response.json().catch(() => null)
-    if (response.ok) await mutate()
-    else setActionError(payload?.error || "Could not restore account.")
-    setPendingId("")
+    try {
+      await fetchJsonWithTimeout("/api/postfast/integrations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ integrationId: account.integration_id }),
+        toastOnError: false,
+      })
+      await mutate()
+    } catch (restoreError) {
+      setActionError(
+        getApiErrorMessage(restoreError, "Could not restore account.")
+      )
+    } finally {
+      setPendingId("")
+    }
   }
   return (
     <div>
@@ -243,6 +612,10 @@ function AccountsPanel({
       ) : null}
       {loading ? (
         <ListSkeleton count={4} className="border-y border-app-panel-border" />
+      ) : loadError ? (
+        <Button variant="outline" onClick={() => void mutate()}>
+          Try loading accounts again
+        </Button>
       ) : accounts.length ? (
         <div className="divide-y divide-[#ececf1] border-y border-app-panel-border">
           {accounts.map((a) => (
@@ -275,7 +648,7 @@ function AccountsPanel({
                 <button
                   type="button"
                   disabled={pendingId === a.integration_id}
-                  onClick={() => void disconnect(a)}
+                  onClick={() => setDisconnectingAccount(a)}
                   className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-[#efcfd3] px-2.5 text-xs font-semibold text-[#a8464f] hover:bg-[#fff5f6] disabled:cursor-wait disabled:opacity-50"
                 >
                   <IconTrash className="size-3.5" />
@@ -327,6 +700,16 @@ function AccountsPanel({
           </div>
         </div>
       ) : null}
+      {disconnectingAccount ? (
+        <ConfirmDialog
+          title={`Disconnect ${disconnectingAccount.name || disconnectingAccount.profile || disconnectingAccount.provider}?`}
+          description="This removes the account from every LumenClip automation. Its PostFast authorization is not revoked."
+          confirmLabel="Disconnect account"
+          pendingLabel="Disconnecting…"
+          onCancel={() => setDisconnectingAccount(null)}
+          onConfirm={() => disconnect(disconnectingAccount)}
+        />
+      ) : null}
     </div>
   )
 }
@@ -369,25 +752,28 @@ function TeamPanel() {
     e.preventDefault()
     setPending(true)
     setError("")
-    const r = await fetch("/api/settings/team", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    })
-    const p = await r.json().catch(() => null)
-    if (r.ok) {
+    try {
+      await fetchJsonWithTimeout("/api/settings/team", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+        toastOnError: false,
+      })
       setOpen(false)
       setEmail("")
       setLoading(true)
       await load()
-    } else setError(p?.error || "Invitation failed.")
-    setPending(false)
+    } catch (inviteError) {
+      setError(getApiErrorMessage(inviteError, "Invitation failed."))
+    } finally {
+      setPending(false)
+    }
   }
   return (
     <div>
       <PanelHeading
         title="Team members"
-        description="Collaborators can view your generations and swipes. Your automations stay private and editable only by you."
+        description="Collaborators can view your generations. Your automations stay private and editable only by you."
       />
       <button
         onClick={() => setOpen(true)}
@@ -411,7 +797,7 @@ function TeamPanel() {
               <div>
                 <p className="text-sm font-semibold">{m.email}</p>
                 <p className="text-xs text-app-text-faint">
-                  Can view shared generations and swipes
+                  Can view shared generations
                 </p>
               </div>
               <span
@@ -506,13 +892,19 @@ function DemosPanel() {
     const form = new FormData()
     form.set("file", file)
     form.set("title", file.name.replace(/\.[^.]+$/, ""))
-    const r = await fetch("/api/settings/demos", { method: "POST", body: form })
-    const p = await r.json().catch(() => null)
-    if (r.ok) {
+    try {
+      await fetchJsonWithTimeout("/api/settings/demos", {
+        method: "POST",
+        body: form,
+        toastOnError: false,
+      })
       setLoading(true)
       await load()
-    } else setError(p?.error || "Upload failed.")
-    setPending(false)
+    } catch (uploadError) {
+      setError(getApiErrorMessage(uploadError, "Upload failed."))
+    } finally {
+      setPending(false)
+    }
   }
   return (
     <div>
@@ -584,7 +976,9 @@ function Empty({
       <div>
         <Icon className="mx-auto size-6 text-app-action" />
         <p className="mt-3 text-sm font-semibold">{title}</p>
-        <p className="mt-1 max-w-sm text-xs leading-5 text-app-text-faint">{text}</p>
+        <p className="mt-1 max-w-sm text-xs leading-5 text-app-text-faint">
+          {text}
+        </p>
       </div>
     </div>
   )

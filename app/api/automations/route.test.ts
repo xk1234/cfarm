@@ -1,19 +1,37 @@
 import path from "node:path"
 
-import { Query } from "node-appwrite"
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 import { createResultRecord } from "@/lib/results"
+import {
+  listPostFastPostRecords,
+  upsertPostFastPostRecord,
+} from "@/lib/postfast-posts"
+import { schemaWithAutomationHookItems } from "@/lib/realfarm-automation"
 
 // Appwrite-only, run against cfarm (forced by vitest.setup.ts). The real
 // cwd's data-relative paths map to the same tables the routes + seeds use.
 const tempRoot = process.cwd()
 
-
-const clearAll = () => clearTestTables("automations", "results", "automation_runs", "postfast_posts")
+const clearAll = () =>
+  clearTestTables(
+    "automations",
+    "results",
+    "automation_runs",
+    "postfast_posts",
+    "usage_ledger",
+    "postfast_metric_snapshots"
+  )
 
 beforeEach(clearAll)
 
@@ -25,6 +43,94 @@ afterEach(() => {
 afterAll(clearAll)
 
 describe("/api/automations", () => {
+  it("locks a hook after a linked publication but still allows disabling it", async () => {
+    const automationsRoute = await import("./route")
+    const createdResponse = await automationsRoute.POST(
+      new Request("http://localhost/api/automations", {
+        method: "POST",
+        body: JSON.stringify({ name: "Published hook guard" }),
+      })
+    )
+    const createdPayload = await createdResponse.json()
+    const automationId = createdPayload.record.id
+    const hook = {
+      id: "published-hook",
+      text: "The hook with history",
+      enabled: true,
+      createdAt: "2026-07-18T00:00:00.000Z",
+    }
+    const schema = schemaWithAutomationHookItems(createdPayload.record.schema, [
+      hook,
+    ])
+    const initialPatch = await automationsRoute.PATCH(
+      new Request("http://localhost/api/automations", {
+        method: "PATCH",
+        body: JSON.stringify({ id: automationId, schema }),
+      })
+    )
+    expect(initialPatch.status).toBe(200)
+
+    await writeJsonArrayStore({
+      rootDir: path.join(tempRoot, "data", "automations"),
+      fileName: "runs.json",
+      key: "runs",
+      records: [
+        {
+          ...automationRun(
+            "published-hook-run",
+            automationId,
+            "published-hook-slideshow"
+          ),
+          plan: {
+            ...automationRun("x", automationId, "x").plan,
+            hookId: hook.id,
+            hook: hook.text,
+            hookTemplate: hook.text,
+            hookSubstitutions: {},
+          },
+        },
+      ],
+    })
+    await upsertPostFastPostRecord({
+      sourceType: "slideshow",
+      sourceId: "published-hook-slideshow",
+      integrationId: "tiktok-integration",
+      provider: "tiktok",
+      status: "published",
+      publishedAt: "2026-07-18T02:00:00.000Z",
+      releaseUrl: "https://www.tiktok.com/@demo/video/1234567890",
+      content: "Caption",
+      media: [],
+    })
+
+    const removeResponse = await automationsRoute.PATCH(
+      new Request("http://localhost/api/automations", {
+        method: "PATCH",
+        body: JSON.stringify({
+          id: automationId,
+          schema: schemaWithAutomationHookItems(schema, []),
+        }),
+      })
+    )
+    expect(removeResponse.status).toBe(409)
+
+    const disableResponse = await automationsRoute.PATCH(
+      new Request("http://localhost/api/automations", {
+        method: "PATCH",
+        body: JSON.stringify({
+          id: automationId,
+          schema: schemaWithAutomationHookItems(schema, [
+            { ...hook, enabled: false },
+          ]),
+        }),
+      })
+    )
+    expect(disableResponse.status).toBe(200)
+    expect((await disableResponse.json()).record.schema.hooks).toEqual([
+      expect.objectContaining({ id: hook.id, enabled: false }),
+    ])
+  })
+
   it("deletes generated slideshows when deleting their automation", async () => {
     const automationsRoute = await import("./route")
     const slideshowsRoute = await import("../slideshows/route")
@@ -175,14 +281,13 @@ describe("/api/automations", () => {
         automationRun("keep-run", "automation-keep", "slideshow-keep"),
       ],
     })
-    await writeJsonArrayStore({
+    await upsertPostFastPostRecord({
+      ...postfastPost(`${slideshowId}:tiktok:draft-v2`, "tiktok"),
       rootDir: path.join(tempRoot, "data"),
-      fileName: "postfast-posts.json",
-      key: "posts",
-      records: [
-        postfastPost("delete-post", `${slideshowId}:tiktok:draft-v2`, "tiktok"),
-        postfastPost("keep-post", "slideshow-keep:tiktok:draft-v2", "tiktok"),
-      ],
+    })
+    const keepPost = await upsertPostFastPostRecord({
+      ...postfastPost("slideshow-keep:tiktok:draft-v2", "tiktok"),
+      rootDir: path.join(tempRoot, "data"),
     })
 
     const automationsIdRoute = await import("./[id]/route")
@@ -198,18 +303,14 @@ describe("/api/automations", () => {
       fileName: "runs.json",
       key: "runs",
     })
-    const storedPosts = await readJsonArrayStore<{ id: string }>({
-      rootDir: path.join(tempRoot, "data"),
-      fileName: "postfast-posts.json",
-      key: "posts",
-    })
+    const storedPosts = await listPostFastPostRecords()
 
     expect(deleteResponse.status).toBe(200)
     expect(deletePayload.deletedResultsCount).toBe(1)
     expect(deletePayload.deletedRunsCount).toBe(1)
     expect(deletePayload.deletedPostFastPostsCount).toBe(1)
     expect(storedRuns.map((run) => run.id)).toEqual(["keep-run"])
-    expect(storedPosts.map((post) => post.id)).toEqual(["keep-post"])
+    expect(storedPosts.map((post) => post.id)).toEqual([keepPost.id])
   })
 })
 
@@ -239,17 +340,14 @@ function automationRun(id: string, automationId: string, slideshowId: string) {
   }
 }
 
-function postfastPost(id: string, sourceId: string, provider: string) {
+function postfastPost(sourceId: string, provider: string) {
   return {
-    id,
-    sourceType: "slideshow",
+    sourceType: "slideshow" as const,
     sourceId,
     integrationId: `${provider}-integration`,
     provider,
-    status: "draft",
+    status: "draft" as const,
     content: "Caption",
     media: [],
-    createdAt: "2026-07-04T12:00:00.000Z",
-    updatedAt: "2026-07-04T12:00:00.000Z",
   }
 }

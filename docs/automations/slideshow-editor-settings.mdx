@@ -1,0 +1,36 @@
+---
+title: "Slideshow editor setting atlas"
+description: "A one-variable-at-a-time visual reference for the slideshow editor's rendering and text-layout controls."
+full: true
+---
+
+import { SlideshowSettingAtlas } from "@/components/docs/slideshow-setting-atlas"
+
+This page covers only visual editor controls: aspect ratio, font, overlays,
+text styling, size, placement, width, alignment, and padding. It intentionally
+excludes hooks, tone, collections, generation prompts, and slideshow structure.
+Each comparison holds the background, copy, and remaining settings constant,
+then changes only the named control. Every visible frame is generated through
+`lib/slideshow-renderer.ts`; no LLM or image API is involved.
+
+When image collections are available, the atlas randomly samples their images
+and distributes them across every rendered example. Opening an example shows
+the complete slideshow JSON, including global settings and all displayed
+slides, rather than only the isolated value being compared.
+
+The impact badge separates two behaviors:
+
+- **Direct render** changes pixels or text layout in the current frame.
+- **Fixed behavior** is visible in the editor but currently has only one value.
+
+<SlideshowSettingAtlas />
+
+## How to use this page
+
+Use search to find the label shown in the editor, then compare its values side
+by side. Click any example for a larger render and the exact documented value.
+Each setting stays on one horizontal row on desktop and mobile. On a narrow
+screen, scroll that row sideways to compare all available values.
+
+For randomized combinations and edge cases, continue to the
+[experimental slide generator](./experimental-slide-generator).

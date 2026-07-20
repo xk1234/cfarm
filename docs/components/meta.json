@@ -1,0 +1,10 @@
+{
+  "title": "Components",
+  "pages": [
+    "index",
+    "workspace",
+    "automation-settings",
+    "media-viewers",
+    "ui-primitives"
+  ]
+}

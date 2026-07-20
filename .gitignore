@@ -19,6 +19,7 @@ package-lock.json
 # next.js
 /.next/
 /out/
+/.source/
 
 # production
 /build
@@ -39,6 +40,7 @@ package-lock.json
 !/data/viral-hooks/hooks.jsonl
 
 # debug
+/.agents/
 /tmp/
 /scripts/linkedin-lab/results/
 npm-debug.log*
@@ -49,7 +51,10 @@ pnpm-debug.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
+/appwrite/.local/
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.agents/logs/
+.vercel

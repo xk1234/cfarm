@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import type * as React from "react"
 import { IconSearch } from "@tabler/icons-react"
 import { toast } from "sonner"
@@ -55,6 +55,14 @@ export function PinterestCollectionSearch({
   const [recentSearches, setRecentSearches] = useState<string[]>(() =>
     readRecentPinterestSearches()
   )
+  const createControllerRef = useRef<AbortController | null>(null)
+
+  function cancel() {
+    createControllerRef.current?.abort()
+    createControllerRef.current = null
+    toast.dismiss("pinterest-auto-caption")
+    onCancel()
+  }
 
   async function search(nextLimit = 20, queryOverride = query) {
     const trimmedQuery = queryOverride.trim()
@@ -147,6 +155,8 @@ export function PinterestCollectionSearch({
     }
 
     setCreatingCollection(true)
+    const controller = new AbortController()
+    createControllerRef.current = controller
     const collectionInput = searchedQuery || query.trim()
     const collectionName = pinterestCollectionTitle(
       collectionInput,
@@ -179,10 +189,15 @@ export function PinterestCollectionSearch({
         selectedResults,
         source,
         payload: createPayload,
+        signal: controller.signal,
       })
+      if (controller.signal.aborted) return
       onCreateCollection(
-        autoCaption ? await captionCollection(collection) : collection
+        autoCaption
+          ? await captionCollection(collection, controller.signal)
+          : collection
       )
+      if (controller.signal.aborted) return
       if (autoCaption) {
         toast.success("Image captions ready", { id: "pinterest-auto-caption" })
       } else {
@@ -191,6 +206,7 @@ export function PinterestCollectionSearch({
         })
       }
     } catch (captionError) {
+      if (controller.signal.aborted) return
       toast.dismiss("pinterest-auto-caption")
       toast.error(
         getApiErrorMessage(
@@ -198,19 +214,23 @@ export function PinterestCollectionSearch({
           autoCaption ? "Auto-caption failed" : "Image import failed"
         )
       )
-      setCreatingCollection(false)
+    } finally {
+      if (createControllerRef.current === controller) {
+        createControllerRef.current = null
+        setCreatingCollection(false)
+      }
     }
   }
 
   return (
-    <AppModal className="bg-[#24251f]/50" onClose={onCancel}>
+    <AppModal className="bg-[#24251f]/50" onClose={cancel}>
       <AppModalPanel
         accessibleTitle="Search for collection images"
         className="relative flex max-h-[78vh] max-w-[640px] flex-col rounded-[10px]"
       >
         <AppModalCloseButton
           className="absolute top-3 right-3 z-10"
-          onClick={onCancel}
+          onClick={cancel}
           ariaLabel="Close Pinterest search"
         />
         <div className="border-b border-app-panel-border p-4 pb-3">
@@ -355,7 +375,7 @@ export function PinterestCollectionSearch({
               type="button"
               variant="ghost"
               size="compact"
-              onClick={onCancel}
+              onClick={cancel}
             >
               Cancel
             </Button>
@@ -469,7 +489,9 @@ function PinterestResultCard({
         <span
           className={cn(
             "absolute top-1.5 right-1.5 grid size-6 place-items-center rounded-full text-[12px] font-bold",
-            selected ? "bg-[#32d982] text-white" : "bg-app-surface text-[#55544e]"
+            selected
+              ? "bg-[#32d982] text-white"
+              : "bg-app-surface text-[#55544e]"
           )}
         >
           {selected ? "✓" : "+"}
@@ -531,7 +553,10 @@ function readRecentPinterestSearches() {
   }
 }
 
-async function captionCollection(collection: CreatedImageCollection) {
+async function captionCollection(
+  collection: CreatedImageCollection,
+  signal?: AbortSignal
+) {
   const payload = await fetchJsonWithTimeout<{
     collection?: StoredImageCollection
   }>("/api/image-collections/captions", {
@@ -540,6 +565,7 @@ async function captionCollection(collection: CreatedImageCollection) {
     body: JSON.stringify(collectionToStored(collection)),
     timeoutMs: 180_000,
     toastOnError: false,
+    signal,
   })
   if (!payload.collection) {
     throw new Error("Auto-caption failed")
@@ -564,6 +590,7 @@ async function importSelectedImages(input: {
   selectedResults: PinterestSearchResult[]
   source: CreatedImageCollection["source"]
   payload: PinterestCollectionCreatePayload
+  signal?: AbortSignal
 }) {
   const payload = await fetchJsonWithTimeout<{
     collection?: StoredImageCollection
@@ -583,6 +610,7 @@ async function importSelectedImages(input: {
     }),
     timeoutMs: 180_000,
     toastOnError: false,
+    signal: input.signal,
   })
   if (!payload.collection) {
     throw new Error("Image import failed")

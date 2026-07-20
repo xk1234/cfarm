@@ -85,7 +85,7 @@ export default function PricingPage() {
             </p>
             <ul className="mt-8 space-y-3 text-sm">
               {[
-                "Shared research and asset libraries",
+                "Shared asset and template libraries",
                 "Roles and collaborative review",
                 "Higher automation and generation volume",
                 "Assisted workflow migration",

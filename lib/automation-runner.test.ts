@@ -21,7 +21,11 @@ import {
   listAutomationRecords,
   upsertAutomationRecords,
 } from "@/lib/automations"
-import { runDueAutomations } from "@/lib/automation-runner"
+import {
+  imagesForSlideSection,
+  previewAutomationRunPlan,
+  runDueAutomations,
+} from "@/lib/automation-runner"
 import type { AutomationSchema } from "@/lib/realfarm-automation"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 import { appendUsageRecords } from "@/lib/usage-ledger"
@@ -130,6 +134,24 @@ afterEach(async () => {
 afterAll(clearAll)
 
 describe("runDueAutomations", () => {
+  it("reserves caption-tagged hook and CTA assets for their slide sections", () => {
+    const images = [
+      { id: "hook", imageCaption: "Hook asset: polar bear cutouts" },
+      { id: "body", imageCaption: "Comparison asset: bottle swap" },
+      { id: "cta", imageCaption: "CTA asset: waving polar bear" },
+    ]
+
+    expect(
+      imagesForSlideSection(images, "hook").map((image) => image.id)
+    ).toEqual(["hook"])
+    expect(
+      imagesForSlideSection(images, "content").map((image) => image.id)
+    ).toEqual(["body"])
+    expect(
+      imagesForSlideSection(images, "cta").map((image) => image.id)
+    ).toEqual(["cta"])
+  })
+
   it("expands hook slots from word collections and records template substitutions", async () => {
     const automation = createLocalAutomationRecord({
       name: "Zodiac charms",
@@ -969,6 +991,158 @@ describe("runDueAutomations", () => {
       expect.objectContaining({ text: "fixed hook" }),
       expect.objectContaining({ text: "generated body text" }),
     ])
+  })
+
+  it("repairs generated copy against locked selected-image captions", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-openrouter-key")
+    const outputs = [
+      {
+        title: "Lower-impact habits",
+        caption: "Small changes add up.",
+        hashtags: "#sustainability #habits #ecoliving",
+        text: {
+          "content-2__text-0":
+            "lower-impact habit: bring reusable bags to the grocery store",
+        },
+      },
+      {
+        title: "Lower-impact habits",
+        caption: "Small changes add up.",
+        hashtags: "#sustainability #habits #ecoliving",
+        text: {
+          "content-2__text-0":
+            "lower-impact habit: unplug unused chargers to reduce standby power",
+        },
+      },
+    ]
+    const fetchMock = vi.fn(async () => {
+      const output = outputs.shift()
+      if (!output) throw new Error("Unexpected extra generation request")
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify(output) } }],
+        }),
+        { status: 200 }
+      )
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const automation = createLocalAutomationRecord({
+      name: "Eco habits",
+      overrides: {
+        status: "live",
+        social_integrations: [
+          {
+            provider: "tiktok",
+            integration_id: "tiktok-1",
+            name: "Eco TikTok",
+            profile: "eco",
+          },
+        ],
+        schedule: {
+          timezone: "America/New_York",
+          posting_times: [{ time: "11:00 AM", days: ["Fri"] }],
+        },
+      },
+    })
+    automation.schema.formatting = automation.schema.formatting.map(
+      (section) =>
+        section.id === "hook"
+          ? {
+              ...section,
+              textItems: [
+                {
+                  ...section.textItems[0],
+                  id: "hook-0",
+                  contentDirection: "lower-impact habits",
+                },
+              ],
+            }
+          : section.id === "body"
+            ? {
+                ...section,
+                slideCount: 1,
+                aiImageSelection: true,
+                textItems: [
+                  {
+                    ...section.textItems[0],
+                    id: "text-0",
+                    contentDirection: "one concrete lower-impact habit",
+                  },
+                ],
+              }
+            : section.id === "cta"
+              ? { ...section, slideCount: 0 }
+              : section
+    )
+    automation.schema.prompt_formatting.num_of_slides = 2
+    automation.schema.image_collection_ids = {
+      ...automation.schema.image_collection_ids,
+      first_slide: {
+        collection: "collection-eco-scenes-2026-07-19t00-00-00-000z",
+        mode: "collection",
+        single_image: null,
+      },
+      all_slides: "collection-eco-scenes-2026-07-19t00-00-00-000z",
+      cta_slide: {
+        check: false,
+        cta_collection_check: false,
+        cta_collection_id: "",
+        image_id: null,
+        cta_location: "last_slide",
+      },
+    }
+    await upsertAutomationRecords({
+      rootDir: automationRootDir,
+      records: [automation],
+    })
+    await writeJsonArrayStore({
+      rootDir: dataDir,
+      fileName: "image-collections.json",
+      key: "collections",
+      records: [
+        {
+          name: "Eco scenes",
+          created_at: "2026-07-19T00:00:00.000Z",
+          images: [
+            {
+              image_link: "/api/local-assets/image-collections/files/eco.jpg",
+              caption: "EcoGPT mascot holding a recycling symbol",
+            },
+            {
+              image_link:
+                "/api/local-assets/image-collections/files/charger.jpg",
+              caption: "Phone charger being unplugged from a wall outlet",
+            },
+          ],
+        },
+      ],
+    })
+
+    const result = await previewAutomationRunPlan(automation.schema, {
+      automationId: automation.id,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
+      imageCollectionDbPath,
+      random: () => 0,
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const [, repairInit] = fetchMock.mock.calls[1] as unknown as [
+      string,
+      RequestInit,
+    ]
+    const repairRequest = JSON.parse(repairInit.body as string)
+    expect(repairRequest.messages[1].content).toContain(
+      "Phone charger being unplugged from a wall outlet"
+    )
+    expect(repairRequest.messages[1].content).toContain(
+      "lower-impact habit: bring reusable bags to the grocery store"
+    )
+    expect(result.plan.debug?.imageTextCoherenceRepair).toBe(true)
+    expect(result.plan.slides[1]).toMatchObject({
+      imageCaption: "Phone charger being unplugged from a wall outlet",
+      text: "lower-impact habit: unplug unused chargers to reduce standby power",
+    })
   })
 
   it("fails the run instead of substituting text when generation is unavailable", async () => {

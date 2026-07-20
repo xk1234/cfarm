@@ -1,7 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { X } from "lucide-react"
+import { LuX } from "react-icons/lu"
 import { Dialog } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
@@ -122,7 +122,7 @@ export function AppModalCloseButton({
       onClick={onClick}
       aria-label={ariaLabel}
     >
-      <X className="size-5" />
+      <LuX className="size-5" />
     </Button>
   )
 }

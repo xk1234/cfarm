@@ -1,11 +1,10 @@
 import path from "node:path"
 
-import { Query } from "node-appwrite"
 import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
 import {
+  countResultRecords,
   createResultRecord,
   deleteResultRecord,
   deleteResultRecordsForAutomation,
@@ -78,6 +77,10 @@ describe("result persistence", () => {
       automationId: "automation-1",
       runId: "automation-run-1",
     })
+    const filteredBySlideshow = await listResultRecords({
+      rootDir,
+      slideshowIds: ["slideshow-1", "slideshow-missing"],
+    })
 
     expect(result).toMatchObject({
       id: "result-automation-run-1",
@@ -99,6 +102,7 @@ describe("result persistence", () => {
     })
     expect(records).toHaveLength(1)
     expect(filtered).toHaveLength(1)
+    expect(filteredBySlideshow.map((record) => record.id)).toEqual([result.id])
   })
 
   it("deletes results by id and automation id", async () => {
@@ -140,5 +144,43 @@ describe("result persistence", () => {
     expect(deletedOne?.id).toBe(first.id)
     expect(deletedRest.map((result) => result.runId)).toEqual(["run-delete-2"])
     expect(records.map((result) => result.id)).toEqual([keep.id])
+  })
+
+  it("counts slideshow and video-export rows without hydrating results", async () => {
+    await createResultRecord({
+      rootDir,
+      automationId: "automation-count",
+      runId: "run-count-video",
+      workflowType: "slideshow",
+      title: "Video slideshow",
+      artifacts: { videoUrl: "/slideshow.mp4", outputImages: [] },
+    })
+    await createResultRecord({
+      rootDir,
+      automationId: "automation-count",
+      runId: "run-count-static",
+      workflowType: "slideshow",
+      title: "Static slideshow",
+      artifacts: { outputImages: [] },
+    })
+    await createResultRecord({
+      rootDir,
+      automationId: "automation-count",
+      runId: "run-count-other-video",
+      workflowType: "video",
+      title: "Standalone video",
+      artifacts: { videoUrl: "/video.mp4", outputImages: [] },
+    })
+
+    await expect(
+      countResultRecords({ rootDir, workflowType: "slideshow" })
+    ).resolves.toBe(2)
+    await expect(
+      countResultRecords({
+        rootDir,
+        workflowType: "slideshow",
+        hasVideo: true,
+      })
+    ).resolves.toBe(1)
   })
 })

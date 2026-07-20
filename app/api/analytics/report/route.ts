@@ -18,7 +18,6 @@ import {
   syncPostFastAnalytics,
 } from "@/lib/postfast-analytics"
 import { postfastRouteError } from "@/lib/postfast-route"
-import { listGeneratedSlideshowBenchmarks } from "@/lib/slideshow-benchmarks"
 
 export const dynamic = "force-dynamic"
 
@@ -32,8 +31,7 @@ export async function GET(request: Request) {
       .filter(Boolean)
   )
   try {
-    const [integrationResult, snapshots, followerSnapshots, benchmarks] =
-      await Promise.all([
+    const [integrationResult, snapshots, followerSnapshots] = await Promise.all([
         listAnalyticsIntegrations()
           .then((integrations) => ({ integrations, error: "" }))
           .catch((error) => ({
@@ -45,7 +43,6 @@ export async function GET(request: Request) {
           })),
         listMetricSnapshots().catch(() => []),
         listFollowerSnapshots().catch(() => []),
-        listGeneratedSlideshowBenchmarks({ limit: 10_000 }).catch(() => []),
       ])
     const integrations =
       integrationResult.integrations.length > 0
@@ -57,34 +54,12 @@ export async function GET(request: Request) {
         : integrations
     const selectedIds = new Set(selected.map((item) => item.integration_id))
     const since = Date.now() - days * 24 * 60 * 60 * 1000
-    const benchmarksBySource = new Map(
-      benchmarks.flatMap((benchmark) =>
-        [benchmark.runId, benchmark.slideshowId]
-          .filter((value): value is string => Boolean(value))
-          .map((value) => [value, benchmark] as const)
-      )
-    )
     const visibleSnapshots = snapshots
       .filter(
         (snapshot) =>
           selectedIds.has(snapshot.integrationId) &&
           Date.parse(snapshot.capturedAt) >= since
       )
-      .map((snapshot) => {
-        const benchmark = snapshot.sourceId
-          ? benchmarksBySource.get(snapshot.sourceId)
-          : undefined
-        return benchmark
-          ? {
-              ...snapshot,
-              benchmark: {
-                id: benchmark.id,
-                ...benchmark.scores,
-                automationId: benchmark.automationId,
-              },
-            }
-          : snapshot
-      })
     const visibleFollowers = followerSnapshots.filter(
       (snapshot) =>
         selectedIds.has(snapshot.integrationId) &&

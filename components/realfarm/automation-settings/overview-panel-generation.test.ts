@@ -19,7 +19,7 @@ describe("automation recent generation progress", () => {
       "utf8"
     )
 
-    const progressBranch = source.indexOf("{inFlight ? (")
+    const progressBranch = source.indexOf(") : inFlight ? (")
     const thumbnailBranch = source.indexOf(
       ') : mediaKind === "video" && run.videoUrl ? ('
     )
@@ -27,6 +27,8 @@ describe("automation recent generation progress", () => {
     expect(progressBranch).toBeGreaterThan(-1)
     expect(thumbnailBranch).toBeGreaterThan(progressBranch)
     expect(source).toContain('{run.progress?.stage ?? "Generating…"}')
+    expect(source).toContain('const failed = run.status === "failed"')
+    expect(source).toContain("<GenerationFailurePlaceholder")
     expect(source).toContain("<RunPublicationStatusSelect")
   })
 

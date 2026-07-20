@@ -3,11 +3,26 @@ import { describe, expect, it } from "vitest"
 import {
   automationSlotsInRange,
   dueAutomationSlots,
+  generationExpectedAt,
   scheduleSlotsInRange,
+  slideshowGenerationLeadMinutes,
 } from "@/lib/automation-slots"
 import type { Automation } from "@/lib/realfarm-data"
 
 describe("automation slot projection", () => {
+  it("uses the scheduler lead when projecting generation time", () => {
+    expect(slideshowGenerationLeadMinutes({ posting_mode: "auto" })).toBe(30)
+    expect(
+      slideshowGenerationLeadMinutes({
+        posting_mode: "review",
+        generation_lead_minutes: 90,
+      })
+    ).toBe(90)
+    expect(generationExpectedAt("2026-07-15T01:00:00.000Z", 30)).toBe(
+      "2026-07-15T00:30:00.000Z"
+    )
+  })
+
   it("projects enabled schedule slots in the automation timezone", () => {
     const automation: Automation = {
       id: "a-1",

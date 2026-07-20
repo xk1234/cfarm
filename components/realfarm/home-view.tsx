@@ -21,6 +21,7 @@ import {
   type TemplateExampleSlideshow,
 } from "@/components/realfarm/template-showcase-preview"
 import {
+  GenerationFailurePlaceholder,
   MediaCardShell,
   MediaFrame,
   MediaPendingState,
@@ -29,6 +30,7 @@ import { ExampleSlideshowModal } from "@/components/realfarm/example-slideshow-m
 import { GeneratedSlideshowViewerModal } from "@/components/realfarm/automation-settings/generated-slideshow-viewer"
 import type { AutomationRunApiRecord } from "@/components/realfarm/automation-settings/types"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import type { GeneratedVideoExport } from "@/lib/generated-video-types"
 import type { Automation, RealFarmData } from "@/lib/realfarm-data"
@@ -53,6 +55,8 @@ export function HomeView({
   recentRunsByAutomationId,
   generatedRunsByAutomationId,
   generatedRunsLoading,
+  generatedRunsError,
+  onRetryGeneratedRuns,
   onCreate,
   onUseTemplate,
   onAutomations,
@@ -64,6 +68,8 @@ export function HomeView({
   recentRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
   generatedRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
   generatedRunsLoading?: boolean
+  generatedRunsError?: string
+  onRetryGeneratedRuns: () => void
   onCreate: () => void
   onUseTemplate: (automation: Automation) => void
   onAutomations: () => void
@@ -75,6 +81,7 @@ export function HomeView({
   const [videos, setVideos] = useState<GeneratedVideoExport[]>([])
   const [videosLoading, setVideosLoading] = useState(true)
   const [videosLoaded, setVideosLoaded] = useState(false)
+  const [videosError, setVideosError] = useState("")
   const [page, setPage] = useState(1)
   const [quickStartPage, setQuickStartPage] = useState(1)
   const [selectedExample, setSelectedExample] = useState<{
@@ -130,10 +137,13 @@ export function HomeView({
         })
         if (active) {
           setVideos(payload?.exports ?? [])
+          setVideosError("")
         }
-      } catch {
+      } catch (error) {
         if (active) {
-          setVideos([])
+          setVideosError(
+            getApiErrorMessage(error, "Failed to load generated videos")
+          )
         }
       } finally {
         if (active) {
@@ -265,6 +275,11 @@ export function HomeView({
           </div>
         ) : activeTab === "slideshows" && generatedRunsLoading ? (
           <HomeCardSkeletonRow />
+        ) : activeTab === "slideshows" && generatedRunsError ? (
+          <HomeLoadError
+            message={generatedRunsError}
+            onRetry={onRetryGeneratedRuns}
+          />
         ) : activeTab === "slideshows" ? (
           <div className="grid min-h-[86px] place-items-center text-[16px] font-medium text-app-muted-text">
             No generated slideshows yet. Run a slideshow automation to create
@@ -287,6 +302,14 @@ export function HomeView({
           </div>
         ) : videosLoading ? (
           <HomeCardSkeletonRow />
+        ) : videosError ? (
+          <HomeLoadError
+            message={videosError}
+            onRetry={() => {
+              setVideosLoaded(false)
+              setVideosLoading(true)
+            }}
+          />
         ) : (
           <div className="grid min-h-[86px] place-items-center text-[16px] font-medium text-app-muted-text">
             No videos yet. Generate a video from the Greenscreen or UGC Ads
@@ -375,6 +398,30 @@ export function HomeView({
   )
 }
 
+function HomeLoadError({
+  message,
+  onRetry,
+}: {
+  message: string
+  onRetry: () => void
+}) {
+  return (
+    <div className="grid min-h-[110px] place-items-center rounded-[8px] border border-red-200 bg-red-50 px-4 text-center">
+      <div>
+        <p className="text-[13px] font-semibold text-red-700">{message}</p>
+        <Button
+          className="mt-3"
+          variant="outline"
+          size="compact"
+          onClick={onRetry}
+        >
+          Try again
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 type GeneratedHomeSlideshowCard = {
   ownerId?: string
   title: string
@@ -406,6 +453,7 @@ function GeneratedSlideshowCard({
   onOpen: () => void
 }) {
   const firstSlide = item.slideshow.slides[0]
+  const failed = item.slideshow.status === "failed"
 
   return (
     <div
@@ -419,32 +467,49 @@ function GeneratedSlideshowCard({
           Shared
         </span>
       ) : null}
-      <span className="absolute top-2 right-2 z-20 rounded-full bg-black/75 px-2 py-1 text-[10px] font-semibold text-white">
-        {item.slideshow.status === "generating"
-          ? "Generating"
-          : "Not published"}
+      <span
+        className={cn(
+          "absolute top-2 right-2 z-20 rounded-full px-2 py-1 text-[10px] font-semibold text-white",
+          failed ? "bg-app-danger" : "bg-black/75"
+        )}
+      >
+        {failed
+          ? "Generation failed"
+          : item.slideshow.status === "generating"
+            ? "Generating"
+            : "Not published"}
       </span>
-      <MediaCardShell>
-        <button
-          type="button"
-          className="block w-full text-left"
-          onClick={onOpen}
-          aria-label={`Open ${item.title} generated slideshow`}
-        >
+      <MediaCardShell danger={failed}>
+        {failed ? (
           <MediaFrame>
-            {firstSlide ? (
-              /* eslint-disable-next-line @next/next/no-img-element -- Generated slides are already rendered image artifacts. */
-              <img
-                src={firstSlide.imageUrl}
-                alt={firstSlide.text || `${item.title} first slide`}
-                className="absolute inset-0 h-full w-full object-cover"
-                draggable={false}
-              />
-            ) : (
-              <div className="app-media-poster-fallback absolute inset-0" />
-            )}
+            <GenerationFailurePlaceholder
+              message={
+                item.slideshow.error || "This slideshow could not be generated."
+              }
+            />
           </MediaFrame>
-        </button>
+        ) : (
+          <button
+            type="button"
+            className="block w-full text-left"
+            onClick={onOpen}
+            aria-label={`Open ${item.title} generated slideshow`}
+          >
+            <MediaFrame>
+              {firstSlide ? (
+                /* eslint-disable-next-line @next/next/no-img-element -- Generated slides are already rendered image artifacts. */
+                <img
+                  src={firstSlide.imageUrl}
+                  alt={firstSlide.text || `${item.title} first slide`}
+                  className="absolute inset-0 h-full w-full object-cover"
+                  draggable={false}
+                />
+              ) : (
+                <div className="app-media-poster-fallback absolute inset-0" />
+              )}
+            </MediaFrame>
+          </button>
+        )}
       </MediaCardShell>
     </div>
   )
@@ -455,7 +520,9 @@ function generatedHomeSlideshowCards(
 ) {
   return Object.entries(runsByAutomationId)
     .flatMap<GeneratedHomeSlideshowCard>(([, runs]) => {
-      const slideshows = generatedExampleSlideshows(runs)
+      const slideshows = generatedExampleSlideshows(runs, {
+        includeFailed: true,
+      })
       return slideshows.map((slideshow) => ({
         ownerId: runs.find((run) => run.id === slideshow.id)?.ownerId,
         title:
@@ -555,9 +622,21 @@ function VideoCard({
   )
   const [playing, setPlaying] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const isPending =
     !item.videoUrl && (item.status === "queued" || item.status === "processing")
+  const isFailed = !item.videoUrl && item.status === "failed"
   const canDelete = !shared && !item.deletionBlockedBy
+  const deleteConfirmation = deleteOpen ? (
+    <ConfirmDialog
+      title="Delete this video?"
+      description="This permanently removes the generated video and cannot be undone."
+      confirmLabel="Delete video"
+      pendingLabel="Deleting…"
+      onCancel={() => setDeleteOpen(false)}
+      onConfirm={deleteVideo}
+    />
+  ) : null
 
   async function deleteVideo() {
     if (!canDelete || deleting) return
@@ -601,6 +680,68 @@ function VideoCard({
 
   if (isPending) {
     return (
+      <>
+        <div
+          className={cn(
+            "relative rounded-[10px]",
+            shared && "ring-2 ring-[#6d28d9]/45 ring-offset-2"
+          )}
+        >
+          {shared ? (
+            <span className="absolute top-2 left-2 z-20 rounded-full bg-app-action px-2 py-1 text-[10px] font-semibold text-white">
+              Shared
+            </span>
+          ) : null}
+          {canDelete ? (
+            <VideoDeleteButton
+              deleting={deleting}
+              onDelete={() => setDeleteOpen(true)}
+            />
+          ) : null}
+          <MediaCardShell>
+            <MediaPendingState label="Creating hook video..." />
+          </MediaCardShell>
+        </div>
+        {deleteConfirmation}
+      </>
+    )
+  }
+
+  if (isFailed) {
+    return (
+      <>
+        <div
+          className={cn(
+            "relative rounded-[10px]",
+            shared && "ring-2 ring-[#6d28d9]/45 ring-offset-2"
+          )}
+        >
+          {shared ? (
+            <span className="absolute top-2 left-2 z-20 rounded-full bg-app-action px-2 py-1 text-[10px] font-semibold text-white">
+              Shared
+            </span>
+          ) : null}
+          {canDelete ? (
+            <VideoDeleteButton
+              deleting={deleting}
+              onDelete={() => setDeleteOpen(true)}
+            />
+          ) : null}
+          <MediaCardShell danger>
+            <MediaFrame>
+              <GenerationFailurePlaceholder
+                message={item.error || "This video could not be generated."}
+              />
+            </MediaFrame>
+          </MediaCardShell>
+        </div>
+        {deleteConfirmation}
+      </>
+    )
+  }
+
+  return (
+    <>
       <div
         className={cn(
           "relative rounded-[10px]",
@@ -613,73 +754,56 @@ function VideoCard({
           </span>
         ) : null}
         {canDelete ? (
-          <VideoDeleteButton deleting={deleting} onDelete={deleteVideo} />
+          <VideoDeleteButton
+            deleting={deleting}
+            onDelete={() => setDeleteOpen(true)}
+          />
         ) : null}
         <MediaCardShell>
-          <MediaPendingState label="Creating hook video..." />
+          <MediaFrame>
+            {item.videoUrl ? (
+              <>
+                <video
+                  ref={videoRef}
+                  className="absolute inset-0 h-full w-full object-cover"
+                  src={item.videoUrl}
+                  poster={item.previewUrl}
+                  muted
+                  playsInline
+                  preload={item.previewUrl ? "none" : "metadata"}
+                  onEnded={() => setPlaying(false)}
+                />
+                {!item.previewUrl && !thumbnailReady && !playing ? (
+                  <div className="app-media-poster-fallback pointer-events-none absolute inset-0" />
+                ) : null}
+                <button
+                  className="absolute inset-0 z-10 flex items-center justify-center"
+                  onClick={togglePlay}
+                  aria-label={playing ? "Pause video" : "Play video"}
+                >
+                  {!playing && (
+                    <div className="grid size-14 place-items-center rounded-full bg-black/50 backdrop-blur-sm transition hover:bg-black/60">
+                      <IconPlayerPlay
+                        className="size-7 text-white"
+                        fill="white"
+                      />
+                    </div>
+                  )}
+                </button>
+              </>
+            ) : item.previewUrl ? (
+              <div
+                className="absolute inset-0 bg-cover bg-center"
+                style={{ backgroundImage: `url(${item.previewUrl})` }}
+              />
+            ) : (
+              <div className="app-media-poster-fallback absolute inset-0" />
+            )}
+          </MediaFrame>
         </MediaCardShell>
       </div>
-    )
-  }
-
-  return (
-    <div
-      className={cn(
-        "relative rounded-[10px]",
-        shared && "ring-2 ring-[#6d28d9]/45 ring-offset-2"
-      )}
-    >
-      {shared ? (
-        <span className="absolute top-2 left-2 z-20 rounded-full bg-app-action px-2 py-1 text-[10px] font-semibold text-white">
-          Shared
-        </span>
-      ) : null}
-      {canDelete ? (
-        <VideoDeleteButton deleting={deleting} onDelete={deleteVideo} />
-      ) : null}
-      <MediaCardShell>
-        <MediaFrame>
-          {item.videoUrl ? (
-            <>
-              <video
-                ref={videoRef}
-                className="absolute inset-0 h-full w-full object-cover"
-                src={item.videoUrl}
-                poster={item.previewUrl}
-                muted
-                playsInline
-                preload={item.previewUrl ? "none" : "metadata"}
-                onEnded={() => setPlaying(false)}
-              />
-              {!item.previewUrl && !thumbnailReady && !playing ? (
-                <div className="app-media-poster-fallback pointer-events-none absolute inset-0" />
-              ) : null}
-              <button
-                className="absolute inset-0 z-10 flex items-center justify-center"
-                onClick={togglePlay}
-                aria-label={playing ? "Pause video" : "Play video"}
-              >
-                {!playing && (
-                  <div className="grid size-14 place-items-center rounded-full bg-black/50 backdrop-blur-sm transition hover:bg-black/60">
-                    <IconPlayerPlay
-                      className="size-7 text-white"
-                      fill="white"
-                    />
-                  </div>
-                )}
-              </button>
-            </>
-          ) : item.previewUrl ? (
-            <div
-              className="absolute inset-0 bg-cover bg-center"
-              style={{ backgroundImage: `url(${item.previewUrl})` }}
-            />
-          ) : (
-            <div className="app-media-poster-fallback absolute inset-0" />
-          )}
-        </MediaFrame>
-      </MediaCardShell>
-    </div>
+      {deleteConfirmation}
+    </>
   )
 }
 

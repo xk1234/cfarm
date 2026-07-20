@@ -1,20 +1,23 @@
 import type { ReactNode } from "react"
 import {
-  Blend,
-  Expand,
-  Image as ImageIcon,
-  Layers,
-  Plus,
-  Type,
-} from "lucide-react"
+  LuBlend,
+  LuExpand,
+  LuImage as ImageIcon,
+  LuLayers,
+  LuPlus,
+  LuType,
+} from "react-icons/lu"
 
 import { CollectionSelector } from "@/components/realfarm/collection-selector"
 import { PinterestPreviewTile } from "@/components/realfarm/shared-media"
 import { SelectLike, SwitchPillButton } from "@/components/ui/form-controls"
 import {
   aspectRatioLabel,
+  automationImageGrids,
   automationAspectRatios,
+  imageGridLabel,
   labelToAspectRatio,
+  labelToImageGrid,
   type AutomationFormatSection,
   type AutomationImageOverride,
   type AutomationSchema,
@@ -100,7 +103,7 @@ export function AutomationContentFormatEditor({
       ) : null}
       <CtaDivider />
       <CtaToggleRow
-        icon={<Type className="size-3.5 text-app-text-faint" />}
+        icon={<LuType className="size-3.5 text-app-text-faint" />}
         label="Display text"
         enabled={!section.noText}
         onClick={() => onDisplayTextChange(section.noText)}
@@ -263,7 +266,7 @@ function ContentOverrideHeader({
         className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-semibold text-blue-500 hover:bg-blue-50"
         onClick={onAdd}
       >
-        <Plus className="size-3" />
+        <LuPlus className="size-3" />
         Add
       </button>
     </div>
@@ -350,7 +353,7 @@ export function AutomationCtaFormatEditor({
 
           <div className="space-y-2">
             <CtaSelectRow
-              icon={<Expand className="size-3.5 text-app-text-faint" />}
+              icon={<LuExpand className="size-3.5 text-app-text-faint" />}
               label="Aspect Ratio"
               value={aspectRatioLabel(section.aspect_ratio)}
               options={automationAspectRatios.map(aspectRatioLabel)}
@@ -358,11 +361,20 @@ export function AutomationCtaFormatEditor({
                 onSectionChange({ aspect_ratio: labelToAspectRatio(value) })
               }
             />
+            <CtaSelectRow
+              icon={<LuLayers className="size-3.5 text-app-text-faint" />}
+              label="Image layout"
+              value={imageGridLabel(section.imageGrid)}
+              options={automationImageGrids.map(imageGridLabel)}
+              onChange={(value) =>
+                onSectionChange({ imageGrid: labelToImageGrid(value) })
+              }
+            />
           </div>
 
           <CtaDivider />
           <CtaToggleRow
-            icon={<Blend className="size-3.5 text-app-text-faint" />}
+            icon={<LuBlend className="size-3.5 text-app-text-faint" />}
             label="Overlay"
             enabled={section.overlay}
             onClick={() => onSectionChange({ overlay: !section.overlay })}
@@ -385,7 +397,7 @@ export function AutomationCtaFormatEditor({
           ) : null}
           <CtaDivider />
           <CtaToggleRow
-            icon={<Type className="size-3.5 text-app-text-faint" />}
+            icon={<LuType className="size-3.5 text-app-text-faint" />}
             label="Display text"
             enabled={!section.noText}
             onClick={() => onSectionChange({ noText: !section.noText })}
@@ -505,7 +517,7 @@ function CtaSingleImagePicker({
       ) : (
         <div className="w-full rounded-xl border border-dashed border-[#CCC] bg-[#FAFAFA] px-3 py-5 text-center text-[12px] font-medium text-app-text-faint">
           <div className="mx-auto mb-2 flex size-8 items-center justify-center rounded-lg bg-[#EEE]">
-            <Layers className="size-4" />
+            <LuLayers className="size-4" />
           </div>
           Select CTA collection
         </div>

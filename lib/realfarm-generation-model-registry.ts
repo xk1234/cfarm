@@ -1,17 +1,6 @@
-export type CharacterImageGenerationModel = {
-  label: string
-  url: string
-}
-
-export type CharacterImageActionModel = {
+export type ImageActionModel = {
   label: string
   model: string
-}
-
-export type CharacterImageToVideoModel = {
-  label: string
-  model: string
-  provider: "kie"
 }
 
 export type OpenRouterModelUseCase =
@@ -19,11 +8,7 @@ export type OpenRouterModelUseCase =
   | "webResearch"
   | "automationHooks"
   | "xPostGeneration"
-  | "xBenchmarkJudge"
   | "imageCaptioning"
-  | "characterAttributes"
-  | "swipeAnalysis"
-  | "swipeTranscription"
 
 export const generationModelRegistry = {
   openRouter: {
@@ -43,20 +28,8 @@ export const generationModelRegistry = {
       model: "anthropic/claude-sonnet-5",
       fallbackModels: ["google/gemini-3.1-flash-lite"],
     },
-    xBenchmarkJudge: {
-      model: "google/gemini-2.5-flash",
-    },
     imageCaptioning: {
       model: "google/gemini-2.5-flash",
-    },
-    characterAttributes: {
-      model: "google/gemini-2.5-flash",
-    },
-    swipeAnalysis: {
-      model: "google/gemini-3-flash-preview",
-    },
-    swipeTranscription: {
-      model: "openai/whisper-1",
     },
     tempTestingCenter: {
       featuredModelIds: [
@@ -102,68 +75,20 @@ export const generationModelRegistry = {
       ],
     },
   },
-  character: {
-    image: {
-      defaultModel: "Nano Banana Pro",
-      models: [
-        { label: "Nano Banana Pro", url: "https://kie.ai/nano-banana-pro" },
-        { label: "Flux 2", url: "https://kie.ai/flux-2" },
-        { label: "GPT Image 2", url: "https://kie.ai/gpt-image-2" },
-        { label: "Z-Image", url: "https://kie.ai/z-image" },
-      ] satisfies CharacterImageGenerationModel[],
-    },
+  imageTools: {
     imageAction: {
       defaultModel: "gpt-image-1",
       models: [
         { label: "GPT Image 1", model: "gpt-image-1" },
         { label: "Flux", model: "flux" },
         { label: "DALL-E 3", model: "dall-e-3" },
-      ] satisfies CharacterImageActionModel[],
+      ] satisfies ImageActionModel[],
     },
     edit: {
       providerModel: "flux-kontext-pro",
-      models: [
-        {
-          label: "Flux.1 Kontext",
-          url: "https://kie.ai/features/flux1-kontext",
-        },
-        { label: "Qwen Image Edit", url: "https://kie.ai/qwen/image-edit" },
-      ] satisfies CharacterImageGenerationModel[],
-    },
-    video: {
-      models: [
-        { label: "Seedance 2.0", url: "https://kie.ai/seedance-2-0" },
-        { label: "Kling 3.0", url: "https://kie.ai/kling-3-0" },
-      ] satisfies CharacterImageGenerationModel[],
-    },
-    imageToVideo: {
-      defaultModel: "Kling 2.6 Image to Video",
-      models: [
-        {
-          label: "Kling 2.6 Image to Video",
-          model: "kling-2.6/image-to-video",
-          provider: "kie",
-        },
-        { label: "Kling 3.0 Video", model: "kling-3.0/video", provider: "kie" },
-        {
-          label: "Seedance 2.0",
-          model: "bytedance/seedance-2",
-          provider: "kie",
-        },
-      ] satisfies CharacterImageToVideoModel[],
     },
     upscale: {
       imageProviderModel: "topaz/image-upscale",
-      models: [
-        {
-          label: "Topaz Image Upscale",
-          url: "https://kie.ai/topaz-image-upscale",
-        },
-        {
-          label: "Topaz Video Upscaler",
-          url: "https://kie.ai/topaz-video-upscaler",
-        },
-      ] satisfies CharacterImageGenerationModel[],
     },
   },
 } as const
@@ -194,57 +119,14 @@ export const tempTestingCenterFallbackModels =
     })
   )
 
-export const characterImageGenerationModelOptions =
-  generationModelRegistry.character.image.models
+export const imageActionModelOptions =
+  generationModelRegistry.imageTools.imageAction.models
 
-export const defaultCharacterImageGenerationModel =
-  generationModelRegistry.character.image.defaultModel
-
-export const characterImageEditModelOptions =
-  generationModelRegistry.character.edit.models
-
-export const characterImageActionModelOptions =
-  generationModelRegistry.character.imageAction.models
-
-export const defaultCharacterImageActionModel: string =
-  generationModelRegistry.character.imageAction.defaultModel
-
-export const characterVideoGenerationModelOptions =
-  generationModelRegistry.character.video.models
-
-export const characterImageToVideoModelOptions =
-  generationModelRegistry.character.imageToVideo.models
-
-export const defaultCharacterImageToVideoModel =
-  generationModelRegistry.character.imageToVideo.defaultModel
-
-export const defaultCharacterImageToVideoProviderModel =
-  generationModelRegistry.character.imageToVideo.models[0].model
-
-export const kling30CharacterImageToVideoProviderModel =
-  generationModelRegistry.character.imageToVideo.models[1].model
-
-export const seedanceCharacterImageToVideoProviderModel =
-  generationModelRegistry.character.imageToVideo.models[2].model
-
-export const characterUpscaleModelOptions =
-  generationModelRegistry.character.upscale.models
+export const defaultImageActionModel: string =
+  generationModelRegistry.imageTools.imageAction.defaultModel
 
 export const kieFluxKontextModel =
-  generationModelRegistry.character.edit.providerModel
+  generationModelRegistry.imageTools.edit.providerModel
 
 export const kieTopazImageUpscaleModel =
-  generationModelRegistry.character.upscale.imageProviderModel
-
-export function kieModelForCharacterImageToVideo(labelOrModel: string) {
-  const cleanValue = labelOrModel.trim().toLowerCase()
-  return (
-    generationModelRegistry.character.imageToVideo.models.find(
-      (model) =>
-        model.label.toLowerCase() === cleanValue ||
-        model.model.toLowerCase() === cleanValue ||
-        cleanValue.includes(model.label.toLowerCase()) ||
-        cleanValue.includes(model.model.toLowerCase())
-    )?.model ?? defaultCharacterImageToVideoProviderModel
-  )
-}
+  generationModelRegistry.imageTools.upscale.imageProviderModel

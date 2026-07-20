@@ -1,0 +1,17 @@
+---
+title: "Verified workflow gaps"
+description: "Incomplete product behavior reproduced during workflow documentation."
+---
+
+These incomplete items were reproduced while capturing user workflows on
+2026-07-17. This page is an audited backlog, not a list of active tasks. When a
+gap is scheduled, promote it into its own roadmap page with explicit completion
+criteria. Completed gaps move into `STATE.md` and their workflow guides.
+
+| Priority | Gap                                                                                                                                                              | Required fix                                                                                                                                                                                   | Workflow evidence                                                |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Next     | Collections cannot be merged, deduplicated, or safely consolidated while preserving captions, attribution, and automation references.                            | Implement merge preview and commit operations with content-hash deduplication, caption conflict handling, dependency review, idempotency, and source deletion off by default.                  | [Merge collections](/docs/workflows/merge-collections)           |
+| Next     | React & Reveal creation says media comes later but does not validate the required reaction collection and reveal/demo video before the first generation attempt. | Add a first-run checklist and block generation with direct links to each missing media selection.                                                                                              | [AI UGC reaction video](/docs/workflows/astrology-ugc-reaction)  |
+| Next     | LinkedIn has an internal stateless generator but no user-facing persistent automation workflow.                                                                  | Complete the existing LinkedIn product-surface initiative: store, editor, native preview, run history, scheduler, account selection, and PostFast publishing.                                  | [LinkedIn workflow](/docs/workflows/astrology-linkedin)          |
+| Later    | The MCP server can operate existing automations but cannot yet discover templates or create a new automation from zero.                                          | Implement workspace/resources, template discovery, preview, create-from-template/save contracts, and production OAuth scopes without bypassing owner-scoped domain services.                   | [MCP tools](/docs/workflows/mcp)                                 |
+| Later    | MCP analytics reads stored snapshots, but cannot refresh providers or create a persistent report resource with fine-grained cohort filters.                      | Extend `lumenclip_analytics_report` only when provider refresh, platform/source filters, pagination, or durable report resources are required. Keep unsupported metrics unavailable, not zero. | [Agent content analysis](/docs/workflows/agent/content-analysis) |

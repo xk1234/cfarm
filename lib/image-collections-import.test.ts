@@ -4,7 +4,15 @@ import os from "node:os"
 import path from "node:path"
 
 import { Query } from "node-appwrite"
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { deleteAssetFromAppwrite } from "@/lib/asset-storage"
@@ -20,13 +28,13 @@ async function clearCollections() {
   for (;;) {
     const res = await aw.tables.listRows(
       APPWRITE_DATABASE_ID,
-      "image_collections",
-      [Query.limit(100)]
+      "permanent_assets",
+      [Query.equal("source_key", ["image_collection"]), Query.limit(100)]
     )
     for (const row of res.rows) {
       await aw.tables.deleteRow(
         APPWRITE_DATABASE_ID,
-        "image_collections",
+        "permanent_assets",
         String(row.$id)
       )
     }
@@ -64,6 +72,34 @@ async function storedCollections() {
 }
 
 describe("importRemoteImagesToCollection", () => {
+  it("prepends a collection without replacing a large legacy catalog", async () => {
+    const legacyCollections = Array.from({ length: 41 }, (_, index) => ({
+      name: `Legacy collection ${index + 1}`,
+      created_at: `2026-07-03T02:${String(index).padStart(2, "0")}:00.000Z`,
+      images: [],
+    }))
+    await writeJsonArrayStore({
+      rootDir: path.join(tempRoot, "data"),
+      fileName: "image-collections.json",
+      key: "collections",
+      records: legacyCollections,
+    })
+
+    const { upsertImageCollection } = await import("./image-collections")
+    await upsertImageCollection({
+      name: "Astrology — Mystical & Celestial",
+      created_at: "2026-07-17T04:30:00.000Z",
+      images: [],
+    })
+
+    const stored = await storedCollections()
+    expect(stored).toHaveLength(42)
+    expect(stored[0].name).toBe("Astrology — Mystical & Celestial")
+    expect(stored.slice(1).map((collection) => collection.name)).toEqual(
+      legacyCollections.map((collection) => collection.name)
+    )
+  })
+
   it("downloads remote images into Storage and saves collection records", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response(new Uint8Array([1, 2, 3]), {
@@ -100,7 +136,9 @@ describe("importRemoteImagesToCollection", () => {
       /^\/api\/local-assets\/image-collections\/files\/.+\.jpg$/
     )
     expect(result.collection.images[0].hash).toBe(
-      createHash("sha256").update(Buffer.from([1, 2, 3])).digest("hex")
+      createHash("sha256")
+        .update(Buffer.from([1, 2, 3]))
+        .digest("hex")
     )
 
     const stored = await storedCollections()

@@ -23,12 +23,11 @@ describe("calendarAlertSummary", () => {
       .mockResolvedValueOnce({ rows: [{ status: "dead" }], total: 3 })
       .mockResolvedValueOnce({ rows: [{}], total: 1 })
       .mockResolvedValueOnce({ rows: [{}], total: 1 })
-      .mockResolvedValueOnce({ rows: [{}], total: 1 })
 
     await expect(calendarAlertSummary()).resolves.toEqual({
-      needsAction: 2,
+      needsAction: 1,
       failed: 4,
     })
-    expect(mocks.listRows).toHaveBeenCalledTimes(4)
+    expect(mocks.listRows).toHaveBeenCalledTimes(3)
   })
 })

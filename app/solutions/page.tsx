@@ -17,11 +17,12 @@ const solutions = [
   {
     icon: IconUsers,
     title: "Content teams",
-    problem: "Research, production, and approval live in different tools.",
+    problem:
+      "Creative inputs, production, and approval live in different tools.",
     outcome:
       "Give every campaign a visible source record, owner, workflow, and saved output history.",
     moves: [
-      "Centralize swipe research",
+      "Centralize campaign inputs",
       "Reuse approved assets",
       "Review before publishing",
     ],
@@ -43,11 +44,11 @@ const solutions = [
     icon: IconPhoto,
     title: "Creator-led brands",
     problem:
-      "Characters, captions, references, and recurring formats drift between campaigns.",
+      "Assets, captions, references, and recurring formats drift between campaigns.",
     outcome:
       "Build a reusable creator library that feeds repeatable slideshows, UGC assets, and content runs.",
     moves: [
-      "Persist character records",
+      "Persist reusable assets",
       "Organize image collections",
       "Trace outputs to inputs",
     ],

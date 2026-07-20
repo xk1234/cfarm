@@ -2,6 +2,7 @@ import { isRecord } from "@/lib/guards"
 import { NextResponse } from "next/server"
 
 import { previewAutomationRunPlan } from "@/lib/automation-runner"
+import { internalToolsEnabled } from "@/lib/internal-tools"
 import {
   normalizeAutomationSchema,
   type AutomationSchema,
@@ -11,6 +12,10 @@ import type { Automation } from "@/lib/realfarm-data"
 export const dynamic = "force-dynamic"
 
 export async function POST(request: Request) {
+  if (!internalToolsEnabled()) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 })
+  }
+
   try {
     const payload = await request.json().catch(() => null)
     const automationInput = isRecord(payload?.automation)

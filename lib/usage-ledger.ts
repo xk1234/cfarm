@@ -8,12 +8,19 @@ import {
   withJsonArrayStore,
 } from "@/lib/json-store"
 
-export type UsageKind = "hook" | "hook_combination" | "image" | "text"
+export type UsageKind =
+  | "hook"
+  | "hook_combination"
+  | "hook_published"
+  | "hook_combination_published"
+  | "image"
+  | "text"
 
 export type UsageRecord = {
   id?: string
   automation_id: string
   account_key?: string
+  hook_id?: string
   kind: UsageKind
   key: string
   run_id: string
@@ -156,6 +163,36 @@ export async function recentUsageRecords(
   return input.limit ? matching.slice(0, input.limit) : matching
 }
 
+/**
+ * Returns usage belonging to runs that have actual publication evidence.
+ * Generation-time image/text rows remain useful for auditing, but a draft
+ * must not reserve its content from a future generation.
+ */
+export function usageRecordsForPublishedRuns(
+  records: UsageRecord[],
+  automationId: string
+) {
+  const publishedAtByRun = new Map<string, string>()
+  for (const record of records) {
+    if (
+      record.automation_id !== automationId ||
+      (record.kind !== "hook_published" &&
+        record.kind !== "hook_combination_published")
+    ) {
+      continue
+    }
+    const current = publishedAtByRun.get(record.run_id)
+    if (!current || Date.parse(record.used_at) > Date.parse(current)) {
+      publishedAtByRun.set(record.run_id, record.used_at)
+    }
+  }
+  return records.flatMap((record) => {
+    if (record.automation_id !== automationId) return []
+    const publishedAt = publishedAtByRun.get(record.run_id)
+    return publishedAt ? [{ ...record, used_at: publishedAt }] : []
+  })
+}
+
 export function usageKeyForHookCombination(
   template: string,
   substitutions: Record<string, string>
@@ -175,6 +212,7 @@ function normalizeUsageRecord(raw: UsageRecord) {
   const record: Record<string, unknown> = isRecord(raw) ? raw : {}
   const automationId = clean(record.automation_id)
   const accountKey = clean(record.account_key)
+  const hookId = clean(record.hook_id)
   const kind = normalizeKind(record.kind)
   const key = clean(record.key)
   const runId = clean(record.run_id)
@@ -188,6 +226,7 @@ function normalizeUsageRecord(raw: UsageRecord) {
       usageRecordId({ runId, kind, key, accountKey, automationId }),
     automation_id: automationId,
     ...(accountKey ? { account_key: accountKey } : {}),
+    ...(hookId ? { hook_id: hookId } : {}),
     kind,
     key,
     run_id: runId,
@@ -215,6 +254,8 @@ function usageRecordId(input: {
 function normalizeKind(value: unknown): UsageKind | null {
   return value === "hook" ||
     value === "hook_combination" ||
+    value === "hook_published" ||
+    value === "hook_combination_published" ||
     value === "image" ||
     value === "text"
     ? value

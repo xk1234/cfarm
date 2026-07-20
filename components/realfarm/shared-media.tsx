@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  IconAlertTriangle,
   IconMovie,
   IconPlayerPlay,
   IconUser,
@@ -188,13 +189,62 @@ export function MediaErrorState({
   action?: ReactNode
 }) {
   return (
-    <MediaFrame className="flex flex-col items-center justify-center gap-3 bg-app-danger-surface p-6 text-center">
-      <div className="text-[13px] font-bold text-app-danger-muted">{title}</div>
-      <div className="line-clamp-4 text-[12px] leading-5 font-semibold text-app-danger-text">
-        {message}
-      </div>
-      {action}
+    <MediaFrame>
+      <GenerationFailurePlaceholder
+        title={title}
+        message={message}
+        action={action}
+      />
     </MediaFrame>
+  )
+}
+
+export function GenerationFailurePlaceholder({
+  title = "Generation failed",
+  message,
+  action,
+  compact = false,
+  className,
+}: {
+  title?: string
+  message?: string
+  action?: ReactNode
+  compact?: boolean
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        "relative flex h-full w-full flex-col items-center justify-center bg-app-danger-surface text-center",
+        compact ? "gap-1.5 p-3" : "gap-3 p-6",
+        className
+      )}
+      role="status"
+    >
+      <span className="grid size-8 place-items-center rounded-full bg-app-surface text-app-danger-muted shadow-sm">
+        <IconAlertTriangle className="size-4" />
+      </span>
+      <div
+        className={cn(
+          "font-bold text-app-danger-muted",
+          compact ? "text-[11px]" : "text-[13px]"
+        )}
+      >
+        {title}
+      </div>
+      {message ? (
+        <div
+          className={cn(
+            "line-clamp-4 font-semibold text-app-danger-text",
+            compact ? "text-[9px] leading-3.5" : "text-[12px] leading-5"
+          )}
+          title={message}
+        >
+          {message}
+        </div>
+      ) : null}
+      {action}
+    </div>
   )
 }
 

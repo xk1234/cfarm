@@ -1,15 +1,18 @@
-import { readFile } from "node:fs/promises"
-import path from "node:path"
-
 import { clean, isRecord } from "@/lib/guards"
 import { llmSlopPromptLine, llmSlopViolations } from "@/lib/llm-slop"
-import { getOpenRouterApiKey, openRouterJson } from "@/lib/openrouter"
+import {
+  getOpenRouterApiKey,
+  OpenRouterRequestError,
+  openRouterJson,
+} from "@/lib/openrouter"
+import { generationModelRegistry } from "@/lib/realfarm-generation-model-registry"
 import {
   benchmarkXRun,
   type ProofEntry,
   type XAutomationBrief,
   type XAutomationPlatform,
   type XAutomationRecord,
+  type XAutomationOperationAttempt,
   type XAutomationRun,
   type XGeneratedPost,
   type XTrendCandidate,
@@ -34,11 +37,7 @@ type GenerateInput = {
   random?: () => number
 }
 
-type ViralHookRow = { t: string; l: number }
-
 const TOPIC_USE_RATE = 0.7
-
-let viralHookRowsPromise: Promise<ViralHookRow[]> | undefined
 
 export type PostPlan = {
   platform: XPlatform
@@ -56,45 +55,122 @@ export async function derivePillarsFromNiche(input: {
   apiKey?: string
   fetchImpl?: typeof fetch
 }): Promise<XAutomationBrief> {
+  return (await derivePillarsFromNicheWithDiagnostics(input)).brief
+}
+
+export class XStrategyDerivationError extends Error {
+  readonly attempts: XAutomationOperationAttempt[]
+  readonly retryable: boolean
+
+  constructor(attempts: XAutomationOperationAttempt[]) {
+    const retryable = attempts.some((attempt) => attempt.retryable)
+    super(
+      retryable
+        ? "The AI provider is temporarily unavailable. Your changes are saved; retry strategy generation."
+        : attempts.at(-1)?.message || "Strategy generation failed"
+    )
+    this.name = "XStrategyDerivationError"
+    this.attempts = attempts
+    this.retryable = retryable
+  }
+}
+
+export async function derivePillarsFromNicheWithDiagnostics(input: {
+  niche: string
+  model: string
+  apiKey?: string
+  fetchImpl?: typeof fetch
+}): Promise<{
+  brief: XAutomationBrief
+  attempts: XAutomationOperationAttempt[]
+  selectedModel: string
+}> {
   const niche = clean(input.niche)
   if (!niche) throw new Error("A niche is required")
   const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-  const result = await openRouterJson({
-    apiKey,
-    fetchImpl: input.fetchImpl,
-    model: input.model,
-    timeoutMs: 90_000,
-    maxTokens: 2_800,
-    system:
-      "You derive a focused social-content strategy from one niche. Return concrete audience language and distinct content pillars. Never invent performance claims.",
-    user: `Niche: ${niche}\nReturn {"audience":"...","promise":"...","pillars":[{"label":"..."}],"keywords":["..."],"painPoints":["..."]}. Return exactly 3–5 pillars.`,
-    schema: {
-      name: "x_automation_brief",
-      schema: {
-        type: "object",
-        additionalProperties: false,
-        required: ["audience", "promise", "pillars", "keywords", "painPoints"],
-        properties: {
-          audience: { type: "string" },
-          promise: { type: "string" },
-          pillars: {
-            type: "array",
-            minItems: 3,
-            maxItems: 5,
-            items: {
+  const fallbackModels =
+    generationModelRegistry.openRouter.xPostGeneration.fallbackModels
+  const models = [input.model, ...fallbackModels].filter(
+    (model, index, values) => Boolean(model) && values.indexOf(model) === index
+  )
+  const attempts: XAutomationOperationAttempt[] = []
+  let brief: XAutomationBrief | null = null
+  let selectedModel = ""
+
+  for (const [modelIndex, model] of models.entries()) {
+    const maxAttempts = modelIndex === 0 ? 2 : 1
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const result = await openRouterJson({
+          apiKey,
+          fetchImpl: input.fetchImpl,
+          model,
+          timeoutMs: 90_000,
+          maxTokens: 2_800,
+          system:
+            "You derive a focused social-content strategy from one niche. Return concrete audience language and distinct content pillars. Never invent performance claims.",
+          user: `Niche: ${niche}\nReturn {"audience":"...","promise":"...","pillars":[{"label":"..."}],"keywords":["..."],"painPoints":["..."]}. Return exactly 3–5 pillars.`,
+          schema: {
+            name: "x_automation_brief",
+            schema: {
               type: "object",
               additionalProperties: false,
-              required: ["label"],
-              properties: { label: { type: "string" } },
+              required: [
+                "audience",
+                "promise",
+                "pillars",
+                "keywords",
+                "painPoints",
+              ],
+              properties: {
+                audience: { type: "string" },
+                promise: { type: "string" },
+                pillars: {
+                  type: "array",
+                  minItems: 3,
+                  maxItems: 5,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["label"],
+                    properties: { label: { type: "string" } },
+                  },
+                },
+                keywords: { type: "array", items: { type: "string" } },
+                painPoints: { type: "array", items: { type: "string" } },
+              },
             },
           },
-          keywords: { type: "array", items: { type: "string" } },
-          painPoints: { type: "array", items: { type: "string" } },
-        },
-      },
-    },
-  })
+        })
+        brief = briefFromStrategyResult(result)
+        selectedModel = model
+        break
+      } catch (error) {
+        const providerError =
+          error instanceof OpenRouterRequestError ? error : null
+        const retryable = providerError?.retryable ?? true
+        attempts.push({
+          model,
+          attempt,
+          ...(providerError?.status ? { status: providerError.status } : {}),
+          code: providerError?.code || "validation_error",
+          message:
+            error instanceof Error ? error.message : "Unknown provider error",
+          retryable,
+        })
+        if (!retryable) throw new XStrategyDerivationError(attempts)
+      }
+    }
+    if (brief) break
+  }
+  if (!brief) throw new XStrategyDerivationError(attempts)
+  return { brief, attempts, selectedModel }
+}
+
+function briefFromStrategyResult(
+  result: Record<string, unknown>
+): XAutomationBrief {
   const labels = Array.isArray(result.pillars)
     ? result.pillars
         .flatMap((item) =>
@@ -467,11 +543,6 @@ async function generatePost(input: {
     .filter(Boolean)
     .join(" ")
   const astrology = /astrolog|zodiac|horoscope/i.test(input.record.niche.label)
-  const viralHookExamples = await retrieveViralHookExamples({
-    niche: input.record.niche.label,
-    topic: `${input.plan.pillar.label} ${input.plan.topic ?? ""}`,
-    limit: 5,
-  })
   const nicheAdaptation = astrology
     ? "For astrology, value means identity insight plus emotional and behavioral specificity. Use concrete relationship, texting, conflict, and private-feeling details—not generic trait lists. If you make an every-sign claim, cover all 12 signs or explicitly name and justify the subset. Never present astrology observations as scientific studies."
     : `Stay strictly on this niche${brief ? ` and its defined pillars/keywords (${[...brief.pillars.map((pillar) => pillar.label), ...keywords].join(", ")})` : ""}. Deliver concrete, niche-specific value. Never drift into generic productivity, creator-economy, or self-help advice.`
@@ -488,7 +559,7 @@ async function generatePost(input: {
   ]
     .filter(Boolean)
     .join("\n")
-  const basePrompt = `Platform: ${input.plan.platform}\nArchetype: ${input.plan.archetype.label}\nStructure: ${input.plan.archetype.structure}\nTemplate: ${input.plan.archetype.template}\n${input.plan.platform === "x" && input.plan.archetype.kind === "single" ? "HARD LENGTH BUDGET: the final post, including blank lines, must be 280 characters or fewer. Keep every slot under its schema word and character caps.\n" : ""}${input.plan.platform === "x" && input.plan.archetype.engagementCloser ? "HARD CLOSER RULE: the final slot or final thread post must end with a genuine curiosity or self-identification question and a ? character.\n" : ""}Pillar: ${input.plan.pillar.label}\nHook formula: ${input.plan.hookStyle.formula}\nHook examples: ${input.plan.hookStyle.examples.join(" | ")}${viralHookExamples.length ? `\nProven hook-shape inspiration (adapt the structure only; do not copy claims or wording):\n- ${viralHookExamples.join("\n- ")}` : ""}\nTopic: ${input.plan.topic ?? "none"}${input.plan.recycleBody ? `\nRECYCLE BODY (keep its core meaning, write a clearly different hook): ${input.plan.recycleBody}` : ""}\nPROOF:\n${proof}`
+  const basePrompt = `Platform: ${input.plan.platform}\nArchetype: ${input.plan.archetype.label}\nStructure: ${input.plan.archetype.structure}\nTemplate: ${input.plan.archetype.template}\n${input.plan.platform === "x" && input.plan.archetype.kind === "single" ? "HARD LENGTH BUDGET: the final post, including blank lines, must be 280 characters or fewer. Keep every slot under its schema word and character caps.\n" : ""}${input.plan.platform === "x" && input.plan.archetype.engagementCloser ? "HARD CLOSER RULE: the final slot or final thread post must end with a genuine curiosity or self-identification question and a ? character.\n" : ""}Pillar: ${input.plan.pillar.label}\nHook formula: ${input.plan.hookStyle.formula}\nHook examples: ${input.plan.hookStyle.examples.join(" | ")}\nTopic: ${input.plan.topic ?? "none"}${input.plan.recycleBody ? `\nRECYCLE BODY (keep its core meaning, write a clearly different hook): ${input.plan.recycleBody}` : ""}\nPROOF:\n${proof}`
   let output: Record<string, unknown> = {}
   let posts: string[] = []
   let errors: string[] = []
@@ -533,73 +604,6 @@ async function generatePost(input: {
     needsReview: errors.length > 0,
     errors,
   }
-}
-
-export async function retrieveViralHookExamples(input: {
-  niche: string
-  topic?: string
-  limit?: number
-}) {
-  const limit = Math.max(1, Math.min(5, input.limit ?? 5))
-  const astrology = /astrolog|zodiac|horoscope/i.test(input.niche)
-  const searchTerms = astrology
-    ? [
-        "astrology",
-        "zodiac",
-        "horoscope",
-        "sign",
-        "signs",
-        "aries",
-        "taurus",
-        "gemini",
-        "leo",
-        "virgo",
-        "libra",
-        "scorpio",
-        "sagittarius",
-        "capricorn",
-        "aquarius",
-        "pisces",
-      ]
-    : (`${input.niche} ${input.topic ?? ""}`
-        .toLowerCase()
-        .match(/[\p{L}\d]{4,}/gu) ?? [])
-  if (searchTerms.length === 0) return []
-  const rows = await loadViralHookRows()
-  const matches = rows
-    .filter((row) => {
-      const rowTokens = new Set(
-        row.t.toLowerCase().match(/[\p{L}\d]{3,}/gu) ?? []
-      )
-      return searchTerms.some((term) => rowTokens.has(term))
-    })
-    .sort((a, b) => b.l - a.l)
-    .slice(0, limit)
-    .map((row) => row.t)
-  return matches.length > 0 ? matches : []
-}
-
-async function loadViralHookRows() {
-  viralHookRowsPromise ??= readFile(
-    path.join(process.cwd(), "data", "viral-hooks", "hooks.jsonl"),
-    "utf8"
-  )
-    .then((contents) =>
-      contents.split("\n").flatMap((line) => {
-        if (!line.trim()) return []
-        try {
-          const row: unknown = JSON.parse(line)
-          if (!isRecord(row)) return []
-          const text = clean(row.t)
-          const lift = Number(row.l)
-          return text && Number.isFinite(lift) ? [{ t: text, l: lift }] : []
-        } catch {
-          return []
-        }
-      })
-    )
-    .catch(() => [])
-  return viralHookRowsPromise
 }
 
 function composeStructuredPost(

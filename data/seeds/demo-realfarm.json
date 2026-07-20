@@ -1,20 +1,5 @@
 {
-  "generatedAssets": {
-    "higgsfieldCharacter": {
-      "name": "Soul UGC Creator",
-      "model": "Higgsfield Soul V2",
-      "type": "image",
-      "url": "/api/local-assets/characters/headshots/jade-homeysg-preview.png"
-    }
-  },
   "imageCollections": [
-    {
-      "id": "all",
-      "title": "All Images",
-      "imageCount": 1210,
-      "withoutCaptions": 0,
-      "theme": "library"
-    },
     {
       "id": "soccer-body",
       "title": "Soccer Body",

@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { toast } from "sonner"
-import { Dialog } from "radix-ui"
 import {
-  IconChartBar,
   IconBug,
+  IconChevronLeft,
+  IconChevronRight,
   IconCopy,
   IconDownload,
   IconLoader2,
@@ -14,17 +14,13 @@ import {
   IconX,
 } from "@tabler/icons-react"
 
-import { BenchmarkComparisonModal } from "@/components/realfarm/benchmark-comparison-modal"
 import { DeleteSlideshowDialog } from "@/components/realfarm/delete-slideshow-dialog"
 import { TemplateGeneratedPreview } from "@/components/realfarm/template-showcase-preview"
 import { AppModal, AppModalPanel } from "@/components/ui/modal"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { useDirtyGuard } from "@/components/ui/use-dirty-guard"
 import { exportSlideshowAsPngZip } from "@/lib/slideshow-export"
-import {
-  benchmarkErrorMessage,
-  generateSlideshowBenchmark,
-} from "@/lib/client-slideshow-benchmarks"
 import { cn } from "@/lib/utils"
-import type { SlideshowBenchmarkComparison } from "@/lib/slideshow-benchmarks"
 
 export type SlideshowViewerSlide = {
   id: string
@@ -67,7 +63,6 @@ export function SlideshowViewerModal({
   title,
   slideshows,
   initialSlideshowId,
-  benchmarkSlideshowId,
   fallbackSlides = [],
   details,
   publicationStatusControl,
@@ -82,7 +77,6 @@ export function SlideshowViewerModal({
   title: string
   slideshows: SlideshowViewerItem[]
   initialSlideshowId?: string
-  benchmarkSlideshowId?: string
   fallbackSlides?: SlideshowViewerSlide[]
   details?: SlideshowViewerDetails
   publicationStatusControl?: ReactNode
@@ -110,56 +104,66 @@ export function SlideshowViewerModal({
   const boundedIndex =
     slideshows.length > 0 ? Math.min(initialIndex, slideshows.length - 1) : 0
   const selectedSlideshow = slideshows[boundedIndex]
+  const [metadataDirty, setMetadataDirty] = useState(false)
+  const dirtyGuard = useDirtyGuard(metadataDirty)
+
+  function requestClose() {
+    dirtyGuard.run(onClose)
+  }
 
   return (
-    <AppModal onClose={onClose}>
-      <AppModalPanel
-        accessibleTitle={title}
-        className="h-[min(880px,94vh)] max-w-[1180px] rounded-[10px] bg-[#b9b9b6]"
-      >
-        <SlideshowViewerContent
-          key={selectedSlideshow?.id ?? "empty"}
-          title={title}
-          exportTitle={selectedSlideshow?.title || title}
-          slideshowTitle={selectedSlideshow?.title}
-          caption={selectedSlideshow?.caption}
-          hashtags={selectedSlideshow?.hashtags}
-          slides={selectedSlideshow?.slides ?? []}
-          fallbackSlides={fallbackSlides}
-          benchmarkSlideshowId={benchmarkSlideshowId}
-          details={details}
-          publicationStatusControl={publicationStatusControl}
-          onDebug={onDebug}
-          onDelete={onDelete}
-          onDeleteSlide={
-            onDeleteSlide && selectedSlideshow
-              ? (slideIndex) => onDeleteSlide(selectedSlideshow.id, slideIndex)
-              : undefined
-          }
-          onLoadSlideImages={
-            onLoadSlideImages && selectedSlideshow
-              ? () => onLoadSlideImages(selectedSlideshow.id)
-              : undefined
-          }
-          onReplaceSlideImage={
-            onReplaceSlideImage && selectedSlideshow
-              ? (slideIndex, imageUrl) =>
-                  onReplaceSlideImage(
-                    selectedSlideshow.id,
-                    slideIndex,
-                    imageUrl
-                  )
-              : undefined
-          }
-          onUpdateMetadata={
-            onUpdateMetadata && selectedSlideshow
-              ? (metadata) => onUpdateMetadata(selectedSlideshow.id, metadata)
-              : undefined
-          }
-          onClose={onClose}
-        />
-      </AppModalPanel>
-    </AppModal>
+    <>
+      <AppModal onClose={requestClose}>
+        <AppModalPanel
+          accessibleTitle={title}
+          className="h-[min(880px,94vh)] max-w-[1180px] rounded-[10px] bg-[#b9b9b6]"
+        >
+          <SlideshowViewerContent
+            key={selectedSlideshow?.id ?? "empty"}
+            title={title}
+            exportTitle={selectedSlideshow?.title || title}
+            slideshowTitle={selectedSlideshow?.title}
+            caption={selectedSlideshow?.caption}
+            hashtags={selectedSlideshow?.hashtags}
+            slides={selectedSlideshow?.slides ?? []}
+            fallbackSlides={fallbackSlides}
+            details={details}
+            publicationStatusControl={publicationStatusControl}
+            onDebug={onDebug}
+            onDelete={onDelete}
+            onDeleteSlide={
+              onDeleteSlide && selectedSlideshow
+                ? (slideIndex) =>
+                    onDeleteSlide(selectedSlideshow.id, slideIndex)
+                : undefined
+            }
+            onLoadSlideImages={
+              onLoadSlideImages && selectedSlideshow
+                ? () => onLoadSlideImages(selectedSlideshow.id)
+                : undefined
+            }
+            onReplaceSlideImage={
+              onReplaceSlideImage && selectedSlideshow
+                ? (slideIndex, imageUrl) =>
+                    onReplaceSlideImage(
+                      selectedSlideshow.id,
+                      slideIndex,
+                      imageUrl
+                    )
+                : undefined
+            }
+            onUpdateMetadata={
+              onUpdateMetadata && selectedSlideshow
+                ? (metadata) => onUpdateMetadata(selectedSlideshow.id, metadata)
+                : undefined
+            }
+            onDirtyChange={setMetadataDirty}
+            onClose={requestClose}
+          />
+        </AppModalPanel>
+      </AppModal>
+      {dirtyGuard.confirmation}
+    </>
   )
 }
 
@@ -171,7 +175,6 @@ function SlideshowViewerContent({
   hashtags,
   slides,
   fallbackSlides,
-  benchmarkSlideshowId,
   details,
   publicationStatusControl,
   onDebug,
@@ -180,6 +183,7 @@ function SlideshowViewerContent({
   onLoadSlideImages,
   onReplaceSlideImage,
   onUpdateMetadata,
+  onDirtyChange,
   onClose,
 }: {
   title: string
@@ -189,7 +193,6 @@ function SlideshowViewerContent({
   hashtags?: string
   slides: SlideshowViewerSlide[]
   fallbackSlides: SlideshowViewerSlide[]
-  benchmarkSlideshowId?: string
   details?: SlideshowViewerDetails
   publicationStatusControl?: ReactNode
   onDebug?: () => void
@@ -198,15 +201,13 @@ function SlideshowViewerContent({
   onLoadSlideImages?: () => Promise<SlideshowViewerImageOption[]>
   onReplaceSlideImage?: (slideIndex: number, imageUrl: string) => Promise<void>
   onUpdateMetadata?: (metadata: SlideshowViewerMetadata) => Promise<void>
+  onDirtyChange: (dirty: boolean) => void
   onClose: () => void
 }) {
   const [activeSlide, setActiveSlide] = useState(0)
   const [exporting, setExporting] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [benchmark, setBenchmark] =
-    useState<SlideshowBenchmarkComparison | null>(null)
-  const [benchmarkOpen, setBenchmarkOpen] = useState(false)
-  const [benchmarkLoading, setBenchmarkLoading] = useState(false)
+  const [deleteSlideOpen, setDeleteSlideOpen] = useState(false)
   const [deletingSlide, setDeletingSlide] = useState(false)
   const [imagePickerOpen, setImagePickerOpen] = useState(false)
   const [imageOptions, setImageOptions] = useState<
@@ -226,11 +227,7 @@ function SlideshowViewerContent({
   const [savingMetadata, setSavingMetadata] = useState(false)
   const boundedActiveSlide =
     slides.length > 0 ? Math.min(activeSlide, slides.length - 1) : 0
-  const visibleSlots = [
-    boundedActiveSlide - 1,
-    boundedActiveSlide,
-    boundedActiveSlide + 1,
-  ]
+  const visibleSlide = slides[boundedActiveSlide]
   const descriptionAndHashtags = [
     metadata.caption.trim(),
     metadata.hashtags.trim(),
@@ -241,6 +238,11 @@ function SlideshowViewerContent({
     metadata.title !== savedMetadata.title ||
     metadata.caption !== savedMetadata.caption ||
     metadata.hashtags !== savedMetadata.hashtags
+
+  useEffect(() => {
+    onDirtyChange(metadataChanged)
+    return () => onDirtyChange(false)
+  }, [metadataChanged, onDirtyChange])
 
   async function copyMetadata(label: string, value: string) {
     if (!value) return
@@ -278,11 +280,6 @@ function SlideshowViewerContent({
       await onDeleteSlide(boundedActiveSlide)
       setActiveSlide((current) => Math.max(0, current - 1))
       toast.success(`Slide ${boundedActiveSlide + 1} deleted`)
-    } catch (error) {
-      toast.error("The slide could not be deleted", {
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-      })
     } finally {
       setDeletingSlide(false)
     }
@@ -323,23 +320,6 @@ function SlideshowViewerContent({
       })
     } finally {
       setReplacingImage(false)
-    }
-  }
-
-  async function openBenchmark() {
-    if (!benchmarkSlideshowId) return
-    setBenchmarkOpen(true)
-    if (benchmark) return
-    setBenchmarkLoading(true)
-    try {
-      setBenchmark(await generateSlideshowBenchmark(benchmarkSlideshowId))
-    } catch (error) {
-      setBenchmarkOpen(false)
-      toast.error("Benchmark generation failed", {
-        description: benchmarkErrorMessage(error),
-      })
-    } finally {
-      setBenchmarkLoading(false)
     }
   }
 
@@ -412,24 +392,6 @@ function SlideshowViewerContent({
               <IconBug className="size-4" />
             </button>
           ) : null}
-          {benchmarkSlideshowId ? (
-            <button
-              type="button"
-              className="grid size-9 place-items-center rounded-[7px] border border-app-panel-border bg-app-surface text-[#56554f] shadow-sm transition hover:bg-[#f4f3ee] hover:text-app-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-app-action active:translate-y-px disabled:cursor-not-allowed disabled:opacity-55"
-              onClick={() => void openBenchmark()}
-              disabled={benchmarkLoading}
-              aria-label={
-                benchmarkLoading ? "Generating benchmark" : "Benchmark"
-              }
-              title={benchmarkLoading ? "Generating benchmark" : "Benchmark"}
-            >
-              {benchmarkLoading ? (
-                <IconLoader2 className="size-4 animate-spin" />
-              ) : (
-                <IconChartBar className="size-4" />
-              )}
-            </button>
-          ) : null}
           {onDelete ? (
             <button
               type="button"
@@ -453,76 +415,68 @@ function SlideshowViewerContent({
                 className="h-[356px] w-[620px] max-w-full rounded-[9px] shadow-xl"
               />
             ) : (
-              <div className="flex max-w-full items-center gap-4 overflow-hidden">
-                {visibleSlots.map((absoluteIndex, index) => {
-                  const slide = slides[absoluteIndex]
-                  if (!slide) {
-                    return (
-                      <div
-                        key={`empty-${index}`}
-                        className="aspect-[9/16] h-[clamp(300px,52vh,460px)] shrink-0"
-                        aria-hidden="true"
-                      />
-                    )
-                  }
-                  return (
-                    <div
-                      key={slide.id}
-                      className={cn(
-                        "relative shrink-0 overflow-hidden rounded-[9px] bg-black text-left shadow-xl transition duration-300",
-                        "aspect-[9/16] h-[clamp(300px,52vh,460px)]",
-                        absoluteIndex === boundedActiveSlide
-                          ? "opacity-100 ring-2 ring-white"
-                          : "opacity-45"
-                      )}
-                    >
-                      <button
-                        type="button"
-                        className="absolute inset-0 cursor-pointer text-left"
-                        onClick={() => setActiveSlide(absoluteIndex)}
-                        aria-label={`Show slide ${absoluteIndex + 1}`}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element -- Generated slides can be local or remote assets without stable dimensions. */}
-                        <img
-                          src={slide.imageUrl}
-                          alt={
-                            slide.text || `${title} slide ${absoluteIndex + 1}`
-                          }
-                          className="h-full w-full object-cover"
-                          draggable={false}
-                        />
-                      </button>
-                      {absoluteIndex === boundedActiveSlide &&
-                      (onReplaceSlideImage ||
-                        (onDeleteSlide && slides.length > 1)) ? (
-                        <div className="absolute top-2 right-2 flex gap-1.5">
-                          {onReplaceSlideImage ? (
-                            <button
-                              type="button"
-                              className="grid size-8 cursor-pointer place-items-center rounded-full bg-black/60 text-white transition hover:bg-app-action disabled:opacity-50"
-                              aria-label={`Edit picture for slide ${absoluteIndex + 1}`}
-                              title="Edit picture"
-                              onClick={() => void openImagePicker()}
-                            >
-                              <IconPhotoEdit className="size-4" />
-                            </button>
-                          ) : null}
-                          {onDeleteSlide && slides.length > 1 ? (
-                            <button
-                              type="button"
-                              className="grid size-8 cursor-pointer place-items-center rounded-full bg-black/60 text-white transition hover:bg-red-600 disabled:opacity-50"
-                              aria-label={`Delete slide ${absoluteIndex + 1}`}
-                              title="Delete this slide"
-                              onClick={() => void deleteActiveSlide()}
-                            >
-                              <IconTrash className="size-4" />
-                            </button>
-                          ) : null}
-                        </div>
+              <div className="flex max-w-full items-center justify-center gap-3">
+                <button
+                  type="button"
+                  className="grid size-10 shrink-0 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30"
+                  onClick={() => setActiveSlide(boundedActiveSlide - 1)}
+                  disabled={boundedActiveSlide === 0}
+                  aria-label="Previous slide"
+                >
+                  <IconChevronLeft className="size-5" />
+                </button>
+                <div
+                  className="relative shrink-0 overflow-hidden rounded-[9px] bg-black text-left shadow-xl ring-2 ring-white"
+                  role="group"
+                  aria-label={`Slide ${boundedActiveSlide + 1} of ${slides.length}`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- Generated slides can be local or remote assets without stable dimensions. */}
+                  <img
+                    src={visibleSlide.imageUrl}
+                    alt={
+                      visibleSlide.text ||
+                      `${title} slide ${boundedActiveSlide + 1}`
+                    }
+                    className="block h-auto max-h-[clamp(300px,52vh,460px)] w-auto max-w-[min(72vw,760px)] object-contain"
+                    draggable={false}
+                  />
+                  {onReplaceSlideImage ||
+                  (onDeleteSlide && slides.length > 1) ? (
+                    <div className="absolute top-2 right-2 flex gap-1.5">
+                      {onReplaceSlideImage ? (
+                        <button
+                          type="button"
+                          className="grid size-8 cursor-pointer place-items-center rounded-full bg-black/60 text-white transition hover:bg-app-action disabled:opacity-50"
+                          aria-label={`Edit picture for slide ${boundedActiveSlide + 1}`}
+                          title="Edit picture"
+                          onClick={() => void openImagePicker()}
+                        >
+                          <IconPhotoEdit className="size-4" />
+                        </button>
+                      ) : null}
+                      {onDeleteSlide && slides.length > 1 ? (
+                        <button
+                          type="button"
+                          className="grid size-8 cursor-pointer place-items-center rounded-full bg-black/60 text-white transition hover:bg-red-600 disabled:opacity-50"
+                          aria-label={`Delete slide ${boundedActiveSlide + 1}`}
+                          title="Delete this slide"
+                          onClick={() => setDeleteSlideOpen(true)}
+                        >
+                          <IconTrash className="size-4" />
+                        </button>
                       ) : null}
                     </div>
-                  )
-                })}
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  className="grid size-10 shrink-0 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30"
+                  onClick={() => setActiveSlide(boundedActiveSlide + 1)}
+                  disabled={boundedActiveSlide === slides.length - 1}
+                  aria-label="Next slide"
+                >
+                  <IconChevronRight className="size-5" />
+                </button>
               </div>
             )}
             {slides.length > 0 ? (
@@ -533,7 +487,9 @@ function SlideshowViewerContent({
                     type="button"
                     className={cn(
                       "size-2 rounded-full",
-                      dot === boundedActiveSlide ? "bg-app-surface" : "bg-white/55"
+                      dot === boundedActiveSlide
+                        ? "bg-app-surface"
+                        : "bg-white/55"
                     )}
                     onClick={() => setActiveSlide(dot)}
                     aria-label={`Show slide ${dot + 1}`}
@@ -560,28 +516,20 @@ function SlideshowViewerContent({
           }
         />
       </main>
-      {benchmarkOpen && benchmark ? (
-        <BenchmarkComparisonModal
-          comparison={benchmark}
-          onClose={() => setBenchmarkOpen(false)}
-        />
-      ) : null}
-      {benchmarkOpen && !benchmark ? (
-        <AppModal className="z-[90]" onClose={() => undefined}>
-          <AppModalPanel className="max-w-md p-6 text-center">
-            <Dialog.Title className="text-[16px] font-bold text-app-text">
-              Generating benchmark…
-            </Dialog.Title>
-            <p className="mt-2 text-[13px] text-app-muted-text">
-              Grading all {slides.length} slides. This can take up to a minute.
-            </p>
-          </AppModalPanel>
-        </AppModal>
-      ) : null}
       {deleteOpen && onDelete ? (
         <DeleteSlideshowDialog
           onCancel={() => setDeleteOpen(false)}
           onConfirm={onDelete}
+        />
+      ) : null}
+      {deleteSlideOpen && onDeleteSlide ? (
+        <ConfirmDialog
+          title={`Delete slide ${boundedActiveSlide + 1}?`}
+          description="This permanently removes the slide from this slideshow."
+          confirmLabel="Delete slide"
+          pendingLabel="Deleting…"
+          onCancel={() => setDeleteSlideOpen(false)}
+          onConfirm={deleteActiveSlide}
         />
       ) : null}
       {imagePickerOpen ? (

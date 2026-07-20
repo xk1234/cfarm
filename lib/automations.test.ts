@@ -2,8 +2,8 @@ import path from "node:path"
 
 import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
+import { routeForStore } from "@/lib/appwrite-stores"
 import { clearTestTables } from "@/lib/test-helpers"
-import { upsertAutomationTemplateRecords } from "@/lib/automation-templates"
 import {
   automationRecordToSummary,
   createLocalAutomationRecord,
@@ -23,11 +23,9 @@ import { defaultAutomationTemplateDefaults } from "@/lib/automation-template-def
 
 // Appwrite-only, run against cfarm (forced by vitest.setup.ts):
 //   data/automations/automations.json          -> automations
-//   data/automation-templates/templates.json    -> automation_templates
 const rootDir = path.join(process.cwd(), "data", "automations")
-const templatesRoot = path.join(process.cwd(), "data", "automation-templates")
 
-const clearAll = () => clearTestTables("automations", "automation_templates")
+const clearAll = () => clearTestTables("automations")
 
 beforeEach(clearAll)
 afterAll(clearAll)
@@ -347,7 +345,7 @@ describe("automation import persistence", () => {
     ])
     expect(record.schema).toMatchObject({
       automationKind: "slideshow",
-      image_fit: "contain",
+      image_fit: defaultAutomationTemplateDefaults.image_fit,
       language: "English",
       prompt_formatting: {
         num_of_slides: expect.any(Number),
@@ -360,8 +358,12 @@ describe("automation import persistence", () => {
         },
         all_slides: "",
         cta_slide: {
-          check: true,
-          cta_collection_check: true,
+          check:
+            defaultAutomationTemplateDefaults.image_collection_ids.cta_slide
+              .check,
+          cta_collection_check:
+            defaultAutomationTemplateDefaults.image_collection_ids.cta_slide
+              .cta_collection_check,
           cta_collection_id: "",
           image_id: null,
           cta_location: "last_slide",
@@ -577,55 +579,17 @@ describe("automation import persistence", () => {
   })
 
   it("keeps imported automation templates out of the runnable automation database", async () => {
-    await upsertAutomationTemplateRecords({
-      rootDir: templatesRoot,
-      records: [
-        {
-          id: "template-imported",
-          sourceAutomationId: "rf-template-1",
-          name: "Imported template",
-          theme: "template",
-          createdAt: "2026-07-04T00:00:00.000Z",
-          updatedAt: "2026-07-04T00:00:00.000Z",
-          template: {
-            created_at: "2026-07-04T00:00:00.000Z",
-            image_collection_ids: "collection-template",
-            hooks: ["Template hook"],
-            format: {
-              hook: {
-                aspect_ratio: "9:16",
-                image_grid: "none",
-                overlay: false,
-                display_text: true,
-                text_items: [],
-              },
-              content: {
-                aspect_ratio: "9:16",
-                image_grid: "none",
-                slide_count_mode: "static",
-                slide_count: 1,
-                overlay: false,
-                display_text: true,
-                text_items: [],
-              },
-              cta: {
-                enabled: false,
-                image_mode: "collection",
-                aspect_ratio: "9:16",
-                image_grid: "none",
-                overlay: false,
-                display_text: false,
-                text_items: [],
-              },
-              custom_tone: "",
-            },
-          },
-        },
-      ],
-    })
-
+    const templateRoute = routeForStore(
+      path.join(process.cwd(), "data", "automation-templates"),
+      "templates.json"
+    )
     const records = await listAutomationRecords({ rootDir })
 
+    expect(templateRoute).toMatchObject({
+      table: "permanent_assets",
+      sourceKey: "automation_template",
+      public: true,
+    })
     expect(records).toEqual([])
   })
 

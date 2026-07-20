@@ -5,6 +5,7 @@ import {
   AllCommunityModule,
   ModuleRegistry,
   type ColDef,
+  type CellKeyDownEvent,
   type GetRowIdParams,
   type RowClickedEvent,
 } from "ag-grid-community"
@@ -42,12 +43,7 @@ export function AgDataTable<TData extends object>({
   )
 
   return (
-    <div
-      className={cn(
-        "app-card overflow-hidden",
-        className
-      )}
-    >
+    <div className={cn("app-card overflow-hidden", className)}>
       <div className="h-[620px] min-w-0">
         <AgGridReact<TData>
           className="app-data-grid ag-theme-quartz h-full w-full"
@@ -67,11 +63,23 @@ export function AgDataTable<TData extends object>({
                 }
               : undefined
           }
+          onCellKeyDown={
+            onRowClick
+              ? (event: CellKeyDownEvent<TData>) => {
+                  if (
+                    event.data &&
+                    event.event instanceof KeyboardEvent &&
+                    event.event.key === "Enter"
+                  ) {
+                    onRowClick(event.data)
+                  }
+                }
+              : undefined
+          }
           animateRows
           pagination
           paginationPageSize={pageSize}
           paginationPageSizeSelector={[10, 20, 50, 100]}
-          suppressCellFocus
           overlayNoRowsTemplate={`<span class="app-data-grid-empty">${emptyMessage}</span>`}
         />
       </div>

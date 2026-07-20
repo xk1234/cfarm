@@ -1,0 +1,12 @@
+{
+  "title": "Collections",
+  "pages": [
+    "overview",
+    "crud",
+    "usage",
+    "image-collections",
+    "video-collections",
+    "product-collections",
+    "variable-collections"
+  ]
+}

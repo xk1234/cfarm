@@ -38,8 +38,37 @@ beforeEach(async () => {
   tempRoot = await mkdtemp(path.join(os.tmpdir(), "cfarm-debug-preview-"))
   vi.resetModules()
   vi.spyOn(process, "cwd").mockReturnValue(tempRoot)
-  // Preview builds its plan from the edited JSON; keep it off the live LLM.
-  vi.stubEnv("OPENROUTER_API_KEY", "")
+  // Preview builds its plan from the edited JSON; use a deterministic model
+  // response so this never calls the live provider.
+  vi.stubEnv("OPENROUTER_API_KEY", "test-openrouter-key")
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_url, init) => {
+      const request = JSON.parse(String(init?.body || "{}"))
+      const prompt = String(request.messages?.[1]?.content || "")
+      const hook = prompt.match(/^Hook:\s*(.+)$/m)?.[1] || "edited json hook"
+      const textProperties =
+        request.response_format?.json_schema?.schema?.properties?.text
+          ?.properties || {}
+      const text = Object.fromEntries(
+        Object.keys(textProperties).map((id) => [id, hook])
+      )
+      return Response.json({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                title: "Edited preview title",
+                caption: "Preview caption",
+                hashtags: "#preview",
+                text,
+              }),
+            },
+          },
+        ],
+      })
+    })
+  )
 })
 
 afterEach(async () => {
@@ -105,6 +134,11 @@ describe("POST /api/debug/automation-preview", () => {
               image_link: "/api/local-assets/image-collections/files/debug.jpg",
               caption: "Debug image",
             },
+            {
+              image_link:
+                "/api/local-assets/image-collections/files/debug-alt.jpg",
+              caption: "Alternative debug image",
+            },
           ],
         },
       ],
@@ -129,7 +163,7 @@ describe("POST /api/debug/automation-preview", () => {
     )
     const payload = await response.json()
 
-    expect(response.status).toBe(200)
+    expect(response.status, JSON.stringify(payload)).toBe(200)
     expect(payload).toMatchObject({
       automationId: automation.id,
       automationTitle: "Edited preview title",

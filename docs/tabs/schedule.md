@@ -1,8 +1,19 @@
-# Schedule Tab
+---
+title: "Schedule Tab"
+---
 
 Route key: `schedule`
 
 Component: `ContentCalendarView` in `components/realfarm/content-calendar/content-calendar-view.tsx`
+
+Canonical documentation is split by responsibility:
+
+- [Schedule page](../scheduling/index.mdx) explains the visible calendar,
+  screenshots, filters, statuses, details, rescheduling, and cancellation.
+- [Backend scheduling](../scheduling/backend.md) explains due slots, generation
+  lead times, Appwrite jobs, retries, and provider posting.
+- [Manual publication and linking](../scheduling/manual-linking.md) explains
+  quick manual status changes and durable live-post attribution.
 
 ## Functionality
 
@@ -19,17 +30,18 @@ Items are deduped by slot key.
 
 Main actions:
 
-- Browse the calendar across a date range.
+- Browse month and week views across a date range.
 - Filter by account, status, platform, automation, and source type (persisted to `localStorage` key `realfarm:calendar-filters:v1`).
+- Drag a locally tracked scheduled post to a future date/time to reschedule it. The calendar calls `PATCH /api/calendar/items/[id]`; remote-only PostFast items are intentionally not draggable because the app does not have their immutable content snapshot.
 - Open an item's detail panel: "View content", "Live post", and (for `scheduled` items) "Cancel", which DELETEs the PostFast post via `/api/calendar/items/[id]`.
 
 ## Objects Used
 
-| Object | Source | Usage |
-| --- | --- | --- |
-| `CalendarItem[]` | `GET /api/calendar` | Unified calendar timeline. |
-| `CalendarLifecycleStatus` | `lib/calendar-items.ts` | 8-state status: `planned, generating, generation_failed, needs_action, draft, failed, scheduled, published`. |
-| Alert summary | `GET /api/calendar/summary` (`calendarAlertSummary`) | Sidebar badge counts (needs-action + failed). |
+| Object                    | Source                                               | Usage                                                                                                        |
+| ------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `CalendarItem[]`          | `GET /api/calendar`                                  | Unified calendar timeline.                                                                                   |
+| `CalendarLifecycleStatus` | `lib/calendar-items.ts`                              | 8-state status: `planned, generating, generation_failed, needs_action, draft, failed, scheduled, published`. |
+| Alert summary             | `GET /api/calendar/summary` (`calendarAlertSummary`) | Sidebar badge counts (needs-action + failed).                                                                |
 
 ## Posting modes
 
@@ -43,9 +55,9 @@ Automations carry a posting-mode tri-state (`AutomationPostingMode` in `lib/real
 
 ## Persistence
 
-Sources are the `postfast_posts`, `automations`, and `jobs` tables plus live PostFast. Appwrite is authoritative — no filesystem fallback. The only mutation from the calendar is cancel/delete of a scheduled PostFast post.
+Sources are the `postfast_posts`, `automations`, and `jobs` tables plus live PostFast. Appwrite is authoritative — no filesystem fallback. Calendar mutations are rescheduling a locally tracked scheduled post and cancelling/deleting a scheduled PostFast post.
 
 ## Notes
 
 - **Warmup is not a live feature.** Earlier warmup controls were removed; a regression test asserts they no longer exist (`components/realfarm/automation-publishing-lifecycle.test.ts`).
-- There is no dedicated "reschedule" button on the calendar; rescheduling is done in the automation/publishing flow, not here.
+- Calendar rendering and drag interaction use FullCalendar. The calendar tab remains dynamically loaded so its bundle is not included in the initial workspace shell.

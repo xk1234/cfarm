@@ -68,8 +68,7 @@ describe("loadRealFarmData", () => {
     expect(data.assets.music.length).toBeGreaterThan(0)
     expect(data.assets.greenscreenMemes.length).toBeGreaterThan(0)
     expect(data.assets.ctas[0]).toHaveProperty("text")
-    expect(data.generatedAssets).toEqual({})
-    expect(data.defaultCollections.backgrounds.images).toHaveLength(10)
+    expect(data.defaultCollections.backgrounds.images).toEqual([])
   })
 
   it("loads demo seed records only when explicitly requested", async () => {
@@ -84,9 +83,6 @@ describe("loadRealFarmData", () => {
         "Pinterest - nature textures",
         "Pinterest - space",
       ])
-    )
-    expect(data.generatedAssets.higgsfieldCharacter?.model).toBe(
-      "Higgsfield Soul V2"
     )
   })
 })

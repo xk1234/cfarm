@@ -23,8 +23,8 @@ import {
 const steps = [
   {
     icon: IconFileSearch,
-    title: "Capture the source",
-    body: "Save ads, pages, hooks, transcripts, and visual references while the context is still fresh.",
+    title: "Choose approved inputs",
+    body: "Select the collections, templates, and content direction for the run.",
   },
   {
     icon: IconDatabase,
@@ -46,7 +46,7 @@ const steps = [
 const faqs = [
   [
     "Is LumenClip a video editor?",
-    "No. It is the operating layer around creative research, reusable assets, generation workflows, review, and publishing.",
+    "No. It is the operating layer around reusable assets, generation workflows, review, scheduling, and publishing.",
   ],
   [
     "Can I keep using my current tools?",
@@ -58,11 +58,11 @@ const faqs = [
   ],
   [
     "Is each workspace private?",
-    "Yes. Automations, swipes, assets, runs, and generations are scoped to the signed-in Appwrite user.",
+    "Yes. Automations, assets, runs, and generations are scoped to the signed-in Appwrite user.",
   ],
   [
     "What should I add first?",
-    "Start with one saved source, one reusable collection, and one workflow you already repeat manually.",
+    "Start with one reusable collection, one template, and one workflow you already repeat manually.",
   ],
 ]
 
@@ -82,8 +82,8 @@ export default function LandingPage() {
               Stop rebuilding every piece of content from scratch.
             </h1>
             <p className="mt-6 max-w-[54ch] text-lg leading-7 text-brand-muted">
-              Turn saved creative research into repeatable workflows, reusable
-              assets, and approved content runs.
+              Turn reusable assets and templates into repeatable workflows and
+              approved content runs.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
@@ -108,12 +108,12 @@ export default function LandingPage() {
                 <div className="rounded-app-panel bg-white p-5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-brand-muted">
-                      Source record
+                      Run inputs
                     </span>
                     <span className="size-2 rounded-full bg-brand-success" />
                   </div>
                   <p className="mt-12 text-xl font-semibold tracking-[-0.03em]">
-                    The hook, transcript, visual, and angle stay connected.
+                    The hook, template, visual, and destination stay connected.
                   </p>
                   <div className="mt-6 grid grid-cols-3 gap-2">
                     {["Hook", "Assets", "Proof"].map((label) => (
@@ -136,8 +136,8 @@ export default function LandingPage() {
           <div className="mx-auto grid max-w-[1280px] divide-y divide-brand-border px-5 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4 lg:px-8">
             {[
               [
-                "Source records",
-                "Research stays attached to the reason it mattered.",
+                "Named inputs",
+                "Every run records the assets and settings that produced it.",
               ],
               ["Review gates", "Nothing leaves the workspace before approval."],
               [
@@ -151,7 +151,9 @@ export default function LandingPage() {
             ].map(([title, body]) => (
               <div key={title} className="px-5 py-7 first:pl-0 last:pr-0">
                 <p className="text-sm font-semibold">{title}</p>
-                <p className="mt-2 text-sm leading-6 text-brand-muted">{body}</p>
+                <p className="mt-2 text-sm leading-6 text-brand-muted">
+                  {body}
+                </p>
               </div>
             ))}
           </div>
@@ -160,7 +162,7 @@ export default function LandingPage() {
         <section className="mx-auto grid max-w-[1280px] items-center gap-14 px-5 py-24 lg:grid-cols-[0.85fr_1.15fr] lg:px-8 lg:py-32">
           <div>
             <h2 className="max-w-[12ch] text-4xl leading-[1.02] font-semibold tracking-[-0.05em] sm:text-5xl">
-              Your swipe folder is not a content system.
+              Your export folder is not a content system.
             </h2>
             <p className="mt-6 max-w-[55ch] text-base leading-7 text-brand-muted">
               Screenshots lose context. Prompts drift. Good outputs disappear
@@ -176,7 +178,7 @@ export default function LandingPage() {
               </p>
               <p className="mt-3 text-sm leading-6 text-brand-muted">
                 Loose links, unlabeled screenshots, copied prompts, and no clear
-                path from research to output.
+                path from inputs to output.
               </p>
             </div>
             <div className="rounded-app-dialog bg-brand-ink p-6 text-white">
@@ -232,11 +234,11 @@ export default function LandingPage() {
               <div className="relative flex h-full flex-col justify-end">
                 <IconFileSearch className="size-7" />
                 <h3 className="mt-4 max-w-[16ch] text-3xl font-semibold tracking-[-0.04em]">
-                  Creative research that stays usable.
+                  Reusable inputs that stay organized.
                 </h3>
                 <p className="mt-3 max-w-[48ch] text-sm leading-6 text-brand-muted-on-dark-soft">
-                  Capture the source and keep the extracted promise, objection,
-                  CTA, media, and notes beside it.
+                  Keep approved prompts, media, collections, and brand direction
+                  ready for the next run.
                 </p>
               </div>
             </article>
@@ -246,8 +248,8 @@ export default function LandingPage() {
                 Automations with visible inputs.
               </h3>
               <p className="mt-4 text-sm leading-6 text-brand-muted">
-                Choose collections, characters, templates, and schedules. Every
-                run saves its artifacts and status.
+                Choose collections, templates, and schedules. Every run saves
+                its artifacts and status.
               </p>
             </article>
             <article className="rounded-2xl bg-brand-surface p-7 shadow-app-card lg:col-span-5">
@@ -256,7 +258,7 @@ export default function LandingPage() {
                 Reusable creator assets
               </h3>
               <p className="mt-3 text-sm leading-6 text-brand-muted">
-                Keep characters, references, captions, prompt attachments, and
+                Keep assets, references, captions, prompt attachments, and
                 generated media tied to a source of truth.
               </p>
             </article>
@@ -273,7 +275,7 @@ export default function LandingPage() {
               {[
                 [
                   "Content teams",
-                  "Keep research, production inputs, approvals, and output history in one operating view.",
+                  "Keep production inputs, approvals, schedules, and output history in one operating view.",
                 ],
                 [
                   "Performance marketers",
@@ -281,7 +283,7 @@ export default function LandingPage() {
                 ],
                 [
                   "Creator-led brands",
-                  "Reuse characters, collections, captions, and formats across recurring content runs.",
+                  "Reuse assets, collections, captions, and formats across recurring content runs.",
                 ],
               ].map(([title, body]) => (
                 <article
@@ -314,8 +316,8 @@ export default function LandingPage() {
             </h2>
             <p className="mt-6 max-w-[54ch] text-base leading-7 text-brand-muted">
               Appwrite authentication protects the workspace. Automations,
-              swipes, assets, generations, jobs, and results are scoped to the
-              signed-in user.
+              assets, generations, jobs, and results are scoped to the signed-in
+              user.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -337,10 +339,15 @@ export default function LandingPage() {
                 "Saved runs and artifacts make useful attempts inspectable later.",
               ],
             ].map(([title, body]) => (
-              <div key={title} className="rounded-app-panel bg-brand-surface-muted p-5">
+              <div
+                key={title}
+                className="rounded-app-panel bg-brand-surface-muted p-5"
+              >
                 <IconCheck className="size-5 text-brand-success" />
                 <p className="mt-8 font-semibold">{title}</p>
-                <p className="mt-2 text-sm leading-6 text-brand-muted">{body}</p>
+                <p className="mt-2 text-sm leading-6 text-brand-muted">
+                  {body}
+                </p>
               </div>
             ))}
           </div>

@@ -74,6 +74,10 @@ export function runPublishedAt(run: AutomationRunApiRecord) {
 
   if (validDate(run.manuallyPublishedAt)) return run.manuallyPublishedAt
 
+  return undefined
+}
+
+export function runScheduledAt(run: AutomationRunApiRecord) {
   const scheduledAt = earliestValidDate(
     (run.socialStatuses ?? [])
       .filter((item) => item.status === "scheduled")
@@ -123,7 +127,9 @@ export function isCompletedSlideshowRun(run: AutomationRunApiRecord) {
 }
 
 export function isSlideshowLifecycleRun(run: AutomationRunApiRecord) {
-  return slideshowStageForRunStatus(run.status) !== null
+  return (
+    run.status === "failed" || slideshowStageForRunStatus(run.status) !== null
+  )
 }
 
 export function isGeneratingSlideshowRun(run: AutomationRunApiRecord) {

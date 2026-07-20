@@ -1,18 +1,18 @@
 "use client"
 
 import Image from "next/image"
+import Link from "next/link"
 import useSWR from "swr"
 
 import {
   IconBolt,
-  IconBook2,
+  IconBook,
   IconCalendar,
   IconHome,
   IconLogout,
   IconPhoto,
   IconPlus,
   IconSettings,
-  IconSparkles,
 } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
@@ -21,15 +21,7 @@ import { clientSWRFetcher } from "@/lib/client-swr"
 import { cn } from "@/lib/utils"
 
 export type ViewKey =
-  | "home"
-  | "swipes"
-  | "avatars"
-  | "greenscreen"
-  | "schedule"
-  | "analytics"
-  | "collections"
-  | "knowledge"
-  | "automations"
+  "home" | "schedule" | "analytics" | "collections" | "automations"
 
 type NavItem = {
   key: ViewKey
@@ -39,9 +31,6 @@ type NavItem = {
 
 const topNav: NavItem[] = [
   { key: "home", label: "Home", icon: IconHome },
-  { key: "swipes", label: "Swipes", icon: IconPhoto },
-  { key: "avatars", label: "AI UGC avatars", icon: IconPhoto },
-  { key: "greenscreen", label: "Greenscreen Memes", icon: IconSparkles },
   { key: "schedule", label: "Schedule", icon: IconCalendar },
   { key: "analytics", label: "Analytics", icon: IconBolt },
 ]
@@ -49,7 +38,6 @@ const topNav: NavItem[] = [
 const slideshowNav: NavItem[] = [
   { key: "automations", label: "Automations", icon: IconBolt },
   { key: "collections", label: "Collections", icon: IconPhoto },
-  { key: "knowledge", label: "Knowledge Bases", icon: IconBook2 },
 ]
 
 export function Sidebar({
@@ -105,9 +93,6 @@ export function Sidebar({
             item={item}
             active={
               (view === "home" && item.label === "Home") ||
-              (view === "swipes" && item.label === "Swipes") ||
-              (view === "avatars" && item.label === "AI UGC avatars") ||
-              (view === "greenscreen" && item.label === "Greenscreen Memes") ||
               (view === "schedule" && item.label === "Schedule") ||
               (view === "analytics" && item.label === "Analytics")
             }
@@ -130,6 +115,13 @@ export function Sidebar({
         ))}
       </nav>
       <div className="mt-auto border-t border-app-panel-border pt-3">
+        <Link
+          href="/docs"
+          className="lc-focus-ring flex h-9 w-full items-center gap-2.5 rounded-[10px] px-3 text-left text-xs font-medium text-app-muted-text hover:bg-app-control-hover hover:text-app-text"
+        >
+          <IconBook className="size-4" />
+          Documentation
+        </Link>
         <button
           onClick={onSettings}
           className="lc-focus-ring flex h-9 w-full items-center gap-2.5 rounded-[10px] px-3 text-left text-xs font-medium text-app-muted-text hover:bg-app-control-hover hover:text-app-text"
@@ -149,6 +141,43 @@ export function Sidebar({
         </button>
       </div>
     </aside>
+  )
+}
+
+export function MobileNavigation({
+  view,
+  onViewChange,
+}: {
+  view: ViewKey
+  onViewChange: (view: ViewKey) => void
+}) {
+  return (
+    <nav
+      aria-label="Primary navigation"
+      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-app-panel-border bg-white/95 px-1 pt-1 pb-[max(.5rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(25,18,45,0.08)] backdrop-blur md:hidden"
+    >
+      {[...topNav, ...slideshowNav].map((item) => {
+        const Icon = item.icon
+        const active = view === item.key
+        return (
+          <button
+            key={item.key}
+            type="button"
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "lc-focus-ring flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-[8px] px-1 text-[10px] font-semibold",
+              active
+                ? "bg-app-strong text-white"
+                : "text-app-muted-text active:bg-app-control-hover"
+            )}
+            onClick={() => onViewChange(item.key)}
+          >
+            <Icon className="size-4" />
+            <span className="w-full truncate">{item.label}</span>
+          </button>
+        )
+      })}
+    </nav>
   )
 }
 

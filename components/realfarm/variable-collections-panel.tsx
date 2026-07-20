@@ -13,6 +13,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { CardGridSkeleton } from "@/components/ui/loading-skeleton"
 import { SearchControl } from "@/components/ui/form-controls"
 import { AppModal, AppModalPanel } from "@/components/ui/modal"
+import { useDirtyGuard } from "@/components/ui/use-dirty-guard"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { wordCollectionVariableName } from "@/lib/hook-variables"
 import type { WordCollectionRecord } from "@/lib/word-collections"
@@ -36,8 +37,31 @@ export function VariableCollectionsPanel() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [draft, setDraft] = useState<VariableDraft | null>(null)
+  const [draftBaseline, setDraftBaseline] = useState<VariableDraft | null>(null)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<WordCollectionRecord | null>(null)
+  const draftChanged = Boolean(
+    draft &&
+    draftBaseline &&
+    JSON.stringify(draft) !== JSON.stringify(draftBaseline)
+  )
+  const dirtyGuard = useDirtyGuard(draftChanged)
+
+  function openDraft(nextDraft: VariableDraft) {
+    setError("")
+    setDraft(nextDraft)
+    setDraftBaseline(nextDraft)
+  }
+
+  function closeDraft() {
+    setDraft(null)
+    setDraftBaseline(null)
+    setError("")
+  }
+
+  function requestDraftClose() {
+    dirtyGuard.run(closeDraft)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -121,7 +145,7 @@ export function VariableCollectionsPanel() {
         payload.collection!,
         ...current.filter((item) => item.id !== payload.collection!.id),
       ])
-      setDraft(null)
+      closeDraft()
     } catch (saveError) {
       setError(
         getApiErrorMessage(saveError, "Failed to save variable collection")
@@ -160,7 +184,7 @@ export function VariableCollectionsPanel() {
         <Button
           variant="action"
           size="appDefault"
-          onClick={() => setDraft(emptyDraft)}
+          onClick={() => openDraft(emptyDraft)}
         >
           <IconPlus className="size-4" />
           Add variable
@@ -179,7 +203,7 @@ export function VariableCollectionsPanel() {
         <button
           type="button"
           className="app-empty-state grid min-h-[360px] w-full place-items-center text-center transition hover:bg-app-control-hover"
-          onClick={() => setDraft(emptyDraft)}
+          onClick={() => openDraft(emptyDraft)}
         >
           <span className="max-w-[390px]">
             <span className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-app-surface text-[#e46954] shadow-sm">
@@ -218,7 +242,7 @@ export function VariableCollectionsPanel() {
                     size="icon-control-sm"
                     aria-label={`Edit ${wordCollectionVariableName(collection)}`}
                     onClick={() =>
-                      setDraft({
+                      openDraft({
                         originalId: collection.id,
                         tag: wordCollectionVariableName(collection),
                         description: collection.description ?? "",
@@ -268,8 +292,9 @@ export function VariableCollectionsPanel() {
         <VariableCollectionModal
           draft={draft}
           saving={saving}
+          error={error}
           onChange={setDraft}
-          onClose={() => setDraft(null)}
+          onClose={requestDraftClose}
           onSave={() => void saveDraft()}
         />
       ) : null}
@@ -283,6 +308,7 @@ export function VariableCollectionsPanel() {
           onConfirm={() => deleteCollection(deleting)}
         />
       ) : null}
+      {dirtyGuard.confirmation}
     </div>
   )
 }
@@ -290,12 +316,14 @@ export function VariableCollectionsPanel() {
 function VariableCollectionModal({
   draft,
   saving,
+  error,
   onChange,
   onClose,
   onSave,
 }: {
   draft: VariableDraft
   saving: boolean
+  error: string
   onChange: (draft: VariableDraft) => void
   onClose: () => void
   onSave: () => void
@@ -374,6 +402,11 @@ function VariableCollectionModal({
             placeholder={"aries\ntaurus\ngemini"}
           />
         </label>
+        {error ? (
+          <p className="mt-4 rounded-[7px] border border-red-200 bg-red-50 px-3 py-2 text-[13px] font-semibold text-red-700">
+            {error}
+          </p>
+        ) : null}
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="softControl" size="appDefault" onClick={onClose}>
             Cancel

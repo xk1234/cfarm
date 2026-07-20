@@ -17,6 +17,26 @@ export type OpenRouterChatResult = {
   payload: OpenRouterChatPayload
 }
 
+export class OpenRouterRequestError extends Error {
+  readonly status?: number
+  readonly code: "provider_error" | "invalid_json" | "network_error"
+  readonly retryable: boolean
+
+  constructor(input: {
+    message: string
+    status?: number
+    code: "provider_error" | "invalid_json" | "network_error"
+    retryable: boolean
+    cause?: unknown
+  }) {
+    super(input.message, { cause: input.cause })
+    this.name = "OpenRouterRequestError"
+    this.status = input.status
+    this.code = input.code
+    this.retryable = input.retryable
+  }
+}
+
 export function getOpenRouterApiKey() {
   return clean(process.env.OPENROUTER_API_KEY)
 }
@@ -34,23 +54,40 @@ export async function openRouterChatCompletion(input: {
   plugins?: readonly unknown[]
 }): Promise<OpenRouterChatResult> {
   const fetchImpl = input.fetchImpl ?? fetch
-  const response = await fetchImpl(OPENROUTER_CHAT_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${input.apiKey}`,
-      "Content-Type": "application/json",
-      ...input.headers,
-    },
-    body: JSON.stringify({
-      model: input.model,
-      messages: input.messages,
-      ...(input.responseFormat ? { response_format: input.responseFormat } : {}),
-      ...(input.maxTokens ? { max_tokens: input.maxTokens } : {}),
-      ...(typeof input.temperature === "number" ? { temperature: input.temperature } : {}),
-      ...(input.plugins ? { plugins: input.plugins } : {}),
-    }),
-    signal: AbortSignal.timeout(input.timeoutMs ?? 60_000),
-  })
+  let response: Response
+  try {
+    response = await fetchImpl(OPENROUTER_CHAT_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${input.apiKey}`,
+        "Content-Type": "application/json",
+        ...input.headers,
+      },
+      body: JSON.stringify({
+        model: input.model,
+        messages: input.messages,
+        ...(input.responseFormat
+          ? { response_format: input.responseFormat }
+          : {}),
+        ...(input.maxTokens ? { max_tokens: input.maxTokens } : {}),
+        ...(typeof input.temperature === "number"
+          ? { temperature: input.temperature }
+          : {}),
+        ...(input.plugins ? { plugins: input.plugins } : {}),
+      }),
+      signal: AbortSignal.timeout(input.timeoutMs ?? 60_000),
+    })
+  } catch (error) {
+    throw new OpenRouterRequestError({
+      message:
+        error instanceof Error && error.name === "TimeoutError"
+          ? "The AI provider timed out"
+          : "The AI provider could not be reached",
+      code: "network_error",
+      retryable: true,
+      cause: error,
+    })
+  }
   const payload = (await response
     .json()
     .catch(() => ({}))) as OpenRouterChatPayload
@@ -117,9 +154,18 @@ export async function openRouterJson(
     plugins: input.plugins,
   })
   if (!result.ok) {
-    throw new Error(
-      result.payload.error?.message || `OpenRouter failed (${result.status})`
-    )
+    throw new OpenRouterRequestError({
+      message:
+        result.payload.error?.message || `OpenRouter failed (${result.status})`,
+      status: result.status,
+      code: "provider_error",
+      retryable:
+        result.status === 408 ||
+        result.status === 409 ||
+        result.status === 425 ||
+        result.status === 429 ||
+        result.status >= 500,
+    })
   }
 
   try {
@@ -137,5 +183,9 @@ export async function openRouterJson(
     /* repair happens at the caller */
   }
 
-  throw new Error("The model returned invalid JSON")
+  throw new OpenRouterRequestError({
+    message: "The model returned invalid JSON",
+    code: "invalid_json",
+    retryable: true,
+  })
 }

@@ -88,6 +88,29 @@ export function ugcAvatarVideoCollectionFromAssets(
   }
 }
 
+export function greenscreenMemeCollectionFromAssets(
+  videos: LocalAsset[]
+): CreatedImageCollection {
+  return {
+    id: "collection-greenscreen-memes",
+    title: "Greenscreen Memes",
+    mediaType: "video",
+    images: videos
+      .filter((video) => video.kind === "video" && video.url)
+      .map((video) => ({
+        id: video.id,
+        title: video.name,
+        description: video.name,
+        imageUrl: video.url,
+        sourceUrl: video.url,
+        dominantColor: "#1f1f1f",
+      })),
+    createdAt: "virtual",
+    source: "virtual",
+    virtual: true,
+  }
+}
+
 export function collectionToStored(
   collection: CreatedImageCollection
 ): StoredImageCollection {

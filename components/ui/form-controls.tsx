@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, ChevronDown, Search } from "lucide-react"
+import { LuCheck, LuChevronDown, LuSearch } from "react-icons/lu"
 import type { ComponentProps } from "react"
 import { Select, Switch } from "radix-ui"
 
@@ -159,7 +159,7 @@ export function CheckedDropdownButton({
         >
           <Select.Value />
           <Select.Icon asChild>
-            <ChevronDown className="size-4 text-app-muted-text" />
+            <LuChevronDown className="size-4 text-app-muted-text" />
           </Select.Icon>
         </Button>
       </Select.Trigger>
@@ -179,7 +179,7 @@ export function CheckedDropdownButton({
               >
                 <Select.ItemText>{option}</Select.ItemText>
                 <Select.ItemIndicator>
-                  <Check className="size-3.5 text-app-text" />
+                  <LuCheck className="size-3.5 text-app-text" />
                 </Select.ItemIndicator>
               </Select.Item>
             ))}
@@ -219,7 +219,7 @@ export function SearchControl({
         className
       )}
     >
-      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-app-muted-text" />
+      <LuSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-app-muted-text" />
       <input
         className={cn(
           "h-full w-full rounded-lg bg-transparent pr-3 pl-9 text-sm font-medium text-app-text outline-none placeholder:text-app-text-faint",

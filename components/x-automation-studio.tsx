@@ -3,23 +3,23 @@
 import Image from "next/image"
 import { useState } from "react"
 import {
-  ArrowLeft,
-  BarChart3,
-  CalendarDays,
-  Check,
-  ExternalLink,
-  ImagePlus,
-  Loader2,
-  Plus,
-  Radar,
-  RefreshCw,
-  Save,
-  Send,
-  Settings,
-  Share2,
-  Sparkles,
-  UserPlus,
-} from "lucide-react"
+  LuArrowLeft,
+  LuChartColumnIncreasing,
+  LuCalendarDays,
+  LuCheck,
+  LuExternalLink,
+  LuImagePlus,
+  LuLoaderCircle,
+  LuPlus,
+  LuRadar,
+  LuRefreshCw,
+  LuSave,
+  LuSend,
+  LuSettings,
+  LuShare2,
+  LuSparkles,
+  LuUserPlus,
+} from "react-icons/lu"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -32,7 +32,6 @@ import {
   SettingsRow,
 } from "@/components/realfarm/automation-settings/settings-layout"
 import { AutomationSettingsNavButton } from "@/components/realfarm/automation-settings/settings-nav"
-import { TextBenchmarkComparisonModal } from "@/components/realfarm/benchmark-comparison-modal"
 import {
   type XAutomationPlatform,
   type XAutomationRecord,
@@ -45,9 +44,14 @@ import {
 } from "@/lib/postfast-client"
 import { cn } from "@/lib/utils"
 import { hookStyles, voicePresets } from "@/lib/x-post-presets"
-import type { XBenchmarkComparison } from "@/lib/x-benchmarks"
 
 type StudioTab = "overview" | "schedule" | "social" | "settings"
+
+type StrategyRequestError = {
+  message: string
+  retryable: boolean
+  operationId?: string
+}
 
 export function XAutomationStudio({
   initialAutomations,
@@ -61,6 +65,7 @@ export function XAutomationStudio({
   onClose?: () => void
 }) {
   const [automations, setAutomations] = useState(initialAutomations)
+  const [savedAutomations, setSavedAutomations] = useState(initialAutomations)
   const [selectedId, setSelectedId] = useState(initialAutomations[0]?.id ?? "")
   const [runs, setRuns] = useState(initialRuns)
   const [topic, setTopic] = useState("")
@@ -79,8 +84,8 @@ export function XAutomationStudio({
   const [accounts, setAccounts] = useState<PostFastSocialIntegration[]>([])
   const [accountsLoading, setAccountsLoading] = useState(false)
   const [accountsError, setAccountsError] = useState("")
-  const [benchmarkComparison, setBenchmarkComparison] =
-    useState<XBenchmarkComparison | null>(null)
+  const [strategyError, setStrategyError] =
+    useState<StrategyRequestError | null>(null)
   const [discoveryQuery, setDiscoveryQuery] = useState("")
   const [candidates, setCandidates] = useState<XTrendCandidate[]>([])
   const [selectedCandidate, setSelectedCandidate] =
@@ -139,6 +144,7 @@ export function XAutomationStudio({
         }
       )
       setAutomations((items) => [payload.automation, ...items])
+      setSavedAutomations((items) => [payload.automation, ...items])
       setSelectedId(payload.automation.id)
     } catch (error) {
       toast.error(message(error))
@@ -148,7 +154,7 @@ export function XAutomationStudio({
   }
 
   async function saveAutomation(deriveIfMissing = true) {
-    if (!selected) return
+    if (!selected) return null
     setBusy("save")
     try {
       const payload = await request<{ automation: XAutomationRecord }>(
@@ -169,14 +175,36 @@ export function XAutomationStudio({
       setAutomations((items) =>
         items.map((item) => (item.id === selected.id ? saved : item))
       )
+      setSavedAutomations((items) =>
+        items.map((item) => (item.id === selected.id ? saved : item))
+      )
       toast.success(
         `${saved.platform === "threads" ? "Threads" : "X"} automation saved`
       )
+      return saved
     } catch (error) {
       toast.error(message(error))
+      return null
     } finally {
       setBusy("")
     }
+  }
+
+  function cancelSettings() {
+    if (selected) {
+      const saved = savedAutomations.find((item) => item.id === selected.id)
+      if (saved) {
+        setAutomations((items) =>
+          items.map((item) => (item.id === saved.id ? saved : item))
+        )
+      }
+    }
+    setTab("overview")
+  }
+
+  async function saveSettings() {
+    const saved = await saveAutomation()
+    if (saved) setTab("overview")
   }
 
   async function generate(sourceCandidate?: XTrendCandidate) {
@@ -191,7 +219,8 @@ export function XAutomationStudio({
     }
     setBusy("generate")
     try {
-      await saveAutomation(false)
+      const saved = await saveAutomation(false)
+      if (!saved) return
       setBusy("generate")
       const payload = await request<{ run: XAutomationRun }>(
         "/api/x-automations/generate",
@@ -218,7 +247,8 @@ export function XAutomationStudio({
     if (!selected) return
     setBusy("discover")
     try {
-      await saveAutomation(false)
+      const saved = await saveAutomation(false)
+      if (!saved) return
       setBusy("discover")
       const payload = await request<{ candidates: XTrendCandidate[] }>(
         "/api/x-automations/discover",
@@ -245,11 +275,13 @@ export function XAutomationStudio({
       return
     }
     setBusy("derive")
+    setStrategyError(null)
     try {
-      await saveAutomation(false)
+      const saved = await saveAutomation(false)
+      if (!saved) return
       setBusy("derive")
       const payload = await request<{ automation: XAutomationRecord }>(
-        `/api/x-automations/${encodeURIComponent(selected.id)}/derive-brief`,
+        `/api/x-automations/${encodeURIComponent(saved.id)}/derive-brief`,
         { method: "POST" }
       )
       setAutomations((items) =>
@@ -259,6 +291,26 @@ export function XAutomationStudio({
       )
       toast.success("Content strategy generated")
     } catch (error) {
+      const requestError = error instanceof ApiRequestError ? error : null
+      setStrategyError({
+        message: message(error),
+        retryable: requestError?.payload.retryable === true,
+        operationId:
+          typeof requestError?.payload.operation === "object" &&
+          requestError.payload.operation &&
+          "id" in requestError.payload.operation
+            ? String(requestError.payload.operation.id)
+            : undefined,
+      })
+      if (requestError?.payload.automation) {
+        const failedAutomation = requestError.payload
+          .automation as XAutomationRecord
+        setAutomations((items) =>
+          items.map((item) =>
+            item.id === failedAutomation.id ? failedAutomation : item
+          )
+        )
+      }
       toast.error(message(error))
     } finally {
       setBusy("")
@@ -334,22 +386,6 @@ export function XAutomationStudio({
     }
   }
 
-  async function openBenchmark() {
-    if (!preview) return
-    setBusy("generate")
-    try {
-      const payload = await request<{ comparison: XBenchmarkComparison }>(
-        "/api/x-benchmarks",
-        { method: "POST", body: JSON.stringify({ runId: preview.id }) }
-      )
-      setBenchmarkComparison(payload.comparison)
-    } catch (error) {
-      toast.error(message(error))
-    } finally {
-      setBusy("")
-    }
-  }
-
   return (
     <main
       className={cn(
@@ -365,7 +401,7 @@ export function XAutomationStudio({
               size="icon-sm"
               onClick={() => window.location.assign("/app")}
             >
-              <ArrowLeft />
+              <LuArrowLeft />
             </Button>
             <div>
               <div className="text-[11px] font-bold tracking-[0.14em] text-app-text-faint uppercase">
@@ -396,29 +432,29 @@ export function XAutomationStudio({
             disabled={!selected || busy === "generate"}
           >
             {busy === "generate" ? (
-              <Loader2 className="animate-spin" />
+              <LuLoaderCircle className="animate-spin" />
             ) : (
-              <Sparkles />
+              <LuSparkles />
             )}
             {busy === "generate" ? "Generating…" : "Generate draft"}
           </Button>
           <div className="space-y-1">
             <AutomationSettingsNavButton
               label="Overview"
-              icon={Sparkles}
+              icon={LuSparkles}
               active={tab === "overview"}
               onClick={() => setTab("overview")}
             />
             <div className="my-2 h-px bg-[#e1e0d8]" />
             <AutomationSettingsNavButton
               label="Schedule"
-              icon={CalendarDays}
+              icon={LuCalendarDays}
               active={tab === "schedule"}
               onClick={() => setTab("schedule")}
             />
             <AutomationSettingsNavButton
               label="Social Media Settings"
-              icon={Share2}
+              icon={LuShare2}
               active={tab === "social"}
               onClick={() => {
                 setTab("social")
@@ -427,7 +463,7 @@ export function XAutomationStudio({
             />
             <AutomationSettingsNavButton
               label="Settings"
-              icon={Settings}
+              icon={LuSettings}
               active={tab === "settings"}
               onClick={() => setTab("settings")}
             />
@@ -460,7 +496,7 @@ export function XAutomationStudio({
                 </div>
               </div>
               <Button variant="ghost" size="sm" onClick={onClose}>
-                <ArrowLeft /> Back
+                <LuArrowLeft /> Back
               </Button>
             </div>
           ) : null}
@@ -495,7 +531,7 @@ export function XAutomationStudio({
                   onClick={() => void saveAutomation()}
                   disabled={busy === "save"}
                 >
-                  <Save />
+                  <LuSave />
                   Save
                 </Button>
               </div>
@@ -508,6 +544,7 @@ export function XAutomationStudio({
                     update={update}
                     onDerive={deriveStrategy}
                     deriving={busy === "derive"}
+                    strategyError={strategyError}
                   />
                   <DiscoveryPanel
                     automation={selected}
@@ -527,10 +564,8 @@ export function XAutomationStudio({
                 <PostingSchedulePanel
                   schedule={selected.schedule}
                   onScheduleChange={(schedule) => update({ schedule })}
-                  onCancel={() => setTab("overview")}
-                  onSave={() =>
-                    void saveAutomation().then(() => setTab("overview"))
-                  }
+                  onCancel={cancelSettings}
+                  onSave={() => void saveSettings()}
                 />
               )}
               {tab === "social" && (
@@ -543,20 +578,16 @@ export function XAutomationStudio({
                   onRefresh={loadAccounts}
                   onConnect={connectAccount}
                   busy={busy}
-                  onCancel={() => setTab("overview")}
-                  onSave={() =>
-                    void saveAutomation().then(() => setTab("overview"))
-                  }
+                  onCancel={cancelSettings}
+                  onSave={() => void saveSettings()}
                 />
               )}
               {tab === "settings" && (
                 <XGeneralSettingsPanel
                   automation={selected}
                   update={update}
-                  onCancel={() => setTab("overview")}
-                  onSave={() =>
-                    void saveAutomation().then(() => setTab("overview"))
-                  }
+                  onCancel={cancelSettings}
+                  onSave={() => void saveSettings()}
                 />
               )}
             </>
@@ -585,9 +616,9 @@ export function XAutomationStudio({
                     disabled={busy === "image"}
                   >
                     {busy === "image" ? (
-                      <Loader2 className="animate-spin" />
+                      <LuLoaderCircle className="animate-spin" />
                     ) : (
-                      <ImagePlus />
+                      <LuImagePlus />
                     )}
                     Picture
                   </Button>
@@ -601,9 +632,9 @@ export function XAutomationStudio({
                       disabled={busy === "publish"}
                     >
                       {busy === "publish" ? (
-                        <Loader2 className="animate-spin" />
+                        <LuLoaderCircle className="animate-spin" />
                       ) : (
-                        <Send />
+                        <LuSend />
                       )}
                       Publish
                     </Button>
@@ -611,18 +642,10 @@ export function XAutomationStudio({
               </div>
             </div>
             <XPreview run={preview} platform={selected?.platform} />
-            {preview && (
-              <BenchmarkCard run={preview} onCompare={openBenchmark} />
-            )}
+            {preview && <BenchmarkCard run={preview} />}
           </aside>
         ) : null}
       </div>
-      {benchmarkComparison ? (
-        <TextBenchmarkComparisonModal
-          comparison={benchmarkComparison}
-          onClose={() => setBenchmarkComparison(null)}
-        />
-      ) : null}
     </main>
   )
 }
@@ -634,6 +657,7 @@ function ComposePanel({
   update,
   onDerive,
   deriving,
+  strategyError,
 }: {
   automation: XAutomationRecord
   topic: string
@@ -641,6 +665,7 @@ function ComposePanel({
   update: (patch: Partial<XAutomationRecord>) => void
   onDerive: () => void
   deriving: boolean
+  strategyError: StrategyRequestError | null
 }) {
   const availableHookStyles = hookStyles.filter(
     (style) =>
@@ -672,10 +697,26 @@ function ComposePanel({
             onClick={onDerive}
             disabled={deriving || !automation.niche.label.trim()}
           >
-            {deriving ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+            {deriving ? <LuLoaderCircle className="animate-spin" /> : <LuRefreshCw />}
             {automation.brief ? "Regenerate strategy" : "Generate strategy"}
           </Button>
         </div>
+        {strategyError ? (
+          <div className="mt-3 rounded-xl border border-[#f0d3cc] bg-[#fff7f5] p-3 text-xs text-[#9b3f2f]">
+            <div className="font-semibold">{strategyError.message}</div>
+            {strategyError.retryable ? (
+              <Button
+                variant="softControl"
+                size="compact"
+                className="mt-2"
+                onClick={onDerive}
+                disabled={deriving}
+              >
+                <LuRefreshCw className="size-3.5" /> Retry
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
         {automation.brief ? (
           <div className="mt-3 rounded-xl border border-app-panel-border bg-app-surface-subtle p-4 text-sm">
             <div>
@@ -900,9 +941,9 @@ function DiscoveryPanel({
             disabled={busy === "discover"}
           >
             {busy === "discover" ? (
-              <Loader2 className="animate-spin" />
+              <LuLoaderCircle className="animate-spin" />
             ) : (
-              <Radar />
+              <LuRadar />
             )}
             Search
           </Button>
@@ -1008,9 +1049,9 @@ function AccountSettingsPanel({
               disabled={busy === "connect"}
             >
               {busy === "connect" ? (
-                <Loader2 className="animate-spin" />
+                <LuLoaderCircle className="animate-spin" />
               ) : (
-                <UserPlus />
+                <LuUserPlus />
               )}
               Add or change account
             </Button>
@@ -1021,7 +1062,7 @@ function AccountSettingsPanel({
               onClick={onRefresh}
               disabled={loading}
             >
-              <RefreshCw className={cn(loading && "animate-spin")} />
+              <LuRefreshCw className={cn(loading && "animate-spin")} />
               Refresh
             </Button>
           </div>
@@ -1067,7 +1108,7 @@ function AccountSettingsPanel({
                         {account.provider === "threads" ? "Threads" : "X"}
                       </span>
                     </span>
-                    {selected && <Check className="size-4" />}
+                    {selected && <LuCheck className="size-4" />}
                   </button>
                 )
               })}
@@ -1100,7 +1141,7 @@ function AccountSettingsPanel({
             />
             <span>
               <span className="flex items-center gap-2 text-sm font-bold">
-                <Settings className="size-4" /> Auto-publish scheduled posts
+                <LuSettings className="size-4" /> Auto-publish scheduled posts
               </span>
               <span className="mt-1 block text-xs leading-5 text-app-muted-text">
                 Single posts can autopost now. Threads and X Articles remain
@@ -1331,7 +1372,7 @@ function XPreview({
           className="inline-flex items-center gap-1 font-bold text-app-text hover:underline"
         >
           Open in {run.platform === "threads" ? "Threads" : "X"}{" "}
-          <ExternalLink className="size-3" />
+          <LuExternalLink className="size-3" />
         </a>
       </div>
       {run.plans?.length ? (
@@ -1419,13 +1460,7 @@ function XPreview({
   )
 }
 
-function BenchmarkCard({
-  run,
-  onCompare,
-}: {
-  run: XAutomationRun
-  onCompare: () => void
-}) {
+function BenchmarkCard({ run }: { run: XAutomationRun }) {
   const metrics: Array<[keyof XAutomationRun["benchmark"], string]> = [
     ["hook", "hook"],
     ["specificity", "specificity"],
@@ -1446,7 +1481,7 @@ function BenchmarkCard({
     <div className="mt-4 rounded-xl border border-app-panel-border bg-app-surface p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-bold">
-          <BarChart3 className="size-4" />
+          <LuChartColumnIncreasing className="size-4" />
           {run.benchmark.evaluator === "ai"
             ? "AI benchmark review"
             : "Objective benchmark checks"}
@@ -1465,16 +1500,6 @@ function BenchmarkCard({
           {run.reviewErrors.join(" · ")}
         </div>
       ) : null}
-      <Button
-        type="button"
-        variant="softControl"
-        size="sm"
-        className="mt-3"
-        onClick={onCompare}
-        disabled={run.needsReview}
-      >
-        Compare with winning posts
-      </Button>
       <div className="mt-3 grid grid-cols-5 gap-2 text-center text-[9px] text-app-muted-text">
         {metrics.map(([key, label]) => (
           <div key={key}>
@@ -1509,7 +1534,7 @@ function BenchmarkCard({
         {run.benchmark.comparison.matchedBenchmarkLabel && (
           <>
             {" "}
-            · closest swipe: {run.benchmark.comparison.matchedBenchmarkLabel}
+            · closest pattern: {run.benchmark.comparison.matchedBenchmarkLabel}
           </>
         )}
       </div>
@@ -1623,10 +1648,10 @@ function EmptyState({
         </p>
         <div className="mt-4 flex justify-center gap-3">
           <Button variant="action" onClick={() => onCreate("x")}>
-            <Plus /> New X automation
+            <LuPlus /> New X automation
           </Button>
           <Button variant="softControl" onClick={() => onCreate("threads")}>
-            <Plus /> New Threads automation
+            <LuPlus /> New Threads automation
           </Button>
         </div>
       </div>
@@ -1679,9 +1704,22 @@ async function request<T = unknown>(
   })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok)
-    throw new Error(payload.error || `Request failed (${response.status})`)
+    throw new ApiRequestError(
+      payload.error || `Request failed (${response.status})`,
+      payload
+    )
   return payload as T
 }
+class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    readonly payload: Record<string, unknown>
+  ) {
+    super(message)
+    this.name = "ApiRequestError"
+  }
+}
+
 function message(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong"
 }

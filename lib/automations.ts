@@ -9,6 +9,7 @@ import {
   upsertJsonArrayRecord,
 } from "@/lib/json-store"
 import {
+  automationHookItems,
   defaultAutomationSchema,
   normalizeAutomationSchema,
   type AutomationLifecycleStatus,
@@ -280,6 +281,8 @@ export function automationRecordToSummary(
     favorite: record.favorite,
     theme: record.theme,
     automationKind: record.schema.automationKind,
+    postingMode: record.schema.posting_mode,
+    generationLeadMinutes: record.schema.generation_lead_minutes,
     socialIntegrations: record.schema.social_integrations,
   }
 }
@@ -444,10 +447,21 @@ function mergeImportedSchema(
   const schedule = isRecord(importedSchema.schedule)
     ? importedSchema.schedule
     : {}
+  const legacyTone = Array.isArray(importedSchema.formatting)
+    ? importedSchema.formatting.find(
+        (item) => isRecord(item) && item.id === "_tone"
+      )
+    : undefined
   const schema = normalizeAutomationSchema(
     {
       ...base,
       ...importedSchema,
+      tone: isRecord(importedSchema.tone)
+        ? importedSchema.tone
+        : isRecord(legacyTone)
+          ? legacyTone
+          : base.tone,
+      ...(!Array.isArray(importedSchema.hooks) ? { hooks: undefined } : {}),
       title,
       status: status === "paused" ? "paused" : "live",
       schedule: {
@@ -505,6 +519,14 @@ function cloneTemplate(
     image_fit: template.image_fit,
     language: template.language,
     prompt_formatting: structuredClone(template.prompt_formatting),
+    hooks: structuredClone(
+      template.hooks ??
+        automationHookItems({
+          title: "",
+          formatting: template.formatting,
+          prompt_formatting: template.prompt_formatting,
+        })
+    ),
     image_collection_ids: structuredClone(template.image_collection_ids ?? {}),
     tone: structuredClone(template.tone),
     formatting: structuredClone(template.formatting),

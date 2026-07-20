@@ -1,0 +1,439 @@
+---
+title: Automation prompt structures
+description: System, user, structured-output, and repair prompt shapes used by slideshow, video, X, Threads, and LinkedIn automations.
+---
+
+Automation generation does not use one universal prompt. Each output type builds
+its own system instructions, runtime context, and strict output schema. This
+page records those structures so prompt changes can preserve the contract that
+the runner and renderer expect.
+
+The examples below show the prompt **shape**, not a frozen copy of every prompt
+sentence. Values in angle brackets are filled at runtime.
+
+## Shared request envelope
+
+Most generation requests follow the same four-part envelope:
+
+```text
+SYSTEM
+  role, safety, voice, platform, and non-invention rules
+
+USER
+  selected topic/hook + automation context + format-specific instructions
+
+STRUCTURED OUTPUT
+  strict JSON Schema with no additional properties
+
+REPAIR, when validation fails
+  previous validation errors appended to the user prompt
+```
+
+System instructions establish rules that apply to the whole response. The user
+prompt supplies the selected runtime values. The JSON Schema is part of the
+generation contract: downstream code reads its named fields rather than trying
+to parse free-form prose.
+
+Repair prompts do not replace the original context. They append the exact
+validation failures to the original user prompt and ask the model to return a
+corrected object.
+
+## Niche strategy derivation
+
+X and Threads automations first turn a niche into a reusable content brief.
+This is a separate request from post generation.
+
+```text
+SYSTEM
+  Derive a focused social-content strategy from one niche.
+  Use concrete audience language and distinct content pillars.
+  Do not invent performance claims.
+
+USER
+  Niche: <niche>
+  Return 3-5 pillars.
+
+OUTPUT
+  {
+    "audience": "<specific audience>",
+    "promise": "<content promise>",
+    "pillars": [{ "label": "<pillar>" }],
+    "keywords": ["<keyword>"],
+    "painPoints": ["<pain point>"]
+  }
+```
+
+The saved brief is later folded into the X or Threads system prompt. Strategy
+generation may retry the selected model and then configured fallback models;
+post generation has its own validation and repair cycle.
+
+## Slideshow text generation
+
+Slideshow generation treats the selected hook as fixed context. It generates
+social metadata and fills only non-hook text boxes whose text mode is
+`prompt`. Static text and hook text do not become generated output fields.
+
+### System structure
+
+```text
+ROLE
+  Fill metadata and text placeholders for a TikTok slideshow.
+
+PRIORITY
+  selected hook
+  > each placeholder's content direction
+  > automation name, global style, tone, and examples
+
+OUTPUT RULE
+  Return only JSON matching the provided schema.
+  Do not return visual parameters, image prompts, markdown, or extra keys.
+```
+
+### User structure
+
+```text
+Automation: <automation name>
+Hook: <selected and variable-resolved hook>
+Tone: <tone preset or custom tone>
+Style: <slideshow writing style>
+
+Metadata requirements:
+  title: 3-8 words, specific to the hook
+  caption: one short sentence, no hashtags
+  hashtags: 3-5 broad lowercase hashtags
+
+Prompt instructions:
+  <automation writing instructions>
+
+Performance memory, when available:
+  Proven: <pattern from scored posts>
+  Avoid: <pattern from scored posts>
+
+Hook-to-content coherence rules:
+  keep the exact hook subject and claim
+  make each slide advance the same topic
+  treat text boxes on one slide as one unit
+  do not substitute a stock theme from an example
+
+Avoid-similar-output rules, when prior outputs are supplied
+Strict completeness, word-range, and casing rules
+
+Placeholders:
+  - <placeholder id>: <slide id>, <section>, <content direction and word range>
+```
+
+When AI web search is enabled, a required-search instruction is prepended to
+the user message and the OpenRouter web-search tool is attached. The search
+must address the exact selected hook, not only the broader niche.
+
+### Output structure
+
+```json
+{
+  "title": "3-8 word title",
+  "caption": "One-sentence social caption.",
+  "hashtags": ["#broadtag", "#nichetag", "#topic"],
+  "text": {
+    "<prompt-placeholder-id>": "Generated slide text"
+  }
+}
+```
+
+Every prompt-placeholder ID is a required key. The schema rejects extra keys,
+and each value carries the text box's content direction and word-range
+description.
+
+## Slideshow AI image matching
+
+AI image matching first uses a multimodal prompt to choose the strongest
+available image for the draft slide text.
+
+```text
+SYSTEM
+  Select the single supplied image most relevant to the finalized slide text.
+  Prefer a direct subject/action match over a generic aesthetic match.
+
+USER CONTENT
+  Slide text: <finalized text>
+  Candidate <id>: <caption>
+  <candidate image>
+  ...
+
+OUTPUT
+  { "selectedImageId": "<one supplied candidate id>" }
+```
+
+The output schema limits `selectedImageId` to the candidate IDs sent in that
+request, so the model cannot select an image outside the collection.
+
+When `aiImageSelection` is enabled, the runner then locks those selected images
+and performs one structured copy-repair pass. The repair prompt includes the
+exact selected caption and current draft for every generated text placeholder:
+
+```text
+Selected-image coherence repair (mandatory):
+  Rewrite each listed text field to directly and truthfully match its locked
+  selected image caption.
+  Treat the caption as the source of truth for visible objects and actions.
+  Do not mention an object or action absent from that caption.
+  Keep the hook, static text, placeholder constraints, and narrative intact.
+
+  <slide id> selected image caption: <caption>
+  Current draft text:
+    <placeholder id>: <draft>
+```
+
+The repaired text is rendered against the same locked image list; image
+selection is not rerun afterward. This prevents a repair from creating a new
+text-image mismatch.
+
+## Video overlay-copy generation
+
+The video copy builder treats the hook and ordered segments as one continuous
+narrative. This contract covers social metadata plus on-screen caption items;
+actual runner coverage remains template-specific while video automations are
+WIP.
+
+### System structure
+
+```text
+ROLE
+  Write native TikTok/Instagram on-screen caption sequences.
+
+NARRATIVE RULES
+  the hook defines the exact topic
+  every item and variation is a consecutive beat
+  later beats advance rather than restart the premise
+  obey every overlay word range
+
+SAFETY AND STYLE
+  no invented proof or assumed visuals
+  no hashtags in overlays
+  casual, specific native-social voice
+
+COMMENT-GATE ADDITION, when required
+  choose one uppercase alphabetic trigger word
+  use the identical word in the CTA overlay and social caption
+  offer one topic-specific resource
+
+OUTPUT RULE
+  Return only JSON matching the provided schema.
+```
+
+### User structure
+
+```text
+Automation: <automation name>
+Video format: <template format>
+Tone: <tone>
+Style notes: <video writing style>
+The video opens with this hook: "<selected hook>"
+
+Ordered segment roles:
+  1. <segment label> [<segment id>]: <guidance>
+  ...
+
+Single-narrative contract
+Metadata requirements
+Comment-gate caption rule, when required
+Native overlay exemplars
+Lowercase rule, when enabled
+
+Items, in render order:
+  - id: <item id>
+    segment: <segment label>
+    direction: <content direction>
+    length: <min>-<max> words each
+    variations: <clip count>, when greater than one
+```
+
+The output object is expected to contain social `title`, `caption`, and
+`hashtags` fields plus one field per caption item ID. An item that represents
+multiple clips returns the configured number of consecutive variations.
+
+## X and Threads post generation
+
+X and Threads share one generator. A plan is selected before prompting:
+platform, archetype, pillar, hook style, optional topic, proof, and—on some
+Threads runs—an older body to recycle with a new hook.
+
+### System structure
+
+```text
+NICHE CONTEXT
+  niche, audience, promise, core themes, and reader pains
+
+VOICE
+  selected voice preset + optional voice override + language
+
+NICHE ADAPTATION
+  niche-specific value rules
+
+PLATFORM RULES
+  serialized X or Threads limits and formatting rules
+
+EXCLUSIONS AND PROOF
+  excluded topics
+  never invent statistics, results, testimonials, or experience
+  use only supplied proof
+
+QUALITY FILTER
+  ban configured AI-tell wording
+```
+
+### User structure
+
+```text
+Platform: <x | threads>
+Archetype: <archetype label>
+Structure: <archetype structure>
+Template: <archetype template>
+
+X single-post addition:
+  final composed post must be <= 280 characters
+
+X engagement addition:
+  final slot/post must end in a genuine question
+
+Pillar: <selected pillar>
+Hook formula: <selected hook formula>
+Hook examples: <examples to shape, not copy>
+Topic: <topic or none>
+Recycle body: <eligible older Threads body>, when selected
+
+PROOF:
+  <approved proof entries or none>
+
+Repair these exact errors, on retry:
+  <deterministic validation errors>
+```
+
+### Output structures
+
+Single-post archetypes use a strict object whose keys come from the selected
+archetype's ordered slots:
+
+```json
+{
+  "hook": "<slot-specific copy>",
+  "body": "<slot-specific copy>",
+  "closer": "<slot-specific copy>"
+}
+```
+
+The exact keys vary by archetype. Each slot defines a description, word range,
+and approximate character cap. The runner joins non-empty slots with blank
+lines.
+
+X thread archetypes instead use:
+
+```json
+{
+  "posts": "Post 1\n---\nPost 2\n---\nPost 3"
+}
+```
+
+The thread contract requires 8-15 posts, a maximum of 280 characters per post,
+`---` separator lines, and a final genuine question. Threads-platform drafts
+use the slot-based object and are additionally checked for a 500-character
+maximum, short-line layout, emoji limits, and no hashtags.
+
+## LinkedIn post generation
+
+LinkedIn has its own repository-level prompt contract and deterministic checks,
+but the complete user-facing automation editor is still WIP.
+
+### System structure
+
+```text
+VOICE
+  educator or practitioner preset
+
+NICHE BRIEF
+  niche, audience, core promise, and pain points
+
+EXCLUSIONS
+  topics the automation must not cover
+
+PROOF
+  the only permitted source of personal claims and outcome numbers
+
+FORMAT
+  plain text, no links, no hashtags, at most one emoji
+  blank lines between ideas, 500-1900 characters
+  first 200 characters must work before the "see more" fold
+
+SPECIFICITY AND RELEVANCE
+  concrete artifacts across multiple types
+  explicit connection to the audience promise and cost of inaction
+  no unsupported author, client, or performance claims
+```
+
+### User structure
+
+```text
+Archetype: <label>
+Structure: <structure>
+Template: <template>
+Content pillar: <pillar>
+Hook style: <formula>
+
+Selected hook mechanic + shape example
+Niche/archetype hook exemplar
+Outcome anchor
+Hook, voice, tool, count, and closer requirements
+Selected closer mechanic + shape example
+Formatting reliability checklist
+
+Fill every slot. Slots are joined with blank lines in order.
+
+Repair addition, on retry:
+  previous attempt failed validation
+  <exact slot and deterministic-check errors>
+```
+
+### Output structure
+
+LinkedIn uses the same archetype-slot pattern as single X/Threads posts:
+
+```json
+{
+  "hook": "<one-line hook>",
+  "body": "<archetype-specific body slot>",
+  "closer": "<one specific question>"
+}
+```
+
+The exact keys and word ranges come from the selected LinkedIn archetype. The
+runner joins slots with blank lines, then checks total length, hook length,
+spacing, links, markdown, hashtags, emoji, em dashes, banned phrasing, and
+unsupported numeric claims. It can make up to three attempts.
+
+## Where configuration enters the prompt
+
+| Editor or runtime value | Slideshow                    | Video                          | X / Threads                            | LinkedIn                                           |
+| ----------------------- | ---------------------------- | ------------------------------ | -------------------------------------- | -------------------------------------------------- |
+| Selected hook/topic     | Fixed hook context           | Opening narrative beat         | Selected plan topic and hook formula   | Selected pillar, hook mechanic, and optional topic |
+| Tone/voice              | Tone + style                 | Tone + style notes             | Voice preset + override                | Persona voice preset                               |
+| Per-item direction      | Text-box content direction   | Caption-item direction         | Archetype slot description             | Archetype slot description                         |
+| Platform rules          | Metadata and slideshow rules | TikTok/Instagram overlay rules | X or Threads rules                     | LinkedIn plain-text rules                          |
+| Prior performance       | Optional proven/avoid memory | Not currently included         | Recent usage influences plan selection | Recent usage can influence plan selection          |
+| Proof                   | Not a slideshow input        | Cannot be invented             | Explicit proof bank                    | Explicit proof bank                                |
+| Output contract         | Metadata + placeholder map   | Metadata + item map            | Archetype slots or thread string       | Archetype slots                                    |
+
+Runtime hook variables such as `[[CURRENT_DATE]]` and variable-collection
+tokens are resolved before the selected slideshow or video hook is inserted
+into the generation prompt.
+
+## Implementation map
+
+The current builders and schemas live in:
+
+- `lib/temp-slide-testing.ts` and `lib/slideshow-text-generation.ts` —
+  slideshow copy and structured output;
+- `lib/slideshow-image-matching.ts` — multimodal candidate selection;
+- `lib/video-copy-prompt.ts` — video system and user prompt builders;
+- `lib/x-automation-generation.ts` and `lib/x-post-presets.ts` — niche brief,
+  X, and Threads generation; and
+- `lib/linkedin-post-presets.ts` and `lib/linkedin-automation-generation.ts` —
+  LinkedIn prompt, schema, validation, and repair.

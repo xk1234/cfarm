@@ -1,11 +1,7 @@
-import { useEffect, useState } from "react"
 import { IconLanguage } from "@tabler/icons-react"
 
 import { SoundSelector } from "@/components/realfarm/creator-ui"
 import { SelectControl, SwitchPillButton } from "@/components/ui/form-controls"
-import { ListSkeleton } from "@/components/ui/loading-skeleton"
-import { fetchJsonWithTimeout } from "@/lib/client-api"
-import type { KnowledgeBaseRecord } from "@/lib/knowledge-bases"
 import {
   automationPublishType,
   type AutomationSchema,
@@ -40,13 +36,8 @@ export function AutomationGeneralSettingsPanel({
   onCancel: () => void
   onSave: () => void
 }) {
-  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseRecord[]>(
-    []
-  )
-  const [knowledgeBasesLoading, setKnowledgeBasesLoading] = useState(true)
   const language = config.language || defaultAutomationLanguage
   const isVideoAutomation = config.automationKind === "video"
-  const knowledgeContextEnabled = config.knowledge_context_enabled === true
   const exportAsVideo = automationPublishType(config) === "video"
   const slideDuration = slideshowDurationValue(
     config.tiktok_post_settings.slideshow_slide_duration
@@ -58,30 +49,6 @@ export function AutomationGeneralSettingsPanel({
     (selectedSound?.id === config.tiktok_post_settings.slideshow_sound_id
       ? selectedSound
       : null)
-
-  useEffect(() => {
-    let active = true
-
-    void fetchJsonWithTimeout<{ knowledgeBases?: KnowledgeBaseRecord[] }>(
-      "/api/knowledge-bases",
-      { toastOnError: false }
-    )
-      .then((payload) => {
-        if (active) {
-          setKnowledgeBases(payload.knowledgeBases ?? [])
-        }
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (active) {
-          setKnowledgeBasesLoading(false)
-        }
-      })
-
-    return () => {
-      active = false
-    }
-  }, [])
 
   function updateLanguage(nextLanguage: string) {
     onConfigChange({
@@ -225,86 +192,6 @@ export function AutomationGeneralSettingsPanel({
           />
         </div>
       ) : null}
-      <section className="mt-6 rounded-[10px] border border-app-panel-border bg-app-surface-subtle p-4">
-        <div className="flex items-center justify-between gap-4">
-          <h3 className="text-[16px] font-semibold text-app-text">
-            Knowledge context
-          </h3>
-          <SwitchPillButton
-            enabled={knowledgeContextEnabled}
-            onClick={() =>
-              onConfigChange({
-                ...config,
-                knowledge_context_enabled: !knowledgeContextEnabled,
-              })
-            }
-            aria-label="Toggle knowledge context"
-          />
-        </div>
-        <p className="mt-1 text-[14px] font-medium text-app-muted-text">
-          Selected knowledge bases are inserted into the final text-generation
-          prompt.
-        </p>
-        <div
-          className={cn(
-            "mt-4 space-y-2 transition-opacity",
-            !knowledgeContextEnabled && "opacity-50"
-          )}
-        >
-          {knowledgeBasesLoading ? (
-            <ListSkeleton count={3} />
-          ) : knowledgeBases.length === 0 ? (
-            <div className="text-[13px] font-semibold text-app-muted-text">
-              Create a knowledge base from Knowledge Bases first.
-            </div>
-          ) : (
-            knowledgeBases.map((item) => {
-              const selected = (config.knowledge_base_ids ?? []).includes(
-                item.id
-              )
-
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  disabled={!knowledgeContextEnabled}
-                  onClick={() =>
-                    onConfigChange({
-                      ...config,
-                      knowledge_base_ids: selected
-                        ? (config.knowledge_base_ids ?? []).filter(
-                            (id) => id !== item.id
-                          )
-                        : [...(config.knowledge_base_ids ?? []), item.id],
-                    })
-                  }
-                  className="flex w-full items-center justify-between rounded-lg border border-app-panel-border bg-app-surface px-4 py-3 text-left disabled:cursor-not-allowed"
-                >
-                  <span>
-                    <span className="block text-[13px] font-semibold text-app-text">
-                      {item.name}
-                    </span>
-                    <span className="mt-0.5 block text-[11px] font-medium text-app-muted-text">
-                      {item.compiledText.length.toLocaleString()} context
-                      characters · {item.status}
-                    </span>
-                  </span>
-                  <span
-                    className={cn(
-                      "grid size-5 place-items-center rounded border text-[11px] font-bold",
-                      selected
-                        ? "border-app-action bg-app-action text-white"
-                        : "border-app-panel-border"
-                    )}
-                  >
-                    {selected ? "✓" : ""}
-                  </span>
-                </button>
-              )
-            })
-          )}
-        </div>
-      </section>
       <SettingsRow
         title="AI web search"
         description={`Allow the generation model to search for current facts when it decides the ${isVideoAutomation ? "video" : "slideshow"} needs them. Search usage adds provider cost.`}

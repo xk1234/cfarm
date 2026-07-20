@@ -55,13 +55,14 @@ export function canonicalRowFields(
         stringValue(obj.runId ?? obj.generationId).slice(0, 255) || null,
       source_entity_id:
         outputSourceEntityId(route.sourceKey, obj).slice(0, 255) || null,
+      has_video: outputHasVideo(route.sourceKey, obj),
       publication_status: publicationStatus,
       scheduled_at: firstString(publications, "scheduledAt"),
       published_at: firstString(publications, "publishedAt"),
       primary_post_id: firstString(publications, "postfastPostId"),
       primary_release_url: firstString(publications, "releaseUrl"),
       publications: JSON.stringify(publications),
-      evaluation: JSON.stringify(obj.evaluation ?? obj.benchmark ?? null),
+      evaluation: JSON.stringify(obj.evaluation ?? null),
       error: stringValue(obj.error).slice(0, 100000) || null,
       updated_at:
         stringValue(obj.updatedAt ?? obj.updated_at ?? obj.createdAt) || null,
@@ -104,6 +105,16 @@ export function canonicalRowFields(
   }
 
   return common
+}
+
+function outputHasVideo(sourceKey: string, obj: Record<string, unknown>) {
+  if (sourceKey === "generated_video") return true
+  const artifacts = asRecord(obj.artifacts)
+  const payload = asRecord(obj.payload)
+  const settings = asRecord(payload.settings)
+  return Boolean(
+    stringValue(artifacts.videoUrl) || settings.export_as_video === true
+  )
 }
 
 export function extractOutputMedia(
@@ -169,15 +180,6 @@ export function extractOutputMedia(
       add(url, "image", "post_image", index)
     )
     delete obj.imageUrls
-  } else if (
-    sourceKey === "slideshow_benchmark" ||
-    sourceKey === "x_benchmark_score"
-  ) {
-    arrayValue(obj.slides).forEach((rawSlide, index) => {
-      const slide = asRecord(rawSlide)
-      add(slide.imageUrl, "image", "evaluation_slide", index)
-      delete slide.imageUrl
-    })
   }
 
   return { storedData, media }
@@ -223,17 +225,6 @@ export function hydrateOutputMedia(
     obj.videoUrl = one("rendered_video")
   } else if (sourceKey === "x_automation_run") {
     obj.imageUrls = many("post_image")
-  } else if (
-    sourceKey === "slideshow_benchmark" ||
-    sourceKey === "x_benchmark_score"
-  ) {
-    const images = many("evaluation_slide")
-    if (Array.isArray(obj.slides)) {
-      obj.slides = obj.slides.map((rawSlide, index) => ({
-        ...asRecord(rawSlide),
-        ...(images[index] ? { imageUrl: images[index] } : {}),
-      }))
-    }
   }
   return obj
 }
@@ -284,7 +275,6 @@ function outputKind(sourceKey: string, obj: Record<string, unknown>): string {
   if (sourceKey === "character_image") return "character_image"
   if (sourceKey === "character_video") return "character_video"
   if (sourceKey === "x_automation_run") return "social_post"
-  if (sourceKey.includes("benchmark")) return "evaluation"
   return sourceKey
 }
 
@@ -340,7 +330,6 @@ function permanentAssetKind(
   if (explicit) return explicit
   if (sourceKey.includes("collection")) return "collection"
   if (sourceKey.includes("template")) return "template"
-  if (sourceKey.includes("benchmark")) return "benchmark"
   return sourceKey
 }
 

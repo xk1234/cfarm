@@ -3,6 +3,7 @@ import { Query } from "node-appwrite"
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import {
   ID_KEYS,
+  NAME_KEYS,
   ownedRowIdFor,
   pickField,
   rowIdFor,
@@ -58,6 +59,29 @@ export async function readJsonArrayStore<T>(
     limit: input.limit,
     order: input.order,
   })
+}
+
+/** Count matching physical rows without hydrating their JSON payloads. */
+export async function countJsonArrayStore<T>(
+  input: JsonArrayStoreInput<T>
+): Promise<number> {
+  const route = requireRouteFor(input)
+  const ownerIds = await ownersForRead(route)
+  const aw = getAppwrite()
+  if (!aw) throw new Error("Appwrite is not configured.")
+  const queries = [...(input.queries ?? []), Query.limit(1)]
+  if (isConsolidated(route)) {
+    queries.unshift(Query.equal("source_key", [route.sourceKey]))
+  }
+  if (ownerIds?.length) {
+    queries.unshift(Query.equal("owner_id", ownerIds))
+  }
+  const response = await aw.tables.listRows(
+    APPWRITE_DATABASE_ID,
+    route.table,
+    queries
+  )
+  return response.total
 }
 
 /** Read one deterministic domain record without scanning its table. */
@@ -345,6 +369,11 @@ async function awWriteTable<T>(
 
   const desired = records.map((rec, index) => {
     const rid = pickField(rec, ID_KEYS)
+    const nameKey =
+      route.sourceKey === "image_collection"
+        ? normalizeStoreName(pickField(rec, NAME_KEYS))
+        : ""
+    const stableRid = rid ?? (nameKey || null)
     const ownedRecord = ownerId ? attachOwner(rec, ownerId) : rec
     const extracted =
       route.table === "outputs"
@@ -352,21 +381,22 @@ async function awWriteTable<T>(
         : { storedData: ownedRecord, media: [] }
     return {
       id: ownerId
-        ? storeOwnedRowId(route, ownerId, rid, index)
-        : storeRowId(route, rid, index),
+        ? storeOwnedRowId(route, ownerId, stableRid, index)
+        : storeRowId(route, stableRid, index),
+      nameKey,
+      rid,
       media: extracted.media,
       payload: {
-        rid: (rid ?? `idx-${index}`).slice(0, 1024),
+        rid: (stableRid ?? `idx-${index}`).slice(0, 1024),
         ...canonicalRowFields(route, rec, extracted.storedData),
         ord: index,
         ...(ownerId ? { owner_id: ownerId } : {}),
       },
     }
   })
-  const desiredIds = new Set(desired.map((d) => d.id))
-
   // Existing row ids (for deletion of removed records).
   const existingIds: string[] = []
+  const existingImageCollectionIdsByName = new Map<string, string>()
   let cursor: string | null = null
   for (;;) {
     const queries = [Query.limit(PAGE)]
@@ -381,10 +411,32 @@ async function awWriteTable<T>(
       queries
     )
     const rows = res.rows as Array<Record<string, unknown>>
-    for (const row of rows) existingIds.push(String(row.$id))
+    for (const row of rows) {
+      const rowId = String(row.$id)
+      existingIds.push(rowId)
+      if (route.sourceKey === "image_collection") {
+        const nameKey = normalizeStoreName(
+          typeof row.name === "string" ? row.name : ""
+        )
+        if (nameKey && !existingImageCollectionIdsByName.has(nameKey)) {
+          existingImageCollectionIdsByName.set(nameKey, rowId)
+        }
+      }
+    }
     if (rows.length < PAGE) break
     cursor = String(rows[rows.length - 1].$id)
   }
+
+  // Image collections historically had no explicit domain id, so older rows
+  // were keyed by array position. Reordering the array to prepend a collection
+  // changed every desired row id and looked like a full-table deletion. Reuse
+  // legacy row ids by collection name while giving new rows a stable name-based
+  // id. This preserves every existing collection during the transition.
+  for (const item of desired) {
+    if (item.rid || !item.nameKey) continue
+    item.id = existingImageCollectionIdsByName.get(item.nameKey) ?? item.id
+  }
+  const desiredIds = new Set(desired.map((d) => d.id))
 
   // Refuse catastrophic shrink BEFORE touching any row: a bulk write that
   // removes most of a table almost always means the caller's list came from a
@@ -416,6 +468,10 @@ async function awWriteTable<T>(
     )
     if (route.table === "outputs") await deleteOutputMedia(aw, [id])
   })
+}
+
+function normalizeStoreName(value: string | null) {
+  return (value ?? "").trim().toLowerCase()
 }
 
 async function awUpsertRecord<T>(

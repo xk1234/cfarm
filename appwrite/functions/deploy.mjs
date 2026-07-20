@@ -1,4 +1,4 @@
-// Self-contained deploy for the Cfarm Appwrite Functions (automation-scheduler + job-worker).
+// Self-contained deploy for the LumenClip Appwrite Functions (automation-scheduler + job-worker).
 // Usage (from repo root):
 //   APPWRITE_ENDPOINT=... APPWRITE_PROJECT_ID=... APPWRITE_API_KEY=... \
 //   APPWRITE_DATABASE_ID=cfarm node appwrite/functions/deploy.mjs
@@ -33,7 +33,6 @@ const optionalProviderVars = Object.fromEntries(
     "DATAFORSEO_PASSWORD",
     "OPENAI_API_KEY",
     "OPENAI_TRANSCRIPTION_MODEL",
-    "KNOWLEDGE_SUMMARY_MODEL",
     "FAL_KEY",
     "FAL_WHISPER_MODEL",
     "TELEGRAM_BOT_TOKEN",

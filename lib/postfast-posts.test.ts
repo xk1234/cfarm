@@ -1,9 +1,7 @@
 import path from "node:path"
 
-import { Query } from "node-appwrite"
 import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
 import {
   listPostFastPostRecords,
@@ -48,8 +46,18 @@ describe("postfast post mapping persistence", () => {
     })
 
     const records = await listPostFastPostRecords({ rootDir })
+    const targeted = await listPostFastPostRecords({
+      rootDir,
+      sourceIds: ["export-1"],
+    })
+    const unrelated = await listPostFastPostRecords({
+      rootDir,
+      sourceIds: ["export-missing"],
+    })
 
     expect(records).toHaveLength(1)
+    expect(targeted.map((record) => record.id)).toEqual([created.id])
+    expect(unrelated).toEqual([])
     expect(updated.id).toBe(created.id)
     expect(records[0]).toMatchObject({
       sourceType: "generated_video",

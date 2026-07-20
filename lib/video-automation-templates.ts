@@ -63,6 +63,49 @@ const ugcAdPreset: VideoAutomationTemplatePreset = {
   }),
 }
 
+const greenscreenMemePreset: VideoAutomationTemplatePreset = {
+  id: "greenscreen_meme",
+  name: "Greenscreen Meme",
+  tagline: "Meme clip over a fresh background",
+  description:
+    "Pairs one reusable greenscreen reaction clip with a background image and a hook caption. Built for fast, repeatable meme posts.",
+  buildFormat: () => ({
+    template: "greenscreen_meme",
+    hookPlacement: "global",
+    globalTextItems: [
+      defaultAutomationTextItem({
+        contentDirection: "short punchy meme hook shown above the subject",
+        textStyle: "outline",
+        fontSize: "10px",
+        textPosition: "top",
+        textItemWidth: "84%",
+        wordLengthMin: 4,
+        wordLengthMax: 14,
+      }),
+    ],
+    segments: [
+      segment({
+        id: "greenscreen-meme",
+        label: "Greenscreen meme clip",
+        guidance:
+          "One reusable greenscreen reaction or meme clip. It will be chroma-keyed over the selected background.",
+        mediaKind: "video",
+        collectionId: "collection-greenscreen-memes",
+        clipCount: 1,
+        playFullVideo: true,
+      }),
+      segment({
+        id: "greenscreen-background",
+        label: "Background image",
+        guidance:
+          "A background image that provides the context or punchline for the meme.",
+        mediaKind: "image",
+        clipCount: 1,
+      }),
+    ],
+  }),
+}
+
 const reactRevealPreset: VideoAutomationTemplatePreset = {
   id: "react_reveal",
   name: "React & Reveal",
@@ -523,6 +566,7 @@ const facelessReelPreset: VideoAutomationTemplatePreset = {
 
 export const videoAutomationTemplatePresets: VideoAutomationTemplatePreset[] = [
   ugcAdPreset,
+  greenscreenMemePreset,
   reactRevealPreset,
   compilationPreset,
   birdseyePovPreset,

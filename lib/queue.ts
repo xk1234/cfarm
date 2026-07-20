@@ -39,6 +39,12 @@ export type Job = {
   ownerId: string
 }
 
+export type RetryGenerationJobResult = {
+  job: Job
+  retried: boolean
+  reason?: "not_generation" | "not_failed"
+}
+
 function jobId(basis: string): string {
   return (
     "j" + crypto.createHash("sha256").update(basis).digest("hex").slice(0, 35)
@@ -139,6 +145,61 @@ export async function getJob(id: string): Promise<Job | null> {
     return job.ownerId === user.$id ? job : null
   } catch {
     return null
+  }
+}
+
+/** Reset a failed generation job so the worker can claim it again immediately. */
+export async function retryGenerationJob(
+  id: string
+): Promise<RetryGenerationJobResult | null> {
+  const aw = getAppwrite()
+  if (!aw) return null
+  const user = await getCurrentUser()
+  if (!user) return null
+
+  let row: Record<string, unknown>
+  try {
+    row = (await aw.tables.getRow(
+      APPWRITE_DATABASE_ID,
+      JOBS_TABLE,
+      id
+    )) as Record<string, unknown>
+  } catch (error) {
+    if ((error as { code?: number }).code === 404) return null
+    throw error
+  }
+
+  const job = mapJob(row)
+  if (job.ownerId !== user.$id) return null
+  if (job.type !== "run-automation" && job.type !== "run-x-automation") {
+    return { job, retried: false, reason: "not_generation" }
+  }
+  if (job.status !== "failed" && job.status !== "dead") {
+    return { job, retried: false, reason: "not_failed" }
+  }
+
+  const now = new Date().toISOString()
+  await aw.tables.updateRow(APPWRITE_DATABASE_ID, JOBS_TABLE, id, {
+    status: "queued",
+    attempts: 0,
+    available_at: now,
+    leased_by: null,
+    leased_until: null,
+    result: null,
+    error: null,
+    updated_at: now,
+  })
+  return {
+    retried: true,
+    job: {
+      ...job,
+      status: "queued",
+      attempts: 0,
+      availableAt: now,
+      result: null,
+      error: null,
+      updatedAt: now,
+    },
   }
 }
 

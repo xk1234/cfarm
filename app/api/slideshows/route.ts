@@ -7,11 +7,8 @@ import {
   listSlideshowRecords,
   type CreateSlideshowInput,
 } from "@/lib/slideshows"
-import {
-  benchmarkAndStoreGeneratedSlideshow,
-  benchmarkContextFromSlides,
-  benchmarkSlidesFromSlideshow,
-} from "@/lib/slideshow-benchmarks"
+import { countResultRecords } from "@/lib/results"
+import { enqueueReminder } from "@/lib/reminders"
 
 export const dynamic = "force-dynamic"
 
@@ -19,21 +16,20 @@ export const GET = withHandler(async (request: Request) => {
   const { searchParams } = new URL(request.url)
   const limitValue = Number(searchParams.get("limit"))
   const id = searchParams.get("id")?.trim()
-  const limit =
-    Number.isFinite(limitValue) && limitValue > 0 ? limitValue : undefined
-  const allSlideshows = await listSlideshowRecords({
-    limit: Number.MAX_SAFE_INTEGER,
-  })
-  const slideshows = allSlideshows
-    .filter((slideshow) => !id || slideshow.id === id)
-    .slice(0, Math.max(1, limit ?? 100))
+  const limit = Math.min(
+    100,
+    Number.isFinite(limitValue) && limitValue > 0 ? limitValue : 100
+  )
+  const [slideshows, slideshowsCount, videosCount] = await Promise.all([
+    listSlideshowRecords({ id, limit: id ? 1 : limit }),
+    countResultRecords({ workflowType: "slideshow" }),
+    countResultRecords({ workflowType: "slideshow", hasVideo: true }),
+  ])
 
   return NextResponse.json({
     slideshows,
-    slideshowsCount: allSlideshows.length,
-    videosCount: allSlideshows.filter(
-      (slideshow) => slideshow.settings.export_as_video
-    ).length,
+    slideshowsCount,
+    videosCount,
   })
 })
 
@@ -42,33 +38,17 @@ export const POST = withHandler(async (request: Request) => {
   const { slideshow, result } = await createSlideshowResultRecord(
     isRecord(payload) ? (payload as CreateSlideshowInput) : {}
   )
-
-  let benchmark = null
-  let benchmarkError = ""
-  try {
-    const benchmarkSlides = benchmarkSlidesFromSlideshow(slideshow)
-    benchmark = await benchmarkAndStoreGeneratedSlideshow({
-      slideshowId: slideshow.id,
-      runId: result.runId,
-      automationId: slideshow.automationId,
-      title: slideshow.title,
-      icp: benchmarkContextFromSlides({
-        title: slideshow.title,
-        slides: benchmarkSlides,
-      }),
-      slides: benchmarkSlides,
-    })
-  } catch (error) {
-    benchmarkError =
-      error instanceof Error ? error.message : "Slideshow benchmark failed"
-  }
+  await enqueueReminder({
+    event: "generated",
+    sourceType: "slideshow",
+    sourceId: slideshow.id,
+    text: `Slideshow generated\n${slideshow.title}`,
+  }).catch(() => undefined)
 
   return NextResponse.json(
     {
       slideshow,
       result,
-      benchmark,
-      benchmarkError: benchmarkError || undefined,
     },
     { status: 201 }
   )

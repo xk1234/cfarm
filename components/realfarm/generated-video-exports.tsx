@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   AutomationGenerationEmptyState,
   AutomationGenerationGrid,
@@ -62,13 +63,18 @@ export function GeneratedVideoExports({
   const [viewerItem, setViewerItem] = useState<GeneratedVideoExport | null>(
     null
   )
+  const [locallyScheduledIds, setLocallyScheduledIds] = useState<string[]>([])
 
   const visibleExports =
     variant === "automation" ? exports.slice(0, 3) : exports
   const cards = visibleExports.map((item) => (
     <GeneratedVideoCard
       key={item.id}
-      item={item}
+      item={
+        locallyScheduledIds.includes(item.id)
+          ? { ...item, deletionBlockedBy: "scheduled" }
+          : item
+      }
       onOpen={() => setViewerItem(item)}
       onSchedule={() => setScheduleItem(item)}
       onDeleted={() => onDeleted?.(item.id)}
@@ -105,6 +111,14 @@ export function GeneratedVideoExports({
         <ScheduleGeneratedVideoModal
           item={scheduleItem}
           onClose={() => setScheduleItem(null)}
+          onCompleted={(type) => {
+            if (type === "schedule") {
+              setLocallyScheduledIds((current) => [
+                ...new Set([...current, scheduleItem.id]),
+              ])
+            }
+            setScheduleItem(null)
+          }}
         />
       )}
       {viewerItem ? (
@@ -132,6 +146,7 @@ function GeneratedVideoCard({
     item.previewUrl ? undefined : item.videoUrl
   )
   const [deleting, setDeleting] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const isPending =
     !item.videoUrl && (item.status === "queued" || item.status === "processing")
   const isFailed = !item.videoUrl && item.status === "failed"
@@ -162,26 +177,38 @@ function GeneratedVideoCard({
 
   if (isFailed) {
     return (
-      <MediaCardShell danger>
-        <MediaErrorState
-          title="Generation failed"
-          message={item.error || "This video could not be rendered."}
-          action={
-            <Button
-              type="button"
-              variant="iconControl"
-              size="icon-control-sm"
-              className="absolute top-2 right-2 bg-white/90 text-app-danger-muted shadow-sm hover:bg-app-surface"
-              onClick={deleteOutput}
-              disabled={deleting}
-              aria-label="Delete output"
-              title="Delete output"
-            >
-              <IconTrash className="size-4" />
-            </Button>
-          }
-        />
-      </MediaCardShell>
+      <>
+        <MediaCardShell danger>
+          <MediaErrorState
+            title="Generation failed"
+            message={item.error || "This video could not be rendered."}
+            action={
+              <Button
+                type="button"
+                variant="iconControl"
+                size="icon-control-sm"
+                className="absolute top-2 right-2 bg-white/90 text-app-danger-muted shadow-sm hover:bg-app-surface"
+                onClick={() => setDeleteOpen(true)}
+                disabled={deleting}
+                aria-label="Delete output"
+                title="Delete output"
+              >
+                <IconTrash className="size-4" />
+              </Button>
+            }
+          />
+        </MediaCardShell>
+        {deleteOpen ? (
+          <ConfirmDialog
+            title="Delete this video output?"
+            description="This permanently removes the generated video and cannot be undone."
+            confirmLabel="Delete output"
+            pendingLabel="Deleting…"
+            onCancel={() => setDeleteOpen(false)}
+            onConfirm={deleteOutput}
+          />
+        ) : null}
+      </>
     )
   }
 
@@ -215,81 +242,93 @@ function GeneratedVideoCard({
   }
 
   return (
-    <MediaCardShell>
-      <MediaFrame>
-        {item.videoUrl ? (
-          <>
-            <video
-              ref={videoRef}
-              className="absolute inset-0 h-full w-full object-cover"
-              src={item.videoUrl}
-              poster={item.previewUrl}
-              muted
-              playsInline
-              preload={item.previewUrl ? "none" : "metadata"}
+    <>
+      <MediaCardShell>
+        <MediaFrame>
+          {item.videoUrl ? (
+            <>
+              <video
+                ref={videoRef}
+                className="absolute inset-0 h-full w-full object-cover"
+                src={item.videoUrl}
+                poster={item.previewUrl}
+                muted
+                playsInline
+                preload={item.previewUrl ? "none" : "metadata"}
+              />
+              {!item.previewUrl && !thumbnailReady ? (
+                <div className="app-media-poster-fallback pointer-events-none absolute inset-0" />
+              ) : null}
+              <button
+                className="absolute inset-0 z-10 flex items-center justify-center"
+                onClick={onOpen}
+                aria-label="Open video viewer"
+              >
+                <div className="grid size-14 place-items-center rounded-full bg-black/50 backdrop-blur-sm transition hover:bg-black/60">
+                  <IconPlayerPlay className="size-7 text-white" fill="white" />
+                </div>
+              </button>
+            </>
+          ) : item.previewUrl ? (
+            <div
+              className="absolute inset-0 bg-cover bg-center"
+              style={{ backgroundImage: `url(${item.previewUrl})` }}
             />
-            {!item.previewUrl && !thumbnailReady ? (
-              <div className="app-media-poster-fallback pointer-events-none absolute inset-0" />
-            ) : null}
-            <button
-              className="absolute inset-0 z-10 flex items-center justify-center"
-              onClick={onOpen}
-              aria-label="Open video viewer"
+          ) : (
+            <div className="app-media-poster-fallback absolute inset-0" />
+          )}
+          <div className="absolute top-2 right-2 z-20 flex gap-1">
+            <Button
+              type="button"
+              variant="iconControl"
+              size="icon-control-sm"
+              className="bg-white/90 text-app-text shadow-sm hover:bg-app-surface"
+              onClick={saveVideo}
+              disabled={!item.videoUrl}
+              aria-label="Save video"
+              title="Save video"
             >
-              <div className="grid size-14 place-items-center rounded-full bg-black/50 backdrop-blur-sm transition hover:bg-black/60">
-                <IconPlayerPlay className="size-7 text-white" fill="white" />
-              </div>
-            </button>
-          </>
-        ) : item.previewUrl ? (
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${item.previewUrl})` }}
-          />
-        ) : (
-          <div className="app-media-poster-fallback absolute inset-0" />
-        )}
-        <div className="absolute top-2 right-2 z-20 flex gap-1">
-          <Button
-            type="button"
-            variant="iconControl"
-            size="icon-control-sm"
-            className="bg-white/90 text-app-text shadow-sm hover:bg-app-surface"
-            onClick={saveVideo}
-            disabled={!item.videoUrl}
-            aria-label="Save video"
-            title="Save video"
-          >
-            <IconDownload className="size-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="iconControl"
-            size="icon-control-sm"
-            className="bg-white/90 text-app-text shadow-sm hover:bg-app-surface"
-            onClick={onSchedule}
-            disabled={!item.videoUrl}
-            aria-label="Schedule post"
-            title="Schedule post"
-          >
-            <IconCalendar className="size-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="iconControl"
-            size="icon-control-sm"
-            className="bg-white/90 text-app-danger-muted shadow-sm hover:bg-app-surface"
-            onClick={deleteOutput}
-            disabled={deleting}
-            aria-label="Delete output"
-            title="Delete output"
-          >
-            <IconTrash className="size-4" />
-          </Button>
-        </div>
-        <GeneratedVideoPublicationStatusSelect item={item} />
-      </MediaFrame>
-    </MediaCardShell>
+              <IconDownload className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="iconControl"
+              size="icon-control-sm"
+              className="bg-white/90 text-app-text shadow-sm hover:bg-app-surface"
+              onClick={onSchedule}
+              disabled={!item.videoUrl}
+              aria-label="Schedule post"
+              title="Schedule post"
+            >
+              <IconCalendar className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="iconControl"
+              size="icon-control-sm"
+              className="bg-white/90 text-app-danger-muted shadow-sm hover:bg-app-surface"
+              onClick={() => setDeleteOpen(true)}
+              disabled={deleting}
+              aria-label="Delete output"
+              title="Delete output"
+            >
+              <IconTrash className="size-4" />
+            </Button>
+          </div>
+          <GeneratedVideoPublicationStatusSelect item={item} />
+        </MediaFrame>
+      </MediaCardShell>
+      {deleteOpen ? (
+        <ConfirmDialog
+          title="Delete this video output?"
+          description="This permanently removes the generated video and cannot be undone."
+          confirmLabel="Delete output"
+          pendingLabel="Deleting…"
+          onCancel={() => setDeleteOpen(false)}
+          onConfirm={deleteOutput}
+        />
+      ) : null}
+    </>
   )
 }
 
@@ -345,9 +384,11 @@ function GeneratedVideoPublicationStatusSelect({
 function ScheduleGeneratedVideoModal({
   item,
   onClose,
+  onCompleted,
 }: {
   item: GeneratedVideoExport
   onClose: () => void
+  onCompleted: (type: PostFastCreatePostType) => void
 }) {
   const {
     integrations,
@@ -364,9 +405,16 @@ function ScheduleGeneratedVideoModal({
   const [scheduledAt, setScheduledAt] = useState(defaultScheduleDateTime)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
+  const [completedIntegrationKeys, setCompletedIntegrationKeys] = useState<
+    string[]
+  >([])
 
   function toggleIntegration(integration: PostFastSocialIntegration) {
     const key = socialIntegrationKey(integration)
+    if (completedIntegrationKeys.includes(key)) {
+      toast.message(`${integration.name} was already completed in this attempt`)
+      return
+    }
     setSelectedIntegrationIds((currentState) => {
       const current = currentState ?? integrations.map(socialIntegrationKey)
       return current.includes(key)
@@ -376,8 +424,10 @@ function ScheduleGeneratedVideoModal({
   }
 
   async function submitPost() {
-    const selectedIntegrations = integrations.filter((integration) =>
-      selectedIntegrationIds.includes(socialIntegrationKey(integration))
+    const selectedIntegrations = integrations.filter(
+      (integration) =>
+        selectedIntegrationIds.includes(socialIntegrationKey(integration)) &&
+        !completedIntegrationKeys.includes(socialIntegrationKey(integration))
     )
     if (!item.videoUrl) {
       setError("This output does not have a rendered video yet.")
@@ -403,27 +453,44 @@ function ScheduleGeneratedVideoModal({
     setError("")
 
     try {
-      await toast.promise(
-        createPostsForIntegrations({
-          item,
-          integrations: selectedIntegrations,
-          type: postType,
-          scheduledAt: postType === "schedule" ? scheduledAt : undefined,
-        }),
-        {
-          loading: postSubmitLoadingLabel(
-            postType,
-            selectedIntegrations.length
-          ),
-          success: postSubmitSuccessLabel(
-            postType,
-            selectedIntegrations.length
-          ),
-          error: (submitError) =>
-            getApiErrorMessage(submitError, postSubmitErrorLabel(postType)),
-        }
-      )
-      onClose()
+      const result = await toast
+        .promise(
+          createPostsForIntegrations({
+            item,
+            integrations: selectedIntegrations,
+            type: postType,
+            scheduledAt: postType === "schedule" ? scheduledAt : undefined,
+          }),
+          {
+            loading: postSubmitLoadingLabel(
+              postType,
+              selectedIntegrations.length
+            ),
+            success: (result) =>
+              result.failed.length > 0
+                ? `${result.succeeded.length} of ${selectedIntegrations.length} accounts completed`
+                : postSubmitSuccessLabel(postType, selectedIntegrations.length),
+            error: (submitError) =>
+              getApiErrorMessage(submitError, postSubmitErrorLabel(postType)),
+          }
+        )
+        .unwrap()
+      if (result.succeeded.length > 0) {
+        setCompletedIntegrationKeys((current) => [
+          ...new Set([
+            ...current,
+            ...result.succeeded.map(socialIntegrationKey),
+          ]),
+        ])
+      }
+      if (result.failed.length > 0) {
+        setSelectedIntegrationIds(result.failed.map(socialIntegrationKey))
+        setError(
+          `${result.succeeded.length} account${result.succeeded.length === 1 ? "" : "s"} completed. Failed: ${result.failed.map((integration) => integration.name).join(", ")}. Retry will only submit the failed accounts.`
+        )
+        return
+      }
+      onCompleted(postType)
     } catch (submitError) {
       setError(getApiErrorMessage(submitError, postSubmitErrorLabel(postType)))
     } finally {
@@ -494,6 +561,9 @@ function ScheduleGeneratedVideoModal({
                 value={scheduledAt}
                 onChange={(event) => setScheduledAt(event.target.value)}
               />
+              <span className="mt-1 block text-[11px] font-medium text-app-text-faint normal-case">
+                Your device timezone: {localTimezoneLabel()}
+              </span>
             </label>
           )}
           <Button
@@ -531,15 +601,23 @@ async function createPostsForIntegrations({
   scheduledAt?: string
 }) {
   const media = await uploadGeneratedVideoToPostFast(item)
+  const succeeded: PostFastSocialIntegration[] = []
+  const failed: PostFastSocialIntegration[] = []
   for (const integration of integrations) {
-    await createPostFastPost({
-      item,
-      integration,
-      media,
-      type,
-      scheduledAt,
-    })
+    try {
+      await createPostFastPost({
+        item,
+        integration,
+        media,
+        type,
+        scheduledAt,
+      })
+      succeeded.push(integration)
+    } catch {
+      failed.push(integration)
+    }
   }
+  return { succeeded, failed }
 }
 
 async function uploadGeneratedVideoToPostFast(item: GeneratedVideoExport) {
@@ -716,6 +794,10 @@ function toDateTimeLocalValue(date: Date) {
     date.getTime() - date.getTimezoneOffset() * 60_000
   )
   return offsetDate.toISOString().slice(0, 16)
+}
+
+function localTimezoneLabel() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone
 }
 
 function downloadFileName(item: GeneratedVideoExport) {

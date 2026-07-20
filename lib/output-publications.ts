@@ -23,6 +23,29 @@ export async function listOutputPublications(): Promise<PostFastPostRecord[]> {
   return rows.flatMap((row) => parsePublications(row.publications))
 }
 
+export async function listOutputPublicationsForSources(input: {
+  entityIds?: string[]
+  runIds?: string[]
+}): Promise<PostFastPostRecord[]> {
+  const entityIds = cleanIds(input.entityIds)
+  const runIds = cleanIds(input.runIds)
+  if (entityIds.length === 0 && runIds.length === 0) return []
+
+  const ownerId = await publicationOwnerId()
+  const groups = await Promise.all([
+    ...(entityIds.length
+      ? [listOutputRows(ownerId, [Query.equal("source_entity_id", entityIds)])]
+      : []),
+    ...(runIds.length
+      ? [listOutputRows(ownerId, [Query.equal("source_run_id", runIds)])]
+      : []),
+  ])
+  const rows = new Map(groups.flat().map((row) => [row.$id, row]))
+  return [...rows.values()].flatMap((row) =>
+    parsePublications(row.publications)
+  )
+}
+
 export async function writeOutputPublications(
   records: PostFastPostRecord[]
 ): Promise<void> {
@@ -57,13 +80,20 @@ export async function writeOutputPublications(
   }
 }
 
-async function listOutputRows(ownerId: string): Promise<OutputRow[]> {
+async function listOutputRows(
+  ownerId: string,
+  filters: string[] = []
+): Promise<OutputRow[]> {
   const aw = getAppwrite()
   if (!aw) throw new Error("Appwrite is not configured.")
   const rows: OutputRow[] = []
   let cursor: string | null = null
   for (;;) {
-    const queries = [Query.equal("owner_id", [ownerId]), Query.limit(PAGE)]
+    const queries = [
+      Query.equal("owner_id", [ownerId]),
+      ...filters,
+      Query.limit(PAGE),
+    ]
     if (cursor) queries.push(Query.cursorAfter(cursor))
     const response = await aw.tables.listRows(
       APPWRITE_DATABASE_ID,
@@ -75,6 +105,12 @@ async function listOutputRows(ownerId: string): Promise<OutputRow[]> {
     cursor = response.rows.at(-1)?.$id ?? null
   }
   return rows
+}
+
+function cleanIds(values: string[] | undefined) {
+  return [...new Set((values ?? []).map((value) => value.trim()))]
+    .filter(Boolean)
+    .slice(0, 100)
 }
 
 async function updateOutputPublications(

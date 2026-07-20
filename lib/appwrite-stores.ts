@@ -23,23 +23,6 @@ const RAW_STORE_ROUTES: Record<string, StoreRoute | string> = {
     sourceKey: "image_collection",
     public: false,
   },
-  "characters.json": {
-    table: "permanent_assets",
-    sourceKey: "character",
-    public: false,
-  },
-  "characters/images.json": {
-    table: "outputs",
-    sourceKey: "character_image",
-    public: false,
-    shareable: true,
-  },
-  "characters/videos.json": {
-    table: "outputs",
-    sourceKey: "character_video",
-    public: false,
-    shareable: true,
-  },
   "assets/assets.json": {
     table: "permanent_assets",
     sourceKey: "uploaded_asset",
@@ -78,41 +61,9 @@ const RAW_STORE_ROUTES: Record<string, StoreRoute | string> = {
   },
   "postfast-metric-snapshots.json": "postfast_metric_snapshots",
   "account-follower-snapshots.json": "account_follower_snapshots",
-  "swipes/swipes.json": {
-    table: "permanent_assets",
-    sourceKey: "swipe",
-    public: false,
-  },
   "generated-videos/exports.json": {
     table: "outputs",
     sourceKey: "generated_video",
-    public: false,
-    shareable: true,
-  },
-  "knowledge-bases/knowledge-bases.json": {
-    table: "permanent_assets",
-    sourceKey: "knowledge_base",
-    public: false,
-  },
-  "benchmarks/corpus.json": {
-    table: "permanent_assets",
-    sourceKey: "benchmark_slideshow",
-    public: true,
-  },
-  "benchmarks/scores.json": {
-    table: "outputs",
-    sourceKey: "slideshow_benchmark",
-    public: false,
-    shareable: true,
-  },
-  "x-benchmarks/corpus.json": {
-    table: "permanent_assets",
-    sourceKey: "x_benchmark",
-    public: true,
-  },
-  "x-benchmarks/scores.json": {
-    table: "outputs",
-    sourceKey: "x_benchmark_score",
     public: false,
     shareable: true,
   },
@@ -125,6 +76,11 @@ const RAW_STORE_ROUTES: Record<string, StoreRoute | string> = {
     table: "permanent_assets",
     sourceKey: "media_library_asset",
     public: true,
+  },
+  "settings/reminders.json": {
+    table: "permanent_assets",
+    sourceKey: "reminder_settings",
+    public: false,
   },
 }
 
@@ -232,8 +188,6 @@ export function bucketForPath(relPath: string): string {
       return "image_collections"
     case "greenscreen_memes":
       return "greenscreen"
-    case "characters":
-      return "characters"
     case "slideshows":
       return "slideshows"
     case "ugc_avatar_videos":
@@ -242,10 +196,6 @@ export function bucketForPath(relPath: string): string {
       return "backgrounds"
     case "assets":
       return "assets"
-    case "knowledge-base-files":
-      return "knowledge_base_files"
-    case "benchmarks":
-      return "benchmark_images"
     case "product-collections":
       return "product_images"
     default:

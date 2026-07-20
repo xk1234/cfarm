@@ -36,115 +36,13 @@
       "Offer"
     ]
   },
-  "generatedAssets": {},
   "defaultCollections": {
     "backgrounds": {
       "id": "default-backgrounds",
       "title": "Backgrounds",
       "source": "apify",
       "query": "vertical aesthetic backgrounds",
-      "images": [
-        {
-          "id": "local-reddit-travel-01",
-          "title": "Local travel background 1",
-          "description": "Local travel background",
-          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-01-1uirqjm-njalcurky7ah1.jpg",
-          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-01-1uirqjm-njalcurky7ah1.jpg",
-          "dominantColor": "#d9d8d0",
-          "width": 1080,
-          "height": 1350
-        },
-        {
-          "id": "local-reddit-travel-02",
-          "title": "Local travel background 2",
-          "description": "Local travel background",
-          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-02-1oa1mkc-3z2iwppnmwvf1.jpg",
-          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-02-1oa1mkc-3z2iwppnmwvf1.jpg",
-          "dominantColor": "#d9d8d0",
-          "width": 1080,
-          "height": 1350
-        },
-        {
-          "id": "local-reddit-travel-03",
-          "title": "Local travel background 3",
-          "description": "Local travel background",
-          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-03-1q4tit1-b4iej305ikbg1.jpg",
-          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-03-1q4tit1-b4iej305ikbg1.jpg",
-          "dominantColor": "#d9d8d0",
-          "width": 1080,
-          "height": 1350
-        },
-        {
-          "id": "local-reddit-travel-04",
-          "title": "Local travel background 4",
-          "description": "Local travel background",
-          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-04-1ng3bld-ggjxhs6avyof1.jpg",
-          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-04-1ng3bld-ggjxhs6avyof1.jpg",
-          "dominantColor": "#d9d8d0",
-          "width": 1080,
-          "height": 1350
-        },
-        {
-          "id": "local-reddit-travel-05",
-          "title": "Local travel background 5",
-          "description": "Local travel background",
-          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-05-1ufd2nj-vkompyeu4g9h1.jpg",
-          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-05-1ufd2nj-vkompyeu4g9h1.jpg",
-          "dominantColor": "#d9d8d0",
-          "width": 1080,
-          "height": 1350
-        },
-        {
-          "id": "local-reddit-travel-06",
-          "title": "Local travel background 6",
-          "description": "Local travel background",
-          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-06-1o0q5q2-iaf4yr1y0rtf1.jpg",
-          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-06-1o0q5q2-iaf4yr1y0rtf1.jpg",
-          "dominantColor": "#d9d8d0",
-          "width": 1080,
-          "height": 1350
-        },
-        {
-          "id": "local-reddit-travel-07",
-          "title": "Local travel background 7",
-          "description": "Local travel background",
-          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-07-1pbm4em-yccsz5488n4g1.jpg",
-          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-07-1pbm4em-yccsz5488n4g1.jpg",
-          "dominantColor": "#d9d8d0",
-          "width": 1080,
-          "height": 1350
-        },
-        {
-          "id": "local-reddit-travel-08",
-          "title": "Local travel background 8",
-          "description": "Local travel background",
-          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-08-1u3k4y9-jz8zng80vr6h1.jpg",
-          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-08-1u3k4y9-jz8zng80vr6h1.jpg",
-          "dominantColor": "#d9d8d0",
-          "width": 1080,
-          "height": 1350
-        },
-        {
-          "id": "local-reddit-travel-09",
-          "title": "Local travel background 9",
-          "description": "Local travel background",
-          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-09-1rflb38-f3z4z8fkewlg1.jpg",
-          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-09-1rflb38-f3z4z8fkewlg1.jpg",
-          "dominantColor": "#d9d8d0",
-          "width": 1080,
-          "height": 1350
-        },
-        {
-          "id": "local-reddit-travel-10",
-          "title": "Local travel background 10",
-          "description": "Local travel background",
-          "imageUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-10-1rp1gxw-wq6jf25031og1.jpg",
-          "sourceUrl": "/api/local-assets/backgrounds/reddit-travel/reddit-travel-10-1rp1gxw-wq6jf25031og1.jpg",
-          "dominantColor": "#d9d8d0",
-          "width": 1080,
-          "height": 1350
-        }
-      ]
+      "images": []
     }
   },
   "projects": [],

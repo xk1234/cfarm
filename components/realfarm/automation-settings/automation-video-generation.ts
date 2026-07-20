@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  renderAndUploadGreenscreenVideo,
   renderAndUploadTemplateVideo,
   renderAndUploadUgcAdVideo,
   type TemplateVideoText,
@@ -51,7 +52,9 @@ export async function generateAutomationVideo(
 
   return format.template === "ugc_ad"
     ? generateUgcAdVideo(input)
-    : generateTemplateVideo(input, format)
+    : format.template === "greenscreen_meme"
+      ? generateGreenscreenMemeVideo(input, format)
+      : generateTemplateVideo(input, format)
 }
 
 export function automationVideoGenerationIssue(
@@ -262,6 +265,104 @@ async function generateTemplateVideo(
         videoUrl: rendered.videoUrl,
       },
       "Failed to update video template export"
+    )
+    input.onExportUpdate?.(ready)
+    return ready
+  } catch (error) {
+    await markFailedExport(exportRecord, error, input.onExportUpdate)
+    throw error
+  }
+}
+
+async function generateGreenscreenMemeVideo(
+  input: AutomationVideoGenerationInput,
+  format: AutomationVideoFormat
+) {
+  const memeSegment = format.segments.find(
+    (segment) => segment.id === "greenscreen-meme"
+  )
+  const backgroundSegment = format.segments.find(
+    (segment) => segment.id === "greenscreen-background"
+  )
+  const memeCollection = memeSegment
+    ? resolveMediaCollection(
+        input.collections,
+        memeSegment.collectionId,
+        "video"
+      )
+    : undefined
+  const backgroundCollection = backgroundSegment
+    ? resolveMediaCollection(
+        input.collections,
+        backgroundSegment.collectionId,
+        "image"
+      )
+    : undefined
+  const meme = sampleItems(memeCollection?.images ?? [], 1)[0]
+  const background = sampleItems(backgroundCollection?.images ?? [], 1)[0]
+  if (!meme) {
+    throw new Error(
+      "Choose a greenscreen meme video collection before generating."
+    )
+  }
+  if (!background) {
+    throw new Error("Choose a background image collection before generating.")
+  }
+
+  const selectedHook = pickRandomHook(
+    automationHooks(input.config),
+    input.config.title || input.automation.name
+  )
+  const copy = await requestVideoCopy(input.automation.id, format, selectedHook)
+  const hook = copy.hook || selectedHook
+  const sound = selectedAutomationSound(input)
+  const hookTextItem = format.globalTextItems[0]
+  const textPlacement = textPlacementFromItem(
+    hookTextItem ?? defaultAutomationTextItem()
+  )
+  let exportRecord: GeneratedVideoExport | null = null
+
+  try {
+    exportRecord = await createGeneratedVideoExportRecord(
+      {
+        type: "greenscreen",
+        status: "processing",
+        title: copy.title || hook,
+        description: copy.caption || hook,
+        hashtags: copy.hashtags,
+        caption: copy.caption || hook,
+        sourceConfig: {
+          automationId: input.automation.id,
+          automationName: input.automation.name,
+          template: format.template,
+          hook,
+          memeCollectionId: memeCollection?.id,
+          memeUrl: meme.imageUrl,
+          backgroundCollectionId: backgroundCollection?.id,
+          backgroundImageUrl: background.imageUrl,
+          sound,
+          textPlacement,
+        },
+      },
+      "Failed to create greenscreen meme export"
+    )
+    input.onExportUpdate?.(exportRecord)
+
+    const rendered = await renderAndUploadGreenscreenVideo({
+      caption: hook,
+      memeUrl: meme.imageUrl,
+      backgroundImageUrl: background.imageUrl,
+      soundUrl: sound?.url,
+      textPlacement,
+    })
+    const ready = await updateGeneratedVideoExportRecord(
+      exportRecord.id,
+      {
+        status: "ready",
+        previewUrl: rendered.thumbnailUrl,
+        videoUrl: rendered.videoUrl,
+      },
+      "Failed to update greenscreen meme export"
     )
     input.onExportUpdate?.(ready)
     return ready

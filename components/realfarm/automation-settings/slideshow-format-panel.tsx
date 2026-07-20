@@ -11,7 +11,10 @@ import { Button } from "@/components/ui/button"
 import { SelectLike } from "@/components/ui/form-controls"
 import {
   automationFormatSection,
+  automationImageGrids,
   defaultAutomationTextItem,
+  imageGridLabel,
+  labelToImageGrid,
   schemaWithAutomationCollectionId,
   updateAutomationFormatSection,
   type AutomationFormatSection,
@@ -110,6 +113,20 @@ export function AutomationFormatPanel({
     previewGap
   )
 
+  function applyHistoryStep(direction: "undo" | "redo") {
+    const source = direction === "undo" ? undoStackRef : redoStackRef
+    const destination = direction === "undo" ? redoStackRef : undoStackRef
+    const next = source.current.pop()
+    if (!next) return
+    destination.current.push(structuredClone(configRef.current))
+    configRef.current = next
+    setHistoryCounts({
+      undo: undoStackRef.current.length,
+      redo: redoStackRef.current.length,
+    })
+    onConfigChangeRef.current(next)
+  }
+
   useEffect(() => {
     configRef.current = config
     onConfigChangeRef.current = onConfigChange
@@ -194,20 +211,6 @@ export function AutomationFormatPanel({
     redoStackRef.current = []
     configRef.current = next
     setHistoryCounts({ undo: undoStackRef.current.length, redo: 0 })
-    onConfigChangeRef.current(next)
-  }
-
-  function applyHistoryStep(direction: "undo" | "redo") {
-    const source = direction === "undo" ? undoStackRef : redoStackRef
-    const destination = direction === "undo" ? redoStackRef : undoStackRef
-    const next = source.current.pop()
-    if (!next) return
-    destination.current.push(structuredClone(configRef.current))
-    configRef.current = next
-    setHistoryCounts({
-      undo: undoStackRef.current.length,
-      redo: redoStackRef.current.length,
-    })
     onConfigChangeRef.current(next)
   }
 
@@ -565,6 +568,19 @@ export function AutomationFormatPanel({
                 }
                 onCreateCollection={onCreateCollection}
               />
+
+              <div className="mb-3">
+                <SelectLike
+                  value={imageGridLabel(activeSection.imageGrid)}
+                  options={automationImageGrids.map(imageGridLabel)}
+                  placement="bottom"
+                  onChange={(value) =>
+                    updateFormatSection(activeKey, {
+                      imageGrid: labelToImageGrid(value),
+                    })
+                  }
+                />
+              </div>
 
               {activeTab === "Content" && (
                 <div

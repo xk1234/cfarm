@@ -2,9 +2,9 @@ import lexicon from "@/lib/llm-slop-lexicon.json"
 
 /**
  * Shared guardrail against common LLM-tell words/phrases in generated copy.
- * The lexicon (lib/llm-slop-lexicon.json) is the single source of truth and is
- * also consumed by scripts/linkedin-lab/judge.mjs. Matches feed the generation
- * repair loops, so the model is told exactly which term to remove and retries.
+ * The lexicon (lib/llm-slop-lexicon.json) is the single source of truth. Matches
+ * feed the generation repair loops, so the model is told exactly which term to
+ * remove and retries.
  */
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")

@@ -5,22 +5,25 @@ import { flushSync } from "react-dom"
 import { toast } from "sonner"
 import {
   IconBrandTiktok,
+  IconChartBar,
   IconCalendar,
   IconChevronLeft,
   IconHome,
   IconMessage,
+  IconLink,
   IconPlus,
   IconSettings,
   IconTrash,
   IconWand,
 } from "@tabler/icons-react"
-import { Copy } from "lucide-react"
+import { LuCopy } from "react-icons/lu"
 
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
+import { useDirtyGuard } from "@/components/ui/use-dirty-guard"
 import { useAutomationGeneratedVideoExports } from "@/components/realfarm/generated-video-workflow"
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
-import { automationHooks } from "@/lib/realfarm-automation"
+import { automationHookItems } from "@/lib/realfarm-automation"
 import type { AutomationSchema } from "@/lib/realfarm-automation"
 import { cn } from "@/lib/utils"
 
@@ -39,10 +42,12 @@ import type {
 import { AutomationGeneralSettingsPanel } from "./general-settings"
 import { AutomationOverviewPanel } from "./overview-panel"
 import { PromptConfigPanel } from "./prompt-settings"
+import { HookAnalyticsPanel } from "./hook-analytics-panel"
 import { SchedulePanel } from "./schedule-settings"
 import { AutomationFormatPanel } from "./slideshow-format-panel"
 import { SocialMediaSettingsPanel } from "./social-settings"
 import { AutomationSettingsNavButton } from "./settings-nav"
+import { TikTokPublicationImportPanel } from "./tiktok-publication-import-panel"
 import {
   automationVideoGenerationIssue,
   generateAutomationVideo,
@@ -89,17 +94,28 @@ export function AutomationSettingsDrawer({
   const [draftConfig, setDraftConfig] = useState(() =>
     cloneAutomationSchema(config)
   )
+  const [savingConfig, setSavingConfig] = useState(false)
   const [activeGenerationCount, setActiveGenerationCount] = useState(0)
   const generating = activeGenerationCount > 0
   const [duplicating, setDuplicating] = useState(false)
   const [recentRuns, setRecentRuns] = useState<AutomationRunApiRecord[]>([])
+  const [recentRunsError, setRecentRunsError] = useState("")
+  const [runLoadRevision, setRunLoadRevision] = useState(0)
   const [loadedRunsAutomationId, setLoadedRunsAutomationId] = useState<
     string | null
   >(null)
   const recentRunsLoading = loadedRunsAutomationId !== automation.id
   const automationKind =
     draftConfig.automationKind === "video" ? "video" : "slideshow"
-  const hookCount = automationHooks(draftConfig).length
+  const effectiveDraftConfig = {
+    ...draftConfig,
+    social_integrations: config.social_integrations,
+  }
+  const configChanged =
+    JSON.stringify(effectiveDraftConfig) !== JSON.stringify(config)
+  const nameChanged = editingName && draftName.trim() !== automation.name
+  const dirtyGuard = useDirtyGuard(configChanged || nameChanged)
+  const hookCount = automationHookItems(draftConfig).length
   const [videoExports, setVideoExports, videoExportsLoading] =
     useAutomationGeneratedVideoExports(
       automation.id,
@@ -145,14 +161,18 @@ export function AutomationSettingsDrawer({
           })
         })
         setLoadedRunsAutomationId(automation.id)
+        setRecentRunsError("")
         // While anything is generating (including a run discovered after a
         // page reload), keep polling so the live progress stage updates.
         if (hasInFlight || generating) {
           scheduleRunRefresh(15_000)
         }
-      } catch {
+      } catch (error) {
         if (active) {
           setLoadedRunsAutomationId(automation.id)
+          setRecentRunsError(
+            getApiErrorMessage(error, "Failed to load generated slideshows")
+          )
         }
         if (active && generating) {
           scheduleRunRefresh(30_000)
@@ -168,7 +188,7 @@ export function AutomationSettingsDrawer({
         clearTimeout(timer)
       }
     }
-  }, [automation.id, generating])
+  }, [automation.id, generating, runLoadRevision])
 
   function saveName() {
     const nextName = draftName.trim()
@@ -182,10 +202,18 @@ export function AutomationSettingsDrawer({
   }
 
   async function generateAutomation() {
+    if (configChanged) {
+      toast.error("Save or cancel your settings changes before generating")
+      return
+    }
     const preflightError =
       automationKind === "video"
-        ? automationVideoGenerationIssue(draftConfig, collections, demoVideos)
-        : automationGenerationIssue(draftConfig, collections)
+        ? automationVideoGenerationIssue(
+            effectiveDraftConfig,
+            collections,
+            demoVideos
+          )
+        : automationGenerationIssue(effectiveDraftConfig, collections)
     if (preflightError) {
       setActiveTab("overview")
       showGenerationError(preflightError)
@@ -194,13 +222,37 @@ export function AutomationSettingsDrawer({
 
     if (automationKind === "video") {
       const loadingStartedAt = Date.now()
+      const placeholderId = `pending-video-${crypto.randomUUID()}`
+      const videoTemplate = effectiveDraftConfig.video_format?.template
+      const placeholderType =
+        videoTemplate === "greenscreen_meme"
+          ? ("greenscreen" as const)
+          : videoTemplate === "ugc_ad"
+            ? ("ugc_ad" as const)
+            : ("template_video" as const)
+      const placeholderCreatedAt = new Date().toISOString()
       setActiveGenerationCount((count) => count + 1)
       setActiveTab("overview")
+      setVideoExports((current) => [
+        {
+          id: placeholderId,
+          type: placeholderType,
+          status: "processing",
+          createdAt: placeholderCreatedAt,
+          updatedAt: placeholderCreatedAt,
+          title: effectiveDraftConfig.title || automation.name,
+          description: "",
+          hashtags: [],
+          caption: "",
+          sourceConfig: {},
+        },
+        ...current,
+      ])
       try {
-        await persistDraftConfig(automation.id, draftConfig)
+        await persistDraftConfig(automation.id, effectiveDraftConfig)
         await generateAutomationVideo({
           automation,
-          config: draftConfig,
+          config: effectiveDraftConfig,
           collections,
           demoVideos,
           music,
@@ -208,7 +260,10 @@ export function AutomationSettingsDrawer({
           onExportUpdate: (item) =>
             setVideoExports((current) => [
               item,
-              ...current.filter((candidate) => candidate.id !== item.id),
+              ...current.filter(
+                (candidate) =>
+                  candidate.id !== item.id && candidate.id !== placeholderId
+              ),
             ]),
         })
         toast.success("Video generated")
@@ -218,6 +273,9 @@ export function AutomationSettingsDrawer({
           "Video wasn’t generated"
         )
       } finally {
+        setVideoExports((current) =>
+          current.filter((item) => item.id !== placeholderId)
+        )
         const remainingLoadingMs = 450 - (Date.now() - loadingStartedAt)
         if (remainingLoadingMs > 0) await wait(remainingLoadingMs)
         setActiveGenerationCount((count) => Math.max(0, count - 1))
@@ -229,7 +287,7 @@ export function AutomationSettingsDrawer({
     const requestId = crypto.randomUUID()
     const placeholderRun = generationPlaceholderRun({
       automation,
-      config: draftConfig,
+      config: effectiveDraftConfig,
       requestId,
     })
     flushSync(() => {
@@ -243,11 +301,26 @@ export function AutomationSettingsDrawer({
       )
     })
     onGenerationRunUpdate(placeholderRun)
+    function settleGeneration(run?: AutomationRunApiRecord) {
+      setRecentRuns((current) =>
+        run
+          ? [
+              run,
+              ...current.filter(
+                (item) => item.id !== run.id && item.id !== placeholderRun.id
+              ),
+            ].slice(0, 6)
+          : current.filter((item) => item.id !== placeholderRun.id)
+      )
+      onGenerationRunRemove(placeholderRun.id)
+      if (run) onGenerationRunUpdate(run)
+    }
+
     try {
       // Persist the exact editor state first, then let the runner reload the
       // canonical Appwrite row. Passing a client-side schema override here can
       // resurrect stale prompt/style fields from a long-open drawer.
-      await persistDraftConfig(automation.id, draftConfig)
+      await persistDraftConfig(automation.id, effectiveDraftConfig)
       const payload = await fetchJsonWithTimeout<AutomationRunApiPayload>(
         "/api/automations/run",
         {
@@ -276,30 +349,19 @@ export function AutomationSettingsDrawer({
               : payload.skipped?.some((item) => item.reason === "no_images")
                 ? "Choose an image collection with at least one image before generating."
                 : "No slideshow slides were generated for this automation.")
-        setRecentRuns((current) =>
-          current.filter((item) => item.id !== placeholderRun.id)
-        )
-        onGenerationRunRemove(placeholderRun.id)
+        settleGeneration(run)
         showGenerationError(message)
         return
       }
 
-      setRecentRuns((current) =>
-        [
-          run,
-          ...current.filter(
-            (item) => item.id !== run.id && item.id !== placeholderRun.id
-          ),
-        ].slice(0, 6)
-      )
-      onGenerationRunRemove(placeholderRun.id)
-      onGenerationRunUpdate(run)
+      settleGeneration(run)
       setActiveTab("overview")
     } catch (error) {
-      setRecentRuns((current) =>
-        current.filter((item) => item.id !== placeholderRun.id)
-      )
-      onGenerationRunRemove(placeholderRun.id)
+      const failedRun = await loadFailedRunForRequest(
+        automation.id,
+        requestId
+      ).catch(() => undefined)
+      settleGeneration(failedRun)
       showGenerationError(
         getApiErrorMessage(error, "Failed to generate slideshow")
       )
@@ -312,14 +374,23 @@ export function AutomationSettingsDrawer({
     }
   }
 
-  function saveConfigChanges() {
-    onConfigChange(
-      cloneAutomationSchema({
-        ...draftConfig,
-        social_integrations: config.social_integrations,
-      })
-    )
-    setActiveTab("overview")
+  async function saveConfigChanges() {
+    if (savingConfig) return
+    const nextConfig = cloneAutomationSchema(effectiveDraftConfig)
+    setSavingConfig(true)
+    try {
+      await persistDraftConfig(automation.id, nextConfig)
+      onConfigChange(nextConfig)
+      setDraftConfig(cloneAutomationSchema(nextConfig))
+      setActiveTab("overview")
+      toast.success("Automation settings saved")
+    } catch (error) {
+      toast.error(
+        getApiErrorMessage(error, "Failed to save automation settings")
+      )
+    } finally {
+      setSavingConfig(false)
+    }
   }
 
   function cancelConfigChanges() {
@@ -355,11 +426,12 @@ export function AutomationSettingsDrawer({
         <aside className="flex min-h-0 flex-col border-r border-app-panel-border bg-app-surface-subtle p-2">
           <button
             className="mb-2 flex h-10 items-center justify-center gap-2 rounded-[8px] border border-app-panel-border bg-app-surface px-3 text-[14px] font-semibold text-app-text shadow-sm disabled:cursor-not-allowed disabled:opacity-55"
+            disabled={generating || savingConfig}
             onClick={generateAutomation}
             aria-busy={generating}
           >
             <IconPlus className="size-4" />
-            {generating ? "Generate another" : "Generate"}
+            {generating ? "Generating…" : "Generate"}
           </button>
           <div className="space-y-1">
             <AutomationSettingsNavButton
@@ -382,6 +454,12 @@ export function AutomationSettingsDrawer({
               active={activeTab === "hooks"}
               onClick={() => setActiveTab("hooks")}
             />
+            <AutomationSettingsNavButton
+              label="Analytics"
+              icon={IconChartBar}
+              active={activeTab === "analytics"}
+              onClick={() => setActiveTab("analytics")}
+            />
             <div className="my-2 h-px bg-[#e1e0d8]" />
             <AutomationSettingsNavButton
               label="Schedule"
@@ -395,6 +473,14 @@ export function AutomationSettingsDrawer({
               active={activeTab === "tiktok"}
               onClick={() => setActiveTab("tiktok")}
             />
+            {automationKind === "slideshow" && (
+              <AutomationSettingsNavButton
+                label="Published Posts"
+                icon={IconLink}
+                active={activeTab === "published-posts"}
+                onClick={() => setActiveTab("published-posts")}
+              />
+            )}
             <AutomationSettingsNavButton
               label="Settings"
               icon={IconSettings}
@@ -413,7 +499,7 @@ export function AutomationSettingsDrawer({
                 void onDuplicate().finally(() => setDuplicating(false))
               }}
             >
-              <Copy className="size-4" />
+              <LuCopy className="size-4" />
               {duplicating ? "Duplicating..." : "Duplicate"}
             </button>
             <button
@@ -430,7 +516,7 @@ export function AutomationSettingsDrawer({
         {activeTab !== "format" && (
           <button
             className="absolute top-4 right-4 z-10 inline-flex h-8 items-center gap-1 rounded-[6px] px-2 text-[12px] font-semibold text-app-text-soft hover:bg-app-surface-subtle hover:text-app-text"
-            onClick={onClose}
+            onClick={() => dirtyGuard.run(onClose)}
             aria-label="Back to automations"
           >
             <IconChevronLeft className="size-4" />
@@ -453,6 +539,12 @@ export function AutomationSettingsDrawer({
             }}
             recentRuns={recentRuns}
             recentRunsLoading={recentRunsLoading}
+            recentRunsError={recentRunsError}
+            onRetryRecentRuns={() => {
+              setLoadedRunsAutomationId(null)
+              setRecentRunsError("")
+              setRunLoadRevision((revision) => revision + 1)
+            }}
             videoExports={videoExports}
             videoExportsLoading={videoExportsLoading}
             onVideoDeleted={(id) =>
@@ -492,6 +584,9 @@ export function AutomationSettingsDrawer({
             onSave={saveConfigChanges}
           />
         )}
+        {activeTab === "analytics" && (
+          <HookAnalyticsPanel automation={automation} />
+        )}
         {activeTab === "tiktok" && (
           <SocialMediaSettingsPanel
             config={draftConfig}
@@ -511,6 +606,15 @@ export function AutomationSettingsDrawer({
             onSave={saveConfigChanges}
           />
         )}
+        {activeTab === "published-posts" && (
+          <TikTokPublicationImportPanel
+            automationId={automation.id}
+            onRunsImported={(runs) => {
+              setRecentRuns(runs)
+              runs.forEach(onGenerationRunUpdate)
+            }}
+          />
+        )}
         {activeTab === "schedule" && (
           <SchedulePanel
             config={draftConfig}
@@ -520,7 +624,23 @@ export function AutomationSettingsDrawer({
           />
         )}
       </div>
+      {dirtyGuard.confirmation}
     </div>
+  )
+}
+
+async function loadFailedRunForRequest(
+  automationId: string,
+  requestId: string
+) {
+  const payload = await fetchJsonWithTimeout<{
+    runs?: AutomationRunApiRecord[]
+  }>(
+    `/api/automations/runs?automationId=${encodeURIComponent(automationId)}&limit=20`,
+    { timeoutMs: 12_000, toastOnError: false }
+  )
+  return payload.runs?.find(
+    (run) => run.requestId === requestId && run.status === "failed"
   )
 }
 
