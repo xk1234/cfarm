@@ -61,6 +61,7 @@ import type {
 import { automationCollectionIds } from "@/lib/realfarm-automation"
 import {
   collectionAliases,
+  collectionMatchesId,
   storedToCollection,
 } from "@/lib/realfarm-collections"
 import { listProductCollections } from "@/lib/product-collections"
@@ -1228,8 +1229,8 @@ function mediaCollectionSummary(collection: StoredImageCollection) {
 function findMediaCollection(collections: StoredImageCollection[], id: string) {
   const requested = clean(id)
   return (
-    collections.find(
-      (collection) => storedToCollection(collection).id === requested
+    collections.find((collection) =>
+      collectionMatchesId(storedToCollection(collection), requested)
     ) ??
     collections.find(
       (collection) => collection.name.toLowerCase() === requested.toLowerCase()

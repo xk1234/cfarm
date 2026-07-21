@@ -5,12 +5,26 @@ import {
   defaultImageCollections,
   findCollectionByIdOrAlias,
   pinnedCollectionsFirst,
+  storedToCollection,
   ugcAvatarVideoCollectionFromAssets,
   type CreatedImageCollection,
 } from "@/lib/realfarm-collections"
 import type { LocalAsset } from "@/lib/realfarm-data"
 
 describe("realfarm collection helpers", () => {
+  it("uses a stable name slug while retaining the old timestamped id as an alias", () => {
+    const collection = storedToCollection({
+      name: "Mystical Pictures",
+      created_at: "2026-07-14T03:55:21.813Z",
+      images: [],
+    })
+
+    expect(collection.id).toBe("mystical-pictures")
+    expect(collectionAliases(collection)).toContain(
+      "collection-mystical-pictures-2026-07-14t03-55-21-813z"
+    )
+  })
+
   it("puts pinned collections first without changing order within each group", () => {
     const collections = [
       { id: "a", pinned: false },

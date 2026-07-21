@@ -38,7 +38,10 @@ import {
   type AutomationSchema,
   type AutomationContentRoute,
 } from "@/lib/realfarm-automation"
-import { collectionAliases, slugify } from "@/lib/realfarm-collections"
+import {
+  collectionAliases,
+  storedCollectionId,
+} from "@/lib/realfarm-collections"
 import { dueAutomationSlots } from "@/lib/automation-slots"
 import {
   defaultSlideshowTextModel,
@@ -2265,8 +2268,9 @@ async function readImageCollections(
   })
   return collections
     .map((collection) => ({
-      id: `collection-${slugify(`${clean(collection.name)}-${clean(collection.created_at)}`)}`,
+      id: storedCollectionId({ name: clean(collection.name) }),
       name: clean(collection.name),
+      createdAt: clean(collection.created_at),
       images: (collection.images ?? []).flatMap((image) => {
         const imageLink = clean(image.image_link)
         return imageLink
@@ -2285,7 +2289,7 @@ async function readImageCollections(
       aliases: collectionAliases({
         id: collection.id,
         title: collection.name,
-        createdAt: "",
+        createdAt: collection.createdAt,
         source: "pinterest",
         images: collection.images.map((image, index) => ({
           id: `${collection.id}-${index}`,

@@ -29,9 +29,10 @@ type StoredImageCollection = {
 ```
 
 For an image collection, `mediaType` is absent or `"image"`. The client converts
-the record to `CreatedImageCollection`, deriving a display ID from
-`name + created_at` and mapping each stored item to the shared Pinterest result
-shape.
+the record to `CreatedImageCollection`, deriving a stable slug from `name`
+(`Mystical Pictures` becomes `mystical-pictures`) and mapping each stored item
+to the shared Pinterest result shape. The former timestamped ID remains a
+resolution alias so existing automations continue to work.
 
 | Field                       | Meaning                                                           |
 | --------------------------- | ----------------------------------------------------------------- |

@@ -135,7 +135,7 @@ export function storedToCollection(
   collection: StoredImageCollection
 ): CreatedImageCollection {
   return {
-    id: `collection-${slugify(`${collection.name}-${collection.created_at}`)}`,
+    id: storedCollectionId(collection),
     title: collection.name,
     mediaType: collection.mediaType === "video" ? "video" : "image",
     createdAt: normalizedCollectionDate(collection.created_at),
@@ -174,6 +174,15 @@ export function collectionAliases(
 
   if (collection.virtual) {
     return [...aliases].filter(Boolean)
+  }
+
+  if (Number.isFinite(Date.parse(collection.createdAt))) {
+    aliases.add(
+      legacyStoredCollectionId({
+        name: collection.title,
+        created_at: collection.createdAt,
+      })
+    )
   }
 
   for (const image of collection.images) {
@@ -216,6 +225,18 @@ export function slugify(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
+}
+
+export function storedCollectionId(
+  collection: Pick<StoredImageCollection, "name">
+) {
+  return slugify(collection.name)
+}
+
+export function legacyStoredCollectionId(
+  collection: Pick<StoredImageCollection, "name" | "created_at">
+) {
+  return `collection-${slugify(`${collection.name}-${collection.created_at}`)}`
 }
 
 function collectionAliasesFromPath(value: string | undefined) {
