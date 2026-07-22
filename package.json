@@ -13,6 +13,7 @@
     "appwrite:consolidated-stores": "node scripts/provision-consolidated-stores.mjs",
     "appwrite:migrate-consolidated": "tsx scripts/migrate-consolidated-data.ts",
     "appwrite:scan-legacy-shapes": "tsx scripts/scan-legacy-shapes.ts",
+    "appwrite:migrate-legacy-shapes": "NODE_OPTIONS='--conditions=react-server' tsx scripts/migrate-legacy-persisted-shapes.ts",
     "appwrite:local:setup": "node scripts/setup-local-appwrite.mjs",
     "appwrite:local:sync-automations": "node scripts/sync-local-automations.mjs",
     "appwrite:local:sync-reference": "node scripts/sync-local-reference-data.mjs",
