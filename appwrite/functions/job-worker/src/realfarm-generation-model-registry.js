@@ -89,16 +89,21 @@ export const generationModelRegistry = {
         },
     },
     ugc: {
-        // VERIFY before enabling ENABLE_UGC_AUTOMATION: provider slugs and schemas
-        // are intentionally centralized here because FAL changes identifiers.
+        // Slugs verified against fal.ai model pages + OpenShorts saasshorts.py (2026-07-22).
+        // Centralized here because FAL changes identifiers; re-verify before flipping
+        // ENABLE_UGC_AUTOMATION since fal versions/prices drift.
         falFlux2ProEndpoint: "fal-ai/flux-2-pro",
-        falHailuo23FastEndpoint: "fal-ai/minimax/hailuo-2.3-fast/image-to-video",
+        // Hailuo + Kling are namespaced by tier — the bare slugs 404, the /standard path is required.
+        falHailuo23FastEndpoint: "fal-ai/minimax/hailuo-2.3-fast/standard/image-to-video",
         falVeedLipSyncEndpoint: "veed/lipsync",
-        falKlingAvatarV2Endpoint: "fal-ai/kling-video/ai-avatar/v2",
-        // VERIFY before enabling: model compatibility, timestamp endpoint, and the
-        // deployment's chosen voice id.
+        falKlingAvatarV2Endpoint: "fal-ai/kling-video/ai-avatar/v2/standard",
+        // eleven_multilingual_v2 is the documented default for the with-timestamps endpoint
+        // (returns audio_base64 + character alignment). Do NOT use eleven_v3 here — it does
+        // not support /v1/text-to-speech/{voice_id}/with-timestamps.
         elevenLabsModelId: "eleven_multilingual_v2",
-        elevenLabsDefaultVoiceId: "VERIFY_BEFORE_ENABLING",
+        // Rachel — a stable public premade voice. Override per deployment as desired.
+        elevenLabsDefaultVoiceId: "21m00Tcm4TlvDq8ikWAM",
+        // BASE url; the client appends /{voice_id}/with-timestamps (see lib/elevenlabs-tts.ts).
         elevenLabsTimestampEndpoint: "https://api.elevenlabs.io/v1/text-to-speech",
     },
 };

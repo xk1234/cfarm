@@ -24,16 +24,18 @@ export type UgcCostBreakdown = {
   totalUsd: number
 }
 
-// VERIFY pricing before enabling ENABLE_UGC_AUTOMATION. These are budgeting
-// assumptions, not provider quotes; keep them in sync with provider billing.
+// Budgeting estimates, refreshed 2026-07-22 from fal.ai model pages + ElevenLabs
+// pricing. Rounded per-clip figures assume a ~30s vertical UGC clip; providers bill
+// per-MP / per-minute / per-second / per-character, so re-verify before enabling.
 export const UGC_PRICING_USD = {
   openrouter: { ugcAnalysis: 0.01, ugcScript: 0.01 },
   fal: {
-    flux2ProImage: 0.05,
-    hailuo23FastClip: 0.19,
-    lipsync: { lowcost: 0.2, premium: 0.8 },
+    flux2ProImage: 0.03, // ~$0.03 / megapixel (portrait render is ~1MP)
+    hailuo23FastClip: 0.19, // $0.19 / 6s clip (standard tier)
+    // VEED lipsync $0.40/min (~$0.20 for 30s); Kling avatar v2 standard $0.0562/s (~$1.69 for 30s).
+    lipsync: { lowcost: 0.2, premium: 1.69 },
   },
-  elevenlabs: { multilingualV2PerCharacter: 0.1 / 900 },
+  elevenlabs: { multilingualV2PerCharacter: 0.0001 }, // $0.10 / 1,000 chars
   rendi: { ffmpegComposite: 0.03 },
 } as const
 

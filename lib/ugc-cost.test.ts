@@ -30,9 +30,9 @@ describe("estimateUgcCost", () => {
     ).toContain("veed")
     expect(result.items.find((item) => item.stage === "broll")).toMatchObject({
       quantity: 3,
-      costUsd: 0.15,
+      costUsd: 0.09,
     })
-    expect(result.totalUsd).toBe(0.74)
+    expect(result.totalUsd).toBe(0.65)
   })
 
   it("uses Kling pricing for the premium tier", async () => {
@@ -46,9 +46,9 @@ describe("estimateUgcCost", () => {
 
     expect(result.tier).toBe("premium")
     expect(result.items.find((item) => item.stage === "lipsync")).toMatchObject(
-      { model: expect.stringContaining("kling"), costUsd: 0.8 }
+      { model: expect.stringContaining("kling"), costUsd: 1.69 }
     )
-    expect(result.totalUsd).toBe(1.34)
+    expect(result.totalUsd).toBe(2.14)
   })
 })
 
@@ -84,6 +84,6 @@ describe("actualUgcCostFromLedger", () => {
       "ledger",
       "derived",
     ])
-    expect(result.totalUsd).toBe(0.16)
+    expect(result.totalUsd).toBe(0.15)
   })
 })
