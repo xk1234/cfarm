@@ -45,6 +45,10 @@ export type RetryGenerationJobResult = {
   reason?: "not_generation" | "not_failed"
 }
 
+export function deterministicJobId(ownerId: string, dedupeKey: string): string {
+  return jobId(`${ownerId}:${dedupeKey}`)
+}
+
 function jobId(basis: string): string {
   return (
     "j" + crypto.createHash("sha256").update(basis).digest("hex").slice(0, 35)
@@ -87,7 +91,7 @@ export async function enqueueJob(
   if (!user) throw new Error("Authentication is required to enqueue jobs.")
   const nowIso = new Date().toISOString()
   const dedupe = input.dedupeKey ?? `${input.type}:${crypto.randomUUID()}`
-  const id = jobId(`${user.$id}:${dedupe}`)
+  const id = deterministicJobId(user.$id, dedupe)
   try {
     await aw.tables.createRow(APPWRITE_DATABASE_ID, JOBS_TABLE, id, {
       type: input.type,
