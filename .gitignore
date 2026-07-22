@@ -58,3 +58,4 @@ pnpm-debug.log*
 next-env.d.ts
 .agents/logs/
 .vercel
+backups/
