@@ -19,11 +19,12 @@ import { GeneratedVideoExportViewer } from "@/components/realfarm/automation-set
 import { SelectControl } from "@/components/ui/form-controls"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import {
-  MediaCardShell,
-  MediaErrorState,
-  MediaFrame,
-  MediaPendingState,
-} from "@/components/realfarm/shared-media"
+  MediaCard,
+  MediaCardAction,
+  MediaCardActions,
+  MediaCardFallback,
+  MediaCardPreview,
+} from "@/components/ui/media-card"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import {
   generatedVideoTypeConfig,
@@ -167,37 +168,48 @@ function GeneratedVideoCard({
 
   if (isPending) {
     return (
-      <MediaCardShell>
-        <MediaPendingState
-          label={generatedVideoTypeConfig[item.type].pendingLabel}
+      <MediaCard>
+        <MediaCardPreview
+          state="loading"
+          fallback={
+            <MediaCardFallback
+              label={generatedVideoTypeConfig[item.type].pendingLabel}
+              loading
+            />
+          }
         />
-      </MediaCardShell>
+      </MediaCard>
     )
   }
 
   if (isFailed) {
     return (
       <>
-        <MediaCardShell danger>
-          <MediaErrorState
-            title="Generation failed"
-            message={item.error || "This video could not be rendered."}
-            action={
-              <Button
-                type="button"
-                variant="iconControl"
-                size="icon-control-sm"
-                className="absolute top-2 right-2 bg-white/90 text-app-danger-muted shadow-sm hover:bg-app-surface"
+        <MediaCard tone="danger">
+          <MediaCardPreview
+            state="error"
+            fallback={
+              <>
+                <MediaCardFallback label="Generation failed" />
+                <p className="absolute inset-x-6 bottom-6 z-30 line-clamp-4 text-center text-caption font-semibold text-brand-danger">
+                  {item.error || "This video could not be rendered."}
+                </p>
+              </>
+            }
+          >
+            <MediaCardActions>
+              <MediaCardAction
+                className="text-brand-danger"
                 onClick={() => setDeleteOpen(true)}
                 disabled={deleting}
                 aria-label="Delete output"
                 title="Delete output"
               >
                 <IconTrash className="size-4" />
-              </Button>
-            }
-          />
-        </MediaCardShell>
+              </MediaCardAction>
+            </MediaCardActions>
+          </MediaCardPreview>
+        </MediaCard>
         {deleteOpen ? (
           <ConfirmDialog
             title="Delete this video output?"
@@ -243,8 +255,8 @@ function GeneratedVideoCard({
 
   return (
     <>
-      <MediaCardShell>
-        <MediaFrame>
+      <MediaCard>
+        <MediaCardPreview state="ready">
           {item.videoUrl ? (
             <>
               <video
@@ -277,47 +289,36 @@ function GeneratedVideoCard({
           ) : (
             <div className="app-media-poster-fallback absolute inset-0" />
           )}
-          <div className="absolute top-2 right-2 z-20 flex gap-1">
-            <Button
-              type="button"
-              variant="iconControl"
-              size="icon-control-sm"
-              className="bg-white/90 text-app-text shadow-sm hover:bg-app-surface"
+          <MediaCardActions>
+            <MediaCardAction
               onClick={saveVideo}
               disabled={!item.videoUrl}
               aria-label="Save video"
               title="Save video"
             >
               <IconDownload className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="iconControl"
-              size="icon-control-sm"
-              className="bg-white/90 text-app-text shadow-sm hover:bg-app-surface"
+            </MediaCardAction>
+            <MediaCardAction
               onClick={onSchedule}
               disabled={!item.videoUrl}
               aria-label="Schedule post"
               title="Schedule post"
             >
               <IconCalendar className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="iconControl"
-              size="icon-control-sm"
-              className="bg-white/90 text-app-danger-muted shadow-sm hover:bg-app-surface"
+            </MediaCardAction>
+            <MediaCardAction
+              className="text-brand-danger"
               onClick={() => setDeleteOpen(true)}
               disabled={deleting}
               aria-label="Delete output"
               title="Delete output"
             >
               <IconTrash className="size-4" />
-            </Button>
-          </div>
+            </MediaCardAction>
+          </MediaCardActions>
           <GeneratedVideoPublicationStatusSelect item={item} />
-        </MediaFrame>
-      </MediaCardShell>
+        </MediaCardPreview>
+      </MediaCard>
       {deleteOpen ? (
         <ConfirmDialog
           title="Delete this video output?"
