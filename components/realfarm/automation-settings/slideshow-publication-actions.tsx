@@ -16,8 +16,8 @@ import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import type {
   PostFastCreatePostType,
   PostFastMedia,
-  PostFastSocialIntegration,
 } from "@/lib/postfast-client"
+import type { SocialIntegration } from "@/lib/social/provider-contract"
 
 import {
   automationRunSlides,
@@ -121,7 +121,7 @@ function SlideshowPublicationModal({
     [completedKeys, integrations, selectedKeys]
   )
 
-  function toggle(integration: PostFastSocialIntegration) {
+  function toggle(integration: SocialIntegration) {
     const key = socialIntegrationKey(integration)
     if (completedKeys.includes(key)) {
       toast.message(`${integration.name} was already completed in this attempt`)
@@ -184,8 +184,8 @@ function SlideshowPublicationModal({
         }
         const media = await uploadSlideshow(run)
         let updated = run
-        const succeeded: PostFastSocialIntegration[] = []
-        const failed: PostFastSocialIntegration[] = []
+        const succeeded: SocialIntegration[] = []
+        const failed: SocialIntegration[] = []
         for (const integration of selectedIntegrations) {
           try {
             const payload = await createPublicationRecord({
@@ -396,7 +396,7 @@ async function uploadSlideshow(run: AutomationRunApiRecord) {
 
 async function createPublicationRecord(input: {
   run: AutomationRunApiRecord
-  integration: PostFastSocialIntegration
+  integration: SocialIntegration
   type: PostFastCreatePostType | "manual_posted"
   date?: string
   releaseUrl?: string
@@ -442,7 +442,7 @@ type PublicationRecord = {
 
 function withPublicationStatus(
   run: AutomationRunApiRecord,
-  integration: PostFastSocialIntegration,
+  integration: SocialIntegration,
   record: PublicationRecord
 ): AutomationRunApiRecord {
   const status = {

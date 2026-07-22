@@ -29,10 +29,8 @@ import {
   ListSkeleton,
 } from "@/components/ui/loading-skeleton"
 import { UploadDropzone } from "@/components/ui/upload-dropzone"
-import {
-  normalizePostFastIntegration,
-  type PostFastSocialIntegration,
-} from "@/lib/postfast-client"
+import { normalizePostFastSocialIntegration } from "@/lib/social/postfast-adapter"
+import type { SocialIntegration } from "@/lib/social/provider-contract"
 import { clientSWRFetcher } from "@/lib/client-swr"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { cn } from "@/lib/utils"
@@ -533,7 +531,7 @@ function AccountsPanel({
   const [actionError, setActionError] = useState("")
   const [pendingId, setPendingId] = useState("")
   const [disconnectingAccount, setDisconnectingAccount] =
-    useState<PostFastSocialIntegration | null>(null)
+    useState<SocialIntegration | null>(null)
   const error = loadError ? "Could not load accounts." : actionError
   async function connect() {
     const r = await fetch("/api/postfast/connect-url")
@@ -541,7 +539,7 @@ function AccountsPanel({
     if (r.ok && p?.url) window.open(p.url, "_blank", "noopener,noreferrer")
     else setActionError(p?.error || "Could not create a connection link.")
   }
-  async function disconnect(account: PostFastSocialIntegration) {
+  async function disconnect(account: SocialIntegration) {
     setPendingId(account.integration_id)
     setActionError("")
     try {
@@ -564,7 +562,7 @@ function AccountsPanel({
       setPendingId("")
     }
   }
-  async function restore(account: PostFastSocialIntegration) {
+  async function restore(account: SocialIntegration) {
     setPendingId(account.integration_id)
     setActionError("")
     try {
@@ -716,7 +714,7 @@ function AccountsPanel({
 
 function normalizedIntegrations(values: unknown[] | undefined) {
   return (values ?? []).flatMap((value) => {
-    const integration = normalizePostFastIntegration(value)
+    const integration = normalizePostFastSocialIntegration(value)
     return integration ? [integration] : []
   })
 }

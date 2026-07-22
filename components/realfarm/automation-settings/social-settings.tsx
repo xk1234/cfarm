@@ -26,7 +26,7 @@ import {
   defaultPostFastProviderControls,
   type PostFastProviderControls,
 } from "@/lib/postfast-provider-controls"
-import type { PostFastSocialProvider } from "@/lib/postfast-client"
+import type { SocialPlatformKey } from "@/lib/social/provider-contract"
 import { isSlideshowSocialProvider } from "@/lib/slideshow-social-platforms"
 import { cn } from "@/lib/utils"
 
@@ -39,7 +39,7 @@ import { SocialPlatformSettingsFields } from "./social-platform-fields"
 import { SettingsFooter, SettingsPage, SettingsRow } from "./settings-layout"
 
 const socialMediaSettingTabs: {
-  provider: PostFastSocialProvider
+  provider: SocialPlatformKey
   label: string
   icon: Icon
   summary: string
@@ -133,7 +133,7 @@ export function SocialMediaSettingsPanel({
   hideFooter?: boolean
 }) {
   const [activeProvider, setActiveProvider] =
-    useState<PostFastSocialProvider>("tiktok")
+    useState<SocialPlatformKey>("tiktok")
   const activeTab =
     socialMediaSettingTabs.find((tab) => tab.provider === activeProvider) ??
     socialMediaSettingTabs[0]
@@ -163,7 +163,7 @@ export function SocialMediaSettingsPanel({
   }
 
   function updateSocialSettings(
-    provider: PostFastSocialProvider,
+    provider: SocialPlatformKey,
     patch: PostFastProviderControls
   ) {
     onConfigChange({
@@ -367,8 +367,8 @@ export function SocialMediaSettingsPanel({
 }
 
 function socialProviderMatches(
-  activeProvider: PostFastSocialProvider,
-  integrationProvider: PostFastSocialProvider
+  activeProvider: SocialPlatformKey,
+  integrationProvider: SocialPlatformKey
 ) {
   if (activeProvider === "x") {
     return integrationProvider === "x" || integrationProvider === "twitter"

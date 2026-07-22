@@ -33,8 +33,8 @@ import {
 import {
   type PostFastCreatePostType,
   type PostFastMedia,
-  type PostFastSocialIntegration,
 } from "@/lib/postfast-client"
+import type { SocialIntegration } from "@/lib/social/provider-contract"
 import { cn } from "@/lib/utils"
 
 import { useVideoThumbnailFrame } from "./use-video-thumbnail-frame"
@@ -410,7 +410,7 @@ function ScheduleGeneratedVideoModal({
     string[]
   >([])
 
-  function toggleIntegration(integration: PostFastSocialIntegration) {
+  function toggleIntegration(integration: SocialIntegration) {
     const key = socialIntegrationKey(integration)
     if (completedIntegrationKeys.includes(key)) {
       toast.message(`${integration.name} was already completed in this attempt`)
@@ -597,13 +597,13 @@ async function createPostsForIntegrations({
   scheduledAt,
 }: {
   item: GeneratedVideoExport
-  integrations: PostFastSocialIntegration[]
+  integrations: SocialIntegration[]
   type: PostFastCreatePostType
   scheduledAt?: string
 }) {
   const media = await uploadGeneratedVideoToPostFast(item)
-  const succeeded: PostFastSocialIntegration[] = []
-  const failed: PostFastSocialIntegration[] = []
+  const succeeded: SocialIntegration[] = []
+  const failed: SocialIntegration[] = []
   for (const integration of integrations) {
     try {
       await createPostFastPost({
@@ -649,7 +649,7 @@ async function createPostFastPost({
   scheduledAt,
 }: {
   item: GeneratedVideoExport
-  integration: PostFastSocialIntegration
+  integration: SocialIntegration
   media?: PostFastMedia
   type: PostFastCreatePostType
   scheduledAt?: string

@@ -7,11 +7,11 @@ import {
   defaultPostFastProviderControls,
   type PostFastProviderControls,
 } from "@/lib/postfast-provider-controls"
-import type { PostFastSocialProvider } from "@/lib/postfast-client"
+import type { SocialPlatformKey } from "@/lib/social/provider-contract"
 
 export function socialSettingsForProvider(
   config: AutomationSchema,
-  provider: PostFastSocialProvider
+  provider: SocialPlatformKey
 ) {
   return defaultPostFastProviderControls(provider, {
     ...(provider === "tiktok"
@@ -24,7 +24,7 @@ export function socialSettingsForProvider(
 
 export function fixedSocialSettingsForProvider(
   config: AutomationSchema,
-  provider: PostFastSocialProvider
+  provider: SocialPlatformKey
 ): PostFastProviderControls {
   const publishAsVideo = automationProviderPublishesVideo(config, provider)
 
@@ -90,7 +90,9 @@ export function brandDisclosureValue(
   return "none"
 }
 
-export function brandDisclosureValueFromLabel(value: string): BrandDisclosureValue {
+export function brandDisclosureValueFromLabel(
+  value: string
+): BrandDisclosureValue {
   if (value === "Brand organic") {
     return "organic"
   }
@@ -139,4 +141,3 @@ export function settingStringArray(value: unknown) {
     ? value.filter((item): item is string => typeof item === "string")
     : []
 }
-

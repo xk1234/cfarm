@@ -4,7 +4,7 @@ import { useEffect, useMemo } from "react"
 import { toast } from "sonner"
 
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
-import type { PostFastSocialIntegration } from "@/lib/postfast-client"
+import type { SocialIntegration } from "@/lib/social/provider-contract"
 import { isSlideshowSocialProvider } from "@/lib/slideshow-social-platforms"
 
 import {
@@ -18,8 +18,8 @@ export function SocialAccountPickerModal({
   onSelect,
   onClose,
 }: {
-  selectedIntegrations: PostFastSocialIntegration[]
-  onSelect: (integrations: PostFastSocialIntegration[]) => void
+  selectedIntegrations: SocialIntegration[]
+  onSelect: (integrations: SocialIntegration[]) => void
   onClose: () => void
 }) {
   const { integrations, error, loading } = usePostFastIntegrations({
@@ -63,7 +63,7 @@ export function SocialAccountPickerModal({
     }
   }, [onSelect, selectedIntegrations, selectedSlideshowIntegrations])
 
-  function toggleIntegration(integration: PostFastSocialIntegration) {
+  function toggleIntegration(integration: SocialIntegration) {
     if (!isSlideshowSocialProvider(integration.provider)) {
       return
     }

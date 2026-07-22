@@ -45,7 +45,7 @@ import type {
   AccountFollowerSnapshot,
   PostFastMetricSnapshot,
 } from "@/lib/postfast-metric-snapshots"
-import type { PostFastSocialIntegration } from "@/lib/postfast-client"
+import type { SocialIntegration } from "@/lib/social/provider-contract"
 import {
   inferPostContentType,
   postContentTypeLabel,
@@ -53,7 +53,7 @@ import {
 import { cn } from "@/lib/utils"
 
 export type AnalyticsPayload = {
-  integrations: PostFastSocialIntegration[]
+  integrations: SocialIntegration[]
   snapshots: PostFastMetricSnapshot[]
   followerSnapshots: AccountFollowerSnapshot[]
   capabilities: Record<
@@ -369,7 +369,7 @@ function AnalyticsOverview({
   followerSnapshots,
   onSelectPost,
 }: {
-  integrations: PostFastSocialIntegration[]
+  integrations: SocialIntegration[]
   selectedAccountId: string
   onSelectAccount: (id: string) => void
   onOpenPlatform: (platform: string) => void
@@ -464,7 +464,7 @@ function AccountSelectorRail({
   onToggle,
   onSelectAll,
 }: {
-  integrations: PostFastSocialIntegration[]
+  integrations: SocialIntegration[]
   selectedIds: string[]
   allSelected?: boolean
   multi: boolean
@@ -625,7 +625,7 @@ function RecentPosts({
   title: string
   description: string
   posts: LatestPost[]
-  integrations: PostFastSocialIntegration[]
+  integrations: SocialIntegration[]
   metric?: CanonicalMetric
   onSelect: (post: LatestPost) => void
 }) {
@@ -717,7 +717,7 @@ function AccountPerformanceTable({
   onSelectAccount,
   onOpenPlatform,
 }: {
-  integrations: PostFastSocialIntegration[]
+  integrations: SocialIntegration[]
   posts: LatestPost[]
   followers: AccountFollowerSnapshot[]
   selectedAccountId: string
@@ -857,7 +857,7 @@ function PlatformAnalytics({
   onSelectPost,
 }: {
   platform: string
-  accounts: PostFastSocialIntegration[]
+  accounts: SocialIntegration[]
   selectedIds: string[]
   onSelectedIdsChange: (ids: string[]) => void
   metrics: CanonicalMetric[]
@@ -1053,7 +1053,7 @@ function ComparisonChart({
   onModeChange,
 }: {
   platform: string
-  accounts: PostFastSocialIntegration[]
+  accounts: SocialIntegration[]
   data: Array<Record<string, string | number | undefined>>
   metric: CanonicalMetric
   mode: "absolute" | "indexed"
@@ -1173,7 +1173,7 @@ function PlatformBreakdown({
   platform: string
   metric: CanonicalMetric
   rows: Array<{
-    account: PostFastSocialIntegration
+    account: SocialIntegration
     value?: number
     change?: number
   }>
@@ -1364,7 +1364,7 @@ function ComparisonTooltip({
   active?: boolean
   payload?: Array<{ dataKey?: string; value?: number; color?: string }>
   label?: string
-  accounts: PostFastSocialIntegration[]
+  accounts: SocialIntegration[]
   metric: CanonicalMetric
   mode: "absolute" | "indexed"
 }) {
@@ -1538,7 +1538,7 @@ function comparisonSeries({
   metric,
   indexed,
 }: {
-  accounts: PostFastSocialIntegration[]
+  accounts: SocialIntegration[]
   snapshots: PostFastMetricSnapshot[]
   followers: AccountFollowerSnapshot[]
   metric: CanonicalMetric
@@ -1706,7 +1706,7 @@ function availablePlatformMetrics({
   followers,
   selectedIds,
 }: {
-  accounts: PostFastSocialIntegration[]
+  accounts: SocialIntegration[]
   capabilities: AnalyticsPayload["capabilities"]
   snapshots: PostFastMetricSnapshot[]
   followers: AccountFollowerSnapshot[]
@@ -1771,7 +1771,7 @@ function initialMetricForPlatform(platform?: string): CanonicalMetric {
 }
 
 function capabilitiesForSelected(
-  accounts: PostFastSocialIntegration[],
+  accounts: SocialIntegration[],
   selectedIds: string[],
   capabilities: AnalyticsPayload["capabilities"]
 ) {
@@ -1791,7 +1791,7 @@ function metricAccountCoverage({
   followers,
 }: {
   metric: CanonicalMetric
-  accounts: PostFastSocialIntegration[]
+  accounts: SocialIntegration[]
   selectedIds: string[]
   posts: LatestPost[]
   followers: AccountFollowerSnapshot[]
@@ -1880,10 +1880,10 @@ function formatAnalyticsNumber(value: number) {
   }).format(value)
 }
 
-function fallbackIntegration(post: LatestPost): PostFastSocialIntegration {
+function fallbackIntegration(post: LatestPost): SocialIntegration {
   return {
     integration_id: post.integrationId,
-    provider: post.provider as PostFastSocialIntegration["provider"],
+    provider: post.provider as SocialIntegration["provider"],
     name: `${providerName(post.provider)} account`,
   }
 }
