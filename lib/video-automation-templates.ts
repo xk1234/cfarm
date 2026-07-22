@@ -51,10 +51,10 @@ function segment(
 
 const ugcAdPreset: VideoAutomationTemplatePreset = {
   id: "ugc_ad",
-  name: "UGC Ad",
-  tagline: "Avatar intro, then demo clip",
+  name: "UGC Ad — AI actor",
+  tagline: "Generated actor, voice, lip sync, and b-roll",
   description:
-    "The original AI UGC ad: an avatar hook clip followed by a demo video with hook text overlays.",
+    "Create a configurable talking-actor product ad with captions, hook text, and transparent provider costs.",
   buildFormat: () => ({
     template: "ugc_ad",
     hookPlacement: "first_segment",

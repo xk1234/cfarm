@@ -47,6 +47,7 @@ import {
 } from "./format-helpers"
 import { SlideshowFormatPreviewStage } from "./slideshow-format-preview-stage"
 import { VideoAutomationFormatPanel } from "./video-format-panel"
+import { UgcAutomationFormatPanel } from "./ugc-format-panel"
 import { VideoTemplateFormatPanel } from "./video-template-panel"
 
 export function AutomationFormatPanel({
@@ -184,6 +185,17 @@ export function AutomationFormatPanel({
         music={music}
         demoVideos={demoVideos}
         onCreateCollection={onCreateCollection}
+        onConfigChange={onConfigChange}
+        onBack={onBack}
+        onSave={onSave}
+      />
+    )
+  }
+
+  if (config.automationKind === "ugc") {
+    return (
+      <UgcAutomationFormatPanel
+        config={config}
         onConfigChange={onConfigChange}
         onBack={onBack}
         onSave={onSave}
