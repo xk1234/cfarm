@@ -1,8 +1,9 @@
 import { clean, isRecord } from "@/lib/guards"
-import type {
-  AutomationTemplateFormat,
-  AutomationTemplateRecord,
-  AutomationTemplateTextItem,
+import {
+  automationTemplateRecordToSchema,
+  type AutomationTemplateFormat,
+  type AutomationTemplateRecord,
+  type AutomationTemplateTextItem,
 } from "@/lib/automation-templates"
 import type { StoredImageCollection } from "@/lib/image-collections"
 import {
@@ -231,6 +232,16 @@ type RawImageCollectionIds = {
 export function automationTemplateToTempSlideTestingAutomation(
   record: AutomationTemplateRecord
 ): TempSlideTestingAutomation {
+  if ("schema" in record) {
+    return {
+      ...automationSchemaToTempSlideTestingAutomation(
+        automationTemplateRecordToSchema(record),
+        record.id
+      ),
+      name: record.name,
+      theme: record.theme,
+    }
+  }
   const imageCollectionIds = parseTemplateImageCollectionIds(
     record.template.image_collection_ids
   )

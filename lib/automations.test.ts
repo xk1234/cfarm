@@ -282,9 +282,22 @@ describe("automation import persistence", () => {
     })
   })
 
-  it("keeps legacy nested metadata synchronized with the canonical record", async () => {
+  it("reads legacy summary aliases but persists patches as canonical v2", async () => {
     const record = automationRecordFixture("metadata-sync")
-    await upsertAutomationRecords({ rootDir, records: [record] })
+    await writeJsonArrayStore({
+      rootDir,
+      fileName: "automations.json",
+      key: "automations",
+      records: [record],
+    })
+
+    const [legacy] = await listAutomationRecords({ rootDir })
+    expect(legacy).toMatchObject({
+      account: "No social account",
+      handle: "Click to add account",
+      times: ["11:00 AM"],
+      schema: { title: record.name, status: record.status },
+    })
 
     const updated = await patchAutomationRecord({
       rootDir,
@@ -296,11 +309,17 @@ describe("automation import persistence", () => {
     expect(updated).toMatchObject({
       name: "Renamed automation",
       status: "live",
-      schema: {
-        title: "Renamed automation",
-        status: "live",
-      },
     })
+    const [stored] = await readJsonArrayStore<Record<string, unknown>>({
+      rootDir,
+      fileName: "automations.json",
+      key: "automations",
+    })
+    expect(stored).not.toHaveProperty("account")
+    expect(stored).not.toHaveProperty("handle")
+    expect(stored).not.toHaveProperty("times")
+    expect(stored.schema).not.toHaveProperty("title")
+    expect(stored.schema).not.toHaveProperty("status")
   })
 
   it("creates local automation records without marking them as imported placeholders", () => {

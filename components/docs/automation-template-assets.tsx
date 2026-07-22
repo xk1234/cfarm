@@ -94,7 +94,8 @@ async function loadSlideshowTemplateItems(): Promise<
         const aspectRatios = [
           ...new Set(automation.slides.map((slide) => slide.aspectRatio)),
         ]
-        const tone = record.template.format.tone ?? "Custom"
+        const schema = automationTemplateRecordToSchema(record)
+        const tone = schema.tone.preset || "Custom"
 
         return {
           id: record.id,
@@ -102,7 +103,7 @@ async function loadSlideshowTemplateItems(): Promise<
           eyebrow: `${record.theme || "General"} slideshow`,
           description: `${record.name} is a ${tone.toLowerCase()} slideshow automation with ${automation.slides.length} configured slide slots. Its catalog definition supplies the hooks, media collections, text constraints, and publishing-ready runtime settings copied into a new automation.`,
           styleBrief:
-            record.template.format.custom_tone ||
+            schema.prompt_formatting.style ||
             `Use the ${tone.toLowerCase()} tone while keeping every slide specific to its selected hook.`,
           metadata: [
             `${automation.slides.length} slides`,
@@ -144,8 +145,8 @@ async function loadSlideshowTemplateItems(): Promise<
               theme: record.theme,
               updatedAt: record.updatedAt,
             },
-            definition: record.template,
-            runtimeSchema: automationTemplateRecordToSchema(record),
+            definition: "schema" in record ? record.schema : record.template,
+            runtimeSchema: schema,
           }),
         }
       })

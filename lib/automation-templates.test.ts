@@ -99,7 +99,11 @@ describe("automation template persistence", () => {
     expect(studyTips).not.toHaveProperty("tiktok_post_settings")
     expect(studyTips).not.toHaveProperty("schema")
     expect(studyTips).not.toHaveProperty("raw")
-    expect(studyTips?.template.image_collection_ids).toContain(
+    expect(
+      studyTips && "template" in studyTips
+        ? studyTips.template.image_collection_ids
+        : ""
+    ).toContain(
       "collection-pinterest-ugc-laptop-study-2026-07-03t00-01-04-000z"
     )
 
@@ -307,7 +311,11 @@ describe("automation template persistence", () => {
     const restored = automationTemplateRecordToSchema(record)
 
     expect(record.automationKind).toBe("video")
-    expect(record.template.video_format).toEqual(schema.video_format)
+    expect(record).not.toHaveProperty("template")
+    expect(record.schema.created_at).toBe(
+      new Date(schema.created_at).toISOString()
+    )
+    expect(record.schema.video_format).toMatchObject(schema.video_format!)
     expect(restored.automationKind).toBe("video")
     expect(restored.video_format).toMatchObject(schema.video_format!)
   })
@@ -341,8 +349,13 @@ describe("automation template persistence", () => {
     })
     const restored = automationTemplateRecordToSchema(record)
 
-    expect(record.template.format.content.ai_image_selection).toBe(true)
-    expect(record.template.format.hook.ai_image_selection).toBe(false)
+    expect(record).not.toHaveProperty("template")
+    expect(automationFormatSection(restored, "content").aiImageSelection).toBe(
+      true
+    )
+    expect(automationFormatSection(restored, "hook").aiImageSelection).toBe(
+      false
+    )
     expect(automationFormatSection(restored, "content").aiImageSelection).toBe(
       true
     )

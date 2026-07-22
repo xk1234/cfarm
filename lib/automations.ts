@@ -115,7 +115,9 @@ export function createLocalAutomationRecord(
     favorite: false,
     theme: "ugc",
     automationKind:
-      input.automationKind === "video" || input.automationKind === "ugc" ? input.automationKind : input.schema?.automationKind,
+      input.automationKind === "video" || input.automationKind === "ugc"
+        ? input.automationKind
+        : input.schema?.automationKind,
   })
   const defaults = defaultAutomationSchema(summary)
   const schema: AutomationSchema = input.schema
@@ -133,7 +135,8 @@ export function createLocalAutomationRecord(
         automationKind:
           input.automationKind === "video" || input.automationKind === "ugc"
             ? input.automationKind
-            : input.template?.automationKind === "video" || input.template?.automationKind === "ugc"
+            : input.template?.automationKind === "video" ||
+                input.template?.automationKind === "ugc"
               ? input.template.automationKind
               : defaults.automationKind,
         schedule: cloneSchedule(input.overrides?.schedule ?? defaults.schedule),
@@ -169,11 +172,11 @@ export async function patchAutomationRecord(input: {
   const nextSchema = input.schema ?? record.schema
   const nextName = clean(input.name) || record.name
   const nextStatus = input.status ?? nextSchema.status ?? record.status
-  const canonicalSchema = {
-    ...nextSchema,
-    title: nextName,
+  const canonicalSchema = normalizeAutomationSchema(nextSchema, {
+    ...automationRecordToSummary(record),
+    name: nextName,
     status: nextStatus,
-  }
+  })
   const nextSocialSummary = socialIntegrationSummary(
     canonicalSchema.social_integrations
   )
@@ -275,7 +278,7 @@ export function automationRecordToSummary(
     status: record.status,
     account: socialSummary.account,
     handle: socialSummary.handle,
-    times: scheduleTimes.length > 0 ? scheduleTimes : record.times,
+    times: scheduleTimes,
     timezone: record.schema.schedule.timezone,
     schedule: record.schema.schedule,
     favorite: record.favorite,
@@ -321,7 +324,7 @@ async function upsertAutomationRecord(
 ) {
   await upsertJsonArrayRecord({
     ...automationStore(rootDir),
-    record,
+    record: automationRecordForStorage(record),
     position,
   })
 }
@@ -351,33 +354,41 @@ function normalizeAutomationRecord(
       record.schema?.automationKind === "video" ? "video" : undefined,
   })
   const normalizedStatus = normalizeStatus(record.status)
-  const schema = {
-    ...normalizeAutomationSchema(
-      record.schema ?? defaultAutomationSchema(summary),
-      summary
-    ),
-    // Record metadata is canonical. Keep legacy nested aliases synchronized
-    // until stored schemas can drop title/status in a versioned migration.
-    title: record.name,
-    status:
-      normalizedStatus === "paused" || normalizedStatus === "live"
-        ? normalizedStatus
-        : "live",
-  }
+  const schema = normalizeAutomationSchema(
+    record.schema ?? defaultAutomationSchema(summary),
+    summary
+  )
+  const socialSummary = socialIntegrationSummary(schema.social_integrations)
+  const scheduleTimes = automationScheduleTimes(schema)
 
   return {
     ...recordWithoutSource,
     status: normalizedStatus,
-    account: clean(record.account) || "No social account",
-    handle: clean(record.handle),
-    times: Array.isArray(record.times)
-      ? record.times.map(clean).filter(Boolean)
-      : [],
+    account: clean(record.account) || socialSummary.account,
+    handle: clean(record.handle) || socialSummary.handle,
+    times:
+      Array.isArray(record.times) && record.times.length > 0
+        ? record.times.map(clean).filter(Boolean)
+        : scheduleTimes,
     favorite: Boolean(record.favorite),
     theme: clean(record.theme) || "ugc",
     updatedAt: clean(record.updatedAt) || new Date().toISOString(),
     schema,
   }
+}
+
+function automationRecordForStorage(record: AutomationRecord) {
+  const normalized = normalizeAutomationRecord(record)
+  if (!normalized) return record
+  const stored = { ...normalized } as Partial<AutomationRecord>
+  delete stored.account
+  delete stored.handle
+  delete stored.times
+  const { schema: runtimeSchema } = normalized
+  const schema: Record<string, unknown> = { ...runtimeSchema }
+  delete schema.title
+  delete schema.status
+  return { ...stored, schema }
 }
 
 function socialIntegrationSummary(integrations: AutomationSocialIntegration[]) {
@@ -513,7 +524,10 @@ function cloneTemplate(
   template: RuntimeAutomationTemplate
 ): RuntimeAutomationTemplate {
   return {
-    automationKind: template.automationKind === "video" || template.automationKind === "ugc" ? template.automationKind : "slideshow",
+    automationKind:
+      template.automationKind === "video" || template.automationKind === "ugc"
+        ? template.automationKind
+        : "slideshow",
     aspect_ratio: template.aspect_ratio,
     font: template.font,
     image_fit: template.image_fit,

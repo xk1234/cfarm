@@ -13,6 +13,7 @@ import {
 } from "@/lib/realfarm-collections"
 import {
   automationFormatSection,
+  automationCollectionIds,
   automationTone,
   defaultAutomationSchema,
   normalizeAutomationSchema,
@@ -107,7 +108,7 @@ export type AutomationTemplateDefinition = {
   video_format?: AutomationVideoFormat
 }
 
-export type AutomationTemplateRecord = {
+export type LegacyAutomationTemplateRecord = {
   id: string
   automationKind?: "slideshow" | "video" | "ugc"
   sourceAutomationId?: string
@@ -118,6 +119,25 @@ export type AutomationTemplateRecord = {
   updatedAt: string
   template: AutomationTemplateDefinition
 }
+
+export type StoredAutomationTemplateSchema = Omit<
+  AutomationSchema,
+  "created_at" | "title" | "status" | "schedule" | "social_integrations"
+> & {
+  created_at: string
+}
+
+export type StoredAutomationTemplate = Omit<
+  LegacyAutomationTemplateRecord,
+  "template"
+> & {
+  schema: StoredAutomationTemplateSchema
+}
+
+// Bridge type: production reads both persisted generations while writes return
+// StoredAutomationTemplate only.
+export type AutomationTemplateRecord =
+  LegacyAutomationTemplateRecord | StoredAutomationTemplate
 
 export type AutomationTemplateExampleRun = {
   id: string
@@ -199,7 +219,7 @@ export async function writeAutomationTemplateRecords(input: {
     rootDir: input.rootDir ?? defaultRootDir,
     fileName: dbFileName,
     key: "templates",
-    records: input.records,
+    records: input.records.map(automationTemplateRecordForStorage),
   })
 }
 
@@ -239,12 +259,28 @@ export async function upsertAutomationTemplateRecords(input: {
         rootDir: input.rootDir ?? defaultRootDir,
         fileName: dbFileName,
         key: "templates",
-        record,
+        record: automationTemplateRecordForStorage(record),
         position: "first",
       })
     )
   )
   return next
+}
+
+function automationTemplateRecordForStorage(
+  record: AutomationTemplateRecord
+): StoredAutomationTemplate {
+  if ("schema" in record) return record
+  return automationSchemaToTemplateRecord({
+    id: record.id,
+    name: record.name,
+    sourceAutomationId: record.sourceAutomationId,
+    sourceUrl: record.sourceUrl,
+    theme: record.theme,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+    schema: automationTemplateRecordToSchema(record),
+  })
 }
 
 export function automationTemplateRecordToSummary(
@@ -261,7 +297,10 @@ export function automationTemplateRecordToSummary(
     times: [],
     favorite: false,
     theme: record.theme,
-    created_at: record.template.created_at,
+    created_at:
+      "schema" in record
+        ? record.schema.created_at
+        : record.template.created_at,
     socialIntegrations: [],
   }
 }
@@ -271,6 +310,20 @@ export function automationTemplateRecordToSchema(
 ): AutomationSchema {
   const summary = automationTemplateRecordToSummary(record)
   const base = defaultAutomationSchema(summary)
+  if ("schema" in record) {
+    return normalizeAutomationSchema(
+      {
+        ...base,
+        ...structuredClone(record.schema),
+        created_at: new Date(record.schema.created_at),
+        title: record.name,
+        status: "live",
+        social_integrations: [],
+        schedule: base.schedule,
+      },
+      summary
+    )
+  }
   const schema = normalizeAutomationSchema(
     {
       ...base,
@@ -375,7 +428,27 @@ export function automationSchemaToTemplateRecord(input: {
   updatedAt: string
   schema: AutomationSchema
   hooks?: string[]
-}): AutomationTemplateRecord {
+}): StoredAutomationTemplate {
+  const summary: Automation = {
+    id: input.id,
+    automationKind: input.schema.automationKind,
+    name: input.name,
+    status: "live",
+    account: "",
+    handle: "",
+    times: [],
+    favorite: false,
+    theme: input.theme,
+    socialIntegrations: [],
+  }
+  const normalized = normalizeAutomationSchema(
+    {
+      ...input.schema,
+      hooks: (input.hooks ?? input.schema.hooks) as AutomationSchema["hooks"],
+    },
+    summary
+  )
+  const schema = storedAutomationTemplateSchema(normalized)
   return {
     id: input.id,
     automationKind: input.schema.automationKind,
@@ -385,20 +458,11 @@ export function automationSchemaToTemplateRecord(input: {
     theme: input.theme,
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
-    template: {
-      created_at: new Date(input.schema.created_at).toISOString(),
-      image_collection_ids: JSON.stringify(input.schema.image_collection_ids),
-      format: automationSchemaToTemplateFormat(input.schema),
-      hooks: input.hooks?.filter(Boolean) ?? [],
-      web_search_enabled: Boolean(input.schema.web_search_enabled),
-      video_format: input.schema.video_format
-        ? structuredClone(input.schema.video_format)
-        : undefined,
-    },
+    schema,
   }
 }
 
-function automationSchemaToTemplateFormat(
+export function automationSchemaToTemplateFormat(
   schema: AutomationSchema
 ): AutomationTemplateFormat {
   const hook = automationFormatSection(schema, "hook")
@@ -553,8 +617,27 @@ function templateTextItemToRuntime(
 function normalizeAutomationTemplateRecord(
   record: AutomationTemplateRecord
 ): AutomationTemplateRecord | null {
-  if (!record?.id || !record.name || !record.template) {
+  if (
+    !record?.id ||
+    !record.name ||
+    (!("template" in record) && !("schema" in record))
+  ) {
     return null
+  }
+
+  if ("schema" in record) {
+    const schema = automationTemplateRecordToSchema(record)
+    return {
+      id: clean(record.id),
+      automationKind: automationTemplateKind(record),
+      sourceAutomationId: clean(record.sourceAutomationId) || undefined,
+      sourceUrl: clean(record.sourceUrl) || undefined,
+      name: clean(record.name),
+      theme: clean(record.theme) || "template",
+      createdAt: clean(record.createdAt) || record.schema.created_at,
+      updatedAt: clean(record.updatedAt) || new Date().toISOString(),
+      schema: storedAutomationTemplateSchema(schema),
+    }
   }
 
   const template = record.template
@@ -590,6 +673,18 @@ function normalizeAutomationTemplateRecord(
           : undefined,
     },
   }
+}
+
+function storedAutomationTemplateSchema(
+  schema: AutomationSchema
+): StoredAutomationTemplateSchema {
+  const stored = structuredClone(schema) as unknown as Record<string, unknown>
+  stored.created_at = new Date(schema.created_at).toISOString()
+  delete stored.title
+  delete stored.status
+  delete stored.schedule
+  delete stored.social_integrations
+  return stored as StoredAutomationTemplateSchema
 }
 
 function normalizeAutomationTemplateExampleRun(
@@ -698,6 +793,9 @@ function parseImageCollectionIds(
 }
 
 function templateCollectionIds(record: AutomationTemplateRecord) {
+  if ("schema" in record) {
+    return automationCollectionIds(automationTemplateRecordToSchema(record))
+  }
   const ids = new Set<string>()
   const parsed = parseTemplateImageCollectionIds(
     record.template.image_collection_ids

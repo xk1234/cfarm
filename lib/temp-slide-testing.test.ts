@@ -216,6 +216,8 @@ describe("temp slide testing helpers", () => {
   })
 
   it("recovers fixed-hook image-only templates from imported style instructions", () => {
+    if (!("template" in templateRecord))
+      throw new Error("Expected legacy fixture")
     const automation = automationTemplateToTempSlideTestingAutomation({
       ...templateRecord,
       id: "template-nail-designs",
