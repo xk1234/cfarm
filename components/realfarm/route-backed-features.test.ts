@@ -15,6 +15,19 @@ describe("route-backed workspace features", () => {
     }
   })
 
+  it("exposes Compose as a route-backed workspace destination", () => {
+    const navigation = src("components/realfarm/navigation.tsx")
+    const page = src("app/app/compose/page.tsx")
+    const workspace = src("components/realfarm-workspace.tsx")
+    const workspaceRoute = src("components/realfarm/routes/workspace-route.tsx")
+
+    expect(navigation).toContain('label: "Compose"')
+    expect(navigation).toContain('return "/app/compose"')
+    expect(page).toContain('navigation={{ view: "compose" }}')
+    expect(workspace).toContain('view === "compose"')
+    expect(workspaceRoute).toContain("composeAccounts={composeAccounts}")
+  })
+
   it("uses stable URLs for collection list and detail navigation", () => {
     const workspace = src("components/realfarm-workspace.tsx")
     const navigation = src("components/realfarm/navigation.tsx")

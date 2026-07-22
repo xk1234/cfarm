@@ -7,7 +7,7 @@ import {
 } from "@/lib/auth"
 import { clean, isRecord } from "@/lib/guards"
 import { listAutomationRecords, patchAutomationRecord } from "@/lib/automations"
-import { postfastRequest } from "@/lib/postfast-client"
+import { listVisiblePostFastIntegrationPayload } from "@/lib/postfast-integrations"
 import { postfastRouteError } from "@/lib/postfast-route"
 import { listXAutomations, upsertXAutomation } from "@/lib/x-automation-store"
 
@@ -19,19 +19,11 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
   try {
-    const integrations = await postfastRequest<unknown[]>(
-      "/social-media/my-social-accounts"
-    )
-    const disconnectedIds = new Set(
-      disconnectedIntegrationIds(await getUserPreferences(user.$id))
-    )
+    const { integrations, disconnectedIntegrations } =
+      await listVisiblePostFastIntegrationPayload(user.$id)
     return NextResponse.json({
-      integrations: integrations.filter(
-        (integration) => !disconnectedIds.has(integrationId(integration))
-      ),
-      disconnectedIntegrations: integrations.filter((integration) =>
-        disconnectedIds.has(integrationId(integration))
-      ),
+      integrations,
+      disconnectedIntegrations,
       configured: true,
     })
   } catch (error) {
@@ -103,11 +95,6 @@ function disconnectedIntegrationIds(value: unknown) {
   return Array.isArray(value.postfastDisconnectedIntegrationIds)
     ? value.postfastDisconnectedIntegrationIds.map(clean).filter(Boolean)
     : []
-}
-
-function integrationId(value: unknown) {
-  if (!isRecord(value)) return ""
-  return clean(value.id ?? value.integration_id)
 }
 
 async function removeIntegrationFromAutomations(integrationId: string) {

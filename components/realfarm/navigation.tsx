@@ -12,6 +12,7 @@ import {
   IconLogout,
   IconPhoto,
   IconPlus,
+  IconPencilPlus,
   IconSettings,
 } from "@tabler/icons-react"
 
@@ -21,7 +22,12 @@ import { clientSWRFetcher } from "@/lib/client-swr"
 import { cn } from "@/lib/utils"
 
 export type ViewKey =
-  "home" | "schedule" | "analytics" | "collections" | "automations"
+  | "home"
+  | "compose"
+  | "schedule"
+  | "analytics"
+  | "collections"
+  | "automations"
 
 type NavItem = {
   key: ViewKey
@@ -31,6 +37,7 @@ type NavItem = {
 
 const topNav: NavItem[] = [
   { key: "home", label: "Home", icon: IconHome },
+  { key: "compose", label: "Compose", icon: IconPencilPlus },
   { key: "schedule", label: "Schedule", icon: IconCalendar },
   { key: "analytics", label: "Analytics", icon: IconBolt },
 ]
@@ -93,6 +100,7 @@ export function Sidebar({
             item={item}
             active={
               (view === "home" && item.label === "Home") ||
+              (view === "compose" && item.label === "Compose") ||
               (view === "schedule" && item.label === "Schedule") ||
               (view === "analytics" && item.label === "Analytics")
             }
@@ -156,7 +164,7 @@ export function MobileNavigation({
   return (
     <nav
       aria-label="Primary navigation"
-      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-app-panel-border bg-white/95 px-1 pt-1 pb-[max(.5rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(25,18,45,0.08)] backdrop-blur md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-app-panel-border bg-white/95 px-1 pt-1 pb-[max(.5rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(25,18,45,0.08)] backdrop-blur md:hidden"
     >
       {[...topNav, ...slideshowNav].map((item) => {
         const Icon = item.icon
@@ -247,6 +255,7 @@ function SidebarButton({
 }
 
 function routeHref(view: ViewKey) {
+  if (view === "compose") return "/app/compose"
   if (view === "analytics") return "/app/analytics"
   if (view === "collections") return "/app/collections"
   return undefined

@@ -1,4 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server"
+import { mkdtemp } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import path from "node:path"
+
 import { describe, expect, it, vi } from "vitest"
 
 import { getSocialProvider, listSocialProviders } from "@/lib/social/registry"
@@ -6,12 +10,17 @@ import { getSocialProvider, listSocialProviders } from "@/lib/social/registry"
 import { effectiveNetworkText, updateNetworkValue } from "./composer-types"
 import type { ComposerValue, ConnectedComposerAccount } from "./composer-types"
 import { PostComposer } from "./post-composer"
+import {
+  composeLimitErrors,
+  publishComposerValue,
+} from "@/lib/compose-publishing"
 
 const accounts: ConnectedComposerAccount[] = listSocialProviders()
   .filter((provider) =>
     ["x", "instagram", "linkedin"].includes(provider.platformKey)
   )
   .map((provider) => ({
+    integrationId: `integration-${provider.platformKey}`,
     platformKey: provider.platformKey,
     accountName: `${provider.name} account`,
     handle: `@${provider.platformKey}`,
@@ -30,7 +39,7 @@ describe("PostComposer", () => {
 
     for (const account of accounts) {
       expect(markup).toContain(getSocialProvider(account.platformKey)?.name)
-      expect(markup).toContain(`network-tab-${account.platformKey}`)
+      expect(markup).toContain(`network-tab-${account.integrationId}`)
     }
   })
 
@@ -77,5 +86,69 @@ describe("PostComposer", () => {
       },
     })
     expect(effectiveNetworkText(edited, "x")).toBe("An X-specific edit")
+  })
+
+  it("maps overrides, media, and schedule into PostFast payloads", async () => {
+    const request = vi.fn().mockResolvedValue({ postIds: ["post-1"] })
+    const uploadMedia = vi
+      .fn()
+      .mockResolvedValue({ key: "uploaded/image.png", type: "IMAGE" })
+    const rootDir = await mkdtemp(path.join(tmpdir(), "cfarm-compose-"))
+    const scheduledAt = new Date(Date.now() + 3_600_000).toISOString()
+    const composerValue: ComposerValue = {
+      base: {
+        text: "Master copy",
+        media: [
+          { id: "media-1", kind: "image", url: "https://example.com/image.png" },
+        ],
+      },
+      perNetwork: {
+        x: {
+          useTextOverride: true,
+          text: "X copy",
+          media: [],
+          fields: {},
+        },
+      },
+    }
+
+    await publishComposerValue({
+      value: composerValue,
+      accounts: [accounts.find((account) => account.platformKey === "x")!],
+      mode: "schedule",
+      scheduledAt,
+      uploadMedia,
+      request,
+      rootDir,
+      sourceId: "compose-test",
+    })
+
+    expect(uploadMedia).toHaveBeenCalledWith("https://example.com/image.png")
+    expect(request).toHaveBeenCalledWith("/social-posts", {
+      body: expect.objectContaining({
+        status: "SCHEDULED",
+        posts: [
+          expect.objectContaining({
+            content: "X copy",
+            scheduledAt,
+            socialMediaId: "integration-x",
+            mediaItems: [
+              { key: "uploaded/image.png", type: "IMAGE", sortOrder: 0 },
+            ],
+          }),
+        ],
+      }),
+    })
+  })
+
+  it("blocks networks whose effective text exceeds the registry limit", () => {
+    const xAccount = accounts.find((account) => account.platformKey === "x")!
+    const limit = getSocialProvider("x")!.limits.maxTextLength
+    expect(
+      composeLimitErrors(
+        { base: { text: "x".repeat(limit + 1), media: [] }, perNetwork: {} },
+        [xAccount]
+      )
+    ).toEqual(["X is 1 characters over its limit"])
   })
 })

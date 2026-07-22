@@ -14,6 +14,8 @@ import {
 } from "@/lib/automation-templates"
 import { getCurrentUser } from "@/lib/auth"
 import { loadRealFarmData } from "@/lib/realfarm-data"
+import { listConnectedPostFastIntegrations } from "@/lib/postfast-integrations"
+import type { ConnectedComposerAccount } from "@/components/realfarm/composer/composer-types"
 
 export type WorkspaceNavigation = {
   view: ViewKey
@@ -30,9 +32,12 @@ export async function WorkspaceRoute({
   const user = await getCurrentUser()
   if (!user) redirect("/login")
 
-  const [data, initialTemplateData] = await Promise.all([
+  const [data, initialTemplateData, composeAccounts] = await Promise.all([
     loadRealFarmData({ mediaAssets: [] }),
     loadInitialTemplateData(),
+    navigation.view === "compose"
+      ? loadComposeAccounts(user.$id)
+      : Promise.resolve([]),
   ])
 
   return (
@@ -43,6 +48,7 @@ export async function WorkspaceRoute({
       }}
       initialTemplateData={initialTemplateData}
       initialNavigation={navigation}
+      composeAccounts={composeAccounts}
       user={{
         id: user.$id,
         email: user.email,
@@ -50,6 +56,24 @@ export async function WorkspaceRoute({
       }}
     />
   )
+}
+
+async function loadComposeAccounts(
+  ownerId: string
+): Promise<ConnectedComposerAccount[]> {
+  try {
+    return (await listConnectedPostFastIntegrations(ownerId)).map(
+      (integration) => ({
+        integrationId: integration.integration_id,
+        platformKey: integration.provider,
+        accountName: integration.name,
+        handle: integration.profile ?? integration.name,
+        avatarUrl: integration.picture,
+      })
+    )
+  } catch {
+    return []
+  }
 }
 
 async function loadInitialTemplateData(): Promise<InitialTemplateData> {

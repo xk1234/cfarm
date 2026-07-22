@@ -19,6 +19,7 @@ export interface ComposerValue {
 }
 
 export interface ConnectedComposerAccount {
+  integrationId: string
   platformKey: SocialPlatformKey
   accountName: string
   handle: string

@@ -5,6 +5,8 @@ import { IconLink, IconPhoto, IconVideo } from "@tabler/icons-react"
 
 import { PlatformPreview } from "@/components/realfarm/previews/platform-preview"
 import { Button } from "@/components/ui/button"
+import { MediaCard, MediaCardPreview } from "@/components/ui/media-card"
+import { SocialPlatformIcon } from "@/components/realfarm/social-platform"
 import { getSocialProvider } from "@/lib/social/registry"
 import { cn } from "@/lib/utils"
 
@@ -34,9 +36,11 @@ export function PostComposer({
     () => accounts.filter((account) => getSocialProvider(account.platformKey)),
     [accounts]
   )
-  const [activeKey, setActiveKey] = useState(availableAccounts[0]?.platformKey)
+  const [activeKey, setActiveKey] = useState(
+    availableAccounts[0]?.integrationId
+  )
   const activeAccount =
-    availableAccounts.find((account) => account.platformKey === activeKey) ??
+    availableAccounts.find((account) => account.integrationId === activeKey) ??
     availableAccounts[0]
   const provider = activeAccount
     ? getSocialProvider(activeAccount.platformKey)
@@ -121,24 +125,45 @@ export function PostComposer({
         >
           {availableAccounts.map((account) => {
             const item = getSocialProvider(account.platformKey)
-            const selected = account.platformKey === activeAccount.platformKey
+            const selected = account.integrationId === activeAccount.integrationId
+            const accountText = effectiveNetworkText(value, account.platformKey)
+            const tabId = safeId(account.integrationId)
             return (
               <button
-                aria-controls={`network-panel-${account.platformKey}`}
+                aria-controls={`network-panel-${tabId}`}
                 aria-selected={selected}
                 className={cn(
-                  "lc-focus-ring -mb-px shrink-0 border-b-2 px-4 py-3 text-label font-semibold transition-colors",
+                  "lc-focus-ring -mb-px flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-label font-semibold transition-colors",
                   selected
                     ? "border-brand-accent text-brand-accent"
                     : "border-transparent text-app-muted-text hover:text-app-text"
                 )}
-                id={`network-tab-${account.platformKey}`}
-                key={account.platformKey}
-                onClick={() => setActiveKey(account.platformKey)}
+                id={`network-tab-${tabId}`}
+                key={account.integrationId}
+                onClick={() => setActiveKey(account.integrationId)}
                 role="tab"
                 type="button"
               >
-                {item?.name}
+                <span className="grid size-6 place-items-center overflow-hidden rounded-app-control bg-app-control-bg">
+                  {account.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      alt=""
+                      className="size-full object-cover"
+                      src={account.avatarUrl}
+                    />
+                  ) : (
+                    <SocialPlatformIcon
+                      className="size-3.5"
+                      provider={account.platformKey}
+                    />
+                  )}
+                </span>
+                <span>{item?.name}</span>
+                <span className="font-mono text-caption font-medium tabular-nums text-app-muted-text">
+                  {accountText.length.toLocaleString()} /{" "}
+                  {item?.limits.maxTextLength.toLocaleString()}
+                </span>
               </button>
             )
           })}
@@ -147,9 +172,9 @@ export function PostComposer({
 
       <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,0.8fr)]">
         <div
-          aria-labelledby={`network-tab-${activeAccount.platformKey}`}
+          aria-labelledby={`network-tab-${safeId(activeAccount.integrationId)}`}
           className="space-y-5 p-5 lg:border-r lg:border-app-panel-border"
-          id={`network-panel-${activeAccount.platformKey}`}
+          id={`network-panel-${safeId(activeAccount.integrationId)}`}
           role="tabpanel"
         >
           <div className="flex items-center justify-between gap-3">
@@ -311,8 +336,22 @@ function MediaUrlEditor({
           <IconVideo />
         </Button>
       </div>
+      {item?.url ? (
+        <MediaCard className="mt-3 max-w-44" radius="media" surface="flat">
+          <MediaCardPreview
+            alt={item.alt ?? "Post media"}
+            aspect="wide"
+            imageSrc={item.kind === "image" ? item.url : undefined}
+            videoSrc={item.kind === "video" ? item.url : undefined}
+          />
+        </MediaCard>
+      ) : null}
     </div>
   )
+}
+
+function safeId(value: string) {
+  return value.replace(/[^a-zA-Z0-9_-]/g, "-")
 }
 
 function PlatformFields({

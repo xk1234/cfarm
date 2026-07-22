@@ -29,6 +29,7 @@ import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { useCollectionsData } from "@/components/realfarm/collections/use-collections-data"
 import { isSlideshowSocialProvider } from "@/lib/slideshow-social-platforms"
 import { cn } from "@/lib/utils"
+import type { ConnectedComposerAccount } from "@/components/realfarm/composer/composer-types"
 
 const HomeView = dynamic(() =>
   import("@/components/realfarm/home-view").then((module) => module.HomeView)
@@ -37,6 +38,9 @@ const ContentCalendarView = dynamic(() =>
   import("@/components/realfarm/content-calendar/content-calendar-view").then(
     (module) => module.ContentCalendarView
   )
+)
+const ComposeDemo = dynamic(() =>
+  import("@/app/app/compose/compose-demo").then((module) => module.ComposeDemo)
 )
 const AnalyticsView = dynamic(() =>
   import("@/components/realfarm/analytics/analytics-view").then(
@@ -150,6 +154,7 @@ export function RealFarmWorkspace({
   data,
   initialTemplateData = emptyInitialTemplateData,
   initialNavigation,
+  composeAccounts = [],
   user,
 }: {
   data: RealFarmData
@@ -160,6 +165,7 @@ export function RealFarmWorkspace({
     runId?: string
     collectionId?: string
   }
+  composeAccounts?: ConnectedComposerAccount[]
   user: { id: string; email: string; emailVerified: boolean }
 }) {
   const router = useRouter()
@@ -692,6 +698,10 @@ export function RealFarmWorkspace({
   }
 
   function changeView(nextView: ViewKey) {
+    if (nextView === "compose") {
+      router.push("/app/compose")
+      return
+    }
     if (nextView === "analytics") {
       router.push("/app/analytics")
       return
@@ -807,6 +817,12 @@ export function RealFarmWorkspace({
           )}
           {view === "schedule" && (
             <ContentCalendarView onGoAutomations={showAutomationList} />
+          )}
+          {view === "compose" && (
+            <ComposeDemo
+              accounts={composeAccounts}
+              onOpenSettings={() => setSettingsOpen(true)}
+            />
           )}
           {view === "analytics" && <AnalyticsView />}
           {view === "collections" &&

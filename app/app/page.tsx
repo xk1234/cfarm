@@ -26,6 +26,7 @@ export default async function WorkspacePage({
 function initialView(value: string): ViewKey {
   return [
     "home",
+    "compose",
     "schedule",
     "analytics",
     "collections",
