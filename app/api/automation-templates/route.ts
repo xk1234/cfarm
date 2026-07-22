@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { withHandler } from "@/lib/api"
 import {
   automationSchemaToTemplateRecord,
-  automationTemplateRecordToSchema,
+  automationTemplateSchemaToRuntime,
   automationTemplateRecordToSummary,
   groupAutomationTemplateExampleRunsByTemplateId,
   listAutomationTemplateExampleRuns,
@@ -28,7 +28,7 @@ export const GET = withHandler(async () => {
     schemas: Object.fromEntries(
       records.map((record) => [
         record.id,
-        automationTemplateRecordToSchema(record),
+        automationTemplateSchemaToRuntime(record),
       ])
     ),
   })
@@ -78,7 +78,7 @@ export const POST = withHandler(async (request: Request) => {
       schemas: Object.fromEntries(
         next.map((record) => [
           record.id,
-          automationTemplateRecordToSchema(record),
+          automationTemplateSchemaToRuntime(record),
         ])
       ),
     },

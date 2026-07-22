@@ -5,7 +5,7 @@ import { internalToolsEnabled } from "@/lib/internal-tools"
 
 import { previewAutomationRunPlan } from "@/lib/automation-runner"
 import {
-  automationTemplateRecordToSchema,
+  automationTemplateSchemaToRuntime,
   listAutomationTemplateRecords,
 } from "@/lib/automation-templates"
 import {
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     }
 
     const preview = await previewAutomationRunPlan(
-      automationTemplateRecordToSchema(record),
+      automationTemplateSchemaToRuntime(record),
       {
         automationId,
         textModel: model,

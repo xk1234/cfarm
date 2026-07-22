@@ -6,7 +6,7 @@ import {
 } from "@/components/realfarm-workspace"
 import type { ViewKey } from "@/components/realfarm/navigation"
 import {
-  automationTemplateRecordToSchema,
+  automationTemplateSchemaToRuntime,
   automationTemplateRecordToSummary,
   groupAutomationTemplateExampleRunsByTemplateId,
   listAutomationTemplateExampleRuns,
@@ -89,7 +89,7 @@ async function loadInitialTemplateData(): Promise<InitialTemplateData> {
     schemas: Object.fromEntries(
       templateRecords.map((record) => [
         record.id,
-        automationTemplateRecordToSchema(record),
+        automationTemplateSchemaToRuntime(record),
       ])
     ),
   }

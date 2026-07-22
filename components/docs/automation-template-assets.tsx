@@ -1,7 +1,7 @@
 import "server-only"
 
 import {
-  automationTemplateRecordToSchema,
+  automationTemplateSchemaToRuntime,
   groupAutomationTemplateExampleRunsByTemplateId,
   listAutomationTemplateExampleRuns,
   listAutomationTemplateRecords,
@@ -94,7 +94,7 @@ async function loadSlideshowTemplateItems(): Promise<
         const aspectRatios = [
           ...new Set(automation.slides.map((slide) => slide.aspectRatio)),
         ]
-        const schema = automationTemplateRecordToSchema(record)
+        const schema = automationTemplateSchemaToRuntime(record)
         const tone = schema.tone.preset || "Custom"
 
         return {
@@ -145,7 +145,7 @@ async function loadSlideshowTemplateItems(): Promise<
               theme: record.theme,
               updatedAt: record.updatedAt,
             },
-            definition: "schema" in record ? record.schema : record.template,
+            definition: record.schema,
             runtimeSchema: schema,
           }),
         }

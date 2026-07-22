@@ -129,7 +129,10 @@ export const PATCH = withHandler(async (request: Request) => {
   }
 
   if (isRecord(payload.schema)) {
-    const errors = ugcLiveConfigurationErrors(payload.schema as AutomationSchema)
+    const errors = ugcLiveConfigurationErrors(
+      payload.status === "paused" ? "paused" : "live",
+      payload.schema as AutomationSchema
+    )
     if (errors.length) return NextResponse.json({ error: errors[0], errors }, { status: 400 })
   }
 

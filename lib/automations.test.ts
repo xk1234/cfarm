@@ -11,7 +11,6 @@ import {
   listAutomationRecords,
   normalizeReelfarmAutomation,
   patchAutomationRecord,
-  type AutomationRecord,
   upsertAutomationRecords,
 } from "@/lib/automations"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
@@ -159,14 +158,14 @@ describe("automation import persistence", () => {
       sourceAutomationId: "rf-123",
       name: "Daily Hooks",
       status: "live",
-      account: "@brand",
-      handle: "brand",
-      times: ["8:00 AM", "4:00 PM"],
       favorite: true,
       theme: "ugc",
     })
+    // account/handle/times are no longer stored on the record; they derive from schema.
+    expect(automationRecordToSummary(normalized)).toMatchObject({
+      times: ["8:00 AM", "4:00 PM"],
+    })
     expect(normalized).not.toHaveProperty("source")
-    expect(normalized.schema.title).toBe("Daily Hooks")
     expect(normalized.schema.prompt_formatting).toEqual({
       style: "raw text style prompt",
       narrative: "raw narrative prompt",
@@ -278,11 +277,11 @@ describe("automation import persistence", () => {
       sourceAutomationId: "rf-1",
       name: "Renamed",
       status: "live",
-      times: ["9:00 AM"],
     })
+    expect(automationRecordToSummary(records[0]).times).toEqual(["9:00 AM"])
   })
 
-  it("reads legacy summary aliases but persists patches as canonical v2", async () => {
+  it("derives the summary and persists patches as canonical v2", async () => {
     const record = automationRecordFixture("metadata-sync")
     await writeJsonArrayStore({
       rootDir,
@@ -291,12 +290,11 @@ describe("automation import persistence", () => {
       records: [record],
     })
 
-    const [legacy] = await listAutomationRecords({ rootDir })
-    expect(legacy).toMatchObject({
+    const [stored0] = await listAutomationRecords({ rootDir })
+    expect(automationRecordToSummary(stored0)).toMatchObject({
       account: "No social account",
       handle: "Click to add account",
       times: ["11:00 AM"],
-      schema: { title: record.name, status: record.status },
     })
 
     const updated = await patchAutomationRecord({
@@ -328,14 +326,14 @@ describe("automation import persistence", () => {
     expect(record).toMatchObject({
       name: "Daily product demos",
       status: "live",
+      favorite: false,
+    })
+    expect(automationRecordToSummary(record)).toMatchObject({
       account: "No social account",
       handle: "Click to add account",
-      favorite: false,
     })
     expect(record).not.toHaveProperty("source")
     expect(record.sourceAutomationId).toBeUndefined()
-    expect(record.schema.title).toBe("Daily product demos")
-    expect(record.schema.status).toBe("live")
     expect(record.schema.social_integrations).toEqual([])
     expect(record.schema.social_post_settings).toMatchObject({
       instagram: {
@@ -588,8 +586,6 @@ describe("automation import persistence", () => {
       },
     })
 
-    expect(local.schema.title).toBe("Local copy")
-    expect(local.schema.status).toBe("live")
     expect(local.schema.schedule).toEqual({
       timezone: "America/Los_Angeles",
       posting_times: [{ time: "9:30 AM", days: ["Mon"] }],
@@ -635,7 +631,7 @@ describe("automation import persistence", () => {
   })
 })
 
-function automationRecordFixture(id: string): AutomationRecord {
+function automationRecordFixture(id: string) {
   const summary = {
     id,
     name: id,
@@ -652,9 +648,6 @@ function automationRecordFixture(id: string): AutomationRecord {
     id,
     name: id,
     status: "paused",
-    account: summary.account,
-    handle: summary.handle,
-    times: [],
     favorite: false,
     theme: "ugc",
     updatedAt: "2026-07-03T00:00:00.000Z",

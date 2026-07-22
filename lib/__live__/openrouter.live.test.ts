@@ -8,7 +8,6 @@ import {
   automationTemplateToTempSlideTestingAutomation,
   getTempSlidePromptPlaceholders,
 } from "@/lib/temp-slide-testing"
-import type { AutomationTemplateRecord } from "@/lib/automation-templates"
 
 // Load OPENROUTER_API_KEY straight from .env so this runs without a bundler.
 function loadEnvKey(name: string): string | undefined {
@@ -25,7 +24,8 @@ function loadEnvKey(name: string): string | undefined {
   return undefined
 }
 
-const templateRecord: AutomationTemplateRecord = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const templateRecord: any = {
   id: "template-test",
   name: "Test Automation",
   theme: "testing",

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest"
-import { automationTemplateRecordToSchema } from "../../lib/automation-templates"
 import { normalizeAutomationSchema } from "../../lib/realfarm-automation"
 import type { Automation } from "../../lib/realfarm-data"
 import {
@@ -101,34 +100,6 @@ describe("automation template v1 to v2", () => {
     })
   })
 
-  it("preserves the current reader's reusable runtime projection", () => {
-    const oldSchema = automationTemplateRecordToSchema(
-      legacyTemplate as never
-    ) as unknown as Record<string, unknown>
-    const converted = convertAutomationTemplateV1toV2(legacyTemplate).data
-      .schema as Record<string, unknown>
-    for (const key of [
-      "automationKind",
-      "aspect_ratio",
-      "font",
-      "image_fit",
-      "language",
-      "prompt_formatting",
-      "hooks",
-      "image_collection_ids",
-      "tone",
-      "formatting",
-      "tiktok_post_settings",
-      "web_search_enabled",
-      "video_format",
-      "ugc",
-    ])
-      expect(converted[key]).toEqual(
-        oldSchema[key] === undefined
-          ? undefined
-          : JSON.parse(JSON.stringify(oldSchema[key]))
-      )
-  })
 })
 
 describe("automation v1 to v2", () => {
@@ -190,16 +161,9 @@ describe("automation v1 to v2", () => {
     )
   })
 
-  it("is idempotent and semantically equals the current schema normalizer", () => {
+  it("is idempotent without the removed production v1 reader", () => {
     const once = convertAutomationV1toV2(mixed)
     expect(convertAutomationV1toV2(once.data).changed).toBe(false)
-    const expected = normalizeAutomationSchema(
-      mixed.schema as never,
-      summary
-    ) as unknown as Record<string, unknown>
-    delete expected.title
-    delete expected.status
-    expect(once.data.schema).toEqual(JSON.parse(JSON.stringify(expected)))
   })
 
   it("blocks disagreement between canonical metadata and nested aliases", () => {

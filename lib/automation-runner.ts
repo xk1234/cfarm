@@ -473,7 +473,7 @@ export async function runDueAutomations(
       continue
     }
 
-    if (!input.force && record.schema.status !== "live") {
+    if (!input.force && record.status !== "live") {
       result.skipped.push({ automationId: record.id, reason: "not_live" })
       continue
     }
@@ -655,7 +655,7 @@ async function createAutomationRun(input: {
     plan.slides.length > 0 ? "succeeded" : "failed"
   const run: AutomationRunRecord = {
     ...input.claimedRun,
-    automationTitle: input.record.schema.title || input.record.name,
+    automationTitle: input.record.name,
     status,
     plan,
     updatedAt: now,
@@ -987,6 +987,7 @@ async function createAutomationRunPlan(
   schema: AutomationSchema,
   options: {
     automationId?: string
+    automationTitle?: string
     imageCollectionDbPath?: string
     wordCollectionRootDir?: string
     usageLedgerRootDir?: string
@@ -1164,7 +1165,7 @@ async function createAutomationRunPlan(
     recentImageRecords.map((record) => [record.key, record.used_at] as const)
   )
   let slideResult = await createSlides({
-    title: schema.title,
+    title: options.automationTitle ?? "Automation",
     hook,
     images,
     recentImageUsage: recentImages,
@@ -1194,7 +1195,7 @@ async function createAutomationRunPlan(
     })
     imageTextCoherenceRepair = true
     slideResult = await createSlides({
-      title: schema.title,
+      title: options.automationTitle ?? "Automation",
       hook,
       images,
       recentImageUsage: recentImages,
@@ -2709,7 +2710,7 @@ function runningAutomationRun(input: {
   return {
     id: `automation-run-${randomUUID()}`,
     automationId: input.record.id,
-    automationTitle: input.record.schema.title || input.record.name,
+    automationTitle: input.record.name,
     scheduledFor: input.scheduledFor,
     generationSource: input.generationSource,
     requestId: input.requestId,
@@ -2740,7 +2741,7 @@ function pendingAutomationRunPlan(record: AutomationRecord): AutomationRunPlan {
   // Placeholder while the run generates. Never seed hook/caption from the raw
   // narrative here — those lines can contain unexpanded [[slot]] templates and
   // this record is what surfaces if the run dies before generation completes.
-  const title = record.schema.title || record.name
+  const title = record.name
   return {
     title,
     caption: "",

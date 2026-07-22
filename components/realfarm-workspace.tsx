@@ -563,9 +563,9 @@ export function RealFarmWorkspace({
       automationConfigEdits[automation.id]
     )
     const nextStatus: AutomationStatus =
-      currentConfig.status === "paused" ? "live" : "paused"
+      automation.status === "paused" ? "live" : "paused"
     const nextConfig = { ...currentConfig, status: nextStatus }
-    const ugcErrors = ugcLiveConfigurationErrors(nextConfig)
+    const ugcErrors = ugcLiveConfigurationErrors(nextStatus, nextConfig)
     if (ugcErrors.length) {
       toast.error("UGC automation is not ready to go live", {
         description: ugcErrors.join(". "),
@@ -980,14 +980,13 @@ export function RealFarmWorkspace({
                         editingAutomation,
                         current[editingAutomation.id]
                       )
-                      const renamedConfig = { ...nextConfig, title: name }
                       persistAutomationPatch(editingAutomation.id, {
                         name,
-                        schema: renamedConfig,
+                        schema: nextConfig,
                       })
                       return {
                         ...current,
-                        [editingAutomation.id]: renamedConfig,
+                        [editingAutomation.id]: nextConfig,
                       }
                     })
                     setPersistedAutomations((current) =>
@@ -1027,10 +1026,7 @@ export function RealFarmWorkspace({
                     const duplicated = await createLocalAutomation({
                       name: `${editingAutomation.name} Copy`,
                       automationKind: editingAutomation.automationKind,
-                      schema: {
-                        ...sourceConfig,
-                        title: `${editingAutomation.name} Copy`,
-                      },
+                      schema: sourceConfig,
                     })
                     setEditingAutomation(duplicated)
                   }}

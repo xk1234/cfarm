@@ -96,7 +96,6 @@ describe("UgcAutomationFormatPanel", () => {
       <UgcAutomationFormatPanel
         config={{
           ...schema({ voiceId: "" }),
-          status: "live",
           ugc: { ...schema({ voiceId: "" }).ugc, productUrl: "", productBrief: "" },
         }}
         onConfigChange={vi.fn()}

@@ -1213,10 +1213,13 @@ async function runUgcDraft(
   if (automation.schema.automationKind !== "ugc") {
     throw new Error("The selected automation is not an AI UGC automation")
   }
-  if (automation.status !== "live" || automation.schema.status !== "live") {
+  if (automation.status !== "live") {
     throw new Error("AI UGC generation requires a live automation")
   }
-  const configurationErrors = ugcLiveConfigurationErrors(automation.schema)
+  const configurationErrors = ugcLiveConfigurationErrors(
+    automation.status,
+    automation.schema
+  )
   if (configurationErrors.length) {
     throw new Error(configurationErrors.join("; "))
   }

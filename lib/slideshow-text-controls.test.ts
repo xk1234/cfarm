@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   automationSchemaToTemplateRecord,
-  automationTemplateRecordToSchema,
+  automationTemplateSchemaToRuntime,
 } from "@/lib/automation-templates"
 import {
   automationFormatSection,
@@ -55,7 +55,7 @@ describe("slideshow text controls", () => {
       updatedAt: "2026-07-15T00:00:00.000Z",
       schema,
     })
-    const restored = automationTemplateRecordToSchema(record)
+    const restored = automationTemplateSchemaToRuntime(record)
     const restoredText = automationFormatSection(restored, "content")
       .textItems[0]
     const generated = automationSchemaToTempSlideTestingAutomation(restored)

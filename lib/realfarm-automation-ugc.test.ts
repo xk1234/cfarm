@@ -13,6 +13,6 @@ describe("UGC automation schema", () => {
   })
 
   it("rejects an enabled live UGC config without product input and voice", () => {
-    expect(ugcLiveConfigurationErrors({ automationKind: "ugc", status: "live", ugc: { enabled: true } as never })).toHaveLength(2)
+    expect(ugcLiveConfigurationErrors("live", { automationKind: "ugc", ugc: { enabled: true } as never })).toHaveLength(2)
   })
 })

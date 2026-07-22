@@ -112,7 +112,7 @@ async function generateUgcAdVideo(input: AutomationVideoGenerationInput) {
   const hooks = automationHooks(input.config)
   const hook = pickRandomHook(
     hooks,
-    input.config.title || input.automation.name
+    input.automation.name
   )
   const format =
     input.config.video_format ??
@@ -198,7 +198,7 @@ async function generateTemplateVideo(
   const copy = await requestVideoCopy(input.automation.id, format)
   const hook =
     copy.hook ||
-    pickRandomHook(hooks, input.config.title || input.automation.name)
+    pickRandomHook(hooks, input.automation.name)
   const resolved = await resolveSegmentsMedia(
     format,
     input.collections,
@@ -311,7 +311,7 @@ async function generateGreenscreenMemeVideo(
 
   const selectedHook = pickRandomHook(
     automationHooks(input.config),
-    input.config.title || input.automation.name
+    input.automation.name
   )
   const copy = await requestVideoCopy(input.automation.id, format, selectedHook)
   const hook = copy.hook || selectedHook

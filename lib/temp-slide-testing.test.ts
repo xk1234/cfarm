@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest"
 
-import type { AutomationTemplateRecord } from "@/lib/automation-templates"
 import {
   automationFormatSection,
   defaultAutomationSchema,
@@ -215,57 +214,6 @@ describe("temp slide testing helpers", () => {
     )
   })
 
-  it("recovers fixed-hook image-only templates from imported style instructions", () => {
-    if (!("template" in templateRecord))
-      throw new Error("Expected legacy fixture")
-    const automation = automationTemplateToTempSlideTestingAutomation({
-      ...templateRecord,
-      id: "template-nail-designs",
-      name: "Nail Designs",
-      template: {
-        ...templateRecord.template,
-        hooks: ["cute nail designs i found on pinterest"],
-        format: {
-          ...templateRecord.template.format,
-          hook: {
-            ...templateRecord.template.format.hook,
-            display_text: true,
-            text_items: [],
-          },
-          content: {
-            ...templateRecord.template.format.content,
-            display_text: false,
-            text_items: [],
-            slide_count_mode: "static",
-            slide_count: 1,
-          },
-          cta: {
-            ...templateRecord.template.format.cta,
-            enabled: false,
-            display_text: false,
-            text_items: [],
-          },
-          tone: "Custom",
-          custom_tone:
-            "Each slideshow should contain EXACTLY 7 slides. The first slide should have 1 text item SMALL font size in 60% WIDTH and in lowercase that says the hook.",
-        },
-      },
-    })
-    const placeholders = getTempSlidePromptPlaceholders(automation)
-
-    expect(automation.slides).toHaveLength(7)
-    expect(automation.slides[0].textItems).toEqual([
-      expect.objectContaining({
-        id: "hook-1__fixed-hook",
-        section: "hook",
-        textMode: "prompt",
-        textStyle: "background",
-        textItemWidth: "60%",
-      }),
-    ])
-    expect(placeholders).toHaveLength(0)
-  })
-
   it("does not repeat word counts when content directions already include them", () => {
     const automation =
       automationTemplateToTempSlideTestingAutomation(templateRecord)
@@ -392,7 +340,8 @@ describe("temp slide testing helpers", () => {
   })
 })
 
-const templateRecord: AutomationTemplateRecord = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const templateRecord: any = {
   id: "template-test",
   name: "Test Automation",
   theme: "testing",

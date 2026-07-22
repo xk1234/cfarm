@@ -92,7 +92,6 @@ export function VideoAutomationCreateDialog({
 
   function updateName(value: string) {
     setName(value)
-    setConfig((current) => ({ ...current, title: value }))
   }
 
   async function createAutomation() {
@@ -113,7 +112,7 @@ export function VideoAutomationCreateDialog({
     try {
       await onCreate({
         name: trimmedName,
-        schema: { ...effectiveConfig, title: trimmedName },
+        schema: effectiveConfig,
       })
     } catch (createError) {
       setError(

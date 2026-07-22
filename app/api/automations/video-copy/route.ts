@@ -52,7 +52,7 @@ export const POST = withHandler(async (request: Request) => {
   const rawHook =
     hooks.length > 0
       ? hooks[Math.floor(Math.random() * hooks.length)]
-      : record.schema.title || record.name
+      : record.name
   const wordCollections = await listWordCollections()
   const requestedHook = clean(payload?.hook)
   const expanded = requestedHook

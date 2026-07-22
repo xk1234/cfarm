@@ -1,5 +1,7 @@
-import { automationTemplateRecordToSchema } from "../../lib/automation-templates"
-import { normalizeAutomationSchema } from "../../lib/realfarm-automation"
+import {
+  defaultAutomationSchema,
+  normalizeAutomationSchema,
+} from "../../lib/realfarm-automation"
 import type { Automation } from "../../lib/realfarm-data"
 
 export type ConversionResult = {
@@ -47,9 +49,7 @@ export function convertAutomationTemplateV1toV2(
     )
 
   try {
-    const runtime = automationTemplateRecordToSchema(
-      raw as never
-    ) as unknown as Record<string, unknown>
+    const runtime = convertLegacyTemplateRuntime(raw)
     const schema: Record<string, unknown> = {}
     for (const field of templateRuntimeFields) {
       if (runtime[field] !== undefined)
@@ -74,6 +74,107 @@ export function convertAutomationTemplateV1toV2(
   } catch (error) {
     return failure(`Template conversion failed: ${message(error)}`, raw)
   }
+}
+
+function convertLegacyTemplateRuntime(raw: Record<string, unknown>) {
+  const template = object(raw.template)!
+  const format = object(template.format) ?? {}
+  const summary: Automation = {
+    id: string(raw.id),
+    name: string(raw.name),
+    status: "live",
+    account: "",
+    handle: "",
+    times: [],
+    favorite: false,
+    theme: string(raw.theme) || "template",
+    socialIntegrations: [],
+  }
+  const base = defaultAutomationSchema(summary)
+  const hook = legacySection(object(format.hook), "hook")
+  const content = legacySection(object(format.content), "body")
+  const ctaSource = object(format.cta)
+  const cta = legacySection(ctaSource, "cta")
+  cta.slideCount = ctaSource?.enabled === true ? 1 : 0
+  const ids = parseObject(template.image_collection_ids) ?? base.image_collection_ids
+  const hooks = Array.isArray(template.hooks)
+    ? template.hooks.map(string).filter(Boolean)
+    : []
+  return normalizeAutomationSchema(
+    {
+      ...base,
+      automationKind:
+        raw.automationKind === "video" || raw.automationKind === "ugc"
+          ? raw.automationKind
+          : "slideshow",
+      created_at: new Date(string(template.created_at)),
+      aspect_ratio: hook.aspect_ratio as never,
+      hooks: hooks.map((text, index) => ({
+        id: `hook-${index + 1}`,
+        text,
+        enabled: true,
+        createdAt: string(template.created_at),
+      })),
+      image_collection_ids: ids as never,
+      tone: {
+        value: string(format.custom_tone) || string(format.tone),
+        preset: string(format.tone) || "Custom",
+      },
+      formatting: [hook, content, cta] as never,
+      web_search_enabled: template.web_search_enabled === true,
+      video_format: template.video_format as never,
+    },
+    summary
+  ) as unknown as Record<string, unknown>
+}
+
+function legacySection(value: Record<string, unknown> | null, id: "hook" | "body" | "cta") {
+  const section = value ?? {}
+  const items = Array.isArray(section.text_items) ? section.text_items : []
+  return {
+    id,
+    image_url: "",
+    aspect_ratio: string(section.aspect_ratio) || "9:16",
+    imageGrid: string(section.image_grid) || "none",
+    slideCount:
+      id === "body"
+        ? Number(section.slide_count_min ?? section.slide_count) || 1
+        : 1,
+    slideCountMode: section.slide_count_mode,
+    slideCountMin: Number(section.slide_count_min) || undefined,
+    slideCountMax: Number(section.slide_count_max) || undefined,
+    noText: section.display_text === false,
+    overlay: section.overlay === true,
+    aiImageSelection: section.ai_image_selection === true,
+    overlayImage: object(section.overlay_image)
+      ? {
+          enabled: object(section.overlay_image)!.enabled === true,
+          collectionId: string(object(section.overlay_image)!.collection_id),
+          padding: Number(object(section.overlay_image)!.height) || 0,
+        }
+      : undefined,
+    imageMode: section.image_mode,
+    textItems: items.flatMap((item) => {
+      const text = object(item)
+      if (!text) return []
+      return [{
+        id: string(text.id), text: "", font: string(text.font),
+        fontSize: string(text.font_size), textStyle: string(text.text_style),
+        textPosition: string(text.text_position), textItemWidth: string(text.text_item_width),
+        wordLengthMin: Number(text.word_length_min) || 0,
+        wordLengthMax: Number(text.word_length_max) || 0,
+        contentDirection: string(text.content_direction), textMode: text.text_mode,
+        staticText: string(text.static_text), textAlign: string(text.text_align),
+        textAnchor: string(text.text_anchor), textVerticalAnchor: string(text.text_vertical_anchor) || "padded",
+      }]
+    }),
+  }
+}
+
+function parseObject(value: unknown) {
+  if (object(value)) return object(value)
+  if (typeof value !== "string") return null
+  try { return object(JSON.parse(value)) } catch { return null }
 }
 
 export function convertAutomationV1toV2(rawData: unknown): ConversionResult {
@@ -109,8 +210,23 @@ export function convertAutomationV1toV2(rawData: unknown): ConversionResult {
       theme: string(raw.theme) || "ugc",
       socialIntegrations: [],
     }
+    const migrationSchema = jsonValue(sourceSchema) as Record<string, unknown>
+    delete migrationSchema.knowledge_context_enabled
+    delete migrationSchema.knowledge_base_ids
+    const migrationSchedule = object(migrationSchema.schedule)
+    if (migrationSchedule) {
+      const interval = object(migrationSchedule.interval)
+      if (
+        interval &&
+        (!Array.isArray(migrationSchedule.posting_times) ||
+          migrationSchedule.posting_times.length === 0)
+      ) {
+        migrationSchedule.posting_times = intervalPostingTimes(interval)
+      }
+      delete migrationSchedule.interval
+    }
     const normalized = jsonValue(
-      normalizeAutomationSchema(sourceSchema as never, summary)
+      normalizeAutomationSchema(migrationSchema as never, summary)
     ) as Record<string, unknown>
     delete normalized.title
     delete normalized.status
@@ -146,6 +262,31 @@ export function convertImageCollectionV1toV2(
   const id = slugify(name)
   if (!id) return failure("Image collection has no slug-safe name", raw)
   return result(raw, { ...raw, id }, [])
+}
+
+function intervalPostingTimes(interval: Record<string, unknown>) {
+  const start = clockMinutes(string(interval.start_time))
+  const end = clockMinutes(string(interval.end_time))
+  const step = Math.max(1, Number(interval.every_n_hours) || 1) * 60
+  if (start === null || end === null || end < start) return []
+  const days = Array.isArray(interval.days) ? interval.days.map(string) : []
+  const slots = []
+  for (let minute = start; minute <= end; minute += step) {
+    const hour = Math.floor(minute / 60)
+    slots.push({
+      time: `${hour % 12 || 12}:${String(minute % 60).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`,
+      days,
+    })
+  }
+  return slots
+}
+
+function clockMinutes(value: string) {
+  const match = value.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i)
+  if (!match) return null
+  let hour = Number(match[1]) % 12
+  if (match[3].toUpperCase() === "PM") hour += 12
+  return hour * 60 + Number(match[2])
 }
 
 function result(

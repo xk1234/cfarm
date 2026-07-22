@@ -4,7 +4,7 @@ import { z } from "zod"
 import { providerFail, validate } from "@/lib/api"
 import {
   listAutomationTemplateRecords,
-  automationTemplateRecordToSchema,
+  automationTemplateSchemaToRuntime,
 } from "@/lib/automation-templates"
 import { listAutomationRecords } from "@/lib/automations"
 import { listImageCollections } from "@/lib/image-collections"
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     const dependentTemplates = templates
       .filter((template) =>
         automationCollectionIds(
-          automationTemplateRecordToSchema(template)
+          automationTemplateSchemaToRuntime(template)
         ).some((id) => aliases.has(id))
       )
       .map((template) => ({ id: template.id, name: template.name }))

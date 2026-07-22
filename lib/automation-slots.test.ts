@@ -67,28 +67,6 @@ describe("automation slot projection", () => {
     ).toEqual(["2026-07-15T01:00:00.000Z"])
   })
 
-  it("supports legacy interval slots and applies jitter after due qualification", () => {
-    expect(
-      dueAutomationSlots(
-        {
-          timezone: "America/New_York",
-          posting_times: [],
-          interval: {
-            every_n_hours: 3,
-            start_time: "9:00 AM",
-            end_time: "5:00 PM",
-            days: ["Fri"],
-          },
-          jitter_minutes: 15,
-        },
-        new Date("2026-07-03T16:10:00.000Z"),
-        10,
-        0,
-        () => 1
-      )
-    ).toEqual(["2026-07-03T16:15:00.000Z"])
-  })
-
   it("uses stable jitter for projections so calendar and scheduler keys agree", () => {
     const schedule = {
       timezone: "Asia/Singapore",

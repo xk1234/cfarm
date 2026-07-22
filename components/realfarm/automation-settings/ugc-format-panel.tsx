@@ -30,7 +30,7 @@ export function UgcAutomationFormatPanel({
   const ugc = normalizeUgcConfig(config.ugc)
   const [estimate, setEstimate] = useState<UgcCostBreakdown | null>(null)
   const [estimateError, setEstimateError] = useState("")
-  const validationErrors = ugcLiveConfigurationErrors({
+  const validationErrors = ugcLiveConfigurationErrors("live", {
     ...config,
     ugc,
   })

@@ -32,9 +32,6 @@ export type AutomationRecord = {
   sourceUrl?: string
   name: string
   status: AutomationRecordStatus
-  account: string
-  handle: string
-  times: string[]
   favorite: boolean
   theme: string
   importedAt?: string
@@ -97,14 +94,16 @@ export function createLocalAutomationRecord(
     schema?: AutomationSchema
     template?: RuntimeAutomationTemplate
     overrides?: Partial<
-      Pick<AutomationSchema, "status" | "social_integrations" | "schedule">
+      Pick<AutomationSchema, "social_integrations" | "schedule"> & {
+        status: AutomationStatus
+      }
     >
   } = {}
 ): AutomationRecord {
   const now = new Date().toISOString()
   const id = `automation-local-${randomUUID()}`
   const name =
-    clean(input.name) || clean(input.schema?.title) || "Untitled automation"
+    clean(input.name) || "Untitled automation"
   const summary = automationSummary({
     id,
     name,
@@ -125,8 +124,6 @@ export function createLocalAutomationRecord(
     : {
         ...defaults,
         created_at: new Date(now),
-        title: name,
-        status: input.overrides?.status ?? "live",
         social_integrations:
           input.overrides?.social_integrations ?? defaults.social_integrations,
         ...(input.template
@@ -141,16 +138,10 @@ export function createLocalAutomationRecord(
               : defaults.automationKind,
         schedule: cloneSchedule(input.overrides?.schedule ?? defaults.schedule),
       }
-  const socialSummary = socialIntegrationSummary(schema.social_integrations)
-  const scheduleTimes = automationScheduleTimes(schema)
-
   return {
     id,
     name,
-    status: schema.status,
-    account: socialSummary.account,
-    handle: socialSummary.handle,
-    times: scheduleTimes,
+    status: input.overrides?.status ?? "live",
     favorite: summary.favorite,
     theme: summary.theme,
     updatedAt: now,
@@ -171,25 +162,18 @@ export async function patchAutomationRecord(input: {
   if (!record) return null
   const nextSchema = input.schema ?? record.schema
   const nextName = clean(input.name) || record.name
-  const nextStatus = input.status ?? nextSchema.status ?? record.status
+  const nextStatus = input.status ?? record.status
   const canonicalSchema = normalizeAutomationSchema(nextSchema, {
     ...automationRecordToSummary(record),
     name: nextName,
     status: nextStatus,
   })
-  const nextSocialSummary = socialIntegrationSummary(
-    canonicalSchema.social_integrations
-  )
-  const nextTimes = automationScheduleTimes(canonicalSchema)
   const updated: AutomationRecord = {
     ...record,
     name: nextName,
     status: nextStatus,
     favorite:
       typeof input.favorite === "boolean" ? input.favorite : record.favorite,
-    account: nextSocialSummary.account,
-    handle: nextSocialSummary.handle,
-    times: nextTimes,
     schema: canonicalSchema,
     updatedAt,
   }
@@ -253,9 +237,6 @@ export function normalizeReelfarmAutomation(raw: unknown): AutomationRecord {
     sourceUrl: clean(record.sourceUrl ?? record.url) || undefined,
     name,
     status,
-    account,
-    handle,
-    times,
     favorite,
     theme,
     importedAt: now,
@@ -343,11 +324,9 @@ function normalizeAutomationRecord(
     id: record.id,
     name: record.name,
     status: normalizeStatus(record.status),
-    account: record.account,
-    handle: record.handle,
-    times: Array.isArray(record.times)
-      ? record.times.map(clean).filter(Boolean)
-      : [],
+    account: socialIntegrationSummary(record.schema?.social_integrations ?? []).account,
+    handle: socialIntegrationSummary(record.schema?.social_integrations ?? []).handle,
+    times: record.schema ? automationScheduleTimes(record.schema) : [],
     favorite: Boolean(record.favorite),
     theme: clean(record.theme) || "ugc",
     automationKind:
@@ -358,18 +337,9 @@ function normalizeAutomationRecord(
     record.schema ?? defaultAutomationSchema(summary),
     summary
   )
-  const socialSummary = socialIntegrationSummary(schema.social_integrations)
-  const scheduleTimes = automationScheduleTimes(schema)
-
   return {
     ...recordWithoutSource,
     status: normalizedStatus,
-    account: clean(record.account) || socialSummary.account,
-    handle: clean(record.handle) || socialSummary.handle,
-    times:
-      Array.isArray(record.times) && record.times.length > 0
-        ? record.times.map(clean).filter(Boolean)
-        : scheduleTimes,
     favorite: Boolean(record.favorite),
     theme: clean(record.theme) || "ugc",
     updatedAt: clean(record.updatedAt) || new Date().toISOString(),
@@ -381,13 +351,8 @@ function automationRecordForStorage(record: AutomationRecord) {
   const normalized = normalizeAutomationRecord(record)
   if (!normalized) return record
   const stored = { ...normalized } as Partial<AutomationRecord>
-  delete stored.account
-  delete stored.handle
-  delete stored.times
   const { schema: runtimeSchema } = normalized
   const schema: Record<string, unknown> = { ...runtimeSchema }
-  delete schema.title
-  delete schema.status
   return { ...stored, schema }
 }
 
@@ -473,8 +438,6 @@ function mergeImportedSchema(
           ? legacyTone
           : base.tone,
       ...(!Array.isArray(importedSchema.hooks) ? { hooks: undefined } : {}),
-      title,
-      status: status === "paused" ? "paused" : "live",
       schedule: {
         ...base.schedule,
         ...schedule,
@@ -484,7 +447,7 @@ function mergeImportedSchema(
       },
     } as AutomationSchema,
     {
-      id: base.title,
+      id: title,
       name: title,
       status,
       account: "",
@@ -510,11 +473,9 @@ function cloneLocalSchema(
 
   return {
     ...normalized,
-    title,
     created_at: Number.isFinite(parsedDate.getTime())
       ? parsedDate
       : new Date(createdAt),
-    status: normalized.status === "paused" ? "paused" : "live",
     ...cloneTemplate(normalized),
     schedule: cloneSchedule(normalized.schedule),
   }
@@ -536,7 +497,6 @@ function cloneTemplate(
     hooks: structuredClone(
       template.hooks ??
         automationHookItems({
-          title: "",
           formatting: template.formatting,
           prompt_formatting: template.prompt_formatting,
         })

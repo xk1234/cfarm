@@ -52,7 +52,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       automationId: automation.id,
-      automationTitle: schema.title || automation.name,
+      automationTitle: automation.name,
       generatedAt: new Date().toISOString(),
       ...preview,
     })

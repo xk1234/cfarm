@@ -1,9 +1,7 @@
 import { clean, isRecord } from "@/lib/guards"
 import {
-  automationTemplateRecordToSchema,
-  type AutomationTemplateFormat,
+  automationTemplateSchemaToRuntime,
   type AutomationTemplateRecord,
-  type AutomationTemplateTextItem,
 } from "@/lib/automation-templates"
 import type { StoredImageCollection } from "@/lib/image-collections"
 import {
@@ -218,82 +216,25 @@ export function hookImpliedSlideCount(hook: string): number | null {
   return count >= 1 && count <= 10 ? count : null
 }
 
-type RawImageCollectionIds = {
-  first_slide?: {
-    collection?: unknown
-  }
-  all_slides?: unknown
-  cta_slide?: {
-    cta_collection_id?: unknown
-    check?: unknown
-  }
-}
-
 export function automationTemplateToTempSlideTestingAutomation(
   record: AutomationTemplateRecord
 ): TempSlideTestingAutomation {
-  if ("schema" in record) {
-    return {
-      ...automationSchemaToTempSlideTestingAutomation(
-        automationTemplateRecordToSchema(record),
-        record.id
-      ),
-      name: record.name,
-      theme: record.theme,
-    }
-  }
-  const imageCollectionIds = parseTemplateImageCollectionIds(
-    record.template.image_collection_ids
-  )
-  const format = record.template.format
-
   return {
-    id: record.id,
+    ...automationSchemaToTempSlideTestingAutomation(
+      automationTemplateSchemaToRuntime(record),
+      { id: record.id, name: record.name }
+    ),
     name: record.name,
     theme: record.theme,
-    hooks: record.template.hooks,
-    tone: format.tone ?? "Custom",
-    style:
-      format.custom_tone ||
-      format.tone ||
-      "Use the automation's native slideshow style.",
-    imageCollectionIds,
-    slides: [
-      buildSlideSpec({
-        section: "hook",
-        index: 0,
-        title: "Hook",
-        collectionId: imageCollectionIds.hook,
-        templateSection: format.hook,
-      }),
-      ...Array.from({ length: contentSlideCount(format) }, (_, index) =>
-        buildSlideSpec({
-          section: "content",
-          index: index + 1,
-          title: `Content ${index + 1}`,
-          collectionId: imageCollectionIds.content,
-          templateSection: format.content,
-        })
-      ),
-      ...(format.cta.enabled ||
-      parseTemplateCtaSlideCheck(record.template.image_collection_ids)
-        ? [
-            buildSlideSpec({
-              section: "cta",
-              index: contentSlideCount(format) + 1,
-              title: "CTA",
-              collectionId: imageCollectionIds.cta,
-              templateSection: format.cta,
-            }),
-          ]
-        : []),
-    ],
   }
 }
 
 export function automationSchemaToTempSlideTestingAutomation(
   schema: AutomationSchema,
-  id = "main-app-automation"
+  metadata: { id: string; name: string } = {
+    id: "main-app-automation",
+    name: "Automation",
+  }
 ): TempSlideTestingAutomation {
   const hook = automationFormatSection(schema, "hook")
   const content = automationFormatSection(schema, "content")
@@ -302,8 +243,8 @@ export function automationSchemaToTempSlideTestingAutomation(
     cta.slideCount > 0 || schema.image_collection_ids.cta_slide.check
 
   return {
-    id,
-    name: schema.title,
+    id: metadata.id,
+    name: metadata.name,
     theme: "automation",
     hooks: automationHooks(schema),
     tone: automationTone(schema),
@@ -526,183 +467,6 @@ function automationTextItemToPlaceholder(input: {
     textAlign: input.textItem.textAlign,
     textAnchor: input.textItem.textAnchor,
     textVerticalAnchor: input.textItem.textVerticalAnchor ?? "padded",
-  }
-}
-
-function buildSlideSpec(input: {
-  section: TempSlideSectionId
-  index: number
-  title: string
-  collectionId: string
-  templateSection: {
-    aspect_ratio: string
-    image_grid: string
-    overlay: boolean
-    display_text: boolean
-    ai_image_selection?: boolean
-    overlay_image?: {
-      enabled: boolean
-      collection_id?: string
-      height: number
-    }
-    text_items: AutomationTemplateTextItem[]
-  }
-}): TempSlideSpec {
-  const slideId = `${input.section}-${input.index + 1}`
-  const textItems = templateSectionTextItems(input)
-
-  return {
-    id: slideId,
-    index: input.index,
-    section: input.section,
-    title: input.title,
-    aspectRatio: input.templateSection.aspect_ratio,
-    imageGrid: input.templateSection.image_grid,
-    overlay: input.templateSection.overlay,
-    aiImageSelection: input.templateSection.ai_image_selection === true,
-    displayText: input.templateSection.display_text,
-    collectionId: input.collectionId,
-    overlayImage: input.templateSection.overlay_image?.enabled
-      ? {
-          enabled: true,
-          collectionId: clean(
-            input.templateSection.overlay_image.collection_id
-          ),
-          height: input.templateSection.overlay_image.height,
-        }
-      : undefined,
-    textItems: textItems.map((textItem, index) =>
-      templateTextItemToPlaceholder({
-        textItem,
-        slideId,
-        section: input.section,
-        index,
-      })
-    ),
-  }
-}
-
-function templateTextItemToPlaceholder(input: {
-  textItem: AutomationTemplateTextItem
-  slideId: string
-  section: TempSlideSectionId
-  index: number
-}): TempSlideTextPlaceholder {
-  return {
-    id: `${input.slideId}__${input.textItem.id}`,
-    itemId: input.textItem.id,
-    section: input.section,
-    slideId: input.slideId,
-    label: `${input.section} text ${input.index + 1}`,
-    contentDirection: clean(input.textItem.content_direction),
-    wordLengthMin: input.textItem.word_length_min,
-    wordLengthMax: input.textItem.word_length_max,
-    textMode: input.textItem.text_mode,
-    staticText: clean(input.textItem.static_text),
-    font: input.textItem.font,
-    fontSize: input.textItem.font_size,
-    textStyle: input.textItem.text_style,
-    textPosition: input.textItem.text_position,
-    textItemWidth: input.textItem.text_item_width,
-    textAlign: input.textItem.text_align,
-    textAnchor: input.textItem.text_anchor,
-    textVerticalAnchor:
-      input.textItem.text_vertical_anchor === "flush" ? "flush" : "padded",
-  }
-}
-
-function contentSlideCount(format: AutomationTemplateFormat) {
-  const exactSlideCount = exactTotalSlideCount(format.custom_tone)
-  if (exactSlideCount) {
-    return Math.max(1, exactSlideCount - 1 - (format.cta.enabled ? 1 : 0))
-  }
-
-  if (format.content.slide_count_mode === "static") {
-    return clampSlideCount(format.content.slide_count)
-  }
-
-  const min = clampSlideCount(format.content.slide_count_min)
-  const max = clampSlideCount(format.content.slide_count_max)
-  return Math.max(1, Math.round((min + max) / 2))
-}
-
-function clampSlideCount(value: unknown) {
-  const numericValue =
-    typeof value === "number" && Number.isFinite(value) ? Math.round(value) : 3
-  return Math.min(12, Math.max(1, numericValue))
-}
-
-function exactTotalSlideCount(style: string) {
-  const match = style.match(/\bexactly\s+(\d+)\s+slides?\b/i)
-  if (!match) {
-    return null
-  }
-
-  return clampSlideCount(Number(match[1]))
-}
-
-function templateSectionTextItems(input: {
-  section: TempSlideSectionId
-  templateSection: {
-    display_text: boolean
-    text_items: AutomationTemplateTextItem[]
-  }
-}) {
-  if (
-    input.section === "hook" &&
-    input.templateSection.display_text &&
-    input.templateSection.text_items.length === 0
-  ) {
-    return [fallbackHookTextItem()]
-  }
-
-  return input.templateSection.text_items
-}
-
-function fallbackHookTextItem(): AutomationTemplateTextItem {
-  return {
-    id: "fixed-hook",
-    font: "TikTok Display Medium",
-    font_size: "10px",
-    text_style: "background",
-    text_position: "center",
-    text_item_width: "60%",
-    word_length_min: 5,
-    word_length_max: 10,
-    content_direction: "fixed hook text from the automation",
-    text_mode: "prompt",
-    static_text: "",
-    text_align: "center",
-    text_anchor: "padded",
-  }
-}
-
-function parseTemplateImageCollectionIds(
-  value: string
-): TempSlideTestingAutomation["imageCollectionIds"] {
-  const parsed = parseJsonRecord(value) as RawImageCollectionIds | null
-  const content = clean(parsed?.all_slides)
-  const hook = clean(parsed?.first_slide?.collection) || content
-  const cta = clean(parsed?.cta_slide?.cta_collection_id) || content || hook
-
-  return {
-    hook,
-    content,
-    cta,
-  }
-}
-
-function parseTemplateCtaSlideCheck(value: string): boolean {
-  const parsed = parseJsonRecord(value) as RawImageCollectionIds | null
-  return parsed?.cta_slide?.check === true
-}
-
-function parseJsonRecord(value: string) {
-  try {
-    const parsed = JSON.parse(value)
-    return isRecord(parsed) ? parsed : null
-  } catch {
-    return null
   }
 }
 

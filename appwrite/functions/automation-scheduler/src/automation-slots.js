@@ -104,25 +104,6 @@ function baseSlotsInRange(schedule, start, end) {
             if (slot >= start && slot <= end)
                 slots.push(slot);
         }
-        const interval = schedule.interval;
-        if (interval?.enabled !== false &&
-            interval &&
-            (interval.days.length === 0 || interval.days.includes(weekday))) {
-            const intervalStart = parsePostingTime(interval.start_time, day.zoneName);
-            const intervalEnd = parsePostingTime(interval.end_time, day.zoneName);
-            if (!intervalStart || !intervalEnd)
-                continue;
-            let slot = day.set(intervalStart);
-            const last = day.set(intervalEnd);
-            const step = Number(interval.every_n_hours);
-            if (!Number.isFinite(step) || step <= 0 || last < slot)
-                continue;
-            while (slot <= last) {
-                if (slot >= start && slot <= end)
-                    slots.push(slot);
-                slot = slot.plus({ hours: step });
-            }
-        }
     }
     const seen = new Set();
     return slots.filter((slot) => {
@@ -151,7 +132,7 @@ function scheduleInput(value) {
 }
 function scheduleForAutomation(automation, timezone) {
     const schedule = automation.schedule;
-    if (schedule?.posting_times?.length || schedule?.interval)
+    if (schedule?.posting_times?.length)
         return schedule;
     return {
         timezone,

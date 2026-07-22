@@ -192,7 +192,6 @@ export function AutomationSettingsDrawer({
   function saveName() {
     const nextName = draftName.trim()
     if (nextName && nextName !== automation.name) {
-      setDraftConfig((current) => ({ ...current, title: nextName }))
       onRename(nextName)
     } else {
       setDraftName(automation.name)
@@ -239,7 +238,7 @@ export function AutomationSettingsDrawer({
           status: "processing",
           createdAt: placeholderCreatedAt,
           updatedAt: placeholderCreatedAt,
-          title: effectiveDraftConfig.title || automation.name,
+          title: automation.name,
           description: "",
           hashtags: [],
           caption: "",

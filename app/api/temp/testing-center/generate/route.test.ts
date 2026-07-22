@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { AutomationTemplateRecord } from "@/lib/automation-templates"
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -31,7 +30,7 @@ describe("POST /api/temp/testing-center/generate", () => {
     }))
     vi.doMock("@/lib/automation-templates", () => ({
       listAutomationTemplateRecords: vi.fn(async () => [hookOnlyTemplate]),
-      automationTemplateRecordToSchema: vi.fn(() => ({
+      automationTemplateSchemaToRuntime: vi.fn(() => ({
         title: hookOnlyTemplate.name,
       })),
     }))
@@ -68,7 +67,8 @@ describe("POST /api/temp/testing-center/generate", () => {
   })
 })
 
-const hookOnlyTemplate: AutomationTemplateRecord = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const hookOnlyTemplate: any = {
   id: "template-hook-only",
   name: "Nail Designs2",
   theme: "nail-designs",
