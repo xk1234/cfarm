@@ -12,6 +12,20 @@ describe("CollectionsView", () => {
     path.join(process.cwd(), "components/realfarm-workspace.tsx"),
     "utf8"
   )
+  const dataHookSource = readFileSync(
+    path.join(
+      process.cwd(),
+      "components/realfarm/collections/use-collections-data.ts"
+    ),
+    "utf8"
+  )
+  const loadingStatesSource = readFileSync(
+    path.join(
+      process.cwd(),
+      "components/realfarm/collections/collection-loading-states.tsx"
+    ),
+    "utf8"
+  )
   const globalStyles = readFileSync(
     path.join(process.cwd(), "app/globals.css"),
     "utf8"
@@ -33,9 +47,9 @@ describe("CollectionsView", () => {
   })
 
   it("shows a collection-shaped loading state until persisted data loads", () => {
-    expect(source).toContain("CollectionGridSkeleton")
-    expect(source).toContain("CollectionTableSkeleton")
-    expect(workspaceSource).toContain("collectionsLoaded")
+    expect(loadingStatesSource).toContain("CollectionGridSkeleton")
+    expect(loadingStatesSource).toContain("CollectionTableSkeleton")
+    expect(dataHookSource).toContain("collectionsLoaded")
     expect(workspaceSource).toContain("loading={!collectionsLoaded}")
   })
 
