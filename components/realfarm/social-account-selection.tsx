@@ -7,11 +7,11 @@ import useSWR from "swr"
 import { AccountGridSkeleton } from "@/components/ui/loading-skeleton"
 import { getApiErrorMessage } from "@/lib/client-api"
 import { clientSWRFetcher } from "@/lib/client-swr"
-import {
-  normalizePostFastIntegration,
-  type PostFastSocialIntegration,
-  type PostFastSocialProvider,
-} from "@/lib/postfast-client"
+import { normalizePostFastSocialIntegration } from "@/lib/social/postfast-adapter"
+import type {
+  SocialIntegration,
+  SocialPlatformKey,
+} from "@/lib/social/provider-contract"
 import { cn } from "@/lib/utils"
 
 import {
@@ -28,7 +28,7 @@ export function usePostFastIntegrations({
   acceptsProvider = acceptAllProviders,
 }: {
   includeDisabled?: boolean
-  acceptsProvider?: (provider: PostFastSocialProvider) => boolean
+  acceptsProvider?: (provider: SocialPlatformKey) => boolean
 } = {}) {
   const { data, error, isLoading } = useSWR<{ integrations?: unknown[] }>(
     "/api/postfast/integrations",
@@ -37,7 +37,7 @@ export function usePostFastIntegrations({
   const integrations = useMemo(
     () =>
       (data?.integrations ?? []).flatMap((value) => {
-        const integration = normalizePostFastIntegration(value)
+        const integration = normalizePostFastSocialIntegration(value)
         return integration &&
           (includeDisabled || !integration.disabled) &&
           acceptsProvider(integration.provider)
@@ -64,12 +64,12 @@ export function SocialAccountSelectionGrid({
   emptyLabel = "No connected social accounts found.",
   onToggle,
 }: {
-  integrations: PostFastSocialIntegration[]
+  integrations: SocialIntegration[]
   selectedKeys: ReadonlySet<string>
   loading?: boolean
   compact?: boolean
   emptyLabel?: string
-  onToggle: (integration: PostFastSocialIntegration) => void
+  onToggle: (integration: SocialIntegration) => void
 }) {
   if (loading) return <AccountGridSkeleton />
   if (integrations.length === 0) {
@@ -109,7 +109,7 @@ function SocialAccountSelectionTile({
   compact,
   onClick,
 }: {
-  integration: PostFastSocialIntegration
+  integration: SocialIntegration
   selected: boolean
   compact: boolean
   onClick: () => void

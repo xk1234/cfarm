@@ -1,4 +1,4 @@
-import type { PostFastSocialProvider } from "@/lib/postfast-client"
+import type { SocialPlatformKey } from "@/lib/social/provider-contract"
 import { cn } from "@/lib/utils"
 
 import { SocialPlatformIcon, socialProviderLabel } from "./social-platform"
@@ -14,7 +14,7 @@ export type SocialAccountPublishStatus =
   | "disabled"
 
 export type SocialAccountStatusItem = {
-  provider: PostFastSocialProvider
+  provider: SocialPlatformKey
   integrationId: string
   name: string
   profile?: string

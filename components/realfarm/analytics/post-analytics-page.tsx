@@ -36,7 +36,7 @@ import {
   postContentTypeLabel,
   type PostContentType,
 } from "@/lib/post-content-type"
-import type { PostFastSocialIntegration } from "@/lib/postfast-client"
+import type { SocialIntegration } from "@/lib/social/provider-contract"
 import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
 import { cn } from "@/lib/utils"
 
@@ -46,7 +46,7 @@ export function PostAnalyticsPage({
   contentType,
 }: {
   snapshots: PostFastMetricSnapshot[]
-  integration: PostFastSocialIntegration
+  integration: SocialIntegration
   contentType: PostContentType
 }) {
   const router = useRouter()

@@ -14,7 +14,7 @@ import {
 } from "@tabler/icons-react"
 import { Tooltip } from "radix-ui"
 
-import type { PostFastSocialIntegration } from "@/lib/postfast-client"
+import type { SocialIntegration } from "@/lib/social/provider-contract"
 import { cn } from "@/lib/utils"
 
 export function AccountProfileIcon({
@@ -23,7 +23,7 @@ export function AccountProfileIcon({
   selected,
   tooltip = false,
 }: {
-  integration: PostFastSocialIntegration
+  integration: SocialIntegration
   size?: "sm" | "md"
   selected?: boolean
   tooltip?: boolean
@@ -83,7 +83,7 @@ export function AccountProfileIcon({
           <Tooltip.Content
             side="top"
             sideOffset={8}
-            className="z-50 max-w-48 rounded-[7px] bg-app-strong px-2.5 py-1.5 text-center text-[10px] leading-4 font-semibold text-white shadow-[0_8px_24px_rgba(23,18,35,0.22)] data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=delayed-open]:fade-in-0"
+            className="z-50 max-w-48 rounded-[7px] bg-app-strong px-2.5 py-1.5 text-center text-[10px] leading-4 font-semibold text-white shadow-[0_8px_24px_rgba(23,18,35,0.22)] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0"
           >
             <span className="block truncate">{integration.name}</span>
             <span className="block font-medium text-white/65">

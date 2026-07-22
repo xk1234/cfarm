@@ -12,18 +12,18 @@ import {
   IconBrandYoutubeFilled,
 } from "@tabler/icons-react"
 
-import {
-  postFastProviderLabel,
-  type PostFastSocialIntegration,
-  type PostFastSocialProvider,
-} from "@/lib/postfast-client"
+import type {
+  SocialIntegration,
+  SocialPlatformKey,
+} from "@/lib/social/provider-contract"
+import { getSocialProvider } from "@/lib/social/registry"
 
 export function SocialPlatformIcon({
   provider,
   className,
   stroke = 2.4,
 }: {
-  provider: PostFastSocialProvider
+  provider: SocialPlatformKey
   className?: string
   stroke?: number
 }) {
@@ -59,18 +59,18 @@ export function SocialPlatformIcon({
   }
 }
 
-export function socialProviderLabel(provider: PostFastSocialProvider) {
-  return postFastProviderLabel(provider)
+export function socialProviderLabel(provider: SocialPlatformKey) {
+  return getSocialProvider(provider)?.name ?? provider
 }
 
 export function socialIntegrationKey(
-  integration: Pick<PostFastSocialIntegration, "provider" | "integration_id">
+  integration: Pick<SocialIntegration, "provider" | "integration_id">
 ) {
   return `${integration.provider}:${integration.integration_id}`
 }
 
 export function socialAccountShortName(
-  integration: Pick<PostFastSocialIntegration, "provider" | "profile" | "name">
+  integration: Pick<SocialIntegration, "provider" | "profile" | "name">
 ) {
   return (
     integration.profile?.replace(/^@/, "") ||

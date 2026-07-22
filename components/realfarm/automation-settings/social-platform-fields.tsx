@@ -7,7 +7,7 @@ import {
   type TikTokPublishType,
 } from "@/lib/realfarm-automation"
 import type { PostFastProviderControls } from "@/lib/postfast-provider-controls"
-import type { PostFastSocialProvider } from "@/lib/postfast-client"
+import type { SocialPlatformKey } from "@/lib/social/provider-contract"
 import { canPublishSlideshowAsVideo } from "@/lib/slideshow-social-platforms"
 
 import {
@@ -31,7 +31,7 @@ export function SocialPlatformSettingsFields({
   onSocialSettingsChange,
   onPublishAsChange,
 }: {
-  provider: PostFastSocialProvider
+  provider: SocialPlatformKey
   settings: PostFastProviderControls
   config: AutomationSchema
   selectedIntegrations: AutomationSocialIntegration[]
@@ -223,7 +223,7 @@ function PublishAsSettingsRow({
   config,
   onChange,
 }: {
-  provider: PostFastSocialProvider
+  provider: SocialPlatformKey
   config: AutomationSchema
   onChange: (publishAs: TikTokPublishType) => void
 }) {
