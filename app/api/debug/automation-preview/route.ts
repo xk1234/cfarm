@@ -78,8 +78,8 @@ function automationSummaryFromInput(
     stringValue(automationInput?.sourceAutomationId) ||
     "debug-automation"
   const name =
-    stringValue(automationInput?.name) ||
     stringValue(schemaInput.title) ||
+    stringValue(automationInput?.name) ||
     "Debug automation"
 
   return {

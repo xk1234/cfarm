@@ -198,6 +198,14 @@ export type AutomationSchedule = {
 
 export type AutomationPostingMode = "manual" | "review" | "auto"
 
+type LegacyAutomationScheduleInterval = {
+  every_n_hours: number
+  start_time: Time
+  end_time: Time
+  days: AutomationDay[]
+  enabled?: boolean
+}
+
 export type AutomationReusePolicy = {
   image_exclusion_days?: number
   image_exclusion_limit?: number
@@ -623,7 +631,12 @@ export function normalizeAutomationSchema(
   const defaults = defaultAutomationSchema(automation)
   const source = schema
   const sourceRecord = source as unknown as Record<string, unknown>
-  const sourceSchedule = source.schedule
+  const sourceWithoutResearch = { ...sourceRecord }
+  delete sourceWithoutResearch.knowledge_context_enabled
+  delete sourceWithoutResearch.knowledge_base_ids
+  const sourceSchedule = source.schedule as AutomationSchedule & {
+    interval?: LegacyAutomationScheduleInterval
+  }
   const normalizedFormatting = normalizeFormatting(
     source.formatting,
     defaults.formatting
@@ -638,7 +651,7 @@ export function normalizeAutomationSchema(
 
   return {
     ...defaults,
-    ...sourceRecord,
+    ...sourceWithoutResearch,
     automationKind:
       source.automationKind === "video" || source.automationKind === "ugc"
         ? source.automationKind
@@ -678,7 +691,7 @@ export function normalizeAutomationSchema(
       defaults.image_collection_ids
     ),
     tone: normalizeAutomationTone(
-      source.tone,
+      source.tone ?? legacyToneFromFormatting(source.formatting),
       defaults.tone
     ),
     formatting: normalizedFormatting,
@@ -1446,10 +1459,94 @@ export function normalizePostingTimes(
 }
 
 function normalizeSchedulePostingTimes(
-  schedule: AutomationSchedule | undefined,
+  schedule: (AutomationSchedule & { interval?: unknown }) | undefined,
   fallback: AutomationSchedule["posting_times"]
 ) {
-  return normalizePostingTimes(schedule?.posting_times, fallback)
+  const interval = normalizeScheduleInterval(schedule?.interval)
+  const explicit = normalizePostingTimes(
+    schedule?.posting_times,
+    interval ? [] : fallback
+  )
+  if (!interval || interval.enabled === false) return explicit
+
+  const startMinutes = clockTimeMinutes(interval.start_time)
+  const endMinutes = clockTimeMinutes(interval.end_time)
+  if (
+    startMinutes === undefined ||
+    endMinutes === undefined ||
+    endMinutes < startMinutes
+  ) {
+    return explicit
+  }
+
+  const generated: AutomationSchedule["posting_times"] = []
+  const step = interval.every_n_hours * 60
+  for (let minutes = startMinutes; minutes <= endMinutes; minutes += step) {
+    generated.push({
+      time: minutesToClockTime(minutes),
+      days: interval.days,
+    })
+  }
+
+  const seen = new Set<string>()
+  return [...explicit, ...generated]
+    .filter((slot) => {
+      const key = `${slot.time}|${slot.days.join(",")}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .slice(0, 5)
+}
+
+function normalizeScheduleInterval(
+  value: unknown,
+  fallback?: LegacyAutomationScheduleInterval
+): LegacyAutomationScheduleInterval | undefined {
+  const record =
+    typeof value === "object" && value !== null
+      ? (value as {
+          every_n_hours?: unknown
+          start_time?: unknown
+          end_time?: unknown
+          days?: unknown
+          enabled?: unknown
+        })
+      : null
+  if (!record) return fallback
+  const everyNHours = Number(record.every_n_hours)
+  if (!Number.isFinite(everyNHours) || everyNHours <= 0) return fallback
+  return {
+    every_n_hours: Math.max(1, Math.min(24, Math.floor(everyNHours))),
+    start_time: clean(record.start_time) || "9:00 AM",
+    end_time: clean(record.end_time) || "5:00 PM",
+    days:
+      Array.isArray(record.days) && record.days.length > 0
+        ? (record.days as AutomationDay[])
+        : ["Mon", "Tue", "Wed", "Thu", "Fri"],
+    enabled: record.enabled === false ? false : undefined,
+  }
+}
+
+function clockTimeMinutes(value: string) {
+  const match = clean(value).match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i)
+  if (!match) return undefined
+  let hour = Number(match[1])
+  const minute = Number(match[2])
+  if (minute > 59 || hour > (match[3] ? 12 : 23)) return undefined
+  if (match[3]) {
+    hour %= 12
+    if (match[3].toUpperCase() === "PM") hour += 12
+  }
+  return hour * 60 + minute
+}
+
+function minutesToClockTime(value: number) {
+  const hours = Math.floor(value / 60) % 24
+  const minutes = value % 60
+  const suffix = hours >= 12 ? "PM" : "AM"
+  const displayHour = hours % 12 || 12
+  return `${displayHour}:${String(minutes).padStart(2, "0")} ${suffix}`
 }
 
 function normalizeNonNegativeNumber(value: unknown) {
@@ -1761,6 +1858,12 @@ function normalizeAutomationTone(
     value: clean(record.value) || fallback.value,
     preset: clean(record.preset) || fallback.preset,
   }
+}
+
+function legacyToneFromFormatting(value: unknown) {
+  return Array.isArray(value)
+    ? value.find((item) => isRecord(item) && item.id === "_tone")
+    : undefined
 }
 
 function normalizeSlideOverrides(value: unknown): AutomationSlideOverride[] {
