@@ -11,8 +11,8 @@ export class UgcConfigurationError extends Error {
 export const ugcRunId = (automationId: string, scheduledFor: string) => `ugcrun${hash(`${automationId}:${scheduledFor}`, 29)}`
 export const ugcExportId = (automationId: string, scheduledFor: string) => `ugc-${hash(`${automationId}:${scheduledFor}`, 32)}`
 
-type StageName = "analysis" | "script" | "actor" | "voice" | "motion" | "lipsync" | "broll" | "composite" | "store" | "publish"
-const stageOrder: StageName[] = ["analysis", "script", "actor", "voice", "motion", "lipsync", "broll", "composite", "store", "publish"]
+export type UgcStageName = "analysis" | "script" | "actor" | "voice" | "motion" | "lipsync" | "broll" | "composite" | "store" | "publish"
+export const ugcStageOrder: readonly UgcStageName[] = ["analysis", "script", "actor", "voice", "motion", "lipsync", "broll", "composite", "store", "publish"]
 
 export async function runUgcAutomation(input: {
   automationId: string
@@ -21,15 +21,15 @@ export async function runUgcAutomation(input: {
   automation: { status?: string; schema?: { status?: string; ugc?: { enabled?: boolean } } }
   checkpoints?: UgcCheckpoints
   assetExists?: (path: string) => Promise<boolean>
-  stages: Partial<Record<StageName | "analyze", (context: { runId: string; exportId: string; checkpoints: UgcCheckpoints }) => Promise<unknown>>>
-  saveCheckpoint?: (stage: StageName, checkpoint: UgcCheckpoint, checkpoints: UgcCheckpoints) => Promise<void>
-  stopAfter?: StageName
+  stages: Partial<Record<UgcStageName | "analyze", (context: { runId: string; exportId: string; checkpoints: UgcCheckpoints }) => Promise<unknown>>>
+  saveCheckpoint?: (stage: UgcStageName, checkpoint: UgcCheckpoint, checkpoints: UgcCheckpoints) => Promise<void>
+  stopAfter?: UgcStageName
 }) {
   const runId = ugcRunId(input.automationId, input.scheduledFor), exportId = ugcExportId(input.automationId, input.scheduledFor)
   if (input.automation.status !== "live" || input.automation.schema?.status !== "live") return { skipped: true as const, reason: "not_live", runId, exportId, checkpoints: input.checkpoints ?? {} }
   if (input.automation.schema.ugc?.enabled !== true) return { skipped: true as const, reason: "ugc_disabled", runId, exportId, checkpoints: input.checkpoints ?? {} }
   const checkpoints = structuredClone(input.checkpoints ?? {})
-  for (const stage of stageOrder) {
+  for (const stage of ugcStageOrder) {
     const existing = checkpoints[stage]
     if (existing && await checkpointIsDurable(existing, input.assetExists)) {
       if (input.stopAfter === stage) break
