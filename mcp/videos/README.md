@@ -1,13 +1,14 @@
 # Video MCP tools
 
-> Video automation/output/collection discovery, safe updates, status reads, and
-> publishing are callable. Server-side execution of a saved video automation,
-> first-class video generation, and character training remain deferred until
-> the public video runner/schema are stable.
+> AI UGC cost estimation, asynchronous draft generation, operation status,
+> video automation/output/collection discovery, safe updates, and publishing
+> are callable. Other saved video formats and reusable character training remain
+> deferred until their runner and storage contracts are stable.
 
-There is no proposed `lumenclip_video_generate` tool. Videos use the common
+There is no generic `lumenclip_video_generate` tool. Videos use the common
 automation contract so provider names, model settings, and internal rendering
-services do not leak into MCP.
+services do not leak into MCP. AI UGC has a narrow first-class surface because
+it already has one durable worker and checkpoint contract.
 
 ## Applicable tools
 
@@ -31,10 +32,37 @@ Use-case owners are [Templates](../templates/README.md),
   `lumenclip_collection_add_assets`, and proposed
   `lumenclip_external_assets_search`.
 - Status/review: `lumenclip_outputs_list`, `lumenclip_operation_get`.
+- AI UGC: `lumenclip_ugc_estimate`, `lumenclip_ugc_generate`, or the common
+  `lumenclip_automation_run` with a saved UGC automation ID.
 - Publishing: `lumenclip_accounts_list`, `lumenclip_output_publish`,
   `lumenclip_output_mark_published`.
 
-For discovery, use `kind: "video"` and `mediaType: "video"`.
+For discovery, use `kind: "ugc"` for AI UGC automations, `kind: "video"` for
+other video automations, and `mediaType: "video"` for media collections.
+
+## AI UGC estimate and generation
+
+`lumenclip_ugc_estimate` is read-only. Pass a saved `automationId`, optional
+estimate-only overrides (`actorSource`, `actorAssetUrl`, `voiceModel`,
+`lipSyncTier`, `targetDurationSeconds`, and `brollCount`), or only those
+estimate fields to price a hypothetical run. It returns an itemized USD
+estimate and the assumptions used; it never queues work.
+
+`lumenclip_ugc_generate` requires a saved live UGC `automationId` and stable
+`requestId`. It validates the product brief/URL and voice configuration, checks
+the UGC feature flag, and queues `run-ugc-automation`. A repeated request ID
+returns the same queue job. The result includes `runId`, `expectedOutputId`,
+the cost estimate, a `ugc.generate` operation, and a ready-to-call
+`lumenclip_operation_get` next action.
+
+The worker runs analysis, script, actor, voice, motion, lip sync, B-roll,
+composition, storage, and a draft-only publication checkpoint. MCP-originated
+runs explicitly disable automatic publishing. Review the resulting video and
+use `lumenclip_output_publish` with `confirmPublish: true` separately.
+
+Generation requires `ENABLE_UGC_AUTOMATION=true` in both the MCP process and
+job worker plus the configured provider keys. Duration is normalized to
+15–180 seconds and B-roll to 0–6 assets.
 
 ## Video template input and output
 
@@ -85,7 +113,7 @@ Output is the shared preview contract: `valid`, `preview_id`, field-level
 `lumenclip_automation_create_from_template` or
 `lumenclip_automation_update`.
 
-## `lumenclip_automation_run` for video
+## `lumenclip_automation_run` for non-UGC video
 
 This path is explicitly unavailable today. The app persists video automation
 configuration and generated-video exports, but it does not expose one shared
@@ -128,7 +156,9 @@ provider evidence on success.
 ## Explicitly unavailable tools
 
 - Arbitrary provider/model invocation.
-- Character training.
+- Reusable character CRUD or training. The app currently stores actor URLs and
+  prompts inside each automation; it has no owner-scoped character resource to
+  expose safely through MCP yet.
 - Provider-specific faceless-video tools.
 - Browser-cookie or session-token import.
 - A generic raw FFmpeg/render-command tool.

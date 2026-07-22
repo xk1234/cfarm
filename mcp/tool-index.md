@@ -23,6 +23,8 @@ several workflows, but its input/output contract has one obvious owner.
 | `lumenclip_collection_merge`                | [Collections](collections/README.md)            | Proposed, deferred |
 | `lumenclip_collection_delete`               | [Collections](collections/README.md)            | Implemented        |
 | `lumenclip_slideshow_generate`              | [Slideshows](slideshow/README.md)               | Implemented        |
+| `lumenclip_ugc_estimate`                    | [Videos](videos/README.md)                      | Implemented        |
+| `lumenclip_ugc_generate`                    | [Videos](videos/README.md)                      | Implemented        |
 | `lumenclip_slideshow_create`                | [Slideshows](slideshow/README.md)               | Proposed v1        |
 | `lumenclip_outputs_list`                    | [Outputs and operations](outputs/README.md)     | Implemented        |
 | `lumenclip_output_delete`                   | [Outputs and operations](outputs/README.md)     | Implemented        |

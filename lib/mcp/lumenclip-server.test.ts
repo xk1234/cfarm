@@ -3,6 +3,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { createLocalAutomationRecord } from "@/lib/automations"
+import type { UgcRunStatus } from "@/lib/ugc-run-status"
 import type { AutomationRunRecord } from "@/lib/automation-runner"
 import type { StoredImageCollection } from "@/lib/image-collections"
 import {
@@ -11,6 +12,8 @@ import {
   createLumenClipMcpServer,
   type LumenClipMcpServices,
 } from "@/lib/mcp/lumenclip-server"
+import { LUMENCLIP_MCP_TOOL_NAMES } from "@/lib/mcp/tool-registry"
+import type { Job } from "@/lib/queue"
 import type {
   AccountFollowerSnapshot,
   PostFastMetricSnapshot,
@@ -34,28 +37,7 @@ describe("LumenClip MCP server", () => {
     const tools = await client.listTools()
 
     expect(tools.tools.map((tool) => tool.name).sort()).toEqual(
-      [
-        "lumenclip_accounts_list",
-        "lumenclip_analytics_report",
-        "lumenclip_automation_get",
-        "lumenclip_automation_run",
-        "lumenclip_automation_update",
-        "lumenclip_automations_list",
-        "lumenclip_collection_add_assets",
-        "lumenclip_collection_delete",
-        "lumenclip_collection_save",
-        "lumenclip_collections_list",
-        "lumenclip_operation_get",
-        "lumenclip_output_delete",
-        "lumenclip_output_mark_published",
-        "lumenclip_output_publish",
-        "lumenclip_outputs_list",
-        "lumenclip_schedule_get",
-        "lumenclip_slideshow_generate",
-        "lumenclip_tiktok_import_preview",
-        "lumenclip_tiktok_import_start",
-        "lumenclip_tiktok_publications_link",
-      ].sort()
+      [...LUMENCLIP_MCP_TOOL_NAMES].sort()
     )
   })
 
@@ -230,6 +212,155 @@ describe("LumenClip MCP server", () => {
     expect(result.structuredContent).toMatchObject({
       operation: { id: run.id, status: "succeeded" },
       outputs: [{ id: run.slideshowId, publicationState: "not_published" }],
+    })
+  })
+
+  it("discovers UGC automations as manually runnable", async () => {
+    const current = ugcAutomationRecord()
+    const client = await connectClient({
+      listAutomationRecords: vi.fn(async () => [current]),
+      listAutomationRuns: vi.fn(async () => []),
+      listXAutomations: vi.fn(async () => []),
+      listXAutomationRuns: vi.fn(async () => []),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_automations_list",
+      arguments: { kind: "ugc", limit: 20 },
+    })
+
+    expect(result.structuredContent).toMatchObject({
+      total: 1,
+      items: [
+        expect.objectContaining({
+          id: current.id,
+          kind: "ugc",
+          manualRunSupported: true,
+        }),
+      ],
+    })
+  })
+
+  it("queues draft-only UGC generation through the general automation tool", async () => {
+    const current = ugcAutomationRecord()
+    const job = ugcJob(current.id)
+    const enqueue = vi.fn(async () => ({
+      id: job.id,
+      status: "enqueued" as const,
+    }))
+    const slideshowRunner = vi.fn()
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      enqueueJob: enqueue,
+      getJob: vi.fn(async () => job),
+      runDueAutomations: slideshowRunner,
+      ugcGenerationEnabled: () => true,
+      now: () => new Date("2026-07-22T12:00:00.000Z"),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_automation_run",
+      arguments: {
+        automationId: current.id,
+        requestId: "ugc-request-1",
+      },
+    })
+
+    expect(slideshowRunner).not.toHaveBeenCalled()
+    expect(enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "run-ugc-automation",
+        dedupeKey: `ugc-mcp:${current.id}:ugc-request-1`,
+        payload: expect.objectContaining({
+          automationId: current.id,
+          requestId: "ugc-request-1",
+          draftOnly: true,
+        }),
+      })
+    )
+    expect(result.structuredContent).toMatchObject({
+      automationId: current.id,
+      requestId: "ugc-request-1",
+      expectedOutputId: expect.stringMatching(/^ugc-/),
+      estimate: { currency: "USD", totalUsd: expect.any(Number) },
+      operation: { id: job.id, kind: "ugc.generate", status: "running" },
+      outputs: [],
+      nextActions: [
+        {
+          tool: "lumenclip_operation_get",
+          arguments: { operationId: job.id },
+        },
+      ],
+    })
+  })
+
+  it("estimates a saved UGC automation without enqueuing work", async () => {
+    const current = ugcAutomationRecord()
+    const enqueue = vi.fn()
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      enqueueJob: enqueue,
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_ugc_estimate",
+      arguments: { automationId: current.id, lipSyncTier: "premium" },
+    })
+
+    expect(enqueue).not.toHaveBeenCalled()
+    expect(result.structuredContent).toMatchObject({
+      automationId: current.id,
+      estimate: { currency: "USD", tier: "premium" },
+      assumptions: { lipSyncTier: "premium" },
+    })
+  })
+
+  it("reads progress for a queued UGC operation", async () => {
+    const current = ugcAutomationRecord()
+    const job = { ...ugcJob(current.id), status: "processing" as const }
+    const client = await connectClient({
+      getJob: vi.fn(async () => job),
+      getUgcRunStatus: vi.fn(async (): Promise<UgcRunStatus> => ({
+        id: "ugcrun-progress",
+        automationId: current.id,
+        scheduledFor: String(
+          (job.payload as Record<string, unknown>).scheduledFor
+        ),
+        status: "voice",
+        error: null,
+        checkpoints: {},
+        stages: [
+          { name: "analysis", status: "done", assetPaths: [] },
+          { name: "script", status: "done", assetPaths: [] },
+          { name: "actor", status: "done", assetPaths: [] },
+          { name: "voice", status: "active", assetPaths: [] },
+          { name: "motion", status: "pending", assetPaths: [] },
+          { name: "lipsync", status: "pending", assetPaths: [] },
+          { name: "broll", status: "pending", assetPaths: [] },
+          { name: "composite", status: "pending", assetPaths: [] },
+          { name: "store", status: "pending", assetPaths: [] },
+          { name: "publish", status: "pending", assetPaths: [] },
+        ],
+        createdAt: "2026-07-22T12:00:01.000Z",
+        updatedAt: "2026-07-22T12:00:10.000Z",
+      })),
+      getGeneratedVideoExport: vi.fn(async () => null),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_operation_get",
+      arguments: { operationId: job.id },
+    })
+
+    expect(result.structuredContent).toMatchObject({
+      operation: {
+        id: job.id,
+        kind: "ugc.generate",
+        status: "running",
+        stage: "voice",
+        progress: 30,
+      },
+      outputs: [],
     })
   })
 
@@ -608,6 +739,57 @@ function automationRecord() {
         paused: false,
       },
     },
+  }
+}
+
+function ugcAutomationRecord() {
+  const record = automationRecord()
+  return {
+    ...record,
+    name: "AI UGC product demo",
+    schema: {
+      ...record.schema,
+      automationKind: "ugc" as const,
+      status: "live" as const,
+      ugc: {
+        ...record.schema.ugc,
+        enabled: true,
+        productBrief: "A lightweight astrology journaling app",
+        actorSource: "generate" as const,
+        voiceId: "voice-1",
+        lipSyncTier: "standard" as const,
+        targetDurationSeconds: 30,
+        brollCount: 3,
+        captions: {
+          enabled: true,
+          style: "clean",
+          fallback: "drawtext" as const,
+        },
+        hookOverlay: { enabled: true, durationMs: 1500, style: "bold" },
+      },
+    },
+  }
+}
+
+function ugcJob(automationId: string): Job {
+  return {
+    id: "job-ugc-1",
+    type: "run-ugc-automation",
+    status: "queued",
+    payload: {
+      automationId,
+      scheduledFor: "2026-07-22T12:00:00.000Z",
+      requestId: "ugc-request-1",
+      draftOnly: true,
+    },
+    result: null,
+    error: null,
+    attempts: 0,
+    maxAttempts: 3,
+    availableAt: "2026-07-22T12:00:00.000Z",
+    createdAt: "2026-07-22T12:00:00.000Z",
+    updatedAt: "2026-07-22T12:00:00.000Z",
+    ownerId: "owner-1",
   }
 }
 

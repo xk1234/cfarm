@@ -20,7 +20,7 @@ without exposing provider payloads, credentials, or internal Appwrite rows.
 | `lumenclip_accounts_list`    | `lumenclip:read` | **Implemented:** resolve safe account identities and publishing capabilities.                        |
 | `lumenclip_outputs_list`     | `lumenclip:read` | **Implemented:** resolve generated outputs, source automations, and publication state.               |
 | `lumenclip_analytics_report` | `lumenclip:read` | **Implemented:** read latest-per-post totals, account breakdowns, follower change, and recent posts. |
-| `lumenclip_operation_get`    | `lumenclip:read` | **Implemented for generation:** inspect slideshow, social, and generated-video operations.           |
+| `lumenclip_operation_get`    | `lumenclip:read` | **Implemented for generation:** inspect slideshow, AI UGC, social, and generated-video operations.    |
 
 The implemented report accepts a lookback in days, optional integration IDs,
 and a recent-post limit. It reads stored snapshots without refreshing PostFast.

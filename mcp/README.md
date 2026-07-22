@@ -1,6 +1,6 @@
 # LumenClip MCP tool reference
 
-> Status: partially implemented. Twenty tools are callable through the
+> Status: partially implemented. Twenty-two tools are callable through the
 > authenticated `/mcp` Streamable HTTP route and local stdio transport. The
 > tool index is the source of truth for which contracts are implemented,
 > proposed, or deferred.
@@ -27,11 +27,14 @@ may link to a shared tool but do not invent a second incompatible schema.
 
 ## Callable tools
 
+<!-- BEGIN:callable-tools -->
 - `lumenclip_automations_list`
 - `lumenclip_automation_get`
 - `lumenclip_automation_run`
 - `lumenclip_schedule_get`
 - `lumenclip_slideshow_generate`
+- `lumenclip_ugc_estimate`
+- `lumenclip_ugc_generate`
 - `lumenclip_automation_update`
 - `lumenclip_collections_list`
 - `lumenclip_collection_save`
@@ -47,6 +50,7 @@ may link to a shared tool but do not invent a second incompatible schema.
 - `lumenclip_tiktok_import_start`
 - `lumenclip_tiktok_import_preview`
 - `lumenclip_tiktok_publications_link`
+<!-- END:callable-tools -->
 
 The remaining names in this reference describe the intended general MCP
 surface and are not callable until marked **Implemented** in the tool index.
@@ -57,7 +61,7 @@ surface and are not callable until marked **Implemented** in the tool index.
 - Local stdio: `pnpm mcp`, scoped to `LUMENCLIP_MCP_OWNER_ID`. When Appwrite
   points to localhost this explicit local ID is mandatory; the cloud system
   owner is never used as a fallback. The older `pnpm mcp:tiktok` command
-  remains as a compatibility alias and exposes the same twenty-tool server.
+  remains as a compatibility alias and exposes the same twenty-two-tool server.
 
 ## Naming and availability
 

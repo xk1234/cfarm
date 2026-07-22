@@ -8,6 +8,7 @@ import { Query } from "node-appwrite"
 
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { getCurrentUser } from "@/lib/auth"
+import { systemOwnerId } from "@/lib/system-owner-context"
 
 const JOBS_TABLE = "jobs"
 
@@ -81,17 +82,21 @@ function mapJob(row: Record<string, unknown>): Job {
   }
 }
 
+async function queueOwnerId() {
+  return systemOwnerId() ?? (await getCurrentUser())?.$id
+}
+
 /** Push a job onto the queue. Returns null when Appwrite isn't configured. */
 export async function enqueueJob(
   input: EnqueueInput
 ): Promise<{ id: string; status: "enqueued" | "duplicate" } | null> {
   const aw = getAppwrite()
   if (!aw) return null
-  const user = await getCurrentUser()
-  if (!user) throw new Error("Authentication is required to enqueue jobs.")
+  const ownerId = await queueOwnerId()
+  if (!ownerId) throw new Error("Authentication is required to enqueue jobs.")
   const nowIso = new Date().toISOString()
   const dedupe = input.dedupeKey ?? `${input.type}:${crypto.randomUUID()}`
-  const id = deterministicJobId(user.$id, dedupe)
+  const id = deterministicJobId(ownerId, dedupe)
   try {
     await aw.tables.createRow(APPWRITE_DATABASE_ID, JOBS_TABLE, id, {
       type: input.type,
@@ -104,7 +109,7 @@ export async function enqueueJob(
       dedupe_key: dedupe,
       created_at: nowIso,
       updated_at: nowIso,
-      owner_id: user.$id,
+      owner_id: ownerId,
     })
     return { id, status: "enqueued" }
   } catch (error) {
@@ -120,10 +125,10 @@ export async function listJobs(
 ): Promise<Job[]> {
   const aw = getAppwrite()
   if (!aw) return []
-  const user = await getCurrentUser()
-  if (!user) return []
+  const ownerId = await queueOwnerId()
+  if (!ownerId) return []
   const queries = [Query.orderDesc("$createdAt"), Query.limit(opts.limit ?? 50)]
-  queries.push(Query.equal("owner_id", [user.$id]))
+  queries.push(Query.equal("owner_id", [ownerId]))
   if (opts.status) queries.push(Query.equal("status", [opts.status]))
   if (opts.type) queries.push(Query.equal("type", [opts.type]))
   const res = await aw.tables.listRows(
@@ -137,8 +142,8 @@ export async function listJobs(
 export async function getJob(id: string): Promise<Job | null> {
   const aw = getAppwrite()
   if (!aw) return null
-  const user = await getCurrentUser()
-  if (!user) return null
+  const ownerId = await queueOwnerId()
+  if (!ownerId) return null
   try {
     const job = mapJob(
       (await aw.tables.getRow(APPWRITE_DATABASE_ID, JOBS_TABLE, id)) as Record<
@@ -146,7 +151,7 @@ export async function getJob(id: string): Promise<Job | null> {
         unknown
       >
     )
-    return job.ownerId === user.$id ? job : null
+    return job.ownerId === ownerId ? job : null
   } catch {
     return null
   }
@@ -158,8 +163,8 @@ export async function retryGenerationJob(
 ): Promise<RetryGenerationJobResult | null> {
   const aw = getAppwrite()
   if (!aw) return null
-  const user = await getCurrentUser()
-  if (!user) return null
+  const ownerId = await queueOwnerId()
+  if (!ownerId) return null
 
   let row: Record<string, unknown>
   try {
@@ -174,7 +179,7 @@ export async function retryGenerationJob(
   }
 
   const job = mapJob(row)
-  if (job.ownerId !== user.$id) return null
+  if (job.ownerId !== ownerId) return null
   if (job.type !== "run-automation" && job.type !== "run-x-automation" && job.type !== "run-ugc-automation") {
     return { job, retried: false, reason: "not_generation" }
   }
@@ -222,13 +227,13 @@ export async function queueStats(): Promise<Record<JobStatus, number>> {
     number
   >
   if (!aw) return empty
-  const user = await getCurrentUser()
-  if (!user) return empty
+  const ownerId = await queueOwnerId()
+  if (!ownerId) return empty
   await Promise.all(
     statuses.map(async (status) => {
       const res = await aw.tables.listRows(APPWRITE_DATABASE_ID, JOBS_TABLE, [
         Query.equal("status", [status]),
-        Query.equal("owner_id", [user.$id]),
+        Query.equal("owner_id", [ownerId]),
         Query.limit(1),
       ])
       empty[status] = res.total

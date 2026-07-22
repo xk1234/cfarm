@@ -5,6 +5,7 @@ import { Query } from "node-appwrite"
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { getCurrentUser } from "@/lib/auth"
 import { deterministicJobId } from "@/lib/queue"
+import { systemOwnerId } from "@/lib/system-owner-context"
 import {
   ugcStageOrder,
   type UgcCheckpoints,
@@ -35,14 +36,14 @@ export async function getUgcRunStatus(
   runId: string
 ): Promise<UgcRunStatus | null> {
   const aw = getAppwrite()
-  const user = await getCurrentUser()
-  if (!aw || !user) return null
+  const ownerId = systemOwnerId() ?? (await getCurrentUser())?.$id
+  if (!aw || !ownerId) return null
   const response = await aw.tables.listRows(
     APPWRITE_DATABASE_ID,
     "automation_runs",
     [
       Query.equal("rid", [runId]),
-      Query.equal("owner_id", [user.$id]),
+      Query.equal("owner_id", [ownerId]),
       Query.limit(1),
     ]
   )
@@ -53,10 +54,9 @@ export async function getUgcRunStatus(
   const automationId = String(record.automationId || "")
   const scheduledFor = stringOrNull(record.scheduledFor)
   if (automationId && scheduledFor) {
-    const jobId = deterministicJobId(
-      user.$id,
-      `ugc-auto:${automationId}:${scheduledFor}`
-    )
+    const jobId =
+      stringOrNull(record.jobId) ??
+      deterministicJobId(ownerId, `ugc-auto:${automationId}:${scheduledFor}`)
     try {
       const job = (await aw.tables.getRow(
         APPWRITE_DATABASE_ID,
@@ -64,7 +64,7 @@ export async function getUgcRunStatus(
         jobId
       )) as Record<string, unknown>
       if (
-        job.owner_id === user.$id &&
+        job.owner_id === ownerId &&
         (job.status === "failed" || job.status === "dead")
       ) {
         record.status = "failed"

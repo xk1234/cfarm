@@ -288,6 +288,8 @@ type RawAutomationRunRecord = Omit<
 > & {
   status?: unknown
   plan?: Partial<AutomationRunPlan>
+  kind?: unknown
+  checkpoints?: unknown
 }
 
 const defaultAutomationRootDir = path.join(process.cwd(), "data", "automations")
@@ -2761,6 +2763,11 @@ function pendingAutomationRunPlan(record: AutomationRecord): AutomationRunPlan {
 }
 
 function normalizeRun(run: RawAutomationRunRecord): AutomationRunRecord | null {
+  // UGC workers share the automation_runs table but use a checkpoint-based
+  // record contract. Never coerce those rows into slideshow outputs.
+  if (run?.kind === "ugc" || (run?.checkpoints && typeof run.checkpoints === "object")) {
+    return null
+  }
   const id = clean(run?.id)
   const automationId = clean(run?.automationId)
   const scheduledFor = clean(run?.scheduledFor)

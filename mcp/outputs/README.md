@@ -1,7 +1,8 @@
 # Outputs and operations MCP tools
 
 > Output discovery, guarded deletion, and operation inspection are implemented
-> for persisted slideshow runs, generated videos, X drafts, and Threads drafts.
+> for persisted slideshow runs, AI UGC queue/checkpoint runs, generated videos,
+> X drafts, and Threads drafts.
 
 Outputs are generated drafts and rendered artifacts. Operations represent
 long-running generation, import, publishing, or export work. These contracts
@@ -50,7 +51,7 @@ Read-only and idempotent. Scope `lumenclip:read`.
 
 ### Input
 
-Required `operationId`. This is the run/export ID returned by generation.
+Required `operationId`. This is the queue, run, or export ID returned by generation.
 
 ### Output
 
@@ -76,5 +77,8 @@ include the process-local generation stage when available.
 }
 ```
 
-Operation status is lightweight and never embeds media bytes or full worker
-logs. Clients should honor `next_poll_after_ms`.
+For AI UGC, the queue operation maps durable worker checkpoints (`analysis`,
+`script`, `actor`, `voice`, `motion`, `lipsync`, `broll`, `composite`, `store`,
+`publish`) into progress. A ready export is returned as an unpublished video
+output. Operation status is lightweight and never embeds media bytes or full
+worker logs. Clients should honor `nextPollAfterMs`.

@@ -30,6 +30,8 @@
     "e2e:ui": "playwright test --ui",
     "e2e:live": "E2E_MODE=live playwright test",
     "mcp": "NODE_OPTIONS='--conditions=react-server' tsx scripts/lumenclip-mcp.ts",
+    "mcp:docs": "tsx scripts/generate-mcp-docs.ts",
+    "mcp:docs:check": "tsx scripts/generate-mcp-docs.ts --check",
     "mcp:tiktok": "NODE_OPTIONS='--conditions=react-server' tsx scripts/lumenclip-tiktok-mcp.ts",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit"

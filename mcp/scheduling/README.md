@@ -24,7 +24,7 @@ Implemented, read-only, and idempotent.
 | `limit`         | integer 1-200     | no       | Maximum projected slots; default 100.                       |
 
 The result includes normalized saved schedules and a chronological slot list
-for slideshow, video, X, and Threads automations. Slot timestamps are UTC ISO
+for slideshow, video, AI UGC, X, and Threads automations. Slot timestamps are UTC ISO
 strings and retain the automation's IANA timezone and paused state.
 
 ## Recurring schedule fields

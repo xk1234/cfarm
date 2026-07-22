@@ -6,7 +6,7 @@ description: "Tools for discovering templates, creating and editing automations,
 ## Purpose
 
 This family covers reusable content creation: slideshow templates, video
-automations, X/Threads/LinkedIn drafts, generation, review, scheduling, and
+automations, AI UGC, X/Threads/LinkedIn drafts, generation, review, scheduling, and
 publication evidence.
 
 ## Discovery and inspection
@@ -39,10 +39,12 @@ copy.
 
 | Tool                              | Behavior                                                                              |
 | --------------------------------- | ------------------------------------------------------------------------------------- |
-| `lumenclip_automation_run`        | **Implemented:** generate one unpublished slideshow/X/Threads draft.                  |
+| `lumenclip_automation_run`        | **Implemented:** generate one unpublished slideshow/UGC/X/Threads draft.              |
 | `lumenclip_slideshow_generate`    | **Implemented:** generate an unpublished draft from an existing slideshow automation. |
+| `lumenclip_ugc_estimate`          | **Implemented:** estimate itemized UGC provider cost without starting work.            |
+| `lumenclip_ugc_generate`          | **Implemented:** queue an unpublished UGC draft and return a pollable operation.        |
 | `lumenclip_slideshow_create`      | Create a deterministic slideshow from explicit slide text, media, and layout inputs.  |
-| `lumenclip_operation_get`         | **Implemented:** inspect slideshow, social, or generated-video operation state.       |
+| `lumenclip_operation_get`         | **Implemented:** inspect slideshow, UGC, social, or generated-video operation state.  |
 | `lumenclip_output_publish`        | **Implemented:** publish/schedule a ready output after literal confirmation.          |
 | `lumenclip_output_mark_published` | **Implemented:** attach a verified external post URL without sending content.         |
 
@@ -60,7 +62,7 @@ named account IDs and `confirmPublish: true`.
 7. Publish with `confirmPublish: true`, or record an external URL with
    `confirmLink: true`.
 
-Template cloning/preview remains proposed. Saved video automations can be
-listed and edited but do not yet have a server-side MCP run path. LinkedIn's
+Template cloning/preview remains proposed. Saved non-UGC video automations can
+be listed and edited but do not yet have a server-side MCP run path. LinkedIn's
 current generator is stateless and therefore is not exposed as a saved
 automation run.

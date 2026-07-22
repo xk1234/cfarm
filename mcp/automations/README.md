@@ -4,7 +4,7 @@
 > Preview and create/save contracts remain proposed.
 
 These tools correspond to the Automations area in the app. They use one
-normalized automation contract across slideshows, videos, X, Threads, and other
+normalized automation contract across slideshows, videos, AI UGC, X, Threads, and other
 supported social formats. Manual runs create drafts; scheduling and publishing
 remain separate concerns.
 
@@ -14,7 +14,7 @@ remain separate concerns.
 
 Read-only, idempotent, scope `lumenclip:read`.
 
-Current input: optional `query`, `kind` (`slideshow`, `video`, `x`, or
+Current input: optional `query`, `kind` (`slideshow`, `video`, `ugc`, `x`, or
 `threads`), `status`, and `limit` (`1..100`, default `20`).
 
 Output: summaries with `id`, `name`, `kind`, `status`, `platforms`,
@@ -72,7 +72,7 @@ warnings.
 
 ### `lumenclip_automation_update`
 
-Implemented mutation. It supports slideshow, video, X, and Threads automations.
+Implemented mutation. It supports slideshow, video, AI UGC, X, and Threads automations.
 The current session/owner boundary supplies authorization; granular
 `lumenclip:write` scopes remain planned.
 
@@ -84,7 +84,7 @@ Input:
 | `expectedUpdatedAt`      | ISO-8601 datetime | no       | Rejects the update if the saved record changed.                                    |
 | `action`                 | `pause \| resume` | no       | Stops or restarts scheduled runs and keeps lifecycle/schedule pause state aligned. |
 | `name`                   | string            | no       | New automation name.                                                               |
-| `favorite`               | boolean           | no       | Supported for slideshow/video automations; X/Threads reject it.                    |
+| `favorite`               | boolean           | no       | Supported for slideshow/video/UGC automations; X/Threads reject it.                |
 | `schedule.timezone`      | IANA timezone     | no       | New timezone.                                                                      |
 | `schedule.postingTimes`  | object[]          | no       | One or more `{time, days, enabled?}` rows.                                         |
 | `schedule.jitterMinutes` | integer           | no       | Random schedule offset from 0 to 720 minutes.                                      |
@@ -96,8 +96,9 @@ not accepted by this first update surface.
 
 ## `lumenclip_automation_run`
 
-Implemented and billable. It runs synchronously today and returns the standard
-terminal operation envelope; `lumenclip_operation_get` also accepts the run ID.
+Implemented and billable. Slideshow and social runs return a terminal operation
+today. UGC runs enqueue asynchronously and return a queue operation immediately;
+poll it with `lumenclip_operation_get`.
 
 ### Input
 
@@ -118,7 +119,10 @@ outputs, a `skipped` entry, and a stable error such as `COLLECTION_EMPTY`. This
 matches `lumenclip_slideshow_generate`, which also reports `no_images` in
 `skipped` without setting MCP `isError`.
 
-Saved slideshow, X, and Threads automations support manual runs. Saved video
+Saved slideshow, AI UGC, X, and Threads automations support manual runs. AI UGC
+runs are always queued with `draftOnly: true`, so a live automation's saved
+auto-publish configuration cannot bypass explicit MCP publication confirmation.
+Saved non-UGC video
 automations are visible and editable, but the app does not yet have a
 server-side video-automation runner, so this tool returns an explicit
 unsupported-capability error for them. LinkedIn generation is currently

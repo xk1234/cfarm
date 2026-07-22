@@ -770,7 +770,7 @@ export function normalizeUgcConfig(value: unknown): AutomationUgcConfig {
     voiceId: clean(source.voiceId),
     voiceModel: clean(source.voiceModel) || undefined,
     lipSyncTier: source.lipSyncTier === "premium" ? "premium" : "standard",
-    targetDurationSeconds: Math.max(10, Math.min(90, Math.round(numberValue(source.targetDurationSeconds, 30)))),
+    targetDurationSeconds: Math.max(15, Math.min(180, Math.round(numberValue(source.targetDurationSeconds, 30)))),
     brollCount: Math.max(0, Math.min(6, Math.round(numberValue(source.brollCount, 3)))),
     captions: { enabled: !isRecord(source.captions) || source.captions.enabled !== false, style: isRecord(source.captions) ? clean(source.captions.style) || "karaoke" : "karaoke", fallback: isRecord(source.captions) && source.captions.fallback === "png_frames" ? "png_frames" : "drawtext" },
     hookOverlay: { enabled: !isRecord(source.hookOverlay) || source.hookOverlay.enabled !== false, durationMs: isRecord(source.hookOverlay) ? Math.max(500, Math.min(10_000, Math.round(numberValue(source.hookOverlay.durationMs, 3000)))) : 3000, style: isRecord(source.hookOverlay) ? clean(source.hookOverlay.style) || "bold" : "bold" },

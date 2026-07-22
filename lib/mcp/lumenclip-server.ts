@@ -53,12 +53,18 @@ import {
   type PostFastSourceType,
 } from "@/lib/postfast-posts"
 import { publishPost } from "@/lib/publishing"
+import { enqueueJob, getJob, type Job } from "@/lib/queue"
 import type { Automation } from "@/lib/realfarm-data"
 import type {
   AutomationDay,
   AutomationSchedule,
+  AutomationUgcConfig,
 } from "@/lib/realfarm-automation"
-import { automationCollectionIds } from "@/lib/realfarm-automation"
+import {
+  automationCollectionIds,
+  normalizeUgcConfig,
+  ugcLiveConfigurationErrors,
+} from "@/lib/realfarm-automation"
 import {
   collectionAliases,
   collectionMatchesId,
@@ -87,6 +93,13 @@ import {
   upsertXAutomationRun,
 } from "@/lib/x-automation-store"
 import { listWordCollections } from "@/lib/word-collections"
+import { estimateUgcCost } from "@/lib/ugc-cost"
+import {
+  ugcExportId,
+  ugcRunId,
+  ugcStageOrder,
+} from "@/lib/ugc-automation-runner"
+import { getUgcRunStatus, type UgcRunStatus } from "@/lib/ugc-run-status"
 
 const automationDays = [
   "Mon",
@@ -156,6 +169,11 @@ export type LumenClipMcpServices = {
   startTikTokPublicationImport: typeof startTikTokPublicationImport
   inspectTikTokPublicationImport: typeof inspectTikTokPublicationImport
   linkTikTokPublicationImport: typeof linkTikTokPublicationImport
+  enqueueJob: typeof enqueueJob
+  getJob: typeof getJob
+  getUgcRunStatus: typeof getUgcRunStatus
+  estimateUgcCost: typeof estimateUgcCost
+  ugcGenerationEnabled: () => boolean
 }
 
 const defaultServices: LumenClipMcpServices = {
@@ -198,6 +216,11 @@ const defaultServices: LumenClipMcpServices = {
   startTikTokPublicationImport,
   inspectTikTokPublicationImport,
   linkTikTokPublicationImport,
+  enqueueJob,
+  getJob,
+  getUgcRunStatus,
+  estimateUgcCost,
+  ugcGenerationEnabled: () => process.env.ENABLE_UGC_AUTOMATION === "true",
 }
 
 export function createLumenClipMcpServer(
@@ -207,7 +230,7 @@ export function createLumenClipMcpServer(
   const services = { ...defaultServices, ...overrides }
   const server = new McpServer({
     name: "lumenclip",
-    version: "1.4.0",
+    version: "1.5.0",
   })
   const owned = <T>(task: () => T) => withSystemOwner(ownerId, task)
 
@@ -220,7 +243,7 @@ export function createLumenClipMcpServer(
     {
       title: "Check automation schedule",
       description:
-        "Returns saved schedule settings and projected upcoming slots for slideshow, video, X, and Threads automations. This never generates or publishes content.",
+        "Returns saved schedule settings and projected upcoming slots for slideshow, video, AI UGC, X, and Threads automations. This never generates or publishes content.",
       inputSchema: {
         automationId: z.string().trim().min(1).optional(),
         from: z.string().datetime({ offset: true }).optional(),
@@ -294,6 +317,80 @@ export function createLumenClipMcpServer(
           }
         })
       )
+  )
+
+  server.registerTool(
+    "lumenclip_ugc_estimate",
+    {
+      title: "Estimate an AI UGC draft",
+      description:
+        "Returns an itemized USD generation estimate for a saved UGC automation or an estimate-only configuration. This never starts generation or publishing.",
+      inputSchema: {
+        automationId: z.string().trim().min(1).optional(),
+        actorSource: z.enum(["generate", "gallery", "upload"]).optional(),
+        actorAssetUrl: z.string().url().optional(),
+        voiceModel: z.string().trim().min(1).max(200).optional(),
+        lipSyncTier: z.enum(["standard", "premium"]).optional(),
+        targetDurationSeconds: z.number().int().min(15).max(180).optional(),
+        brollCount: z.number().int().min(0).max(6).optional(),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (input) =>
+      mcpResult(
+        await owned(async () => {
+          const { automationId, ...overrides } = input
+          let saved: AutomationUgcConfig | undefined
+          if (automationId) {
+            const automation = await services.getAutomationRecord(automationId)
+            if (!automation) throw new Error("Automation not found")
+            if (automation.schema.automationKind !== "ugc") {
+              throw new Error("The selected automation is not an AI UGC automation")
+            }
+            saved = automation.schema.ugc
+          }
+          const configuration = normalizeUgcConfig({
+            ...(saved ?? {}),
+            ...overrides,
+          })
+          return {
+            automationId,
+            estimate: services.estimateUgcCost(configuration),
+            assumptions: {
+              targetDurationSeconds: configuration.targetDurationSeconds,
+              brollCount: configuration.brollCount,
+              actorSource: configuration.actorSource,
+              lipSyncTier: configuration.lipSyncTier,
+            },
+          }
+        })
+      )
+  )
+
+  server.registerTool(
+    "lumenclip_ugc_generate",
+    {
+      title: "Generate an AI UGC draft",
+      description:
+        "Queues one saved AI UGC automation and immediately returns an unpublished draft operation, expected output ID, cost estimate, and polling action. It never publishes content.",
+      inputSchema: {
+        automationId: z.string().trim().min(1),
+        requestId: z.string().trim().min(1).max(200),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (input) =>
+      mcpResult(await owned(() => runUgcDraft(services, input)))
   )
 
   server.registerTool(
@@ -374,10 +471,10 @@ function registerAutomationReadAndRunTools(
     {
       title: "List automations",
       description:
-        "Lists caller-owned slideshow, video, X, and Threads automations with safe configuration summaries and last-run state.",
+        "Lists caller-owned slideshow, video, AI UGC, X, and Threads automations with safe configuration summaries and last-run state.",
       inputSchema: {
         query: z.string().trim().max(200).optional(),
-        kind: z.enum(["slideshow", "video", "x", "threads"]).optional(),
+        kind: z.enum(["slideshow", "video", "ugc", "x", "threads"]).optional(),
         status: z.enum(["live", "paused", "unknown"]).optional(),
         limit: z.number().int().min(1).max(100).default(20),
       },
@@ -461,7 +558,8 @@ function registerAutomationReadAndRunTools(
               automation: {
                 ...serializeStandardAutomation(standard),
                 manualRunSupported:
-                  standard.schema.automationKind === "slideshow",
+                  standard.schema.automationKind === "slideshow" ||
+                  standard.schema.automationKind === "ugc",
                 linkedCollections: automationCollectionIds(standard.schema),
                 linkedAccounts:
                   standard.schema.social_integrations.map(safeAccount),
@@ -470,7 +568,7 @@ function registerAutomationReadAndRunTools(
                   autoPost: standard.schema.tiktok_post_settings.auto_post,
                   publishType:
                     standard.schema.tiktok_post_settings.publish_type ??
-                    (standard.schema.automationKind === "video"
+                    (["video", "ugc"].includes(standard.schema.automationKind)
                       ? "video"
                       : "slideshow"),
                 },
@@ -508,7 +606,7 @@ function registerAutomationReadAndRunTools(
     {
       title: "Run an automation",
       description:
-        "Generates one unpublished, unscheduled draft from a saved slideshow, X, or Threads automation. Saved video automations are discoverable but do not yet have a server-side runner.",
+        "Generates one unpublished, unscheduled draft from a saved slideshow, AI UGC, X, or Threads automation. AI UGC runs asynchronously and returns a pollable operation. Saved video automations remain discoverable but do not yet have a shared runner.",
       inputSchema: {
         automationId: z.string().trim().min(1),
         topic: z.string().trim().max(1000).optional(),
@@ -922,7 +1020,7 @@ function registerOutputAndPublishingTools(
     {
       title: "Get generation operation",
       description:
-        "Reads current or terminal status for a slideshow automation run, social draft run, or generated-video job.",
+        "Reads current or terminal status for a slideshow automation run, AI UGC queue/run, social draft run, or generated-video job.",
       inputSchema: { operationId: z.string().trim().min(1) },
       annotations: {
         readOnlyHint: true,
@@ -934,6 +1032,12 @@ function registerOutputAndPublishingTools(
     async ({ operationId }) =>
       mcpResult(
         await owned(async () => {
+          const job = await services.getJob(operationId)
+          if (job?.type === "run-ugc-automation") {
+            return ugcJobOperation(services, job)
+          }
+          const ugc = await services.getUgcRunStatus(operationId)
+          if (ugc) return ugcRunOperation(services, ugc)
           const regular = (
             await services.listAutomationRuns({ limit: 500 })
           ).find((run) => run.id === operationId)
@@ -1053,6 +1157,9 @@ async function runAutomationDraft(
 ) {
   const standard = await services.getAutomationRecord(input.automationId)
   if (standard) {
+    if (standard.schema.automationKind === "ugc") {
+      return runUgcDraft(services, input)
+    }
     if (standard.schema.automationKind === "video") {
       throw new Error(
         "Saved video automations do not yet have a server-side generation runner. They can be listed, inspected, scheduled, paused, and resumed through MCP."
@@ -1095,6 +1202,200 @@ async function runAutomationDraft(
     requestId: input.requestId,
   })
   return socialOperation(run)
+}
+
+async function runUgcDraft(
+  services: LumenClipMcpServices,
+  input: { automationId: string; requestId: string }
+) {
+  const automation = await services.getAutomationRecord(input.automationId)
+  if (!automation) throw new Error("Automation not found")
+  if (automation.schema.automationKind !== "ugc") {
+    throw new Error("The selected automation is not an AI UGC automation")
+  }
+  if (automation.status !== "live" || automation.schema.status !== "live") {
+    throw new Error("AI UGC generation requires a live automation")
+  }
+  const configurationErrors = ugcLiveConfigurationErrors(automation.schema)
+  if (configurationErrors.length) {
+    throw new Error(configurationErrors.join("; "))
+  }
+  if (!services.ugcGenerationEnabled()) {
+    throw new Error(
+      "AI UGC generation is disabled. Set ENABLE_UGC_AUTOMATION=true for the job worker and MCP process."
+    )
+  }
+
+  const scheduledFor = services.now().toISOString()
+  const queued = await services.enqueueJob({
+    type: "run-ugc-automation",
+    payload: {
+      automationId: input.automationId,
+      scheduledFor,
+      requestId: input.requestId,
+      source: "mcp",
+      draftOnly: true,
+    },
+    dedupeKey: `ugc-mcp:${input.automationId}:${input.requestId}`,
+    maxAttempts: 3,
+  })
+  if (!queued) throw new Error("The generation queue is unavailable")
+  const job = await services.getJob(queued.id)
+  const payload = jobPayload(job)
+  const effectiveScheduledFor =
+    typeof payload.scheduledFor === "string"
+      ? payload.scheduledFor
+      : scheduledFor
+  const runId = ugcRunId(input.automationId, effectiveScheduledFor)
+  const outputId = ugcExportId(input.automationId, effectiveScheduledFor)
+  const timestamp = job?.createdAt ?? scheduledFor
+  return {
+    automationId: input.automationId,
+    requestId: input.requestId,
+    runId,
+    expectedOutputId: outputId,
+    estimate: services.estimateUgcCost(automation.schema.ugc ?? {}),
+    operation: {
+      id: queued.id,
+      kind: "ugc.generate",
+      status: "running",
+      stage: queued.status === "duplicate" ? "queued_existing" : "queued",
+      progress: 0,
+      createdAt: timestamp,
+      updatedAt: job?.updatedAt ?? timestamp,
+      nextPollAfterMs: 5000,
+      resourceUri: `lumenclip://operations/${encodeURIComponent(queued.id)}`,
+    },
+    outputs: [],
+    warnings:
+      queued.status === "duplicate"
+        ? ["Returned the existing operation for this requestId."]
+        : [],
+    errors: [],
+    nextActions: [
+      {
+        tool: "lumenclip_operation_get",
+        arguments: { operationId: queued.id },
+      },
+    ],
+  }
+}
+
+function jobPayload(job: Job | null): Record<string, unknown> {
+  return job?.payload && typeof job.payload === "object"
+    ? (job.payload as Record<string, unknown>)
+    : {}
+}
+
+async function ugcJobOperation(services: LumenClipMcpServices, job: Job) {
+  const payload = jobPayload(job)
+  const automationId = clean(payload.automationId)
+  const scheduledFor = clean(payload.scheduledFor)
+  const runId =
+    automationId && scheduledFor ? ugcRunId(automationId, scheduledFor) : ""
+  const run = runId ? await services.getUgcRunStatus(runId) : null
+  return ugcOperationEnvelope(services, {
+    id: job.id,
+    job,
+    run,
+    automationId,
+    scheduledFor,
+  })
+}
+
+async function ugcRunOperation(
+  services: LumenClipMcpServices,
+  run: UgcRunStatus
+) {
+  return ugcOperationEnvelope(services, {
+    id: run.id,
+    run,
+    automationId: run.automationId,
+    scheduledFor: run.scheduledFor ?? "",
+  })
+}
+
+async function ugcOperationEnvelope(
+  services: LumenClipMcpServices,
+  input: {
+    id: string
+    job?: Job
+    run: UgcRunStatus | null
+    automationId: string
+    scheduledFor: string
+  }
+) {
+  const outputId =
+    input.automationId && input.scheduledFor
+      ? ugcExportId(input.automationId, input.scheduledFor)
+      : ""
+  const output = outputId
+    ? await services.getGeneratedVideoExport(outputId)
+    : null
+  const completedStages =
+    input.run?.stages.filter((stage) => stage.status === "done").length ?? 0
+  const failed =
+    input.job?.status === "failed" ||
+    input.job?.status === "dead" ||
+    input.run?.status === "failed" ||
+    output?.status === "failed"
+  const succeeded = output?.status === "ready"
+  const status = failed ? "failed" : succeeded ? "succeeded" : "running"
+  const activeStage = input.run?.stages.find(
+    (stage) => stage.status === "active" || stage.status === "failed"
+  )?.name
+  const stage = succeeded
+    ? "complete"
+    : failed
+      ? activeStage ?? "failed"
+      : activeStage ?? input.job?.status ?? input.run?.status ?? "queued"
+  const createdAt =
+    input.run?.createdAt ?? input.job?.createdAt ?? input.scheduledFor ?? null
+  const updatedAt =
+    input.run?.updatedAt ?? input.job?.updatedAt ?? createdAt
+  return {
+    automationId: input.automationId || undefined,
+    runId: input.run?.id,
+    operation: {
+      id: input.id,
+      kind: "ugc.generate",
+      status,
+      stage,
+      progress: succeeded || failed
+        ? 100
+        : Math.round((completedStages / ugcStageOrder.length) * 100),
+      createdAt,
+      updatedAt,
+      nextPollAfterMs: status === "running" ? 5000 : null,
+      resourceUri: `lumenclip://operations/${encodeURIComponent(input.id)}`,
+    },
+    outputs:
+      succeeded && output
+        ? [
+            {
+              id: output.id,
+              outputType: "video",
+              publicationState: output.manuallyPublishedAt
+                ? "published"
+                : "not_published",
+              resourceUri: `lumenclip://outputs/${encodeURIComponent(output.id)}`,
+            },
+          ]
+        : [],
+    warnings: [],
+    errors: failed
+      ? [
+          {
+            code: "OPERATION_FAILED",
+            message:
+              input.job?.error ??
+              input.run?.error ??
+              output?.error ??
+              "AI UGC generation failed",
+          },
+        ]
+      : [],
+  }
 }
 
 function skippedAutomationOperation(input: {
@@ -1150,7 +1451,9 @@ function automationListItem(
     platforms: record.schema.social_integrations.map(
       (integration) => integration.provider
     ),
-    manualRunSupported: record.schema.automationKind === "slideshow",
+    manualRunSupported:
+      record.schema.automationKind === "slideshow" ||
+      record.schema.automationKind === "ugc",
     lastRun: lastRun ? generatedRunSummary(lastRun) : null,
     resourceUri: `lumenclip://automations/${encodeURIComponent(record.id)}`,
   }

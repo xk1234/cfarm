@@ -24,6 +24,7 @@ export async function runUgcAutomationJob({ payload, tables, storage, job, datab
   const ownerId = String(job?.owner_id || "").trim()
   if (!automationId || !scheduledFor || !ownerId) throw new UgcConfigurationError("run-ugc-automation: invalid job identity")
   const runId = ugcRunId(automationId, scheduledFor)
+  const draftOnly = payload?.draftOnly === true
 
   // Kill switch is deliberately checked before any database or provider call.
   if (process.env.ENABLE_UGC_AUTOMATION !== "true") return { skipped: true, reason: "feature_disabled", runId }
@@ -38,7 +39,7 @@ export async function runUgcAutomationJob({ payload, tables, storage, job, datab
   if (row.status !== "live" || automation.status !== "live" || automation.schema?.status !== "live") return { skipped: true, reason: "not_live", runId }
   if (automation.schema?.automationKind !== "ugc" || automation.schema?.ugc?.enabled !== true) return { skipped: true, reason: "ugc_disabled", runId }
 
-  const missing = ["FAL_KEY", "ELEVENLABS_API_KEY", "OPENROUTER_API_KEY", "RENDI_API_KEY", ...(automation.schema.posting_mode === "auto" && (automation.schema.social_integrations || []).length ? ["POSTFAST_API_KEY"] : [])].filter((key) => !String(process.env[key] || "").trim())
+  const missing = ["FAL_KEY", "ELEVENLABS_API_KEY", "OPENROUTER_API_KEY", "RENDI_API_KEY", ...(!draftOnly && automation.schema.posting_mode === "auto" && (automation.schema.social_integrations || []).length ? ["POSTFAST_API_KEY"] : [])].filter((key) => !String(process.env[key] || "").trim())
   if (missing.length) {
     await sendTelegram?.(`AI UGC configuration error\nAutomation: ${automationId}\nRun: ${runId}\nMissing: ${missing.join(", ")}`).catch(() => undefined)
     throw new UgcConfigurationError(`run-ugc-automation: missing ${missing.join(", ")}`, { telegramNotified: true })
@@ -69,7 +70,7 @@ export async function runUgcAutomationJob({ payload, tables, storage, job, datab
       const fileId = crypto.createHash("sha256").update(storagePath.replace(/^data\//, "")).digest("hex").slice(0, 36)
       try { await storage.getFile("ugc_videos", fileId); return true } catch { return false }
     },
-    saveCheckpoint: async (stage, _checkpoint, all) => upsertRun(tables, databaseId, ownerId, { ...(existingRun || {}), id: runId, automationId, scheduledFor, status: stage, checkpoints: all, updatedAt: nowIso(), createdAt: existingRun?.createdAt || nowIso() }),
+    saveCheckpoint: async (stage, _checkpoint, all) => upsertRun(tables, databaseId, ownerId, { ...(existingRun || {}), kind: "ugc", jobId: job?.$id || job?.id, id: runId, automationId, scheduledFor, status: stage, checkpoints: all, updatedAt: nowIso(), createdAt: existingRun?.createdAt || nowIso() }),
     stages: {
       analysis: async () => {
         try {
@@ -143,7 +144,7 @@ export async function runUgcAutomationJob({ payload, tables, storage, job, datab
         await enqueueNotification(tables, databaseId, ownerId, { event: "generated", sourceId: exportId, runId, text: `UGC video generated\n${checkpoints.script.plan.hook}` })
         return { outputId: exportId, outputRowId: output.rowId, storagePaths: [checkpoints.composite.videoPath, checkpoints.composite.thumbnailPath] }
       },
-      publish: async ({ exportId, checkpoints }) => publishOutput({ tables, databaseId, ownerId, automationId, runId, exportId, scheduledFor, schema, checkpoints, load, fetchImpl: api.fetch }),
+      publish: async ({ exportId, checkpoints }) => draftOnly ? { skipped: true, reason: "draft_only" } : publishOutput({ tables, databaseId, ownerId, automationId, runId, exportId, scheduledFor, schema, checkpoints, load, fetchImpl: api.fetch }),
     },
   }) } catch (error) {
     if (error instanceof UgcConfigurationError || error?.retryable === true) throw error
