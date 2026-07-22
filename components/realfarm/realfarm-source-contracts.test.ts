@@ -310,7 +310,10 @@ describe("RealFarm source contracts", () => {
     })
 
     it("keeps collection detail loading and image actions on the expected UI", () => {
-      const collectionsSource = src("components/realfarm/collections-view.tsx")
+      const collectionsSource = [
+        src("components/realfarm/collections-view.tsx"),
+        src("components/realfarm/collections/collection-detail-view.tsx"),
+      ].join("\n")
       const imageViewerSource = src(
         "components/realfarm/image-viewer-modal.tsx"
       )
@@ -828,7 +831,10 @@ describe("RealFarm source contracts", () => {
       const calendar = src(
         "components/realfarm/content-calendar/content-calendar-view.tsx"
       )
-      const analytics = src("components/realfarm/analytics/analytics-view.tsx")
+      const analytics = [
+        src("components/realfarm/analytics/analytics-view.tsx"),
+        src("components/realfarm/analytics/analytics-sections.tsx"),
+      ].join("\n")
       const analyticsData = src(
         "components/realfarm/analytics/use-analytics-data.ts"
       )
