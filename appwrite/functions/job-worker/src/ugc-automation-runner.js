@@ -7,7 +7,7 @@ export class UgcConfigurationError extends Error {
 }
 export const ugcRunId = (automationId, scheduledFor) => `ugcrun${hash(`${automationId}:${scheduledFor}`, 29)}`;
 export const ugcExportId = (automationId, scheduledFor) => `ugc-${hash(`${automationId}:${scheduledFor}`, 32)}`;
-const stageOrder = ["analysis", "script", "actor", "voice", "motion", "lipsync", "broll", "composite", "store", "publish"];
+export const ugcStageOrder = ["analysis", "script", "actor", "voice", "motion", "lipsync", "broll", "composite", "store", "publish"];
 export async function runUgcAutomation(input) {
     const runId = ugcRunId(input.automationId, input.scheduledFor), exportId = ugcExportId(input.automationId, input.scheduledFor);
     if (input.automation.status !== "live" || input.automation.schema?.status !== "live")
@@ -15,7 +15,7 @@ export async function runUgcAutomation(input) {
     if (input.automation.schema.ugc?.enabled !== true)
         return { skipped: true, reason: "ugc_disabled", runId, exportId, checkpoints: input.checkpoints ?? {} };
     const checkpoints = structuredClone(input.checkpoints ?? {});
-    for (const stage of stageOrder) {
+    for (const stage of ugcStageOrder) {
         const existing = checkpoints[stage];
         if (existing && await checkpointIsDurable(existing, input.assetExists)) {
             if (input.stopAfter === stage)

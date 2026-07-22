@@ -17,6 +17,12 @@ export const generationModelRegistry = {
             model: "anthropic/claude-sonnet-5",
             fallbackModels: ["google/gemini-3.1-flash-lite"],
         },
+        contentHumanize: {
+            model: "google/gemini-3.1-flash-lite",
+        },
+        contentReview: {
+            model: "openai/gpt-5.4-mini",
+        },
         imageCaptioning: {
             model: "google/gemini-2.5-flash",
         },
