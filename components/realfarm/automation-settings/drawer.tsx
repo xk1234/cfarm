@@ -105,8 +105,7 @@ export function AutomationSettingsDrawer({
     string | null
   >(null)
   const recentRunsLoading = loadedRunsAutomationId !== automation.id
-  const automationKind =
-    draftConfig.automationKind === "video" ? "video" : "slideshow"
+  const automationKind = draftConfig.automationKind
   const effectiveDraftConfig = {
     ...draftConfig,
     social_integrations: config.social_integrations,
@@ -337,7 +336,7 @@ export function AutomationSettingsDrawer({
         }
       )
       const run = payload.created?.[0]
-      if (!run || !run.plan?.slides?.length) {
+      if (!run || (automationKind !== "ugc" && !run.plan?.slides?.length)) {
         const message =
           run?.error ||
           (payload.skipped?.some((item) => item.reason === "hooks_exhausted")
@@ -443,13 +442,17 @@ export function AutomationSettingsDrawer({
             <div className="my-2 h-px bg-[#e1e0d8]" />
             <AutomationSettingsNavButton
               label={
-                automationKind === "video" ? "Video Format" : "Slideshow Format"
+                automationKind === "ugc"
+                  ? "AI actor format"
+                  : automationKind === "video"
+                    ? "Video Format"
+                    : "Slideshow Format"
               }
               icon={IconWand}
               onClick={() => setActiveTab("format")}
             />
             <AutomationSettingsNavButton
-              label={`Hooks (${hookCount}) & ${automationKind === "video" ? "Voice" : "Style"}`}
+              label={`Hooks (${hookCount}) & ${automationKind === "video" || automationKind === "ugc" ? "Voice" : "Style"}`}
               icon={IconMessage}
               active={activeTab === "hooks"}
               onClick={() => setActiveTab("hooks")}

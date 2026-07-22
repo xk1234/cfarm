@@ -31,6 +31,7 @@ function readAutomationSettingsSource() {
     "components/realfarm/automation-settings/types.ts",
     "components/realfarm/automation-settings/automation-video-generation.ts",
     "components/realfarm/automation-settings/video-format-panel.tsx",
+    "components/realfarm/automation-settings/ugc-format-panel.tsx",
     "components/realfarm/automation-settings/video-format-helpers.ts",
     "components/realfarm/automation-settings/video-template-panel.tsx",
   ]

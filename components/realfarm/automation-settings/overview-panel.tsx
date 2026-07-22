@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { IconX } from "@tabler/icons-react"
 import { LuPencil } from "react-icons/lu"
 
@@ -89,6 +90,7 @@ export function AutomationOverviewPanel({
   const [debugRun, setDebugRun] = useState<AutomationRunApiRecord | null>(null)
   const [runSort, setRunSort] = useState<AutomationRunSort>("Recent")
   const isVideoAutomation = automation.automationKind === "video"
+  const isUgcAutomation = automation.automationKind === "ugc"
   const slideshowRuns = useMemo(
     () => recentRuns.filter(isSlideshowLifecycleRun),
     [recentRuns]
@@ -200,7 +202,37 @@ export function AutomationOverviewPanel({
           ))}
         </div>
 
-        {isVideoAutomation ? (
+        {isUgcAutomation ? (
+          <div className="mx-auto mt-5 max-w-[494px]">
+            <h3 className="mb-3 text-sm font-bold text-app-text">
+              UGC runs
+            </h3>
+            {recentRunsLoading ? (
+              <SkeletonBlock className="h-20 w-full rounded-lg" />
+            ) : recentRuns.length ? (
+              <div className="space-y-2">
+                {recentRuns.map((run) => (
+                  <Link
+                    key={run.id}
+                    href={`/app/ugc/${encodeURIComponent(run.id)}`}
+                    className="flex items-center justify-between gap-4 rounded-lg border border-app-panel-border p-3 text-sm font-semibold text-app-text transition hover:bg-app-surface-subtle"
+                  >
+                    <span className="min-w-0 truncate">
+                      {run.plan?.title || run.automationTitle || "UGC generation"}
+                    </span>
+                    <span className="shrink-0 capitalize text-app-muted-text">
+                      {run.status} · View progress
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <AutomationGenerationEmptyState>
+                Generated UGC runs will appear here.
+              </AutomationGenerationEmptyState>
+            )}
+          </div>
+        ) : isVideoAutomation ? (
           <div className="mx-auto mt-5 max-w-[494px]">
             {videoExportsLoading ? (
               <AutomationGenerationGrid

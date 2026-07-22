@@ -25,6 +25,7 @@ import {
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { Automation } from "@/lib/realfarm-data"
 import { videoAutomationTemplatePreset } from "@/lib/video-automation-templates"
+import { generationModelRegistry } from "@/lib/realfarm-generation-model-registry"
 import { cn } from "@/lib/utils"
 
 type SetupTab = "media" | "hooks" | "schedule" | "publishing"
@@ -55,8 +56,8 @@ export function VideoAutomationCreateDialog({
 }) {
   const preset = videoAutomationTemplatePreset(templateId)
   const initialAutomation = useMemo(
-    () => automationSummary(`${preset.name} automation`),
-    [preset.name]
+    () => automationSummary(`${preset.name} automation`, templateId),
+    [preset.name, templateId]
   )
   const [name, setName] = useState(initialAutomation.name)
   const [initialConfig] = useState<AutomationSchema>(() =>
@@ -348,12 +349,13 @@ function MediaSetup({
   )
 }
 
-function automationSummary(name: string): Automation {
+function automationSummary(name: string, templateId: AutomationVideoTemplateId = "ugc_ad"): Automation {
+  const isUgc = templateId === "ugc_ad"
   return {
     id: "new-video-template",
     name,
-    automationKind: "video",
-    status: "live",
+    automationKind: isUgc ? "ugc" : "video",
+    status: isUgc ? "paused" : "live",
     account: "No social account",
     handle: "",
     times: [],
@@ -370,6 +372,25 @@ export function initialVideoSchema(
 ) {
   const preset = videoAutomationTemplatePreset(templateId)
   const format = preset.buildFormat()
+  if (templateId === "ugc_ad") {
+    return {
+      ...defaultAutomationSchema({ ...automation, automationKind: "ugc", status: "paused" }),
+      automationKind: "ugc" as const,
+      status: "paused" as const,
+      ugc: {
+        enabled: true,
+        actorSource: "generate" as const,
+        actorPrompt: "Friendly creator, natural window light, direct to camera",
+        voiceId: generationModelRegistry.ugc.elevenLabsDefaultVoiceId,
+        voiceModel: generationModelRegistry.ugc.elevenLabsModelId,
+        lipSyncTier: "standard" as const,
+        targetDurationSeconds: 40,
+        brollCount: 3,
+        captions: { enabled: true, style: "karaoke", fallback: "drawtext" as const },
+        hookOverlay: { enabled: true, durationMs: 3000, style: "bold" },
+      },
+    }
+  }
   const schema = {
     ...defaultAutomationSchema(automation),
     automationKind: "video" as const,

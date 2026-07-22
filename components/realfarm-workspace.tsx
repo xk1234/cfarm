@@ -12,6 +12,7 @@ import {
 } from "@/components/realfarm/navigation"
 import {
   mergeAutomationSchema,
+  ugcLiveConfigurationErrors,
   type AutomationSchedule,
   type AutomationSchema,
   type AutomationSocialIntegration,
@@ -564,6 +565,14 @@ export function RealFarmWorkspace({
     const nextStatus: AutomationStatus =
       currentConfig.status === "paused" ? "live" : "paused"
     const nextConfig = { ...currentConfig, status: nextStatus }
+    const ugcErrors = ugcLiveConfigurationErrors(nextConfig)
+    if (ugcErrors.length) {
+      toast.error("UGC automation is not ready to go live", {
+        description: ugcErrors.join(". "),
+      })
+      setEditingAutomation(automation)
+      return
+    }
     const nextAutomation = {
       ...automation,
       status: nextStatus,
@@ -1131,7 +1140,7 @@ export function RealFarmWorkspace({
           onCreateVideoTemplate={async ({ name, schema }) => {
             const automation = await createLocalAutomation({
               name,
-              automationKind: "video",
+              automationKind: schema.automationKind,
               schema,
             })
             setTemplateFolderOpen(false)
