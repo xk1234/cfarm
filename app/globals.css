@@ -30,6 +30,10 @@
   --lc-danger: #c53b4a;
   --lc-magenta: #e92a9a;
   --lc-amber: #ff9f1c;
+  --lc-radius-control: 10px;
+  --lc-radius-card: 14px;
+  --lc-radius-media: 16px;
+  --lc-radius-dialog: 18px;
   --lc-spectrum: linear-gradient(
     120deg,
     var(--lc-violet) 0%,
@@ -232,6 +236,8 @@
   --color-brand-accent-highlight: var(--lc-violet-highlight);
   --color-brand-success: var(--lc-success);
   --color-brand-danger: var(--lc-danger);
+  --color-brand-magenta: var(--lc-magenta);
+  --color-brand-amber: var(--lc-amber);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -266,6 +272,18 @@
   --radius-app-card: var(--app-radius-card);
   --radius-app-panel: var(--app-radius-panel);
   --radius-app-dialog: var(--app-radius-dialog);
+  --radius-control: var(--lc-radius-control);
+  --radius-card: var(--lc-radius-card);
+  --radius-media: var(--lc-radius-media);
+  --radius-dialog: var(--lc-radius-dialog);
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-label: 0.875rem;
+  --text-label--line-height: 1.25rem;
+  --text-heading: 1.25rem;
+  --text-heading--line-height: 1.5rem;
+  --text-metric: 2rem;
+  --text-metric--line-height: 2.25rem;
   --shadow-app-control: var(--app-shadow-control);
   --shadow-app-card: var(--app-shadow-card);
   --shadow-app-popover: var(--app-shadow-popover);
@@ -403,6 +421,31 @@
     font-size: 0.75rem;
     font-weight: 600;
     line-height: 1.25rem;
+  }
+
+  .text-role-caption {
+    font-size: var(--text-caption);
+    line-height: var(--text-caption--line-height);
+  }
+
+  .text-role-label {
+    font-size: var(--text-label);
+    font-weight: 550;
+    line-height: var(--text-label--line-height);
+  }
+
+  .text-role-heading {
+    font-size: var(--text-heading);
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: var(--text-heading--line-height);
+  }
+
+  .text-role-metric {
+    font-family: var(--font-mono);
+    font-size: var(--text-metric);
+    font-variant-numeric: tabular-nums;
+    line-height: var(--text-metric--line-height);
   }
 
   .brand-card {

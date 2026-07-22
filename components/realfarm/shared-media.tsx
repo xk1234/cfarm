@@ -10,6 +10,10 @@ import {
 import type { ReactNode } from "react"
 
 import { SelectLike, SwitchPill } from "@/components/ui/form-controls"
+import {
+  MediaCard,
+  MediaCardPreview,
+} from "@/components/ui/media-card"
 import { Spinner } from "@/components/ui/spinner"
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { Video } from "@/lib/realfarm-data"
@@ -121,15 +125,9 @@ export function MediaCardShell({
   danger?: boolean
 }) {
   return (
-    <article
-      className={cn(
-        "app-card overflow-hidden",
-        danger && "border-app-danger-surface",
-        className
-      )}
-    >
+    <MediaCard tone={danger ? "danger" : "default"} className={className}>
       {children}
-    </article>
+    </MediaCard>
   )
 }
 
@@ -143,17 +141,9 @@ export function MediaFrame({
   aspect?: "portrait" | "square" | "wide"
 }) {
   return (
-    <div
-      className={cn(
-        "app-media-frame",
-        aspect === "portrait" && "aspect-[9/16]",
-        aspect === "square" && "aspect-square",
-        aspect === "wide" && "aspect-video",
-        className
-      )}
-    >
+    <MediaCardPreview aspect={aspect} state="ready" className={className}>
       {children}
-    </div>
+    </MediaCardPreview>
   )
 }
 
@@ -172,9 +162,7 @@ export function MediaPendingState({
       )}
     >
       <Spinner size={26} aria-label={label} />
-      <div className="text-[13px] font-semibold text-app-muted-text">
-        {label}
-      </div>
+      <div className="text-label font-semibold text-app-muted-text">{label}</div>
     </MediaFrame>
   )
 }
@@ -189,13 +177,13 @@ export function MediaErrorState({
   action?: ReactNode
 }) {
   return (
-    <MediaFrame>
+    <MediaCardPreview state="ready">
       <GenerationFailurePlaceholder
         title={title}
         message={message}
         action={action}
       />
-    </MediaFrame>
+    </MediaCardPreview>
   )
 }
 
@@ -227,7 +215,7 @@ export function GenerationFailurePlaceholder({
       <div
         className={cn(
           "font-bold text-app-danger-muted",
-          compact ? "text-[11px]" : "text-[13px]"
+          compact ? "text-caption" : "text-label"
         )}
       >
         {title}
@@ -236,7 +224,7 @@ export function GenerationFailurePlaceholder({
         <div
           className={cn(
             "line-clamp-4 font-semibold text-app-danger-text",
-            compact ? "text-[9px] leading-3.5" : "text-[12px] leading-5"
+            compact ? "text-caption leading-4" : "text-caption leading-5"
           )}
           title={message}
         >

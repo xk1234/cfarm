@@ -61,6 +61,11 @@ Use Geist through `next/font`.
 
 Scale: 12, 14, 16, 20, 24, 32, 48, 64px.
 
+Semantic utilities: `text-caption`/`text-role-caption` (12px),
+`text-label`/`text-role-label` (14px), `text-heading`/`text-role-heading`
+(20px), and `text-metric`/`text-role-metric` (32px). Use the `text-role-*`
+form when the documented weight, tracking, or mono treatment is also needed.
+
 ## Shape and depth
 
 - Buttons: 10px radius
@@ -71,6 +76,17 @@ Scale: 12, 14, 16, 20, 24, 32, 48, 64px.
 - Pills are reserved for filters, statuses, and segmented controls.
 - Prefer 1px cool-gray borders and spacing over shadows.
 - Raised panels may use `0 12px 36px rgba(35, 24, 67, 0.08)`.
+
+Semantic radius utilities: `rounded-control` (10px), `rounded-card` (14px),
+`rounded-media` (16px), and `rounded-dialog` (18px).
+
+## Enforcement
+
+Run `pnpm lint:design-tokens` to report raw hex colors, arbitrary
+`rounded-[…]`, and arbitrary pixel `text-[…px]` values in `components/**` and
+`app/**`. The migration guard reports warnings and exits successfully by
+default so legacy violations do not break builds. Maintainers can use
+`pnpm lint:design-tokens -- --strict` when checking a fully migrated scope.
 
 ## Layout
 
