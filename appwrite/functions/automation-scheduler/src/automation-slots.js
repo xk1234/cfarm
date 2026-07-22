@@ -1,6 +1,7 @@
 // Generated from lib/automation-slots.ts. Do not edit by hand.
 import { DateTime } from "luxon";
 export const SLIDESHOW_GENERATION_LEAD_MINUTES = 30;
+export const UGC_GENERATION_LEAD_MINUTES = 60;
 /** Canonical lead used by both the scheduler and calendar projections. */
 export function slideshowGenerationLeadMinutes(input) {
     if (input.posting_mode !== "review") {
@@ -10,6 +11,12 @@ export function slideshowGenerationLeadMinutes(input) {
     return Number.isFinite(configured) && configured > 0
         ? configured
         : SLIDESHOW_GENERATION_LEAD_MINUTES;
+}
+export function ugcGenerationLeadMinutes(input) {
+    const configured = Number(input.generation_lead_minutes);
+    return Number.isFinite(configured) && configured > 0
+        ? configured
+        : UGC_GENERATION_LEAD_MINUTES;
 }
 export function generationExpectedAt(publishedAt, leadMinutes) {
     const timestamp = Date.parse(publishedAt);

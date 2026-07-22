@@ -37,7 +37,7 @@ export type Project = {
 export type Automation = {
   id: string
   name: string
-  automationKind?: "slideshow" | "video" | "x_threads"
+  automationKind?: "slideshow" | "video" | "ugc" | "x_threads"
   postingMode?: AutomationPostingMode
   generationLeadMinutes?: number
   platform?: "x" | "threads"

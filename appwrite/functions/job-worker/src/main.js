@@ -10,6 +10,7 @@ import { Client, TablesDB, Storage, Query } from "node-appwrite"
 import { llmSlopPromptLine, llmSlopViolations } from "./llm-slop.js"
 import { openRouterModelForUseCase } from "./realfarm-generation-model-registry.js"
 import { runSlideshowAutomation } from "./slideshow-automation.js"
+import { runUgcAutomationJob } from "./ugc-automation.js"
 
 const DB = process.env.APPWRITE_DATABASE_ID || "cfarm"
 // A slideshow can consume most of one invocation; do not lease more work than
@@ -88,15 +89,14 @@ async function failOrRetry(t, job, err) {
     0,
     4000
   )
-  if (attempts >= max) {
+  const nonRetryable = err?.nonRetryable === true
+  if (nonRetryable || attempts >= max) {
     await t.updateRow(DB, "jobs", job.$id, {
       status: "dead",
       error: message,
       updated_at: nowIso(),
     })
-    await sendTelegram(`Dead job: ${job.type}\n${job.$id}\n${message}`).catch(
-      () => undefined
-    )
+    if (err?.telegramNotified !== true) await sendTelegram(`Dead job: ${job.type}\n${job.$id}\n${message}`).catch(() => undefined)
   } else {
     await t.updateRow(DB, "jobs", job.$id, {
       status: "queued",
@@ -627,6 +627,10 @@ const handlers = {
       job,
       databaseId: DB,
     })
+  },
+
+  async ["run-ugc-automation"](payload, t, job) {
+    return runUgcAutomationJob({ payload, tables: t, storage: storage(), job, databaseId: DB, sendTelegram })
   },
 
   async ["run-x-automation"](payload, t, job) {

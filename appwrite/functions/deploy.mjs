@@ -35,6 +35,8 @@ const optionalProviderVars = Object.fromEntries(
     "OPENAI_TRANSCRIPTION_MODEL",
     "FAL_KEY",
     "FAL_WHISPER_MODEL",
+    "ELEVENLABS_API_KEY",
+    "ENABLE_UGC_AUTOMATION",
     "TELEGRAM_BOT_TOKEN",
     "TELEGRAM_CHAT_ID",
     "POSTFAST_API_KEY",

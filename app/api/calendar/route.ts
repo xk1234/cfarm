@@ -190,7 +190,7 @@ function jobCalendarItem(
   from: Date,
   to: Date
 ): CalendarItem[] {
-  if (job.type !== "run-automation" && job.type !== "run-x-automation") {
+  if (job.type !== "run-automation" && job.type !== "run-x-automation" && job.type !== "run-ugc-automation") {
     return []
   }
   const status = calendarLifecycleForJob(job.status)

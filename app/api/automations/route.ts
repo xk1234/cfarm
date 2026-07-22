@@ -18,6 +18,7 @@ import type {
   RuntimeAutomationTemplate,
 } from "@/lib/realfarm-automation"
 import { automationHookItems } from "@/lib/realfarm-automation"
+import { ugcLiveConfigurationErrors } from "@/lib/realfarm-automation"
 import { usedHookIdsForAutomation } from "@/lib/hook-publications"
 
 export const dynamic = "force-dynamic"
@@ -48,7 +49,7 @@ export const POST = withHandler(async (request: Request) => {
 
   const record = createLocalAutomationRecord({
     name: typeof payload?.name === "string" ? payload.name : undefined,
-    automationKind: payload?.automationKind === "video" ? "video" : undefined,
+    automationKind: payload?.automationKind === "video" || payload?.automationKind === "ugc" ? payload.automationKind : undefined,
     schema: isRecord(payload?.schema)
       ? (payload.schema as AutomationSchema)
       : undefined,
@@ -125,6 +126,11 @@ export const PATCH = withHandler(async (request: Request) => {
         { status: 409 }
       )
     }
+  }
+
+  if (isRecord(payload.schema)) {
+    const errors = ugcLiveConfigurationErrors(payload.schema as AutomationSchema)
+    if (errors.length) return NextResponse.json({ error: errors[0], errors }, { status: 400 })
   }
 
   const record = await patchAutomationRecord({

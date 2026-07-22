@@ -164,6 +164,7 @@ export type RuntimeAutomationTemplate = Pick<
   | "language"
   | "web_search_enabled"
   | "video_format"
+  | "ugc"
 > & {
   hooks?: AutomationHookItem[]
   social_post_settings?: AutomationSocialPostSettings
@@ -290,8 +291,24 @@ export type AutomationVideoFormat = {
   segments: AutomationVideoSegment[]
 }
 
+export type AutomationUgcConfig = {
+  enabled: boolean
+  productUrl?: string
+  productBrief?: string
+  actorSource: "generate" | "gallery" | "upload"
+  actorAssetUrl?: string
+  actorPrompt?: string
+  voiceId: string
+  voiceModel?: string
+  lipSyncTier: "standard" | "premium"
+  targetDurationSeconds: number
+  brollCount: number
+  captions: { enabled: boolean; style: string; fallback: "drawtext" | "png_frames" }
+  hookOverlay: { enabled: boolean; durationMs: number; style: string }
+}
+
 export type AutomationSchema = {
-  automationKind: "slideshow" | "video"
+  automationKind: "slideshow" | "video" | "ugc"
   aspect_ratio: AutomationAspectRatio
   font: string
   image_fit: AutomationImageFit
@@ -336,6 +353,7 @@ export type AutomationSchema = {
   reuse_policy?: AutomationReusePolicy
   content_strategy?: AutomationContentStrategy
   video_format?: AutomationVideoFormat
+  ugc?: AutomationUgcConfig
 }
 
 export const automationAspectRatios: AutomationAspectRatio[] = [
@@ -456,7 +474,9 @@ export function defaultAutomationTemplate(
 
   return {
     automationKind:
-      automation.automationKind === "video" ? "video" : "slideshow",
+      automation.automationKind === "video" || automation.automationKind === "ugc"
+        ? automation.automationKind
+        : "slideshow",
     aspect_ratio: bodyDefaults.aspect_ratio,
     font: bodyDefaults.textItem.font,
     image_fit: defaultAutomationTemplateDefaults.image_fit,
@@ -607,6 +627,7 @@ export function mergeAutomationSchema(
       normalizedDraft.content_strategy
     ),
     video_format: normalizeVideoFormat(normalizedDraft.video_format),
+    ugc: normalizeUgcConfig(normalizedDraft.ugc),
   }
 }
 
@@ -638,7 +659,10 @@ export function normalizeAutomationSchema(
   return {
     ...defaults,
     ...sourceWithoutResearch,
-    automationKind: source.automationKind === "video" ? "video" : "slideshow",
+    automationKind:
+      source.automationKind === "video" || source.automationKind === "ugc"
+        ? source.automationKind
+        : "slideshow",
     aspect_ratio: automationAspectRatios.includes(
       sourceRecord.aspect_ratio as AutomationAspectRatio
     )
@@ -730,7 +754,37 @@ export function normalizeAutomationSchema(
     reuse_policy: normalizeReusePolicy(source.reuse_policy),
     content_strategy: normalizeContentStrategy(source.content_strategy),
     video_format: normalizeVideoFormat(source.video_format),
+    ugc: normalizeUgcConfig(source.ugc),
   }
+}
+
+export function normalizeUgcConfig(value: unknown): AutomationUgcConfig {
+  const source = isRecord(value) ? value : {}
+  return {
+    enabled: source.enabled === true,
+    productUrl: clean(source.productUrl) || undefined,
+    productBrief: clean(source.productBrief) || undefined,
+    actorSource: source.actorSource === "gallery" || source.actorSource === "upload" ? source.actorSource : "generate",
+    actorAssetUrl: clean(source.actorAssetUrl) || undefined,
+    actorPrompt: clean(source.actorPrompt) || undefined,
+    voiceId: clean(source.voiceId),
+    voiceModel: clean(source.voiceModel) || undefined,
+    lipSyncTier: source.lipSyncTier === "premium" ? "premium" : "standard",
+    targetDurationSeconds: Math.max(10, Math.min(90, Math.round(numberValue(source.targetDurationSeconds, 30)))),
+    brollCount: Math.max(0, Math.min(6, Math.round(numberValue(source.brollCount, 3)))),
+    captions: { enabled: !isRecord(source.captions) || source.captions.enabled !== false, style: isRecord(source.captions) ? clean(source.captions.style) || "karaoke" : "karaoke", fallback: isRecord(source.captions) && source.captions.fallback === "png_frames" ? "png_frames" : "drawtext" },
+    hookOverlay: { enabled: !isRecord(source.hookOverlay) || source.hookOverlay.enabled !== false, durationMs: isRecord(source.hookOverlay) ? Math.max(500, Math.min(10_000, Math.round(numberValue(source.hookOverlay.durationMs, 3000)))) : 3000, style: isRecord(source.hookOverlay) ? clean(source.hookOverlay.style) || "bold" : "bold" },
+  }
+}
+
+export function ugcLiveConfigurationErrors(schema: Pick<AutomationSchema, "automationKind" | "status" | "ugc">) {
+  if (schema.status !== "live" || schema.automationKind !== "ugc") return []
+  const ugc = normalizeUgcConfig(schema.ugc)
+  if (!ugc.enabled) return ["AI UGC must be explicitly enabled before going live"]
+  const errors: string[] = []
+  if (!ugc.productUrl && !ugc.productBrief) errors.push("AI UGC requires a product URL or brief")
+  if (!ugc.voiceId) errors.push("AI UGC requires an ElevenLabs voice id")
+  return errors
 }
 
 export function normalizeVideoFormat(
@@ -1260,7 +1314,7 @@ export function automationProviderPublishesVideo(
   >,
   provider: AutomationSocialProvider
 ) {
-  if (schema.automationKind === "video") {
+  if (schema.automationKind === "video" || schema.automationKind === "ugc") {
     return true
   }
   return (

@@ -13,6 +13,35 @@ const driftedTargets = []
 
 const generatedModules = [
   {
+    source: "lib/fal-client.ts",
+    target: "appwrite/functions/job-worker/src/fal-client.js",
+  },
+  {
+    source: "lib/elevenlabs-tts.ts",
+    target: "appwrite/functions/job-worker/src/elevenlabs-tts.js",
+  },
+  {
+    source: "lib/ugc-rendi-compositor.ts",
+    target: "appwrite/functions/job-worker/src/ugc-rendi-compositor.js",
+  },
+  {
+    source: "lib/ugc-automation-runner.ts",
+    target: "appwrite/functions/job-worker/src/ugc-automation-runner.js",
+  },
+  {
+    source: "lib/openrouter.ts",
+    target: "appwrite/functions/job-worker/src/openrouter.js",
+    imports: { "@/lib/guards": "./guards.js" },
+  },
+  {
+    source: "lib/ugc-video-generation.ts",
+    target: "appwrite/functions/job-worker/src/ugc-video-generation.js",
+    imports: {
+      "@/lib/openrouter": "./openrouter.js",
+      "@/lib/realfarm-generation-model-registry": "./realfarm-generation-model-registry.js",
+    },
+  },
+  {
     source: "lib/automation-slots.ts",
     target: "appwrite/functions/automation-scheduler/src/automation-slots.js",
   },

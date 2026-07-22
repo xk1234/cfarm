@@ -15,6 +15,7 @@ export type AutomationSlot = {
 }
 
 export const SLIDESHOW_GENERATION_LEAD_MINUTES = 30
+export const UGC_GENERATION_LEAD_MINUTES = 60
 
 export type SlideshowGenerationTimingInput = {
   posting_mode?: unknown
@@ -49,6 +50,13 @@ export function slideshowGenerationLeadMinutes(
   return Number.isFinite(configured) && configured > 0
     ? configured
     : SLIDESHOW_GENERATION_LEAD_MINUTES
+}
+
+export function ugcGenerationLeadMinutes(input: SlideshowGenerationTimingInput) {
+  const configured = Number(input.generation_lead_minutes)
+  return Number.isFinite(configured) && configured > 0
+    ? configured
+    : UGC_GENERATION_LEAD_MINUTES
 }
 
 export function generationExpectedAt(publishedAt: string, leadMinutes: number) {

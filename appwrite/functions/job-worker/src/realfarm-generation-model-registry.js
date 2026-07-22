@@ -20,6 +20,8 @@ export const generationModelRegistry = {
         imageCaptioning: {
             model: "google/gemini-2.5-flash",
         },
+        ugcAnalysis: { model: "openai/gpt-5.4-mini" },
+        ugcScript: { model: "anthropic/claude-sonnet-5" },
         tempTestingCenter: {
             featuredModelIds: [
                 "anthropic/claude-sonnet-4.5",
@@ -79,6 +81,19 @@ export const generationModelRegistry = {
         upscale: {
             imageProviderModel: "topaz/image-upscale",
         },
+    },
+    ugc: {
+        // VERIFY before enabling ENABLE_UGC_AUTOMATION: provider slugs and schemas
+        // are intentionally centralized here because FAL changes identifiers.
+        falFlux2ProEndpoint: "fal-ai/flux-2-pro",
+        falHailuo23FastEndpoint: "fal-ai/minimax/hailuo-2.3-fast/image-to-video",
+        falVeedLipSyncEndpoint: "veed/lipsync",
+        falKlingAvatarV2Endpoint: "fal-ai/kling-video/ai-avatar/v2",
+        // VERIFY before enabling: model compatibility, timestamp endpoint, and the
+        // deployment's chosen voice id.
+        elevenLabsModelId: "eleven_multilingual_v2",
+        elevenLabsDefaultVoiceId: "VERIFY_BEFORE_ENABLING",
+        elevenLabsTimestampEndpoint: "https://api.elevenlabs.io/v1/text-to-speech",
     },
 };
 export function openRouterModelForUseCase(useCase) {

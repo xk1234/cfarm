@@ -109,7 +109,7 @@ export type AutomationTemplateDefinition = {
 
 export type AutomationTemplateRecord = {
   id: string
-  automationKind?: "slideshow" | "video"
+  automationKind?: "slideshow" | "video" | "ugc"
   sourceAutomationId?: string
   sourceUrl?: string
   name: string

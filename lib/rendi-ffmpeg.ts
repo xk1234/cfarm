@@ -128,6 +128,36 @@ export async function uploadLocalFileToRendi(input: {
   })
 }
 
+/** Upload generated sidecar/media bytes without staging a local file. */
+export async function uploadBytesToRendi(input: {
+  bytes: Uint8Array
+  fileName: string
+  apiKey: string
+  fetchImpl?: FetchLike
+  pollDelayMs?: number
+  pollLimit?: number
+}) {
+  const apiKey = cleanString(input.apiKey)
+  if (!apiKey) throw new Error("Missing RENDI_API_KEY")
+  if (!input.bytes.byteLength) throw new Error("Rendi upload requires non-empty bytes")
+  const fetchImpl = input.fetchImpl ?? fetch
+  const initialized = await rendiJson<{ file_id: string; part_size: number; upload_urls: string[] }>(fetchImpl, `${RENDI_API_BASE_URL}/v1/files/init-upload`, { method: "POST", headers: jsonHeaders(apiKey), body: JSON.stringify({ filename: rendiSafeFileName(input.fileName), size_bytes: input.bytes.byteLength }) })
+  if (!initialized.file_id || !initialized.upload_urls.length) throw new Error("Rendi did not return upload URLs")
+  const parts: Array<{ part_number: number; etag: string }> = []
+  for (const [index, uploadUrl] of initialized.upload_urls.entries()) {
+    const offset = index * initialized.part_size
+    const body = input.bytes.slice(offset, Math.min(input.bytes.byteLength, offset + initialized.part_size))
+    const response = await fetchWithTimeout(uploadUrl, { method: "PUT", body }, { fetchImpl, timeoutMs: 120_000 })
+    if (!response.ok) throw new Error(`Rendi file part upload failed with ${response.status}`)
+    const etag = response.headers.get("etag") ?? response.headers.get("ETag")
+    if (!etag) throw new Error("Rendi file part upload did not return an ETag")
+    parts.push({ part_number: index + 1, etag })
+  }
+  const completed = await rendiJson<RendiStoredFile>(fetchImpl, `${RENDI_API_BASE_URL}/v1/files/${encodeURIComponent(initialized.file_id)}/complete-upload`, { method: "POST", headers: jsonHeaders(apiKey), body: JSON.stringify({ parts }) })
+  if (completed.status === "STORED" && completed.storage_url) return completed
+  return pollRendiFile({ apiKey, fileId: initialized.file_id, fetchImpl, pollDelayMs: input.pollDelayMs, pollLimit: input.pollLimit })
+}
+
 export async function runRendiFfmpegAndDownload(input: {
   apiKey: string
   ffmpegCommand: string

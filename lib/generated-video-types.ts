@@ -35,6 +35,9 @@ export type GeneratedVideoExport = {
   /** Legacy publishing alias for description. */
   caption: string
   sourceConfig: Record<string, unknown>
+  sourceAutomationId?: string
+  sourceRunId?: string
+  publication?: Record<string, unknown>
   queuePosition?: number
   previewUrl?: string
   videoUrl?: string
@@ -44,6 +47,7 @@ export type GeneratedVideoExport = {
 }
 
 export type GeneratedVideoCreatePayload = {
+  id?: string
   type: GeneratedVideoType
   status?: GeneratedVideoStatus
   title?: string
@@ -53,4 +57,7 @@ export type GeneratedVideoCreatePayload = {
   sourceConfig?: Record<string, unknown>
   previewUrl?: string
   videoUrl?: string
+  sourceAutomationId?: string
+  sourceRunId?: string
+  publication?: Record<string, unknown>
 }

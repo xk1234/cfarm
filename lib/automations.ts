@@ -115,7 +115,7 @@ export function createLocalAutomationRecord(
     favorite: false,
     theme: "ugc",
     automationKind:
-      input.automationKind === "video" ? "video" : input.schema?.automationKind,
+      input.automationKind === "video" || input.automationKind === "ugc" ? input.automationKind : input.schema?.automationKind,
   })
   const defaults = defaultAutomationSchema(summary)
   const schema: AutomationSchema = input.schema
@@ -131,10 +131,10 @@ export function createLocalAutomationRecord(
           ? cloneTemplate(input.template)
           : cloneTemplate(defaults)),
         automationKind:
-          input.automationKind === "video"
-            ? "video"
-            : input.template?.automationKind === "video"
-              ? "video"
+          input.automationKind === "video" || input.automationKind === "ugc"
+            ? input.automationKind
+            : input.template?.automationKind === "video" || input.template?.automationKind === "ugc"
+              ? input.template.automationKind
               : defaults.automationKind,
         schedule: cloneSchedule(input.overrides?.schedule ?? defaults.schedule),
       }
@@ -513,7 +513,7 @@ function cloneTemplate(
   template: RuntimeAutomationTemplate
 ): RuntimeAutomationTemplate {
   return {
-    automationKind: template.automationKind === "video" ? "video" : "slideshow",
+    automationKind: template.automationKind === "video" || template.automationKind === "ugc" ? template.automationKind : "slideshow",
     aspect_ratio: template.aspect_ratio,
     font: template.font,
     image_fit: template.image_fit,
@@ -535,6 +535,7 @@ function cloneTemplate(
     video_format: template.video_format
       ? structuredClone(template.video_format)
       : undefined,
+    ugc: template.ugc ? structuredClone(template.ugc) : undefined,
   }
 }
 

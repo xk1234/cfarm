@@ -10,6 +10,7 @@ import { Client, TablesDB, Query } from "node-appwrite"
 import {
   dueAutomationSlots,
   slideshowGenerationLeadMinutes,
+  ugcGenerationLeadMinutes,
 } from "./automation-slots.js"
 
 export {
@@ -107,16 +108,18 @@ async function automationScheduler({ log, error }) {
       considered = 0
     for (const a of automations) {
       considered++
+      const isUgc = a.schema?.automationKind === "ugc" && a.schema?.ugc?.enabled === true
+      if (isUgc && process.env.ENABLE_UGC_AUTOMATION !== "true") continue
       for (const slot of dueAutomationSlots(
         a.schema,
         now,
         LOOKBACK,
-        slideshowGenerationLeadMinutes(a.schema)
+        isUgc ? ugcGenerationLeadMinutes(a.schema) : slideshowGenerationLeadMinutes(a.schema)
       )) {
         const res = await enqueue(db, {
-          type: "run-automation",
+          type: isUgc ? "run-ugc-automation" : "run-automation",
           payload: { automationId: a.id, scheduledFor: slot },
-          dedupeKey: `auto:${a.id}:${slot}`,
+          dedupeKey: `${isUgc ? "ugc-auto" : "auto"}:${a.id}:${slot}`,
           ownerId: a.ownerId,
         })
         if (res === "enqueued") enqueued++

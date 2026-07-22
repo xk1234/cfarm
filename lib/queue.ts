@@ -171,7 +171,7 @@ export async function retryGenerationJob(
 
   const job = mapJob(row)
   if (job.ownerId !== user.$id) return null
-  if (job.type !== "run-automation" && job.type !== "run-x-automation") {
+  if (job.type !== "run-automation" && job.type !== "run-x-automation" && job.type !== "run-ugc-automation") {
     return { job, retried: false, reason: "not_generation" }
   }
   if (job.status !== "failed" && job.status !== "dead") {

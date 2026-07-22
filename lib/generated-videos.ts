@@ -60,7 +60,7 @@ export async function createGeneratedVideoExport(
   const now = new Date().toISOString()
   const status = isGeneratedVideoStatus(input.status) ? input.status : "queued"
   const record: GeneratedVideoExport = {
-    id: randomUUID(),
+    id: clean(input.id) || randomUUID(),
     type: input.type,
     status,
     createdAt: now,
@@ -75,6 +75,9 @@ export async function createGeneratedVideoExport(
     ),
     previewUrl: localMediaUrl(input.previewUrl),
     videoUrl: localMediaUrl(input.videoUrl),
+    sourceAutomationId: clean(input.sourceAutomationId) || undefined,
+    sourceRunId: clean(input.sourceRunId) || undefined,
+    publication: isRecord(input.publication) ? input.publication : undefined,
   }
 
   const rootDir = input.rootDir ?? defaultGeneratedVideoRoot
@@ -243,6 +246,9 @@ function normalizeGeneratedVideoExport(
     videoUrl: localMediaUrl(record.videoUrl),
     error: clean(record.error) || undefined,
     manuallyPublishedAt: clean(record.manuallyPublishedAt) || undefined,
+    sourceAutomationId: clean(record.sourceAutomationId) || undefined,
+    sourceRunId: clean(record.sourceRunId) || undefined,
+    publication: isRecord(record.publication) ? record.publication : undefined,
   }
 }
 
