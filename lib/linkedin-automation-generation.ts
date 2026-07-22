@@ -1,6 +1,9 @@
 import { clean } from "@/lib/guards"
+import type { BrandProfile } from "@/lib/brand-profile"
+import { runGenerationChain } from "@/lib/generation-chain"
 import { llmSlopMatches } from "@/lib/llm-slop"
 import { getOpenRouterApiKey, openRouterJson } from "@/lib/openrouter"
+import { generationModelRegistry } from "@/lib/realfarm-generation-model-registry"
 import {
   archetypeById,
   buildLinkedInSystemPrompt,
@@ -75,22 +78,39 @@ export async function deriveLinkedInBrief(input: {
         properties: {
           audience: { type: "string" },
           promise: { type: "string" },
-          pillars: { type: "array", minItems: 3, maxItems: 5, items: { type: "string" } },
+          pillars: {
+            type: "array",
+            minItems: 3,
+            maxItems: 5,
+            items: { type: "string" },
+          },
           keywords: { type: "array", items: { type: "string" } },
-          painPoints: { type: "array", minItems: 3, maxItems: 6, items: { type: "string" } },
+          painPoints: {
+            type: "array",
+            minItems: 3,
+            maxItems: 6,
+            items: { type: "string" },
+          },
         },
       },
     },
   })
   const pillarLabels = Array.isArray(result.pillars)
-    ? result.pillars.map((item) => clean(item)).filter(Boolean).slice(0, 5)
+    ? result.pillars
+        .map((item) => clean(item))
+        .filter(Boolean)
+        .slice(0, 5)
     : []
-  if (pillarLabels.length < 3) throw new Error("Strategy derivation returned fewer than three pillars")
+  if (pillarLabels.length < 3)
+    throw new Error("Strategy derivation returned fewer than three pillars")
   const weights = [30, 20, 15, 10, 5]
   return {
     audience: clean(result.audience),
     promise: clean(result.promise),
-    pillars: pillarLabels.map((label, index) => ({ label, weight: weights[index] })),
+    pillars: pillarLabels.map((label, index) => ({
+      label,
+      weight: weights[index],
+    })),
     keywords: asStringArray(result.keywords),
     painPoints: asStringArray(result.painPoints),
     derivedAt: new Date().toISOString(),
@@ -112,7 +132,9 @@ export type SelectPlanOptions = {
   random?: () => number
 }
 
-export function selectLinkedInPlan(options: SelectPlanOptions): LinkedInPostPlan {
+export function selectLinkedInPlan(
+  options: SelectPlanOptions
+): LinkedInPostPlan {
   const random = options.random ?? Math.random
   const proofOk = (needsProof?: boolean) => !needsProof || options.hasProof
   const personaOk = (archetype: LinkedInArchetype) =>
@@ -126,28 +148,54 @@ export function selectLinkedInPlan(options: SelectPlanOptions): LinkedInPostPlan
     const hookStyle = options.hookStyleId
       ? hookStyleById(options.hookStyleId)
       : pickHookStyle(options, random)
-    if (!hookStyle) throw new Error(`Unknown hook style: ${options.hookStyleId}`)
-    return { archetype, hookStyle, pillar: choosePillar(options, random), topic: clean(options.topic) || undefined }
+    if (!hookStyle)
+      throw new Error(`Unknown hook style: ${options.hookStyleId}`)
+    return {
+      archetype,
+      hookStyle,
+      pillar: choosePillar(options, random),
+      topic: clean(options.topic) || undefined,
+    }
   }
 
-  const enabled = options.enabledArchetypes?.length ? new Set(options.enabledArchetypes) : null
+  const enabled = options.enabledArchetypes?.length
+    ? new Set(options.enabledArchetypes)
+    : null
   const previous = options.recentArchetypeIds?.at(-1)
   let candidates = linkedInArchetypes.filter(
-    (a) => personaOk(a) && proofOk(a.needsProof) && (!enabled || enabled.has(a.id)) && a.id !== previous
+    (a) =>
+      personaOk(a) &&
+      proofOk(a.needsProof) &&
+      (!enabled || enabled.has(a.id)) &&
+      a.id !== previous
   )
   if (candidates.length === 0)
-    candidates = linkedInArchetypes.filter((a) => personaOk(a) && proofOk(a.needsProof) && (!enabled || enabled.has(a.id)))
-  if (candidates.length === 0) throw new Error("No eligible LinkedIn archetype for this configuration")
+    candidates = linkedInArchetypes.filter(
+      (a) =>
+        personaOk(a) && proofOk(a.needsProof) && (!enabled || enabled.has(a.id))
+    )
+  if (candidates.length === 0)
+    throw new Error("No eligible LinkedIn archetype for this configuration")
   const archetype = weightedPick(candidates, (a) => a.weight, random)
   const hookStyle = pickHookStyle(options, random)
-  return { archetype, hookStyle, pillar: choosePillar(options, random), topic: clean(options.topic) || undefined }
+  return {
+    archetype,
+    hookStyle,
+    pillar: choosePillar(options, random),
+    topic: clean(options.topic) || undefined,
+  }
 }
 
 function pickHookStyle(options: SelectPlanOptions, random: () => number) {
-  const enabled = options.enabledHookStyles?.length ? new Set(options.enabledHookStyles) : null
+  const enabled = options.enabledHookStyles?.length
+    ? new Set(options.enabledHookStyles)
+    : null
   const proofOk = (needsProof?: boolean) => !needsProof || options.hasProof
-  let styles = linkedInHookStyles.filter((h) => proofOk(h.needsProof) && (!enabled || enabled.has(h.id)))
-  if (styles.length === 0) styles = linkedInHookStyles.filter((h) => proofOk(h.needsProof))
+  let styles = linkedInHookStyles.filter(
+    (h) => proofOk(h.needsProof) && (!enabled || enabled.has(h.id))
+  )
+  if (styles.length === 0)
+    styles = linkedInHookStyles.filter((h) => proofOk(h.needsProof))
   const last = options.recentHookIds?.at(-1)
   const nonRepeating = styles.filter((h) => h.id !== last)
   const pool = nonRepeating.length ? nonRepeating : styles
@@ -164,18 +212,29 @@ export function buildPostSchema(archetype: LinkedInArchetype) {
   const properties = Object.fromEntries(
     archetype.slots.map((s) => [
       s.key,
-      { type: "string", description: `${s.description}. ${s.minWords}-${s.maxWords} words.` },
+      {
+        type: "string",
+        description: `${s.description}. ${s.minWords}-${s.maxWords} words.`,
+      },
     ])
   )
   const required = archetype.slots.filter((s) => !s.optional).map((s) => s.key)
   return {
     name: `linkedin_post_${archetype.id}`,
     strict: true,
-    schema: { type: "object", additionalProperties: false, properties, required },
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      properties,
+      required,
+    },
   }
 }
 
-export function composePost(archetype: LinkedInArchetype, output: Record<string, unknown>) {
+export function composePost(
+  archetype: LinkedInArchetype,
+  output: Record<string, unknown>
+) {
   return archetype.slots
     .map((s) => clean(output[s.key]))
     .filter(Boolean)
@@ -189,59 +248,93 @@ function wordCount(value: string) {
 /** Deterministic format gate — the production twin of the lab's frozen checks. */
 export function deterministicChecks(
   post: string,
-  options: { proof?: string[]; archetypeMinCharacters?: number; hookStyleNeedsProof?: boolean } = {}
+  options: {
+    proof?: string[]
+    archetypeMinCharacters?: number
+    hookStyleNeedsProof?: boolean
+  } = {}
 ) {
   const errors: string[] = []
   const text = post.trim()
   if (!text) return ["post is empty"]
 
-  if (/https?:\/\/|www\./i.test(text)) errors.push("no links allowed in the post body (kills reach)")
-  const minChars = Math.max(60, options.archetypeMinCharacters ?? linkedInFormatRules.minCharacters)
-  if (text.length < minChars) errors.push(`post is ${text.length} chars; minimum ${minChars}`)
+  if (/https?:\/\/|www\./i.test(text))
+    errors.push("no links allowed in the post body (kills reach)")
+  const minChars = Math.max(
+    60,
+    options.archetypeMinCharacters ?? linkedInFormatRules.minCharacters
+  )
+  if (text.length < minChars)
+    errors.push(`post is ${text.length} chars; minimum ${minChars}`)
   if (text.length > linkedInFormatRules.maxCharacters)
-    errors.push(`post is ${text.length} chars; maximum ${linkedInFormatRules.maxCharacters}`)
+    errors.push(
+      `post is ${text.length} chars; maximum ${linkedInFormatRules.maxCharacters}`
+    )
 
   const firstLine = text.split("\n", 1)[0]
   if (firstLine.length > linkedInFormatRules.firstLineMaxCharacters)
-    errors.push(`hook line is ${firstLine.length} chars; must be <= ${linkedInFormatRules.firstLineMaxCharacters}`)
+    errors.push(
+      `hook line is ${firstLine.length} chars; must be <= ${linkedInFormatRules.firstLineMaxCharacters}`
+    )
 
   const blocks = text.split(/\n\s*\n/).filter(Boolean)
   if (text.length > 400 && blocks.length < 4)
-    errors.push(`only ${blocks.length} whitespace-separated blocks; posts need breathing room (>= 4)`)
+    errors.push(
+      `only ${blocks.length} whitespace-separated blocks; posts need breathing room (>= 4)`
+    )
 
-  if (/\*\*|\[[^\]]+\]\([^)]+\)|^#+\s/m.test(text)) errors.push("markdown syntax detected; LinkedIn renders plain text only")
-  if (/#[a-z0-9_]+/i.test(text)) errors.push("hashtags detected; policy is zero hashtags")
+  if (/\*\*|\[[^\]]+\]\([^)]+\)|^#+\s/m.test(text))
+    errors.push("markdown syntax detected; LinkedIn renders plain text only")
+  if (/#[a-z0-9_]+/i.test(text))
+    errors.push("hashtags detected; policy is zero hashtags")
 
   const emoji = text.match(EMOJI_RE) ?? []
-  if (emoji.length > linkedInFormatRules.maxEmoji) errors.push(`${emoji.length} emoji; maximum ${linkedInFormatRules.maxEmoji}`)
+  if (emoji.length > linkedInFormatRules.maxEmoji)
+    errors.push(
+      `${emoji.length} emoji; maximum ${linkedInFormatRules.maxEmoji}`
+    )
   const emDashes = (text.match(/—/g) ?? []).length
-  if (emDashes > linkedInFormatRules.maxEmDash) errors.push(`${emDashes} em dashes; maximum ${linkedInFormatRules.maxEmDash} (AI tell)`)
+  if (emDashes > linkedInFormatRules.maxEmDash)
+    errors.push(
+      `${emDashes} em dashes; maximum ${linkedInFormatRules.maxEmDash} (AI tell)`
+    )
 
   const lower = text.toLowerCase()
-  for (const shape of BANNED_CLOSER_SHAPES) if (lower.includes(shape)) errors.push(`banned closer shape: "${shape}"`)
+  for (const shape of BANNED_CLOSER_SHAPES)
+    if (lower.includes(shape)) errors.push(`banned closer shape: "${shape}"`)
 
   for (const match of llmSlopMatches(text)) {
-    errors.push(`banned AI-tell wording: "${match}" — rewrite that line in plain human language`)
+    errors.push(
+      `banned AI-tell wording: "${match}" — rewrite that line in plain human language`
+    )
   }
 
   const claims =
-    text.match(/[$£€][\d,.]+k?m?|\d+(?:\.\d+)?%|\b[\d,]+\+?\s+(?:clients|sales|followers|leads|views|customers|students)\b/gi) ?? []
+    text.match(
+      /[$£€][\d,.]+k?m?|\d+(?:\.\d+)?%|\b[\d,]+\+?\s+(?:clients|sales|followers|leads|views|customers|students)\b/gi
+    ) ?? []
   const evidence = (options.proof ?? []).join(" ").toLowerCase()
   for (const claim of claims) {
-    if (!evidence.includes(claim.toLowerCase())) errors.push(`unsupported numeric claim: "${claim}"`)
+    if (!evidence.includes(claim.toLowerCase()))
+      errors.push(`unsupported numeric claim: "${claim}"`)
   }
 
   return [...new Set(errors)]
 }
 
-export function validateSlots(archetype: LinkedInArchetype, output: Record<string, unknown>) {
+export function validateSlots(
+  archetype: LinkedInArchetype,
+  output: Record<string, unknown>
+) {
   const errors: string[] = []
   for (const s of archetype.slots) {
     const value = clean(output[s.key])
     const words = wordCount(value)
     if (!s.optional && !value) errors.push(`${s.key} is required`)
     if (value && (words < s.minWords || words > s.maxWords))
-      errors.push(`${s.key} must be ${s.minWords}-${s.maxWords} words; received ${words}`)
+      errors.push(
+        `${s.key} must be ${s.minWords}-${s.maxWords} words; received ${words}`
+      )
   }
   return errors
 }
@@ -256,6 +349,8 @@ export async function generateLinkedInPost(input: {
   proof?: string[]
   apiKey?: string
   fetchImpl?: typeof fetch
+  brandProfile?: BrandProfile | null
+  enableGenerationChain?: boolean
 }): Promise<LinkedInGeneratedPost> {
   const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
@@ -270,6 +365,44 @@ export async function generateLinkedInPost(input: {
     proof: input.proof,
   })
   const basePrompt = buildLinkedInUserPrompt({ plan })
+
+  const chainEnabled =
+    (input.enableGenerationChain ??
+      process.env.ENABLE_GENERATION_CHAIN === "true") &&
+    Boolean(input.brandProfile)
+  if (chainEnabled && input.brandProfile) {
+    const chained = await runGenerationChain({
+      generate: { model: input.model, system },
+      humanize: {
+        model: generationModelRegistry.openRouter.contentHumanize.model,
+      },
+      review: { model: generationModelRegistry.openRouter.contentReview.model },
+      input: {
+        apiKey,
+        fetchImpl: input.fetchImpl,
+        brandProfile: input.brandProfile,
+        prompt: `${basePrompt}\n\nReturn only the complete publishable LinkedIn post text in content.`,
+      },
+    })
+    const violations = [
+      ...deterministicChecks(chained.content, {
+        proof: input.proof,
+        archetypeMinCharacters: plan.archetype.minCharacters,
+      }),
+      ...chained.issues,
+    ]
+    return {
+      post: chained.content,
+      archetypeId: plan.archetype.id,
+      archetypeLabel: plan.archetype.label,
+      hookStyleId: plan.hookStyle.id,
+      pillar: plan.pillar,
+      violations: [...new Set(violations)],
+      needsReview: violations.length > 0,
+      attempts: chained.trace.length,
+      characterCount: chained.content.length,
+    }
+  }
 
   let output: Record<string, unknown> = {}
   let post = ""
@@ -293,14 +426,21 @@ export async function generateLinkedInPost(input: {
         schema,
       })
     } catch (error) {
-      errors = [error instanceof Error ? error.message : "Return compact, complete JSON matching the schema exactly"]
+      errors = [
+        error instanceof Error
+          ? error.message
+          : "Return compact, complete JSON matching the schema exactly",
+      ]
       if (attempt < 2) continue
       throw error
     }
     post = composePost(plan.archetype, output)
     errors = [
       ...validateSlots(plan.archetype, output),
-      ...deterministicChecks(post, { proof: input.proof, archetypeMinCharacters: plan.archetype.minCharacters }),
+      ...deterministicChecks(post, {
+        proof: input.proof,
+        archetypeMinCharacters: plan.archetype.minCharacters,
+      }),
     ]
     if (errors.length === 0) break
   }
@@ -318,7 +458,11 @@ export async function generateLinkedInPost(input: {
   }
 }
 
-function weightedPick<T>(items: T[], weight: (item: T) => number, random: () => number): T {
+function weightedPick<T>(
+  items: T[],
+  weight: (item: T) => number,
+  random: () => number
+): T {
   if (items.length === 0) throw new Error("No eligible preset is available")
   const total = items.reduce((sum, item) => sum + Math.max(0, weight(item)), 0)
   let cursor = random() * total
@@ -330,5 +474,7 @@ function weightedPick<T>(items: T[], weight: (item: T) => number, random: () => 
 }
 
 function asStringArray(value: unknown) {
-  return Array.isArray(value) ? value.map((item) => clean(item)).filter(Boolean) : []
+  return Array.isArray(value)
+    ? value.map((item) => clean(item)).filter(Boolean)
+    : []
 }

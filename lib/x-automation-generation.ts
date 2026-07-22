@@ -1,4 +1,6 @@
 import { clean, isRecord } from "@/lib/guards"
+import type { BrandProfile } from "@/lib/brand-profile"
+import { runGenerationChain } from "@/lib/generation-chain"
 import { llmSlopPromptLine, llmSlopViolations } from "@/lib/llm-slop"
 import {
   getOpenRouterApiKey,
@@ -35,6 +37,8 @@ type GenerateInput = {
   fetchImpl?: typeof fetch
   now?: Date
   random?: () => number
+  brandProfile?: BrandProfile | null
+  enableGenerationChain?: boolean
 }
 
 const TOPIC_USE_RATE = 0.7
@@ -444,6 +448,10 @@ export async function generateXAutomationRun(
     record: input.automation,
     apiKey,
     fetchImpl: input.fetchImpl,
+    brandProfile: input.brandProfile,
+    enableGenerationChain:
+      input.enableGenerationChain ??
+      process.env.ENABLE_GENERATION_CHAIN === "true",
   })
   const posts: XGeneratedPost[] = first.posts.map((text, index) => ({
     id: `${plan.platform}-post-${index + 1}`,
@@ -520,6 +528,8 @@ async function generatePost(input: {
   record: XAutomationRecord
   apiKey: string
   fetchImpl?: typeof fetch
+  brandProfile?: BrandProfile | null
+  enableGenerationChain: boolean
 }) {
   const schema = buildPostStructuredOutputSchema(input.plan.archetype)
   const voice = voicePreset(input.record.generation.voicePreset)
@@ -560,6 +570,35 @@ async function generatePost(input: {
     .filter(Boolean)
     .join("\n")
   const basePrompt = `Platform: ${input.plan.platform}\nArchetype: ${input.plan.archetype.label}\nStructure: ${input.plan.archetype.structure}\nTemplate: ${input.plan.archetype.template}\n${input.plan.platform === "x" && input.plan.archetype.kind === "single" ? "HARD LENGTH BUDGET: the final post, including blank lines, must be 280 characters or fewer. Keep every slot under its schema word and character caps.\n" : ""}${input.plan.platform === "x" && input.plan.archetype.engagementCloser ? "HARD CLOSER RULE: the final slot or final thread post must end with a genuine curiosity or self-identification question and a ? character.\n" : ""}Pillar: ${input.plan.pillar.label}\nHook formula: ${input.plan.hookStyle.formula}\nHook examples: ${input.plan.hookStyle.examples.join(" | ")}\nTopic: ${input.plan.topic ?? "none"}${input.plan.recycleBody ? `\nRECYCLE BODY (keep its core meaning, write a clearly different hook): ${input.plan.recycleBody}` : ""}\nPROOF:\n${proof}`
+  if (input.enableGenerationChain && input.brandProfile) {
+    const chained = await runGenerationChain({
+      generate: { model: input.record.generation.model, system },
+      humanize: {
+        model: generationModelRegistry.openRouter.contentHumanize.model,
+      },
+      review: { model: generationModelRegistry.openRouter.contentReview.model },
+      input: {
+        apiKey: input.apiKey,
+        fetchImpl: input.fetchImpl,
+        brandProfile: input.brandProfile,
+        prompt: `${basePrompt}\n\nReturn only the complete publishable post text in content. For a thread, separate posts with a line containing ---.`,
+      },
+    })
+    const posts =
+      input.plan.archetype.kind === "thread"
+        ? chained.content
+            .split(/\n\s*---\s*\n/)
+            .map(clean)
+            .filter(Boolean)
+        : [chained.content]
+    return {
+      plan: input.plan,
+      output: { hook: posts[0] ?? "", posts: chained.content },
+      posts,
+      needsReview: chained.issues.length > 0,
+      errors: chained.issues,
+    }
+  }
   let output: Record<string, unknown> = {}
   let posts: string[] = []
   let errors: string[] = []
