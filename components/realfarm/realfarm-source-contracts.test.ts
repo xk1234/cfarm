@@ -829,6 +829,9 @@ describe("RealFarm source contracts", () => {
         "components/realfarm/content-calendar/content-calendar-view.tsx"
       )
       const analytics = src("components/realfarm/analytics/analytics-view.tsx")
+      const analyticsData = src(
+        "components/realfarm/analytics/use-analytics-data.ts"
+      )
       const accountProfile = src(
         "components/realfarm/analytics/account-profile-icon.tsx"
       )
@@ -901,8 +904,10 @@ describe("RealFarm source contracts", () => {
         "calendarStatus.summary.needsAction + calendarStatus.summary.failed",
         'item.key === "schedule" ? scheduleBadge : 0',
       ])
-      expectContains(analytics, [
+      expectContains(analyticsData, [
         "const requestKey = `/api/analytics/report?days=${days}`",
+      ])
+      expectContains(analytics, [
         "AnalyticsOverview",
         "AccountSelectorRail",
         "PortfolioMetricCard",

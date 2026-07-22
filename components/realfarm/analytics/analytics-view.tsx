@@ -23,7 +23,6 @@ import {
   IconUsers,
   IconWorld,
 } from "@tabler/icons-react"
-import useSWR from "swr"
 
 import { Button } from "@/components/ui/button"
 import { SelectControl } from "@/components/ui/form-controls"
@@ -34,8 +33,7 @@ import {
   providerName,
 } from "@/components/realfarm/analytics/account-profile-icon"
 import { PaginationControls } from "@/components/realfarm/analytics/pagination-controls"
-import { fetchJsonWithTimeout } from "@/lib/client-api"
-import { clientSWRFetcher } from "@/lib/client-swr"
+import { useAnalyticsData } from "@/components/realfarm/analytics/use-analytics-data"
 import {
   canonicalMetricOrder,
   metricLabel,
@@ -89,7 +87,6 @@ export function AnalyticsView({
   initialPlatform,
 }: AnalyticsViewProps = {}) {
   const router = useRouter()
-  const [days, setDays] = useState(previewData?.days ?? 30)
   const [overviewAccountId, setOverviewAccountId] = useState("all")
   const [activePlatform, setActivePlatform] = useState(initialPlatform || "")
   const [platformAccountIds, setPlatformAccountIds] = useState<string[]>(() =>
@@ -106,13 +103,8 @@ export function AnalyticsView({
     initialMetricForPlatform(initialPlatform)
   )
   const [chartMode, setChartMode] = useState<"absolute" | "indexed">("absolute")
-  const [refreshing, setRefreshing] = useState(false)
-  const requestKey = `/api/analytics/report?days=${days}`
-  const { data, error, isLoading, mutate } = useSWR<AnalyticsPayload>(
-    previewData ? null : requestKey,
-    clientSWRFetcher,
-    { keepPreviousData: true, fallbackData: previewData }
-  )
+  const { data, error, isLoading, days, setDays, refreshing, refresh } =
+    useAnalyticsData(previewData)
   const integrations = useMemo(
     () => data?.integrations ?? [],
     [data?.integrations]
@@ -161,28 +153,14 @@ export function AnalyticsView({
     ? platformMetric
     : defaultPlatformMetric(activePlatform, platformMetrics)
 
-  async function refresh() {
-    if (previewData) return
-    setRefreshing(true)
-    try {
-      await fetchJsonWithTimeout("/api/analytics/report", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          days,
-          integrationIds: activePlatform
-            ? resolvedPlatformAccountIds
-            : overviewAccountId === "all"
-              ? []
-              : [overviewAccountId],
-        }),
-        timeoutMs: 120_000,
-      })
-      await mutate()
-    } finally {
-      setRefreshing(false)
-    }
-  }
+  const refreshReport = () =>
+    refresh(
+      activePlatform
+        ? resolvedPlatformAccountIds
+        : overviewAccountId === "all"
+          ? []
+          : [overviewAccountId]
+    )
 
   const showingPlatform = Boolean(activePlatform && platformAccounts.length)
   const openPost = (post: LatestPost) =>
@@ -195,7 +173,7 @@ export function AnalyticsView({
         days={days}
         onDaysChange={setDays}
         onBack={() => setActivePlatform("")}
-        onRefresh={() => void refresh()}
+        onRefresh={() => void refreshReport()}
         refreshing={refreshing}
         loading={isLoading}
       />
@@ -237,7 +215,7 @@ export function AnalyticsView({
                 <Button
                   variant="action"
                   size="compact"
-                  onClick={() => void refresh()}
+                  onClick={() => void refreshReport()}
                 >
                   Sync analytics
                 </Button>

@@ -25,6 +25,7 @@ import type { ColDef, ICellRendererParams } from "ag-grid-community"
 import { AgDataTable } from "@/components/ui/ag-data-table"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { SkeletonBlock } from "@/components/ui/loading-skeleton"
 import {
   LabelledSelect,
   SearchControl,
@@ -34,7 +35,6 @@ import {
 } from "@/components/ui/form-controls"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import { UploadDropzone } from "@/components/ui/upload-dropzone"
-import { SkeletonBlock } from "@/components/ui/loading-skeleton"
 import { ViewModeToggle, type ViewMode } from "@/components/ui/view-mode-toggle"
 import { ImageViewerModal } from "@/components/realfarm/image-viewer-modal"
 import {
@@ -48,6 +48,10 @@ import {
 import { PinterestCollectionSearch } from "@/components/realfarm/pinterest-collection-search"
 import { VariableCollectionsPanel } from "@/components/realfarm/variable-collections-panel"
 import { ProductCollectionsPanel } from "@/components/realfarm/product-collections-panel"
+import {
+  CollectionGridSkeleton,
+  CollectionTableSkeleton,
+} from "@/components/realfarm/collections/collection-loading-states"
 import {
   collectionToStored,
   pinnedCollectionsFirst,
@@ -780,53 +784,6 @@ export function CollectionsView({
           }}
         />
       )}
-    </div>
-  )
-}
-
-function CollectionGridSkeleton() {
-  return (
-    <div
-      role="status"
-      aria-label="Loading collections"
-      aria-busy="true"
-      className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-5"
-    >
-      {Array.from({ length: 14 }, (_, index) => (
-        <div
-          key={index}
-          className="min-w-0 overflow-hidden rounded-[8px] border border-app-panel-border bg-app-surface"
-        >
-          <SkeletonBlock className="h-[170px] w-full rounded-none" />
-          <div className="px-4 py-4">
-            <SkeletonBlock className="h-3.5 w-4/5 rounded" />
-            <SkeletonBlock className="mt-2 h-3 w-2/5 rounded" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function CollectionTableSkeleton() {
-  return (
-    <div
-      role="status"
-      aria-label="Loading collections"
-      aria-busy="true"
-      className="overflow-hidden rounded-[8px] border border-app-panel-border bg-app-surface"
-    >
-      <SkeletonBlock className="h-11 w-full rounded-none" />
-      {Array.from({ length: 8 }, (_, index) => (
-        <div
-          key={index}
-          className="grid grid-cols-[minmax(220px,1.6fr)_120px_110px_160px_210px] gap-4 border-t border-app-panel-border px-4 py-4"
-        >
-          {Array.from({ length: 5 }, (_, cellIndex) => (
-            <SkeletonBlock key={cellIndex} className="h-3 w-full rounded" />
-          ))}
-        </div>
-      ))}
     </div>
   )
 }

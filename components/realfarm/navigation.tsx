@@ -97,6 +97,7 @@ export function Sidebar({
               (view === "analytics" && item.label === "Analytics")
             }
             onClick={() => onViewChange(item.key)}
+            href={routeHref(item.key)}
             badge={item.key === "schedule" ? scheduleBadge : 0}
           />
         ))}
@@ -111,6 +112,7 @@ export function Sidebar({
             item={item}
             active={item.key === view}
             onClick={() => onViewChange(item.key)}
+            href={routeHref(item.key)}
           />
         ))}
       </nav>
@@ -159,21 +161,37 @@ export function MobileNavigation({
       {[...topNav, ...slideshowNav].map((item) => {
         const Icon = item.icon
         const active = view === item.key
-        return (
+        const href = routeHref(item.key)
+        const className = cn(
+          "lc-focus-ring flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-[8px] px-1 text-[10px] font-semibold",
+          active
+            ? "bg-app-strong text-white"
+            : "text-app-muted-text active:bg-app-control-hover"
+        )
+        const content = (
+          <>
+            <Icon className="size-4" />
+            <span className="w-full truncate">{item.label}</span>
+          </>
+        )
+        return href ? (
+          <Link
+            key={item.key}
+            href={href}
+            aria-current={active ? "page" : undefined}
+            className={className}
+          >
+            {content}
+          </Link>
+        ) : (
           <button
             key={item.key}
             type="button"
             aria-current={active ? "page" : undefined}
-            className={cn(
-              "lc-focus-ring flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-[8px] px-1 text-[10px] font-semibold",
-              active
-                ? "bg-app-strong text-white"
-                : "text-app-muted-text active:bg-app-control-hover"
-            )}
+            className={className}
             onClick={() => onViewChange(item.key)}
           >
-            <Icon className="size-4" />
-            <span className="w-full truncate">{item.label}</span>
+            {content}
           </button>
         )
       })}
@@ -185,24 +203,24 @@ function SidebarButton({
   item,
   active,
   onClick,
+  href,
   badge = 0,
 }: {
   item: NavItem
   active: boolean
   onClick: () => void
+  href?: string
   badge?: number
 }) {
   const Icon = item.icon
-  return (
-    <button
-      className={cn(
+  const className = cn(
         "lc-focus-ring relative flex h-9 w-full items-center gap-2.5 overflow-hidden rounded-[10px] px-3 text-left text-[12px] font-medium text-[#454551] transition duration-200 active:translate-y-px",
         active
           ? "bg-app-strong text-white shadow-[0_8px_24px_rgba(25,18,45,0.16)] before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-[linear-gradient(180deg,#6d28d9,#e92a9a,#ff9f1c)]"
           : "hover:bg-app-control-hover hover:text-app-text"
-      )}
-      onClick={onClick}
-    >
+      )
+  const content = (
+    <>
       <Icon className="size-4" />
       <span className="truncate">{item.label}</span>
       {badge > 0 ? (
@@ -215,6 +233,21 @@ function SidebarButton({
           {badge > 99 ? "99+" : badge}
         </span>
       ) : null}
+    </>
+  )
+  return href ? (
+    <Link href={href} className={className}>
+      {content}
+    </Link>
+  ) : (
+    <button className={className} onClick={onClick}>
+      {content}
     </button>
   )
+}
+
+function routeHref(view: ViewKey) {
+  if (view === "analytics") return "/app/analytics"
+  if (view === "collections") return "/app/collections"
+  return undefined
 }

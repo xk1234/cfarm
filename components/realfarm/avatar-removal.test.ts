@@ -32,10 +32,12 @@ describe("AI UGC avatar feature removal", () => {
   })
 
   it("keeps uploaded UGC talking-head videos available to automations", () => {
-    const workspace = source("components/realfarm-workspace.tsx")
+    const collectionsData = source(
+      "components/realfarm/collections/use-collections-data.ts"
+    )
     const mediaLibrary = source("lib/media-library.ts")
 
-    expect(workspace).toContain("ugcAvatarVideoCollectionFromAssets")
+    expect(collectionsData).toContain("ugcAvatarVideoCollectionFromAssets")
     expect(mediaLibrary).toContain('"ugc_avatar_videos"')
   })
 })
