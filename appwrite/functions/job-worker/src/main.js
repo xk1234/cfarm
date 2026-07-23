@@ -412,7 +412,7 @@ async function generateScheduledXDraft(automation, scheduledFor) {
   const platform = automation?.platform === "threads" ? "threads" : "x"
   const pillars = Array.isArray(automation?.brief?.pillars)
     ? automation.brief.pillars.map((item) => item?.label).filter(Boolean)
-    : xStringList(automation?.niche?.pillars)
+    : []
   const seed = crypto
     .createHash("sha256")
     .update(`${automation.id}:${scheduledFor}`)
@@ -461,11 +461,10 @@ async function generateScheduledXDraft(automation, scheduledFor) {
     ? automation.proofBank.map((item) => item?.text).filter(Boolean)
     : []
   const system = [
-    `Write one ${platform === "threads" ? "Threads" : "X"} draft for the astrology niche.`,
+    `Write one ${platform === "threads" ? "Threads" : "X"} draft for the ${automation?.niche?.label || "configured"} niche.`,
     platform === "threads"
       ? "Use 1-3 short lines with blank lines between them, at most 500 characters, no hashtags, no links, and at most 2 emoji. Make the identity take polarizing and human."
       : "Use lowercase, blunt, specific language. Single posts must fit 280 characters and end with a genuine question or identity trigger. Multi-post threads use 8-15 posts, each under 280 characters.",
-    "Astrology value means emotionally specific identity insight and concrete behavior, not generic trait lists.",
     "Never invent a study, statistic, personal experience, result, testimonial, or source.",
     `Only these supplied proof items may be used: ${proof.length ? proof.join(" | ") : "none"}.`,
     llmSlopPromptLine(),
@@ -473,7 +472,7 @@ async function generateScheduledXDraft(automation, scheduledFor) {
   const output = await openRouterObject({
     model,
     system,
-    user: `Niche: ${automation?.niche?.label || "astrology"}\nAudience: ${automation?.brief?.audience || automation?.niche?.audience || "astrology followers"}\nTopic: ${topic}\nArchetype: ${archetype}\nHook style: ${hookStyle}\nReturn {"posts":["..."]}.`,
+    user: `Niche: ${automation?.niche?.label || "configured niche"}\nAudience: ${automation?.brief?.audience || "the configured audience"}\nTopic: ${topic}\nArchetype: ${archetype}\nHook style: ${hookStyle}\nReturn {"posts":["..."]}.`,
   })
   const rawPosts = xStringList(output.posts)
   if (!rawPosts.length)

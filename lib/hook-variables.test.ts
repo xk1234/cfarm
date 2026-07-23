@@ -52,12 +52,7 @@ describe("hook variables", () => {
       changed: true,
     })
 
-    expect(
-      runtimeHookVariableValue("YEAR", {
-        now: new Date("2028-04-01T00:00:00.000Z"),
-        timeZone: "UTC",
-      })
-    ).toBe("2028")
+    expect(runtimeHookVariableValue("YEAR")).toBeUndefined()
   })
 
   it("resolves runtime dates in the automation timezone", () => {

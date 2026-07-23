@@ -59,11 +59,7 @@ describe("POST /api/automations/hooks", () => {
       "how to actually become disciplined",
     ])
     expect(automation.schema.prompt_formatting.narrative).toBe(
-      [
-        "how to stop wasting your potential",
-        "daily practices that rewire your mind",
-        "how to actually become disciplined",
-      ].join("\n")
+      "Create a concise slideshow narrative for the selected topic."
     )
     await upsertAutomationRecords({
       rootDir: path.join(tempRoot, "data", "automations"),

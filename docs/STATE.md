@@ -32,9 +32,10 @@ post back to its slideshow. Slideshow automations also have a **Published
 Posts** workflow for TikTok photo posts: Apify imports the slides, visible text
 and run history are compared before confirmation, and missing historical
 outputs/hooks can be restored without republishing externally. The same
-owner-scoped service is exposed through seven MCP tools over the authenticated
-`/mcp` route and local stdio transport: schedule inspection, manual slideshow
-generation, safe automation updates, stored analytics reads, and three focused
+owner-scoped service is exposed through 22 MCP tools over the public
+owner-scoped `/mcp` route and local stdio transport: schedule inspection,
+manual slideshow generation, safe automation updates, stored analytics reads,
+and three focused
 TikTok publication-reconciliation tools. Collection deletion uses a 30-day
 soft delete with dependency-aware confirmation and toast undo. X/Threads
 strategy derivation uses bounded primary retries plus a fallback model; every
@@ -47,24 +48,26 @@ publication or a user links an output as published; used rows cannot be
 renamed or deleted but can be disabled. Each automation has a hook analytics
 table backed by its attributed publication metric snapshots.
 
-**Not a view:** `creator-ui.tsx` is a shared component lib. `CreatorsView` (`home-view.tsx`) is dead code with no route — the tab was removed (a contract test enforces its absence); its doc has been deleted, but the dead `CreatorsView` export should be cleaned up. The testing center (`components/temp/slide-testing-center.tsx`, `/app/debug`) is a debug-only surface, not in product nav.
+**Not a view:** `creator-ui.tsx` is a shared component library. The testing
+center (`components/temp/slide-testing-center.tsx`, `/app/debug`) is a
+debug-only surface, not in product nav.
 
 ## 3. Subsystems
 
-| Subsystem                      | Key files                                                                                                                                                                   | External providers                                    |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| Slideshow engine — interactive | `lib/automation-runner.ts`, `slideshow-renderer.ts`, `slideshow-text-generation.ts`, `slideshow-lifecycle.ts`, `slideshow-image-matching.ts`                                | OpenRouter, DeepL, Pexels, Pinterest, Rendi, PostFast |
-| Slideshow engine — scheduled   | `appwrite/functions/job-worker/src/slideshow-automation.js` (+ `slideshow-renderer.js`) — _parallel/duplicated pipeline inside Appwrite_                                    | Rendi, OpenRouter, DeepL, PostFast                    |
-| Render primitives              | `lib/rendi-ffmpeg.ts`, `slideshow-export.ts`, `generated-video-renderer.ts` (client canvas)                                                                                 | Rendi FFmpeg                                          |
-| Image generation wrapper       | `lib/kie-image.ts`                                                                                                                                                          | KIE                                                   |
-| Social publishing / PostFast   | `lib/postfast-*.ts`, `publishing.ts`, `social-post-metadata.ts`                                                                                                             | PostFast                                              |
-| X / Threads automation         | `lib/x-automation*.ts`, `x-post-presets.ts`, `x-trend-discovery.ts`, `hook-*.ts`, `debate-hook.ts`                                                                          | OpenRouter, Apify, KIE, FAL, PostFast                 |
-| LinkedIn automation            | `lib/linkedin-automation-generation.ts`, `linkedin-post-presets.ts`, `app/api/linkedin-automations/generate` — **backend only; not surfaced in any UI**                     | OpenRouter                                            |
-| Analytics / metrics            | `lib/postfast-analytics.ts`, `postfast-metric-snapshots.ts`, `metric-registry.ts`, `app/api/analytics/report`                                                               | PostFast                                              |
-| Collections / assets           | `lib/image-collections.ts`, `product-collections.ts`, `word-collections.ts`, `media-library.ts`, `assets.ts`, `asset-storage.ts`, `pexels-search.ts`, `pinterest-search.ts` | Pinterest, Pexels                                     |
-| Translation                    | `lib/deepl-translate.ts`                                                                                                                                                    | DeepL                                                 |
-| Auth / multitenancy            | `lib/auth.ts`, `workspace-members.ts`, `system-owner-context.ts`                                                                                                            | Appwrite                                              |
-| Storage abstraction            | `lib/json-store.ts`, `appwrite-stores.ts`, `appwrite.ts`                                                                                                                    | Appwrite                                              |
+| Subsystem                      | Key files                                                                                                                                                                      | External providers                                                                            |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| Slideshow engine — interactive | `lib/automation-runner.ts`, `slideshow-renderer.ts`, `slideshow-text-generation.ts`, `slideshow-lifecycle.ts`, `slideshow-image-matching.ts`                                   | OpenRouter, DeepL, Pexels, Pinterest, Rendi, PostFast                                         |
+| Slideshow engine — scheduled   | `appwrite/functions/job-worker/src/slideshow-automation.js` (+ `slideshow-renderer.js`) — _parallel/duplicated pipeline inside Appwrite_                                       | Rendi, OpenRouter, DeepL, PostFast                                                            |
+| Render primitives              | `lib/rendi-ffmpeg.ts`, `slideshow-export.ts`, `generated-video-renderer.ts` (client canvas)                                                                                    | Rendi FFmpeg                                                                                  |
+| Image generation wrapper       | `lib/kie-image.ts`                                                                                                                                                             | KIE                                                                                           |
+| Social publishing / PostFast   | `lib/postfast-*.ts`, `publishing.ts`, `social-post-metadata.ts`                                                                                                                | PostFast                                                                                      |
+| X / Threads automation         | `lib/x-automation*.ts`, `x-post-presets.ts`, `x-trend-discovery.ts`, `hook-*.ts`, `debate-hook.ts`                                                                             | OpenRouter, Apify, KIE, FAL, PostFast                                                         |
+| LinkedIn automation            | `lib/linkedin-automation-generation.ts`, `linkedin-post-presets.ts`, `app/api/linkedin-automations/generate` — **backend only; not surfaced in any UI**                        | OpenRouter                                                                                    |
+| Analytics / metrics            | `lib/postfast-analytics.ts`, `postfast-metric-snapshots.ts`, `tiktok-studio-analytics.ts`, `metric-registry.ts`, `app/api/analytics/report`, `app/api/tiktok-studio-analytics` | PostFast, authenticated TikTok Studio Chrome companion with single-post and account-wide sync |
+| Collections / assets           | `lib/image-collections.ts`, `product-collections.ts`, `word-collections.ts`, `media-library.ts`, `assets.ts`, `asset-storage.ts`, `pexels-search.ts`, `pinterest-search.ts`    | Pinterest, Pexels                                                                             |
+| Translation                    | `lib/deepl-translate.ts`                                                                                                                                                       | DeepL                                                                                         |
+| Auth / multitenancy            | `lib/auth.ts`, `workspace-members.ts`, `system-owner-context.ts`                                                                                                               | Appwrite                                                                                      |
+| Storage abstraction            | `lib/json-store.ts`, `appwrite-stores.ts`, `appwrite.ts`                                                                                                                       | Appwrite                                                                                      |
 
 ## 4. Backend & infra
 
@@ -91,10 +94,11 @@ table backed by its attributed publication metric snapshots.
 | Scheduled X/Threads auto-publish  | Only single-post + `autoPost===true` auto-publishes; **threads & multi-post sit as unpublished drafts**  | `job-worker/src/main.js` `publishScheduledXDraft` |
 | Scheduled X draft grading         | Drafts carry placeholder benchmark (`total:0`, "pending independent LLM grade") — not graded at gen time | `job-worker/src/main.js`                          |
 | `sync-post-analytics` reliability | Runs **only** in the local Next.js worker; if the app process is down, queued analytics jobs never drain | `local-automation-job-worker.ts`                  |
-| Creators tab                      | Removed; dead `CreatorsView` export still to be cleaned up                                               | `home-view.tsx`                                   |
 
 ## 6. Known inconsistencies (tech debt, not features)
 
-- **Naming:** LumenClip is the canonical product and public API name. Existing `cfarm` repository, database, project, CSS, and temporary-path identifiers remain internal compatibility details.
+- **Naming:** LumenClip is the canonical product and public API name. The
+  existing `cfarm` repository, database, project, and deployed host identifiers
+  remain infrastructure names.
 - **Duplicated due-slot logic:** `automation-runner.ts` and `automation-scheduler/src/main.js` were meant to collapse onto `lib/automation-slots.ts` (now exists) — check for lingering duplication.
 - **Duplicated render pipeline:** interactive (`lib/`) vs scheduled (`job-worker/src/`) slideshow renderers are parallel implementations that can drift.

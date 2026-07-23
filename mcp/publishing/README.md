@@ -24,6 +24,13 @@ profile metadata, connection state, and explicit capabilities:
 `replyChain`. `replyChain` is currently false. Credentials and provider tokens
 are never returned.
 
+## `lumenclip_workspace_members_list`
+
+Read-only workspace membership discovery with optional `status` (`pending` or
+`accepted`) and `limit`. Returns member ID, email, acceptance state, optional
+member user ID, and creation time. Appwrite team/membership secrets are never
+returned; inviting or removing members remains an authenticated app workflow.
+
 ## `lumenclip_output_publish`
 
 External side effect. Scope `lumenclip:publish`.

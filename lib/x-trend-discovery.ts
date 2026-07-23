@@ -20,16 +20,14 @@ export async function discoverTrendCandidates(input: {
   token?: string
   fetchImpl?: FetchLike
 }) {
-  const token =
-    clean(input.token) ||
-    clean(process.env.APIFY_KEY)
+  const token = clean(input.token) || clean(process.env.APIFY_KEY)
   if (!token) throw new Error("APIFY_KEY is not configured")
   const sources = input.source
     ? [input.source]
     : input.automation.discovery.sources
   const query =
     clean(input.query) ||
-    input.automation.niche.keywords.join(" OR ") ||
+    input.automation.brief?.keywords.join(" OR ") ||
     input.automation.niche.label
   const results = await Promise.allSettled(
     sources.map((source) =>

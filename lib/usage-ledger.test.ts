@@ -190,7 +190,7 @@ describe("usage ledger", () => {
     ).toEqual(["published-image"])
   })
 
-  it("keeps hook history permanently available after other usage is pruned", async () => {
+  it("keeps published hook history permanently available", async () => {
     await appendUsageRecords({
       rootDir,
       now: new Date("2026-07-07T10:00:00.000Z"),
@@ -198,7 +198,7 @@ describe("usage ledger", () => {
       records: [
         {
           automation_id: "automation-a",
-          kind: "hook",
+          kind: "hook_published",
           key: "an old hook",
           run_id: "run-old",
           used_at: "2025-01-01T00:00:00.000Z",
@@ -207,7 +207,10 @@ describe("usage ledger", () => {
     })
 
     await expect(
-      recentUsageKeys("hook", "automation-a", { rootDir, allTime: true })
+      recentUsageKeys("hook_published", "automation-a", {
+        rootDir,
+        allTime: true,
+      })
     ).resolves.toEqual(new Set(["an old hook"]))
   })
 

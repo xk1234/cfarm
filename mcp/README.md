@@ -1,7 +1,7 @@
 # LumenClip MCP tool reference
 
-> Status: partially implemented. Twenty-two tools are callable through the
-> authenticated `/mcp` Streamable HTTP route and local stdio transport. The
+> Status: partially implemented. Forty-three tools are callable through the
+> public `/mcp` Streamable HTTP route and local stdio transport. The
 > tool index is the source of truth for which contracts are implemented,
 > proposed, or deferred.
 
@@ -29,7 +29,18 @@ may link to a shared tool but do not invent a second incompatible schema.
 
 <!-- BEGIN:callable-tools -->
 - `lumenclip_automations_list`
+- `lumenclip_automation_templates_list`
+- `lumenclip_automation_create`
 - `lumenclip_automation_get`
+- `lumenclip_automation_schema_update`
+- `lumenclip_automation_delete`
+- `lumenclip_automation_hooks_get`
+- `lumenclip_automation_hooks_update`
+- `lumenclip_automation_hook_upsert`
+- `lumenclip_automation_hook_set_enabled`
+- `lumenclip_automation_hook_delete`
+- `lumenclip_hook_performance`
+- `lumenclip_run_plan_get`
 - `lumenclip_automation_run`
 - `lumenclip_schedule_get`
 - `lumenclip_slideshow_generate`
@@ -37,19 +48,29 @@ may link to a shared tool but do not invent a second incompatible schema.
 - `lumenclip_ugc_generate`
 - `lumenclip_automation_update`
 - `lumenclip_collections_list`
+- `lumenclip_product_collection_get`
+- `lumenclip_assets_list`
+- `lumenclip_variable_get`
+- `lumenclip_variable_save`
+- `lumenclip_variable_delete`
 - `lumenclip_collection_save`
 - `lumenclip_collection_add_assets`
 - `lumenclip_collection_delete`
 - `lumenclip_outputs_list`
 - `lumenclip_output_delete`
+- `lumenclip_operations_list`
 - `lumenclip_operation_get`
 - `lumenclip_accounts_list`
+- `lumenclip_workspace_members_list`
 - `lumenclip_output_publish`
 - `lumenclip_output_mark_published`
 - `lumenclip_analytics_report`
 - `lumenclip_tiktok_import_start`
 - `lumenclip_tiktok_import_preview`
 - `lumenclip_tiktok_publications_link`
+- `lumenclip_tiktok_studio_analytics_import_start`
+- `lumenclip_tiktok_studio_analytics_report`
+- `lumenclip_tiktok_studio_analytics_batch_start`
 <!-- END:callable-tools -->
 
 The remaining names in this reference describe the intended general MCP
@@ -57,11 +78,11 @@ surface and are not callable until marked **Implemented** in the tool index.
 
 ## Transports
 
-- Streamable HTTP: authenticated app route `GET|POST|DELETE /mcp`.
+- Streamable HTTP: public app route `GET|POST|DELETE /mcp`, scoped to
+  `LUMENCLIP_MCP_OWNER_ID` or `LUMENCLIP_SYSTEM_OWNER_ID`.
 - Local stdio: `pnpm mcp`, scoped to `LUMENCLIP_MCP_OWNER_ID`. When Appwrite
   points to localhost this explicit local ID is mandatory; the cloud system
-  owner is never used as a fallback. The older `pnpm mcp:tiktok` command
-  remains as a compatibility alias and exposes the same twenty-two-tool server.
+  owner is never used as a fallback.
 
 ## Naming and availability
 

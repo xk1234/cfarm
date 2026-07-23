@@ -146,20 +146,14 @@ export async function deleteXAutomationRun(id: string) {
   return existing
 }
 
-function normalizeXAutomationRun(
-  run: XAutomationRun & { platforms?: XAutomationRecord["platform"][] }
-) {
+function normalizeXAutomationRun(run: XAutomationRun) {
   if (!run?.id || !run?.automationId) return null
   const setup = typeof run.setup === "string" ? run.setup : ""
   const proof = typeof run.proof === "string" ? run.proof : ""
   const curiosityGap =
     typeof run.curiosityGap === "string" ? run.curiosityGap : ""
   const platform =
-    run.platform === "threads" || run.platform === "x"
-      ? run.platform
-      : run.platforms?.includes("threads") && !run.platforms?.includes("x")
-        ? "threads"
-        : "x"
+    run.platform === "threads" || run.platform === "x" ? run.platform : "x"
   const benchmark = run.benchmark?.comparison
     ? run.benchmark
     : benchmarkXRun({

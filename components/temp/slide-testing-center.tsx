@@ -18,7 +18,7 @@ import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import type { AutomationTemplateExampleRun } from "@/lib/automation-templates"
 import type { OpenRouterModelSummary } from "@/lib/openrouter-models"
 import { tempTestingCenterFallbackModels } from "@/lib/realfarm-generation-model-registry"
-import { slideshowTextGenerationPayload } from "@/lib/slideshow-text-generation"
+import { slideshowTextGenerationPayload } from "@/lib/slideshow-text-generation-payload"
 import { cn } from "@/lib/utils"
 import type {
   TempSlideImage,
@@ -27,14 +27,14 @@ import type {
   TempSlideStructuredOutput,
   TempSlideTestingAutomation,
   TempSlideTextPlaceholder,
-} from "@/lib/temp-slide-testing"
+} from "@/lib/temp-slide-testing-shared"
 import {
   buildTempSlideStructuredOutputSchema,
   defaultTempSlideSystemPrompt,
   defaultTempSlideUserInstructions,
   getTempSlidePromptPlaceholders,
   promptPreviewHook,
-} from "@/lib/temp-slide-testing"
+} from "@/lib/temp-slide-testing-shared"
 
 const fallbackModelOptions: OpenRouterModelSummary[] =
   tempTestingCenterFallbackModels

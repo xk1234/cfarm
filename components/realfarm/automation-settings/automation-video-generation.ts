@@ -110,10 +110,7 @@ async function generateUgcAdVideo(input: AutomationVideoGenerationInput) {
   }
 
   const hooks = automationHooks(input.config)
-  const hook = pickRandomHook(
-    hooks,
-    input.automation.name
-  )
+  const hook = pickRandomHook(hooks, input.automation.name)
   const format =
     input.config.video_format ??
     videoAutomationTemplatePreset("ugc_ad").buildFormat()
@@ -146,7 +143,6 @@ async function generateUgcAdVideo(input: AutomationVideoGenerationInput) {
         title: copy.title || hook,
         description: copy.caption || hook,
         hashtags: copy.hashtags,
-        caption: copy.caption || hook,
         sourceConfig: {
           automationId: input.automation.id,
           automationName: input.automation.name,
@@ -196,9 +192,7 @@ async function generateTemplateVideo(
   const hooks = automationHooks(input.config)
   const hookItemId = templateHookTextItemId(format)
   const copy = await requestVideoCopy(input.automation.id, format)
-  const hook =
-    copy.hook ||
-    pickRandomHook(hooks, input.automation.name)
+  const hook = copy.hook || pickRandomHook(hooks, input.automation.name)
   const resolved = await resolveSegmentsMedia(
     format,
     input.collections,
@@ -238,7 +232,6 @@ async function generateTemplateVideo(
         title: copy.title || hook,
         description: copy.caption || hook,
         hashtags: copy.hashtags,
-        caption: copy.caption || hook,
         sourceConfig: {
           automationId: input.automation.id,
           automationName: input.automation.name,
@@ -330,7 +323,6 @@ async function generateGreenscreenMemeVideo(
         title: copy.title || hook,
         description: copy.caption || hook,
         hashtags: copy.hashtags,
-        caption: copy.caption || hook,
         sourceConfig: {
           automationId: input.automation.id,
           automationName: input.automation.name,
@@ -560,8 +552,6 @@ async function requestVideoCopy(
     hook?: string
     title?: string
     caption?: string
-    /** Compatibility with video-copy responses from before the shared schema. */
-    description?: string
     hashtags?: string[]
     substitutions?: Record<string, string>
     texts?: Record<string, string | string[]>
@@ -584,7 +574,7 @@ async function requestVideoCopy(
   }).then((payload) => ({
     hook: payload.hook ?? "",
     title: payload.title ?? "",
-    caption: payload.caption ?? payload.description ?? "",
+    caption: payload.caption ?? "",
     hashtags: payload.hashtags ?? [],
     substitutions: payload.substitutions ?? {},
     texts: payload.texts ?? {},

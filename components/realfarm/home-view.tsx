@@ -41,14 +41,6 @@ import { useVideoThumbnailFrame } from "./use-video-thumbnail-frame"
 const ITEMS_PER_PAGE = 5
 const QUICK_START_ITEMS_PER_PAGE = 6
 
-export function CreatorsView() {
-  return (
-    <div className="mx-auto max-w-[1160px]">
-      <h1 className="text-[24px] font-semibold">Creators</h1>
-    </div>
-  )
-}
-
 export function HomeView({
   currentUserId,
   templates,

@@ -31,7 +31,7 @@ Items are deduped by slot key.
 Main actions:
 
 - Browse month and week views across a date range.
-- Filter by account, status, platform, automation, and source type (persisted to `localStorage` key `realfarm:calendar-filters:v1`).
+- Filter by account, status, platform, automation, and source type (persisted to `localStorage` key `lumenclip:calendar-filters:v1`).
 - Drag a locally tracked scheduled post to a future date/time to reschedule it. The calendar calls `PATCH /api/calendar/items/[id]`; remote-only PostFast items are intentionally not draggable because the app does not have their immutable content snapshot.
 - Open an item's detail panel: "View content", "Live post", and (for `scheduled` items) "Cancel", which DELETEs the PostFast post via `/api/calendar/items/[id]`.
 

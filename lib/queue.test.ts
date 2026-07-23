@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   getRow: vi.fn(),
+  listRows: vi.fn(),
+  deleteRow: vi.fn(),
   updateRow: vi.fn(),
 }))
 
@@ -11,6 +13,8 @@ vi.mock("@/lib/appwrite", () => ({
   getAppwrite: () => ({
     tables: {
       getRow: mocks.getRow,
+      listRows: mocks.listRows,
+      deleteRow: mocks.deleteRow,
       updateRow: mocks.updateRow,
     },
   }),
@@ -35,6 +39,39 @@ beforeEach(() => {
     owner_id: "owner-1",
   })
   mocks.updateRow.mockResolvedValue({})
+  mocks.deleteRow.mockResolvedValue({})
+  mocks.listRows
+    .mockResolvedValueOnce({
+      rows: [
+        {
+          $id: "job-delete",
+          type: "run-automation",
+          status: "failed",
+          payload: JSON.stringify({ automationId: "automation-1" }),
+          owner_id: "owner-1",
+        },
+        {
+          $id: "job-keep",
+          type: "run-automation",
+          status: "failed",
+          payload: JSON.stringify({ automationId: "automation-2" }),
+          owner_id: "owner-1",
+        },
+      ],
+    })
+    .mockResolvedValueOnce({ rows: [] })
+})
+
+describe("deleteAutomationJobs", () => {
+  it("deletes only generation jobs belonging to the automation", async () => {
+    const { deleteAutomationJobs } = await import("./queue")
+
+    const deleted = await deleteAutomationJobs("automation-1")
+
+    expect(deleted.map((job) => job.id)).toEqual(["job-delete"])
+    expect(mocks.deleteRow).toHaveBeenCalledOnce()
+    expect(mocks.deleteRow).toHaveBeenCalledWith("cfarm", "jobs", "job-delete")
+  })
 })
 
 describe("retryGenerationJob", () => {

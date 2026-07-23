@@ -21,7 +21,7 @@ you are trying to answer.
 | How do hook locking and analytics work?    | [automations/hook-catalog-and-analytics.mdx](automations/hook-catalog-and-analytics.mdx) |
 | How do I complete a product workflow?      | [workflows/index.mdx](workflows/index.mdx)                                               |
 | What agent workflows are proposed for MCP? | [workflows/mcp/index.md](workflows/mcp/index.md)                                         |
-| What are the exact proposed MCP tools?     | [../mcp/README.md](../mcp/README.md)                                                     |
+| What are the exact MCP tool contracts?     | [../mcp/README.md](../mcp/README.md)                                                     |
 | How is the backend put together?           | [reference/backend-architecture.md](reference/backend-architecture.md)                   |
 | What data structures and tables exist?     | [reference/data-objects.md](reference/data-objects.md)                                   |
 | What backend endpoints exist?              | [reference/backend-endpoints.md](reference/backend-endpoints.md)                         |
@@ -52,7 +52,7 @@ Every document belongs to one of these categories:
 | `docs/automations/`              | Evergreen product guide             | Keep editors, templates, renderer experiments, screenshots, and visible behavior aligned with the UI. |
 | `docs/collections/`              | Evergreen collection reference      | Keep type contracts, CRUD support, lifecycle rules, and automation usage aligned with shipped code.   |
 | `docs/workflows/`                | Task-oriented living guides         | Group by creating content, importing outside content, and analyzing/exporting data.                   |
-| `mcp/`                           | Proposed MCP tool reference         | Organize tools by app use case; every tool needs one primary owner with input and output contracts.   |
+| `mcp/`                           | MCP tool reference                  | Organize tools by app use case; every tool needs one primary owner with input and output contracts.   |
 | `diagrams/`                      | Current workflow diagrams           | Describe implemented flows only; planned diagrams belong with their roadmap item.                     |
 
 Do not keep removed-feature documentation as an archive inside the repo. Git
@@ -113,10 +113,10 @@ backend endpoint inventory, not as a product tab.
 
 ## Active roadmap
 
-| Status   | Initiative                                                    | Scope                                               |
-| -------- | ------------------------------------------------------------- | --------------------------------------------------- |
-| 🔴 Now   | [Appwrite read reduction](roadmap/appwrite-read-reduction.md) | Reduce row-read volume and billing risk.            |
-| ⚪ Later | [LumenClip MCP server](roadmap/lumenclip-mcp-server.md)       | Remote agent interface over shared domain services. |
+| Status   | Initiative                                                    | Scope                                                                   |
+| -------- | ------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| 🔴 Now   | [Appwrite read reduction](roadmap/appwrite-read-reduction.md) | Reduce row-read volume and billing risk.                                |
+| ⚪ Later | [LumenClip MCP server](roadmap/lumenclip-mcp-server.md)       | Harden the deployed remote agent interface over shared domain services. |
 
 The status roll-up in [roadmap/](roadmap/index.mdx) is authoritative.
 
@@ -140,7 +140,7 @@ Current detailed flows:
 - [AGENTS.md](../AGENTS.md) — Next.js version rule; read before changing Next
   code.
 - [e2e/README.md](../e2e/README.md) — automated browser-test setup.
-- [mcp/README.md](../mcp/README.md) — proposed MCP tool reference organized by
+- [mcp/README.md](../mcp/README.md) — MCP tool reference organized by
   app use case, with a complete tool ownership index.
 
 ## Maintenance checklist

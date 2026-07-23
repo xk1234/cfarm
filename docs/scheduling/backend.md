@@ -81,8 +81,8 @@ The projection scan is capped at 370 days. `jitter_minutes` shifts a slot by a
 stable value, so repeated reads do not move it. `min_gap_minutes` is normalized
 but is not currently enforced; configure posting rows far enough apart.
 
-The legacy interval schedule remains readable for migrated records, while the
-current editor writes explicit posting-time rows.
+Schedules use explicit posting-time rows. Interval-based records must be
+migrated before the app loads them.
 
 ## Scheduler function
 

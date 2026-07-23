@@ -25,6 +25,7 @@ import {
   latestSnapshotsByPost,
   type LatestPost,
 } from "@/components/realfarm/analytics/analytics-selectors"
+import { TikTokStudioBatchDialog } from "@/components/realfarm/analytics/tiktok-studio-batch-dialog"
 
 export type AnalyticsPayload = {
   integrations: SocialIntegration[]
@@ -64,6 +65,7 @@ export function AnalyticsView({
     initialMetricForPlatform(initialPlatform)
   )
   const [chartMode, setChartMode] = useState<"absolute" | "indexed">("absolute")
+  const [showTikTokStudioSync, setShowTikTokStudioSync] = useState(false)
   const { data, error, isLoading, days, setDays, refreshing, refresh } =
     useAnalyticsData(previewData)
   const integrations = useMemo(
@@ -137,6 +139,11 @@ export function AnalyticsView({
         onRefresh={() => void refreshReport()}
         refreshing={refreshing}
         loading={isLoading}
+        onTikTokStudioSync={
+          showingPlatform && activePlatform === "tiktok"
+            ? () => setShowTikTokStudioSync(true)
+            : undefined
+        }
       />
 
       {data?.integrationWarning ? (
@@ -226,6 +233,13 @@ export function AnalyticsView({
           )}
         </>
       )}
+      {showTikTokStudioSync ? (
+        <TikTokStudioBatchDialog
+          integrationIds={resolvedPlatformAccountIds}
+          onClose={() => setShowTikTokStudioSync(false)}
+          onLinked={() => void refreshReport()}
+        />
+      ) : null}
     </div>
   )
 }

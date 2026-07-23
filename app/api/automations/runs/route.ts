@@ -110,7 +110,7 @@ function generatedVideoRun(item: GeneratedVideoExport) {
     error: item.error,
     plan: {
       title: item.title,
-      caption: item.description || item.caption,
+      caption: item.description,
       hashtags: item.hashtags.join(" "),
       hook: stringValue(item.sourceConfig.hook),
       publishType: "video",
@@ -118,7 +118,7 @@ function generatedVideoRun(item: GeneratedVideoExport) {
   }
 }
 
-export function failedGenerationJobRuns({
+function failedGenerationJobRuns({
   jobs,
   persistedRuns,
   automationTitles,

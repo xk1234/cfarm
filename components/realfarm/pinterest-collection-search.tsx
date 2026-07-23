@@ -124,7 +124,7 @@ export function PinterestCollectionSearch({
     ].slice(0, 6)
     setRecentSearches(next)
     window.localStorage.setItem(
-      "reelfarm:pinterest-recent",
+      "lumenclip:pinterest-recent",
       JSON.stringify(next)
     )
   }
@@ -535,7 +535,7 @@ function readRecentPinterestSearches() {
   }
 
   const storedSearches = window.localStorage.getItem(
-    "reelfarm:pinterest-recent"
+    "lumenclip:pinterest-recent"
   )
   if (!storedSearches) {
     return []

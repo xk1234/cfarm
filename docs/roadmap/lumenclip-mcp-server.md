@@ -3,14 +3,14 @@ title: "LumenClip MCP server"
 description: "Roadmap for a tenant-safe remote MCP interface over LumenClip domain services."
 ---
 
-> **Status: Partially implemented.** The authenticated Streamable HTTP adapter,
+> **Status: Partially implemented.** The public, owner-scoped Streamable HTTP adapter,
 > local stdio transport, automation/collection/output/account discovery,
 > image/video collection bootstrapping and HTTPS imports,
 > slideshow/X/Threads manual runs, safe automation updates, output status,
 > confirmed PostFast publishing/manual linking, stored analytics reads, and
 > three TikTok publication-reconciliation tools are shipped. Resources, OAuth
 > scopes, template/create contracts, server-side video-automation execution,
-> and saved LinkedIn automations remain future work · Updated: 2026-07-19
+> and saved LinkedIn automations remain future work · Updated: 2026-07-23
 
 The implemented tools intentionally follow this roadmap's architecture: MCP
 calls the same owner-scoped automation, schedule, generation, analytics, and
@@ -35,7 +35,9 @@ Primary transport:
 https://<lumenclip-host>/mcp
 ```
 
-- Production: remote Streamable HTTP with OAuth.
+- Production today: remote public Streamable HTTP scoped to the configured
+  MCP/system owner.
+- Future hardening: remote Streamable HTTP with OAuth.
 - Local development: the same HTTP endpoint on the local app, plus an optional
   stdio bridge for clients that cannot connect to local HTTP.
 - Server identity: `lumenclip`. Public tool names, OAuth scopes, and resource
@@ -204,9 +206,10 @@ server prefix, but raw names must still be collision-resistant and readable.
 | `lumenclip_templates_list`   | Search template summaries by automation kind, platform, format, tags, or capability.        | `lumenclip:read` | read-only, idempotent             |
 | `lumenclip_template_get`     | Return one full template, examples, required capabilities, and its allowed override schema. | `lumenclip:read` | read-only, idempotent             |
 | `lumenclip_automations_list` | Search/filter automations by kind, status, platform, or collection.                         | `lumenclip:read` | read-only, idempotent             |
-| `lumenclip_automation_get`   | Return a normalized automation plus linked collections/accounts.                            | `lumenclip:read` | read-only, idempotent             |
+| `lumenclip_automation_get`   | Return a normalized automation, canonical hook pool, and linked collections/accounts.       | `lumenclip:read` | read-only, idempotent             |
+| `lumenclip_automation_hooks_get` | Return the canonical hook pool with enabled state and duplicate groups.                 | `lumenclip:read` | read-only, idempotent             |
 | `lumenclip_collections_list` | Search collections by media type, name, tags, and minimum item count.                       | `lumenclip:read` | read-only, idempotent             |
-| `lumenclip_outputs_list`     | Find generated outputs by automation, status, type, date, or platform.                      | `lumenclip:read` | read-only, idempotent             |
+| `lumenclip_outputs_list`     | Find generated outputs with publication state, metric summaries, and analytics guidance.   | `lumenclip:read` | read-only, idempotent             |
 | `lumenclip_accounts_list`    | List safe connected-account metadata and supported publishing capabilities.                 | `lumenclip:read` | read-only, idempotent, open-world |
 | `lumenclip_operation_get`    | Return lightweight status, progress, warnings, costs, and result resource URIs.             | `lumenclip:read` | read-only, idempotent             |
 
@@ -259,7 +262,8 @@ are stable.
 | `lumenclip_collection_merge_preview` | Resolve source and destination versions, duplicates, caption conflicts, attribution, dependencies, and final counts without mutation. | `lumenclip:read`   | Proposed                    |
 | `lumenclip_collection_merge`         | Apply an approved preview idempotently while keeping source deletion off by default.                                                  | `lumenclip:import` | Proposed                    |
 | `lumenclip_collection_delete`        | Soft-delete one collection for 30 days, blocking references by default and requiring explicit confirmation.                           | `lumenclip:write`  | Implemented focused subset  |
-| `lumenclip_analytics_report`         | Read latest-per-post totals and follower movement from owner-scoped stored analytics snapshots.                                       | `lumenclip:read`   | Implemented focused subset  |
+| `lumenclip_automation_hooks_update`  | Replace, edit, prune, disable, or deduplicate one automation's canonical hook pool.                                                     | `lumenclip:write`  | Implemented focused subset  |
+| `lumenclip_analytics_report`         | Reconcile publications and snapshots for latest-per-post totals, follower movement, and followers gained.                             | `lumenclip:read`   | Implemented focused subset  |
 | `lumenclip_export_create`            | Export selected public objects, analytics reports, or generated media as JSON, CSV, or a manifest-backed ZIP.                         | `lumenclip:export` | Deferred beyond version one |
 
 The canonical task-family contracts are documented under [MCP tools and
@@ -593,8 +597,9 @@ resource URI; the server never silently overwrites concurrent UI changes.
 
 ## 11. Authentication and authorization
 
-Remote HTTP uses the MCP authorization flow with LumenClip as the protected resource
-server and an OAuth 2.1-compatible authorization server. Publish narrow scopes:
+Target state: remote HTTP uses the MCP authorization flow with LumenClip as the
+protected resource server and an OAuth 2.1-compatible authorization server.
+Publish narrow scopes:
 
 | Scope                | Allows                                                                                   |
 | -------------------- | ---------------------------------------------------------------------------------------- |
@@ -608,6 +613,11 @@ does not need write, generation, or publish authority. The remote server exposes
 protected-resource metadata and never accepts tokens in query strings. The
 [MCP authorization specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization)
 is the implementation baseline.
+
+Current deployed state: `/mcp` is public and runs as
+`LUMENCLIP_MCP_OWNER_ID` or `LUMENCLIP_SYSTEM_OWNER_ID`. That keeps Claude and
+other MCP clients easy to connect, but it is not the final tenant-safe OAuth
+model.
 
 For local stdio, credentials come from the local environment/session adapter,
 not the HTTP OAuth flow. The adapter must refuse to start against a production
@@ -718,9 +728,10 @@ handlers would preserve route coupling and make background operations fragile.
 
 ### Phase 1 — read-only remote MCP
 
-Ship Streamable HTTP, OAuth, resource metadata, the nine read tools, resource
-templates, pagination, redaction, and audit logs. Validate with at least two MCP
-clients and the MCP Inspector.
+Ship Streamable HTTP, resource metadata, the read tools, resource templates,
+pagination, redaction, and audit logs. OAuth remains a hardening step for the
+public owner-scoped deployment. Validate with at least two MCP clients and the
+MCP Inspector.
 
 ### Phase 2 — generation
 
@@ -745,8 +756,8 @@ after the snapshot redesign is the source of truth.
 
 The initial MCP feature is ready when:
 
-- A user can connect a remote client through OAuth without copying an Appwrite or
-  PostFast secret.
+- A user can connect a remote client through the deployed `/mcp` URL without
+  copying an Appwrite or PostFast secret; OAuth is the target hardening model.
 - A read-only token cannot invoke write, generate, or publish tools.
 - Cross-owner IDs return `NOT_FOUND` or `FORBIDDEN` without leaking object
   metadata.

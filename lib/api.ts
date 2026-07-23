@@ -71,12 +71,17 @@ export function validate<S extends ZodType>(
 }
 
 type RouteHandler<Ctx> = (request: Request, context: Ctx) => Promise<Response>
+type ContextFreeRouteHandler = (request: Request) => Promise<Response>
 
 /** Wrap a route handler with uniform try/catch + error mapping. */
-export function withHandler<Ctx = unknown>(
-  handler: RouteHandler<Ctx>
-): (request: Request, context?: Ctx) => Promise<Response> {
-  return async (request, context) => {
+export function withHandler(
+  handler: ContextFreeRouteHandler
+): ContextFreeRouteHandler
+export function withHandler<Ctx>(handler: RouteHandler<Ctx>): RouteHandler<Ctx>
+export function withHandler<Ctx>(
+  handler: RouteHandler<Ctx> | ContextFreeRouteHandler
+) {
+  return async (request: Request, context: Ctx) => {
     try {
       return await handler(request, context as Ctx)
     } catch (error) {

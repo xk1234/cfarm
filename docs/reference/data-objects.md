@@ -169,7 +169,6 @@ Important nested contracts:
 
 - `hooks[]` contains stable automation-owned `{ id, text, enabled, createdAt,
 updatedAt? }` items. Disabled items remain stored but are not selected.
-  Legacy newline hooks receive deterministic IDs during normalization.
 
 - `formatting[]` contains canonical `hook`, `body`, and `cta` sections with
   content direction, word/count limits, text styling, layout, and per-section
@@ -355,7 +354,6 @@ type GeneratedVideoExport = {
   title: string
   description: string
   hashtags: string[]
-  caption: string // legacy alias of description
   sourceConfig: Record<string, unknown>
   queuePosition?: number
   previewUrl?: string
@@ -651,6 +649,33 @@ type PostFastMetricSnapshot = {
   latestMetric: Record<string, unknown>
   rawMetrics: Record<string, number>
   observedKeys: string[]
+  source?: "postfast" | "tiktok_studio"
+  tiktokStudio?: TikTokStudioAnalytics
+}
+
+type TikTokStudioAnalytics = {
+  schemaVersion: 1
+  studioUrl: string
+  capturedSections: ("overview" | "viewers" | "engagement")[]
+  slides: Array<{
+    slideIndex: number
+    retentionPercent?: number
+    likeDistributionPercent?: number
+    isRetentionDropPeak?: boolean
+    isLikePeak?: boolean
+  }>
+  trafficSources: Record<string, number>
+  searchTerms: Array<{ term: string; percent: number }>
+  audience?: {
+    uniqueViewers?: number
+    newViewerPercent?: number
+    returningViewerPercent?: number
+    followerPercent?: number
+    nonFollowerPercent?: number
+    agePercent: Record<string, number>
+    genderPercent: Record<string, number>
+    countryPercent: Record<string, number>
+  }
 }
 
 type AccountFollowerSnapshot = {
@@ -666,6 +691,18 @@ type AccountFollowerSnapshot = {
 Metric snapshots are append-only with deterministic `(postId, capturedAt)`
 IDs. Follower snapshots deduplicate per integration/day and retain at most
 10,000 records through the current update path.
+
+TikTok Studio captures first exist as short-lived
+`TikTokStudioImportRecord` rows under the consolidated
+`tiktok_studio_analytics_import` source key. Linking converts the derived
+fields into a normal metric snapshot. The raw Studio response, TikTok
+credentials, cookies, and signed image URLs are never stored.
+
+Account-wide sync adds a `TikTokStudioBatchRecord` under
+`tiktok_studio_analytics_batch`. It stores selected integration IDs, scope,
+expiry, and an explicit list of child import IDs. Its API view adds per-post
+status plus `total`, `captured`, and `linked` counts. The batch token authorizes
+only those child post IDs.
 
 ## Operations and account data
 
@@ -710,8 +747,6 @@ type UsageRecord = {
   kind:
     | "hook_published"
     | "hook_combination_published"
-    | "hook" // legacy generation-time history
-    | "hook_combination" // legacy generation-time history
     | "image"
     | "text"
   key: string

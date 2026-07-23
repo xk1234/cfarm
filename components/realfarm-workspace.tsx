@@ -308,6 +308,7 @@ export function RealFarmWorkspace({
   useEffect(() => {
     const needsAssets =
       templateFolderOpen ||
+      view === "collections" ||
       (view === "automations" &&
         Boolean(editingAutomation?.id) &&
         editingAutomation?.automationKind !== "x_threads")

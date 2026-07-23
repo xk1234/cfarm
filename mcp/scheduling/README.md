@@ -23,9 +23,14 @@ Implemented, read-only, and idempotent.
 | `includePaused` | boolean           | no       | Include paused automation settings and slots; default true. |
 | `limit`         | integer 1-200     | no       | Maximum projected slots; default 100.                       |
 
-The result includes normalized saved schedules and a chronological slot list
-for slideshow, video, AI UGC, X, and Threads automations. Slot timestamps are UTC ISO
-strings and retain the automation's IANA timezone and paused state.
+The result includes normalized saved schedules, a chronological projected slot
+list, and a merged `calendarItems` view. The latter overlays queue jobs and
+local publication records onto projections and exposes `planned`,
+`generating`, `generation_failed`, `needs_action`, `draft`, `failed`,
+`scheduled`, and `published` lifecycle states with a status summary. A
+materialized job/publication replaces its matching projected slot. Timestamps
+are UTC ISO strings and projected entries retain the automation's IANA
+timezone and paused state.
 
 ## Recurring schedule fields
 

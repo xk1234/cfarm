@@ -42,10 +42,8 @@ export const runtimeHookVariables = [
     },
 ];
 const runtimeHookVariableNames = new Set(runtimeHookVariables.map((variable) => variable.name));
-const legacyRuntimeHookVariableAliases = new Map([["year", "current_year"]]);
 function canonicalRuntimeHookVariableName(name) {
-    const normalized = name.trim().toLowerCase();
-    return legacyRuntimeHookVariableAliases.get(normalized) ?? normalized;
+    return name.trim().toLowerCase();
 }
 export function isRuntimeHookVariable(name) {
     return runtimeHookVariableNames.has(canonicalRuntimeHookVariableName(name));

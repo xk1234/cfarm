@@ -18,12 +18,18 @@ import {
   classifyAutomation,
   classifyAutomationTemplate,
   classifyImageCollection,
+  classifySlideshowResult,
+  classifyXAutomation,
+  classifyXAutomationRun,
   type ClassificationResult,
 } from "./legacy-shapes/classify"
 import {
   convertAutomationTemplateV1toV2,
   convertAutomationV1toV2,
   convertImageCollectionV1toV2,
+  convertSlideshowResultV1toV2,
+  convertXAutomationRunV1toV2,
+  convertXAutomationV1toV2,
   type ConversionResult,
 } from "./legacy-shapes/convert"
 
@@ -84,6 +90,30 @@ const stores: Store[] = [
     classifyImageCollection,
     convertImageCollectionV1toV2
   ),
+  store(
+    "x_automations",
+    "x_automations",
+    undefined,
+    false,
+    classifyXAutomation,
+    convertXAutomationV1toV2
+  ),
+  store(
+    "x_automation_runs",
+    "outputs",
+    "x_automation_run",
+    false,
+    classifyXAutomationRun,
+    convertXAutomationRunV1toV2
+  ),
+  store(
+    "results",
+    "outputs",
+    "result",
+    false,
+    classifySlideshowResult,
+    convertSlideshowResultV1toV2
+  ),
 ]
 const allowed = new Set([
   "--env-file",
@@ -94,9 +124,11 @@ const allowed = new Set([
   "--restore",
   "--confirm",
 ])
-for (const arg of process.argv.slice(2))
+for (const arg of process.argv.slice(2)) {
+  if (arg === "--") continue
   if (arg.startsWith("--") && !allowed.has(arg.split("=", 1)[0]))
     throw new Error(`Unknown flag: ${arg.split("=", 1)[0]}`)
+}
 const root = path.resolve(import.meta.dirname, "..")
 const envFile = argument("--env-file")
 const selector = argument("--store")
@@ -108,7 +140,7 @@ if (!envFile) throw new Error("Pass --env-file=<path> explicitly.")
 if (owner && allOwners) throw new Error("Use either --owner or --all-owners.")
 if (!restoreFile && !selector)
   throw new Error(
-    "Pass --store=automation_template|automations|image_collection|all."
+    "Pass --store=automation_template|automations|image_collection|x_automations|x_automation_runs|results|all."
   )
 if (restoreFile && selector)
   throw new Error("--restore and --store are mutually exclusive.")
@@ -399,9 +431,7 @@ async function restore(manifestPath: string) {
     if (rows.length !== expected.rows)
       throw new Error(`Backup row count mismatch: ${name}`)
     for (const original of rows) {
-      const tableId = name.startsWith("automations-")
-        ? "automations"
-        : "permanent_assets"
+      const tableId = tableIdFromBackupName(name)
       const current = await getRow(tableId, original.$id)
       console.log(
         JSON.stringify({
@@ -473,6 +503,12 @@ function store(
     classify,
     convert,
   }
+}
+function tableIdFromBackupName(name: string) {
+  if (name.startsWith("automations-")) return "automations"
+  if (name.startsWith("x_automations-")) return "x_automations"
+  if (name.startsWith("outputs-")) return "outputs"
+  return "permanent_assets"
 }
 function parseRow(row: Row): Record<string, unknown> | null {
   try {

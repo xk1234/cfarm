@@ -31,7 +31,7 @@ describe("generated video exports", () => {
       rootDir: videoRoot,
       type: "greenscreen",
       title: "Greenscreen meme",
-      caption: "caption",
+      description: "caption",
       sourceConfig: { textPlacement: "top" },
       previewUrl: "/preview.jpg",
       videoUrl: "/source.mp4",
@@ -40,7 +40,7 @@ describe("generated video exports", () => {
       rootDir: videoRoot,
       type: "ugc_ad",
       title: "UGC ad",
-      caption: "hook",
+      description: "hook",
       sourceConfig: { avatar: "Maya" },
     })
 
@@ -102,7 +102,7 @@ describe("generated video exports", () => {
       rootDir: videoRoot,
       type: "ugc_ad",
       title: "UGC ad",
-      caption: "hook",
+      description: "hook",
       sourceConfig: { demo: "Landing page" },
     })
 
@@ -110,7 +110,7 @@ describe("generated video exports", () => {
       rootDir: videoRoot,
       type: "greenscreen",
       title: "Greenscreen",
-      caption: "caption",
+      description: "caption",
       sourceConfig: {},
     })
 

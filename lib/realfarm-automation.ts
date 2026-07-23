@@ -198,14 +198,6 @@ export type AutomationSchedule = {
 
 export type AutomationPostingMode = "manual" | "review" | "auto"
 
-type LegacyAutomationScheduleInterval = {
-  every_n_hours: number
-  start_time: Time
-  end_time: Time
-  days: AutomationDay[]
-  enabled?: boolean
-}
-
 export type AutomationReusePolicy = {
   image_exclusion_days?: number
   image_exclusion_limit?: number
@@ -303,7 +295,11 @@ export type AutomationUgcConfig = {
   lipSyncTier: "standard" | "premium"
   targetDurationSeconds: number
   brollCount: number
-  captions: { enabled: boolean; style: string; fallback: "drawtext" | "png_frames" }
+  captions: {
+    enabled: boolean
+    style: string
+    fallback: "drawtext" | "png_frames"
+  }
   hookOverlay: { enabled: boolean; durationMs: number; style: string }
 }
 
@@ -468,7 +464,8 @@ export function defaultAutomationTemplate(
 
   return {
     automationKind:
-      automation.automationKind === "video" || automation.automationKind === "ugc"
+      automation.automationKind === "video" ||
+      automation.automationKind === "ugc"
         ? automation.automationKind
         : "slideshow",
     aspect_ratio: bodyDefaults.aspect_ratio,
@@ -478,11 +475,7 @@ export function defaultAutomationTemplate(
     prompt_formatting: {
       ...defaultAutomationTemplateDefaults.prompt_formatting,
     },
-    hooks: hookItemsFromTexts(
-      cleanHookLines(
-        defaultAutomationTemplateDefaults.prompt_formatting.narrative
-      )
-    ),
+    hooks: [],
     image_collection_ids: defaultImageCollectionConfig(),
     tone: { value: tone, preset: "custom" },
     formatting: [
@@ -634,9 +627,7 @@ export function normalizeAutomationSchema(
   const sourceWithoutResearch = { ...sourceRecord }
   delete sourceWithoutResearch.knowledge_context_enabled
   delete sourceWithoutResearch.knowledge_base_ids
-  const sourceSchedule = source.schedule as AutomationSchedule & {
-    interval?: LegacyAutomationScheduleInterval
-  }
+  const sourceSchedule = source.schedule
   const normalizedFormatting = normalizeFormatting(
     source.formatting,
     defaults.formatting
@@ -644,11 +635,6 @@ export function normalizeAutomationSchema(
   const normalizedContent = normalizedFormatting.find(
     (item) => item.id === "body"
   )
-  const narrativeHooks = cleanHookLines(source.prompt_formatting?.narrative)
-  const storedHooks = automationStoredHooks({
-    formatting: normalizedFormatting,
-  }).filter((hook) => !isAutomationHookInstruction(hook))
-
   return {
     ...defaults,
     ...sourceWithoutResearch,
@@ -675,25 +661,12 @@ export function normalizeAutomationSchema(
       source.prompt_formatting,
       defaults.prompt_formatting
     ),
-    hooks: normalizeAutomationHookItems(
-      sourceRecord.hooks,
-      hasExplicitEmptyHookCatalog(
-        sourceRecord.hooks,
-        source.prompt_formatting?.narrative
-      )
-        ? []
-        : narrativeHooks.length > 0
-          ? narrativeHooks
-          : storedHooks
-    ),
+    hooks: normalizeAutomationHookItems(sourceRecord.hooks, []),
     image_collection_ids: normalizeImageCollectionConfig(
       source.image_collection_ids,
       defaults.image_collection_ids
     ),
-    tone: normalizeAutomationTone(
-      source.tone ?? legacyToneFromFormatting(source.formatting),
-      defaults.tone
-    ),
+    tone: normalizeAutomationTone(source.tone, defaults.tone),
     formatting: normalizedFormatting,
     tiktok_post_settings: {
       ...normalizeTikTokPostSettings(
@@ -714,8 +687,8 @@ export function normalizeAutomationSchema(
     ),
     schedule: {
       timezone: sourceSchedule?.timezone ?? defaults.schedule.timezone,
-      posting_times: normalizeSchedulePostingTimes(
-        sourceSchedule,
+      posting_times: normalizePostingTimes(
+        sourceSchedule?.posting_times,
         defaults.schedule.posting_times
       ),
       paused: Boolean(sourceSchedule?.paused),
@@ -755,16 +728,49 @@ export function normalizeUgcConfig(value: unknown): AutomationUgcConfig {
     enabled: source.enabled === true,
     productUrl: clean(source.productUrl) || undefined,
     productBrief: clean(source.productBrief) || undefined,
-    actorSource: source.actorSource === "gallery" || source.actorSource === "upload" ? source.actorSource : "generate",
+    actorSource:
+      source.actorSource === "gallery" || source.actorSource === "upload"
+        ? source.actorSource
+        : "generate",
     actorAssetUrl: clean(source.actorAssetUrl) || undefined,
     actorPrompt: clean(source.actorPrompt) || undefined,
     voiceId: clean(source.voiceId),
     voiceModel: clean(source.voiceModel) || undefined,
     lipSyncTier: source.lipSyncTier === "premium" ? "premium" : "standard",
-    targetDurationSeconds: Math.max(15, Math.min(180, Math.round(numberValue(source.targetDurationSeconds, 30)))),
-    brollCount: Math.max(0, Math.min(6, Math.round(numberValue(source.brollCount, 3)))),
-    captions: { enabled: !isRecord(source.captions) || source.captions.enabled !== false, style: isRecord(source.captions) ? clean(source.captions.style) || "karaoke" : "karaoke", fallback: isRecord(source.captions) && source.captions.fallback === "png_frames" ? "png_frames" : "drawtext" },
-    hookOverlay: { enabled: !isRecord(source.hookOverlay) || source.hookOverlay.enabled !== false, durationMs: isRecord(source.hookOverlay) ? Math.max(500, Math.min(10_000, Math.round(numberValue(source.hookOverlay.durationMs, 3000)))) : 3000, style: isRecord(source.hookOverlay) ? clean(source.hookOverlay.style) || "bold" : "bold" },
+    targetDurationSeconds: Math.max(
+      15,
+      Math.min(180, Math.round(numberValue(source.targetDurationSeconds, 30)))
+    ),
+    brollCount: Math.max(
+      0,
+      Math.min(6, Math.round(numberValue(source.brollCount, 3)))
+    ),
+    captions: {
+      enabled: !isRecord(source.captions) || source.captions.enabled !== false,
+      style: isRecord(source.captions)
+        ? clean(source.captions.style) || "karaoke"
+        : "karaoke",
+      fallback:
+        isRecord(source.captions) && source.captions.fallback === "png_frames"
+          ? "png_frames"
+          : "drawtext",
+    },
+    hookOverlay: {
+      enabled:
+        !isRecord(source.hookOverlay) || source.hookOverlay.enabled !== false,
+      durationMs: isRecord(source.hookOverlay)
+        ? Math.max(
+            500,
+            Math.min(
+              10_000,
+              Math.round(numberValue(source.hookOverlay.durationMs, 3000))
+            )
+          )
+        : 3000,
+      style: isRecord(source.hookOverlay)
+        ? clean(source.hookOverlay.style) || "bold"
+        : "bold",
+    },
   }
 }
 
@@ -774,9 +780,11 @@ export function ugcLiveConfigurationErrors(
 ) {
   if (status !== "live" || schema.automationKind !== "ugc") return []
   const ugc = normalizeUgcConfig(schema.ugc)
-  if (!ugc.enabled) return ["AI UGC must be explicitly enabled before going live"]
+  if (!ugc.enabled)
+    return ["AI UGC must be explicitly enabled before going live"]
   const errors: string[] = []
-  if (!ugc.productUrl && !ugc.productBrief) errors.push("AI UGC requires a product URL or brief")
+  if (!ugc.productUrl && !ugc.productBrief)
+    errors.push("AI UGC requires a product URL or brief")
   if (!ugc.voiceId) errors.push("AI UGC requires an ElevenLabs voice id")
   return errors
 }
@@ -965,72 +973,16 @@ export function updateAutomationFormatSection<
   }
 }
 
-export function automationHooks(
-  schema: Pick<AutomationSchema, "formatting"> &
-    Partial<Pick<AutomationSchema, "prompt_formatting" | "hooks">>
-) {
-  const catalog = automationHookItems(schema)
-  if (
-    Array.isArray(schema.hooks) &&
-    (schema.hooks.length > 0 || !clean(schema.prompt_formatting?.narrative))
-  ) {
-    return catalog.filter((item) => item.enabled).map((item) => item.text)
-  }
-  const narrativeHooks = cleanHookLines(schema.prompt_formatting?.narrative)
-  const hooks = automationStoredHooks(schema).filter(
-    (hook) => !isAutomationHookInstruction(hook)
-  )
-  if (narrativeHooks.length > 0) {
-    return narrativeHooks
-  }
-  if (hooks.length > 0) {
-    return hooks
-  }
-  return narrativeHooks
+export function automationHooks(schema: Partial<AutomationSchema>) {
+  return automationHookItems(schema)
+    .filter((item) => item.enabled)
+    .map((item) => item.text)
 }
 
 export function automationHookItems(
-  schema: Pick<AutomationSchema, "formatting"> &
-    Partial<Pick<AutomationSchema, "prompt_formatting" | "hooks">>
+  schema: Partial<AutomationSchema>
 ): AutomationHookItem[] {
-  const narrativeHooks = cleanHookLines(schema.prompt_formatting?.narrative)
-  const storedHooks = automationStoredHooks(schema).filter(
-    (hook) => !isAutomationHookInstruction(hook)
-  )
-  return normalizeAutomationHookItems(
-    schema.hooks,
-    hasExplicitEmptyHookCatalog(
-      schema.hooks,
-      schema.prompt_formatting?.narrative
-    )
-      ? []
-      : narrativeHooks.length > 0
-        ? narrativeHooks
-        : storedHooks
-  )
-}
-
-function hasExplicitEmptyHookCatalog(value: unknown, narrative: unknown) {
-  return Array.isArray(value) && value.length === 0 && !clean(narrative)
-}
-
-export function automationStoredHooks(
-  schema: Pick<AutomationSchema, "formatting">
-) {
-  const hookSection = automationFormatSection(schema, "hook")
-  return hookSection.textItems
-    .map((item) => textItemValue(item))
-    .filter(Boolean)
-}
-
-function cleanHookLines(value: unknown) {
-  if (typeof value !== "string") {
-    return []
-  }
-  return value
-    .split(/\r?\n/)
-    .map((line) => line.trim().replace(/^\d+[.)]\s*/, ""))
-    .filter((line) => line && !isAutomationHookInstruction(line))
+  return normalizeAutomationHookItems(schema.hooks, [])
 }
 
 export function isAutomationHookInstruction(value: string) {
@@ -1080,10 +1032,6 @@ export function schemaWithAutomationHookItems(
   return {
     ...schema,
     hooks: nextHooks,
-    prompt_formatting: {
-      ...schema.prompt_formatting,
-      narrative: nextHooks.map((item) => item.text).join("\n"),
-    },
   }
 }
 
@@ -1458,97 +1406,6 @@ export function normalizePostingTimes(
   })
 }
 
-function normalizeSchedulePostingTimes(
-  schedule: (AutomationSchedule & { interval?: unknown }) | undefined,
-  fallback: AutomationSchedule["posting_times"]
-) {
-  const interval = normalizeScheduleInterval(schedule?.interval)
-  const explicit = normalizePostingTimes(
-    schedule?.posting_times,
-    interval ? [] : fallback
-  )
-  if (!interval || interval.enabled === false) return explicit
-
-  const startMinutes = clockTimeMinutes(interval.start_time)
-  const endMinutes = clockTimeMinutes(interval.end_time)
-  if (
-    startMinutes === undefined ||
-    endMinutes === undefined ||
-    endMinutes < startMinutes
-  ) {
-    return explicit
-  }
-
-  const generated: AutomationSchedule["posting_times"] = []
-  const step = interval.every_n_hours * 60
-  for (let minutes = startMinutes; minutes <= endMinutes; minutes += step) {
-    generated.push({
-      time: minutesToClockTime(minutes),
-      days: interval.days,
-    })
-  }
-
-  const seen = new Set<string>()
-  return [...explicit, ...generated]
-    .filter((slot) => {
-      const key = `${slot.time}|${slot.days.join(",")}`
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-    .slice(0, 5)
-}
-
-function normalizeScheduleInterval(
-  value: unknown,
-  fallback?: LegacyAutomationScheduleInterval
-): LegacyAutomationScheduleInterval | undefined {
-  const record =
-    typeof value === "object" && value !== null
-      ? (value as {
-          every_n_hours?: unknown
-          start_time?: unknown
-          end_time?: unknown
-          days?: unknown
-          enabled?: unknown
-        })
-      : null
-  if (!record) return fallback
-  const everyNHours = Number(record.every_n_hours)
-  if (!Number.isFinite(everyNHours) || everyNHours <= 0) return fallback
-  return {
-    every_n_hours: Math.max(1, Math.min(24, Math.floor(everyNHours))),
-    start_time: clean(record.start_time) || "9:00 AM",
-    end_time: clean(record.end_time) || "5:00 PM",
-    days:
-      Array.isArray(record.days) && record.days.length > 0
-        ? (record.days as AutomationDay[])
-        : ["Mon", "Tue", "Wed", "Thu", "Fri"],
-    enabled: record.enabled === false ? false : undefined,
-  }
-}
-
-function clockTimeMinutes(value: string) {
-  const match = clean(value).match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i)
-  if (!match) return undefined
-  let hour = Number(match[1])
-  const minute = Number(match[2])
-  if (minute > 59 || hour > (match[3] ? 12 : 23)) return undefined
-  if (match[3]) {
-    hour %= 12
-    if (match[3].toUpperCase() === "PM") hour += 12
-  }
-  return hour * 60 + minute
-}
-
-function minutesToClockTime(value: number) {
-  const hours = Math.floor(value / 60) % 24
-  const minutes = value % 60
-  const suffix = hours >= 12 ? "PM" : "AM"
-  const displayHour = hours % 12 || 12
-  return `${displayHour}:${String(minutes).padStart(2, "0")} ${suffix}`
-}
-
 function normalizeNonNegativeNumber(value: unknown) {
   const parsed = Number(value)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
@@ -1692,15 +1549,6 @@ function defaultImageCollectionConfig(): ImageCollectionConfig {
     },
     video_demo_asset_id: defaults.video_demo_asset_id,
   }
-}
-
-function textItemValue(item: AutomationTextItem) {
-  return (
-    (item.textMode === "static" ? item.staticText : item.text) ||
-    item.contentDirection ||
-    item.staticText ||
-    item.text
-  )
 }
 
 function normalizePromptFormatting(
@@ -1860,16 +1708,9 @@ function normalizeAutomationTone(
   }
 }
 
-function legacyToneFromFormatting(value: unknown) {
-  return Array.isArray(value)
-    ? value.find((item) => isRecord(item) && item.id === "_tone")
-    : undefined
-}
-
 function normalizeSlideOverrides(value: unknown): AutomationSlideOverride[] {
   return overrideRecordEntries(value).flatMap(({ record, fallbackIndex }) => {
-    const contentDirection =
-      clean(record.contentDirection)
+    const contentDirection = clean(record.contentDirection)
     if (!contentDirection) {
       return []
     }
@@ -1885,8 +1726,7 @@ function normalizeSlideOverrides(value: unknown): AutomationSlideOverride[] {
 
 function normalizeImageOverrides(value: unknown): AutomationImageOverride[] {
   return overrideRecordEntries(value).flatMap(({ record, fallbackIndex }) => {
-    const collectionId =
-      clean(record.collectionId)
+    const collectionId = clean(record.collectionId)
     if (!collectionId) {
       return []
     }

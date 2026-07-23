@@ -15,6 +15,7 @@ import {
 } from "recharts"
 import {
   IconArrowLeft,
+  IconBrandTiktok,
   IconExternalLink,
   IconPhoto,
   IconRefresh,
@@ -39,6 +40,7 @@ import {
 import type { SocialIntegration } from "@/lib/social/provider-contract"
 import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
 import { cn } from "@/lib/utils"
+import { TikTokStudioImportDialog } from "./tiktok-studio-import-dialog"
 
 export function PostAnalyticsPage({
   snapshots,
@@ -62,12 +64,17 @@ export function PostAnalyticsPage({
   const metrics = availableMetrics(ordered)
   const [metric, setMetric] = useState<CanonicalMetric>(defaultMetric(metrics))
   const [syncing, setSyncing] = useState(false)
+  const [studioImportOpen, setStudioImportOpen] = useState(false)
   const activeMetric = metrics.includes(metric)
     ? metric
     : defaultMetric(metrics)
   const series = metricSeries(ordered, activeMetric)
   const stats = featuredStats(latest, contentType)
   const rawMetrics = platformSpecificMetrics(latest)
+  const studioSnapshot = [...ordered]
+    .reverse()
+    .find((snapshot) => snapshot.tiktokStudio)
+  const studio = studioSnapshot?.tiktokStudio
 
   async function sync() {
     setSyncing(true)
@@ -97,15 +104,27 @@ export function PostAnalyticsPage({
           >
             <IconArrowLeft className="size-4" /> Analytics
           </Link>
-          <Button
-            variant="softControl"
-            size="compact"
-            onClick={() => void sync()}
-            disabled={syncing}
-          >
-            <IconRefresh className={cn("size-4", syncing && "animate-spin")} />
-            Sync this account
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {latest.provider === "tiktok" ? (
+              <Button
+                variant="softControl"
+                size="compact"
+                onClick={() => setStudioImportOpen(true)}
+              >
+                <IconBrandTiktok className="size-4" />
+                Import from TikTok Studio
+              </Button>
+            ) : null}
+            <Button
+              variant="softControl"
+              size="compact"
+              onClick={() => void sync()}
+              disabled={syncing}
+            >
+              <IconRefresh className={cn("size-4", syncing && "animate-spin")} />
+              Sync this account
+            </Button>
+          </div>
         </header>
 
         <section className="mt-6 grid gap-5 rounded-[20px] border border-app-panel-border bg-app-surface p-5 shadow-[0_18px_55px_rgba(35,24,67,0.06)] lg:grid-cols-[minmax(0,1fr)_300px] lg:p-7">
@@ -258,6 +277,8 @@ export function PostAnalyticsPage({
           </div>
         </section>
 
+        {studio ? <TikTokStudioBreakdown studio={studio} /> : null}
+
         <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
           <section className="rounded-[18px] border border-app-panel-border bg-app-surface p-5 lg:p-6">
             <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-app-text">
@@ -295,7 +316,7 @@ export function PostAnalyticsPage({
               Measurement notes
             </h2>
             <div className="mt-4 space-y-4 text-[11px] leading-5 font-medium text-app-muted-text">
-              <p>{formatMeasurementNote(contentType)}</p>
+              <p>{formatMeasurementNote(contentType, Boolean(studio))}</p>
               <p>
                 PostFast returns only successfully published posts with a
                 platform post ID. Metrics can remain empty until the platform’s
@@ -321,7 +342,195 @@ export function PostAnalyticsPage({
           </aside>
         </div>
       </div>
+      {studioImportOpen ? (
+        <TikTokStudioImportDialog
+          postId={latest.postId}
+          onClose={() => setStudioImportOpen(false)}
+          onLinked={() => {
+            router.refresh()
+            setStudioImportOpen(false)
+          }}
+        />
+      ) : null}
     </main>
+  )
+}
+
+function TikTokStudioBreakdown({
+  studio,
+}: {
+  studio: NonNullable<PostFastMetricSnapshot["tiktokStudio"]>
+}) {
+  const maxLike = Math.max(
+    0,
+    ...studio.slides.map((slide) => slide.likeDistributionPercent ?? 0)
+  )
+  return (
+    <section className="mt-5 rounded-[18px] border border-app-panel-border bg-app-surface p-5 lg:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <IconBrandTiktok className="size-4 text-app-text" />
+            <h2 className="text-[18px] font-semibold tracking-[-0.025em] text-app-text">
+              Slideshow journey
+            </h2>
+          </div>
+          <p className="mt-1 text-[11px] font-medium text-app-muted-text">
+            Per-slide retention and like distribution captured from TikTok
+            Studio.
+          </p>
+        </div>
+        <span className="rounded-full bg-app-surface-subtle px-2.5 py-1 text-[9px] font-semibold text-app-muted-text">
+          {studio.capturedSections.join(" · ")}
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {studio.slides.map((slide) => {
+          const retention = slide.retentionPercent
+          const likes = slide.likeDistributionPercent
+          return (
+            <article
+              key={slide.slideIndex}
+              className="rounded-[13px] border border-app-panel-border p-4"
+            >
+              <div className="flex items-center justify-between">
+                <div className="text-[11px] font-semibold text-app-text">
+                  Slide {slide.slideIndex}
+                </div>
+                {slide.isLikePeak ? (
+                  <span className="rounded-full bg-[#f1eafe] px-2 py-0.5 text-[8px] font-bold text-[#6123bc]">
+                    Like peak
+                  </span>
+                ) : null}
+              </div>
+              <MetricBar
+                label="Still viewing"
+                value={retention}
+                color="bg-[#6d28d9]"
+              />
+              <MetricBar
+                label="Share of likes"
+                value={likes}
+                scale={maxLike}
+                color="bg-[#ef4f91]"
+              />
+            </article>
+          )
+        })}
+      </div>
+
+      <div className="mt-5 grid gap-5 lg:grid-cols-3">
+        <StudioList
+          title="Traffic sources"
+          values={studio.trafficSources}
+        />
+        <StudioList
+          title="Viewer countries"
+          values={studio.audience?.countryPercent ?? {}}
+          limit={5}
+        />
+        <div className="rounded-[13px] bg-app-surface-subtle p-4">
+          <div className="text-[11px] font-semibold text-app-text">
+            Search discovery
+          </div>
+          {studio.searchTerms.length > 0 ? (
+            <ol className="mt-3 space-y-2">
+              {studio.searchTerms.slice(0, 5).map((item) => (
+                <li
+                  key={item.term}
+                  className="flex items-center justify-between gap-3 text-[10px]"
+                >
+                  <span className="truncate font-medium text-app-muted-text">
+                    {item.term}
+                  </span>
+                  <span className="font-semibold text-app-text tabular-nums">
+                    {formatPercent(item.percent)}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <div className="mt-3 text-[10px] font-medium text-app-text-faint">
+              No search-query detail captured.
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function MetricBar({
+  label,
+  value,
+  scale = 1,
+  color,
+}: {
+  label: string
+  value?: number
+  scale?: number
+  color: string
+}) {
+  const width =
+    value === undefined || scale <= 0
+      ? 0
+      : Math.max(0, Math.min(100, (value / scale) * 100))
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between gap-3 text-[9px]">
+        <span className="font-medium text-app-text-faint">{label}</span>
+        <span className="font-semibold text-app-text tabular-nums">
+          {value === undefined ? "—" : formatPercent(value)}
+        </span>
+      </div>
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-app-surface-subtle">
+        <div
+          className={cn("h-full rounded-full", color)}
+          style={{ width: `${width}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function StudioList({
+  title,
+  values,
+  limit = 7,
+}: {
+  title: string
+  values: Record<string, number>
+  limit?: number
+}) {
+  const rows = Object.entries(values)
+    .sort(([, left], [, right]) => right - left)
+    .slice(0, limit)
+  return (
+    <div className="rounded-[13px] bg-app-surface-subtle p-4">
+      <div className="text-[11px] font-semibold text-app-text">{title}</div>
+      {rows.length > 0 ? (
+        <dl className="mt-3 space-y-2">
+          {rows.map(([label, value]) => (
+            <div
+              key={label}
+              className="flex items-center justify-between gap-3 text-[10px]"
+            >
+              <dt className="truncate font-medium text-app-muted-text">
+                {label}
+              </dt>
+              <dd className="font-semibold text-app-text tabular-nums">
+                {formatPercent(value)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <div className="mt-3 text-[10px] font-medium text-app-text-faint">
+          Open the matching Studio tab to capture this breakdown.
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -573,14 +782,21 @@ function formatDuration(seconds: number) {
   )
 }
 
-function formatMeasurementNote(type: PostContentType) {
+function formatMeasurementNote(type: PostContentType, hasStudio = false) {
   if (type === "slideshow") {
-    return "Slideshow analytics are post-level totals. PostFast does not expose per-slide views or slide-by-slide drop-off."
+    return hasStudio
+      ? "Post totals come from the latest provider capture. Per-slide retention and like distribution come from the linked TikTok Studio snapshot."
+      : "PostFast exposes only post-level slideshow totals. Import the linked post from TikTok Studio to add per-slide retention and like distribution."
   }
   if (type === "video") {
     return "Video watch-time and completion fields appear only when the connected platform returns them; availability varies by provider and post age."
   }
   return "Availability varies by provider. Unsupported fields are omitted instead of displayed as zero."
+}
+
+function formatPercent(value: number) {
+  const percentage = Math.abs(value) <= 1 ? value * 100 : value
+  return `${percentage.toFixed(1)}%`
 }
 
 function DetailRow({

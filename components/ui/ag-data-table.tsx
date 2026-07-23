@@ -8,12 +8,30 @@ import {
   type CellKeyDownEvent,
   type GetRowIdParams,
   type RowClickedEvent,
+  themeQuartz,
 } from "ag-grid-community"
 import { AgGridReact } from "ag-grid-react"
 
 import { cn } from "@/lib/utils"
 
 ModuleRegistry.registerModules([AllCommunityModule])
+
+const appDataGridTheme = themeQuartz.withParams({
+  backgroundColor: "#ffffff",
+  foregroundColor: "#242421",
+  borderColor: "#e1e0d8",
+  fontFamily: "var(--font-sans)",
+  headerBackgroundColor: "#fbfbf7",
+  headerTextColor: "#242421",
+  rowHoverColor: "#f7f5fc",
+  oddRowBackgroundColor: "#ffffff",
+  selectedRowBackgroundColor: "#f0ebfb",
+  wrapperBorderRadius: "10px",
+  cellHorizontalPadding: "16px",
+  headerColumnResizeHandleColor: "#d7d6cf",
+  headerHeight: "46px",
+  rowHeight: "52px",
+})
 
 export function AgDataTable<TData extends object>({
   rows,
@@ -46,8 +64,8 @@ export function AgDataTable<TData extends object>({
     <div className={cn("app-card overflow-hidden", className)}>
       <div className="h-[620px] min-w-0">
         <AgGridReact<TData>
-          className="app-data-grid ag-theme-quartz h-full w-full"
-          theme="legacy"
+          className="app-data-grid h-full w-full"
+          theme={appDataGridTheme}
           rowData={rows}
           columnDefs={columns}
           defaultColDef={defaultColDef}

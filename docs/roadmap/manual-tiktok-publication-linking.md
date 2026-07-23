@@ -53,10 +53,10 @@ The general local MCP server includes three publication-reconciliation tools:
 | `lumenclip_tiktok_import_preview`    | Returns OCR text, candidate scores, evidence, and existing link status. |
 | `lumenclip_tiktok_publications_link` | Links or recovers reviewed posts; requires literal `confirm: true`.     |
 
-The authenticated app endpoint is `/mcp`. Local stdio clients can run
-`pnpm mcp` with an explicit local `LUMENCLIP_MCP_OWNER_ID`. The older
-`pnpm mcp:tiktok` command is a compatibility alias. Both transports call the
-same owner-scoped domain service as the REST and UI adapters.
+The deployed app endpoint is `/mcp`; it is public and runs as the configured
+MCP/system owner. Local stdio clients can run `pnpm mcp` with an explicit local
+`LUMENCLIP_MCP_OWNER_ID`. Both transports call the same owner-scoped domain
+service as the REST and UI adapters.
 
 ## Matching and recovery rules
 

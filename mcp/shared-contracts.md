@@ -6,11 +6,12 @@ Start with the app use-case map in [README.md](README.md) or the exhaustive
 redefining pagination, operation, resource, and error shapes incompatibly.
 
 > Implementation note: the callable 1.2 server uses camelCase field names and
-> bounded list responses (`items`, `total`, `hasMore`) while OAuth scopes,
-> cursor pagination, durable generic operations, and full MCP resources are
-> completed. The exact current wire shapes are documented on each use-case
-> page; the broader contracts below remain the target where a category page
-> does not explicitly mark a tool implemented.
+> bounded list responses (`items`, `total`, `hasMore`). The deployed HTTP route
+> is currently public and owner-scoped by `LUMENCLIP_MCP_OWNER_ID` or
+> `LUMENCLIP_SYSTEM_OWNER_ID`; OAuth scopes, cursor pagination, durable generic
+> operations, and full MCP resources are planned. The exact current wire shapes
+> are documented on each use-case page; the broader contracts below remain the
+> target where a category page does not explicitly mark a tool implemented.
 
 ## Conventions
 
@@ -124,9 +125,15 @@ Read-only and idempotent. Scope: `lumenclip:read`.
 
 Input: `{ "automation_id": "auto_123" }`.
 
-Output: `automation` containing the normalized configuration, `version`,
+Output: `automation` containing the complete normalized editor `schema`,
 `schedule`, `publishing_policy`, `linked_collections`, safe `linked_accounts`,
-`last_run`, and `resource_uri`. Returns `NOT_FOUND` for inaccessible IDs.
+canonical `hookPool`, `last_run`, and `resource_uri`. Returns `NOT_FOUND` for
+inaccessible IDs. X/Threads automations instead include their safe complete
+policy `configuration`.
+
+Complete standard schemas are replaced with
+`lumenclip_automation_schema_update` using optimistic `expectedUpdatedAt`;
+granular lifecycle/schedule changes remain on `automation_update`.
 
 ### `lumenclip_collections_list`
 
@@ -138,6 +145,38 @@ Input: optional `query`, `media_type` (`image`, `video`, `word`, `product`),
 Output: paginated summaries with `id`, `name`, `media_type`, `item_count`,
 `tags`, `caption_coverage`, `version`, and `resource_uri`.
 
+`lumenclip_product_collection_get` returns all typed product items for one
+collection. `lumenclip_assets_list` discovers uploaded/generated AssetRecords
+and library music/avatar/demo/greenscreen/CTA entries.
+
+### `lumenclip_variable_get`
+
+Read-only and idempotent. Scope: `lumenclip:read`.
+
+Input: required `variableId`, accepting a stable variable ID or exact name.
+
+Output: `variable` with `id`, `name`, optional `description`, complete
+`values[]`, `valueCount`, `source`, timestamps, and `resourceUri`.
+
+### `lumenclip_variable_save`
+
+Scope: `lumenclip:write`.
+
+Input: optional `variableId` for update; optional `name`, `description`,
+complete replacement `values[]`, and `source`; required `requestId`. `name` is
+required when creating. Omitted fields are preserved for updates.
+
+Output: `requestId`, `created`, and the complete saved `variable`. Values are
+trimmed and deduplicated case-insensitively by the backend.
+
+### `lumenclip_variable_delete`
+
+Destructive, non-idempotent mutation. Scope: `lumenclip:write`.
+
+Input: required `variableId`, `requestId`, and literal `confirmDelete: true`.
+Output: `deleted: true` and the deleted variable snapshot. The delete is
+permanent and may invalidate automation hook-variable references.
+
 ### `lumenclip_outputs_list`
 
 Read-only and idempotent. Scope: `lumenclip:read`.
@@ -147,7 +186,15 @@ Input: optional `automation_id`, `output_type`, `status`, `publication_state`,
 
 Output: paginated output summaries containing `id`, `output_type`,
 `automation_id`, `status`, `publication_state`, `platforms`, `preview_uri`,
-`created_at`, and `resource_uri`.
+`created_at`, `resource_uri`, and `analytics`. The analytics summary states
+whether metrics exist, aggregates the latest snapshot per publication, reports
+followers gained, and names the appropriate detailed report tool.
+
+### `lumenclip_operations_list`
+
+Read-only and idempotent. Input accepts optional `status`, exact `type`, and
+`limit`. Output combines queue jobs and standard/social/video generation runs;
+queue rows retain attempts, payload/result, timestamps, and errors.
 
 ### `lumenclip_accounts_list`
 
@@ -160,6 +207,9 @@ Output: paginated safe account metadata: `id`, `provider`, `platform`,
 `display_name`, `profile`, `connected`, and `capabilities` such as
 `publish_single`, `publish_gallery`, `publish_video`, `schedule`, and
 `reply_chain`. Tokens are never returned.
+
+`lumenclip_workspace_members_list` returns safe pending/accepted membership
+metadata only; team credentials are excluded.
 
 ### `lumenclip_operation_get`
 
@@ -235,7 +285,7 @@ and `warnings`.
 ### `lumenclip_automation_update`
 
 Implemented safe subset. Granular `lumenclip:write` scope enforcement remains
-planned; the current transport enforces the authenticated session/owner.
+planned; the current transport runs as the configured MCP/system owner.
 
 Current input: required `automationId`; optional `expectedUpdatedAt`,
 `action: pause | resume`, `name`, `favorite`, and a schedule patch containing

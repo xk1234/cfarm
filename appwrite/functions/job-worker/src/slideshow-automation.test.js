@@ -48,7 +48,7 @@ describe("scheduled worker hook selection", () => {
     expect(selected).toMatchObject({ hookId: "fresh", text: "Fresh hook" })
   })
 
-  it("does not treat legacy generation-time usage as publication", () => {
+  it("does not treat draft media usage as publication", () => {
     const value = schema()
     value.hooks = [{ id: "draft", text: "Draft-only hook", enabled: true }]
 
@@ -58,8 +58,8 @@ describe("scheduled worker hook selection", () => {
       usage: [
         {
           automation_id: "automation-1",
-          kind: "hook",
-          key: "draft-only hook",
+          kind: "image",
+          key: "draft-image",
           used_at: "2026-07-18T11:00:00.000Z",
         },
       ],

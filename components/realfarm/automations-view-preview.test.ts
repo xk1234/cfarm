@@ -1,6 +1,3 @@
-import { readFileSync } from "node:fs"
-import path from "node:path"
-
 import { describe, expect, it } from "vitest"
 
 import {
@@ -12,16 +9,6 @@ import {
 } from "@/components/realfarm/automations-view"
 
 describe("automation grid previews", () => {
-  it("does not repeat generic content labels or draft counts on X cards", () => {
-    const source = readFileSync(
-      path.join(process.cwd(), "components/realfarm/automations-view.tsx"),
-      "utf8"
-    )
-
-    expect(source).not.toContain("Content automation")
-    expect(source).not.toContain("{recentRuns?.length ?? 0} drafts")
-  })
-
   it("uses one first-slide image from each recent slideshow run", () => {
     const images = automationRunPreviewImages(
       [

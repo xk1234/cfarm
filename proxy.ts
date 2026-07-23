@@ -23,7 +23,9 @@ export async function proxy(request: NextRequest) {
 
   if (
     request.nextUrl.pathname === "/api/search" ||
-    request.nextUrl.pathname === "/api/telegram/webhook"
+    request.nextUrl.pathname === "/api/telegram/webhook" ||
+    request.nextUrl.pathname === "/api/tiktok-studio-analytics/capture" ||
+    request.nextUrl.pathname === "/api/tiktok-studio-analytics/cloud-sync"
   ) {
     return NextResponse.next()
   }

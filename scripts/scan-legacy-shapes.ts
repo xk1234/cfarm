@@ -76,6 +76,7 @@ const allowedFlags = new Set([
   "--out",
 ])
 for (const argument of process.argv.slice(2)) {
+  if (argument === "--") continue
   if (!argument.startsWith("--")) continue
   const flag = argument.split("=", 1)[0]
   if (!allowedFlags.has(flag)) throw new Error(`Unknown flag: ${flag}`)

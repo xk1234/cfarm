@@ -60,7 +60,6 @@ export const POST = withHandler(async (request: Request) => {
     title: stringValue(payload.title),
     description: stringValue(payload.description),
     hashtags: stringArrayValue(payload.hashtags),
-    caption: stringValue(payload.caption),
     sourceConfig: recordValue(payload.sourceConfig),
     previewUrl: stringValue(payload.previewUrl),
     videoUrl,

@@ -8,7 +8,6 @@ import {
   xAutomationToAutomation,
 } from "@/lib/x-automation"
 import { xPostArchetypes } from "@/lib/x-post-presets"
-import { generateXAutomationRun } from "@/lib/x-automation-generation"
 import { publishXAutomationRun } from "@/lib/x-automation-publishing"
 import {
   discoverTrendCandidates,
@@ -152,18 +151,18 @@ describe("X automation domain", () => {
     automation.discovery.sources = ["x"]
     automation.discovery.minimumViews = 0
     automation.discovery.minimumEngagementRate = 0
-    const fetchImpl = vi.fn(
-      async (_url: URL | RequestInfo, init?: RequestInit) =>
-        Response.json([
-          {
-            id: "tweet-1",
-            url: "https://x.com/example/status/1",
-            text: "astrology chart reading",
-            viewCount: 1000,
-            likeCount: 100,
-          },
-        ])
-    )
+    const fetchImpl = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args
+      return Response.json([
+        {
+          id: "tweet-1",
+          url: "https://x.com/example/status/1",
+          text: "astrology chart reading",
+          viewCount: 1000,
+          likeCount: 100,
+        },
+      ])
+    })
     await discoverTrendCandidates({
       automation,
       query: "astrology",
@@ -177,140 +176,6 @@ describe("X automation domain", () => {
       searchTerms: ["astrology"],
       maxItems: 40,
       sort: "Latest + Top",
-    })
-  })
-
-  it.skip("legacy six-stage generation (replaced by structured preset generation)", async () => {
-    const responses = [
-      {
-        niche: "AI video analysis",
-        audience: "creators evaluating video tools",
-        promise: "explain why motion context matters",
-        angle: "frame sampling removes the useful signal",
-        pillars: ["video understanding", "creator workflows"],
-        keywords: ["video analysis", "frame sampling"],
-        painPoint: "tools that mistake screenshots for video understanding",
-        voice: "concise, technical, native to X",
-        archetype: "educational_thread",
-        hookDirection: "contrast motion with screenshots",
-        contentDirection: "teach the mechanism step by step",
-        ctaDirection: "ask readers to test the first step",
-        exclusions: ["unsupported benchmark claims"],
-      },
-      {
-        candidates: ["Most creators sample frames"],
-        selected: "Video analysis needs motion, not screenshots",
-      },
-      {
-        setup:
-          "Frame sampling deletes the transitions that explain what happened.",
-      },
-      {
-        sections: [
-          "1. Parse the timeline",
-          "2. Track scene changes",
-          "3. Compare motion and audio",
-        ],
-      },
-      {
-        proof:
-          "Example: two identical frames can sit inside completely different actions.",
-      },
-      {
-        curiosityGap:
-          "The useful signal appears between the frames—what are you currently missing?",
-      },
-      {
-        options: ["Bookmark this workflow"],
-        selected: "Bookmark this workflow and test step one.",
-      },
-      {
-        total: 78,
-        hook: 82,
-        specificity: 76,
-        readability: 84,
-        cta: 80,
-        archetypeFit: 75,
-        nativeVoice: 74,
-        factualAccuracy: 88,
-        benchmarkFit: 71,
-        verdict: "revise",
-        confidence: 86,
-        summary:
-          "Useful and clear, but still more tutorial-like than native X.",
-        factualRisks: [],
-        notes: ["Tighten the setup."],
-        matchedBenchmarkId: "mho-video-skill",
-      },
-      {
-        posts: [
-          "Video analysis needs motion, not screenshots.",
-          "Frame sampling removes the transitions that explain what changed.",
-          "1. Parse the timeline.",
-          "2. Track scene changes.",
-          "3. Compare motion and audio.",
-          "Example: identical frames can occur inside different actions.",
-          "The useful signal often appears between frames. What are you missing?",
-          "Bookmark this workflow and test step one.",
-        ],
-      },
-      {
-        total: 90,
-        hook: 90,
-        specificity: 86,
-        readability: 92,
-        cta: 88,
-        archetypeFit: 91,
-        nativeVoice: 89,
-        factualAccuracy: 95,
-        benchmarkFit: 84,
-        verdict: "ready",
-        confidence: 92,
-        summary: "A concise, specific and publishable educational thread.",
-        factualRisks: [],
-        notes: [],
-        matchedBenchmarkId: "mho-video-skill",
-      },
-    ]
-    const fetchImpl = vi.fn(async () =>
-      Response.json({
-        choices: [
-          { message: { content: JSON.stringify(responses.shift() ?? {}) } },
-        ],
-      })
-    ) as typeof fetch
-    const automation = defaultXAutomation({ id: "six-stage" })
-    const run = await generateXAutomationRun({
-      automation,
-      topic: "AI video analysis",
-      apiKey: "test-key",
-      fetchImpl,
-      now: new Date("2026-07-14T00:00:00.000Z"),
-    })
-
-    expect(fetchImpl).toHaveBeenCalledTimes(10)
-    expect(run.posts.map((post) => post.role)).toEqual([
-      "hook",
-      "setup",
-      "content",
-      "content",
-      "content",
-      "proof",
-      "gap",
-      "cta",
-    ])
-    expect(run.benchmark.stageCompleteness).toBe(100)
-    expect(run.benchmark.comparison.archetype).toBe("educational_thread")
-    expect(run.benchmark).toMatchObject({
-      evaluator: "ai",
-      total: 90,
-      factualAccuracy: 95,
-      verdict: "ready",
-      revision: { applied: true, previousTotal: 78 },
-    })
-    expect(run.inferredBrief).toMatchObject({
-      audience: "creators evaluating video tools",
-      archetype: "educational_thread",
     })
   })
 

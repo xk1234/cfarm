@@ -22,7 +22,11 @@ Optional `automationId`, `outputType` (`slideshow`, `video`, `x_post`, or
 
 Summaries with `id`, `outputType`, `automationId`, `status`,
 `publicationState`, `title`, `previewUri`, `createdAt`, and `resourceUri`, plus
-`total` and `hasMore`. Full post bodies and media bytes are not embedded.
+`total` and `hasMore`. Each item also includes `analytics`: availability,
+publication IDs, post count, latest capture time, canonical metric totals,
+followers gained, and the correct report tools/guidance. TikTok Studio-backed
+outputs point callers to `lumenclip_tiktok_studio_analytics_report` for
+section and slide detail. Full post bodies and media bytes are not embedded.
 
 ## `lumenclip_output_delete`
 
@@ -44,6 +48,14 @@ idempotent: a retry after successful deletion returns `Output not found`.
 Collection and output deletion have different retention semantics. Use
 `lumenclip_collection_delete` for a recoverable 30-day collection soft delete;
 use this tool only when permanent output removal is intended.
+
+## `lumenclip_operations_list`
+
+Read-only queue/run discovery with optional `status`, exact `type`, and
+`limit`. It combines durable queue jobs, standard automation runs, X/Threads
+runs, and generated-video exports. Queue rows include attempts, maximum
+attempts, payload/result, availability, timestamps, and error; generated runs
+include automation and output identity.
 
 ## `lumenclip_operation_get`
 

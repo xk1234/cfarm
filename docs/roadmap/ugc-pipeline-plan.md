@@ -1,3 +1,8 @@
+---
+title: "AI UGC automation implementation plan"
+description: "Implementation plan for unattended AI UGC automation generation."
+---
+
 # AI UGC automation implementation plan
 
 ## Scope and architectural decision

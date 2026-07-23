@@ -9,12 +9,7 @@ import {
 } from "@/lib/json-store"
 
 export type UsageKind =
-  | "hook"
-  | "hook_combination"
-  | "hook_published"
-  | "hook_combination_published"
-  | "image"
-  | "text"
+  "hook_published" | "hook_combination_published" | "image" | "text"
 
 export type UsageRecord = {
   id?: string
@@ -252,9 +247,7 @@ function usageRecordId(input: {
 }
 
 function normalizeKind(value: unknown): UsageKind | null {
-  return value === "hook" ||
-    value === "hook_combination" ||
-    value === "hook_published" ||
+  return value === "hook_published" ||
     value === "hook_combination_published" ||
     value === "image" ||
     value === "text"

@@ -22,17 +22,7 @@ export type SlideshowGenerationTimingInput = {
   generation_lead_minutes?: unknown
 }
 
-type LegacyScheduleInterval = {
-  every_n_hours: number
-  start_time: string
-  end_time: string
-  days: AutomationDay[]
-  enabled?: boolean
-}
-
-export type AutomationScheduleInput = AutomationSchedule & {
-  interval?: LegacyScheduleInterval
-}
+export type AutomationScheduleInput = AutomationSchedule
 
 type SlotOptions = {
   includePaused?: boolean
@@ -52,7 +42,9 @@ export function slideshowGenerationLeadMinutes(
     : SLIDESHOW_GENERATION_LEAD_MINUTES
 }
 
-export function ugcGenerationLeadMinutes(input: SlideshowGenerationTimingInput) {
+export function ugcGenerationLeadMinutes(
+  input: SlideshowGenerationTimingInput
+) {
   const configured = Number(input.generation_lead_minutes)
   return Number.isFinite(configured) && configured > 0
     ? configured
@@ -125,8 +117,13 @@ export function dueAutomationSlots(
     new Date(now.getTime() + Math.max(0, generationLeadMinutes) * 60_000),
     { zone: timezone }
   )
+  const jitterMinutes = scheduleJitterMinutes(schedule)
 
-  return baseSlotsInRange(schedule, earliest, latest)
+  return baseSlotsInRange(
+    schedule,
+    earliest.minus({ minutes: jitterMinutes }),
+    latest.plus({ minutes: jitterMinutes })
+  )
     .map((slot) => jitteredSlot(slot, schedule, random))
     .map(toUtcISO)
     .filter((value): value is string => Boolean(value))
@@ -185,26 +182,6 @@ function baseSlotsInRange(
       const slot = day.set(parsed)
       if (slot >= start && slot <= end) slots.push(slot)
     }
-
-    const interval = schedule.interval
-    if (
-      interval?.enabled !== false &&
-      interval &&
-      (interval.days.length === 0 || interval.days.includes(weekday))
-    ) {
-      const intervalStart = parsePostingTime(interval.start_time, day.zoneName)
-      const intervalEnd = parsePostingTime(interval.end_time, day.zoneName)
-      if (!intervalStart || !intervalEnd) continue
-      let slot = day.set(intervalStart)
-      const last = day.set(intervalEnd)
-      const step = Number(interval.every_n_hours)
-      if (!Number.isFinite(step) || step <= 0 || last < slot) continue
-      while (slot <= last) {
-        if (slot >= start && slot <= end) slots.push(slot)
-        slot = slot.plus({ hours: step })
-      }
-    }
-
   }
 
   const seen = new Set<string>()
@@ -245,7 +222,7 @@ function scheduleForAutomation(
   timezone: string
 ): AutomationScheduleInput {
   const schedule = automation.schedule as AutomationScheduleInput | undefined
-  if (schedule?.posting_times?.length || schedule?.interval) return schedule
+  if (schedule?.posting_times?.length) return schedule
   return {
     timezone,
     posting_times: automation.times.map((time) => ({

@@ -3,21 +3,83 @@
 import { useState } from "react"
 import type * as React from "react"
 import type { AnalyticsPayload } from "./analytics-view"
-import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
-import { IconArrowDownRight, IconArrowLeft, IconArrowUpRight, IconChartBar, IconRefresh, IconUsers, IconWorld } from "@tabler/icons-react"
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
+import {
+  IconArrowDownRight,
+  IconArrowLeft,
+  IconArrowUpRight,
+  IconBrandTiktok,
+  IconChartBar,
+  IconRefresh,
+  IconUsers,
+  IconWorld,
+} from "@tabler/icons-react"
 import { Button } from "@/components/ui/button"
 import { SelectControl } from "@/components/ui/form-controls"
 import { SkeletonBlock } from "@/components/ui/loading-skeleton"
-import { AccountProfileIcon, normalizeProvider, providerName } from "@/components/realfarm/analytics/account-profile-icon"
+import {
+  AccountProfileIcon,
+  normalizeProvider,
+  providerName,
+} from "@/components/realfarm/analytics/account-profile-icon"
 import { PaginationControls } from "@/components/realfarm/analytics/pagination-controls"
 import { metricLabel, type CanonicalMetric } from "@/lib/metric-registry"
-import type { AccountFollowerSnapshot, PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
+import type {
+  AccountFollowerSnapshot,
+  PostFastMetricSnapshot,
+} from "@/lib/postfast-metric-snapshots"
 import type { SocialIntegration } from "@/lib/social/provider-contract"
-import { inferPostContentType, postContentTypeLabel } from "@/lib/post-content-type"
+import {
+  inferPostContentType,
+  postContentTypeLabel,
+} from "@/lib/post-content-type"
 import { cn } from "@/lib/utils"
-import { postMetricSeries, audienceSeries, comparisonSeries, metricAggregate, weightedEngagementRate, accountMetricCurrent, accountMetricChange, capabilitiesForSelected, metricAccountCoverage, latestFollowerTotal, latestFollower, seriesDelta, postCoverageLabel, accountCoverageLabel, sumDefined, postTimestamp, formatPostDate, formatMetric, formatOptionalNumber, formatChange, formatAnalyticsNumber, fallbackIntegration, type LatestPost } from "./analytics-selectors"
+import {
+  postMetricSeries,
+  audienceSeries,
+  comparisonSeries,
+  metricAggregate,
+  weightedEngagementRate,
+  accountMetricCurrent,
+  accountMetricChange,
+  capabilitiesForSelected,
+  metricAccountCoverage,
+  latestFollowerTotal,
+  latestFollower,
+  seriesDelta,
+  postCoverageLabel,
+  accountCoverageLabel,
+  sumDefined,
+  postTimestamp,
+  formatPostDate,
+  formatMetric,
+  formatOptionalNumber,
+  formatChange,
+  formatAnalyticsNumber,
+  fallbackIntegration,
+  type LatestPost,
+} from "./analytics-selectors"
 
-const seriesColors = ["#6d28d9", "#d43791", "#d97706", "#167d61", "#2e69ad", "#7c5b3f", "#755da8", "#49707a"]
+const seriesColors = [
+  "#6d28d9",
+  "#d43791",
+  "#d97706",
+  "#167d61",
+  "#2e69ad",
+  "#7c5b3f",
+  "#755da8",
+  "#49707a",
+]
 
 export function AnalyticsHeader({
   platform,
@@ -27,6 +89,7 @@ export function AnalyticsHeader({
   onRefresh,
   refreshing,
   loading,
+  onTikTokStudioSync,
 }: {
   platform: string
   days: number
@@ -35,6 +98,7 @@ export function AnalyticsHeader({
   onRefresh: () => void
   refreshing: boolean
   loading: boolean
+  onTikTokStudioSync?: () => void
 }) {
   return (
     <header className="mb-7 flex flex-wrap items-end justify-between gap-5">
@@ -62,6 +126,16 @@ export function AnalyticsHeader({
         </p>
       </div>
       <div className="flex items-center gap-2">
+        {onTikTokStudioSync ? (
+          <Button
+            variant="softControl"
+            size="compact"
+            onClick={onTikTokStudioSync}
+          >
+            <IconBrandTiktok className="size-4" />
+            Sync TikTok Studio
+          </Button>
+        ) : null}
         <SelectControl
           aria-label="Analytics date range"
           value={days}

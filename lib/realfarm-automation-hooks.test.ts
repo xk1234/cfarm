@@ -24,21 +24,12 @@ function schema() {
 }
 
 describe("automation hook catalog", () => {
-  it("migrates legacy lines to deterministic hook identities", () => {
+  it("uses only the canonical hook catalog", () => {
     const value = schema()
     delete (value as Partial<typeof value>).hooks
     value.prompt_formatting.narrative = "First hook\n2. Second hook"
 
-    expect(automationHookItems(value)).toEqual([
-      expect.objectContaining({
-        id: automationHookId("First hook"),
-        text: "First hook",
-      }),
-      expect.objectContaining({
-        id: automationHookId("Second hook"),
-        text: "Second hook",
-      }),
-    ])
+    expect(automationHookItems(value)).toEqual([])
   })
 
   it("keeps disabled hooks in the catalog but removes them from selection", () => {
@@ -61,7 +52,7 @@ describe("automation hook catalog", () => {
     expect(automationHooks(value)).toEqual(["Eligible hook"])
   })
 
-  it("does not resurrect legacy formatting after the catalog is explicitly emptied", () => {
+  it("does not use formatting or narrative text as hooks", () => {
     const value = schema()
     value.formatting = value.formatting.map((section) =>
       section.id === "hook"
@@ -74,9 +65,27 @@ describe("automation hook catalog", () => {
         : section
     )
     value.hooks = []
-    value.prompt_formatting.narrative = ""
+    value.prompt_formatting.narrative = "Narrative direction"
 
     expect(automationHookItems(value)).toEqual([])
     expect(automationHooks(value)).toEqual([])
+  })
+
+  it("updates hooks without overwriting narrative direction", () => {
+    const value = schema()
+    value.prompt_formatting.narrative = "Keep this narrative direction"
+
+    const updated = schemaWithAutomationHookItems(value, [
+      {
+        id: automationHookId("A canonical hook"),
+        text: "A canonical hook",
+        enabled: true,
+        createdAt: "2026-07-18T00:00:00.000Z",
+      },
+    ])
+
+    expect(updated.prompt_formatting.narrative).toBe(
+      "Keep this narrative direction"
+    )
   })
 })

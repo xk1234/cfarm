@@ -3,7 +3,9 @@ import path from "node:path"
 
 import {
   appendJsonArrayRecords,
+  readJsonArrayRecord,
   readJsonArrayStore,
+  upsertJsonArrayRecord,
   withJsonArrayStore,
 } from "@/lib/json-store"
 import type { CanonicalMetric } from "@/lib/metric-registry"
@@ -31,6 +33,55 @@ export type PostFastMetricSnapshot = {
   latestMetric: Record<string, unknown>
   rawMetrics: Record<string, number>
   observedKeys: string[]
+  source?: "postfast" | "tiktok_studio"
+  tiktokStudio?: TikTokStudioAnalytics
+}
+
+export type TikTokStudioSlideMetric = {
+  slideIndex: number
+  retentionPercent?: number
+  likeDistributionPercent?: number
+  isRetentionDropPeak?: boolean
+  isLikePeak?: boolean
+}
+
+export type TikTokStudioSearchTerm = {
+  term: string
+  percent: number
+}
+
+export type TikTokStudioAnalytics = {
+  schemaVersion: 1
+  studioUrl: string
+  capturedSections: Array<"overview" | "viewers" | "engagement">
+  overview?: {
+    authorUsername?: string
+    caption?: string
+    publishedAt?: string
+    photoCount?: number
+    views?: number
+    likes?: number
+    comments?: number
+    shares?: number
+    saves?: number
+    totalWatchTimeSeconds?: number
+    averageWatchTimeSeconds?: number
+    fullWatchPercent?: number
+    newFollowers?: number
+  }
+  slides: TikTokStudioSlideMetric[]
+  trafficSources: Record<string, number>
+  searchTerms: TikTokStudioSearchTerm[]
+  audience?: {
+    uniqueViewers?: number
+    newViewerPercent?: number
+    returningViewerPercent?: number
+    followerPercent?: number
+    nonFollowerPercent?: number
+    agePercent: Record<string, number>
+    genderPercent: Record<string, number>
+    countryPercent: Record<string, number>
+  }
 }
 
 export type AccountFollowerSnapshot = {
@@ -68,6 +119,27 @@ export async function appendMetricSnapshots(
     records,
   })
   return records
+}
+
+export function getMetricSnapshot(id: string) {
+  return readJsonArrayRecord<PostFastMetricSnapshot>({
+    rootDir,
+    fileName: "postfast-metric-snapshots.json",
+    key: "snapshots",
+    id,
+    normalize: normalizeMetricSnapshot,
+  })
+}
+
+export async function upsertMetricSnapshot(snapshot: PostFastMetricSnapshot) {
+  await upsertJsonArrayRecord<PostFastMetricSnapshot>({
+    rootDir,
+    fileName: "postfast-metric-snapshots.json",
+    key: "snapshots",
+    record: snapshot,
+    position: "first",
+  })
+  return snapshot
 }
 
 export function listFollowerSnapshots() {
@@ -118,7 +190,9 @@ export async function appendFollowerSnapshots(
   return records
 }
 
-function normalizeMetricSnapshot(value: PostFastMetricSnapshot) {
+function normalizeMetricSnapshot(
+  value: PostFastMetricSnapshot
+): PostFastMetricSnapshot | null {
   if (
     !value?.id ||
     !value.postId ||
@@ -141,10 +215,12 @@ function normalizeMetricSnapshot(value: PostFastMetricSnapshot) {
     latestMetric: value.latestMetric ?? value.rawMetrics ?? {},
     rawMetrics: value.rawMetrics ?? {},
     observedKeys: Array.isArray(value.observedKeys) ? value.observedKeys : [],
+    source: value.source === "tiktok_studio" ? "tiktok_studio" : "postfast",
+    tiktokStudio: value.tiktokStudio,
   }
 }
 
-function metricSnapshotId(postId: string, capturedAt: string) {
+export function metricSnapshotId(postId: string, capturedAt: string) {
   return `s${crypto
     .createHash("sha256")
     .update(JSON.stringify([postId, capturedAt]))

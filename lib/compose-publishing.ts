@@ -5,6 +5,11 @@ import type {
   ConnectedComposerAccount,
 } from "@/components/realfarm/composer/composer-types"
 import type { PostFastMedia } from "@/lib/postfast-client"
+import {
+  composeLimitErrors,
+  effectiveComposerMedia,
+  effectiveComposerText,
+} from "@/lib/compose-validation"
 import { publishPost, type PublishRequest } from "@/lib/publishing"
 import { getSocialProvider } from "@/lib/social/registry"
 
@@ -17,21 +22,7 @@ export type ComposePublishResult = {
   error?: string
 }
 
-export function composeLimitErrors(
-  value: ComposerValue,
-  accounts: readonly ConnectedComposerAccount[]
-) {
-  return accounts.flatMap((account) => {
-    const provider = getSocialProvider(account.platformKey)
-    if (!provider) return [`${account.accountName} is not publishable`]
-    const text = effectiveText(value, account.platformKey)
-    return text.length > provider.limits.maxTextLength
-      ? [
-          `${provider.name} is ${text.length - provider.limits.maxTextLength} characters over its limit`,
-        ]
-      : []
-  })
-}
+export { composeLimitErrors }
 
 export async function publishComposerValue(input: {
   value: ComposerValue
@@ -61,7 +52,7 @@ export async function publishComposerValue(input: {
 
     try {
       const media = await Promise.all(
-        effectiveMedia(input.value, account.platformKey).map((item) => {
+        effectiveComposerMedia(input.value, account.platformKey).map((item) => {
           const existing = uploadCache.get(item.url)
           if (existing) return existing
           const upload = input.uploadMedia(item.url)
@@ -74,7 +65,7 @@ export async function publishComposerValue(input: {
         date: input.mode === "schedule" ? input.scheduledAt : undefined,
         integrationId: account.integrationId,
         provider: account.platformKey,
-        content: effectiveText(input.value, account.platformKey),
+        content: effectiveComposerText(input.value, account.platformKey),
         media,
         settings: input.value.perNetwork[account.platformKey]?.fields,
         sourceType: "external",
@@ -99,14 +90,4 @@ export async function publishComposerValue(input: {
   }
 
   return { sourceId, results }
-}
-
-function effectiveText(value: ComposerValue, platformKey: ConnectedComposerAccount["platformKey"]) {
-  const network = value.perNetwork[platformKey]
-  return network?.useTextOverride ? network.text : value.base.text
-}
-
-function effectiveMedia(value: ComposerValue, platformKey: ConnectedComposerAccount["platformKey"]) {
-  const media = value.perNetwork[platformKey]?.media ?? []
-  return media.length > 0 ? media : value.base.media
 }

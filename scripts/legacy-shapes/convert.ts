@@ -3,6 +3,7 @@ import {
   normalizeAutomationSchema,
 } from "../../lib/realfarm-automation"
 import type { Automation } from "../../lib/realfarm-data"
+import { normalizeXAutomation } from "../../lib/x-automation"
 
 export type ConversionResult = {
   changed: boolean
@@ -96,7 +97,8 @@ function convertLegacyTemplateRuntime(raw: Record<string, unknown>) {
   const ctaSource = object(format.cta)
   const cta = legacySection(ctaSource, "cta")
   cta.slideCount = ctaSource?.enabled === true ? 1 : 0
-  const ids = parseObject(template.image_collection_ids) ?? base.image_collection_ids
+  const ids =
+    parseObject(template.image_collection_ids) ?? base.image_collection_ids
   const hooks = Array.isArray(template.hooks)
     ? template.hooks.map(string).filter(Boolean)
     : []
@@ -128,7 +130,10 @@ function convertLegacyTemplateRuntime(raw: Record<string, unknown>) {
   ) as unknown as Record<string, unknown>
 }
 
-function legacySection(value: Record<string, unknown> | null, id: "hook" | "body" | "cta") {
+function legacySection(
+  value: Record<string, unknown> | null,
+  id: "hook" | "body" | "cta"
+) {
   const section = value ?? {}
   const items = Array.isArray(section.text_items) ? section.text_items : []
   return {
@@ -157,16 +162,25 @@ function legacySection(value: Record<string, unknown> | null, id: "hook" | "body
     textItems: items.flatMap((item) => {
       const text = object(item)
       if (!text) return []
-      return [{
-        id: string(text.id), text: "", font: string(text.font),
-        fontSize: string(text.font_size), textStyle: string(text.text_style),
-        textPosition: string(text.text_position), textItemWidth: string(text.text_item_width),
-        wordLengthMin: Number(text.word_length_min) || 0,
-        wordLengthMax: Number(text.word_length_max) || 0,
-        contentDirection: string(text.content_direction), textMode: text.text_mode,
-        staticText: string(text.static_text), textAlign: string(text.text_align),
-        textAnchor: string(text.text_anchor), textVerticalAnchor: string(text.text_vertical_anchor) || "padded",
-      }]
+      return [
+        {
+          id: string(text.id),
+          text: "",
+          font: string(text.font),
+          fontSize: string(text.font_size),
+          textStyle: string(text.text_style),
+          textPosition: string(text.text_position),
+          textItemWidth: string(text.text_item_width),
+          wordLengthMin: Number(text.word_length_min) || 0,
+          wordLengthMax: Number(text.word_length_max) || 0,
+          contentDirection: string(text.content_direction),
+          textMode: text.text_mode,
+          staticText: string(text.static_text),
+          textAlign: string(text.text_align),
+          textAnchor: string(text.text_anchor),
+          textVerticalAnchor: string(text.text_vertical_anchor) || "padded",
+        },
+      ]
     }),
   }
 }
@@ -174,7 +188,11 @@ function legacySection(value: Record<string, unknown> | null, id: "hook" | "body
 function parseObject(value: unknown) {
   if (object(value)) return object(value)
   if (typeof value !== "string") return null
-  try { return object(JSON.parse(value)) } catch { return null }
+  try {
+    return object(JSON.parse(value))
+  } catch {
+    return null
+  }
 }
 
 export function convertAutomationV1toV2(rawData: unknown): ConversionResult {
@@ -262,6 +280,82 @@ export function convertImageCollectionV1toV2(
   const id = slugify(name)
   if (!id) return failure("Image collection has no slug-safe name", raw)
   return result(raw, { ...raw, id }, [])
+}
+
+export function convertXAutomationV1toV2(rawData: unknown): ConversionResult {
+  const raw = object(rawData)
+  if (!raw) return failure("Payload must be an object")
+  const normalized = normalizeXAutomation(raw)
+  if (!normalized) return failure("Invalid X automation", raw)
+  const data = jsonValue(normalized) as Record<string, unknown>
+  const dropped = [
+    "niche.audience",
+    "niche.promise",
+    "niche.pillars",
+    "niche.keywords",
+    "niche.painPoints",
+    "niche.excludedTopics",
+    "generation.hookPrompt",
+    "generation.setupPrompt",
+    "generation.contentPrompt",
+    "generation.proofPrompt",
+    "generation.curiosityGapPrompt",
+    "generation.ctaPrompt",
+    "generation.voice",
+    "output.platforms",
+    "output.platformFlags",
+  ].filter((path) => hasPath(raw, path))
+  return result(raw, data, dropped)
+}
+
+export function convertXAutomationRunV1toV2(
+  rawData: unknown
+): ConversionResult {
+  const raw = object(rawData)
+  if (!raw) return failure("Payload must be an object")
+  if (!("platforms" in raw)) return unchanged(raw)
+  const data = jsonValue(raw) as Record<string, unknown>
+  if (
+    data.platform !== "x" &&
+    data.platform !== "threads" &&
+    Array.isArray(raw.platforms)
+  ) {
+    data.platform =
+      raw.platforms.includes("threads") && !raw.platforms.includes("x")
+        ? "threads"
+        : "x"
+  }
+  delete data.platforms
+  return result(raw, data, ["platforms"])
+}
+
+export function convertSlideshowResultV1toV2(
+  rawData: unknown
+): ConversionResult {
+  const raw = object(rawData)
+  if (!raw) return failure("Payload must be an object")
+  const artifacts = object(raw.artifacts)
+  if (
+    artifacts &&
+    typeof artifacts.slideshowId === "string" &&
+    artifacts.slideshowId
+  ) {
+    return unchanged(raw)
+  }
+  const id = string(raw.id)
+  if (
+    !id ||
+    id.startsWith("compat-automation-") ||
+    id.startsWith("compat-run-")
+  ) {
+    return failure("BLOCKED_CONFLICT: cannot infer slideshowId safely", raw)
+  }
+  const data = jsonValue(raw) as Record<string, unknown>
+  data.artifacts = {
+    ...(object(data.artifacts) ?? {}),
+    slideshowId: id,
+  }
+  return result(raw, data, ["artifacts.slideshowId:missing"])
 }
 
 function intervalPostingTimes(interval: Record<string, unknown>) {

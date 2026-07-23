@@ -91,12 +91,6 @@ export type XAutomationRecord = {
   updatedAt: string
   niche: {
     label: string
-    audience: string
-    promise: string
-    painPoints: string[]
-    pillars: string[]
-    keywords: string[]
-    excludedTopics: string[]
   }
   brief: XAutomationBrief | null
   excludedTopics: string[]
@@ -357,15 +351,6 @@ export function defaultXAutomation(
     updatedAt: now,
     niche: {
       label: "",
-      audience: "",
-      promise: "",
-      painPoints: [],
-      pillars: [],
-      keywords: [],
-      excludedTopics: [
-        "invented facts, studies, metrics, testimonials, or personal experience",
-        "medical, legal, or financial advice presented without qualification",
-      ],
     },
     brief: null,
     excludedTopics: [
@@ -508,61 +493,8 @@ export function normalizeXAutomation(value: unknown): XAutomationRecord | null {
   const discovery = isRecord(value.discovery) ? value.discovery : {}
   const publishing = isRecord(value.publishing) ? value.publishing : {}
   const schedule = isRecord(value.schedule) ? value.schedule : {}
-  const oldNicheHasBrief =
-    clean(niche.audience) ||
-    clean(niche.promise) ||
-    stringArray(niche.pillars).length > 0
-  const explicitBrief = normalizeBrief(value.brief)
-  const migratedBrief =
-    explicitBrief ??
-    (oldNicheHasBrief
-      ? {
-          audience: clean(niche.audience),
-          promise: clean(niche.promise),
-          pillars: stringArray(niche.pillars)
-            .slice(0, 5)
-            .map((label, index) => ({
-              label,
-              weight: [30, 20, 15, 10, 5][index],
-            })),
-          keywords: stringArray(niche.keywords),
-          painPoints: stringArray(niche.painPoints),
-          derivedAt: clean(value.updatedAt) || new Date().toISOString(),
-        }
-      : null)
-  const customLegacyPrompts = legacyPromptOverrides(generation)
-  const legacyVoice =
-    clean(generation.voice) &&
-    clean(generation.voice) !==
-      "lowercase, blunt, tactical, specific, zero fluff"
-      ? clean(generation.voice)
-      : ""
-  const voiceOverride = [
-    clean(generation.voiceOverride),
-    legacyVoice,
-    ...customLegacyPrompts,
-  ]
-    .filter(Boolean)
-    .join("\n\n")
-  const legacyPlatforms = stringArray(output.platforms).filter(
-    (item): item is XAutomationPlatform => item === "x" || item === "threads"
-  )
-  const platformFlags = isRecord(output.platformFlags)
-    ? {
-        x: output.platformFlags.x !== false,
-        threads: output.platformFlags.threads !== false,
-      }
-    : {
-        x: legacyPlatforms.length === 0 || legacyPlatforms.includes("x"),
-        threads:
-          legacyPlatforms.length === 0 || legacyPlatforms.includes("threads"),
-      }
   const platform: XAutomationPlatform =
-    value.platform === "threads" || value.platform === "x"
-      ? value.platform
-      : platformFlags.x
-        ? "x"
-        : "threads"
+    value.platform === "threads" ? "threads" : "x"
   return {
     ...defaults,
     ...value,
@@ -570,14 +502,14 @@ export function normalizeXAutomation(value: unknown): XAutomationRecord | null {
     platform,
     name: clean(value.name) || defaults.name,
     status: value.status === "live" ? "live" : "paused",
-    niche: { ...defaults.niche, ...niche } as XAutomationRecord["niche"],
-    brief: migratedBrief,
+    niche: {
+      label: clean(niche.label) || defaults.niche.label,
+    },
+    brief: normalizeBrief(value.brief),
     excludedTopics:
       stringArray(value.excludedTopics).length > 0
         ? stringArray(value.excludedTopics)
-        : stringArray(niche.excludedTopics).length > 0
-          ? stringArray(niche.excludedTopics)
-          : defaults.excludedTopics,
+        : defaults.excludedTopics,
     proofBank: normalizeProofBank(value.proofBank),
     output: {
       contentType:
@@ -621,7 +553,7 @@ export function normalizeXAutomation(value: unknown): XAutomationRecord | null {
           : defaults.generation.hookStyles,
       voicePreset:
         clean(generation.voicePreset) || defaults.generation.voicePreset,
-      voiceOverride,
+      voiceOverride: clean(generation.voiceOverride),
     },
     media: {
       mode: media.mode === "none" ? "none" : "generate",
@@ -799,33 +731,6 @@ function normalizeUsage(value: unknown): XAutomationRecord["usage"] {
           .slice(-100)
       : [],
   }
-}
-
-const legacyPromptDefaults = [
-  "Write a surprising, specific claim plus a promise or question. It must pass a three-second test.",
-  "Establish the pain, opportunity, or stakes in 1-2 compact sentences without repeating the hook.",
-  "Teach a useful framework with single-idea paragraphs, concrete steps, examples, and 1-2 memorable numbers when supported.",
-  "Add only verifiable proof from the provided source or supplied facts. If none exists, use a concrete example and clearly label it as an example.",
-  "Leave one useful open loop with a question, contrast, or next-step tease that invites a real response.",
-  "Choose one low-friction action: bookmark, reply with a keyword, follow for the next part, or try the first step.",
-]
-
-function legacyPromptOverrides(generation: Record<string, unknown>) {
-  return [
-    "hookPrompt",
-    "setupPrompt",
-    "contentPrompt",
-    "proofPrompt",
-    "curiosityGapPrompt",
-    "ctaPrompt",
-  ]
-    .map((key, index) =>
-      clean(generation[key]) &&
-      clean(generation[key]) !== legacyPromptDefaults[index]
-        ? `${key}: ${clean(generation[key])}`
-        : ""
-    )
-    .filter(Boolean)
 }
 
 export function characterLimitFor(length: XPostLength) {

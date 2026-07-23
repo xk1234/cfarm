@@ -1,7 +1,11 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { IconChevronLeft, IconChevronRight, IconSwitch } from "@tabler/icons-react"
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconSwitch,
+} from "@tabler/icons-react"
 
 import {
   BuilderStep,
@@ -148,7 +152,7 @@ export function GreenscreenMemesView({
           type: "greenscreen",
           status: "processing",
           title: caption || "Greenscreen meme",
-          caption,
+          description: caption,
           sourceConfig: {
             caption,
             meme: activeMeme,
@@ -404,7 +408,9 @@ export function GreenscreenMemesView({
                     type="button"
                     className={cn(
                       "flex size-8 items-center justify-center rounded-[5px] text-app-text shadow-sm",
-                      textPlacement === placement ? "bg-app-surface" : "bg-white/55"
+                      textPlacement === placement
+                        ? "bg-app-surface"
+                        : "bg-white/55"
                     )}
                     onClick={() => setTextPlacement(placement)}
                     aria-label={`Place text ${placement}`}

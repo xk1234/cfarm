@@ -32,8 +32,6 @@ export type GeneratedVideoExport = {
   title: string
   description: string
   hashtags: string[]
-  /** Legacy publishing alias for description. */
-  caption: string
   sourceConfig: Record<string, unknown>
   sourceAutomationId?: string
   sourceRunId?: string
@@ -53,7 +51,6 @@ export type GeneratedVideoCreatePayload = {
   title?: string
   description?: string
   hashtags?: string[]
-  caption?: string
   sourceConfig?: Record<string, unknown>
   previewUrl?: string
   videoUrl?: string

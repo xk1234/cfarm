@@ -427,13 +427,11 @@ async function awWriteTable<T>(
     cursor = String(rows[rows.length - 1].$id)
   }
 
-  // Image collections historically had no explicit domain id, so older rows
-  // were keyed by array position. Reordering the array to prepend a collection
-  // changed every desired row id and looked like a full-table deletion. Reuse
-  // legacy row ids by collection name while giving new rows a stable name-based
-  // id. This preserves every existing collection during the transition.
+  // Keep each collection's physical Appwrite row stable when its domain id is
+  // normalized or the list is reordered. Domain ids live inside the payload;
+  // row ids are storage identities and do not need to match them.
   for (const item of desired) {
-    if (item.rid || !item.nameKey) continue
+    if (!item.nameKey) continue
     item.id = existingImageCollectionIdsByName.get(item.nameKey) ?? item.id
   }
   const desiredIds = new Set(desired.map((d) => d.id))

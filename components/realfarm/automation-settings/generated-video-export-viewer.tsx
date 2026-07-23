@@ -48,7 +48,7 @@ export function GeneratedVideoExportViewer({
           <section className="min-w-0 space-y-4">
             <VideoCopyFields
               title={item.title}
-              description={item.description || item.caption}
+              description={item.description}
               hashtags={item.hashtags.join(" ")}
             />
           </section>

@@ -34,7 +34,9 @@
     "mcp": "NODE_OPTIONS='--conditions=react-server' tsx scripts/lumenclip-mcp.ts",
     "mcp:docs": "tsx scripts/generate-mcp-docs.ts",
     "mcp:docs:check": "tsx scripts/generate-mcp-docs.ts --check",
-    "mcp:tiktok": "NODE_OPTIONS='--conditions=react-server' tsx scripts/lumenclip-tiktok-mcp.ts",
+    "docs:hub:sync": "node scripts/sync-docs-hub.mjs",
+    "docs:hub:check": "node scripts/sync-docs-hub.mjs --check",
+    "tiktok-studio:package": "node scripts/package-tiktok-studio-extension.mjs",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit"
   },

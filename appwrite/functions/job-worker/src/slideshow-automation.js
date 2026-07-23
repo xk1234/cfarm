@@ -575,50 +575,9 @@ export function automationHookItems(schema) {
         }))
         .filter((item) => item.id && item.text && !isHookInstruction(item.text))
     : []
-  if (
-    Array.isArray(schema.hooks) &&
-    (schema.hooks.length > 0 || !clean(schema.prompt_formatting?.narrative))
-  ) {
-    const enabled = catalog.filter((item) => item.enabled)
-    if (enabled.length) return enabled
-    throw new Error("The automation database record has no enabled hooks")
-  }
-  const narrative = clean(schema.prompt_formatting?.narrative)
-    .split(/\r?\n/)
-    .map((line) => line.trim().replace(/^\d+[.)]\s*/, ""))
-    .filter((line) => line && !isHookInstruction(line))
-  if (narrative.length) {
-    return narrative.map((text) => ({
-      id: legacyHookId(text),
-      text,
-      enabled: true,
-    }))
-  }
-  const stored = (formatSection(schema, "hook").textItems || [])
-    .map((item) =>
-      item.textMode === "static"
-        ? clean(item.staticText)
-        : clean(item.contentDirection || item.text)
-    )
-    .filter((line) => line && !isHookInstruction(line))
-  if (stored.length) {
-    return stored.map((text) => ({
-      id: legacyHookId(text),
-      text,
-      enabled: true,
-    }))
-  }
-  throw new Error("The automation database record has no usable hooks")
-}
-
-function legacyHookId(text) {
-  const normalized = normalizeSignature(text)
-  let hash = 2166136261
-  for (let index = 0; index < normalized.length; index += 1) {
-    hash ^= normalized.charCodeAt(index)
-    hash = Math.imul(hash, 16777619)
-  }
-  return `hook_${(hash >>> 0).toString(36).padStart(7, "0")}`
+  const enabled = catalog.filter((item) => item.enabled)
+  if (enabled.length) return enabled
+  throw new Error("The automation database record has no enabled hooks")
 }
 
 function isHookInstruction(value) {

@@ -3,7 +3,7 @@
  * cloud project into local Appwrite. Full local setup runs this automatically;
  * `pnpm dev` uses setup's lightweight --ensure path and does not re-copy data.
  *
- * The cloud project still uses separate legacy collection tables while the
+ * The cloud project still uses separate source collection tables while the
  * local app reads the consolidated `permanent_assets` table. Owners are mapped
  * by account email so local rows remain visible to the matching local account.
  */
@@ -132,7 +132,18 @@ for (const source of selectedCollectionSources) {
     const localOwnerId = ownerMap.get(clean(row.owner_id || record.ownerId))
     const rid =
       clean(row.rid) || clean(record.id) || `${source.fallbackPrefix}-${index}`
-    const localRecord = { ...record, ownerId: localOwnerId }
+    const localRecord = {
+      ...record,
+      ...(source.sourceKey === "image_collection"
+        ? {
+            id:
+              clean(record.id) ||
+              slugify(clean(record.name || row.name)) ||
+              rid,
+          }
+        : {}),
+      ownerId: localOwnerId,
+    }
     const rowId = ownedRowId(
       `${targetTable}:${source.sourceKey}`,
       localOwnerId,
@@ -514,6 +525,13 @@ async function runPool(items, concurrency, task) {
 
 function clean(value) {
   return typeof value === "string" ? value.trim() : ""
+}
+
+function slugify(value) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
 }
 
 function argumentValue(name) {

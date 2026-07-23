@@ -9,7 +9,6 @@ import {
   upsertJsonArrayRecord,
 } from "@/lib/json-store"
 import {
-  automationHookItems,
   defaultAutomationSchema,
   normalizeAutomationSchema,
   type AutomationLifecycleStatus,
@@ -102,8 +101,7 @@ export function createLocalAutomationRecord(
 ): AutomationRecord {
   const now = new Date().toISOString()
   const id = `automation-local-${randomUUID()}`
-  const name =
-    clean(input.name) || "Untitled automation"
+  const name = clean(input.name) || "Untitled automation"
   const summary = automationSummary({
     id,
     name,
@@ -324,8 +322,10 @@ function normalizeAutomationRecord(
     id: record.id,
     name: record.name,
     status: normalizeStatus(record.status),
-    account: socialIntegrationSummary(record.schema?.social_integrations ?? []).account,
-    handle: socialIntegrationSummary(record.schema?.social_integrations ?? []).handle,
+    account: socialIntegrationSummary(record.schema?.social_integrations ?? [])
+      .account,
+    handle: socialIntegrationSummary(record.schema?.social_integrations ?? [])
+      .handle,
     times: record.schema ? automationScheduleTimes(record.schema) : [],
     favorite: Boolean(record.favorite),
     theme: clean(record.theme) || "ugc",
@@ -494,13 +494,7 @@ function cloneTemplate(
     image_fit: template.image_fit,
     language: template.language,
     prompt_formatting: structuredClone(template.prompt_formatting),
-    hooks: structuredClone(
-      template.hooks ??
-        automationHookItems({
-          formatting: template.formatting,
-          prompt_formatting: template.prompt_formatting,
-        })
-    ),
+    hooks: structuredClone(template.hooks ?? []),
     image_collection_ids: structuredClone(template.image_collection_ids ?? {}),
     tone: structuredClone(template.tone),
     formatting: structuredClone(template.formatting),

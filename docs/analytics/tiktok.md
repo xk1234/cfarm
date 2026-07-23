@@ -30,6 +30,55 @@ for the full interaction and visualization contract.
 
 TikTok does not seed impressions, reach, or clicks as supported account-chart metrics. If PostFast begins returning one of those recognized keys, the capability registry can expose it from observed data without changing the dashboard.
 
+## TikTok Studio slideshow detail
+
+PostFast provides post totals but not the slide-by-slide fields available in
+TikTok Studio. On a linked TikTok slideshow's detail page, choose **Import from
+TikTok Studio** to add:
+
+- retention for every slide;
+- the share of likes attributed to every slide;
+- TikTok's retention-drop and like-peak slides;
+- traffic sources and search queries; and
+- unique viewers plus age, gender, follower, and country breakdowns when the
+  Viewers tab is captured.
+
+Choose **Start automatic capture**. LumenClip connects directly to the installed
+Chrome companion without displaying or copying a pairing code. The companion
+opens **Overview**, then optionally **Viewers** and **Engagement**. A validated
+Overview is saved immediately; later sections enrich the same snapshot.
+
+## Account-wide Studio sync
+
+The TikTok platform page also provides **Sync TikTok Studio**. It creates one
+pairing for every eligible post across the selected TikTok accounts. Choose:
+
+- **New posts only** to skip posts that already have a Studio snapshot;
+- **Posts from the last 90 days** for a bounded refresh; or
+- **All linked posts** for a complete backfill.
+
+The connected companion discovers the pending job and visits Overview, Viewers,
+and Engagement sequentially for each explicitly authorized post. The LumenClip
+dialog shows captured and saved counts while the batch runs. Every validated
+Overview is saved automatically. Missing posts remain retryable.
+
+The companion keeps a one-year, capture-only device credential. Individual
+jobs still expire after one hour and resolve to a server-side allowlist, so the
+device cannot submit analytics for arbitrary TikTok posts.
+
+Captures received by a local LumenClip instance are saved locally first and
+then mirrored to the configured cloud deployment. This makes the same Studio
+snapshot available to the public MCP without giving the Chrome companion an
+Appwrite API key. `TIKTOK_STUDIO_CLOUD_ORIGIN` selects the cloud deployment and
+`TIKTOK_STUDIO_CAPTURE_SECRET` authenticates the server-to-server write. Cloud
+captures skip the mirror because they are already in the authoritative store.
+
+The companion observes TikTok's structured insight responses in the logged-in
+tab. It does not read, transmit, or persist TikTok cookies, passwords, local
+storage, or session tokens. The LumenClip endpoint accepts only the signed device
+credential plus a pending capture ID and rejects captures whose Studio URL or
+returned post ID differs from the linked TikTok post.
+
 ## Recommended reading order
 
 1. Start with Views to identify distribution outliers.
@@ -51,5 +100,7 @@ TikTok does not seed impressions, reach, or clicks as supported account-chart me
 - Older posts continue accumulating views, so a rising curve does not mean all growth came from newly published posts.
 - A missing metric renders as an em dash in recent posts and breakdowns. It must not be treated as zero.
 - Run at least two syncs, separated in time, before using the curve or “vs previous snapshot” change.
+- TikTok Studio fields are point-in-time captures, not a permanent live
+  connection. Repeat an account sync later to add another snapshot.
 
 [Back to the analytics overview](./overall.md)

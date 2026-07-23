@@ -57,6 +57,11 @@ secondary context; the account is the primary object.
 - Sync analytics with `POST /api/analytics/report` and refresh the SWR report.
 - Filter the entire overview using profile-picture account selectors.
 - Open a recent post to inspect its stored detail and performance curve.
+- On a linked TikTok slideshow, import the authenticated TikTok Studio
+  Overview, Viewers, and Engagement metrics through the persistently connected
+  Chrome companion.
+- On the TikTok platform page, sync new, recent, or all linked posts in one
+  sequential Chrome companion batch.
 - Page through recent posts four at a time in one horizontal row.
 - Page through account tables eight rows at a time.
 - Select or keyboard-activate an account row to filter to that account.
@@ -69,6 +74,13 @@ secondary context; the account is the primary object.
   follower snapshots, and provider capabilities.
 - `POST /api/analytics/report` triggers `syncPostFastAnalytics`; Sync analytics
   is a real provider request rather than a cosmetic refresh.
+- `POST /api/tiktok-studio-analytics` queues a single capture or account batch;
+  validated captures save automatically, while `GET` polls an `importId` or
+  `batchId`.
+- `GET|POST /api/tiktok-studio-analytics/capture` is the bearer-token-protected
+  Chrome companion manifest and intake. It is the only unauthenticated route in
+  this workflow. The device credential is capture-only; pending jobs remain
+  short-lived and resolve to an explicit server-side post allowlist.
 - Metrics come from `lib/metric-registry.ts`.
 - Post series are grouped by `integrationId + postId`, retaining the latest
   snapshot for totals.
@@ -92,6 +104,19 @@ secondary context; the account is the primary object.
 Metric and follower history persist in `postfast_metric_snapshots` and
 `account_follower_snapshots`. Snapshots are appended by analytics sync. Appwrite
 is authoritative; there is no filesystem fallback.
+
+Linked TikTok Studio captures use the same metric snapshot series with
+`source: "tiktok_studio"` and a typed `tiktokStudio` detail object. Pending
+capture sessions live as owner-scoped
+`permanent_assets/source_key=tiktok_studio_analytics_import` rows. Raw TikTok
+responses and signed CDN URLs are not persisted. Account sync parents use
+`source_key=tiktok_studio_analytics_batch`; each authorized post still has its
+own import record so partial batches remain retryable.
+
+When capture happens against the local app, the completed typed snapshot is
+also sent to the protected cloud-sync route. That route uses the production MCP
+owner and upserts the same deterministic snapshot ID into cloud Appwrite.
+Chrome receives neither the cloud Appwrite endpoint nor an Appwrite API key.
 
 ## Required states
 

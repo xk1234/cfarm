@@ -23,7 +23,6 @@ export type PostFastSourceType =
   | "greenscreen"
   | "ugc_ad"
   | "image"
-  | "swipe" // legacy
   | "slideshow"
   | "manual"
   | "external"

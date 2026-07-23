@@ -36,7 +36,7 @@ describe("automation schema normalization", () => {
     ).toBe("manual")
   })
 
-  it("moves legacy tone items out of formatting", () => {
+  it("does not recover tone from obsolete formatting entries", () => {
     const base = defaultAutomationSchema(automation)
     const normalized = normalizeAutomationSchema(
       {
@@ -50,10 +50,7 @@ describe("automation schema normalization", () => {
       automation
     )
 
-    expect(normalized.tone).toEqual({
-      value: "all lowercase",
-      preset: "custom",
-    })
+    expect(normalized.tone).toEqual(base.tone)
     expect(normalized.formatting.map((item) => item.id)).toEqual([
       "hook",
       "body",
@@ -61,7 +58,7 @@ describe("automation schema normalization", () => {
     ])
   })
 
-  it("converts a legacy interval into canonical posting times", () => {
+  it("ignores obsolete interval schedules", () => {
     const base = defaultAutomationSchema(automation)
     const normalized = normalizeAutomationSchema(
       {
@@ -80,11 +77,9 @@ describe("automation schema normalization", () => {
     )
 
     expect(normalized.schedule).not.toHaveProperty("interval")
-    expect(normalized.schedule.posting_times).toEqual([
-      { time: "9:00 AM", days: ["Mon", "Wed"] },
-      { time: "12:00 PM", days: ["Mon", "Wed"] },
-      { time: "3:00 PM", days: ["Mon", "Wed"] },
-    ])
+    expect(normalized.schedule.posting_times).toEqual(
+      base.schedule.posting_times
+    )
   })
 
   it("drops obsolete image flags from the canonical config", () => {

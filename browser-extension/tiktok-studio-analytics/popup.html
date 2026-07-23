@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LumenClip Analytics</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <div class="brand">
+        <img src="icons/icon48.png" alt="" width="28" height="28" />
+        <span>LumenClip companion</span>
+      </div>
+      <h1>TikTok Studio analytics</h1>
+      <p class="intro">
+        Connect once from LumenClip. New allowlisted analytics syncs are discovered,
+        captured, and saved automatically without sending TikTok cookies.
+      </p>
+      <button id="pair">Open LumenClip to connect</button>
+      <button id="openStudio" class="secondary" hidden>
+        Check for pending sync
+      </button>
+      <div id="status" class="status">Not paired</div>
+      <button id="clear" class="link" hidden>Clear pairing</button>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

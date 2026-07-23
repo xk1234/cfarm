@@ -69,8 +69,7 @@ unconfirmed schedule into a publication.
 ## Persistence and enforcement
 
 - `AutomationSchema.hooks[]` stores stable `id`, `text`, `enabled`, and
-  creation/update timestamps. Legacy newline hooks receive deterministic IDs
-  when normalized.
+  creation/update timestamps.
 - `AutomationRunPlan.hookId` preserves the selected catalog identity alongside
   the expanded hook text, template, and substitutions.
 - Publication evidence appends `hook_published` and, where applicable,

@@ -60,6 +60,16 @@ const RAW_STORE_ROUTES: Record<string, StoreRoute | string> = {
     public: false,
   },
   "postfast-metric-snapshots.json": "postfast_metric_snapshots",
+  "tiktok-studio-analytics/imports.json": {
+    table: "permanent_assets",
+    sourceKey: "tiktok_studio_analytics_import",
+    public: false,
+  },
+  "tiktok-studio-analytics/batches.json": {
+    table: "permanent_assets",
+    sourceKey: "tiktok_studio_analytics_batch",
+    public: false,
+  },
   "account-follower-snapshots.json": "account_follower_snapshots",
   "generated-videos/exports.json": {
     table: "outputs",

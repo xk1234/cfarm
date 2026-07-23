@@ -157,6 +157,65 @@ export async function getJob(id: string): Promise<Job | null> {
   }
 }
 
+/**
+ * Permanently remove queued and historical generation jobs for one standard
+ * automation. This is used by the automation deletion cascade so stale failed
+ * jobs do not keep appearing after their automation is gone.
+ */
+export async function deleteAutomationJobs(
+  automationId: string
+): Promise<Job[]> {
+  const aw = getAppwrite()
+  if (!aw) return []
+  const ownerId = await queueOwnerId()
+  if (!ownerId || !automationId.trim()) return []
+
+  const candidates = (
+    await Promise.all(
+      ["run-automation", "run-ugc-automation"].map(async (type) => {
+        const jobs: Job[] = []
+        let offset = 0
+        const pageSize = 100
+
+        while (true) {
+          const res = await aw.tables.listRows(
+            APPWRITE_DATABASE_ID,
+            JOBS_TABLE,
+            [
+              Query.equal("owner_id", [ownerId]),
+              Query.equal("type", [type]),
+              Query.orderAsc("$createdAt"),
+              Query.limit(pageSize),
+              Query.offset(offset),
+            ]
+          )
+          const page = (res.rows as Array<Record<string, unknown>>).map(mapJob)
+          jobs.push(...page)
+          if (page.length < pageSize) break
+          offset += page.length
+        }
+
+        return jobs
+      })
+    )
+  )
+    .flat()
+    .filter((job) => {
+      const payload =
+        job.payload && typeof job.payload === "object"
+          ? (job.payload as Record<string, unknown>)
+          : {}
+      return String(payload.automationId ?? "") === automationId
+    })
+
+  await Promise.all(
+    candidates.map((job) =>
+      aw.tables.deleteRow(APPWRITE_DATABASE_ID, JOBS_TABLE, job.id)
+    )
+  )
+  return candidates
+}
+
 /** Reset a failed generation job so the worker can claim it again immediately. */
 export async function retryGenerationJob(
   id: string
@@ -180,7 +239,11 @@ export async function retryGenerationJob(
 
   const job = mapJob(row)
   if (job.ownerId !== ownerId) return null
-  if (job.type !== "run-automation" && job.type !== "run-x-automation" && job.type !== "run-ugc-automation") {
+  if (
+    job.type !== "run-automation" &&
+    job.type !== "run-x-automation" &&
+    job.type !== "run-ugc-automation"
+  ) {
     return { job, retried: false, reason: "not_generation" }
   }
   if (job.status !== "failed" && job.status !== "dead") {

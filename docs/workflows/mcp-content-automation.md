@@ -3,9 +3,10 @@ title: "MCP workflow documentation moved"
 description: "Implemented and proposed MCP tools organized by content creation, outside-content import, and analytics/export workflows."
 ---
 
-> **Partially implemented.** Twenty tools are callable through authenticated
-> Streamable HTTP and local stdio. The tool index distinguishes those tools
-> from proposed workspace, template, resource, and export contracts.
+> **Partially implemented.** Twenty-seven tools are callable through the public,
+> owner-scoped Streamable HTTP route and local stdio. The tool index
+> distinguishes those tools from proposed workspace, template, resource, and
+> export contracts.
 
 The canonical MCP documentation now lives in the [MCP tools and workflows
 folder](/docs/workflows/mcp):
@@ -62,7 +63,7 @@ inspect outputs, read stored analytics, and publish or link an approved output.
 ## Remaining gaps
 
 The [LumenClip MCP roadmap](/docs/roadmap/lumenclip-mcp-server) tracks the
-remaining production OAuth scopes, resource handlers, workspace/template
+remaining production OAuth hardening, resource handlers, workspace/template
 discovery, automation creation/preview, direct saved-video execution, and
 exports. These gaps limit zero-to-one workflows but do not block the callable
 existing-automation, collection, slideshow, publishing, scheduling, or

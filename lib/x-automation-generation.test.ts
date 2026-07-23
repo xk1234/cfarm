@@ -36,17 +36,31 @@ describe("preset-driven X generation", () => {
   it("retries the primary strategy model and falls back with diagnostics", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(Response.json({ error: { message: "busy" } }, { status: 503 }))
-      .mockResolvedValueOnce(Response.json({ error: { message: "still busy" } }, { status: 503 }))
+      .mockResolvedValueOnce(
+        Response.json({ error: { message: "busy" } }, { status: 503 })
+      )
+      .mockResolvedValueOnce(
+        Response.json({ error: { message: "still busy" } }, { status: 503 })
+      )
       .mockResolvedValueOnce(
         Response.json({
-          choices: [{ message: { content: JSON.stringify({
-            audience: "solo creators",
-            promise: "repeatable distribution",
-            pillars: [{ label: "systems" }, { label: "research" }, { label: "distribution" }],
-            keywords: ["content"],
-            painPoints: ["inconsistency"],
-          }) } }],
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  audience: "solo creators",
+                  promise: "repeatable distribution",
+                  pillars: [
+                    { label: "systems" },
+                    { label: "research" },
+                    { label: "distribution" },
+                  ],
+                  keywords: ["content"],
+                  painPoints: ["inconsistency"],
+                }),
+              },
+            },
+          ],
         })
       )
 
@@ -63,10 +77,10 @@ describe("preset-driven X generation", () => {
     expect(result.attempts.every((attempt) => attempt.retryable)).toBe(true)
     expect(result.brief.pillars).toHaveLength(3)
   })
-  it("migrates manual niche fields and custom stage prompts", () => {
-    const migrated = normalizeXAutomation({
-      id: "legacy",
-      name: "Legacy engine",
+  it("ignores obsolete nested brief and prompt fields", () => {
+    const normalized = normalizeXAutomation({
+      id: "canonical-only",
+      name: "Canonical engine",
       niche: {
         label: "fitness",
         audience: "busy founders",
@@ -82,36 +96,25 @@ describe("preset-driven X generation", () => {
       },
     })
 
-    expect(migrated?.brief).toMatchObject({
-      audience: "busy founders",
-      pillars: [
-        { label: "strength", weight: 30 },
-        { label: "mobility", weight: 20 },
-        { label: "recovery", weight: 15 },
-      ],
-    })
-    expect(migrated?.output.maxCharacters).toBe(4_000)
-    expect(migrated?.platform).toBe("x")
-    expect(migrated?.output).not.toHaveProperty("platformFlags")
-    expect(migrated?.generation.voiceOverride).toContain(
-      "sound like a pragmatic coach"
-    )
-    expect(migrated?.generation.voiceOverride).toContain(
-      "Use an unusually direct opening"
-    )
+    expect(normalized?.brief).toBeNull()
+    expect(normalized?.output.maxCharacters).toBe(4_000)
+    expect(normalized?.platform).toBe("x")
+    expect(normalized?.niche).toEqual({ label: "fitness" })
+    expect(normalized?.generation.voiceOverride).toBe("")
   })
 
-  it("migrates legacy platform flags once and normalizes idempotently", () => {
-    const migrated = normalizeXAutomation({
-      id: "legacy-both",
+  it("uses only the top-level platform and normalizes idempotently", () => {
+    const normalized = normalizeXAutomation({
+      id: "canonical-platform",
+      platform: "threads",
       output: {
         platformFlags: { x: true, threads: true },
         platforms: ["x", "threads"],
       },
     })!
-    expect(migrated.platform).toBe("x")
-    expect(migrated.output).not.toHaveProperty("platformFlags")
-    expect(normalizeXAutomation(migrated)).toEqual(migrated)
+    expect(normalized.platform).toBe("threads")
+    expect(normalized.output).not.toHaveProperty("platformFlags")
+    expect(normalizeXAutomation(normalized)).toEqual(normalized)
   })
 
   it("does not repeat the previous archetype and gates proof formats", () => {

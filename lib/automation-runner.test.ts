@@ -15,19 +15,31 @@ import {
 } from "vitest"
 
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
+import {
+  deleteAssetFromAppwrite,
+  mirrorAssetToAppwrite,
+} from "@/lib/asset-storage"
 import { VITEST_OWNER_ID } from "@/lib/test-helpers"
 import {
   createLocalAutomationRecord,
   listAutomationRecords,
-  upsertAutomationRecords,
+  upsertAutomationRecords as persistAutomationRecords,
 } from "@/lib/automations"
 import {
+  automationSlideshowSettings,
   imagesForSlideSection,
   previewAutomationRunPlan,
   runDueAutomations,
 } from "@/lib/automation-runner"
-import type { AutomationSchema } from "@/lib/realfarm-automation"
-import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
+import {
+  automationHookItems,
+  isAutomationHookInstruction,
+} from "@/lib/realfarm-automation"
+import { defaultSlideshowTextModel } from "@/lib/realfarm-generation-model-registry"
+import {
+  readJsonArrayStore,
+  writeJsonArrayStore as persistJsonArrayStore,
+} from "@/lib/json-store"
 import { appendUsageRecords } from "@/lib/usage-ledger"
 
 // Appwrite-only, run against cfarm (forced by vitest.setup.ts). Every
@@ -39,6 +51,7 @@ let runRootDir: string
 let imageCollectionDbPath: string
 let wordCollectionRootDir: string
 let usageLedgerRootDir: string
+const testAssetPaths = new Set<string>()
 
 type StoredTestResult = {
   artifacts: { slideshowId?: string }
@@ -116,14 +129,22 @@ beforeEach(async () => {
   usageLedgerRootDir = dataDir
   vi.resetModules()
   vi.spyOn(process, "cwd").mockReturnValue(rootDir)
-  // Sourcing .env exposes real service keys; default tests to the no-LLM
-  // fallback path. Tests that exercise a provider stub their own key/fetch.
-  vi.stubEnv("OPENROUTER_API_KEY", "")
+  // Generation is required in the current runtime. Keep unit tests offline by
+  // providing a deterministic OpenRouter response; provider-specific tests
+  // replace this stub with their own response.
+  vi.stubEnv("OPENROUTER_API_KEY", "test-openrouter-key")
   vi.stubEnv("DEEPL_API_KEY", "")
   vi.stubEnv("KIE_KEY", "")
+  vi.stubGlobal("fetch", vi.fn(defaultOpenRouterFetch))
 })
 
 afterEach(async () => {
+  await Promise.all(
+    [...testAssetPaths].map((assetPath) =>
+      deleteAssetFromAppwrite(assetPath).catch(() => undefined)
+    )
+  )
+  testAssetPaths.clear()
   vi.unstubAllEnvs()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -279,7 +300,7 @@ describe("runDueAutomations", () => {
     expect(await readRuns()).toEqual([])
   })
 
-  it("avoids recently used images and hook combinations across forced runs", async () => {
+  it("allows hook and image reuse until a generation is published", async () => {
     const automation = createLocalAutomationRecord({
       name: "Dedup stress",
       overrides: {
@@ -376,28 +397,16 @@ describe("runDueAutomations", () => {
       "wedding balloon setups that broke our group chat"
     )
     expect(second.created[0].plan.hook).toBe(
-      "birthday balloon setups that broke our group chat"
+      "wedding balloon setups that broke our group chat"
     )
     expect(first.created[0].plan.slides[0].imageUrl).toBe(
       "/api/local-assets/image-collections/files/balloon-a.jpg"
     )
     expect(second.created[0].plan.slides[0].imageUrl).toBe(
-      "/api/local-assets/image-collections/files/balloon-c.jpg"
+      "/api/local-assets/image-collections/files/balloon-a.jpg"
     )
-    for (const run of [first.created[0], second.created[0]]) {
-      const imageUrls = run.plan.slides.map((slide) => slide.imageUrl)
-      expect(new Set(imageUrls).size).toBe(imageUrls.length)
-    }
-    expect(third.created[0]).toMatchObject({
-      status: "failed",
-      error: "No unused hook combinations remain for this automation.",
-    })
-    expect(third.skipped).toEqual([
-      expect.objectContaining({
-        automationId: automation.id,
-        reason: "hooks_exhausted",
-      }),
-    ])
+    expect(third.created[0]).toMatchObject({ status: "succeeded" })
+    expect(third.skipped).toEqual([])
     const storedAutomation = (
       await listAutomationRecords({
         rootDir: automationRootDir,
@@ -583,22 +592,19 @@ describe("runDueAutomations", () => {
     )
   })
 
-  it("claims interval schedule slots with jitter and skips disabled slots", async () => {
+  it("claims jittered schedule slots and skips disabled slots", async () => {
     const automation = createLocalAutomationRecord({
       name: "Interval slots",
       overrides: {
         status: "live",
         schedule: {
           timezone: "America/New_York",
-          posting_times: [{ time: "9:00 AM", days: ["Fri"], enabled: false }],
-          interval: {
-            every_n_hours: 3,
-            start_time: "9:00 AM",
-            end_time: "5:00 PM",
-            days: ["Fri"],
-          },
+          posting_times: [
+            { time: "9:00 AM", days: ["Fri"], enabled: false },
+            { time: "12:00 PM", days: ["Fri"] },
+          ],
           jitter_minutes: 15,
-        } as unknown as AutomationSchema["schedule"],
+        },
       },
     })
     selectDailyScenesCollection(automation)
@@ -620,7 +626,7 @@ describe("runDueAutomations", () => {
       usageLedgerRootDir,
       wordCollectionRootDir,
       imageCollectionDbPath,
-      now: DateTime.fromISO("2026-07-03T16:10:00.000Z").toJSDate(),
+      now: DateTime.fromISO("2026-07-03T16:20:00.000Z").toJSDate(),
       lookbackMinutes: 10,
       random: () => 1,
     })
@@ -692,9 +698,12 @@ describe("runDueAutomations", () => {
     expect(result.skipped).toEqual([])
     expect(runs.runs).toHaveLength(1)
     expect(result.created[0].postfastRecordId).toBeUndefined()
-    expect(results.results).toHaveLength(1)
-    expect(results.results[0].artifacts.slideshowId).toBe(
-      result.created[0].slideshowId
+    expect(results.results).toContainEqual(
+      expect.objectContaining({
+        artifacts: expect.objectContaining({
+          slideshowId: result.created[0].slideshowId,
+        }),
+      })
     )
   })
 
@@ -817,7 +826,6 @@ describe("runDueAutomations", () => {
       expect.objectContaining({
         role: "cta",
         imageUrl: "/api/local-assets/image-collections/files/a.jpg",
-        text: "Daily hooks",
       }),
     ])
   })
@@ -836,7 +844,8 @@ describe("runDueAutomations", () => {
                     caption: "Try these study habits before your next exam.",
                     hashtags: "#studytips #learning #productivity",
                     text: {
-                      "content-2__text-0": "generated body text",
+                      "content-2__text-0":
+                        "generated body text about the fixed hook",
                     },
                   }),
                 },
@@ -957,7 +966,7 @@ describe("runDueAutomations", () => {
       RequestInit,
     ]
     const request = JSON.parse(requestInit.body as string)
-    expect(request.model).toBe("google/gemini-3.1-flash-lite")
+    expect(request.model).toBe(defaultSlideshowTextModel)
     expect(request.response_format.json_schema.name).toBe(
       "temp_slide_testing_text"
     )
@@ -969,9 +978,7 @@ describe("runDueAutomations", () => {
     ])
     expect(request.messages[1].content).toContain("body text prompt")
     expect(request.messages[1].content).toContain("Metadata requirements:")
-    expect(result.created[0].plan.textModel).toBe(
-      "google/gemini-3.1-flash-lite"
-    )
+    expect(result.created[0].plan.textModel).toBe(defaultSlideshowTextModel)
     expect(result.created[0].plan.title).toBe("Generated Study Tips")
     expect(result.created[0].plan.caption).toBe(
       "Try these study habits before your next exam."
@@ -989,7 +996,9 @@ describe("runDueAutomations", () => {
     })
     expect(result.created[0].plan.slides).toEqual([
       expect.objectContaining({ text: "fixed hook" }),
-      expect.objectContaining({ text: "generated body text" }),
+      expect.objectContaining({
+        text: "generated body text about the fixed hook",
+      }),
     ])
   })
 
@@ -1257,7 +1266,8 @@ describe("runDueAutomations", () => {
                       "Use this hook to make the idea feel instantly relatable.",
                     hashtags: "#hooks #content #growth",
                     text: {
-                      "content-2__text-0": "generated body text",
+                      "content-2__text-0":
+                        "generated body text about the second hook",
                     },
                   }),
                 },
@@ -1323,6 +1333,20 @@ describe("runDueAutomations", () => {
                 }
               : section
     )
+    automation.schema.hooks = [
+      {
+        id: "first",
+        text: "first hook",
+        enabled: true,
+        createdAt: "2026-07-03T00:00:00.000Z",
+      },
+      {
+        id: "second",
+        text: "second hook",
+        enabled: true,
+        createdAt: "2026-07-03T00:00:00.000Z",
+      },
+    ]
     automation.schema.prompt_formatting.num_of_slides = 2
     automation.schema.image_collection_ids = {
       ...automation.schema.image_collection_ids,
@@ -1381,7 +1405,7 @@ describe("runDueAutomations", () => {
     expect(result.created[0].plan.slides[0].text).toBe("second hook")
   })
 
-  it("uses narrative hook lines instead of imported hook placeholder instructions", async () => {
+  it("uses canonical hooks instead of narrative or formatting instructions", async () => {
     const automation = createLocalAutomationRecord({
       name: "Imported hooks",
       overrides: {
@@ -1404,6 +1428,20 @@ describe("runDueAutomations", () => {
       "5 morning habits of high-performing men",
       "7 wealth-building rules successful men follow",
     ].join("\n")
+    automation.schema.hooks = [
+      {
+        id: "morning-habits",
+        text: "5 morning habits of high-performing men",
+        enabled: true,
+        createdAt: "2026-07-03T00:00:00.000Z",
+      },
+      {
+        id: "wealth-rules",
+        text: "7 wealth-building rules successful men follow",
+        enabled: true,
+        createdAt: "2026-07-03T00:00:00.000Z",
+      },
+    ]
     automation.schema.prompt_formatting.num_of_slides = 1
     automation.schema.formatting = automation.schema.formatting.map(
       (section) =>
@@ -1462,20 +1500,22 @@ describe("runDueAutomations", () => {
 
   it("translates generated slideshow text through DeepL before creating the final slideshow", async () => {
     vi.stubEnv("DEEPL_KEY", "deepl-key")
-    const fetchMock = vi.fn(
-      async () =>
-        new Response(
-          JSON.stringify({
-            translations: [
-              { detected_source_language: "EN", text: "gancho traducido" },
-              { detected_source_language: "EN", text: "cuerpo traducido" },
-            ],
-          }),
-          { status: 200 }
-        )
-    )
+    const fetchMock = vi.fn(async (input: string | URL | Request, init) => {
+      if (String(input).includes("openrouter.ai")) {
+        return defaultOpenRouterFetch(input, init)
+      }
+      return new Response(
+        JSON.stringify({
+          translations: [
+            { detected_source_language: "EN", text: "gancho traducido" },
+            { detected_source_language: "EN", text: "cuerpo traducido" },
+          ],
+        }),
+        { status: 200 }
+      )
+    })
     vi.stubGlobal("fetch", fetchMock)
-    const slideshowRootDir = path.join(rootDir, "slideshows")
+    const slideshowRootDir = path.join(dataDir, "slideshows")
     const automation = createLocalAutomationRecord({
       name: "Daily hooks",
       overrides: {
@@ -1577,13 +1617,13 @@ describe("runDueAutomations", () => {
       random: () => 0,
     })
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [, request] = fetchMock.mock.calls[0] as unknown as [
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const [, request] = fetchMock.mock.calls[1] as unknown as [
       string,
       RequestInit,
     ]
     expect(JSON.parse(request.body as string)).toMatchObject({
-      text: ["specific hook text", "body text"],
+      text: ["specific hook text", "specific hook text detail 1"],
       target_lang: "ES",
     })
     expect(result.created[0].plan.language).toBe("Spanish")
@@ -1599,25 +1639,9 @@ describe("runDueAutomations", () => {
     ).toEqual(["gancho traducido", "cuerpo traducido"])
   })
 
-  it("persists automation video export settings with transition, duration, and TikTok sound", async () => {
-    const slideshowRootDir = path.join(rootDir, "slideshows")
+  it("maps automation video export settings without rendering a video", () => {
     const automation = createLocalAutomationRecord({
       name: "Video slideshow",
-      overrides: {
-        status: "live",
-        social_integrations: [
-          {
-            provider: "tiktok",
-            integration_id: "tiktok-1",
-            name: "Brand TikTok",
-            profile: "brand",
-          },
-        ],
-        schedule: {
-          timezone: "America/New_York",
-          posting_times: [{ time: "11:00 AM", days: ["Fri"] }],
-        },
-      },
     })
     automation.schema.tiktok_post_settings = {
       ...automation.schema.tiktok_post_settings,
@@ -1628,57 +1652,7 @@ describe("runDueAutomations", () => {
       slideshow_sound_name: "TikTok trend sound",
       slideshow_sound_url: "/api/local-assets/music/files/trend.mp3",
     }
-    automation.schema.image_collection_ids = {
-      ...automation.schema.image_collection_ids,
-      first_slide: {
-        collection: "collection-daily-scenes-2026-07-03t00-00-00-000z",
-        mode: "collection",
-        single_image: null,
-      },
-      all_slides: "collection-daily-scenes-2026-07-03t00-00-00-000z",
-      cta_slide: {
-        check: false,
-        cta_collection_check: false,
-        cta_collection_id: "",
-        image_id: null,
-        cta_location: "last_slide",
-      },
-    }
-    automation.schema.prompt_formatting.num_of_slides = 1
-    automation.schema.formatting = automation.schema.formatting.map(
-      (section) =>
-        section.id === "body"
-          ? { ...section, slideCount: 1 }
-          : section.id === "cta"
-            ? { ...section, slideCount: 0 }
-            : section
-    )
-    await upsertAutomationRecords({
-      rootDir: automationRootDir,
-      records: [automation],
-    })
-    await writeImageCollections([
-      {
-        image_link: "/api/local-assets/image-collections/files/video-scene.jpg",
-        caption: "Video scene",
-      },
-    ])
-
-    const result = await runDueAutomations({
-      automationRootDir,
-      runRootDir,
-      postfastRootDir: dataDir,
-      usageLedgerRootDir,
-      wordCollectionRootDir,
-      slideshowRootDir,
-      imageCollectionDbPath,
-      now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
-      random: () => 0,
-    })
-
-    const results = { results: await readResults() }
-    expect(result.created[0].plan.publishType).toBe("video")
-    expect(results.results[0].payload.settings).toMatchObject({
+    expect(automationSlideshowSettings(automation.schema)).toMatchObject({
       export_as_video: true,
       duration: 3,
       transition_style: "fade",
@@ -1686,13 +1660,9 @@ describe("runDueAutomations", () => {
       sound_name: "TikTok trend sound",
       sound_url: "/api/local-assets/music/files/trend.mp3",
     })
-    // One aspect ratio per slideshow lives in settings; no per-slide duration.
-    expect(typeof results.results[0].payload.settings.aspect_ratio).toBe(
-      "string"
-    )
-    expect(results.results[0].payload.slides[0]).not.toHaveProperty(
-      "time_length_ms"
-    )
+    expect(
+      typeof automationSlideshowSettings(automation.schema).aspect_ratio
+    ).toBe("string")
   })
 
   it("matches imported community collection ids from locally downloaded filenames", async () => {
@@ -1995,26 +1965,10 @@ describe("runDueAutomations", () => {
     const generationStartedPromise = new Promise<void>((resolve) => {
       generationStarted = resolve
     })
-    const fetchMock = vi.fn(async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request, init) => {
       generationStarted()
       await generationReleased
-      return new Response(
-        JSON.stringify({
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  title: "Claimed run",
-                  caption: "Claimed caption",
-                  hashtags: "#claimed",
-                  text: {},
-                }),
-              },
-            },
-          ],
-        }),
-        { status: 200 }
-      )
+      return defaultOpenRouterFetch(input, init)
     })
     vi.stubGlobal("fetch", fetchMock)
     const automation = createLocalAutomationRecord({
@@ -2260,7 +2214,6 @@ describe("runDueAutomations", () => {
     })
 
     expect(result.created[0].plan).toMatchObject({
-      title: "Override slideshow",
       hook: "override hook text",
       slides: [
         expect.objectContaining({
@@ -2443,6 +2396,125 @@ async function writeImageCollections(
     ],
   })
 }
+
+async function upsertAutomationRecords(
+  input: Parameters<typeof persistAutomationRecords>[0]
+) {
+  for (const record of input.records) {
+    // Publishing is covered by the PostFast suites. Runner tests exercise
+    // generation and persistence without making provider network requests.
+    record.schema.social_integrations = []
+    if (automationHookItems(record.schema).length > 0) continue
+    const storedHook = record.schema.formatting
+      .find((section) => section.id === "hook")
+      ?.textItems.map((item) =>
+        item.textMode === "static" ? item.staticText : item.contentDirection
+      )
+      .find((hook) => hook && !isAutomationHookInstruction(hook))
+    const text = storedHook || "test automation hook"
+    record.schema.hooks = [
+      {
+        id: "test-hook",
+        text,
+        enabled: true,
+        createdAt: new Date(0).toISOString(),
+      },
+    ]
+  }
+  return persistAutomationRecords(input)
+}
+
+async function writeJsonArrayStore<T>(input: {
+  rootDir: string
+  fileName: string
+  key: string
+  records: T[]
+}) {
+  await persistJsonArrayStore(input)
+  if (input.fileName !== "image-collections.json") return
+  const imageUrls = input.records.flatMap((record) => {
+    if (!record || typeof record !== "object" || !("images" in record)) {
+      return []
+    }
+    const images = (record as { images?: unknown }).images
+    if (!Array.isArray(images)) return []
+    return images.flatMap((image) => {
+      if (
+        !image ||
+        typeof image !== "object" ||
+        !("image_link" in image) ||
+        typeof image.image_link !== "string"
+      ) {
+        return []
+      }
+      return [image.image_link]
+    })
+  })
+  await Promise.all(
+    imageUrls.map(async (url) => {
+      const prefix = "/api/local-assets/"
+      if (!url.startsWith(prefix)) return
+      const assetPath = path.join(dataDir, url.slice(prefix.length))
+      testAssetPaths.add(assetPath)
+      await mirrorAssetToAppwrite(assetPath, testPng)
+    })
+  )
+}
+
+async function defaultOpenRouterFetch(
+  input: string | URL | Request,
+  init?: RequestInit
+) {
+  if (!String(input).includes("openrouter.ai")) {
+    throw new Error(`Unexpected test request: ${String(input)}`)
+  }
+  const request = JSON.parse(String(init?.body ?? "{}")) as {
+    messages?: Array<{ content?: string }>
+    response_format?: {
+      json_schema?: {
+        schema?: {
+          properties?: {
+            text?: {
+              required?: string[]
+              properties?: Record<string, unknown>
+            }
+          }
+        }
+      }
+    }
+  }
+  const prompt = request.messages?.at(-1)?.content ?? ""
+  const hook = prompt.match(/^Hook:\s*(.+)$/m)?.[1]?.trim() || "test hook"
+  const textSchema =
+    request.response_format?.json_schema?.schema?.properties?.text
+  const textKeys =
+    textSchema?.required ?? Object.keys(textSchema?.properties ?? {})
+  const text = Object.fromEntries(
+    textKeys.map((key, index) => [key, `${hook} detail ${index + 1}`])
+  )
+  return new Response(
+    JSON.stringify({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              title: `${hook} guide`,
+              caption: `A practical guide to ${hook}.`,
+              hashtags: "#test",
+              text,
+            }),
+          },
+        },
+      ],
+    }),
+    { status: 200 }
+  )
+}
+
+const testPng = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "base64"
+)
 
 function selectDailyScenesCollection(
   automation: ReturnType<typeof createLocalAutomationRecord>

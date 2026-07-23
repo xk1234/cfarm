@@ -30,9 +30,15 @@ export type HookAnalyticsRow = {
   text: string
   enabled: boolean
   publishedPosts: number
+  publishCount: number
   lastPublishedAt: string
   providers: string[]
   metrics: Partial<Record<CanonicalMetric, number>>
+  views: number
+  shares: number
+  saves: number
+  shareRate: number | null
+  meanSlide1To2RetentionPercent: number | null
 }
 
 export type HookUsageState = {
@@ -81,9 +87,17 @@ export async function recordPublishedHookUsage(
   return appendUsageRecords({ records })
 }
 
-export async function hookAnalyticsReport(automationId: string) {
+export async function hookAnalyticsReport(
+  automationId: string,
+  options: { days?: number; now?: Date } = {}
+) {
   const automation = await getAutomationRecord(automationId)
   if (!automation) return null
+  const now = options.now ?? new Date()
+  const days = Math.max(1, options.days ?? 3650)
+  const since = new Date(
+    now.getTime() - days * 24 * 60 * 60 * 1000
+  ).toISOString()
   const hookItems = automationHookItems(automation.schema)
   const runs = await listAutomationRuns({
     automationId,
@@ -111,6 +125,7 @@ export async function hookAnalyticsReport(automationId: string) {
       providers: Set<string>
       lastPublishedAt: string
       metrics: Partial<Record<CanonicalMetric, number>>
+      retentionRatios: number[]
     }
   >()
 
@@ -120,7 +135,7 @@ export async function hookAnalyticsReport(automationId: string) {
       publication.status === "published"
         ? publication.publishedAt || publication.updatedAt
         : snapshot?.publishedAt
-    if (!publishedAt) continue
+    if (!publishedAt || Date.parse(publishedAt) < Date.parse(since)) continue
     const run =
       publication.sourceType === "automation"
         ? runById.get(publication.sourceId)
@@ -136,6 +151,7 @@ export async function hookAnalyticsReport(automationId: string) {
       providers: new Set<string>(),
       lastPublishedAt: publishedAt,
       metrics: {},
+      retentionRatios: [],
     }
     if (!aggregate.publications.has(publication.id)) {
       aggregate.publications.add(publication.id)
@@ -145,6 +161,10 @@ export async function hookAnalyticsReport(automationId: string) {
         publishedAt
       )
       if (snapshot) addMetrics(aggregate.metrics, snapshot.metrics)
+      const retention = slideOneToTwoRetention(
+        snapshotsForPost(snapshots, publication.id)
+      )
+      if (retention !== null) aggregate.retentionRatios.push(retention)
     }
     aggregates.set(item.id, aggregate)
   }
@@ -155,9 +175,21 @@ export async function hookAnalyticsReport(automationId: string) {
       text: aggregate.item.text,
       enabled: aggregate.item.enabled,
       publishedPosts: aggregate.publications.size,
+      publishCount: aggregate.publications.size,
       lastPublishedAt: aggregate.lastPublishedAt,
       providers: [...aggregate.providers].sort(),
       metrics: withEngagementRate(aggregate.metrics),
+      views: aggregate.metrics.views ?? 0,
+      shares: aggregate.metrics.shares ?? 0,
+      saves: aggregate.metrics.saves ?? 0,
+      shareRate: aggregate.metrics.views
+        ? ((aggregate.metrics.shares ?? 0) / aggregate.metrics.views) * 100
+        : null,
+      meanSlide1To2RetentionPercent:
+        aggregate.retentionRatios.length > 0
+          ? aggregate.retentionRatios.reduce((sum, value) => sum + value, 0) /
+            aggregate.retentionRatios.length
+          : null,
     }))
     .sort(
       (left, right) =>
@@ -187,7 +219,29 @@ export async function hookAnalyticsReport(automationId: string) {
       ...(row?.lastPublishedAt ? { lastPublishedAt: row.lastPublishedAt } : {}),
     }
   })
-  return { automationId, hooks, rows }
+  const rowsById = new Map(rows.map((row) => [row.hookId, row]))
+  const performance = [
+    ...hookItems.map(
+      (item) =>
+        rowsById.get(item.id) ?? {
+          hookId: item.id,
+          text: item.text,
+          enabled: item.enabled,
+          publishedPosts: 0,
+          publishCount: 0,
+          lastPublishedAt: "",
+          providers: [],
+          metrics: {},
+          views: 0,
+          shares: 0,
+          saves: 0,
+          shareRate: null,
+          meanSlide1To2RetentionPercent: null,
+        }
+    ),
+    ...rows.filter((row) => !hookItems.some((item) => item.id === row.hookId)),
+  ]
+  return { automationId, days, since, hooks, rows, performance }
 }
 
 export async function usedHookIdsForAutomation(automationId: string) {
@@ -215,11 +269,46 @@ function hookItemForRun(run: AutomationRunRecord, items: AutomationHookItem[]) {
   if (run.plan.hookId) {
     const byId = items.find((item) => item.id === run.plan.hookId)
     if (byId) return byId
+    return {
+      id: run.plan.hookId,
+      text: run.plan.hookTemplate || run.plan.hook,
+      enabled: false,
+      createdAt: run.createdAt,
+    }
   }
   const candidates = [run.plan.hookTemplate, run.plan.hook]
     .map(normalizedText)
     .filter(Boolean)
   return items.find((item) => candidates.includes(normalizedText(item.text)))
+}
+
+function snapshotsForPost(snapshots: PostFastMetricSnapshot[], postId: string) {
+  return snapshots
+    .filter((snapshot) => snapshot.postId === postId)
+    .sort(
+      (left, right) =>
+        Date.parse(right.capturedAt) - Date.parse(left.capturedAt)
+    )
+}
+
+function slideOneToTwoRetention(snapshots: PostFastMetricSnapshot[]) {
+  for (const snapshot of snapshots) {
+    const slides = snapshot.tiktokStudio?.slides ?? []
+    const slideOne = slides.find((slide) => slide.slideIndex === 1)
+    const slideTwo = slides.find((slide) => slide.slideIndex === 2)
+    const first = slideOne?.retentionPercent
+    const second = slideTwo?.retentionPercent
+    if (
+      typeof first === "number" &&
+      Number.isFinite(first) &&
+      first > 0 &&
+      typeof second === "number" &&
+      Number.isFinite(second)
+    ) {
+      return (second / first) * 100
+    }
+  }
+  return null
 }
 
 function latestSnapshots(snapshots: PostFastMetricSnapshot[]) {

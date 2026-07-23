@@ -185,8 +185,8 @@ export async function createSlideshowResultRecord(input: CreateSlideshowInput) {
     rootDir: resultRootDirFor(input),
     automationId:
       recordWithOutputs.automationId ??
-      `compat-automation-${recordWithOutputs.id}`,
-    runId: clean(input.runId) || `compat-run-${recordWithOutputs.id}`,
+      `standalone-automation-${recordWithOutputs.id}`,
+    runId: clean(input.runId) || `standalone-run-${recordWithOutputs.id}`,
     workflowType: "slideshow",
     title: recordWithOutputs.title,
     status: recordWithOutputs.status === "failed" ? "failed" : "succeeded",
@@ -418,16 +418,7 @@ async function resultRecordForSlideshow(
     slideshowIds: [slideshowId],
     limit: 1,
   })
-  if (targeted) return targeted
-
-  // Legacy records may use the slideshow id as the result id and predate the
-  // denormalized source_entity_id column.
-  const [legacy] = await listResultRecords({
-    rootDir: resultRootDirFor(input),
-    id: slideshowId,
-    limit: 1,
-  })
-  return legacy ?? null
+  return targeted ?? null
 }
 
 function resultRecordToSlideshowRecord(
@@ -443,7 +434,7 @@ function resultRecordToSlideshowRecord(
   return normalizeSlideshowRecord({
     id: slideshowId,
     runId: result.runId,
-    automationId: result.automationId.startsWith("compat-automation-")
+    automationId: result.automationId.startsWith("standalone-automation-")
       ? undefined
       : result.automationId,
     output_dir: result.artifacts.outputDir,

@@ -716,10 +716,7 @@ function postTypeValue(value: string): PostFastCreatePostType {
 
 function postContent(item: GeneratedVideoExport) {
   const description =
-    item.description ||
-    item.caption ||
-    item.title ||
-    generatedVideoTypeConfig[item.type].title
+    item.description || item.title || generatedVideoTypeConfig[item.type].title
   return [description, item.hashtags.join(" ")].filter(Boolean).join("\n\n")
 }
 

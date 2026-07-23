@@ -79,7 +79,7 @@ type CalendarFilterOption = {
   status?: CalendarLifecycleStatus
 }
 
-const filterStorageKey = "realfarm:calendar-filters:v1"
+const filterStorageKey = "lumenclip:calendar-filters:v1"
 const defaultFilters: CalendarFilters = {
   accounts: [],
   statuses: [],
@@ -196,8 +196,8 @@ export function ContentCalendarView({
         startEditable: Boolean(item.links.reschedule),
         durationEditable: false,
         classNames: [
-          `cfarm-calendar-event--${item.status.replaceAll("_", "-")}`,
-          ...(item.paused ? ["cfarm-calendar-event--paused"] : []),
+          `lumenclip-calendar-event--${item.status.replaceAll("_", "-")}`,
+          ...(item.paused ? ["lumenclip-calendar-event--paused"] : []),
         ],
         extendedProps: { item },
       })),
@@ -420,7 +420,7 @@ export function ContentCalendarView({
               {calendarActionError}
             </div>
           ) : null}
-          <section className="cfarm-calendar min-w-0 overflow-hidden rounded-[14px] border border-app-panel-border bg-app-surface p-3 sm:p-4">
+          <section className="lumenclip-calendar min-w-0 overflow-hidden rounded-[14px] border border-app-panel-border bg-app-surface p-3 sm:p-4">
             <FullCalendar
               plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
               initialView="dayGridMonth"

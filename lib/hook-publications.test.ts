@@ -151,11 +151,23 @@ describe("published hook attribution", () => {
           likes: 80,
           comments: 10,
           shares: 10,
+          saves: 25,
           interactions: 100,
         },
         latestMetric: {},
         rawMetrics: {},
         observedKeys: [],
+        tiktokStudio: {
+          schemaVersion: 1,
+          studioUrl: "https://www.tiktok.com/tiktokstudio/analytics/1/overview",
+          capturedSections: ["overview"],
+          slides: [
+            { slideIndex: 1, retentionPercent: 1 },
+            { slideIndex: 2, retentionPercent: 0.75 },
+          ],
+          trafficSources: {},
+          searchTerms: [],
+        },
       },
     ])
 
@@ -166,7 +178,13 @@ describe("published hook attribution", () => {
         hookId: "hook-one",
         enabled: false,
         publishedPosts: 1,
+        publishCount: 1,
         providers: ["tiktok"],
+        views: 1_000,
+        shares: 10,
+        saves: 25,
+        shareRate: 1,
+        meanSlide1To2RetentionPercent: 75,
         metrics: expect.objectContaining({
           views: 1_000,
           likes: 80,

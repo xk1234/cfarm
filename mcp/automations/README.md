@@ -1,7 +1,8 @@
 # Automation MCP tools
 
-> Discovery, detail reads, safe updates, and manual runs are implemented.
-> Preview and create/save contracts remain proposed.
+> Discovery, templates, creation/deletion, complete schema reads/replacement,
+> granular hook management, run-plan inspection, safe updates, and manual runs
+> are implemented. Diff preview remains proposed.
 
 These tools correspond to the Automations area in the app. They use one
 normalized automation contract across slideshows, videos, AI UGC, X, Threads, and other
@@ -27,10 +28,79 @@ Read-only, idempotent, scope `lumenclip:read`.
 
 Input: required `automationId`.
 
-Output: `automation` containing normalized schedule, publishing policy, linked
+Output: `automation` containing the complete normalized editor `schema`,
+normalized schedule, publishing policy, linked
 collections, safe linked-account summaries, last-run state, manual-run support,
-and resource URI. Prompt bodies, provider tokens, owner IDs, and raw Appwrite
-rows are not returned.
+the canonical `hookPool`, and resource URI. The hook pool includes its enabled
+state and duplicate analysis; provider tokens, owner IDs, and raw Appwrite rows
+are not returned. X/Threads records expose their full safe `configuration`
+(brief, excluded topics, proof bank, output/generation/media/discovery policy,
+benchmarks, schedule, usage, and operations).
+
+### `lumenclip_automation_templates_list`
+
+Read-only template discovery with optional `query`, `kind`, `includeSchema`,
+and `limit`. Each result includes its kind, curated hook count, timestamps, and
+optionally its complete normalized runtime schema.
+
+### `lumenclip_automation_create`
+
+Creates a paused or live slideshow/video/UGC automation, optionally cloned from
+`templateId`. Required `requestId` is persisted as the retry key, so repeating
+the call returns the same record. `name` is required and an optional `kind`
+must agree with the selected template.
+
+### `lumenclip_automation_schema_update`
+
+Complete schema replacement with required `automationId`,
+`expectedUpdatedAt`, and normalized `schema`. Callers must read
+`automation_get` first and preserve desired fields. The backend normalizes the
+replacement before persistence.
+
+### `lumenclip_automation_hooks_get`
+
+Read-only and idempotent.
+
+Input: required `automationId`.
+
+Output: the authoritative `hooks` array plus `total`, enabled/disabled counts,
+`uniqueSuggested`, `duplicateSlotCount`, and exact or near
+`duplicateGroups`. Each group includes its similarity score, hook IDs and
+texts, and a suggested hook to keep. Agents no longer need to inspect a past
+slideshow's rendered prompt to recover an automation's hook pool.
+
+### `lumenclip_automation_hooks_update`
+
+Destructive replacement mutation because omitted hooks are pruned.
+
+Input: required `automationId` and the complete desired `hooks` array; optional
+`expectedUpdatedAt` optimistic lock and `deduplicateNearMatches`. Existing IDs
+should be preserved when editing or toggling hooks. New hooks may omit `id`.
+When near-match deduplication is enabled, the first hook in each detected group
+is kept.
+
+Output: the updated canonical pool and a fresh duplicate analysis. This surface
+supports adding, editing, enabling, disabling, pruning, and deduplicating hooks
+without changing the rest of the automation schema.
+
+Prefer the granular tools when full replacement is unnecessary:
+
+- `lumenclip_automation_hook_upsert` adds or edits hooks by stable ID.
+- `lumenclip_automation_hook_set_enabled` toggles hooks without deleting them.
+- `lumenclip_automation_hook_delete` permanently prunes confirmed hook IDs
+  while historical run plans retain attribution.
+
+### Hook attribution and run plans
+
+`lumenclip_hook_performance(automationId, days)` joins confirmed publications
+to stable hook IDs. Every canonical hook receives publish count, views, shares,
+saves, share rate, and mean slide-1-to-2 retention when Studio captured it;
+historically published deleted hooks remain visible.
+
+`lumenclip_run_plan_get(runId)` returns the persisted generation decision:
+hook ID/template/substitutions, media selections, complete slides, strategy,
+and reuse warnings. Debug prompt payloads are omitted unless
+`includeDebug: true`.
 
 ## Preview and save
 
@@ -48,7 +118,7 @@ Input accepts exactly one source:
 Output: `valid`, `preview_id`, `base_version`, field-level `diff`,
 `effective_automation`, `validation_issues`, and `warnings`. It saves nothing.
 
-### `lumenclip_automation_create_from_template`
+### `lumenclip_automation_create_from_template` (superseded)
 
 Mutation, scope `lumenclip:write`.
 
@@ -58,7 +128,7 @@ Input: required `template_id`, `template_version`, `name`, `overrides`, and
 Output: paused user-owned `automation`, `version`, `source_template`,
 `resource_uri`, `applied_overrides`, and `warnings`.
 
-### `lumenclip_automation_save`
+### `lumenclip_automation_save` (superseded)
 
 Mutation, scope `lumenclip:write`.
 
@@ -90,9 +160,16 @@ Input:
 | `schedule.jitterMinutes` | integer           | no       | Random schedule offset from 0 to 720 minutes.                                      |
 
 At least one change is required. The output is a normalized safe summary with
-ID, name, kind, status, `updatedAt`, and schedule. Generation prompts,
-collections, publishing accounts, and raw internal schemas are intentionally
-not accepted by this first update surface.
+ID, name, kind, status, `updatedAt`, and schedule. Generation configuration is
+changed through `lumenclip_automation_schema_update`; common
+lifecycle/schedule changes remain on this smaller tool.
+
+### `lumenclip_automation_delete`
+
+Permanent, explicitly confirmed deletion for standard automations. Required
+`requestId` and `confirmDelete: true`; the cascade removes generated
+slideshows, run history, queue jobs, and draft publication rows. Repeating an
+already-completed delete returns `alreadyDeleted: true`.
 
 ## `lumenclip_automation_run`
 

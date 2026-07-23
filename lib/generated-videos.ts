@@ -66,9 +66,8 @@ export async function createGeneratedVideoExport(
     createdAt: now,
     updatedAt: now,
     title: clean(input.title) || defaultTitle(input.type),
-    description: clean(input.description) || clean(input.caption),
+    description: clean(input.description),
     hashtags: normalizeHashtags(input.hashtags),
-    caption: clean(input.description) || clean(input.caption),
     sourceConfig: sanitizeSourceConfig(
       input.sourceConfig,
       localMediaUrl(input.previewUrl)
@@ -224,9 +223,12 @@ function normalizeGeneratedVideoExport(
   if (!record?.id || !isGeneratedVideoType(record.type)) {
     return null
   }
+  const { caption: _removedCaption, ...canonicalRecord } =
+    record as GeneratedVideoExport & { caption?: unknown }
+  void _removedCaption
 
   return {
-    ...record,
+    ...canonicalRecord,
     status: isGeneratedVideoStatus(record.status) ? record.status : "queued",
     createdAt: clean(record.createdAt) || new Date().toISOString(),
     updatedAt:
@@ -234,9 +236,8 @@ function normalizeGeneratedVideoExport(
       clean(record.createdAt) ||
       new Date().toISOString(),
     title: clean(record.title) || defaultTitle(record.type),
-    description: clean(record.description) || clean(record.caption),
+    description: clean(record.description),
     hashtags: normalizeHashtags(record.hashtags),
-    caption: clean(record.caption) || clean(record.description),
     sourceConfig: sanitizeSourceConfig(
       record.sourceConfig,
       localMediaUrl(record.previewUrl)

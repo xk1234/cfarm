@@ -11,7 +11,7 @@ import type {
 } from "@/components/realfarm/composer/composer-types"
 import { SocialPlatformIcon } from "@/components/realfarm/social-platform"
 import { Button } from "@/components/ui/button"
-import { composeLimitErrors } from "@/lib/compose-publishing"
+import { composeLimitErrors } from "@/lib/compose-validation"
 import { getApiErrorMessage } from "@/lib/client-api"
 import { cn } from "@/lib/utils"
 
@@ -104,9 +104,9 @@ export function ComposeDemo({
               : undefined,
         }),
       })
-      const payload = (await response.json().catch(() => null)) as
-        | PublishResponse
-        | null
+      const payload = (await response
+        .json()
+        .catch(() => null)) as PublishResponse | null
       const succeeded = payload?.succeeded ?? []
       const failed = payload?.failed ?? []
       if (!response.ok && succeeded.length === 0 && failed.length === 0) {
@@ -121,15 +121,12 @@ export function ComposeDemo({
         ]
           .filter(Boolean)
           .join("; ")
-        toast.warning(
-          summary,
-          {
-            id: toastId,
-            description: failed
-              .map((item) => `${item.network}: ${item.error ?? "Unknown error"}`)
-              .join(" · "),
-          }
-        )
+        toast.warning(summary, {
+          id: toastId,
+          description: failed
+            .map((item) => `${item.network}: ${item.error ?? "Unknown error"}`)
+            .join(" · "),
+        })
       } else {
         toast.success(
           mode === "schedule"
