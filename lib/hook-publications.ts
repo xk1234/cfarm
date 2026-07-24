@@ -128,6 +128,9 @@ export async function hookAnalyticsReport(
       retentionRatios: number[]
     }
   >()
+  let unattributedPublishedPosts = 0
+  let snapshotRecoveredPosts = 0
+  const observedPostIds = new Set<string>()
 
   for (const publication of publications) {
     const snapshot = latestSnapshotByPost.get(publication.id)
@@ -136,37 +139,62 @@ export async function hookAnalyticsReport(
         ? publication.publishedAt || publication.updatedAt
         : snapshot?.publishedAt
     if (!publishedAt || Date.parse(publishedAt) < Date.parse(since)) continue
-    const run =
-      publication.sourceType === "automation"
-        ? runById.get(publication.sourceId)
-        : publication.sourceType === "slideshow"
-          ? runBySlideshow.get(publication.sourceId)
-          : undefined
+    observedPostIds.add(publication.id)
+    const run = runForSource(
+      publication.sourceType,
+      publication.sourceId,
+      runById,
+      runBySlideshow
+    )
+    if (!run) {
+      unattributedPublishedPosts += 1
+      continue
+    }
+    const item = hookItemForRun(run, hookItems)
+    if (!item) {
+      unattributedPublishedPosts += 1
+      continue
+    }
+    addHookObservation({
+      aggregates,
+      item,
+      postId: publication.id,
+      provider: publication.provider,
+      publishedAt,
+      snapshot,
+      postSnapshots: snapshotsForPost(snapshots, publication.id),
+    })
+  }
+
+  // Studio snapshots are independently owner-scoped evidence of a published
+  // platform post. They retain sourceType/sourceId even when an older output
+  // was marked published without a persisted publication array.
+  for (const snapshot of latestSnapshotByPost.values()) {
+    if (observedPostIds.has(snapshot.postId)) continue
+    const publishedAt = snapshot.publishedAt ?? snapshot.capturedAt
+    if (Date.parse(publishedAt) < Date.parse(since)) continue
+    const run = runForSource(
+      snapshot.sourceType,
+      snapshot.sourceId,
+      runById,
+      runBySlideshow
+    )
     if (!run) continue
     const item = hookItemForRun(run, hookItems)
-    if (!item) continue
-    const aggregate = aggregates.get(item.id) ?? {
+    if (!item) {
+      unattributedPublishedPosts += 1
+      continue
+    }
+    snapshotRecoveredPosts += 1
+    addHookObservation({
+      aggregates,
       item,
-      publications: new Set<string>(),
-      providers: new Set<string>(),
-      lastPublishedAt: publishedAt,
-      metrics: {},
-      retentionRatios: [],
-    }
-    if (!aggregate.publications.has(publication.id)) {
-      aggregate.publications.add(publication.id)
-      aggregate.providers.add(publication.provider)
-      aggregate.lastPublishedAt = laterDate(
-        aggregate.lastPublishedAt,
-        publishedAt
-      )
-      if (snapshot) addMetrics(aggregate.metrics, snapshot.metrics)
-      const retention = slideOneToTwoRetention(
-        snapshotsForPost(snapshots, publication.id)
-      )
-      if (retention !== null) aggregate.retentionRatios.push(retention)
-    }
-    aggregates.set(item.id, aggregate)
+      postId: snapshot.postId,
+      provider: snapshot.provider,
+      publishedAt,
+      snapshot,
+      postSnapshots: snapshotsForPost(snapshots, snapshot.postId),
+    })
   }
 
   const rows: HookAnalyticsRow[] = [...aggregates.values()]
@@ -241,7 +269,57 @@ export async function hookAnalyticsReport(
     ),
     ...rows.filter((row) => !hookItems.some((item) => item.id === row.hookId)),
   ]
-  return { automationId, days, since, hooks, rows, performance }
+  const publishedOutputsWithoutPublication = runs.filter(
+    (run) =>
+      Boolean(run.manuallyPublishedAt) &&
+      !publications.some((publication) =>
+        publicationMatchesRun(publication, run)
+      )
+  ).length
+  const dataWarnings = [
+    ...(unattributedPublishedPosts > 0
+      ? [
+          `${unattributedPublishedPosts} published ${
+            unattributedPublishedPosts === 1 ? "post" : "posts"
+          } could not be attributed to hooks.`,
+        ]
+      : []),
+    ...(publishedOutputsWithoutPublication > 0
+      ? [
+          `${publishedOutputsWithoutPublication} published ${
+            publishedOutputsWithoutPublication === 1
+              ? "output is"
+              : "outputs are"
+          } missing a publication record.`,
+        ]
+      : []),
+    ...(snapshotRecoveredPosts > 0
+      ? [
+          `${snapshotRecoveredPosts} ${
+            snapshotRecoveredPosts === 1 ? "post was" : "posts were"
+          } attributed through analytics snapshots because publication records were unavailable.`,
+        ]
+      : []),
+  ]
+  return {
+    automationId,
+    days,
+    since,
+    hooks,
+    rows,
+    performance,
+    attribution: {
+      attributedPosts: rows.reduce(
+        (total, row) => total + row.publishedPosts,
+        0
+      ),
+      unattributedPublishedPosts,
+      publishedOutputsWithoutPublication,
+      snapshotRecoveredPosts,
+    },
+    dataWarnings,
+    dataWarning: dataWarnings.length > 0 ? dataWarnings.join(" ") : undefined,
+  }
 }
 
 export async function usedHookIdsForAutomation(automationId: string) {
@@ -280,6 +358,71 @@ function hookItemForRun(run: AutomationRunRecord, items: AutomationHookItem[]) {
     .map(normalizedText)
     .filter(Boolean)
   return items.find((item) => candidates.includes(normalizedText(item.text)))
+}
+
+function runForSource(
+  sourceType: string | undefined,
+  sourceId: string | undefined,
+  runById: Map<string, AutomationRunRecord>,
+  runBySlideshow: Map<string, AutomationRunRecord>
+) {
+  if (!sourceId) return undefined
+  if (sourceType === "automation") return runById.get(sourceId)
+  if (sourceType === "slideshow") return runBySlideshow.get(sourceId)
+  return runById.get(sourceId) ?? runBySlideshow.get(sourceId)
+}
+
+function publicationMatchesRun(
+  publication: PostFastPostRecord,
+  run: AutomationRunRecord
+) {
+  return (
+    (publication.sourceType === "automation" &&
+      publication.sourceId === run.id) ||
+    (publication.sourceType === "slideshow" &&
+      publication.sourceId === run.slideshowId)
+  )
+}
+
+function addHookObservation(input: {
+  aggregates: Map<
+    string,
+    {
+      item: AutomationHookItem
+      publications: Set<string>
+      providers: Set<string>
+      lastPublishedAt: string
+      metrics: Partial<Record<CanonicalMetric, number>>
+      retentionRatios: number[]
+    }
+  >
+  item: AutomationHookItem
+  postId: string
+  provider: string
+  publishedAt: string
+  snapshot?: PostFastMetricSnapshot
+  postSnapshots: PostFastMetricSnapshot[]
+}) {
+  const aggregate = input.aggregates.get(input.item.id) ?? {
+    item: input.item,
+    publications: new Set<string>(),
+    providers: new Set<string>(),
+    lastPublishedAt: input.publishedAt,
+    metrics: {},
+    retentionRatios: [],
+  }
+  if (!aggregate.publications.has(input.postId)) {
+    aggregate.publications.add(input.postId)
+    aggregate.providers.add(input.provider)
+    aggregate.lastPublishedAt = laterDate(
+      aggregate.lastPublishedAt,
+      input.publishedAt
+    )
+    if (input.snapshot) addMetrics(aggregate.metrics, input.snapshot.metrics)
+    const retention = slideOneToTwoRetention(input.postSnapshots)
+    if (retention !== null) aggregate.retentionRatios.push(retention)
+  }
+  input.aggregates.set(input.item.id, aggregate)
 }
 
 function snapshotsForPost(snapshots: PostFastMetricSnapshot[], postId: string) {

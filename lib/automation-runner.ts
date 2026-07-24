@@ -1404,10 +1404,11 @@ async function selectAutomationHook(input: {
       input.schema.hook_slots,
       wordCollections,
       {
-        noDuplicates: input.schema.hook_no_duplicate_slots === true,
+        noDuplicates: input.schema.distinct_variable_draws !== false,
         caseMode: input.schema.prompt_formatting.hook_case,
         now: input.now,
         timeZone: input.schema.schedule.timezone,
+        slideCount: automationFormatSection(input.schema, "content").slideCount,
       }
     ).map((expansion) => ({ expansion, index, hookId: hookItem.id }))
   )

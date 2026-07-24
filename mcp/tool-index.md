@@ -13,6 +13,8 @@ several workflows, but its input/output contract has one obvious owner.
 | `lumenclip_automation_create`                    | [Automations](automations/README.md)            | Implemented        |
 | `lumenclip_automation_get`                       | [Automations](automations/README.md)            | Implemented        |
 | `lumenclip_automation_schema_update`             | [Automations](automations/README.md)            | Implemented        |
+| `lumenclip_automation_formatting_update`         | [Automations](automations/README.md)            | Implemented        |
+| `lumenclip_automation_text_item_update`          | [Automations](automations/README.md)            | Implemented        |
 | `lumenclip_automation_delete`                    | [Automations](automations/README.md)            | Implemented        |
 | `lumenclip_automation_hooks_get`                 | [Automations](automations/README.md)            | Implemented        |
 | `lumenclip_automation_hooks_update`              | [Automations](automations/README.md)            | Implemented        |

@@ -28,6 +28,12 @@ followers gained, and the correct report tools/guidance. TikTok Studio-backed
 outputs point callers to `lumenclip_tiktok_studio_analytics_report` for
 section and slide detail. Full post bodies and media bytes are not embedded.
 
+Publication state includes `published_unlinked` for a legacy output carrying a
+manual published timestamp but no publication record. This is deliberately
+distinct from `published`: analytics and hook attribution may recover through
+source-linked snapshots, but clients are warned that the canonical publication
+join is incomplete.
+
 ## `lumenclip_output_delete`
 
 Permanent destructive mutation. Deletes one caller-owned unpublished output

@@ -20,8 +20,11 @@ Optional `query`, `mediaType` (`image`, `video`, `word`, or `product`),
 ### Output
 
 Summaries with `id`, `name`, `mediaType`, `itemCount`, timestamps, and
-`resourceUri`. Image/video summaries also include `captionCoverage` and
-`pinned`. The result includes `total` and `hasMore`.
+`resourceUri`. Word summaries also include the expansion `variableName` and
+exact `token`; this matters for migrated collections whose storage ID is a
+legacy UUID but whose readable hook namespace is stable. Image/video summaries
+include `captionCoverage` and `pinned`. The result includes `total` and
+`hasMore`.
 
 ## `lumenclip_product_collection_get`
 
@@ -42,8 +45,9 @@ greenscreen memes, and CTAs. Optional filters cover `kind`, `scope`,
 Read-only and idempotent. Scope `lumenclip:read`.
 
 Accepts `variableId`, which may be the stable variable ID or exact collection
-name. Returns the complete variable collection: `id`, `name`, `description`,
-`values`, `valueCount`, provenance, timestamps, and `resourceUri`.
+name. Returns the complete variable collection: CRUD `id`, expansion
+`variableName`, exact `token`, display `name`, `description`, `values`,
+`valueCount`, provenance, timestamps, and `resourceUri`.
 
 ## `lumenclip_variable_save`
 

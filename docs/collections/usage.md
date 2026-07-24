@@ -52,13 +52,14 @@ be mutated from the collection library.
 
 ## Variable expansion
 
-Variable collections are referenced in hook text using `[[tag]]` or `{tag}`.
-An optional hook-slot map can point a readable slot to a different collection
-ID. At generation time:
+Variable collections are referenced in hook text using canonical `[[tag]]`
+tokens (the legacy `{tag}` syntax still resolves during migration). An optional
+hook-slot map can point a readable slot to a different collection ID. At
+generation time:
 
-- a repeated token normally reuses the same substitution in one hook;
-- with no-duplicate expansion enabled, later occurrences become synthetic slots
-  such as `zodiac_2` and draw a distinct value from the same collection;
+- repeated occurrences draw distinct values by default, so a comparison such
+  as `[[zodiac]] versus [[zodiac]]` cannot repeat one sign; later occurrences
+  are recorded as synthetic substitutions such as `zodiac_2`;
 - values are selected from owner-scoped word-collection records;
 - missing or empty collections raise an explicit generation error;
 - substitutions are captured in the run plan for auditability.
@@ -66,6 +67,9 @@ ID. At generation time:
 Date/time runtime variables such as `[[current_year]]`,
 `[[current_month]]`, `[[current_date]]`, and `[[current_time]]` are calculated
 from the scheduled run time and timezone. They are not variable collections.
+`[[slide_count]]` similarly resolves to the body-slide count selected for that
+run. Use it instead of a free `[[number]]` draw when the hook promises exactly
+as many items as the body delivers.
 Legacy `[[year]]` is migrated to `[[current_year]]`; a user collection with ID
 `year` is rejected.
 

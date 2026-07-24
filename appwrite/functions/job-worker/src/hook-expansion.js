@@ -36,6 +36,7 @@ export function expandHook(hook, slots, collections, random = Math.random, optio
             const runtimeValue = runtimeHookVariableValue(baseSlotName, {
                 now: options.now,
                 timeZone: options.timeZone,
+                slideCount: options.slideCount,
             });
             if (runtimeValue !== undefined) {
                 substitutions[slotName] = runtimeValue;
@@ -103,6 +104,7 @@ export function expandAllHookCombinations(hook, slots, collections, options = {}
         const runtimeValue = runtimeHookVariableValue(baseName, {
             now: options.now,
             timeZone: options.timeZone,
+            slideCount: options.slideCount,
         });
         if (runtimeValue !== undefined) {
             return {

@@ -8,6 +8,12 @@ export type RuntimeHookVariableDefinition = {
 
 export const runtimeHookVariables = [
   {
+    name: "slide_count",
+    label: "Body slide count",
+    description:
+      "The actual number of body slides selected for the current run.",
+  },
+  {
     name: "current_year",
     label: "Current year",
     description: "Four-digit year for the scheduled run date.",
@@ -63,7 +69,7 @@ export function isRuntimeHookVariable(name: string) {
 
 export function runtimeHookVariableValue(
   name: string,
-  input: { now?: Date; timeZone?: string } = {}
+  input: { now?: Date; timeZone?: string; slideCount?: number } = {}
 ) {
   const variable = canonicalRuntimeHookVariableName(name)
   if (!isRuntimeHookVariable(variable)) return undefined
@@ -74,6 +80,12 @@ export function runtimeHookVariableValue(
     new Intl.DateTimeFormat("en-US", { ...options, timeZone }).format(now)
 
   switch (variable) {
+    case "slide_count": {
+      const slideCount = Math.round(Number(input.slideCount))
+      return Number.isFinite(slideCount) && slideCount > 0
+        ? String(slideCount)
+        : undefined
+    }
     case "current_year":
       return format({ year: "numeric" })
     case "current_month":

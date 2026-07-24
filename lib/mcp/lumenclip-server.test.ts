@@ -201,6 +201,7 @@ describe("LumenClip MCP server", () => {
       ) as LumenClipMcpServices["getAutomationRecord"],
       patchAutomationRecord:
         patch as unknown as LumenClipMcpServices["patchAutomationRecord"],
+      listWordCollections: vi.fn(async () => []),
       now: () => new Date("2026-07-23T12:00:00.000Z"),
     })
 
@@ -271,6 +272,7 @@ describe("LumenClip MCP server", () => {
       patchAutomationRecord:
         patch as unknown as LumenClipMcpServices["patchAutomationRecord"],
       listAutomationRuns: vi.fn(async () => []),
+      listWordCollections: vi.fn(async () => []),
       now: () => new Date("2026-07-23T12:00:00.000Z"),
     })
 
@@ -331,6 +333,127 @@ describe("LumenClip MCP server", () => {
     })
   })
 
+  it("patches formatting blocks and text items without replacing the schema", async () => {
+    let current = automationRecord()
+    current.schema.hooks = [
+      {
+        id: "hook-existing",
+        text: "Existing hook",
+        enabled: true,
+        createdAt: "2026-07-01T00:00:00.000Z",
+      },
+    ]
+    const originalSocialSettings = current.schema.social_post_settings
+    const body = current.schema.formatting.find((block) => block.id === "body")!
+    body.textItems[0] = {
+      ...body.textItems[0],
+      id: "text-body-paragraph",
+      wordLengthMin: 20,
+      wordLengthMax: 25,
+    }
+    const patch = vi.fn(
+      async ({ schema }: { schema?: typeof current.schema }) => {
+        current = {
+          ...current,
+          schema: schema ?? current.schema,
+          updatedAt: "2026-07-23T12:00:00.000Z",
+        }
+        return current
+      }
+    )
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      patchAutomationRecord:
+        patch as unknown as LumenClipMcpServices["patchAutomationRecord"],
+    })
+
+    const blockResult = await client.callTool({
+      name: "lumenclip_automation_formatting_update",
+      arguments: {
+        automationId: current.id,
+        blockId: "body",
+        expectedUpdatedAt: current.updatedAt,
+        patch: {
+          slideCountMode: "dynamic",
+          slideCountMin: 5,
+          slideCountMax: 12,
+          slideOverrides: [
+            { slideIndex: 2, contentDirection: "Compare the second sign" },
+          ],
+          imageOverrides: [
+            { slideIndex: 2, collectionId: "mystical-pictures" },
+          ],
+        },
+      },
+    })
+    expect(blockResult.structuredContent).toMatchObject({
+      automationId: current.id,
+      block: {
+        id: "body",
+        slideCountMode: "varying",
+        slideCountMin: 5,
+        slideCountMax: 12,
+        slideOverrides: [
+          { slideIndex: 2, contentDirection: "Compare the second sign" },
+        ],
+        imageOverrides: [{ slideIndex: 2, collectionId: "mystical-pictures" }],
+      },
+    })
+
+    const textResult = await client.callTool({
+      name: "lumenclip_automation_text_item_update",
+      arguments: {
+        automationId: current.id,
+        blockId: "body",
+        textItemId: "text-body-paragraph",
+        expectedUpdatedAt: current.updatedAt,
+        patch: { wordLengthMin: 15, wordLengthMax: 18 },
+      },
+    })
+    expect(textResult.structuredContent).toMatchObject({
+      automationId: current.id,
+      blockId: "body",
+      textItem: {
+        id: "text-body-paragraph",
+        wordLengthMin: 15,
+        wordLengthMax: 18,
+      },
+    })
+    expect(current.schema.hooks).toHaveLength(1)
+    expect(current.schema.social_post_settings).toEqual(originalSocialSettings)
+    expect(patch).toHaveBeenCalledTimes(2)
+  })
+
+  it("rejects unresolved hook tokens before mutating the pool", async () => {
+    const current = automationRecord()
+    const patch = vi.fn()
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      patchAutomationRecord:
+        patch as unknown as LumenClipMcpServices["patchAutomationRecord"],
+      listWordCollections: vi.fn(async () => [wordCollection()]),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_automation_hook_upsert",
+      arguments: {
+        automationId: current.id,
+        hooks: [{ id: "bad-sign", text: "Why [[SIGN]] always wins" }],
+      },
+    })
+
+    expect(result.isError).toBe(true)
+    expect(result.content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "text",
+          text: expect.stringContaining("did you mean [[ZODIAC]]"),
+        }),
+      ])
+    )
+    expect(patch).not.toHaveBeenCalled()
+  })
+
   it("creates automations idempotently and exposes hook performance and run plans", async () => {
     let records: ReturnType<typeof automationRecord>[] = []
     const upsert = vi.fn(async ({ records: incoming }) => {
@@ -357,6 +480,14 @@ describe("LumenClip MCP server", () => {
         since: "2026-06-23T12:00:00.000Z",
         hooks: [],
         rows: [],
+        attribution: {
+          attributedPosts: 2,
+          unattributedPublishedPosts: 0,
+          publishedOutputsWithoutPublication: 0,
+          snapshotRecoveredPosts: 0,
+        },
+        dataWarnings: [],
+        dataWarning: undefined,
         performance: [
           {
             hookId: "hook-1",
@@ -632,6 +763,38 @@ describe("LumenClip MCP server", () => {
               "lumenclip_analytics_report",
               "lumenclip_tiktok_studio_analytics_report",
             ],
+          }),
+        }),
+      ],
+    })
+  })
+
+  it("distinguishes manually published outputs with no publication record", async () => {
+    const run = {
+      ...generatedRun("automation-1"),
+      manuallyPublishedAt: "2026-07-23T00:00:00.000Z",
+    }
+    const client = await connectClient({
+      listAutomationRuns: vi.fn(async () => [run]),
+      listGeneratedVideoExports: vi.fn(async () => []),
+      listXAutomationRuns: vi.fn(async () => []),
+      listPostFastPostRecords: vi.fn(async () => []),
+      listMetricSnapshots: vi.fn(async () => []),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_outputs_list",
+      arguments: { limit: 20 },
+    })
+
+    expect(result.structuredContent).toMatchObject({
+      items: [
+        expect.objectContaining({
+          id: run.slideshowId,
+          publicationState: "published_unlinked",
+          analytics: expect.objectContaining({
+            available: false,
+            publicationIds: [],
           }),
         }),
       ],
@@ -967,6 +1130,8 @@ describe("LumenClip MCP server", () => {
       variable: {
         id: "zodiac",
         name: "Zodiac signs",
+        variableName: "zodiac",
+        token: "[[ZODIAC]]",
         description: "Signs used in astrology hooks",
         values: ["aries", "taurus", "gemini"],
         valueCount: 3,

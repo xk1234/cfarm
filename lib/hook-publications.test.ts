@@ -200,4 +200,129 @@ describe("published hook attribution", () => {
       }),
     ])
   })
+
+  it("recovers hook attribution from a source-linked Studio snapshot", async () => {
+    const schema = defaultAutomationSchema({
+      id: "1",
+      name: "Demo",
+      status: "live",
+      account: "",
+      handle: "",
+      times: [],
+      theme: "",
+      socialIntegrations: [],
+      favorite: false,
+      automationKind: "slideshow",
+    })
+    schema.hooks = [
+      {
+        id: "hook-one",
+        text: "This is the published hook",
+        enabled: true,
+        createdAt: "2026-07-01T00:00:00.000Z",
+      },
+    ]
+    mocks.getAutomationRecord.mockResolvedValue({
+      id: "automation-1",
+      schema,
+    })
+    mocks.listMetricSnapshots.mockResolvedValue([
+      {
+        id: "snapshot-unlinked",
+        postId: "publication-missing-from-output",
+        integrationId: "account-1",
+        provider: "tiktok",
+        capturedAt: "2026-07-18T12:00:00.000Z",
+        publishedAt: "2026-07-17T12:00:00.000Z",
+        sourceType: "slideshow",
+        sourceId: "slideshow-1",
+        metrics: { views: 2_000, shares: 20, saves: 40 },
+        latestMetric: {},
+        rawMetrics: {},
+        observedKeys: [],
+        source: "tiktok_studio",
+      },
+      {
+        id: "snapshot-unrelated-automation",
+        postId: "other-post",
+        integrationId: "account-1",
+        provider: "tiktok",
+        capturedAt: "2026-07-18T12:00:00.000Z",
+        sourceType: "slideshow",
+        sourceId: "other-slideshow",
+        metrics: { views: 99_000 },
+        latestMetric: {},
+        rawMetrics: {},
+        observedKeys: [],
+        source: "tiktok_studio",
+      },
+    ])
+
+    const report = await hookAnalyticsReport("automation-1")
+
+    expect(report).toMatchObject({
+      rows: [
+        expect.objectContaining({
+          hookId: "hook-one",
+          publishedPosts: 1,
+          views: 2_000,
+        }),
+      ],
+      attribution: {
+        attributedPosts: 1,
+        unattributedPublishedPosts: 0,
+        publishedOutputsWithoutPublication: 0,
+        snapshotRecoveredPosts: 1,
+      },
+      dataWarning: expect.stringContaining(
+        "attributed through analytics snapshots"
+      ),
+    })
+  })
+
+  it("warns when an output is marked published without a publication record", async () => {
+    const schema = defaultAutomationSchema({
+      id: "1",
+      name: "Demo",
+      status: "live",
+      account: "",
+      handle: "",
+      times: [],
+      theme: "",
+      socialIntegrations: [],
+      favorite: false,
+      automationKind: "slideshow",
+    })
+    schema.hooks = [
+      {
+        id: "hook-one",
+        text: "This is the published hook",
+        enabled: true,
+        createdAt: "2026-07-01T00:00:00.000Z",
+      },
+    ]
+    mocks.getAutomationRecord.mockResolvedValue({
+      id: "automation-1",
+      schema,
+    })
+    mocks.listAutomationRuns.mockResolvedValue([
+      {
+        ...run,
+        manuallyPublishedAt: "2026-07-17T12:00:00.000Z",
+      },
+    ])
+
+    const report = await hookAnalyticsReport("automation-1")
+
+    expect(report).toMatchObject({
+      rows: [],
+      attribution: {
+        attributedPosts: 0,
+        publishedOutputsWithoutPublication: 1,
+      },
+      dataWarning: expect.stringContaining(
+        "published output is missing a publication record"
+      ),
+    })
+  })
 })

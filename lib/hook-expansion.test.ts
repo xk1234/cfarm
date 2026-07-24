@@ -164,6 +164,18 @@ describe("expandHook", () => {
     ).toEqual(["2027 plans for 2027"])
   })
 
+  it("resolves SLIDE_COUNT from the selected body-slide count", () => {
+    expect(
+      expandHook("[[SLIDE_COUNT]] things you need", undefined, [], () => 0, {
+        slideCount: 7,
+      })
+    ).toEqual({
+      text: "7 things you need",
+      template: "[[SLIDE_COUNT]] things you need",
+      substitutions: { SLIDE_COUNT: "7" },
+    })
+  })
+
   it("uses a same-name word collection when no explicit slot mapping is saved", () => {
     const collections: WordCollectionRecord[] = [
       wordCollection("test", ["first value", "second value"]),

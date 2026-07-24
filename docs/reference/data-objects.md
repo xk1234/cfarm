@@ -149,6 +149,7 @@ type AutomationSchema = {
   image_collection_ids: ImageCollectionConfig
   hook_slots?: Record<string, string>
   hook_no_duplicate_slots?: boolean
+  distinct_variable_draws?: boolean
   tone: AutomationToneSection
   formatting: AutomationFormattingItem[]
   video_format?: AutomationVideoFormat
@@ -172,7 +173,9 @@ updatedAt? }` items. Disabled items remain stored but are not selected.
 
 - `formatting[]` contains canonical `hook`, `body`, and `cta` sections with
   content direction, word/count limits, text styling, layout, and per-section
-  overlay choices.
+  overlay choices. `slideCountMode: "varying"` is the persisted dynamic mode
+  and uses `slideCountMin`/`slideCountMax`. Per-slide `slideOverrides` and
+  `imageOverrides` are active generation inputs.
 - `image_collection_ids` selects first-slide, all-slide, CTA, and optional demo
   media. Collection IDs are logical collection identifiers/names, not Storage
   bucket IDs.

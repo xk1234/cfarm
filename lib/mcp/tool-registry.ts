@@ -4,6 +4,14 @@ export const LUMENCLIP_MCP_TOOLS = [
   { name: "lumenclip_automation_create", category: "automations" },
   { name: "lumenclip_automation_get", category: "automations" },
   { name: "lumenclip_automation_schema_update", category: "automations" },
+  {
+    name: "lumenclip_automation_formatting_update",
+    category: "automations",
+  },
+  {
+    name: "lumenclip_automation_text_item_update",
+    category: "automations",
+  },
   { name: "lumenclip_automation_delete", category: "automations" },
   { name: "lumenclip_automation_hooks_get", category: "automations" },
   { name: "lumenclip_automation_hooks_update", category: "automations" },

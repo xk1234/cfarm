@@ -393,6 +393,7 @@ async function createPlan({
 }) {
   const schema = automation.schema
   const seed = seededBytes(`${runId}:${scheduledFor}`)
+  const bodySlideCount = selectedBodySlideCount(schema, seed[1])
   const hookSelection = selectHook({
     schema,
     wordCollections,
@@ -400,9 +401,10 @@ async function createPlan({
     automationId: automation.id,
     scheduledFor,
     seed,
+    bodySlideCount,
   })
   const hook = applyHookCase(hookSelection.text, schema.prompt_formatting)
-  const specs = slideSpecs(schema, hook)
+  const specs = slideSpecs(schema, hook, bodySlideCount)
   const placeholders = specs.flatMap((spec) =>
     spec.section !== "hook" && spec.displayText
       ? spec.textItems.filter((item) => item.textMode !== "static")
@@ -505,6 +507,7 @@ export function selectHook({
   automationId,
   scheduledFor,
   seed,
+  bodySlideCount,
 }) {
   const candidates = automationHookItems(schema)
   const cutoff =
@@ -540,10 +543,11 @@ export function selectHook({
       schema.hook_slots,
       wordCollections,
       {
-        noDuplicates: schema.hook_no_duplicate_slots,
+        noDuplicates: schema.distinct_variable_draws !== false,
         caseMode: schema.prompt_formatting?.hook_case || "mixed",
         now: new Date(scheduledFor),
         timeZone: schema.schedule?.timezone,
+        slideCount: bodySlideCount,
       }
     ).map((expansion) => ({ ...expansion, hookId: hookItem.id }))
   )
@@ -601,7 +605,7 @@ function applyHookCase(text, promptFormatting) {
     : cased
 }
 
-function slideSpecs(schema, hook) {
+function slideSpecs(schema, hook, bodySlideCount) {
   const hookSection = formatSection(schema, "hook")
   const content = formatSection(schema, "content")
   const cta = formatSection(schema, "cta")
@@ -609,7 +613,7 @@ function slideSpecs(schema, hook) {
   const contentCount =
     implied >= 1 && implied <= 10
       ? implied
-      : Math.max(1, content.slideCount || 1)
+      : Math.max(1, bodySlideCount || content.slideCount || 1)
   const ctaCount =
     cta.slideCount > 0 || schema.image_collection_ids?.cta_slide?.check
       ? Math.max(1, cta.slideCount || 1)
@@ -646,6 +650,22 @@ function slideSpecs(schema, hook) {
       specForSection(schema, cta, "cta", contentCount + index + 1)
     ),
   ]
+}
+
+function selectedBodySlideCount(schema, seedValue) {
+  const content = formatSection(schema, "content")
+  if (content.slideCountMode !== "varying") {
+    return Math.max(1, Number(content.slideCount) || 1)
+  }
+  const min = Math.max(
+    1,
+    Math.round(Number(content.slideCountMin) || Number(content.slideCount) || 1)
+  )
+  const max = Math.max(
+    min,
+    Math.round(Number(content.slideCountMax) || Number(content.slideCount) || min)
+  )
+  return min + (Number(seedValue) % (max - min + 1))
 }
 
 function specForSection(schema, section, role, index, collectionOverride) {

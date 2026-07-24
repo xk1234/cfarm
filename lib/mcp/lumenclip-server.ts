@@ -20,6 +20,7 @@ import {
   analyzeAutomationHookPool,
   replaceAutomationHookPool,
 } from "@/lib/automation-hook-pool"
+import { assertValidAutomationHookTokens } from "@/lib/automation-hook-token-validation"
 import {
   deleteAutomationRuns,
   runDueAutomations,
@@ -73,8 +74,11 @@ import { enqueueJob, getJob, listJobs, type Job } from "@/lib/queue"
 import type { Automation } from "@/lib/realfarm-data"
 import type {
   AutomationDay,
+  AutomationFormatSection,
+  AutomationFormatSectionId,
   AutomationHookItem,
   AutomationSchedule,
+  AutomationTextItem,
   AutomationUgcConfig,
 } from "@/lib/realfarm-automation"
 import {
@@ -126,6 +130,7 @@ import {
   upsertWordCollection,
   type WordCollectionRecord,
 } from "@/lib/word-collections"
+import { wordCollectionVariableName } from "@/lib/hook-variables"
 import { estimateUgcCost } from "@/lib/ugc-cost"
 import {
   ugcExportId,
@@ -196,6 +201,75 @@ const schedulePatchSchema = z.object({
     .optional()
     .describe("Maximum random schedule offset in minutes, e.g. 10."),
 })
+
+const overlayImagePatchSchema = z.object({
+  enabled: z.boolean().optional(),
+  collectionId: z.string().trim().max(500).optional(),
+  padding: z.number().int().min(0).max(2_000).optional(),
+})
+
+const formattingBlockPatchSchema = z
+  .object({
+    slideCount: z.number().int().min(0).max(100).optional(),
+    slideCountMode: z
+      .enum(["static", "varying", "dynamic"])
+      .optional()
+      .describe(
+        '"dynamic" is accepted as a readable alias for the persisted "varying" mode.'
+      ),
+    slideCountMin: z.number().int().min(1).max(100).optional(),
+    slideCountMax: z.number().int().min(1).max(100).optional(),
+    aspect_ratio: z.enum(["9:16", "4:5", "3:4", "3:2", "1:1"]).optional(),
+    imageGrid: z.enum(["none", "2x2", "1x2", "1x3", "oval-icons"]).optional(),
+    overlay: z.boolean().optional(),
+    aiImageSelection: z.boolean().optional(),
+    noText: z.boolean().optional(),
+    ctaLocation: z.enum(["last", "static"]).optional(),
+    ctaStaticPosition: z.string().trim().max(100).optional(),
+    imageMode: z.enum(["collection", "single_image"]).optional(),
+    overlayImage: overlayImagePatchSchema.optional(),
+    slideOverrides: z
+      .array(
+        z.object({
+          slideIndex: z.number().int().min(1).max(100),
+          contentDirection: z.string().trim().min(1).max(5_000),
+        })
+      )
+      .max(100)
+      .optional(),
+    imageOverrides: z
+      .array(
+        z.object({
+          slideIndex: z.number().int().min(1).max(100),
+          collectionId: z.string().trim().min(1).max(500),
+        })
+      )
+      .max(100)
+      .optional(),
+  })
+  .refine((patch) => Object.keys(patch).length > 0, {
+    message: "Provide at least one formatting field to update.",
+  })
+
+const textItemPatchSchema = z
+  .object({
+    fontSize: z.string().trim().min(1).max(100).optional(),
+    font: z.string().trim().min(1).max(500).optional(),
+    textStyle: z.string().trim().max(500).optional(),
+    textPosition: z.enum(["top", "center", "bottom"]).optional(),
+    textItemWidth: z.string().trim().min(1).max(100).optional(),
+    textAlign: z.enum(["left", "center", "right"]).optional(),
+    textAnchor: z.enum(["padded", "flush"]).optional(),
+    textVerticalAnchor: z.enum(["padded", "flush"]).optional(),
+    wordLengthMin: z.number().int().min(0).max(10_000).optional(),
+    wordLengthMax: z.number().int().min(0).max(10_000).optional(),
+    contentDirection: z.string().trim().max(5_000).optional(),
+    textMode: z.enum(["prompt", "static"]).optional(),
+    staticText: z.string().max(10_000).optional(),
+  })
+  .refine((patch) => Object.keys(patch).length > 0, {
+    message: "Provide at least one text-item field to update.",
+  })
 
 export type LumenClipMcpServices = {
   now: () => Date
@@ -1099,6 +1173,104 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
+    "lumenclip_automation_formatting_update",
+    {
+      title: "Patch one automation formatting block",
+      description:
+        "Updates only the requested hook, body, or CTA formatting block. Omitted fields, all other blocks, the hook pool, publishing settings, and schedule remain unchanged. Dynamic is accepted as an alias for the persisted varying slide-count mode; slideOverrides and imageOverrides are active renderer inputs.",
+      inputSchema: {
+        automationId: z.string().trim().min(1),
+        blockId: z.enum(["hook", "body", "cta"]),
+        patch: formattingBlockPatchSchema,
+        expectedUpdatedAt: z.string().datetime({ offset: true }),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (input) =>
+      mcpResult(
+        await owned(async () => {
+          const record = await services.getAutomationRecord(input.automationId)
+          if (!record) throw new Error("Automation not found")
+          assertExpectedVersion(record.updatedAt, input.expectedUpdatedAt)
+          const formatting = patchFormattingBlock(
+            record.schema.formatting,
+            input.blockId,
+            input.patch
+          )
+          const updated = await services.patchAutomationRecord({
+            id: record.id,
+            schema: { ...record.schema, formatting },
+          })
+          if (!updated) throw new Error("Automation not found")
+          return {
+            automationId: updated.id,
+            updatedAt: updated.updatedAt,
+            block: updated.schema.formatting.find(
+              (block) => block.id === input.blockId
+            ),
+          }
+        })
+      )
+  )
+
+  server.registerTool(
+    "lumenclip_automation_text_item_update",
+    {
+      title: "Patch one automation text item",
+      description:
+        "Updates one existing text item inside the requested hook, body, or CTA block. Omitted text and style fields remain unchanged; this tool intentionally does not create or delete renderer items.",
+      inputSchema: {
+        automationId: z.string().trim().min(1),
+        blockId: z.enum(["hook", "body", "cta"]),
+        textItemId: z.string().trim().min(1),
+        patch: textItemPatchSchema,
+        expectedUpdatedAt: z.string().datetime({ offset: true }),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (input) =>
+      mcpResult(
+        await owned(async () => {
+          const record = await services.getAutomationRecord(input.automationId)
+          if (!record) throw new Error("Automation not found")
+          assertExpectedVersion(record.updatedAt, input.expectedUpdatedAt)
+          const formatting = patchFormattingTextItem(
+            record.schema.formatting,
+            input.blockId,
+            input.textItemId,
+            input.patch
+          )
+          const updated = await services.patchAutomationRecord({
+            id: record.id,
+            schema: { ...record.schema, formatting },
+          })
+          if (!updated) throw new Error("Automation not found")
+          const block = updated.schema.formatting.find(
+            (item) => item.id === input.blockId
+          )
+          return {
+            automationId: updated.id,
+            updatedAt: updated.updatedAt,
+            blockId: input.blockId,
+            textItem: block?.textItems.find(
+              (item) => item.id === input.textItemId
+            ),
+          }
+        })
+      )
+  )
+
+  server.registerTool(
     "lumenclip_automation_delete",
     {
       title: "Delete an automation",
@@ -1236,6 +1408,10 @@ function registerAutomationReadAndRunTools(
           const record = await services.getAutomationRecord(input.automationId)
           if (!record) throw new Error("Automation not found")
           assertExpectedVersion(record.updatedAt, input.expectedUpdatedAt)
+          const tokenValidation = assertValidAutomationHookTokens({
+            hooks: input.hooks,
+            collections: await services.listWordCollections(),
+          })
           const hooks = replaceAutomationHookPool({
             current: automationHookItems(record.schema),
             hooks: input.hooks,
@@ -1247,7 +1423,10 @@ function registerAutomationReadAndRunTools(
             schema: schemaWithAutomationHookItems(record.schema, hooks),
           })
           if (!updated) throw new Error("Automation not found")
-          return serializeAutomationHookPool(updated)
+          return {
+            ...serializeAutomationHookPool(updated),
+            tokenWarnings: tokenValidation.warnings,
+          }
         })
       )
   )
@@ -1285,13 +1464,20 @@ function registerAutomationReadAndRunTools(
           const record = await services.getAutomationRecord(input.automationId)
           if (!record) throw new Error("Automation not found")
           assertExpectedVersion(record.updatedAt, input.expectedUpdatedAt)
+          const tokenValidation = assertValidAutomationHookTokens({
+            hooks: input.hooks,
+            collections: await services.listWordCollections(),
+          })
           const hooks = upsertAutomationHooks({
             current: automationHookItems(record.schema),
             updates: input.hooks,
             now: services.now().toISOString(),
           })
           const updated = await patchAutomationHooks(services, record, hooks)
-          return serializeAutomationHookPool(updated)
+          return {
+            ...serializeAutomationHookPool(updated),
+            tokenWarnings: tokenValidation.warnings,
+          }
         })
       )
   )
@@ -1563,6 +1749,8 @@ function registerCollectionTools(
             ...words.map((collection) => ({
               id: collection.id,
               name: collection.name,
+              variableName: wordCollectionVariableName(collection),
+              token: `[[${wordCollectionVariableName(collection).toUpperCase()}]]`,
               mediaType: "word" as const,
               itemCount: collection.words.length,
               description: collection.description,
@@ -2251,7 +2439,14 @@ function registerOutputAndPublishingTools(
           .optional()
           .describe('Optional generation status filter, e.g. "ready".'),
         publicationState: z
-          .enum(["not_published", "draft", "scheduled", "published", "failed"])
+          .enum([
+            "not_published",
+            "draft",
+            "scheduled",
+            "published",
+            "published_unlinked",
+            "failed",
+          ])
           .optional()
           .describe('Optional publication state filter, e.g. "not_published".'),
         createdFrom: z
@@ -3116,9 +3311,12 @@ function mediaCollectionSummary(collection: StoredImageCollection) {
 }
 
 function variableCollectionDetails(variable: WordCollectionRecord) {
+  const variableName = wordCollectionVariableName(variable)
   return {
     id: variable.id,
     name: variable.name,
+    variableName,
+    token: `[[${variableName.toUpperCase()}]]`,
     description: variable.description,
     values: variable.words,
     valueCount: variable.words.length,
@@ -3212,7 +3410,12 @@ type OutputSummary = {
   automationId?: string
   status: "running" | "ready" | "failed"
   publicationState:
-    "not_published" | "draft" | "scheduled" | "published" | "failed"
+    | "not_published"
+    | "draft"
+    | "scheduled"
+    | "published"
+    | "published_unlinked"
+    | "failed"
   title: string
   previewUri?: string
   createdAt: string
@@ -3398,12 +3601,10 @@ function publicationState(
   publications: PostFastPostRecord[],
   manuallyPublishedAt?: string
 ): OutputSummary["publicationState"] {
-  if (
-    manuallyPublishedAt ||
-    publications.some((item) => item.status === "published")
-  ) {
+  if (publications.some((item) => item.status === "published")) {
     return "published"
   }
+  if (manuallyPublishedAt) return "published_unlinked"
   if (publications.some((item) => item.status === "scheduled"))
     return "scheduled"
   if (
@@ -4521,6 +4722,82 @@ function assertExpectedVersion(actual: string, expected?: string) {
       `Automation changed since ${expected}; current updatedAt is ${actual}`
     )
   }
+}
+
+function patchFormattingBlock(
+  formatting: AutomationFormatSection[],
+  blockId: AutomationFormatSectionId,
+  patch: z.infer<typeof formattingBlockPatchSchema>
+) {
+  const current = formatting.find((block) => block.id === blockId)
+  if (!current) throw new Error(`Formatting block not found: ${blockId}`)
+  const slideCountMin = patch.slideCountMin ?? current.slideCountMin
+  const slideCountMax = patch.slideCountMax ?? current.slideCountMax
+  if (
+    slideCountMin !== undefined &&
+    slideCountMax !== undefined &&
+    slideCountMin > slideCountMax
+  ) {
+    throw new Error("slideCountMin cannot be greater than slideCountMax")
+  }
+  const { slideCountMode, overlayImage, ...fields } = patch
+  const updated: AutomationFormatSection = {
+    ...current,
+    ...fields,
+    ...(slideCountMode
+      ? {
+          slideCountMode:
+            slideCountMode === "dynamic"
+              ? ("varying" as const)
+              : slideCountMode,
+        }
+      : {}),
+    ...(overlayImage
+      ? {
+          overlayImage: {
+            enabled:
+              overlayImage.enabled ?? current.overlayImage?.enabled ?? false,
+            collectionId:
+              overlayImage.collectionId ??
+              current.overlayImage?.collectionId ??
+              undefined,
+            padding:
+              overlayImage.padding ?? current.overlayImage?.padding ?? 20,
+          },
+        }
+      : {}),
+  }
+  return formatting.map((block) => (block.id === blockId ? updated : block))
+}
+
+function patchFormattingTextItem(
+  formatting: AutomationFormatSection[],
+  blockId: AutomationFormatSectionId,
+  textItemId: string,
+  patch: z.infer<typeof textItemPatchSchema>
+) {
+  const current = formatting.find((block) => block.id === blockId)
+  if (!current) throw new Error(`Formatting block not found: ${blockId}`)
+  const textItem = current.textItems.find((item) => item.id === textItemId)
+  if (!textItem) {
+    throw new Error(`Text item not found in ${blockId}: ${textItemId}`)
+  }
+  const wordLengthMin = patch.wordLengthMin ?? textItem.wordLengthMin
+  const wordLengthMax = patch.wordLengthMax ?? textItem.wordLengthMax
+  if (wordLengthMin > wordLengthMax) {
+    throw new Error("wordLengthMin cannot be greater than wordLengthMax")
+  }
+  const updated: AutomationTextItem = { ...textItem, ...patch }
+  return formatting.map((block) =>
+    block.id === blockId
+      ? {
+          ...block,
+          textItems: block.textItems.map((item) =>
+            item.id === textItemId ? updated : item
+          ),
+        }
+      : block
+  )
 }
 
 function assertTimeZone(value: string) {

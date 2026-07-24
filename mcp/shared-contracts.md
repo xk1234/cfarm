@@ -155,8 +155,9 @@ Read-only and idempotent. Scope: `lumenclip:read`.
 
 Input: required `variableId`, accepting a stable variable ID or exact name.
 
-Output: `variable` with `id`, `name`, optional `description`, complete
-`values[]`, `valueCount`, `source`, timestamps, and `resourceUri`.
+Output: `variable` with CRUD `id`, expansion `variableName`, exact `token`,
+display `name`, optional `description`, complete `values[]`, `valueCount`,
+`source`, timestamps, and `resourceUri`.
 
 ### `lumenclip_variable_save`
 
@@ -189,6 +190,8 @@ Output: paginated output summaries containing `id`, `output_type`,
 `created_at`, `resource_uri`, and `analytics`. The analytics summary states
 whether metrics exist, aggregates the latest snapshot per publication, reports
 followers gained, and names the appropriate detailed report tool.
+`publication_state=published_unlinked` means the output carries a manual
+published timestamp without a canonical publication record.
 
 ### `lumenclip_operations_list`
 

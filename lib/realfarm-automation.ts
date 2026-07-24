@@ -343,6 +343,7 @@ export type AutomationSchema = {
   generation_lead_minutes?: number
   hook_slots?: Record<string, string>
   hook_no_duplicate_slots?: boolean
+  distinct_variable_draws?: boolean
   web_search_enabled?: boolean
   reuse_policy?: AutomationReusePolicy
   content_strategy?: AutomationContentStrategy
@@ -606,7 +607,8 @@ export function mergeAutomationSchema(
       ),
     },
     hook_slots: normalizeHookSlots(normalizedDraft.hook_slots),
-    hook_no_duplicate_slots: Boolean(normalizedDraft.hook_no_duplicate_slots),
+    hook_no_duplicate_slots: true,
+    distinct_variable_draws: true,
     web_search_enabled: Boolean(normalizedDraft.web_search_enabled),
     reuse_policy: normalizeReusePolicy(normalizedDraft.reuse_policy),
     content_strategy: normalizeContentStrategy(
@@ -713,7 +715,8 @@ export function normalizeAutomationSchema(
       )
     ),
     hook_slots: normalizeHookSlots(source.hook_slots),
-    hook_no_duplicate_slots: Boolean(source.hook_no_duplicate_slots),
+    hook_no_duplicate_slots: true,
+    distinct_variable_draws: true,
     web_search_enabled: Boolean(source.web_search_enabled),
     reuse_policy: normalizeReusePolicy(source.reuse_policy),
     content_strategy: normalizeContentStrategy(source.content_strategy),

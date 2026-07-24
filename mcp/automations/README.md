@@ -1,8 +1,8 @@
 # Automation MCP tools
 
 > Discovery, templates, creation/deletion, complete schema reads/replacement,
-> granular hook management, run-plan inspection, safe updates, and manual runs
-> are implemented. Diff preview remains proposed.
+> granular formatting and hook management, run-plan inspection, safe updates,
+> and manual runs are implemented. Diff preview remains proposed.
 
 These tools correspond to the Automations area in the app. They use one
 normalized automation contract across slideshows, videos, AI UGC, X, Threads, and other
@@ -57,6 +57,36 @@ Complete schema replacement with required `automationId`,
 `automation_get` first and preserve desired fields. The backend normalizes the
 replacement before persistence.
 
+Prefer the two patch tools below for formatting changes. They mutate one
+addressable object and do not normalize or rewrite unrelated schema fields.
+
+### `lumenclip_automation_formatting_update`
+
+Patches exactly one stable formatting block (`hook`, `body`, or `cta`) with a
+required optimistic-lock `expectedUpdatedAt`. Omitted fields remain unchanged.
+The patch supports:
+
+- slide count, mode, minimum, and maximum (`dynamic` is accepted as an alias
+  for the stored `varying` mode);
+- aspect ratio, image grid/mode, text visibility, overlay, and AI image
+  selection;
+- CTA position and overlay-image configuration; and
+- complete replacement of that block's functional `slideOverrides` or
+  `imageOverrides` array.
+
+`slideOverrides` changes the first text item's content direction on an indexed
+slide. `imageOverrides` changes that indexed slide's collection. Both are
+consumed by local and scheduled cloud generation; they are not vestigial.
+
+### `lumenclip_automation_text_item_update`
+
+Patches one existing `textItemId` inside one stable formatting block, also with
+required `expectedUpdatedAt`. It supports font/style/placement/width/alignment,
+anchors, word-length bounds, content direction, text mode, and static text.
+The tool returns the updated item. Text-item create/delete is intentionally not
+exposed: no current generation case requires it, while changing renderer item
+cardinality has a wider compatibility surface.
+
 ### `lumenclip_automation_hooks_get`
 
 Read-only and idempotent.
@@ -83,6 +113,13 @@ Output: the updated canonical pool and a fresh duplicate analysis. This surface
 supports adding, editing, enabling, disabling, pruning, and deduplicating hooks
 without changing the rest of the automation schema.
 
+`automation_hooks_update` and `automation_hook_upsert` validate every submitted
+`[[TOKEN]]` against owner variable collections and runtime variables before
+writing. Unknown and legacy single-bracket placeholders are rejected with a
+close-match suggestion when available. A free `[[NUMBER]]` draw is accepted
+with a warning recommending `[[SLIDE_COUNT]]` when the hook's promised count
+must equal the generated body count.
+
 Prefer the granular tools when full replacement is unnecessary:
 
 - `lumenclip_automation_hook_upsert` adds or edits hooks by stable ID.
@@ -101,6 +138,28 @@ historically published deleted hooks remain visible.
 hook ID/template/substitutions, media selections, complete slides, strategy,
 and reuse warnings. Debug prompt payloads are omitted unless
 `includeDebug: true`.
+
+### Hook variables and slide-count behavior
+
+`[[SLIDE_COUNT]]` is a runtime variable resolved from the body count selected
+for that run. It has no backing word collection. Body blocks persist
+`slideCountMode: "varying"` plus `slideCountMin`/`slideCountMax`; the MCP
+formatting patch also accepts the clearer input alias `"dynamic"`.
+
+Repeated uses of one variable in a hook are distinct by default. The normalized
+schema exposes `distinct_variable_draws: true`; for example,
+`[[ZODIAC]] versus [[ZODIAC]]` cannot resolve both positions to the same sign.
+The older `hook_no_duplicate_slots` field remains a compatibility alias.
+
+The canonical hook source is `schema.hooks[]`. `prompt_formatting.narrative` is
+generation guidance only and is never silently promoted into the pool. Use the
+granular hook tools to promote a narrative phrase into an enabled hook.
+
+`automation.status` is the lifecycle state. `schema.schedule.paused` is its
+scheduler gate, while `posting_mode` controls what happens after generation
+(`manual`, `review`, or `auto`). The top-level `schedule` returned by
+`automation_get` is a camelCase view derived from `schema.schedule`, not a
+second persisted schedule.
 
 ## Preview and save
 

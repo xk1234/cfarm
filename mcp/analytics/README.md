@@ -46,14 +46,22 @@ roadmap remain proposed.
 ## `lumenclip_hook_performance`
 
 Read-only hook-attributed analytics. Input is `automationId` plus `days`
-(`1..3650`, default `90`). The tool joins persisted run-plan `hookId` values to
-confirmed publication records and the latest metric snapshots.
+(`1..3650`, default `90`). The tool joins persisted run-plan `hookId` values
+through both publication `sourceId` and snapshot `sourceId`. A Studio snapshot
+can therefore recover attribution when a legacy output is missing its embedded
+publication array.
 
 The `performance` array includes every canonical hook and any historically
 published hook that was later deleted. Rows return enabled state, publish
 count, views, shares, saves, share rate, provider list, last publication time,
 and mean slide-1-to-2 retention when a Studio snapshot captured both values.
 Uncaptured metrics are `null` or absent rather than fabricated.
+
+The result also includes `attribution`, `dataWarnings[]`, and `dataWarning`.
+Published posts or outputs that cannot be joined are reported explicitly;
+callers can distinguish “no published posts” from “published data exists but
+the join is incomplete.” `snapshotRecoveredPosts` states how many rows were
+recovered without a publication record.
 
 ## TikTok Studio slideshow analytics
 

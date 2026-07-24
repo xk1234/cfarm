@@ -14,6 +14,7 @@ type HookExpansionOptions = {
   caseMode?: HookCaseMode
   now?: Date
   timeZone?: string
+  slideCount?: number
 }
 
 const slotPattern = /\[\[([a-zA-Z0-9_-]+)\]\]|\{([a-zA-Z0-9_-]+)\}/g
@@ -62,6 +63,7 @@ export function expandHook(
         const runtimeValue = runtimeHookVariableValue(baseSlotName, {
           now: options.now,
           timeZone: options.timeZone,
+          slideCount: options.slideCount,
         })
         if (runtimeValue !== undefined) {
           substitutions[slotName] = runtimeValue
@@ -157,6 +159,7 @@ export function expandAllHookCombinations(
     const runtimeValue = runtimeHookVariableValue(baseName, {
       now: options.now,
       timeZone: options.timeZone,
+      slideCount: options.slideCount,
     })
     if (runtimeValue !== undefined) {
       return {
