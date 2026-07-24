@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  canonicalTikTokPostUrl,
   captureOwnerId,
   createTikTokStudioDeviceAuthorization,
   mergeTikTokStudioParsedCaptures,
@@ -11,6 +12,29 @@ import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
 import type { PostFastPostRecord } from "@/lib/postfast-posts"
 
 describe("TikTok Studio analytics parser", () => {
+  it("builds canonical public post URLs from captured Studio metadata", () => {
+    expect(
+      canonicalTikTokPostUrl({
+        externalPostId: "7662360324313517330",
+        authorUsername: "@horoiq",
+        photoCount: 9,
+      })
+    ).toBe("https://www.tiktok.com/@horoiq/photo/7662360324313517330")
+    expect(
+      canonicalTikTokPostUrl({
+        externalPostId: "7662360324313517331",
+        authorUsername: "horoiq",
+      })
+    ).toBe("https://www.tiktok.com/@horoiq/video/7662360324313517331")
+    expect(
+      canonicalTikTokPostUrl({
+        externalPostId: "not-a-post",
+        authorUsername: "Display Name",
+        photoCount: 4,
+      })
+    ).toBeUndefined()
+  })
+
   it("parses overview and per-slide photo metrics from Studio insight JSON", () => {
     const parsed = parseTikTokStudioInsightPayload({
       data: {
@@ -274,9 +298,9 @@ describe("TikTok Studio companion authorization", () => {
       })
 
       expect(captureOwnerId(authorization.captureToken)).toBe("owner-123")
-      expect(
-        Date.parse(authorization.expiresAt) - Date.now()
-      ).toBeGreaterThan(360 * 24 * 60 * 60 * 1000)
+      expect(Date.parse(authorization.expiresAt) - Date.now()).toBeGreaterThan(
+        360 * 24 * 60 * 60 * 1000
+      )
     } finally {
       process.env.TIKTOK_STUDIO_CAPTURE_SECRET = previous
     }

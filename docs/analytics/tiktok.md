@@ -48,6 +48,12 @@ Chrome companion without displaying or copying a pairing code. The companion
 opens **Overview**, then optionally **Viewers** and **Engagement**. A validated
 Overview is saved immediately; later sections enrich the same snapshot.
 
+Every accepted Overview also normalizes and saves the canonical public TikTok
+post URL using the captured username, platform post ID, and post type:
+`/@username/photo/{postId}` for photo posts and
+`/@username/video/{postId}` for videos. This updates both the publication and
+its Studio metric snapshot, including when a local capture is mirrored to cloud.
+
 ## Account-wide Studio sync
 
 The TikTok platform page also provides **Sync TikTok Studio**. It creates one
@@ -72,6 +78,11 @@ snapshot available to the public MCP without giving the Chrome companion an
 Appwrite API key. `TIKTOK_STUDIO_CLOUD_ORIGIN` selects the cloud deployment and
 `TIKTOK_STUDIO_CAPTURE_SECRET` authenticates the server-to-server write. Cloud
 captures skip the mirror because they are already in the authoritative store.
+
+To repair older Studio records after importing or restoring data, preview the
+idempotent backfill with
+`pnpm tiktok-studio:backfill-urls -- --env-file .env --dry-run`, then omit
+`--dry-run` to apply it. Use `.env.local` for the shared local Appwrite stack.
 
 The companion observes TikTok's structured insight responses in the logged-in
 tab. It does not read, transmit, or persist TikTok cookies, passwords, local

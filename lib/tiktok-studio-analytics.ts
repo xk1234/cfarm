@@ -23,6 +23,7 @@ import {
 import {
   getPostFastPostRecord,
   listPostFastPostRecords,
+  patchPostFastPostRecord,
   type PostFastPostRecord,
 } from "@/lib/postfast-posts"
 import { APPWRITE_API_KEY } from "@/lib/appwrite"
@@ -474,6 +475,18 @@ export async function linkTikTokStudioAnalyticsImport(input: {
       "The selected LumenClip post no longer matches this TikTok post"
     )
   }
+  const canonicalReleaseUrl = canonicalTikTokPostUrl({
+    externalPostId: record.externalPostId,
+    authorUsername: record.capture.overview.authorUsername,
+    photoCount: record.capture.overview.photoCount,
+  })
+  const linkedPublication =
+    canonicalReleaseUrl && publication.releaseUrl !== canonicalReleaseUrl
+      ? ((await patchPostFastPostRecord({
+          id: publication.id,
+          releaseUrl: canonicalReleaseUrl,
+        })) ?? publication)
+      : publication
   const now = input.now ?? new Date()
   const linkedSnapshot = record.linkedSnapshotId
     ? await getMetricSnapshot(record.linkedSnapshotId)
@@ -486,7 +499,7 @@ export async function linkTikTokStudioAnalyticsImport(input: {
   const snapshot = studioCaptureToMetricSnapshot({
     id: snapshotId,
     capturedAt,
-    publication,
+    publication: linkedPublication,
     importRecord: record,
     existing,
   })
@@ -499,6 +512,26 @@ export async function linkTikTokStudioAnalyticsImport(input: {
   }
   await saveImport(linked)
   return { import: linked, snapshot }
+}
+
+export function canonicalTikTokPostUrl(input: {
+  externalPostId: string
+  authorUsername?: string
+  photoCount?: number
+}) {
+  const externalPostId = clean(input.externalPostId)
+  const authorUsername = clean(input.authorUsername).replace(/^@+/, "")
+  if (
+    !/^\d+$/.test(externalPostId) ||
+    !/^[A-Za-z0-9._]{2,24}$/.test(authorUsername)
+  ) {
+    return undefined
+  }
+  const postType =
+    Number.isFinite(input.photoCount) && Number(input.photoCount) > 0
+      ? "photo"
+      : "video"
+  return `https://www.tiktok.com/@${authorUsername}/${postType}/${externalPostId}`
 }
 
 export async function inspectTikTokStudioAnalyticsBatch(batchId: string) {
@@ -783,7 +816,11 @@ function studioCaptureToMetricSnapshot(input: {
     thumbnailUrl: input.existing?.thumbnailUrl,
     releaseUrl:
       input.publication.releaseUrl ??
-      `https://www.tiktok.com/photo/${input.importRecord.externalPostId}`,
+      canonicalTikTokPostUrl({
+        externalPostId: input.importRecord.externalPostId,
+        authorUsername: overview.authorUsername,
+        photoCount: overview.photoCount,
+      }),
     sourceType: input.publication.sourceType,
     sourceId: input.publication.sourceId,
     contentType:

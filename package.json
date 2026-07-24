@@ -37,6 +37,7 @@
     "docs:hub:sync": "node scripts/sync-docs-hub.mjs",
     "docs:hub:check": "node scripts/sync-docs-hub.mjs --check",
     "tiktok-studio:package": "node scripts/package-tiktok-studio-extension.mjs",
+    "tiktok-studio:backfill-urls": "NODE_OPTIONS='--conditions=react-server' tsx scripts/backfill-tiktok-canonical-urls.ts",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit"
   },

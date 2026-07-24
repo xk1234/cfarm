@@ -5,6 +5,7 @@ import {
   upsertMetricSnapshot,
   type PostFastMetricSnapshot,
 } from "@/lib/postfast-metric-snapshots"
+import { patchPostFastPostRecord } from "@/lib/postfast-posts"
 import { withSystemOwner } from "@/lib/system-owner-context"
 import {
   authorizeTikTokStudioCloudSync,
@@ -22,6 +23,7 @@ const snapshotSchema = z
     integrationId: z.string().trim().min(1),
     provider: z.string().trim().min(1),
     capturedAt: z.string().datetime({ offset: true }),
+    releaseUrl: z.string().url().optional(),
     metrics: z.record(z.string(), z.number()),
     latestMetric: z.record(z.string(), z.unknown()),
     rawMetrics: z.record(z.string(), z.number()),
@@ -54,17 +56,36 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
-    const snapshot = await withSystemOwner(ownerId, () =>
-      upsertMetricSnapshot(
-        parsed.data.snapshot as unknown as PostFastMetricSnapshot
-      )
+    const { snapshot, publicationUpdated } = await withSystemOwner(
+      ownerId,
+      async () => {
+        const snapshot = await upsertMetricSnapshot(
+          parsed.data.snapshot as unknown as PostFastMetricSnapshot
+        )
+        const publication = snapshot.releaseUrl
+          ? await patchPostFastPostRecord({
+              id: snapshot.postId,
+              releaseUrl: snapshot.releaseUrl,
+            })
+          : null
+        return {
+          snapshot,
+          publicationUpdated: Boolean(publication),
+        }
+      }
     )
-    return NextResponse.json({ synced: true, snapshotId: snapshot.id })
+    return NextResponse.json({
+      synced: true,
+      snapshotId: snapshot.id,
+      publicationUpdated,
+    })
   } catch (error) {
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : "Cloud analytics sync failed",
+          error instanceof Error
+            ? error.message
+            : "Cloud analytics sync failed",
       },
       { status: 500 }
     )

@@ -20,6 +20,11 @@ stored.
 7. Each validated Overview is saved automatically. Later Viewers and Engagement
    responses enrich the same snapshot.
 
+The Overview response includes the platform post ID, creator username, and
+photo/video shape. LumenClip uses those fields to persist the canonical public
+TikTok URL on both the linked publication and analytics snapshot; the extension
+does not scrape a rendered anchor or require the user to paste the link.
+
 The extension keeps a one-year, capture-only device credential. It polls for
 pending jobs, while every individual job remains short-lived and explicitly
 allowlists the linked TikTok post IDs selected by LumenClip. Clearing the companion
