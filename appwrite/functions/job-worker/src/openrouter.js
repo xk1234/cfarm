@@ -12,6 +12,7 @@ const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
  *   - `minItems` may only be 0 or 1
  *   - `maxItems` is unsupported
  *   - `minimum` / `maximum` are unsupported on numeric types
+ *   - large `enum` arrays can make the compiled schema too complex
  * Strip them at the request boundary so callers can keep expressing intent in
  * the schema, and rely on the prompt plus post-generation validation to enforce
  * the real bounds.
@@ -24,6 +25,8 @@ export function sanitizeStructuredSchema(schema) {
         return schema;
     const next = {};
     for (const [key, value] of Object.entries(schema)) {
+        if (key === "enum" && Array.isArray(value))
+            continue;
         if (key === "minItems" && typeof value === "number" && value > 1) {
             next[key] = 1;
             continue;

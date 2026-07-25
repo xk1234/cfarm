@@ -1,5 +1,6 @@
 import { clean } from "@/lib/guards"
 import { defaultSlideshowTextModel } from "@/lib/realfarm-generation-model-registry"
+import { sanitizeStructuredSchema } from "@/lib/openrouter"
 import {
   buildTempSlideStructuredOutputSchema,
   buildTempSlideUserPrompt,
@@ -79,7 +80,9 @@ export function slideshowTextGenerationPayload(input: {
       json_schema: {
         name: "temp_slide_testing_text",
         strict: true,
-        schema: buildTempSlideStructuredOutputSchema(placeholders),
+        schema: sanitizeStructuredSchema(
+          buildTempSlideStructuredOutputSchema(placeholders)
+        ),
       },
     },
   }

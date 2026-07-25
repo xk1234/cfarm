@@ -24,6 +24,7 @@ export type OpenRouterChatResult = {
  *   - `minItems` may only be 0 or 1
  *   - `maxItems` is unsupported
  *   - `minimum` / `maximum` are unsupported on numeric types
+ *   - large `enum` arrays can make the compiled schema too complex
  * Strip them at the request boundary so callers can keep expressing intent in
  * the schema, and rely on the prompt plus post-generation validation to enforce
  * the real bounds.
@@ -35,6 +36,7 @@ export function sanitizeStructuredSchema<T>(schema: T): T {
   if (!schema || typeof schema !== "object") return schema
   const next: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(schema as object)) {
+    if (key === "enum" && Array.isArray(value)) continue
     if (key === "minItems" && typeof value === "number" && value > 1) {
       next[key] = 1
       continue

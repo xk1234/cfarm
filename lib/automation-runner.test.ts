@@ -18,6 +18,7 @@ import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import {
   deleteAssetFromAppwrite,
   mirrorAssetToAppwrite,
+  readAssetBytes,
 } from "@/lib/asset-storage"
 import { VITEST_OWNER_ID } from "@/lib/test-helpers"
 import {
@@ -2491,6 +2492,180 @@ describe("runDueAutomations", () => {
         scheduledFor: "2026-07-03T15:00:00.000Z",
       },
     ])
+  })
+
+  it("runs the real slideshow pipeline with sanitized schemas, legible glyphs, and idempotent persistence", async () => {
+    const requests: Record<string, unknown>[] = []
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      expect(String(input)).toContain("openrouter.ai")
+      const request = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>
+      requests.push(request)
+      const name = (
+        request.response_format as {
+          json_schema?: { name?: string; schema?: Record<string, unknown> }
+        }
+      )?.json_schema?.name
+      if (name === "slide_visual_concepts") {
+        return Response.json({
+          choices: [{ message: { content: '{"slides":[{"concepts":["night sky"]},{"concepts":["wide letters"]},{"concepts":["follow sign"]}]}' } }],
+        })
+      }
+      if (name === "slideshow_image_match") {
+        return Response.json({
+          choices: [{ message: { content: '{"selectedImageIndex":0}' } }],
+        })
+      }
+      const schema = (
+        request.response_format as {
+          json_schema?: {
+            schema?: {
+              properties?: {
+                text?: { required?: string[] }
+              }
+            }
+          }
+        }
+      )?.json_schema?.schema
+      const keys = schema?.properties?.text?.required ?? []
+      return Response.json({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                title: "Glyph regression",
+                caption: "Real rendering",
+                hashtags: "#regression",
+                text: Object.fromEntries(keys.map((key) => [key, "WWWWWWWW"])),
+              }),
+            },
+          },
+        ],
+      })
+    }) as typeof fetch
+
+    const automation = createLocalAutomationRecord({
+      name: "Full pipeline glyph regression",
+      overrides: { status: "paused" },
+    })
+    automation.schema.formatting = automation.schema.formatting.map((section) =>
+      section.id === "hook"
+        ? {
+            ...section,
+            textItems: [
+              {
+                ...section.textItems[0],
+                contentDirection: "........",
+                fontSize: "48px",
+              },
+            ],
+          }
+        : section.id === "body"
+          ? {
+              ...section,
+              slideCount: 1,
+              aiImageSelection: true,
+              textItems: [
+                {
+                  ...section.textItems[0],
+                  id: "wide-glyphs",
+                  contentDirection: "wide glyph test",
+                  fontSize: "48px",
+                },
+              ],
+            }
+          : {
+              ...section,
+              slideCount: 1,
+              textItems: section.textItems.map((item) => ({
+                ...item,
+                textMode: "static" as const,
+                staticText: "follow",
+              })),
+            }
+    )
+    automation.schema.prompt_formatting.num_of_slides = 3
+    selectDailyScenesCollection(automation)
+    await upsertAutomationRecords({
+      rootDir: automationRootDir,
+      records: [automation],
+    })
+    await writeImageCollections([
+      {
+        image_link: "/api/local-assets/image-collections/files/glyph-a.png",
+        caption: "night sky",
+      },
+      {
+        image_link: "/api/local-assets/image-collections/files/glyph-b.png",
+        caption: "wide letters",
+      },
+      {
+        image_link: "/api/local-assets/image-collections/files/glyph-c.png",
+        caption: "follow sign",
+      },
+    ])
+
+    const run = () =>
+      runDueAutomations({
+        automationRootDir,
+        runRootDir,
+        postfastRootDir: dataDir,
+        usageLedgerRootDir,
+        wordCollectionRootDir,
+        imageCollectionDbPath,
+        automationId: automation.id,
+        force: true,
+        forcedScheduledFor: new Date("2026-07-25T00:00:00.000Z"),
+        now: new Date("2026-07-25T00:00:00.000Z"),
+        random: () => 0,
+        fetchImpl,
+      })
+
+    const first = await run()
+    expect(first.created[0].plan.slides.map((slide) => slide.role)).toEqual([
+      "hook",
+      "content",
+      "cta",
+    ])
+    expect(first.created[0].outputImages).toHaveLength(3)
+    expect(first.created[0].plan.slides[1].imageUrl).toMatch(/glyph-b\.png$/)
+
+    const schemas = requests.flatMap((request) => {
+      const format = request.response_format as {
+        json_schema?: { schema?: unknown }
+      }
+      return format?.json_schema?.schema ? [format.json_schema.schema] : []
+    })
+    expect(schemas.length).toBeGreaterThan(0)
+    for (const schema of schemas) {
+      const serialized = JSON.stringify(schema)
+      expect(serialized).not.toContain('"enum"')
+      expect(serialized).not.toContain('"maxItems"')
+      expect(serialized).not.toContain('"minimum"')
+      expect(serialized).not.toContain('"maximum"')
+      expect(serialized).not.toMatch(/"minItems":(?:[2-9]|\d{2,})/)
+    }
+
+    const sharp = (await import("sharp")).default
+    const ink = async (url: string) => {
+      const assetPath = path.join(dataDir, url.replace(/^\/api\/local-assets\//, ""))
+      const rgba = await sharp(await readAssetBytes(assetPath)).raw().toBuffer()
+      let count = 0
+      for (let index = 0; index < rgba.length; index += 4) {
+        if (rgba[index] > 128 && rgba[index + 1] > 128 && rgba[index + 2] > 128) {
+          count++
+        }
+      }
+      return count
+    }
+    const outputImages = first.created[0].outputImages!
+    const dotInk = await ink(outputImages[0])
+    const wideInk = await ink(outputImages[1])
+    expect(dotInk).toBeGreaterThan(0)
+    expect(wideInk).toBeGreaterThan(dotInk * 1.8)
+
+    await expect(run()).resolves.toMatchObject({
+      created: [expect.objectContaining({ status: "succeeded" })],
+    })
   })
 })
 
