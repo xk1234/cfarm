@@ -26,11 +26,15 @@ import { expandAllHookCombinations } from "./hook-expansion.js"
 import { applyResolvedHookCase } from "./hook-casing.js"
 import {
   llmSlopMatches,
-  llmSlopPromptLine,
   llmSlopViolations,
 } from "./llm-slop.js"
 import { defaultPostFastProviderControls as providerControls } from "./postfast-provider-controls.js"
 import { openRouterModelForUseCase } from "./realfarm-generation-model-registry.js"
+import {
+  buildScheduledSlideshowPrompt,
+  placeholderWordRangeError,
+  styleRequestsLowercase,
+} from "./temp-slide-testing-shared.js"
 
 // Point fontconfig at the bundled TTF before the first sharp() SVG raster.
 // The Appwrite node-22 (Alpine) runtime ships no fonts and no default
@@ -691,7 +695,7 @@ function applyHookCase(text, promptFormatting) {
     value,
     promptFormatting?.hook_case || "mixed"
   )
-  return /all\s+lowercase/i.test(promptFormatting?.style || "")
+  return styleRequestsLowercase(promptFormatting?.style)
     ? cased.toLowerCase()
     : cased
 }
@@ -790,62 +794,31 @@ function specForSection(schema, section, role, index, collectionOverride) {
 async function generateText({ schema, automation, hook, placeholders }) {
   const apiKey = clean(process.env.OPENROUTER_API_KEY)
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-  const properties = Object.fromEntries(
-    placeholders.map((placeholder) => [
-      placeholder.id,
-      {
-        type: "string",
-        minLength: 1,
-        description: `${placeholder.contentDirection || "Write slide copy"}. ${placeholder.wordLengthMin || 1}-${placeholder.wordLengthMax || 30} words.`,
-      },
-    ])
-  )
+  const tone = clean(schema.tone?.value) || "Conversational & Relatable"
+  const style =
+    clean(schema.prompt_formatting?.style) ||
+    "Use the automation's native slideshow style."
+  // The prompt bundle is the SAME shared builder used by the Next app
+  // (lib/slideshow-text-generation-payload.ts → buildScheduledSlideshowPrompt),
+  // synced here via scripts/sync-function-shared.mjs. The raw
+  // `prompt_formatting.narrative` template dump is deliberately NOT passed —
+  // it contains unexpanded [[slot]] tokens and is the largest source of prompt
+  // noise drowning out the Tone line (see lib/automation-runner.ts).
+  const bundle = buildScheduledSlideshowPrompt({
+    automationName: automation.name,
+    hook,
+    tone,
+    style,
+    placeholders,
+  })
   const responseFormat = {
     type: "json_schema",
     json_schema: {
       name: "scheduled_slideshow_text",
       strict: true,
-      schema: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          title: { type: "string", minLength: 1 },
-          caption: { type: "string", minLength: 1 },
-          hashtags: {
-            type: "array",
-            minItems: 3,
-            maxItems: 5,
-            items: { type: "string" },
-          },
-          text: {
-            type: "object",
-            additionalProperties: false,
-            properties,
-            required: Object.keys(properties),
-          },
-        },
-        required: ["title", "caption", "hashtags", "text"],
-      },
+      schema: bundle.schema,
     },
   }
-  const system = [
-    "You fill metadata and text placeholders for TikTok slideshow posts. The selected hook is the source of truth. Every body slide must directly develop that exact hook. Return only JSON matching the schema. Never invent studies, statistics, personal experience, results, testimonials, or sources.",
-    llmSlopPromptLine(),
-  ].join("\n")
-  const user = [
-    `Automation: ${automation.name}`,
-    `Hook: ${hook}`,
-    `Tone: ${schema.tone?.value || "Conversational & Relatable"}`,
-    `Style: ${schema.prompt_formatting?.style || "native social slideshow"}`,
-    `Narrative direction: ${schema.prompt_formatting?.narrative || ""}`,
-    "Fill every placeholder. Follow its direction and word range. Use 3-5 broad niche hashtags.",
-    ...placeholders.map(
-      (item) =>
-        `- ${item.id}: ${item.contentDirection || "write a specific point"}; ${item.wordLengthMin || 1}-${item.wordLengthMax || 30} words`
-    ),
-  ]
-    .filter(Boolean)
-    .join("\n")
   let lastError
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const model = defaultTextModel
@@ -868,56 +841,33 @@ async function generateText({ schema, automation, hook, placeholders }) {
               : []),
           ],
           messages: [
-            { role: "system", content: system },
+            { role: "system", content: bundle.system },
             {
               role: "user",
               content:
                 attempt === 0
-                  ? user
-                  : `${user}\nThe prior attempt failed validation. Return the complete corrected object.`,
+                  ? bundle.user
+                  : `${bundle.user}\nThe previous JSON was invalid. Correct only the reported problems and return the complete JSON object again.\nValidation errors:\n- ${errorMessage(lastError).replaceAll("; ", "\n- ")}`,
             },
           ],
           response_format: responseFormat,
         },
       })
       const parsed = parseJsonContent(payload.choices?.[0]?.message?.content)
-      const validationErrors = []
-      if (!clean(parsed?.title) || !clean(parsed?.caption)) {
-        validationErrors.push("OpenRouter returned empty slideshow metadata")
-      }
-      const hashtags = Array.isArray(parsed?.hashtags)
-        ? parsed.hashtags.map(clean).filter(Boolean)
-        : []
-      if (hashtags.length < 3 || hashtags.length > 5) {
-        validationErrors.push("OpenRouter must return 3-5 slideshow hashtags")
-      }
-      for (const placeholder of placeholders) {
-        if (!clean(parsed?.text?.[placeholder.id])) {
-          validationErrors.push(`OpenRouter omitted ${placeholder.id}`)
-        }
-      }
-      const generatedText = [
-        clean(parsed?.title),
-        clean(parsed?.caption),
-        ...placeholders.map((placeholder) =>
-          clean(parsed?.text?.[placeholder.id])
-        ),
-      ].join("\n")
-      const hookLower = hook.toLowerCase()
-      const slopMatches = llmSlopMatches(generatedText)
-      const slopViolations = llmSlopViolations(generatedText)
-      for (const [index, match] of slopMatches.entries()) {
-        if (hookLower && hookLower.includes(match.toLowerCase())) continue
-        validationErrors.push(slopViolations[index])
-      }
+      const validationErrors = validateScheduledSlideshowText(
+        parsed,
+        placeholders,
+        hook
+      )
       if (validationErrors.length) {
         throw new Error(validationErrors.join("; "))
       }
-      const lowercase = /all\s+lowercase/i.test(
-        schema.prompt_formatting?.style || ""
-      )
+      const lowercase = styleRequestsLowercase(style)
       const maybeLower = (value) =>
         lowercase ? clean(value).toLowerCase() : clean(value)
+      const hashtags = Array.isArray(parsed?.hashtags)
+        ? parsed.hashtags.map(clean).filter(Boolean)
+        : []
       return {
         title: maybeLower(parsed.title),
         caption: maybeLower(parsed.caption),
@@ -940,6 +890,43 @@ async function generateText({ schema, automation, hook, placeholders }) {
   throw new Error(
     `OpenRouter did not return complete slideshow text: ${errorMessage(lastError)}`
   )
+}
+
+function validateScheduledSlideshowText(parsed, placeholders, hook) {
+  const errors = []
+  if (!clean(parsed?.title) || !clean(parsed?.caption)) {
+    errors.push("OpenRouter returned empty slideshow metadata")
+  }
+  const hashtags = Array.isArray(parsed?.hashtags)
+    ? parsed.hashtags.map(clean).filter(Boolean)
+    : []
+  if (hashtags.length < 3 || hashtags.length > 5) {
+    errors.push("OpenRouter must return 3-5 slideshow hashtags")
+  }
+  const generatedText = [
+    clean(parsed?.title),
+    clean(parsed?.caption),
+    ...placeholders.map((placeholder) =>
+      clean(parsed?.text?.[placeholder.id])
+    ),
+  ].join("\n")
+  for (const placeholder of placeholders) {
+    const value = clean(parsed?.text?.[placeholder.id])
+    if (!value) {
+      errors.push(`OpenRouter omitted ${placeholder.id}`)
+      continue
+    }
+    const wordError = placeholderWordRangeError(placeholder, value)
+    if (wordError) errors.push(wordError)
+  }
+  const hookLower = hook.toLowerCase()
+  const slopMatches = llmSlopMatches(generatedText)
+  const slopViolations = llmSlopViolations(generatedText)
+  for (const [index, match] of slopMatches.entries()) {
+    if (hookLower && hookLower.includes(match.toLowerCase())) continue
+    errors.push(slopViolations[index])
+  }
+  return errors
 }
 
 async function selectImages({

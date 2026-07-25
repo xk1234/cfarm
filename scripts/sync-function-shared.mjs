@@ -95,6 +95,20 @@ const generatedModules = [
     target: "appwrite/functions/job-worker/src/llm-slop.js",
   },
   {
+    source: "lib/social-post-metadata.ts",
+    target: "appwrite/functions/job-worker/src/social-post-metadata.js",
+    imports: { "@/lib/guards": "./guards.js" },
+  },
+  {
+    source: "lib/temp-slide-testing-shared.ts",
+    target: "appwrite/functions/job-worker/src/temp-slide-testing-shared.js",
+    imports: {
+      "@/lib/guards": "./guards.js",
+      "@/lib/llm-slop": "./llm-slop.js",
+      "@/lib/social-post-metadata": "./social-post-metadata.js",
+    },
+  },
+  {
     source: "lib/slideshow-renderer.ts",
     target: "appwrite/functions/job-worker/src/slideshow-renderer.js",
     imports: {

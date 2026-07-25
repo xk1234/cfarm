@@ -20,15 +20,26 @@ import {
 } from "@/lib/temp-slide-testing"
 
 describe("temp slide testing helpers", () => {
-  it("gives the hook and content direction priority over stale global style", () => {
+  it("makes the hook the topic authority and the configured tone/style the voice authority", () => {
     expect(defaultTempSlideSystemPrompt).toContain(
-      "The selected hook defines the slideshow topic"
+      "The selected hook is the source of truth for the slideshow topic"
     )
     expect(defaultTempSlideSystemPrompt).toContain(
-      "outrank automation names, global style, tone, examples, and legacy template language"
+      "never introduce a different concept from the automation name"
+    )
+    // Tone/Style are no longer demoted below hook/examples — they govern voice.
+    expect(defaultTempSlideSystemPrompt).toContain(
+      "the configured Tone and Style govern the voice"
     )
     expect(defaultTempSlideSystemPrompt).toContain(
-      "ignore any part that changes the topic"
+      "Do not override a configured Tone or Style with a generic literary default"
+    )
+    // Scoped hallucination guardrail (kept from the worker path).
+    expect(defaultTempSlideSystemPrompt).toContain(
+      "Never invent studies, statistics, or sources"
+    )
+    expect(defaultTempSlideSystemPrompt).toContain(
+      "first-person voice in character is allowed"
     )
   })
   it("keeps CTA disabled in a new automation until its section is enabled", () => {
