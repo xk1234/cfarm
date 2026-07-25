@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useState } from "react"
 
@@ -90,6 +91,14 @@ export function AuthForm() {
               : "Create account"}
         </button>
       </form>
+      {mode === "login" && (
+        <Link
+          href="/reset-password"
+          className="mt-5 block w-full text-center text-sm font-medium text-brand-muted transition-colors hover:text-brand-ink"
+        >
+          Forgot password?
+        </Link>
+      )}
       <button
         type="button"
         onClick={() => {

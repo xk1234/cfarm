@@ -116,6 +116,22 @@ export async function confirmEmailVerification(userId: string, secret: string) {
   return new Account(baseClient()).updateEmailVerification({ userId, secret })
 }
 
+export async function sendPasswordRecovery(email: string, url: string) {
+  // Unauthenticated by design: the caller has lost access to the account, so
+  // this cannot run as the session or as the admin key.
+  return new Account(baseClient()).createRecovery({ email, url })
+}
+
+export async function confirmPasswordRecovery(
+  userId: string,
+  secret: string,
+  password: string
+) {
+  // The emailed secret authenticates this request; it must not inherit the
+  // server's admin identity.
+  return new Account(baseClient()).updateRecovery({ userId, secret, password })
+}
+
 export async function deleteCurrentSession(session: string) {
   await sessionAccount(session).deleteSession({ sessionId: "current" })
 }
