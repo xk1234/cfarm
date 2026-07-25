@@ -40,6 +40,10 @@ import {
   markGeneratedVideoExportPublished,
   type GeneratedVideoExport,
 } from "@/lib/generated-videos"
+import {
+  absoluteAssetUrl,
+  slideshowShareLink,
+} from "@/lib/asset-urls"
 import { listAssetRecords } from "@/lib/assets"
 import { deleteAutomationCascade } from "@/lib/delete-automation"
 import { clean, isRecord } from "@/lib/guards"
@@ -523,7 +527,7 @@ export function createLumenClipMcpServer(
     {
       title: "Generate a slideshow draft",
       description:
-        "Runs one existing slideshow automation immediately and returns an unpublished, unscheduled draft summary. It never auto-publishes, even when the saved automation is live.",
+        "Runs one existing slideshow automation immediately and returns an unpublished, unscheduled draft summary. It never auto-publishes, even when the saved automation is live. Each run summary carries `outputImages` (relative slide paths) plus a per-slide `slides` array (`index`, `role`, absolute `renderedImageUrl`, absolute `sourceImageUrl`) and a signed `shareUrl` for the whole slideshow. Slide and share URLs are absolutised against the server's BASE_URL; when BASE_URL is unset they fall back to relative paths.",
       inputSchema: {
         automationId: z
           .string()
@@ -566,7 +570,9 @@ export function createLumenClipMcpServer(
           return {
             automationId,
             requestId: traceId,
-            runs: result.created.map(generatedRunSummary),
+            runs: result.created.map((run) =>
+              generatedRunSummary(run, ownerId)
+            ),
             skipped: result.skipped,
           }
         })
@@ -946,7 +952,8 @@ function registerAutomationReadAndRunTools(
               automationListItem(
                 record,
                 standardRuns.find((run) => run.automationId === record.id),
-                mediaCollections
+                mediaCollections,
+                ownerId
               )
             ),
             ...social.map((record) =>
@@ -1181,7 +1188,7 @@ function registerAutomationReadAndRunTools(
                       ? "video"
                       : "slideshow"),
                 },
-                lastRun: lastRun ? generatedRunSummary(lastRun) : null,
+                lastRun: lastRun ? generatedRunSummary(lastRun, ownerId) : null,
                 resourceUri: `lumenclip://automations/${encodeURIComponent(standard.id)}`,
               },
             }
@@ -1734,7 +1741,7 @@ function registerAutomationReadAndRunTools(
     {
       title: "Run an automation",
       description:
-        "Generates one unpublished, unscheduled draft from a saved slideshow, AI UGC, X, or Threads automation. AI UGC runs asynchronously and returns a pollable operation. Saved video automations remain discoverable but do not yet have a shared runner.",
+        "Generates one unpublished, unscheduled draft from a saved slideshow, AI UGC, X, or Threads automation. AI UGC runs asynchronously and returns a pollable operation. Saved video automations remain discoverable but do not yet have a shared runner. For slideshow runs the output entry includes `outputImages` (relative slide paths), a per-slide `slides` array (`index`, `role`, absolute `renderedImageUrl`, absolute `sourceImageUrl`), and a signed `shareUrl` for the whole slideshow. Slide and share URLs are absolutised against the server's BASE_URL; when BASE_URL is unset they fall back to relative paths.",
       inputSchema: {
         automationId: z
           .string()
@@ -1768,7 +1775,9 @@ function registerAutomationReadAndRunTools(
       },
     },
     async (input) =>
-      mcpResult(await owned(() => runAutomationDraft(services, input)))
+      mcpResult(
+        await owned(() => runAutomationDraft(services, input, ownerId))
+      )
   )
 }
 
@@ -2865,7 +2874,7 @@ function registerOutputAndPublishingTools(
             return regularOperation(regular, false, {
               schema: automation?.schema,
               priorRuns: regularRuns,
-            })
+            }, ownerId)
           }
           const social = await services.getXAutomationRun(operationId)
           if (social) return socialOperation(social)
@@ -3109,7 +3118,8 @@ function registerOutputAndPublishingTools(
 
 async function runAutomationDraft(
   services: LumenClipMcpServices,
-  input: { automationId: string; topic?: string; requestId: string }
+  input: { automationId: string; topic?: string; requestId: string },
+  ownerId: string
 ) {
   const standard = await services.getAutomationRecord(input.automationId)
   if (standard) {
@@ -3132,7 +3142,7 @@ async function runAutomationDraft(
       return regularOperation(existing, true, {
         schema: standard.schema,
         priorRuns,
-      })
+      }, ownerId)
     }
 
     const result = await services.runDueAutomations({
@@ -3152,7 +3162,7 @@ async function runAutomationDraft(
     return regularOperation(run, false, {
       schema: standard.schema,
       priorRuns,
-    })
+    }, ownerId)
   }
 
   const social = await services.getXAutomation(input.automationId)
@@ -3442,7 +3452,8 @@ function automationBlockerErrorCode(code: string) {
 function automationListItem(
   record: AutomationRecord,
   lastRun: AutomationRunRecord | undefined,
-  mediaCollections: StoredImageCollection[]
+  mediaCollections: StoredImageCollection[],
+  ownerId: string
 ) {
   const collectionReferences = normalizeAutomationCollectionReferences(
     record.schema,
@@ -3462,7 +3473,7 @@ function automationListItem(
     manualRunSupported:
       record.schema.automationKind === "slideshow" ||
       record.schema.automationKind === "ugc",
-    lastRun: lastRun ? generatedRunSummary(lastRun) : null,
+    lastRun: lastRun ? generatedRunSummary(lastRun, ownerId) : null,
     resourceUri: `lumenclip://automations/${encodeURIComponent(record.id)}`,
   }
 }
@@ -4024,7 +4035,8 @@ function regularOperation(
   qaContext: {
     schema?: AutomationSchema
     priorRuns?: AutomationRunRecord[]
-  } = {}
+  } = {},
+  ownerId = ""
 ) {
   const progress =
     run.status === "running" ? automationRunProgress(run.id) : undefined
@@ -4065,6 +4077,11 @@ function regularOperation(
             publicationState: "not_published",
             qaFindings: qa?.findings ?? [],
             qaValid: qa?.valid,
+            outputImages: run.outputImages ?? [],
+            slides: buildRunSlides(run),
+            shareUrl: ownerId
+              ? slideshowShareLink({ ownerId, outputId }) ?? undefined
+              : undefined,
             resourceUri: `lumenclip://outputs/${encodeURIComponent(outputId)}`,
           },
         ]
@@ -5782,7 +5799,22 @@ function serializeSchedule(schedule: AutomationSchedule | undefined) {
   }
 }
 
-function generatedRunSummary(run: AutomationRunRecord) {
+function buildRunSlides(run: AutomationRunRecord) {
+  return run.plan.slides.map((planSlide, index) => {
+    const renderedSlide = run.renderedSlides?.[index]
+    const renderedPath = run.outputImages?.[index] ?? ""
+    const sourcePath =
+      renderedSlide?.sourceImageUrl ?? planSlide.imageUrl ?? ""
+    return {
+      index: index + 1,
+      role: planSlide.role,
+      renderedImageUrl: absoluteAssetUrl(renderedPath),
+      sourceImageUrl: sourcePath ? absoluteAssetUrl(sourcePath) : undefined,
+    }
+  })
+}
+
+function generatedRunSummary(run: AutomationRunRecord, ownerId: string) {
   return {
     runId: run.id,
     slideshowId: run.slideshowId,
@@ -5792,6 +5824,10 @@ function generatedRunSummary(run: AutomationRunRecord) {
     slideCount: run.plan.slides.length,
     thumbnailUrl: run.thumbnailUrl,
     outputImages: run.outputImages,
+    slides: buildRunSlides(run),
+    shareUrl: run.slideshowId
+      ? slideshowShareLink({ ownerId, outputId: run.slideshowId }) ?? undefined
+      : undefined,
     createdAt: run.createdAt,
     error: run.error,
   }

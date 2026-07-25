@@ -19,6 +19,7 @@ import type {
   PostFastMetricSnapshot,
 } from "@/lib/postfast-metric-snapshots"
 import { schemaWithAutomationCollectionId } from "@/lib/realfarm-automation"
+import { verifySlideshowShareToken } from "@/lib/slideshow-share"
 import { defaultXAutomation } from "@/lib/x-automation"
 import type { WordCollectionRecord } from "@/lib/word-collections"
 
@@ -26,6 +27,7 @@ const clients: Client[] = []
 const servers: ReturnType<typeof createLumenClipMcpServer>[] = []
 
 afterEach(async () => {
+  vi.unstubAllEnvs()
   await Promise.all([
     ...clients.splice(0).map((client) => client.close()),
     ...servers.splice(0).map((server) => server.close()),
@@ -1000,6 +1002,166 @@ describe("LumenClip MCP server", () => {
     })
   })
 
+  it("absolutises per-slide and share URLs in slideshow_generate against BASE_URL", async () => {
+    vi.stubEnv("BASE_URL", "https://studio.example.com/")
+    vi.stubEnv("SLIDESHOW_SHARE_SECRET", "test-secret")
+    const current = automationRecord()
+    const run = relativeRun(current.id)
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      runDueAutomations: vi.fn(async () => ({
+        created: [run],
+        results: [],
+        skipped: [],
+      })) as unknown as LumenClipMcpServices["runDueAutomations"],
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_slideshow_generate",
+      arguments: { automationId: current.id, requestId: "request-1" },
+    })
+
+    const summary = (
+      result.structuredContent as { runs: Array<Record<string, unknown>> }
+    ).runs[0]
+    expect(summary.outputImages).toEqual([
+      "/api/local-assets/slideshows/outputs/slideshow-1/slide-001.png",
+    ])
+    expect(summary.slides).toEqual([
+      {
+        index: 1,
+        role: "hook",
+        renderedImageUrl:
+          "https://studio.example.com/api/local-assets/slideshows/outputs/slideshow-1/slide-001.png",
+        sourceImageUrl:
+          "https://studio.example.com/api/local-assets/slideshows/sources/img-1.png",
+      },
+    ])
+    const shareUrl = summary.shareUrl as string
+    expect(shareUrl).toMatch(
+      /^https:\/\/studio\.example\.com\/share\/slideshows\/slideshow-1\?token=/
+    )
+    const token = new URL(shareUrl).searchParams.get("token") ?? ""
+    expect(verifySlideshowShareToken(token, "slideshow-1")).toMatchObject({
+      ownerId: "owner-1",
+      outputId: "slideshow-1",
+    })
+    expect(verifySlideshowShareToken(token, "other-slideshow")).toBeNull()
+  })
+
+  it("falls back to relative slide URLs in slideshow_generate when BASE_URL is unset", async () => {
+    vi.stubEnv("SLIDESHOW_SHARE_SECRET", "test-secret")
+    const current = automationRecord()
+    const run = relativeRun(current.id)
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      runDueAutomations: vi.fn(async () => ({
+        created: [run],
+        results: [],
+        skipped: [],
+      })) as unknown as LumenClipMcpServices["runDueAutomations"],
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_slideshow_generate",
+      arguments: { automationId: current.id, requestId: "request-1" },
+    })
+
+    const summary = (
+      result.structuredContent as { runs: Array<Record<string, unknown>> }
+    ).runs[0]
+    expect(summary.slides).toEqual([
+      {
+        index: 1,
+        role: "hook",
+        renderedImageUrl:
+          "/api/local-assets/slideshows/outputs/slideshow-1/slide-001.png",
+        sourceImageUrl: "/api/local-assets/slideshows/sources/img-1.png",
+      },
+    ])
+    const shareUrl = summary.shareUrl as string
+    expect(shareUrl.startsWith("/share/slideshows/slideshow-1?token=")).toBe(true)
+    const token = shareUrl.split("token=")[1] ?? ""
+    expect(verifySlideshowShareToken(token, "slideshow-1")).toMatchObject({
+      ownerId: "owner-1",
+      outputId: "slideshow-1",
+    })
+  })
+
+  it("omits the share URL when sharing is not configured", async () => {
+    vi.stubEnv("SLIDESHOW_SHARE_SECRET", "")
+    vi.stubEnv("APPWRITE_API_KEY", "")
+    const current = automationRecord()
+    const run = relativeRun(current.id)
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      runDueAutomations: vi.fn(async () => ({
+        created: [run],
+        results: [],
+        skipped: [],
+      })) as unknown as LumenClipMcpServices["runDueAutomations"],
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_slideshow_generate",
+      arguments: { automationId: current.id, requestId: "request-1" },
+    })
+
+    const summary = (
+      result.structuredContent as { runs: Array<Record<string, unknown>> }
+    ).runs[0]
+    expect(summary.shareUrl).toBeUndefined()
+  })
+
+  it("returns absolute slide and share URLs from automation_run", async () => {
+    vi.stubEnv("BASE_URL", "https://studio.example.com")
+    vi.stubEnv("SLIDESHOW_SHARE_SECRET", "test-secret")
+    const current = automationRecord()
+    const run = relativeRun(current.id)
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      listAutomationRuns: vi.fn(async () => []),
+      runDueAutomations: vi.fn(async () => ({
+        created: [run],
+        results: [],
+        skipped: [],
+      })) as unknown as LumenClipMcpServices["runDueAutomations"],
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_automation_run",
+      arguments: { automationId: current.id, requestId: "general-run-1" },
+    })
+
+    const outputs = (
+      result.structuredContent as {
+        outputs: Array<Record<string, unknown>>
+      }
+    ).outputs
+    expect(outputs[0].outputImages).toEqual([
+      "/api/local-assets/slideshows/outputs/slideshow-1/slide-001.png",
+    ])
+    expect(outputs[0].slides).toEqual([
+      {
+        index: 1,
+        role: "hook",
+        renderedImageUrl:
+          "https://studio.example.com/api/local-assets/slideshows/outputs/slideshow-1/slide-001.png",
+        sourceImageUrl:
+          "https://studio.example.com/api/local-assets/slideshows/sources/img-1.png",
+      },
+    ])
+    const shareUrl = outputs[0].shareUrl as string
+    expect(shareUrl).toMatch(
+      /^https:\/\/studio\.example\.com\/share\/slideshows\/slideshow-1\?token=/
+    )
+    const token = new URL(shareUrl).searchParams.get("token") ?? ""
+    expect(verifySlideshowShareToken(token, "slideshow-1")).toMatchObject({
+      ownerId: "owner-1",
+      outputId: "slideshow-1",
+    })
+  })
+
   it("lists standard and social automations before mutation", async () => {
     const standard = automationRecord()
     const social = defaultXAutomation({ id: "threads-1", platform: "threads" })
@@ -1932,6 +2094,30 @@ function generatedRun(automationId: string): AutomationRunRecord {
     outputImages: ["https://example.com/output.jpg"],
     createdAt: "2026-07-18T01:00:00.000Z",
     updatedAt: "2026-07-18T01:01:00.000Z",
+  }
+}
+
+function relativeRun(automationId: string): AutomationRunRecord {
+  const run = generatedRun(automationId)
+  return {
+    ...run,
+    requestId: "general-run-1",
+    plan: {
+      ...run.plan,
+      slides: [
+        {
+          id: "slide-1",
+          role: "hook",
+          imageUrl: "/api/local-assets/slideshows/sources/img-1.png",
+          imageCaption: "Image",
+          text: "Generated hook",
+          textPlacement: "center",
+        },
+      ],
+    },
+    outputImages: [
+      "/api/local-assets/slideshows/outputs/slideshow-1/slide-001.png",
+    ],
   }
 }
 

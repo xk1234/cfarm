@@ -59,6 +59,8 @@ may link to a shared tool but do not invent a second incompatible schema.
 - `lumenclip_collection_add_assets`
 - `lumenclip_collection_delete`
 - `lumenclip_outputs_list`
+- `lumenclip_output_get`
+- `lumenclip_output_validate`
 - `lumenclip_output_delete`
 - `lumenclip_operations_list`
 - `lumenclip_operation_get`
