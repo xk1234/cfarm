@@ -53,7 +53,6 @@ lib/                     Domain logic, API clients, persistence layer, tests
 appwrite/functions/      Appwrite Functions (cron scheduler + job worker)
 data/                    Local working files + static config seeds
 docs/                    Feature and architecture docs
-diagrams/                Mermaid workflow diagrams (00-overview → 11)
 scripts/                 Provisioning, import, and maintenance tools
 ```
 
@@ -81,7 +80,6 @@ Docs are organized by lifecycle — start at **`docs/README.md`** (index), which
 | **Roadmap** (planned/in-flight work)                  | `docs/roadmap/`                          |
 | Design system (tokens, typography, components)        | `DESIGN.md`                              |
 | Next.js version notes (read before writing Next code) | `AGENTS.md`                              |
-| End-to-end workflow map                               | `diagrams/00-overview.md`                |
 | Per-tab feature docs                                  | `docs/tabs/`                             |
 | Backend architecture and persistence                  | `docs/reference/backend-architecture.md` |
 | Data objects & types                                  | `docs/reference/data-objects.md`         |

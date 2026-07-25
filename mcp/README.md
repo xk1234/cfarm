@@ -109,8 +109,6 @@ surface and are not callable until marked **Implemented** in the tool index.
   tools from becoming orphaned or being documented under unrelated features.
 - `shared-contracts.md` owns cross-cutting pagination, idempotency, operation,
   resource URI, and error shapes; use-case pages own workflow meaning.
-- `docs/workflows/mcp/` contains outcome-oriented agent workflows. It does not
-  replace the tool contract reference in this folder.
 
 The architectural source remains
 [docs/roadmap/lumenclip-mcp-server.md](../docs/roadmap/lumenclip-mcp-server.md).

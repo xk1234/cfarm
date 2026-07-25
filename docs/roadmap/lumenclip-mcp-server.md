@@ -266,8 +266,8 @@ are stable.
 | `lumenclip_analytics_report`         | Reconcile publications and snapshots for latest-per-post totals, follower movement, and followers gained.                             | `lumenclip:read`   | Implemented focused subset  |
 | `lumenclip_export_create`            | Export selected public objects, analytics reports, or generated media as JSON, CSV, or a manifest-backed ZIP.                         | `lumenclip:export` | Deferred beyond version one |
 
-The canonical task-family contracts are documented under [MCP tools and
-workflows](/docs/workflows/mcp).
+The canonical task-family contracts are documented under MCP tools and
+workflows.
 
 ### 7.5 Deferred tools
 

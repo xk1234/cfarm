@@ -19,8 +19,6 @@ you are trying to answer.
 | How do I use the main Automations page?    | [automations/index.mdx](automations/index.mdx)                                           |
 | How do I edit a slideshow automation?      | [automations/slideshow-automations.mdx](automations/slideshow-automations.mdx)           |
 | How do hook locking and analytics work?    | [automations/hook-catalog-and-analytics.mdx](automations/hook-catalog-and-analytics.mdx) |
-| How do I complete a product workflow?      | [workflows/index.mdx](workflows/index.mdx)                                               |
-| What agent workflows are proposed for MCP? | [workflows/mcp/index.md](workflows/mcp/index.md)                                         |
 | What are the exact MCP tool contracts?     | [../mcp/README.md](../mcp/README.md)                                                     |
 | How is the backend put together?           | [reference/backend-architecture.md](reference/backend-architecture.md)                   |
 | What data structures and tables exist?     | [reference/data-objects.md](reference/data-objects.md)                                   |
@@ -51,9 +49,7 @@ Every document belongs to one of these categories:
 | `docs/assets/`                   | Living asset catalog                | Document reusable greenscreen and music media consumed by product workflows.                          |
 | `docs/automations/`              | Evergreen product guide             | Keep editors, templates, renderer experiments, screenshots, and visible behavior aligned with the UI. |
 | `docs/collections/`              | Evergreen collection reference      | Keep type contracts, CRUD support, lifecycle rules, and automation usage aligned with shipped code.   |
-| `docs/workflows/`                | Task-oriented living guides         | Group by creating content, importing outside content, and analyzing/exporting data.                   |
 | `mcp/`                           | MCP tool reference                  | Organize tools by app use case; every tool needs one primary owner with input and output contracts.   |
-| `diagrams/`                      | Current workflow diagrams           | Describe implemented flows only; planned diagrams belong with their roadmap item.                     |
 
 Do not keep removed-feature documentation as an archive inside the repo. Git
 history is the archive.
@@ -64,8 +60,6 @@ history is the archive.
   known inconsistencies.
 - [roadmap/](roadmap/index.mdx) — Now/Next/Later roll-up plus concrete active
   work pages and audited backlogs.
-- [workflows/](workflows/) — screenshot-backed user workflows grouped by task
-  family, plus the proposed [MCP tool families](workflows/mcp/).
 
 These are the only documents intended to summarize the entire product.
 
@@ -119,19 +113,6 @@ backend endpoint inventory, not as a product tab.
 | ⚪ Later | [LumenClip MCP server](roadmap/lumenclip-mcp-server.md)       | Harden the deployed remote agent interface over shared domain services. |
 
 The status roll-up in [roadmap/](roadmap/index.mdx) is authoritative.
-
-## Workflow diagrams
-
-[diagrams/00-overview.md](../diagrams/00-overview.md) is the entry point.
-Current detailed flows:
-
-- [04 — Slideshow render](../diagrams/04-slideshow-render.md)
-- [05 — Automation import](../diagrams/05-automation-import.md)
-- [06 — Automation scheduled run](../diagrams/06-automation-scheduled-run.md)
-- [07 — Image collection and captioning](../diagrams/07-image-collection.md)
-- [09 — Asset management](../diagrams/09-asset-management.md)
-- [10 — Social publishing](../diagrams/10-social-publishing.md)
-- [11 — Generated video export](../diagrams/11-generated-video-export.md)
 
 ## Repository-level references
 
