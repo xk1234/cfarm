@@ -1,38 +1,37 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
-import { fetchJson } from "@/lib/http"
+import { providerErrorMessage } from "@/lib/http"
 
-describe("HTTP helpers", () => {
-  it("includes status and a truncated body snippet for failed JSON requests", async () => {
-    const fetchImpl = vi.fn(async () => {
-      return new Response(
-        "this body is intentionally long enough to be clipped from the error message",
-        { status: 502, statusText: "Bad Gateway" }
-      )
-    })
+const res = (status: number) => new Response("", { status })
 
-    await expect(
-      fetchJson("https://example.com/api", undefined, {
-        fetchImpl,
-        bodySnippetLength: 24,
-      })
-    ).rejects.toThrow(
-      "HTTP request failed with 502 Bad Gateway: this body is intentional..."
+describe("providerErrorMessage", () => {
+  it("keeps the provider's reason and metadata, not just a label", () => {
+    // The bare-label version of this hid a robots.txt refusal for hours.
+    const message = providerErrorMessage("AI image matching failed")(
+      res(400),
+      {
+        error: {
+          message: "Provider returned error",
+          metadata: { raw: "This URL is disallowed by the website's robots.txt file." },
+        },
+      }
     )
+    expect(message).toContain("AI image matching failed (400)")
+    expect(message).toContain("Provider returned error")
+    expect(message).toContain("robots.txt")
   })
 
-  it("throws a clear error when a successful response is not JSON", async () => {
-    const fetchImpl = vi.fn(async () => {
-      return new Response("<html>not json</html>", {
-        status: 200,
-        headers: { "content-type": "text/html" },
-      })
+  it("falls back to a body snippet when there is no error object", () => {
+    const message = providerErrorMessage("Thing failed")(res(500), {
+      unexpected: "shape",
     })
+    expect(message).toContain("Thing failed (500)")
+    expect(message).toContain("unexpected")
+  })
 
-    await expect(
-      fetchJson("https://example.com/api", undefined, { fetchImpl })
-    ).rejects.toThrow(
-      "Expected JSON response from https://example.com/api but could not parse body"
+  it("still reports the status when the body is empty", () => {
+    expect(providerErrorMessage("Thing failed")(res(502), null)).toBe(
+      "Thing failed (502)"
     )
   })
 })

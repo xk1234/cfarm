@@ -144,9 +144,26 @@ export async function telegramBotRequest(
   if (!response.ok) {
     throw new Error(`Telegram request failed (${response.status}).`)
   }
-  const payload = await response.json().catch(() => null)
-  if (payload && typeof payload === "object" && payload.ok === false) {
-    throw new Error("Telegram rejected the request.")
+  // Telegram answers 200 with `{ok:false, error_code, description}`. Throwing a
+  // bare string discarded the only field that says what was wrong.
+  const raw = await response.text()
+  let payload: unknown = null
+  try {
+    payload = JSON.parse(raw)
+  } catch {
+    payload = null
+  }
+  if (payload && typeof payload === "object" && (payload as { ok?: boolean }).ok === false) {
+    const detail = payload as { error_code?: number; description?: string }
+    throw new Error(
+      [
+        "Telegram rejected the request",
+        detail.error_code ? `code=${detail.error_code}` : "",
+        detail.description,
+      ]
+        .filter(Boolean)
+        .join(" | ")
+    )
   }
   return payload
 }

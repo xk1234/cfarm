@@ -1,5 +1,5 @@
 import { clean } from "@/lib/guards"
-import { fetchJson } from "@/lib/http"
+import { fetchJson, providerErrorMessage } from "@/lib/http"
 import { defaultSlideshowTextModel } from "@/lib/realfarm-generation-model-registry"
 
 export type SlideshowImageCandidate = {
@@ -29,23 +29,6 @@ const stopWords = new Set([
   "she", "that", "the", "their", "them", "they", "this", "to", "was",
   "what", "when", "who", "will", "with", "you", "your",
 ])
-
-/** Keep the provider's status and reason; a bare message hides the cause. */
-function providerErrorMessage(label: string) {
-  return (response: Response, payload: unknown) => {
-    const error = (payload as { error?: { message?: string; metadata?: unknown } })
-      ?.error
-    return [
-      `${label} (${response.status})`,
-      error?.message,
-      error?.metadata
-        ? `metadata=${JSON.stringify(error.metadata).slice(0, 400)}`
-        : "",
-    ]
-      .filter(Boolean)
-      .join(" | ")
-  }
-}
 
 function tokenize(value: string) {
   return clean(value)

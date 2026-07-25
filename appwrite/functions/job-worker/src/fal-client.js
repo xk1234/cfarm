@@ -62,7 +62,17 @@ async function falJson(fetchImpl, url, init) {
     }
     const payload = await response.json().catch(() => null);
     if (!response.ok)
-        throw new FalProviderError(String(payload?.detail ?? payload?.message ?? `FAL request failed (${response.status})`), response.status === 408 || response.status === 409 || response.status === 425 || response.status === 429 || response.status >= 500, response.status);
+        throw new FalProviderError([
+            `FAL request failed (${response.status})`,
+            payload?.detail ? String(payload.detail) : "",
+            payload?.message ? String(payload.message) : "",
+            // A body with neither field still says more than a bare status.
+            !payload?.detail && !payload?.message && payload
+                ? `body=${JSON.stringify(payload).slice(0, 300)}`
+                : "",
+        ]
+            .filter(Boolean)
+            .join(" | "), response.status === 408 || response.status === 409 || response.status === 425 || response.status === 429 || response.status >= 500, response.status);
     return payload;
 }
 const numeric = (value) => typeof value === "number" && Number.isFinite(value) ? value : undefined;

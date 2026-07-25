@@ -20,7 +20,20 @@ export async function synthesizeElevenLabsSpeech(input: {
     body: JSON.stringify({ text: input.text, model_id: input.modelId, voice_settings: input.voiceSettings }),
   })
   const payload = await response.json().catch(() => null) as Record<string, unknown> | null
-  if (!response.ok) throw new Error(String(payload?.detail ?? `ElevenLabs request failed (${response.status})`))
+  if (!response.ok)
+    throw new Error(
+      [
+        `ElevenLabs request failed (${response.status})`,
+        payload?.detail ? String(payload.detail) : "",
+        // Keep something when the provider sends no `detail`, or sends a body
+        // that is not JSON at all -- otherwise only the status survives.
+        !payload?.detail && payload
+          ? `body=${JSON.stringify(payload).slice(0, 300)}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" | ")
+    )
   const audioBase64 = typeof payload?.audio_base64 === "string" ? payload.audio_base64 : ""
   if (!audioBase64) throw new Error("ElevenLabs response did not include audio")
   const alignment = (payload?.normalized_alignment ?? payload?.alignment) as Record<string, unknown> | undefined

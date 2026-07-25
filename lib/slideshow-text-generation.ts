@@ -15,7 +15,7 @@ import {
   openRouterModelForUseCase,
 } from "@/lib/realfarm-generation-model-registry"
 import { clean } from "@/lib/guards"
-import { fetchJson } from "@/lib/http"
+import { fetchJson, providerErrorMessage } from "@/lib/http"
 import { llmSlopMatches } from "@/lib/llm-slop"
 import { parseOpenRouterContent } from "@/lib/openrouter"
 
@@ -402,7 +402,7 @@ async function researchSelectedHook(input: {
         {
           fetchImpl: input.fetchImpl,
           timeoutMs: 90_000,
-          errorMessage: () => "OpenRouter hook research failed",
+          errorMessage: providerErrorMessage("OpenRouter hook research failed"),
         }
       )
       const choice = payload.choices?.[0]

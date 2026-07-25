@@ -49,3 +49,30 @@ function truncateBodySnippet(text, maxLength) {
     }
     return `${normalized.slice(0, Math.max(0, maxLength))}...`;
 }
+/**
+ * Format a provider failure so the cause survives.
+ *
+ * A constant message like `() => "AI image matching failed"` discards the
+ * status and the provider's own reason, which lives in `error.message` and
+ * `error.metadata`. Several outages in this codebase stayed undiagnosable for
+ * hours behind exactly that pattern (a robots.txt refusal, an unsupported JSON
+ * Schema keyword, an aborted request), so prefer this over a bare string.
+ */
+export function providerErrorMessage(label) {
+    return (response, payload) => {
+        const error = payload?.error;
+        const fallback = !error && payload
+            ? `body=${JSON.stringify(payload).slice(0, 300)}`
+            : "";
+        return [
+            `${label} (${response.status})`,
+            error?.message,
+            error?.metadata
+                ? `metadata=${JSON.stringify(error.metadata).slice(0, 400)}`
+                : "",
+            fallback,
+        ]
+            .filter(Boolean)
+            .join(" | ");
+    };
+}

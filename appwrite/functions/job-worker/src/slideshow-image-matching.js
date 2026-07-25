@@ -1,6 +1,6 @@
 // Generated from lib/slideshow-image-matching.ts. Do not edit by hand.
 import { clean } from "./guards.js";
-import { fetchJson } from "./http.js";
+import { fetchJson, providerErrorMessage } from "./http.js";
 import { defaultSlideshowTextModel } from "./realfarm-generation-model-registry.js";
 /**
  * How many candidates survive local ranking and reach the model.
@@ -18,22 +18,6 @@ const stopWords = new Set([
     "she", "that", "the", "their", "them", "they", "this", "to", "was",
     "what", "when", "who", "will", "with", "you", "your",
 ]);
-/** Keep the provider's status and reason; a bare message hides the cause. */
-function providerErrorMessage(label) {
-    return (response, payload) => {
-        const error = payload
-            ?.error;
-        return [
-            `${label} (${response.status})`,
-            error?.message,
-            error?.metadata
-                ? `metadata=${JSON.stringify(error.metadata).slice(0, 400)}`
-                : "",
-        ]
-            .filter(Boolean)
-            .join(" | ");
-    };
-}
 function tokenize(value) {
     return clean(value)
         .toLowerCase()
