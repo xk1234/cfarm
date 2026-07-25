@@ -454,6 +454,7 @@ export async function runDueAutomations(
     lookbackMinutes?: number
     random?: () => number
     requestId?: string
+    fetchImpl?: typeof fetch
   } = {}
 ): Promise<AutomationRunResult> {
   const now = input.now ?? new Date()
@@ -588,6 +589,7 @@ export async function runDueAutomations(
         usageLedgerRootDir,
         now,
         random: input.random,
+        fetchImpl: input.fetchImpl,
       }).catch(async (error) => {
         clearAutomationRunProgress(claim.run!.id)
         await updateAutomationRun(
@@ -660,6 +662,7 @@ async function createAutomationRun(input: {
   usedHookCombinationKeys?: Set<string>
   now: Date
   random?: () => number
+  fetchImpl?: typeof fetch
 }) {
   const now = new Date().toISOString()
   const runId = input.claimedRun.id
@@ -674,6 +677,7 @@ async function createAutomationRun(input: {
       usedHookCombinationKeys: input.usedHookCombinationKeys,
       now: input.now,
       random: input.random,
+      fetchImpl: input.fetchImpl,
       onProgress: (stage, detail) =>
         setAutomationRunProgress(runId, stage, detail),
     })
@@ -1039,6 +1043,7 @@ async function createAutomationRunPlan(
     promptInstructions?: string
     includeTextGenerationResult?: boolean
     onProgress?: (stage: string, detail?: string) => void
+    fetchImpl?: typeof fetch
   } = {}
 ): Promise<AutomationRunPlan> {
   const progress = options.onProgress ?? (() => {})
@@ -1138,6 +1143,7 @@ async function createAutomationRunPlan(
     systemPrompt: options.systemPrompt,
     promptInstructions,
     webSearchEnabled: schema.web_search_enabled,
+    fetchImpl: options.fetchImpl,
   })
   let textSimilarityRetry = false
   if (
@@ -1157,6 +1163,7 @@ async function createAutomationRunPlan(
       systemPrompt: options.systemPrompt,
       promptInstructions,
       webSearchEnabled: schema.web_search_enabled,
+      fetchImpl: options.fetchImpl,
     })
     textGeneration = retry
     textSimilarityRetry = true
@@ -1191,6 +1198,7 @@ async function createAutomationRunPlan(
     textAutomation,
     generatedText: textGeneration.result,
     random: options.random,
+    fetchImpl: options.fetchImpl,
   })
   let imageTextCoherenceRepair = false
   const coherenceInstructions = imageTextCoherenceRepairInstructions({
@@ -1221,6 +1229,7 @@ async function createAutomationRunPlan(
       textAutomation,
       generatedText: textGeneration.result,
       random: options.random,
+      fetchImpl: options.fetchImpl,
       selectedImages: slideResult.selectedImages,
       iconLayouts: slideResult.iconLayouts,
     })
@@ -1576,6 +1585,7 @@ async function generateAutomationText(input: {
   systemPrompt?: string
   promptInstructions?: string
   webSearchEnabled?: boolean
+  fetchImpl?: typeof fetch
 }) {
   const apiKey = clean(process.env.OPENROUTER_API_KEY)
   if (!apiKey) {
@@ -1591,6 +1601,7 @@ async function generateAutomationText(input: {
     avoidSimilarOutputs: input.avoidSimilarOutputs,
     webSearchEnabled: input.webSearchEnabled,
     apiKey,
+    fetchImpl: input.fetchImpl,
   })
 }
 
@@ -1715,6 +1726,7 @@ async function createSlides(input: {
   random?: () => number
   selectedImages?: SelectedAutomationRunnerImage[]
   iconLayouts?: Array<OvalIconLayout | undefined>
+  fetchImpl?: typeof fetch
 }): Promise<{
   slides: AutomationRunSlide[]
   reuseWarnings: AutomationRunReuseWarning[]
@@ -1870,6 +1882,7 @@ async function selectImagesForSlides(input: {
   generatedText?: TempSlideStructuredOutput
   random?: () => number
   specs: TempSlideSpec[]
+  fetchImpl?: typeof fetch
 }) {
   const usedKeys = new Set<string>()
   const usedUrls = new Set<string>()
@@ -1892,7 +1905,11 @@ async function selectImagesForSlides(input: {
   )
   const visualConcepts =
     apiKey && input.specs.some((spec) => spec.aiImageSelection)
-      ? await deriveSlideVisualConcepts({ slideTexts, apiKey })
+      ? await deriveSlideVisualConcepts({
+          slideTexts,
+          apiKey,
+          fetchImpl: input.fetchImpl,
+        })
       : []
 
   for (const [index, spec] of input.specs.entries()) {
@@ -1954,6 +1971,7 @@ async function selectImagesForSlides(input: {
           caption: candidate.imageCaption,
         })),
         apiKey,
+        fetchImpl: input.fetchImpl,
       })
       const matched = candidates.find(
         (candidate) => candidate.id === selectedId

@@ -1,5 +1,6 @@
 import { clean } from "@/lib/guards"
 import { defaultSlideshowTextModel } from "@/lib/realfarm-generation-model-registry"
+import { sanitizeStructuredSchema } from "@/lib/openrouter"
 import {
   buildScheduledSlideshowPrompt,
   getTempSlidePromptPlaceholders,
@@ -75,7 +76,9 @@ export function slideshowTextGenerationPayload(input: {
       json_schema: {
         name: "temp_slide_testing_text",
         strict: true,
-        schema: bundle.schema,
+        // Keep the unified prompt bundle's schema, but strip the keywords
+        // Anthropic's structured-output compiler rejects.
+        schema: sanitizeStructuredSchema(bundle.schema),
       },
     },
   }
