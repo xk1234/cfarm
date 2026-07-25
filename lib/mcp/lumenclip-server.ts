@@ -3887,6 +3887,9 @@ async function getAutomationOutput(
       tokenValues: run.plan.hookSubstitutions ?? {},
       actualSlideCount: slides.length,
       bodySlideCount: slides.filter((slide) => slide.role === "content").length,
+      // Non-fatal quality findings recorded at generation time (word ranges).
+      // Distinct from `qa`, which is recomputed on read.
+      violations: run.plan.violations ?? [],
       slides,
       title: run.plan.title,
       caption: run.plan.caption,
@@ -5822,6 +5825,7 @@ function generatedRunSummary(run: AutomationRunRecord, ownerId: string) {
     title: run.plan.title,
     hook: run.plan.hook,
     slideCount: run.plan.slides.length,
+    violations: run.plan.violations ?? [],
     thumbnailUrl: run.thumbnailUrl,
     outputImages: run.outputImages,
     slides: buildRunSlides(run),

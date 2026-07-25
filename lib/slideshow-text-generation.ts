@@ -54,6 +54,12 @@ export type SlideshowTextGenerationResult = {
   skippedOpenRouter: boolean
   promptPayload?: ReturnType<typeof slideshowTextGenerationPayload>
   webSearchSources?: SlideshowWebSearchSource[]
+  /**
+   * Quality findings that did not justify discarding the generation — today,
+   * text outside its configured word range. Reported with the output so the
+   * copy can be judged, rather than silently dropped or fatally enforced.
+   */
+  violations?: string[]
 }
 
 export type SlideshowWebSearchSource = {
@@ -141,6 +147,7 @@ export async function generateSlideshowText(input: {
     skippedOpenRouter: false,
     promptPayload,
     webSearchSources: research?.sources ?? [],
+    violations: completion.violations ?? [],
   }
 }
 
@@ -220,7 +227,7 @@ async function requestStructuredOutput(input: {
       const output = JSON.parse(
         parseOpenRouterContent(choice?.message?.content)
       )
-      const validationErrors = structuredOutputValidationErrors(
+      const { errors: validationErrors, violations } = structuredOutputFindings(
         output,
         input.placeholders,
         input.selectedHook
@@ -239,7 +246,7 @@ async function requestStructuredOutput(input: {
           `Generated body text does not develop the selected hook subject: ${input.selectedHook}`
         )
       }
-      return { output, webSearchSources, model: attemptModel }
+      return { output, webSearchSources, model: attemptModel, violations }
     } catch (error) {
       lastError = error
       repairError = error
@@ -304,16 +311,17 @@ function openRouterProviderMetadata(error: unknown) {
   return [provider, raw].filter(Boolean).join(": ")
 }
 
-function structuredOutputValidationErrors(
+function structuredOutputFindings(
   output: unknown,
   placeholders: ReturnType<typeof getTempSlidePromptPlaceholders>,
   selectedHook?: string
 ) {
   if (!output || typeof output !== "object" || Array.isArray(output)) {
-    return ["output must be a JSON object"]
+    return { errors: ["output must be a JSON object"], violations: [] }
   }
   const record = output as Record<string, unknown>
   const errors: string[] = []
+  const violations: string[] = []
   const title = typeof record.title === "string" ? record.title.trim() : ""
   const caption =
     typeof record.caption === "string" ? record.caption.trim() : ""
@@ -337,7 +345,10 @@ function structuredOutputValidationErrors(
     generatedValues.push(value)
     const wordRangeError = placeholderWordRangeError(placeholder, value)
     if (wordRangeError) {
-      errors.push(wordRangeError)
+      // Word counts are a quality signal, not a correctness one. Failing the
+      // run over one short line throws away a whole generation, so these are
+      // reported alongside the output instead of aborting it.
+      violations.push(wordRangeError)
     }
   }
   // Slop terms echoed from the user-authored hook are exempt — the model must
@@ -349,7 +360,7 @@ function structuredOutputValidationErrors(
       `banned AI-tell wording: "${match}" — rewrite that line in plain human language`
     )
   }
-  return errors
+  return { errors, violations }
 }
 
 async function researchSelectedHook(input: {

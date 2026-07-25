@@ -153,6 +153,7 @@ export type AutomationRunPlan = {
   hookTemplate?: string
   hookSubstitutions?: Record<string, string>
   imageCollectionIds: string[]
+  violations?: string[]
   slides: AutomationRunSlide[]
   slideCount: {
     mode: string
@@ -1258,6 +1259,10 @@ async function createAutomationRunPlan(
     autoMusic: schema.tiktok_post_settings.auto_music,
     autoPost: schema.tiktok_post_settings.auto_post,
     reuseWarnings: slideResult.reuseWarnings,
+    // Quality findings that did not justify discarding the generation (text
+    // outside its configured word range). Kept beside the copy so the draft can
+    // be judged, rather than fatally enforced or silently dropped.
+    violations: textGeneration.violations ?? [],
     hookCandidates,
     textModel: textGeneration.model,
     language: schema.language || defaultAutomationLanguage,

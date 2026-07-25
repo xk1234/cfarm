@@ -351,7 +351,7 @@ describe("slideshow text structured output", () => {
     )
   })
 
-  it("retries a word-range violation until the model corrects it", async () => {
+  it("reports a word-range miss as a violation instead of losing the generation", async () => {
     const outsideWordRange = JSON.stringify({
       ...JSON.parse(validContent),
       title: "gemini",
@@ -363,24 +363,37 @@ describe("slideshow text structured output", () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(response(outsideWordRange))
-      .mockResolvedValueOnce(response(validContent))
+
+    const generated = await generateSlideshowText({
+      automation,
+      apiKey: "test-key",
+      fetchImpl,
+    })
+
+    // The copy is kept and the miss is reported beside it. Discarding a whole
+    // generation over a word count throws away everything else that was right.
+    expect(generated.result.text["content-2__heading"]).toBe(
+      "geminis stay curious because change gives them room to keep growing"
+    )
+    expect(generated.violations).toEqual([
+      "content-2__heading has 11 words, but its configured maximum is 8.",
+    ])
+    // No retry: word counts are a quality signal, not a correctness one.
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+
+  it("still fails on a genuinely invalid output rather than reporting it", async () => {
+    const emptyTitle = JSON.stringify({
+      ...JSON.parse(validContent),
+      title: "",
+    })
+    // A Response body can only be read once, so each attempt needs a fresh one.
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () => response(emptyTitle))
 
     await expect(
       generateSlideshowText({ automation, apiKey: "test-key", fetchImpl })
-    ).resolves.toMatchObject({
-      result: {
-        title: "gemini growth guide",
-        text: {
-          "content-2__heading": "change keeps geminis curious",
-        },
-      },
-    })
-    expect(fetchImpl).toHaveBeenCalledTimes(2)
-    const retryBody = JSON.parse(
-      String(fetchImpl.mock.calls[1]?.[1]?.body)
-    ) as { messages: { content: string }[] }
-    expect(retryBody.messages.at(-1)?.content).toContain(
-      "content-2__heading has 11 words, but its configured maximum is 8"
-    )
+    ).rejects.toThrow(/title must not be empty/)
   })
 })
