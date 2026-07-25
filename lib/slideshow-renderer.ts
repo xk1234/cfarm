@@ -1,5 +1,5 @@
 import { clean } from "@/lib/guards"
-import { resolveSlideshowFont } from "@/lib/font-config"
+import { resolveSlideshowFont } from "@/lib/slideshow-font-family"
 import {
   textStyleToEditorColor,
   textStyleUsesStroke,

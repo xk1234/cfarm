@@ -109,11 +109,15 @@ const generatedModules = [
     },
   },
   {
+    source: "lib/slideshow-font-family.ts",
+    target: "appwrite/functions/job-worker/src/slideshow-font-family.js",
+  },
+  {
     source: "lib/slideshow-renderer.ts",
     target: "appwrite/functions/job-worker/src/slideshow-renderer.js",
     imports: {
       "@/lib/guards": "./guards.js",
-      "@/lib/font-config": "./font-config.js",
+      "@/lib/slideshow-font-family": "./slideshow-font-family.js",
       "@/lib/realfarm-slideshow-text-style-config":
         "./realfarm-slideshow-text-style-config.js",
     },
@@ -121,6 +125,9 @@ const generatedModules = [
   {
     source: "lib/font-config.ts",
     target: "appwrite/functions/job-worker/src/font-config.js",
+    imports: {
+      "@/lib/slideshow-font-family": "./slideshow-font-family.js",
+    },
   },
   {
     source: "lib/postfast-provider-controls.ts",

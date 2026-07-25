@@ -1,6 +1,6 @@
 // Generated from lib/slideshow-renderer.ts. Do not edit by hand.
 import { clean } from "./guards.js";
-import { resolveSlideshowFont } from "./font-config.js";
+import { resolveSlideshowFont } from "./slideshow-font-family.js";
 import { textStyleToEditorColor, textStyleUsesStroke, } from "./realfarm-slideshow-text-style-config.js";
 export const slideshowOverlayOpacity = 0.2;
 export function slideshowTextPositionX(textAlign, textAnchor) {
