@@ -5,6 +5,32 @@
 // optional extra headers, and reads what it needs from `payload`.
 import { clean, isRecord } from "./guards.js";
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
+/**
+ * Anthropic's structured-output API rejects array cardinality constraints:
+ * `minItems` may only be 0 or 1, and `maxItems` is not supported at all. Either
+ * one fails the entire request for any provider routed to Anthropic (including
+ * Bedrock). Strip them at the request boundary so callers can keep expressing
+ * intent in the schema, and rely on the prompt plus post-generation validation
+ * to enforce the real bounds.
+ */
+export function clampSchemaMinItems(schema) {
+    if (Array.isArray(schema)) {
+        return schema.map((entry) => clampSchemaMinItems(entry));
+    }
+    if (!schema || typeof schema !== "object")
+        return schema;
+    const next = {};
+    for (const [key, value] of Object.entries(schema)) {
+        if (key === "minItems" && typeof value === "number" && value > 1) {
+            next[key] = 1;
+            continue;
+        }
+        if (key === "maxItems" && typeof value === "number")
+            continue;
+        next[key] = clampSchemaMinItems(value);
+    }
+    return next;
+}
 export class OpenRouterRequestError extends Error {
     status;
     code;
@@ -93,7 +119,7 @@ export async function openRouterJson(input) {
         messages,
         fetchImpl: input.fetchImpl,
         responseFormat: input.schema
-            ? { type: "json_schema", json_schema: input.schema }
+            ? { type: "json_schema", json_schema: clampSchemaMinItems(input.schema) }
             : { type: "json_object" },
         timeoutMs: input.timeoutMs,
         maxTokens: input.maxTokens,
@@ -102,7 +128,18 @@ export async function openRouterJson(input) {
     });
     if (!result.ok) {
         throw new OpenRouterRequestError({
-            message: result.payload.error?.message || `OpenRouter failed (${result.status})`,
+            // OpenRouter's generic "Provider returned error" is undiagnosable on its
+            // own; the upstream detail lives in error.metadata. Keep both.
+            message: [
+                result.payload.error?.message ||
+                    `OpenRouter failed (${result.status})`,
+                `status=${result.status}`,
+                result.payload.error?.metadata
+                    ? `metadata=${JSON.stringify(result.payload.error.metadata).slice(0, 500)}`
+                    : "",
+            ]
+                .filter(Boolean)
+                .join(" | "),
             status: result.status,
             code: "provider_error",
             retryable: result.status === 408 ||

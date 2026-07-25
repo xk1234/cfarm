@@ -17,6 +17,7 @@ import {
   slideshowTextPositionX,
 } from "./slideshow-renderer.js"
 import { configureFontconfig } from "./font-config.js"
+import { clampSchemaMinItems } from "./openrouter.js"
 import { expandAllHookCombinations } from "./hook-expansion.js"
 import { applyResolvedHookCase } from "./hook-casing.js"
 import {
@@ -1893,14 +1894,24 @@ async function openRouterRequest({ apiKey, body, timeoutMs }) {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(clampSchemaMinItems(body)),
       signal: AbortSignal.timeout(timeoutMs),
     }
   )
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) {
+    // OpenRouter's bare "Provider returned error" is undiagnosable; the
+    // upstream cause is in error.metadata. Keep status + metadata.
     throw new Error(
-      payload?.error?.message || `OpenRouter failed (${response.status})`
+      [
+        payload?.error?.message || `OpenRouter failed (${response.status})`,
+        `status=${response.status}`,
+        payload?.error?.metadata
+          ? `metadata=${JSON.stringify(payload.error.metadata).slice(0, 600)}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" | ")
     )
   }
   return payload

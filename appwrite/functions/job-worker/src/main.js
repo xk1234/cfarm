@@ -13,6 +13,13 @@ import { openRouterModelForUseCase } from "./realfarm-generation-model-registry.
 import { runSlideshowAutomation } from "./slideshow-automation.js"
 import { runUgcAutomationJob } from "./ugc-automation.js"
 
+
+// Self-hosted Appwrite injects APPWRITE_FUNCTION_API_ENDPOINT from _APP_DOMAIN,
+// which is not guaranteed to be routable from inside the function container.
+// An explicitly configured endpoint always wins.
+const API_ENDPOINT =
+  process.env.APPWRITE_ENDPOINT || process.env.APPWRITE_FUNCTION_API_ENDPOINT
+
 const DB = process.env.APPWRITE_DATABASE_ID || "cfarm"
 // A slideshow can consume most of one invocation; do not lease more work than
 // this execution can safely finish.
@@ -25,7 +32,7 @@ const WID = `worker-${crypto.randomBytes(4).toString("hex")}`
 function db() {
   return new TablesDB(
     new Client()
-      .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT)
+      .setEndpoint(API_ENDPOINT)
       .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
       .setKey(process.env.APPWRITE_API_KEY)
   )
@@ -33,7 +40,7 @@ function db() {
 function storage() {
   return new Storage(
     new Client()
-      .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT)
+      .setEndpoint(API_ENDPOINT)
       .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
       .setKey(process.env.APPWRITE_API_KEY)
   )
@@ -52,6 +59,13 @@ export async function findCandidates(t) {
     Query.orderAsc("available_at"),
     Query.limit(BATCH),
   ])
+  if (!queued || !Array.isArray(queued.rows)) {
+    throw new Error(
+      `jobs listRows returned no rows array from ${API_ENDPOINT} (db=${DB}); ` +
+        `got keys [${queued ? Object.keys(queued).join(",") : "none"}]. ` +
+        `Check that this endpoint actually serves the Appwrite API.`
+    )
+  }
   if (queued.rows.length > 0) return queued.rows
   const stale = await t.listRows(DB, "jobs", [
     Query.equal("status", ["processing"]),
@@ -811,7 +825,11 @@ export default async ({ log, error }) => {
     )
     return { ok: true, worker: WID, processed, failed, skipped }
   } catch (e) {
-    error(`worker fatal: ${e instanceof Error ? e.message : String(e)}`)
+    error(
+      `worker fatal: ${e instanceof Error ? e.message : String(e)}\n` +
+        `endpoint=${process.env.APPWRITE_FUNCTION_API_ENDPOINT} db=${DB}\n` +
+        `${e instanceof Error ? e.stack : ""}`
+    )
     return { ok: false, error: String(e) }
   }
 }

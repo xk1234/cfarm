@@ -22,6 +22,7 @@ const sourceDatabaseId =
 const targetDatabaseId = process.env.APPWRITE_DATABASE_ID || "cfarm"
 const filesOnly = process.argv.includes("--files-only")
 const bucketFilter = argumentValue("--bucket")
+const excludedAutomationName = argumentValue("--exclude-automation-name")
 const uploadChunkSize = 5 * 1024 * 1024
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const requiredEnvironment = [
@@ -178,7 +179,7 @@ async function migrateRows() {
   )
   console.log(`\nMigrating rows from ${tables.length} tables...`)
   for (const table of tables) {
-    const rows = await listAll("rows", (queries) =>
+    let rows = await listAll("rows", (queries) =>
       source.tables.listRows({
         databaseId: sourceDatabaseId,
         tableId: table.$id,
@@ -186,6 +187,18 @@ async function migrateRows() {
         total: false,
       })
     )
+    if (table.$id === "automations" && excludedAutomationName) {
+      const before = rows.length
+      rows = rows.filter(
+        (row) => automationRowName(row) !== excludedAutomationName
+      )
+      if (rows.length !== before) {
+        console.log(
+          `  automations: excluded ${before - rows.length} row named ` +
+            `"${excludedAutomationName}"`
+        )
+      }
+    }
     let completed = 0
     await runPool(rows, 8, async (row) => {
       const data = Object.fromEntries(
@@ -418,4 +431,15 @@ function argumentValue(name) {
   const value = String(process.argv[index + 1] || "").trim()
   if (!value) throw new Error(`${name} requires a value.`)
   return value
+}
+
+function automationRowName(row) {
+  if (typeof row?.name === "string") return row.name
+  try {
+    const data =
+      typeof row?.data === "string" ? JSON.parse(row.data) : row?.data
+    return typeof data?.name === "string" ? data.name : ""
+  } catch {
+    return ""
+  }
 }

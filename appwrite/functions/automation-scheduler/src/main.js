@@ -13,6 +13,13 @@ import {
   ugcGenerationLeadMinutes,
 } from "./automation-slots.js"
 
+// Self-hosted Appwrite injects APPWRITE_FUNCTION_API_ENDPOINT from _APP_DOMAIN,
+// which is not guaranteed to be routable from inside the function container.
+// An explicitly configured endpoint always wins.
+const API_ENDPOINT =
+  process.env.APPWRITE_ENDPOINT || process.env.APPWRITE_FUNCTION_API_ENDPOINT
+
+
 export {
   dueAutomationSlots as dueSlots,
   SLIDESHOW_GENERATION_LEAD_MINUTES,
@@ -26,7 +33,7 @@ const LOOKBACK = Number(process.env.LOOKBACK_MINUTES || 10)
 function client() {
   return new TablesDB(
     new Client()
-      .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT)
+      .setEndpoint(API_ENDPOINT)
       .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
       .setKey(process.env.APPWRITE_API_KEY)
   )

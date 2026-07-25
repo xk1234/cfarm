@@ -8,13 +8,38 @@ const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 export type OpenRouterChatPayload = {
   choices?: { message?: { content?: unknown } }[]
-  error?: { message?: string }
+  error?: { message?: string; metadata?: unknown }
 }
 
 export type OpenRouterChatResult = {
   ok: boolean
   status: number
   payload: OpenRouterChatPayload
+}
+
+/**
+ * Anthropic's structured-output API rejects array cardinality constraints:
+ * `minItems` may only be 0 or 1, and `maxItems` is not supported at all. Either
+ * one fails the entire request for any provider routed to Anthropic (including
+ * Bedrock). Strip them at the request boundary so callers can keep expressing
+ * intent in the schema, and rely on the prompt plus post-generation validation
+ * to enforce the real bounds.
+ */
+export function clampSchemaMinItems<T>(schema: T): T {
+  if (Array.isArray(schema)) {
+    return schema.map((entry) => clampSchemaMinItems(entry)) as unknown as T
+  }
+  if (!schema || typeof schema !== "object") return schema
+  const next: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(schema as object)) {
+    if (key === "minItems" && typeof value === "number" && value > 1) {
+      next[key] = 1
+      continue
+    }
+    if (key === "maxItems" && typeof value === "number") continue
+    next[key] = clampSchemaMinItems(value)
+  }
+  return next as unknown as T
 }
 
 export class OpenRouterRequestError extends Error {
@@ -146,7 +171,7 @@ export async function openRouterJson(
     messages,
     fetchImpl: input.fetchImpl,
     responseFormat: input.schema
-      ? { type: "json_schema", json_schema: input.schema }
+      ? { type: "json_schema", json_schema: clampSchemaMinItems(input.schema) }
       : { type: "json_object" },
     timeoutMs: input.timeoutMs,
     maxTokens: input.maxTokens,
@@ -155,8 +180,18 @@ export async function openRouterJson(
   })
   if (!result.ok) {
     throw new OpenRouterRequestError({
-      message:
-        result.payload.error?.message || `OpenRouter failed (${result.status})`,
+      // OpenRouter's generic "Provider returned error" is undiagnosable on its
+      // own; the upstream detail lives in error.metadata. Keep both.
+      message: [
+        result.payload.error?.message ||
+          `OpenRouter failed (${result.status})`,
+        `status=${result.status}`,
+        result.payload.error?.metadata
+          ? `metadata=${JSON.stringify(result.payload.error.metadata).slice(0, 500)}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" | "),
       status: result.status,
       code: "provider_error",
       retryable:

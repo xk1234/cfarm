@@ -62,6 +62,7 @@ const FUNCTIONS = [
     timeout: 120,
     vars: {
       APPWRITE_API_KEY: API_KEY,
+      APPWRITE_ENDPOINT: ENDPOINT,
       APPWRITE_DATABASE_ID: DATABASE_ID,
       LOOKBACK_MINUTES: "10",
       ...(process.env.LUMENCLIP_SYSTEM_OWNER_ID
@@ -75,6 +76,7 @@ const FUNCTIONS = [
     timeout: 900,
     vars: {
       APPWRITE_API_KEY: API_KEY,
+      APPWRITE_ENDPOINT: ENDPOINT,
       APPWRITE_DATABASE_ID: DATABASE_ID,
       BATCH: "1",
       LEASE_MS: "960000",
