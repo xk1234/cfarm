@@ -325,4 +325,32 @@ describe("published hook attribution", () => {
       ),
     })
   })
+
+  it("propagates storage quota failures instead of returning zero performance", async () => {
+    const schema = defaultAutomationSchema({
+      id: "1",
+      name: "Demo",
+      status: "live",
+      account: "",
+      handle: "",
+      times: [],
+      theme: "",
+      socialIntegrations: [],
+      favorite: false,
+      automationKind: "slideshow",
+    })
+    mocks.getAutomationRecord.mockResolvedValue({
+      id: "automation-1",
+      schema,
+    })
+    mocks.listPostFastPostRecords.mockRejectedValue({
+      code: 429,
+      type: "limit_databases_reads_exceeded",
+    })
+
+    await expect(hookAnalyticsReport("automation-1")).rejects.toMatchObject({
+      code: 429,
+      type: "limit_databases_reads_exceeded",
+    })
+  })
 })

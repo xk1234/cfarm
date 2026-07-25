@@ -20,14 +20,12 @@ import { Button } from "@/components/ui/button"
 import type { RealFarmData } from "@/lib/realfarm-data"
 import { clientSWRFetcher } from "@/lib/client-swr"
 import { cn } from "@/lib/utils"
+import {
+  workspaceViewHref,
+  type ViewKey,
+} from "@/components/realfarm/workspace-navigation"
 
-export type ViewKey =
-  | "home"
-  | "compose"
-  | "schedule"
-  | "analytics"
-  | "collections"
-  | "automations"
+export type { ViewKey } from "@/components/realfarm/workspace-navigation"
 
 type NavItem = {
   key: ViewKey
@@ -94,9 +92,9 @@ export function Sidebar({
         New Automation
       </Button>
       <nav className="space-y-1">
-        {topNav.map((item, index) => (
+        {topNav.map((item) => (
           <SidebarButton
-            key={`${item.label}-${index}`}
+            key={item.key}
             item={item}
             active={
               (view === "home" && item.label === "Home") ||
@@ -105,7 +103,7 @@ export function Sidebar({
               (view === "analytics" && item.label === "Analytics")
             }
             onClick={() => onViewChange(item.key)}
-            href={routeHref(item.key)}
+            href={workspaceViewHref(item.key)}
             badge={item.key === "schedule" ? scheduleBadge : 0}
           />
         ))}
@@ -120,7 +118,7 @@ export function Sidebar({
             item={item}
             active={item.key === view}
             onClick={() => onViewChange(item.key)}
-            href={routeHref(item.key)}
+            href={workspaceViewHref(item.key)}
           />
         ))}
       </nav>
@@ -169,7 +167,7 @@ export function MobileNavigation({
       {[...topNav, ...slideshowNav].map((item) => {
         const Icon = item.icon
         const active = view === item.key
-        const href = routeHref(item.key)
+        const href = workspaceViewHref(item.key)
         const className = cn(
           "lc-focus-ring flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-[8px] px-1 text-[10px] font-semibold",
           active
@@ -182,25 +180,21 @@ export function MobileNavigation({
             <span className="w-full truncate">{item.label}</span>
           </>
         )
-        return href ? (
+        return (
           <Link
             key={item.key}
             href={href}
+            prefetch={false}
             aria-current={active ? "page" : undefined}
             className={className}
+            onClick={(event) => {
+              if (!isPlainNavigationClick(event)) return
+              event.preventDefault()
+              onViewChange(item.key)
+            }}
           >
             {content}
           </Link>
-        ) : (
-          <button
-            key={item.key}
-            type="button"
-            aria-current={active ? "page" : undefined}
-            className={className}
-            onClick={() => onViewChange(item.key)}
-          >
-            {content}
-          </button>
         )
       })}
     </nav>
@@ -244,7 +238,17 @@ function SidebarButton({
     </>
   )
   return href ? (
-    <Link href={href} className={className}>
+    <Link
+      href={href}
+      prefetch={false}
+      className={className}
+      aria-current={active ? "page" : undefined}
+      onClick={(event) => {
+        if (!isPlainNavigationClick(event)) return
+        event.preventDefault()
+        onClick()
+      }}
+    >
       {content}
     </Link>
   ) : (
@@ -254,9 +258,14 @@ function SidebarButton({
   )
 }
 
-function routeHref(view: ViewKey) {
-  if (view === "compose") return "/app/compose"
-  if (view === "analytics") return "/app/analytics"
-  if (view === "collections") return "/app/collections"
-  return undefined
+function isPlainNavigationClick(
+  event: React.MouseEvent<HTMLAnchorElement>
+) {
+  return (
+    event.button === 0 &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.shiftKey &&
+    !event.altKey
+  )
 }

@@ -4,7 +4,8 @@
 //
 // Variables: APPWRITE_API_KEY, APPWRITE_DATABASE_ID, BATCH, LEASE_MS,
 //            OPENROUTER_API_KEY, POSTFAST_API_KEY, optional DEEPL_KEY,
-//            TELEGRAM_BOT_TOKEN, and TELEGRAM_CHAT_ID.
+//            TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, BASE_URL, and optional
+//            SLIDESHOW_SHARE_SECRET.
 import crypto from "node:crypto"
 import { Client, TablesDB, Storage, Query } from "node-appwrite"
 import { llmSlopPromptLine, llmSlopViolations } from "./llm-slop.js"
@@ -110,9 +111,27 @@ async function failOrRetry(t, job, err) {
 }
 
 async function sendTelegram(text, chatIdOverride, options = {}) {
-  const token = process.env.TELEGRAM_BOT_TOKEN
+  const token =
+    cleanString(options.botToken) || process.env.TELEGRAM_BOT_TOKEN
   const chatId = cleanString(chatIdOverride) || process.env.TELEGRAM_CHAT_ID
   if (!token || !chatId) return { sent: false, reason: "not_configured" }
+  const buttons = []
+  if (options.deliveryUrl) {
+    buttons.push([
+      {
+        text: "Download slides + copy post",
+        url: options.deliveryUrl,
+      },
+    ])
+  }
+  if (options.confirmationJobId) {
+    buttons.push([
+      {
+        text: "Yes, I posted it",
+        callback_data: `posted:${options.confirmationJobId}`,
+      },
+    ])
+  }
   const response = await fetch(
     `https://api.telegram.org/bot${token}/sendMessage`,
     {
@@ -121,17 +140,10 @@ async function sendTelegram(text, chatIdOverride, options = {}) {
       body: JSON.stringify({
         chat_id: chatId,
         text: String(text).slice(0, 4000),
-        ...(options.confirmationJobId
+        ...(buttons.length
           ? {
               reply_markup: {
-                inline_keyboard: [
-                  [
-                    {
-                      text: "Yes, I posted it",
-                      callback_data: `posted:${options.confirmationJobId}`,
-                    },
-                  ],
-                ],
+                inline_keyboard: buttons,
               },
             }
           : {}),
@@ -174,9 +186,39 @@ export async function sendConfiguredReminder(payload, t, job) {
     return { sent: false, reason: "event_disabled" }
   }
   return sendTelegram(payload.text, settings.telegramChatId, {
+    botToken: settings.telegramBotToken,
+    deliveryUrl:
+      payload.sourceType === "slideshow"
+        ? slideshowDeliveryUrl({
+            ownerId: job?.owner_id,
+            outputId: payload.sourceId,
+          })
+        : undefined,
     confirmationJobId:
       payload.requiresPostConfirmation === true ? job?.$id : undefined,
   })
+}
+
+function slideshowDeliveryUrl({ ownerId, outputId }) {
+  const baseUrl = cleanString(process.env.BASE_URL).replace(/\/$/, "")
+  const secret =
+    cleanString(process.env.SLIDESHOW_SHARE_SECRET) ||
+    cleanString(process.env.APPWRITE_API_KEY)
+  if (!/^https:\/\//i.test(baseUrl) || !secret || !ownerId || !outputId) {
+    return undefined
+  }
+  const claims = {
+    ownerId: cleanString(ownerId),
+    outputId: cleanString(outputId),
+    expiresAt: Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60,
+  }
+  const payload = Buffer.from(JSON.stringify(claims)).toString("base64url")
+  const signature = crypto
+    .createHmac("sha256", secret)
+    .update(payload)
+    .digest("base64url")
+  const token = `${payload}.${signature}`
+  return `${baseUrl}/share/slideshows/${encodeURIComponent(claims.outputId)}?token=${encodeURIComponent(token)}`
 }
 
 async function enqueueReminderJob(t, ownerId, input) {

@@ -18,6 +18,8 @@ const ENDPOINT = process.env.APPWRITE_ENDPOINT
 const PROJECT_ID = process.env.APPWRITE_PROJECT_ID
 const API_KEY = process.env.APPWRITE_API_KEY
 const DATABASE_ID = process.env.APPWRITE_DATABASE_ID || "cfarm"
+const PUBLIC_BASE_URL =
+  process.env.BASE_URL || "https://cfarm-eight.vercel.app"
 if (!ENDPOINT || !PROJECT_ID || !API_KEY)
   throw new Error("APPWRITE_ENDPOINT/PROJECT_ID/API_KEY required")
 
@@ -39,6 +41,8 @@ const optionalProviderVars = Object.fromEntries(
     "ENABLE_UGC_AUTOMATION",
     "TELEGRAM_BOT_TOKEN",
     "TELEGRAM_CHAT_ID",
+    "BASE_URL",
+    "SLIDESHOW_SHARE_SECRET",
     "POSTFAST_API_KEY",
     "RENDI_API_KEY",
     "DEEPL_KEY",
@@ -74,6 +78,7 @@ const FUNCTIONS = [
       APPWRITE_DATABASE_ID: DATABASE_ID,
       BATCH: "1",
       LEASE_MS: "960000",
+      BASE_URL: PUBLIC_BASE_URL,
       ...optionalProviderVars,
     },
   },

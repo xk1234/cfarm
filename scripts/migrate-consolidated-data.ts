@@ -62,7 +62,7 @@ const tables = new TablesDB(
   new Client().setEndpoint(endpoint).setProject(projectId).setKey(apiKey)
 )
 
-const sources: MigrationSource[] = [
+const allSources: MigrationSource[] = [
   permanent("image_collections", "image_collection", false),
   permanent("word_collections", "word_collection", false),
   permanent("product_collections", "product_collection", false),
@@ -74,6 +74,18 @@ const sources: MigrationSource[] = [
   output("generated_video_exports", "generated_video"),
   output("x_automation_runs", "x_automation_run"),
 ]
+const sourceTableFilter = clean(argumentValue("--source-table"))
+const ridFilter = clean(argumentValue("--rid")).toLowerCase()
+const sources = sourceTableFilter
+  ? allSources.filter((source) => source.sourceTable === sourceTableFilter)
+  : allSources
+if (sources.length === 0) {
+  throw new Error(
+    `Unknown source table ${sourceTableFilter}. Expected one of: ${allSources
+      .map((source) => source.sourceTable)
+      .join(", ")}.`
+  )
+}
 
 console.log(
   `${apply ? "Applying" : "Previewing"} consolidated-data migration for ${endpoint} (${projectId})`
@@ -85,7 +97,9 @@ let totalSkipped = 0
 let totalMedia = 0
 
 for (const source of sources) {
-  const rows = await listAllRows(source.sourceTable)
+  const rows = (await listAllRows(source.sourceTable)).filter((row) =>
+    matchesRidFilter(row)
+  )
   totalSourceRows += rows.length
   console.log(
     `${source.sourceTable} -> ${source.route.table}/${source.route.sourceKey}: ${rows.length}`
@@ -151,6 +165,19 @@ for (const source of sources) {
       }
     }
   }
+}
+
+function matchesRidFilter(row: Record<string, unknown>) {
+  if (!ridFilter) return true
+  const record = parseRecord(row)
+  return [
+    clean(row.rid),
+    clean(pickField(record, ID_KEYS)),
+    clean(row.name),
+    clean(record.name),
+  ]
+    .map((value) => value.toLowerCase())
+    .includes(ridFilter)
 }
 
 if (apply) {

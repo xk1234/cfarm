@@ -35,9 +35,7 @@ export async function WorkspaceRoute({
   const [data, initialTemplateData, composeAccounts] = await Promise.all([
     loadRealFarmData({ mediaAssets: [] }),
     loadInitialTemplateData(),
-    navigation.view === "compose"
-      ? loadComposeAccounts(user.$id)
-      : Promise.resolve([]),
+    loadComposeAccounts(user.$id),
   ])
 
   return (

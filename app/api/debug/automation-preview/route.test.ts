@@ -117,6 +117,14 @@ describe("POST /api/debug/automation-preview", () => {
             ? { ...section, aspect_ratio: "4:5", slideCount: 0 }
             : section
     )
+    automation.schema.hooks = [
+      {
+        id: "edited-json-hook",
+        text: "edited json hook",
+        enabled: true,
+        createdAt: new Date(0).toISOString(),
+      },
+    ]
     await upsertAutomationRecords({
       rootDir: path.join(tempRoot, "data", "automations"),
       records: [automation],

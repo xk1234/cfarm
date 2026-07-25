@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
-import { usePathname, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import type { SocialAccountStatusItem } from "@/components/realfarm/social-account-status"
 import {
@@ -10,6 +9,10 @@ import {
   Sidebar,
   type ViewKey,
 } from "@/components/realfarm/navigation"
+import {
+  workspaceLocationFromUrl,
+  workspaceViewHref,
+} from "@/components/realfarm/workspace-navigation"
 import {
   mergeAutomationSchema,
   ugcLiveConfigurationErrors,
@@ -169,9 +172,10 @@ export function RealFarmWorkspace({
   composeAccounts?: ConnectedComposerAccount[]
   user: { id: string; email: string; emailVerified: boolean }
 }) {
-  const router = useRouter()
-  const pathname = usePathname()
   const [view, setView] = useState<ViewKey>(initialNavigation?.view ?? "home")
+  const [selectedCollectionId, setSelectedCollectionId] = useState(
+    initialNavigation?.collectionId ?? null
+  )
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [selectedSoundId] = useState("")
   const [workspaceAssets, setWorkspaceAssets] = useState(data.assets)
@@ -273,7 +277,6 @@ export function RealFarmWorkspace({
     enabled:
       view === "collections" || view === "automations" || templateFolderOpen,
   })
-  const selectedCollectionId = initialNavigation?.collectionId ?? null
   const selectedCollection =
     visibleCollections.find(
       (collection) => collection.id === selectedCollectionId
@@ -304,6 +307,21 @@ export function RealFarmWorkspace({
       ),
     [xAutomationRuns]
   )
+
+  useEffect(() => {
+    function restoreWorkspaceLocation() {
+      const location = workspaceLocationFromUrl(
+        window.location.pathname,
+        window.location.search
+      )
+      setView(location.view)
+      setSelectedCollectionId(location.collectionId ?? null)
+    }
+
+    window.addEventListener("popstate", restoreWorkspaceLocation)
+    return () =>
+      window.removeEventListener("popstate", restoreWorkspaceLocation)
+  }, [])
 
   useEffect(() => {
     const needsAssets =
@@ -451,14 +469,29 @@ export function RealFarmWorkspace({
       schema?: AutomationSchema
     }
   ) {
-    void fetchJsonWithTimeout("/api/automations", {
+    void fetchJsonWithTimeout<{
+      record: AutomationRecord
+      automation: Automation
+    }>("/api/automations", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, ...patch }),
       toastOnError: false,
-    }).catch((error) => {
-      toast.error(getApiErrorMessage(error, "Failed to update automation"))
     })
+      .then(({ automation }) => {
+        const mergeSummary = (item: Automation) =>
+          item.id === automation.id ? { ...item, ...automation } : item
+        setPersistedAutomations((current) => current.map(mergeSummary))
+        setCreatedAutomations((current) => current.map(mergeSummary))
+        setEditingAutomation((current) =>
+          current?.id === automation.id
+            ? { ...current, ...automation }
+            : current
+        )
+      })
+      .catch((error) => {
+        toast.error(getApiErrorMessage(error, "Failed to update automation"))
+      })
   }
 
   function deleteAutomation(id: string) {
@@ -565,7 +598,24 @@ export function RealFarmWorkspace({
     )
     const nextStatus: AutomationStatus =
       automation.status === "paused" ? "live" : "paused"
-    const nextConfig = { ...currentConfig, status: nextStatus }
+    if (
+      nextStatus === "live" &&
+      (automation.generationBlockers?.length ?? 0) > 0
+    ) {
+      toast.error("Automation cannot be resumed", {
+        description: automation.generationBlockers!.join(". "),
+      })
+      setEditingAutomation(automation)
+      return
+    }
+    const nextConfig = {
+      ...currentConfig,
+      status: nextStatus,
+      schedule: {
+        ...currentConfig.schedule,
+        paused: nextStatus === "paused",
+      },
+    }
     const ugcErrors = ugcLiveConfigurationErrors(nextStatus, nextConfig)
     if (ugcErrors.length) {
       toast.error("UGC automation is not ready to go live", {
@@ -708,33 +758,30 @@ export function RealFarmWorkspace({
   }
 
   function changeView(nextView: ViewKey) {
-    if (nextView === "compose") {
-      router.push("/app/compose")
-      return
-    }
-    if (nextView === "analytics") {
-      router.push("/app/analytics")
-      return
-    }
-    if (nextView === "collections") {
-      router.push("/app/collections")
-      return
-    }
-    if (pathname !== "/app") {
-      router.push(`/app?view=${nextView}`)
-      return
-    }
     if (nextView === "automations") {
       setEditingAutomation(null)
       refreshRecentAutomationRuns()
     }
+    if (nextView === "collections") setSelectedCollectionId(null)
     setView(nextView)
+    pushWorkspaceUrl(workspaceViewHref(nextView))
   }
 
   function showAutomationList() {
     setEditingAutomation(null)
     setView("automations")
+    pushWorkspaceUrl(workspaceViewHref("automations"))
     refreshRecentAutomationRuns()
+  }
+
+  function showCollection(collectionId: string | null) {
+    setSelectedCollectionId(collectionId)
+    setView("collections")
+    pushWorkspaceUrl(
+      collectionId
+        ? `/app/collections/${encodeURIComponent(collectionId)}`
+        : workspaceViewHref("collections")
+    )
   }
 
   function refreshRecentAutomationRuns() {
@@ -840,7 +887,7 @@ export function RealFarmWorkspace({
               <CollectionDetailView
                 collection={selectedCollection}
                 readonly={selectedCollection.virtual}
-                onBack={() => router.push("/app/collections")}
+                onBack={() => showCollection(null)}
                 onAddImages={(images) => {
                   if (selectedCollection.virtual) {
                     return
@@ -895,7 +942,9 @@ export function RealFarmWorkspace({
                 onCreateAutomation={(name) => {
                   void createLocalAutomation({ name })
                     .then((automation) => {
-                      router.push(
+                      setEditingAutomation(automation)
+                      setView("automations")
+                      pushWorkspaceUrl(
                         `/app?view=automations&automation=${encodeURIComponent(automation.id)}`
                       )
                     })
@@ -915,9 +964,7 @@ export function RealFarmWorkspace({
                   )
                 }}
                 onDeleteCollections={deleteCollections}
-                onOpenCollection={(id) =>
-                  router.push(`/app/collections/${encodeURIComponent(id)}`)
-                }
+                onOpenCollection={(id) => showCollection(id)}
                 onToggleCollectionPin={toggleCollectionPin}
               />
             ))}
@@ -1253,6 +1300,11 @@ export function RealFarmWorkspace({
       )}
     </main>
   )
+}
+
+function pushWorkspaceUrl(href: string) {
+  const current = `${window.location.pathname}${window.location.search}`
+  if (current !== href) window.history.pushState(null, "", href)
 }
 
 function EmailVerificationNotice() {

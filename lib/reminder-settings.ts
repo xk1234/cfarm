@@ -18,13 +18,14 @@ export type ReminderSettings = {
   id: "reminders"
   channel: ReminderChannel
   telegramChatId?: string
+  telegramBotToken?: string
   events: Record<ReminderEvent, boolean>
   updatedAt: string
 }
 
 export type ReminderSettingsInput = Pick<
   ReminderSettings,
-  "channel" | "telegramChatId" | "events"
+  "channel" | "telegramChatId" | "telegramBotToken" | "events"
 >
 
 const rootDir = path.join(process.cwd(), "data", "settings")
@@ -60,6 +61,7 @@ export function normalizeReminderSettings(
     id: "reminders",
     channel: input.channel === "telegram" ? "telegram" : "none",
     telegramChatId: clean(input.telegramChatId) || undefined,
+    telegramBotToken: clean(input.telegramBotToken) || undefined,
     events: {
       generated:
         typeof rawEvents.generated === "boolean"
@@ -101,25 +103,34 @@ export async function saveReminderSettings(
   return settings
 }
 
-export function telegramReminderConfiguration() {
+export function publicReminderSettings(settings: ReminderSettings) {
+  const { telegramBotToken: _telegramBotToken, ...safe } = settings
+  return safe
+}
+
+export function telegramReminderConfiguration(settings?: ReminderSettings) {
   const baseUrl = clean(process.env.BASE_URL).replace(/\/$/, "")
   const webhookSecret = clean(process.env.TELEGRAM_WEBHOOK_SECRET)
+  const token =
+    clean(settings?.telegramBotToken) ||
+    clean(process.env.TELEGRAM_BOT_TOKEN)
   return {
-    botConfigured: Boolean(process.env.TELEGRAM_BOT_TOKEN?.trim()),
+    botConfigured: Boolean(token),
+    customBotConfigured: Boolean(settings?.telegramBotToken),
     defaultChatConfigured: Boolean(process.env.TELEGRAM_CHAT_ID?.trim()),
     interactiveConfigured:
-      Boolean(process.env.TELEGRAM_BOT_TOKEN?.trim()) &&
-      Boolean(webhookSecret) &&
-      /^https:\/\//i.test(baseUrl),
+      Boolean(token) && Boolean(webhookSecret) && /^https:\/\//i.test(baseUrl),
   }
 }
 
 export async function telegramBotRequest(
   method: string,
   body: Record<string, unknown>,
-  fetcher: typeof fetch = fetch
+  fetcher: typeof fetch = fetch,
+  botToken?: string
 ) {
-  const token = process.env.TELEGRAM_BOT_TOKEN?.trim()
+  const token =
+    clean(botToken) || process.env.TELEGRAM_BOT_TOKEN?.trim()
   if (!token)
     throw new Error("Telegram reminders are not configured on the server.")
   const response = await fetcher(
@@ -140,8 +151,17 @@ export async function telegramBotRequest(
   return payload
 }
 
-export async function configureTelegramWebhook(fetcher: typeof fetch = fetch) {
-  const configuration = telegramReminderConfiguration()
+export async function configureTelegramWebhook(
+  settingsOrFetcher?: ReminderSettings | typeof fetch,
+  requestedFetcher: typeof fetch = fetch
+) {
+  const settings =
+    typeof settingsOrFetcher === "function" ? undefined : settingsOrFetcher
+  const fetcher =
+    typeof settingsOrFetcher === "function"
+      ? settingsOrFetcher
+      : requestedFetcher
+  const configuration = telegramReminderConfiguration(settings)
   if (!configuration.interactiveConfigured) return { configured: false }
   const baseUrl = clean(process.env.BASE_URL).replace(/\/$/, "")
   await telegramBotRequest(
@@ -152,7 +172,8 @@ export async function configureTelegramWebhook(fetcher: typeof fetch = fetch) {
       allowed_updates: ["callback_query"],
       drop_pending_updates: false,
     },
-    fetcher
+    fetcher,
+    settings?.telegramBotToken
   )
   return { configured: true }
 }
@@ -160,9 +181,11 @@ export async function configureTelegramWebhook(fetcher: typeof fetch = fetch) {
 export async function sendTelegramReminder(input: {
   text: string
   chatId?: string
+  botToken?: string
   fetcher?: typeof fetch
 }) {
-  const token = process.env.TELEGRAM_BOT_TOKEN?.trim()
+  const token =
+    clean(input.botToken) || process.env.TELEGRAM_BOT_TOKEN?.trim()
   const chatId = clean(input.chatId) || process.env.TELEGRAM_CHAT_ID?.trim()
   if (!token)
     throw new Error("Telegram reminders are not configured on the server.")
@@ -171,7 +194,8 @@ export async function sendTelegramReminder(input: {
   await telegramBotRequest(
     "sendMessage",
     { chat_id: chatId, text: clean(input.text).slice(0, 4000) },
-    input.fetcher
+    input.fetcher,
+    token
   )
   return { sent: true }
 }

@@ -70,6 +70,34 @@ describe("scheduled worker hook selection", () => {
 
     expect(selected).toMatchObject({ hookId: "draft", text: "Draft-only hook" })
   })
+
+  it("skips an invalid hook and resolves SLIDE_COUNT on a usable hook", () => {
+    const value = schema()
+    value.hooks = [
+      { id: "broken", text: "Ideas for [[MISSING]]", enabled: true },
+      {
+        id: "count-aware",
+        text: "[[SLIDE_COUNT]] things worth knowing",
+        enabled: true,
+      },
+    ]
+
+    const selected = selectHook({
+      schema: value,
+      wordCollections: [],
+      usage: [],
+      automationId: "automation-1",
+      scheduledFor: "2026-07-18T12:00:00.000Z",
+      seed: Buffer.from([0]),
+      bodySlideCount: 5,
+    })
+
+    expect(selected).toMatchObject({
+      hookId: "count-aware",
+      text: "5 things worth knowing",
+      substitutions: { SLIDE_COUNT: "5" },
+    })
+  })
 })
 
 describe("scheduled worker anti-duplication history", () => {

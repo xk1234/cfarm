@@ -229,7 +229,14 @@ function toSafeInteger(value) {
 
 async function waitForColumns(tableId) {
   for (let attempt = 0; attempt < 60; attempt += 1) {
-    const { columns } = await target.tables.listColumns(DB, tableId)
+    const columns = await listAll("columns", (queries) =>
+      target.tables.listColumns({
+        databaseId: DB,
+        tableId,
+        queries,
+        total: false,
+      })
+    )
     const pending = columns.filter((c) => c.status !== "available")
     if (pending.length === 0) return
     await sleep(700)
@@ -270,7 +277,14 @@ async function main() {
       })
     console.log(`\ntable ${table.$id}`)
 
-    const { columns } = await source.tables.listColumns(DB, table.$id)
+    const columns = await listAll("columns", (queries) =>
+      source.tables.listColumns({
+        databaseId: DB,
+        tableId: table.$id,
+        queries,
+        total: false,
+      })
+    )
     for (const column of columns) {
       try {
         await createColumn(table.$id, column)
@@ -282,7 +296,14 @@ async function main() {
     }
     await waitForColumns(table.$id)
 
-    const { indexes } = await source.tables.listIndexes(DB, table.$id)
+    const indexes = await listAll("indexes", (queries) =>
+      source.tables.listIndexes({
+        databaseId: DB,
+        tableId: table.$id,
+        queries,
+        total: false,
+      })
+    )
     for (const index of indexes) {
       const cols = index.columns ?? index.attributes ?? []
       try {

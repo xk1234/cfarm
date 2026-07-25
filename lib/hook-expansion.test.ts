@@ -176,6 +176,14 @@ describe("expandHook", () => {
     })
   })
 
+  it("never falls back to a word collection for a runtime variable", () => {
+    expect(() =>
+      expandHook("[[SLIDE_COUNT]] things you need", undefined, [], () => 0)
+    ).toThrow(
+      "Runtime hook variable SLIDE_COUNT could not be resolved for this run"
+    )
+  })
+
   it("uses a same-name word collection when no explicit slot mapping is saved", () => {
     const collections: WordCollectionRecord[] = [
       wordCollection("test", ["first value", "second value"]),

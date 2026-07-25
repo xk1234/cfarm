@@ -329,8 +329,65 @@ export async function runSlideshowAutomation({
     await upsertStoredRecord(tables, databaseId, RUNS, ownerId, run).catch(
       () => undefined
     )
+    if (isAutomationConfigurationError(error)) {
+      await pauseBlockedAutomation({
+        tables,
+        databaseId,
+        ownerId,
+        automationId,
+      }).catch(() => undefined)
+      if (error && typeof error === "object") {
+        error.nonRetryable = true
+      }
+    }
     throw error
   }
+}
+
+export function isAutomationConfigurationError(error) {
+  const message = errorMessage(error)
+  return [
+    /^No images are available for the automation collections$/,
+    /^No images exist in the configured collection/,
+    /^No overlay images exist in database collection /,
+    /^Hook slot .+ has no words in database collection /,
+    /^The automation database record has no usable hook$/,
+    /^The automation database record is missing .+ formatting$/,
+  ].some((pattern) => pattern.test(message))
+}
+
+async function pauseBlockedAutomation({
+  tables,
+  databaseId,
+  ownerId,
+  automationId,
+}) {
+  const response = await tables.listRows(databaseId, AUTOMATIONS, [
+    Query.equal("rid", [automationId]),
+    Query.equal("owner_id", [ownerId]),
+    Query.limit(1),
+  ])
+  const row = response.rows[0]
+  const automation = safeJson(row?.data)
+  if (!row || !automation) return
+  const updatedAt = new Date().toISOString()
+  const paused = {
+    ...automation,
+    status: "paused",
+    schema: {
+      ...automation.schema,
+      schedule: {
+        ...automation.schema?.schedule,
+        paused: true,
+      },
+    },
+    updatedAt,
+  }
+  await tables.updateRow(databaseId, AUTOMATIONS, row.$id, {
+    status: "paused",
+    data: JSON.stringify(paused),
+    updated_at: updatedAt,
+  })
 }
 
 async function findAutomation(tables, databaseId, automationId, ownerId) {
@@ -537,20 +594,35 @@ export function selectHook({
       )
       .map((record) => record.key)
   )
-  const expanded = candidates.flatMap((hookItem) =>
-    expandAllHookCombinations(
-      hookItem.text,
-      schema.hook_slots,
-      wordCollections,
-      {
-        noDuplicates: schema.distinct_variable_draws !== false,
-        caseMode: schema.prompt_formatting?.hook_case || "mixed",
-        now: new Date(scheduledFor),
-        timeZone: schema.schedule?.timezone,
-        slideCount: bodySlideCount,
-      }
-    ).map((expansion) => ({ ...expansion, hookId: hookItem.id }))
-  )
+  const expanded = []
+  const invalidHookErrors = []
+  for (const hookItem of candidates) {
+    try {
+      expanded.push(
+        ...expandAllHookCombinations(
+          hookItem.text,
+          schema.hook_slots,
+          wordCollections,
+          {
+            noDuplicates: schema.distinct_variable_draws !== false,
+            caseMode: schema.prompt_formatting?.hook_case || "mixed",
+            now: new Date(scheduledFor),
+            timeZone: schema.schedule?.timezone,
+            slideCount: bodySlideCount,
+          }
+        ).map((expansion) => ({ ...expansion, hookId: hookItem.id }))
+      )
+    } catch (error) {
+      invalidHookErrors.push(
+        error instanceof Error
+          ? error
+          : new Error("A hook variable cannot be expanded.")
+      )
+    }
+  }
+  if (!expanded.length && invalidHookErrors.length) {
+    throw invalidHookErrors[0]
+  }
   const available = expanded.filter((item) => {
     const combinationKey = hookCombinationKey(item.template, item.substitutions)
     return (

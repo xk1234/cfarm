@@ -39,6 +39,8 @@ export const LUMENCLIP_MCP_TOOLS = [
   { name: "lumenclip_collection_add_assets", category: "collections" },
   { name: "lumenclip_collection_delete", category: "collections" },
   { name: "lumenclip_outputs_list", category: "outputs" },
+  { name: "lumenclip_output_get", category: "outputs" },
+  { name: "lumenclip_output_validate", category: "outputs" },
   { name: "lumenclip_output_delete", category: "outputs" },
   { name: "lumenclip_operations_list", category: "outputs" },
   { name: "lumenclip_operation_get", category: "outputs" },

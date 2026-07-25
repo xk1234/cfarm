@@ -224,7 +224,7 @@ describe("automation template persistence", () => {
             : section
         ),
       })
-    ).toEqual(["latest hdb resale trends buyers need to know"])
+    ).toEqual([])
     expect(
       automationFormatSection(
         schemaWithAutomationHooks(schemaWithPlaceholder, [

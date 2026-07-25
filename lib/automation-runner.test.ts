@@ -247,7 +247,93 @@ describe("runDueAutomations", () => {
     )
   })
 
-  it("rejects missing hook collections before persisting a run", async () => {
+  it("keeps NUMBER free while SLIDE_COUNT follows the rendered body count", async () => {
+    const automation = createLocalAutomationRecord({
+      name: "Count-aware hooks",
+    })
+    automation.schema.formatting = automation.schema.formatting.map(
+      (section) =>
+        section.id === "body"
+          ? { ...section, slideCount: 5, slideCountMode: "static" }
+          : section.id === "cta"
+            ? { ...section, slideCount: 0 }
+            : section
+    )
+    automation.schema.prompt_formatting.num_of_slides = 6
+    automation.schema.hooks = [
+      {
+        id: "free-count",
+        text: "[[NUMBER]] things worth knowing",
+        enabled: true,
+        createdAt: new Date(0).toISOString(),
+      },
+    ]
+    selectDailyScenesCollection(automation)
+    await writeWordCollections([{ id: "number", words: ["7"] }])
+    await writeImageCollections([
+      {
+        image_link: "/api/local-assets/image-collections/files/count.jpg",
+        caption: "A numbered notebook page",
+      },
+    ])
+
+    const freeCount = await previewAutomationRunPlan(automation.schema, {
+      wordCollectionRootDir,
+      imageCollectionDbPath,
+      random: () => 0,
+    })
+    expect(freeCount.plan.hook).toBe("7 things worth knowing")
+    expect(
+      freeCount.plan.slides.filter((slide) => slide.role === "content")
+    ).toHaveLength(5)
+
+    automation.schema.hooks = [
+      {
+        id: "invalid-variable",
+        text: "Things for [[MISSING]]",
+        enabled: true,
+        createdAt: new Date(0).toISOString(),
+      },
+      {
+        id: "rendered-count",
+        text: "[[SLIDE_COUNT]] things worth knowing",
+        enabled: true,
+        createdAt: new Date(0).toISOString(),
+      },
+    ]
+    const renderedCount = await previewAutomationRunPlan(automation.schema, {
+      wordCollectionRootDir,
+      imageCollectionDbPath,
+      random: () => 0,
+    })
+    expect(renderedCount.plan.hook).toBe("5 things worth knowing")
+    expect(
+      renderedCount.plan.slides.filter((slide) => slide.role === "content")
+    ).toHaveLength(5)
+
+    automation.schema.formatting = automation.schema.formatting.map(
+      (section) =>
+        section.id === "body"
+          ? {
+              ...section,
+              slideCountMode: "varying",
+              slideCountMin: 3,
+              slideCountMax: 6,
+            }
+          : section
+    )
+    const varyingCount = await previewAutomationRunPlan(automation.schema, {
+      wordCollectionRootDir,
+      imageCollectionDbPath,
+      random: () => 0.6,
+    })
+    expect(varyingCount.plan.hook).toBe("5 things worth knowing")
+    expect(
+      varyingCount.plan.slides.filter((slide) => slide.role === "content")
+    ).toHaveLength(5)
+  })
+
+  it("pauses a broken hook-variable automation before persisting a run", async () => {
     const automation = createLocalAutomationRecord({
       name: "Broken hook variable",
       overrides: {
@@ -284,19 +370,28 @@ describe("runDueAutomations", () => {
       },
     ])
 
-    await expect(
-      runDueAutomations({
-        automationRootDir,
-        runRootDir,
-        postfastRootDir: dataDir,
-        usageLedgerRootDir,
-        wordCollectionRootDir,
-        imageCollectionDbPath,
-        now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
-      })
-    ).rejects.toThrow(
-      "Hook slot ZODIAC_WITH_ARTICLE has no words in database collection ZODIAC_WITH_ARTICLE"
-    )
+    const result = await runDueAutomations({
+      automationRootDir,
+      runRootDir,
+      postfastRootDir: dataDir,
+      usageLedgerRootDir,
+      wordCollectionRootDir,
+      imageCollectionDbPath,
+      now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
+    })
+
+    expect(result.skipped).toMatchObject([
+      {
+        automationId: automation.id,
+        reason: "blocked",
+        scheduledFor: "2026-07-03T15:00:00.000Z",
+      },
+    ])
+    expect(
+      (await listAutomationRecords({ rootDir: automationRootDir })).find(
+        (record) => record.id === automation.id
+      )?.status
+    ).toBe("paused")
     expect(await readRuns()).toEqual([])
   })
 
@@ -2318,7 +2413,7 @@ describe("runDueAutomations", () => {
     })
 
     expect(result.created).toEqual([])
-    expect(result.skipped).toEqual([
+    expect(result.skipped).toMatchObject([
       {
         automationId: automation.id,
         reason: "no_images",
@@ -2370,7 +2465,7 @@ describe("runDueAutomations", () => {
     })
 
     expect(result.created).toEqual([])
-    expect(result.skipped).toEqual([
+    expect(result.skipped).toMatchObject([
       {
         automationId: automation.id,
         reason: "no_images",

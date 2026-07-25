@@ -47,12 +47,14 @@ type ReminderEvent = "generated" | "ready_to_post" | "scheduled_to_post"
 type ReminderSettings = {
   channel: "none" | "telegram"
   telegramChatId?: string
+  telegramBotToken?: string
   events: Record<ReminderEvent, boolean>
 }
 type ReminderResponse = {
   settings: ReminderSettings
   telegram: {
     botConfigured: boolean
+    customBotConfigured: boolean
     defaultChatConfigured: boolean
     interactiveConfigured: boolean
   }
@@ -270,31 +272,72 @@ function RemindersPanel({
       ) : (
         <div className="space-y-7">
           <section>
-            <h3 className="text-sm font-semibold">Reminder method</h3>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <ReminderMethodButton
-                active={settings.channel === "none"}
-                icon={IconBell}
-                title="No reminders"
-                description="Do not send lifecycle notifications."
+            <h3 className="text-sm font-semibold">Telegram notifications</h3>
+            <div className="mt-3 flex items-center gap-4 rounded-xl border border-app-panel-border p-4">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-app-control-hover text-app-muted-text">
+                <IconBrandTelegram className="size-4.5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Send through Telegram</p>
+                <p className="mt-0.5 text-xs leading-5 text-app-text-faint">
+                  Receive generation updates and a public slide delivery link.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-label="Telegram notifications"
+                aria-checked={settings.channel === "telegram"}
                 onClick={() =>
-                  edit((current) => ({ ...current, channel: "none" }))
+                  edit((current) => ({
+                    ...current,
+                    channel:
+                      current.channel === "telegram" ? "none" : "telegram",
+                  }))
                 }
-              />
-              <ReminderMethodButton
-                active={settings.channel === "telegram"}
-                icon={IconBrandTelegram}
-                title="Telegram"
-                description="Send reminders through the LumenClip bot."
-                onClick={() =>
-                  edit((current) => ({ ...current, channel: "telegram" }))
-                }
-              />
+                className={cn(
+                  "relative ml-auto h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-app-action/30 focus-visible:outline-none",
+                  settings.channel === "telegram"
+                    ? "bg-app-action"
+                    : "bg-app-control-hover"
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform",
+                    settings.channel === "telegram"
+                      ? "translate-x-5"
+                      : "translate-x-0.5"
+                  )}
+                />
+              </button>
             </div>
           </section>
 
           {settings.channel === "telegram" ? (
-            <section className="rounded-xl border border-app-panel-border bg-app-control-bg p-4">
+            <section className="space-y-4 rounded-xl border border-app-panel-border bg-app-control-bg p-4">
+              <label className="block text-sm font-semibold">
+                Telegram bot token
+                <input
+                  type="password"
+                  autoComplete="off"
+                  value={settings.telegramBotToken ?? ""}
+                  onChange={(event) =>
+                    edit((current) => ({
+                      ...current,
+                      telegramBotToken: event.target.value,
+                    }))
+                  }
+                  placeholder={
+                    data?.telegram.customBotConfigured
+                      ? "Saved — enter a new token to replace it"
+                      : data?.telegram.botConfigured
+                        ? "Using the workspace default"
+                        : "123456789:AA…"
+                  }
+                  className="mt-2 h-10 w-full rounded-lg border border-app-panel-border bg-background px-3 text-sm outline-none focus:border-app-action focus:ring-2 focus:ring-app-action/15"
+                />
+              </label>
               <label className="block text-sm font-semibold">
                 Telegram chat or channel ID
                 <input
@@ -313,9 +356,10 @@ function RemindersPanel({
                   className="mt-2 h-10 w-full rounded-lg border border-app-panel-border bg-background px-3 text-sm outline-none focus:border-app-action focus:ring-2 focus:ring-app-action/15"
                 />
               </label>
-              <p className="mt-2 text-xs leading-5 text-app-text-faint">
-                Start a chat with the bot first. Leave this empty to use the
-                workspace default destination when one is configured.
+              <p className="text-xs leading-5 text-app-text-faint">
+                Create a bot with BotFather, start a chat with it, then enter
+                the bot token and destination ID. Saved tokens are never
+                returned to the browser.
               </p>
               {!data?.telegram.botConfigured ? (
                 <p className="mt-3 text-xs font-medium text-destructive">
@@ -409,51 +453,6 @@ function RemindersPanel({
         </div>
       )}
     </div>
-  )
-}
-
-function ReminderMethodButton({
-  active,
-  icon: Icon,
-  title,
-  description,
-  onClick,
-}: {
-  active: boolean
-  icon: typeof IconBell
-  title: string
-  description: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        "flex min-h-24 items-start gap-3 rounded-xl border p-4 text-left transition-colors focus-visible:ring-2 focus-visible:ring-app-action/30 focus-visible:outline-none",
-        active
-          ? "border-app-action bg-app-control-bg"
-          : "border-app-panel-border hover:bg-app-control-bg"
-      )}
-    >
-      <span
-        className={cn(
-          "grid size-9 shrink-0 place-items-center rounded-lg",
-          active
-            ? "bg-app-action text-white"
-            : "bg-app-control-hover text-app-muted-text"
-        )}
-      >
-        <Icon className="size-4.5" />
-      </span>
-      <span>
-        <span className="block text-sm font-semibold">{title}</span>
-        <span className="mt-1 block text-xs leading-5 text-app-text-faint">
-          {description}
-        </span>
-      </span>
-    </button>
   )
 }
 

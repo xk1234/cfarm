@@ -3,7 +3,11 @@ import { NextResponse } from "next/server"
 
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { markReminderGenerationPosted } from "@/lib/reminder-actions"
-import { telegramBotRequest } from "@/lib/reminder-settings"
+import {
+  getReminderSettings,
+  telegramBotRequest,
+} from "@/lib/reminder-settings"
+import { withSystemOwner } from "@/lib/system-owner-context"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -28,8 +32,10 @@ export async function POST(request: Request) {
   const jobId = postedJobId(callback?.data)
   if (!callback?.id || !jobId) return NextResponse.json({ ok: true })
 
+  let botToken: string | undefined
   try {
     const job = await reminderJob(jobId)
+    const ownerId = String(job.owner_id ?? "")
     const payload = parsePayload(job.payload)
     if (
       job.type !== "send-notification" ||
@@ -38,14 +44,18 @@ export async function POST(request: Request) {
     ) {
       throw new Error("Invalid reminder action")
     }
+    botToken = await withSystemOwner(ownerId, async () => {
+      const settings = await getReminderSettings()
+      return settings.telegramBotToken
+    })
     const result = await markReminderGenerationPosted({
-      ownerId: String(job.owner_id ?? ""),
+      ownerId,
       sourceType: String(payload.sourceType ?? ""),
       sourceId: String(payload.sourceId ?? ""),
     })
-    await acknowledgePosted(callback, result.alreadyPosted)
+    await acknowledgePosted(callback, result.alreadyPosted, botToken)
   } catch {
-    await telegramBotRequest("answerCallbackQuery", {
+    await requestTelegram(botToken, "answerCallbackQuery", {
       callback_query_id: callback.id,
       text: "LumenClip could not update this generation. Open the app to check it.",
       show_alert: true,
@@ -99,9 +109,10 @@ function postedJobId(value: unknown) {
 
 async function acknowledgePosted(
   callback: TelegramCallback,
-  alreadyPosted: boolean
+  alreadyPosted: boolean,
+  botToken?: string
 ) {
-  await telegramBotRequest("answerCallbackQuery", {
+  await requestTelegram(botToken, "answerCallbackQuery", {
     callback_query_id: callback.id,
     text: alreadyPosted ? "Already marked as posted" : "Marked as posted",
   })
@@ -113,10 +124,20 @@ async function acknowledgePosted(
   const confirmation = alreadyPosted
     ? "✅ Already marked as posted in LumenClip."
     : "✅ Marked as posted in LumenClip. Link the TikTok URL later when it is available."
-  await telegramBotRequest("editMessageText", {
+  await requestTelegram(botToken, "editMessageText", {
     chat_id: chatId,
     message_id: messageId,
     text: `${original.slice(0, 3900)}\n\n${confirmation}`,
     reply_markup: { inline_keyboard: [] },
   }).catch(() => undefined)
+}
+
+function requestTelegram(
+  botToken: string | undefined,
+  method: string,
+  body: Record<string, unknown>
+) {
+  return botToken
+    ? telegramBotRequest(method, body, undefined, botToken)
+    : telegramBotRequest(method, body)
 }

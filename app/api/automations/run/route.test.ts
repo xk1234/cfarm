@@ -477,6 +477,14 @@ function setStoredHook(
   automation: ReturnType<typeof createLocalAutomationRecord>,
   hook: string
 ) {
+  automation.schema.hooks = [
+    {
+      id: "stored-hook",
+      text: hook,
+      enabled: true,
+      createdAt: new Date(0).toISOString(),
+    },
+  ]
   automation.schema.formatting = automation.schema.formatting.map((section) =>
     section.id === "hook"
       ? {

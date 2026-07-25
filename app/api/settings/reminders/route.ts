@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth"
 import {
   configureTelegramWebhook,
   getReminderSettings,
+  publicReminderSettings,
   saveReminderSettings,
   sendTelegramReminder,
   telegramReminderConfiguration,
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic"
 const settingsSchema = z.object({
   channel: z.enum(["none", "telegram"]),
   telegramChatId: z.string().trim().max(255).optional(),
+  telegramBotToken: z.string().trim().max(255).optional(),
   events: z.object({
     generated: z.boolean(),
     ready_to_post: z.boolean(),
@@ -26,9 +28,10 @@ export async function GET() {
   const user = await getCurrentUser()
   if (!user)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const settings = await getReminderSettings()
   return NextResponse.json({
-    settings: await getReminderSettings(),
-    telegram: telegramReminderConfiguration(),
+    settings: publicReminderSettings(settings),
+    telegram: telegramReminderConfiguration(settings),
   })
 }
 
@@ -45,7 +48,19 @@ export async function PUT(request: Request) {
       { status: 400 }
     )
   }
-  const configuration = telegramReminderConfiguration()
+  const current = await getReminderSettings()
+  const telegramBotToken =
+    parsed.data.telegramBotToken?.trim() || current.telegramBotToken
+  const candidate = {
+    ...parsed.data,
+    ...(telegramBotToken ? { telegramBotToken } : {}),
+  }
+  const configuration = telegramReminderConfiguration({
+    ...current,
+    ...candidate,
+    id: "reminders",
+    updatedAt: current.updatedAt,
+  })
   if (parsed.data.channel === "telegram" && !configuration.botConfigured) {
     return NextResponse.json(
       { error: "Telegram reminders are not configured on the server." },
@@ -62,12 +77,18 @@ export async function PUT(request: Request) {
       { status: 400 }
     )
   }
-  const settings = await saveReminderSettings(parsed.data)
+  const settings = await saveReminderSettings(candidate)
   const webhook =
     settings.channel === "telegram"
-      ? await configureTelegramWebhook().catch(() => ({ configured: false }))
+      ? await configureTelegramWebhook(settings).catch(() => ({
+          configured: false,
+        }))
       : { configured: false }
-  return NextResponse.json({ settings, telegram: configuration, webhook })
+  return NextResponse.json({
+    settings: publicReminderSettings(settings),
+    telegram: telegramReminderConfiguration(settings),
+    webhook,
+  })
 }
 
 export async function POST(request: Request) {
@@ -89,6 +110,7 @@ export async function POST(request: Request) {
           ? payload.telegramChatId
           : settings.telegramChatId,
       text: "LumenClip reminder test\nTelegram reminders are connected.",
+      botToken: settings.telegramBotToken,
     })
     return NextResponse.json({ sent: true })
   } catch (error) {

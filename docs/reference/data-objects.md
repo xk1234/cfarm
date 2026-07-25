@@ -147,7 +147,7 @@ type AutomationSchema = {
   prompt_formatting: PromptFormatting
   hooks: AutomationHookItem[]
   image_collection_ids: ImageCollectionConfig
-  hook_slots?: Record<string, string>
+  hook_slots?: Record<string, string> // persisted explicit overrides
   hook_no_duplicate_slots?: boolean
   distinct_variable_draws?: boolean
   tone: AutomationToneSection
@@ -170,6 +170,12 @@ Important nested contracts:
 
 - `hooks[]` contains stable automation-owned `{ id, text, enabled, createdAt,
 updatedAt? }` items. Disabled items remain stored but are not selected.
+
+- Enabled hook tokens define the automation's variable set. At runtime tokens
+  resolve by the collection's canonical `variableName`; persisted `hook_slots`
+  only override that derived mapping. MCP automation reads expose the resolved
+  map as read-only `schema.hook_slots`, the persisted map as
+  `schema.hook_slot_overrides`, and diagnostics under `variableBindings`.
 
 - `formatting[]` contains canonical `hook`, `body`, and `cta` sections with
   content direction, word/count limits, text styling, layout, and per-section

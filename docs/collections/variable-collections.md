@@ -29,6 +29,19 @@ type WordCollectionRecord = {
 Records are owner-scoped `permanent_assets` rows with
 `source_key=word_collection`. There are no binary files.
 
+The MCP contract returns both `id` and `variableName`. They are authoritative
+for different purposes:
+
+- `id` is the persistent entity identity used by CRUD, foreign keys, and
+  explicit overrides. It must not change when a display name changes.
+- `variableName` is the canonical hook-binding identity rendered as
+  `[[VARIABLE_NAME]]`.
+- `name` is a display label only.
+
+They differ on migrated UUID-era records, so integrations must never render a
+storage ID or display name as a token. Legacy aliases remain readable for
+compatibility, but new writes return and store the canonical `id`.
+
 ## Create
 
 Choose **Add variable** in the Variables tab. Enter:
@@ -88,7 +101,12 @@ substitution. When no-duplicate expansion is enabled, later occurrences become
 synthetic names such as `zodiac_2` and draw distinct values from the same
 collection. The resolved substitutions are stored in the automation run plan.
 
-Hook-slot maps allow a readable token to target a differently named collection:
+For every enabled hook, the automation derives its variable set directly from
+the `[[TOKEN]]` and `{token}` references in the hook text. Each token resolves
+against a collection's `variableName`; no separate connection step is needed.
+
+Hook-slot maps are explicit overrides for the exceptional case where a readable
+token must target a differently named collection:
 
 ```json
 {
@@ -98,25 +116,38 @@ Hook-slot maps allow a readable token to target a differently named collection:
 
 With that map, `[[sign]]` draws from the `zodiac` collection.
 
+In MCP automation reads, `schema.hook_slots` is generated read-only output for
+the currently resolved bindings. Persisted explicit values are returned
+separately as `schema.hook_slot_overrides` and
+`variableBindings.explicitOverrides`. `variableBindings` also reports missing
+tokens, unused overrides, and duplicate-variable-name conflicts instead of
+silently choosing a collection.
+
 ## Runtime variables are not collections
 
 The following built-ins are computed from the scheduled run timestamp and
 automation timezone:
 
-| Token                      | Value                   |
-| -------------------------- | ----------------------- |
-| `[[current_year]]`         | Four-digit year         |
-| `[[current_month]]`        | Full month name         |
-| `[[current_month_number]]` | Two-digit month         |
-| `[[current_day]]`          | Day of month            |
-| `[[current_weekday]]`      | Full weekday name       |
-| `[[current_date]]`         | Readable local date     |
-| `[[current_iso_date]]`     | `YYYY-MM-DD`            |
-| `[[current_time]]`         | Local hours and minutes |
+| Token                      | Value                     |
+| -------------------------- | ------------------------- |
+| `[[slide_count]]`          | Rendered body-slide count |
+| `[[current_year]]`         | Four-digit year           |
+| `[[current_month]]`        | Full month name           |
+| `[[current_month_number]]` | Two-digit month           |
+| `[[current_day]]`          | Day of month              |
+| `[[current_weekday]]`      | Full weekday name         |
+| `[[current_date]]`         | Readable local date       |
+| `[[current_iso_date]]`     | `YYYY-MM-DD`              |
+| `[[current_time]]`         | Local hours and minutes   |
 
 The legacy `[[year]]` token is migrated to `[[current_year]]`. Creating a
 variable collection whose ID is `year` is rejected so a stored random value
 cannot shadow the runtime date.
+
+`[[slide_count]]` has no backing collection and is not user-editable. On a
+static body block it resolves to `slideCount`; on a varying block it resolves
+after the runtime min/max draw. `[[number]]` remains a free collection draw and
+must only be used for counts that do not promise the number of body slides.
 
 ## Known limitations
 
@@ -126,3 +157,17 @@ cannot shadow the runtime date.
   beyond non-empty normalized strings.
 - Product-looking variable values are plain text and are unrelated to
   [Product Collections](product-collections.md).
+
+## LumenLab read-through
+
+LumenClip remains the single source of truth for values. Automation hook
+bindings are derived in LumenClip and exposed read-only to LumenLab. Legacy
+project connection records may still be displayed during migration, but they
+must not decide whether an automation token resolves. Variable CRUD remains
+delegated to `lumenclip_variable_get`, `lumenclip_variable_save`, and
+`lumenclip_variable_delete`.
+
+Use `scripts/migrate-automation-variable-bindings.ts` to report missing tokens,
+unused overrides, variable-name conflicts, and differences between explicit
+overrides and derived bindings. It does not silently resolve binding
+mismatches.

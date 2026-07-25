@@ -46,6 +46,69 @@ describe("LumenClip MCP server", () => {
     )
   })
 
+  it.each([
+    {
+      name: "lumenclip_automations_list",
+      arguments: {},
+      overrides: {
+        listAutomationRecords: vi.fn(async () => {
+          throw appwriteReadQuotaError()
+        }),
+        listXAutomations: vi.fn(async () => []),
+        listAutomationRuns: vi.fn(async () => []),
+        listXAutomationRuns: vi.fn(async () => []),
+      },
+    },
+    {
+      name: "lumenclip_collections_list",
+      arguments: {},
+      overrides: {
+        listImageCollections: vi.fn(async () => {
+          throw appwriteReadQuotaError()
+        }),
+        listWordCollections: vi.fn(async () => []),
+        listProductCollections: vi.fn(async () => []),
+      },
+    },
+    {
+      name: "lumenclip_outputs_list",
+      arguments: {},
+      overrides: {
+        listAutomationRuns: vi.fn(async () => {
+          throw appwriteReadQuotaError()
+        }),
+        listGeneratedVideoExports: vi.fn(async () => []),
+        listXAutomationRuns: vi.fn(async () => []),
+        listPostFastPostRecords: vi.fn(async () => []),
+        listMetricSnapshots: vi.fn(async () => []),
+      },
+    },
+    {
+      name: "lumenclip_automation_get",
+      arguments: { automationId: "automation-just-written" },
+      overrides: {
+        getAutomationRecord: vi.fn(async () => {
+          throw appwriteReadQuotaError()
+        }),
+      },
+    },
+  ])(
+    "returns a distinct MCP error instead of empty or not-found for $name",
+    async ({ name, arguments: args, overrides }) => {
+      const client = await connectClient(
+        overrides as Partial<LumenClipMcpServices>
+      )
+      const result = await client.callTool({ name, arguments: args })
+      const text = JSON.stringify(result.content)
+
+      expect(result.isError).toBe(true)
+      expect(text).toContain("Appwrite quota")
+      expect(text).toContain("not an empty result")
+      expect(text).not.toContain('"total": 0')
+      expect(text).not.toContain("Automation not found")
+    }
+  )
+
   it("reads schedules across slideshow and social automations", async () => {
     const slideshow = automationRecord()
     const social = {
@@ -422,6 +485,52 @@ describe("LumenClip MCP server", () => {
     expect(current.schema.hooks).toHaveLength(1)
     expect(current.schema.social_post_settings).toEqual(originalSocialSettings)
     expect(patch).toHaveBeenCalledTimes(2)
+  })
+
+  it("exposes derived hook slots separately from explicit overrides", async () => {
+    const current = automationRecord()
+    current.schema.hooks = [
+      {
+        id: "hook-bound",
+        text: "[[SIGN]] needs [[SLIDE_COUNT]] reminders",
+        enabled: true,
+        createdAt: "2026-07-01T00:00:00.000Z",
+      },
+    ]
+    current.schema.hook_slots = { SIGN: "zodiac" }
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      listAutomationRuns: vi.fn(async () => []),
+      listWordCollections: vi.fn(async () => [wordCollection()]),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_automation_get",
+      arguments: { automationId: current.id },
+    })
+
+    expect(result.structuredContent).toMatchObject({
+      automation: {
+        schema: {
+          hook_slots: { sign: "zodiac" },
+          hook_slot_overrides: { SIGN: "zodiac" },
+        },
+        variableBindings: {
+          bindings: [
+            expect.objectContaining({
+              token: "[[SIGN]]",
+              source: "override",
+              collectionId: "zodiac",
+            }),
+            expect.objectContaining({
+              token: "[[SLIDE_COUNT]]",
+              source: "runtime",
+            }),
+          ],
+          missingTokens: [],
+        },
+      },
+    })
   })
 
   it("rejects unresolved hook tokens before mutating the pool", async () => {
@@ -801,6 +910,55 @@ describe("LumenClip MCP server", () => {
     })
   })
 
+  it("inspects rendered slideshow content and returns deterministic QA", async () => {
+    const automation = automationRecord()
+    const run = generatedRun(automation.id)
+    run.plan.hook = "7 things Cancer hides"
+    run.plan.hookTemplate = "7 things [[ZODIAC]] hides"
+    run.plan.hookId = "hook-7"
+    run.plan.hookSubstitutions = { ZODIAC: "Cancer" }
+    const client = await connectClient({
+      listAutomationRuns: vi.fn(async () => [run]),
+      listGeneratedVideoExports: vi.fn(async () => []),
+      listXAutomationRuns: vi.fn(async () => []),
+      listPostFastPostRecords: vi.fn(async () => []),
+      listMetricSnapshots: vi.fn(async () => []),
+      getAutomationRecord: vi.fn(async () => automation),
+      listSlideshowRecords: vi.fn(async () => []),
+    })
+
+    const inspected = await client.callTool({
+      name: "lumenclip_output_get",
+      arguments: { outputId: run.slideshowId },
+    })
+    expect(inspected.structuredContent).toMatchObject({
+      id: run.slideshowId,
+      resolvedHookText: run.plan.hook,
+      hookId: "hook-7",
+      tokenValues: { ZODIAC: "Cancer" },
+      actualSlideCount: 1,
+      slides: [
+        expect.objectContaining({
+          index: 1,
+          heading: "Generated hook",
+        }),
+      ],
+      qa: {
+        valid: false,
+        actualSlideCount: 1,
+      },
+    })
+
+    const validated = await client.callTool({
+      name: "lumenclip_output_validate",
+      arguments: { outputId: run.slideshowId },
+    })
+    expect(validated.structuredContent).toMatchObject({
+      outputId: run.slideshowId,
+      qa: { valid: false },
+    })
+  })
+
   it("generates a manual slideshow draft and returns a concise run", async () => {
     const current = automationRecord()
     const run = generatedRun(current.id)
@@ -866,9 +1024,52 @@ describe("LumenClip MCP server", () => {
     })
   })
 
+  it("normalizes automation collection names to stable IDs and reports unresolved references", async () => {
+    const current = automationRecord()
+    const standard = {
+      ...current,
+      schema: schemaWithAutomationCollectionId(
+        current.schema,
+        "content",
+        "Mystical Pictures"
+      ),
+    }
+    const collection: StoredImageCollection = {
+      name: "Mystical Pictures",
+      created_at: "2026-07-14T03:55:21.813Z",
+      images: [],
+    }
+    const client = await connectClient({
+      listAutomationRecords: vi.fn(async () => [standard]),
+      listImageCollections: vi.fn(async () => [collection]),
+      listXAutomations: vi.fn(async () => []),
+      listAutomationRuns: vi.fn(async () => []),
+      listXAutomationRuns: vi.fn(async () => []),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_automations_list",
+      arguments: { limit: 20 },
+    })
+
+    expect(result.structuredContent).toMatchObject({
+      items: [
+        {
+          id: standard.id,
+          collectionIds: ["mystical-pictures"],
+          unresolvedCollectionReferences: [],
+        },
+      ],
+    })
+  })
+
   it("runs a slideshow through the general retry-safe automation tool", async () => {
     const current = automationRecord()
     const run = generatedRun(current.id)
+    run.plan.slides[0].text = Array.from(
+      { length: 20 },
+      () => "word"
+    ).join(" ")
     const generate = vi.fn(async () => ({
       created: [run],
       results: [],
@@ -895,7 +1096,50 @@ describe("LumenClip MCP server", () => {
     })
     expect(result.structuredContent).toMatchObject({
       operation: { id: run.id, status: "succeeded" },
-      outputs: [{ id: run.slideshowId, publicationState: "not_published" }],
+      outputs: [
+        {
+          id: run.slideshowId,
+          publicationState: "not_published",
+          qaValid: false,
+          qaFindings: [
+            expect.objectContaining({ code: "TRUNCATED_SLIDE_TEXT" }),
+          ],
+        },
+      ],
+    })
+  })
+
+  it("polls a persisted slideshow run before the UGC fallback resolver", async () => {
+    const current = automationRecord()
+    const run = generatedRun(current.id)
+    const client = await connectClient({
+      listAutomationRuns: vi.fn(async () => [run]),
+      getUgcRunStatus: vi.fn(async (): Promise<UgcRunStatus> => ({
+        id: run.id,
+        automationId: current.id,
+        scheduledFor: run.scheduledFor,
+        status: "failed",
+        error: "Generation job was lost.",
+        checkpoints: {},
+        stages: [],
+        createdAt: run.createdAt,
+        updatedAt: run.updatedAt,
+      })),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_operation_get",
+      arguments: { operationId: run.id },
+    })
+
+    expect(result.structuredContent).toMatchObject({
+      operation: {
+        id: run.id,
+        kind: "automation.run",
+        status: "succeeded",
+      },
+      outputs: [{ id: run.slideshowId }],
+      errors: [],
     })
   })
 
@@ -1706,6 +1950,14 @@ function metricSnapshot(
     latestMetric: {},
     rawMetrics: {},
     observedKeys: ["views", "interactions"],
+  }
+}
+
+function appwriteReadQuotaError() {
+  return {
+    code: 402,
+    type: "limit_databases_reads_exceeded",
+    message: "Resource limit for your project has exceeded.",
   }
 }
 

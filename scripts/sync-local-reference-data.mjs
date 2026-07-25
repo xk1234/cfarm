@@ -23,6 +23,7 @@ const targetDatabaseId = localEnv.APPWRITE_DATABASE_ID || "cfarm"
 const targetTable = "permanent_assets"
 const copyFiles = !process.argv.includes("--rows-only")
 const sourceFilter = argumentValue("--source")
+const ridFilter = argumentValue("--rid").toLowerCase()
 const collectionSources = [
   {
     tableId: "image_collections",
@@ -127,7 +128,10 @@ for (const source of selectedSources.filter((item) => !item.public)) {
 const collections = []
 for (const source of selectedCollectionSources) {
   const rows = sourceRows.get(source.tableId) || []
-  for (const [index, row] of rows.entries()) {
+  const selectedRows = rows
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => matchesRidFilter(row))
+  for (const { row, index } of selectedRows) {
     const record = parseCollectionRecord(row)
     const localOwnerId = ownerMap.get(clean(row.owner_id || record.ownerId))
     const rid =
@@ -179,13 +183,16 @@ for (const source of selectedCollectionSources) {
     })
     collections.push(localRecord)
   }
-  console.log(`Synced ${rows.length} ${source.sourceKey} rows.`)
+  console.log(`Synced ${selectedRows.length} ${source.sourceKey} rows.`)
 }
 
 const assets = []
 for (const source of selectedAssetSources) {
   const rows = sourceRows.get(source.tableId) || []
-  for (const [index, row] of rows.entries()) {
+  const selectedRows = rows
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => matchesRidFilter(row))
+  for (const { row, index } of selectedRows) {
     const record = parseCollectionRecord(row)
     const cloudOwnerId = clean(row.owner_id || record.ownerId)
     const localOwnerId = source.public ? null : ownerMap.get(cloudOwnerId)
@@ -244,7 +251,7 @@ for (const source of selectedAssetSources) {
     })
     assets.push(localRecord)
   }
-  console.log(`Synced ${rows.length} ${source.sourceKey} rows.`)
+  console.log(`Synced ${selectedRows.length} ${source.sourceKey} rows.`)
 }
 
 if (copyFiles) {
@@ -495,6 +502,14 @@ function parseCollectionRecord(row) {
     // Replaced by the actionable error below.
   }
   throw new Error(`Collection row ${row.$id} has invalid JSON data.`)
+}
+
+function matchesRidFilter(row) {
+  if (!ridFilter) return true
+  const record = parseCollectionRecord(row)
+  return [clean(row.rid), clean(record.id), clean(row.name), clean(record.name)]
+    .map((value) => value.toLowerCase())
+    .includes(ridFilter)
 }
 
 function ownedRowId(namespace, ownerId, rid, index) {

@@ -1,7 +1,7 @@
 // Generated from lib/hook-expansion.ts. Do not edit by hand.
 import { clean } from "./guards.js";
 import { applyResolvedHookCase } from "./hook-casing.js";
-import { runtimeHookVariableValue } from "./hook-variables.js";
+import { isRuntimeHookVariable, runtimeHookVariableValue, wordCollectionVariableName, } from "./hook-variables.js";
 const slotPattern = /\[\[([a-zA-Z0-9_-]+)\]\]|\{([a-zA-Z0-9_-]+)\}/g;
 const properTitleCaseSlots = new Set(["zodiac"]);
 export function expandHook(hook, slots, collections, random = Math.random, options = {}) {
@@ -11,8 +11,10 @@ export function expandHook(hook, slots, collections, random = Math.random, optio
         const keys = [
             collection.id,
             collection.name,
+            wordCollectionVariableName(collection),
             collection.id.toLowerCase(),
             collection.name.toLowerCase(),
+            wordCollectionVariableName(collection).toLowerCase(),
         ];
         return keys.map((key) => [key, collection]);
     }));
@@ -41,6 +43,9 @@ export function expandHook(hook, slots, collections, random = Math.random, optio
             if (runtimeValue !== undefined) {
                 substitutions[slotName] = runtimeValue;
                 return runtimeValue;
+            }
+            if (isRuntimeHookVariable(baseSlotName)) {
+                throw new Error(`Runtime hook variable ${baseSlotName.toUpperCase()} could not be resolved for this run`);
             }
             const collectionId = resolveSlotCollectionId(baseSlotName, slotMap);
             const collection = collectionId
@@ -75,8 +80,10 @@ export function expandAllHookCombinations(hook, slots, collections, options = {}
     const collectionsById = new Map(collections.flatMap((collection) => [
         collection.id,
         collection.name,
+        wordCollectionVariableName(collection),
         collection.id.toLowerCase(),
         collection.name.toLowerCase(),
+        wordCollectionVariableName(collection).toLowerCase(),
     ].map((key) => [key, collection])));
     // Occurrence names: with noDuplicates each repeat of a variable becomes its
     // own draw (zodiac, zodiac_2, ...) so "[[ZODIAC]] VERSUS [[ZODIAC]]" yields
@@ -114,6 +121,9 @@ export function expandAllHookCombinations(hook, slots, collections, options = {}
                 hasWords: true,
                 values: [runtimeValue],
             };
+        }
+        if (isRuntimeHookVariable(baseName)) {
+            throw new Error(`Runtime hook variable ${baseName.toUpperCase()} could not be resolved for this run`);
         }
         const collectionId = resolveSlotCollectionId(slotName, slotMap) === slotName
             ? resolveSlotCollectionId(baseName, slotMap)

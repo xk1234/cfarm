@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   saveReminderSettings: vi.fn(),
   sendTelegramReminder: vi.fn(),
   telegramReminderConfiguration: vi.fn(),
+  publicReminderSettings: vi.fn(),
 }))
 
 vi.mock("@/lib/auth", () => ({ getCurrentUser: mocks.getCurrentUser }))
@@ -16,6 +17,7 @@ vi.mock("@/lib/reminder-settings", () => ({
   saveReminderSettings: mocks.saveReminderSettings,
   sendTelegramReminder: mocks.sendTelegramReminder,
   telegramReminderConfiguration: mocks.telegramReminderConfiguration,
+  publicReminderSettings: mocks.publicReminderSettings,
 }))
 
 import { GET, POST, PUT } from "@/app/api/settings/reminders/route"
@@ -36,6 +38,7 @@ describe("reminder settings route", () => {
     vi.clearAllMocks()
     mocks.getCurrentUser.mockResolvedValue({ $id: "user-1" })
     mocks.getReminderSettings.mockResolvedValue(settings)
+    mocks.publicReminderSettings.mockImplementation((value) => value)
     mocks.saveReminderSettings.mockResolvedValue(settings)
     mocks.telegramReminderConfiguration.mockReturnValue({
       botConfigured: false,

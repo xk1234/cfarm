@@ -51,6 +51,7 @@ export type Automation = {
   theme: string
   socialIntegrations: PostFastSocialIntegration[]
   created_at?: string
+  generationBlockers?: string[]
 }
 
 export type ImageCollectionSummary = {

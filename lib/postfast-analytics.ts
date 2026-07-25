@@ -36,7 +36,7 @@ export async function syncPostFastAnalytics(input: {
   const days = Math.max(1, Math.min(365, input.days ?? 30))
   const endDate = input.capturedAt ?? new Date()
   const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000)
-  const localPosts = await listPostFastPostRecords().catch(() => [])
+  const localPosts = await listPostFastPostRecords()
   const localByRemoteId = new Map<string, (typeof localPosts)[number]>()
   for (const post of localPosts) {
     for (const id of [post.postfastPostId, post.externalPostId]) {

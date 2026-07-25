@@ -1,6 +1,10 @@
 import { clean } from "@/lib/guards"
 import { applyResolvedHookCase, type HookCaseMode } from "@/lib/hook-casing"
-import { runtimeHookVariableValue } from "@/lib/hook-variables"
+import {
+  isRuntimeHookVariable,
+  runtimeHookVariableValue,
+  wordCollectionVariableName,
+} from "@/lib/hook-variables"
 import type { WordCollectionRecord } from "@/lib/word-collections"
 
 export type HookExpansionResult = {
@@ -34,8 +38,10 @@ export function expandHook(
       const keys = [
         collection.id,
         collection.name,
+        wordCollectionVariableName(collection),
         collection.id.toLowerCase(),
         collection.name.toLowerCase(),
+        wordCollectionVariableName(collection).toLowerCase(),
       ]
       return keys.map((key) => [key, collection] as const)
     })
@@ -68,6 +74,11 @@ export function expandHook(
         if (runtimeValue !== undefined) {
           substitutions[slotName] = runtimeValue
           return runtimeValue
+        }
+        if (isRuntimeHookVariable(baseSlotName)) {
+          throw new Error(
+            `Runtime hook variable ${baseSlotName.toUpperCase()} could not be resolved for this run`
+          )
         }
         const collectionId = resolveSlotCollectionId(baseSlotName, slotMap)
         const collection = collectionId
@@ -123,8 +134,10 @@ export function expandAllHookCombinations(
       [
         collection.id,
         collection.name,
+        wordCollectionVariableName(collection),
         collection.id.toLowerCase(),
         collection.name.toLowerCase(),
+        wordCollectionVariableName(collection).toLowerCase(),
       ].map((key) => [key, collection] as const)
     )
   )
@@ -169,6 +182,11 @@ export function expandAllHookCombinations(
         hasWords: true,
         values: [runtimeValue],
       }
+    }
+    if (isRuntimeHookVariable(baseName)) {
+      throw new Error(
+        `Runtime hook variable ${baseName.toUpperCase()} could not be resolved for this run`
+      )
     }
     const collectionId =
       resolveSlotCollectionId(slotName, slotMap) === slotName

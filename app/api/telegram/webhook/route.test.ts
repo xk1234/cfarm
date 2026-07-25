@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   getRow: vi.fn(),
   markReminderGenerationPosted: vi.fn(),
   telegramBotRequest: vi.fn(),
+  getReminderSettings: vi.fn(),
 }))
 
 vi.mock("@/lib/appwrite", () => ({
@@ -14,6 +15,7 @@ vi.mock("@/lib/reminder-actions", () => ({
   markReminderGenerationPosted: mocks.markReminderGenerationPosted,
 }))
 vi.mock("@/lib/reminder-settings", () => ({
+  getReminderSettings: mocks.getReminderSettings,
   telegramBotRequest: mocks.telegramBotRequest,
 }))
 
@@ -24,6 +26,10 @@ describe("Telegram reminder webhook", () => {
     vi.clearAllMocks()
     vi.stubEnv("TELEGRAM_WEBHOOK_SECRET", "webhook-secret")
     mocks.telegramBotRequest.mockResolvedValue({ ok: true })
+    mocks.getReminderSettings.mockResolvedValue({
+      channel: "telegram",
+      events: {},
+    })
   })
 
   afterEach(() => vi.unstubAllEnvs())

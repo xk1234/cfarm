@@ -108,9 +108,9 @@ export async function hookAnalyticsReport(
     run.slideshowId ? [run.id, run.slideshowId] : [run.id]
   )
   const [publications, snapshots, usageRecords] = await Promise.all([
-    listPostFastPostRecords({ sourceIds }).catch(() => []),
-    listMetricSnapshots().catch(() => []),
-    listUsageRecords().catch(() => []),
+    listPostFastPostRecords({ sourceIds }),
+    listMetricSnapshots(),
+    listUsageRecords(),
   ])
   const runById = new Map(runs.map((run) => [run.id, run]))
   const runBySlideshow = new Map(

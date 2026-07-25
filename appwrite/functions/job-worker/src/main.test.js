@@ -122,6 +122,47 @@ describe("configured reminders", () => {
     })
   })
 
+  it("uses saved bot credentials and adds the public slideshow delivery link", async () => {
+    vi.stubEnv("BASE_URL", "https://lumenclip.example")
+    vi.stubEnv("SLIDESHOW_SHARE_SECRET", "share-secret")
+    const fetcher = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal("fetch", fetcher)
+    const tables = {
+      listRows: vi.fn().mockResolvedValue({
+        rows: [
+          {
+            data: JSON.stringify({
+              channel: "telegram",
+              telegramBotToken: "saved-token",
+              telegramChatId: "123456",
+              events: { generated: true },
+            }),
+          },
+        ],
+      }),
+    }
+
+    await sendConfiguredReminder(
+      {
+        event: "generated",
+        sourceType: "slideshow",
+        sourceId: "slideshow-1",
+        text: "Generated",
+      },
+      tables,
+      { $id: "job-generated-1", owner_id: "owner-1" }
+    )
+
+    expect(fetcher.mock.calls[0][0]).toContain("/botsaved-token/sendMessage")
+    const request = JSON.parse(fetcher.mock.calls[0][1].body)
+    expect(request.reply_markup.inline_keyboard[0][0]).toMatchObject({
+      text: "Download slides + copy post",
+      url: expect.stringMatching(
+        /^https:\/\/lumenclip\.example\/share\/slideshows\/slideshow-1\?token=/
+      ),
+    })
+  })
+
   it("keeps automatic scheduling reminders notification-only", async () => {
     vi.stubEnv("TELEGRAM_BOT_TOKEN", "test-token")
     const fetcher = vi.fn().mockResolvedValue({ ok: true })

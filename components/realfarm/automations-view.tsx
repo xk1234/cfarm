@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import {
+  IconAlertTriangle,
   IconPlayerPlay,
   IconPlus,
   IconSlideshow,
@@ -148,9 +149,15 @@ function XThreadsAutomationCard({
 }) {
   const live = automation.status !== "paused"
   const previews = (recentRuns ?? []).slice(0, 3)
+  const blocked = Boolean(automation.generationBlockers?.length)
 
   return (
-    <article className="relative overflow-hidden rounded-[8px] border border-[#eeeeee] bg-app-surface shadow-sm">
+    <article
+      className={cn(
+        "relative overflow-hidden rounded-[8px] bg-app-surface shadow-sm",
+        automationCardBorderClass(blocked)
+      )}
+    >
       <button
         className="absolute top-2 left-2 z-10 flex items-center gap-1.5 rounded-[6px] bg-app-surface px-2 py-1 text-[12px] font-medium text-app-text shadow-sm"
         onClick={() => onToggleStatus(automation)}
@@ -213,7 +220,7 @@ function XThreadsAutomationCard({
           ) : (
             <IconPlayerPlay className="size-3.5" />
           )}
-          {live ? "LuPause" : "Resume"}
+          {automationStatusActionLabel(automation.status)}
         </Button>
         <Button
           variant="softControl"
@@ -257,22 +264,29 @@ function AutomationGridCard({
   const generating = recentRuns?.some(
     (run) => run.status === "generating" || run.status === "running"
   )
+  const blockers = automation.generationBlockers ?? []
+  const blocked = blockers.length > 0
 
   return (
-    <article className="relative overflow-hidden rounded-[8px] border border-[#eeeeee] bg-app-surface shadow-sm">
+    <article
+      className={cn(
+        "relative overflow-hidden rounded-[8px] bg-app-surface shadow-sm",
+        automationCardBorderClass(blocked)
+      )}
+    >
       <button
         className="absolute top-2 left-2 z-10 flex items-center gap-1.5 rounded-[6px] bg-app-surface px-2 py-1 text-[12px] font-medium text-app-text shadow-sm transition hover:opacity-70"
         onClick={() => onToggleStatus(automation)}
-        aria-label={
-          status === "live"
-            ? `LuPause ${automation.name}`
-            : `Resume ${automation.name}`
-        }
+        aria-label={`${automationStatusActionLabel(status)} ${automation.name}`}
       >
         <span
           className={cn(
             "size-2 rounded-full",
-            status === "live" ? "bg-[#34d079]" : "bg-[#aaa9a2]"
+            blocked
+              ? "bg-destructive"
+              : status === "live"
+                ? "bg-[#34d079]"
+                : "bg-[#aaa9a2]"
           )}
         />
         {status === "live" ? "Live" : "Paused"}
@@ -296,6 +310,19 @@ function AutomationGridCard({
       <div className="border-x border-t border-[#eeeeee] bg-app-surface px-9 py-3 text-center">
         <AutomationCardTitle automation={automation} onRename={onRename} />
       </div>
+      {blocked ? (
+        <div
+          role="alert"
+          className="flex items-start gap-2 border-y border-destructive/25 bg-destructive/10 px-3 py-2 text-[12px] font-semibold text-destructive"
+          title={blockers.join("\n")}
+        >
+          <IconAlertTriangle className="mt-0.5 size-4 shrink-0" />
+          <span className="line-clamp-2">
+            {blockers[0]}
+            {blockers.length > 1 ? ` +${blockers.length - 1} more` : ""}
+          </span>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-3">
         {[0, 1, 2].map((slot) => {
@@ -446,7 +473,7 @@ function AutomationGridCard({
           ) : (
             <IconPlayerPlay className="size-3.5" />
           )}
-          {status === "live" ? "LuPause" : "Resume"}
+          {automationStatusActionLabel(status)}
         </Button>
         <Button
           variant="softControl"
@@ -459,6 +486,18 @@ function AutomationGridCard({
       </div>
     </article>
   )
+}
+
+export function automationStatusActionLabel(
+  status: Automation["status"]
+): "Pause" | "Resume" {
+  return status === "paused" ? "Resume" : "Pause"
+}
+
+export function automationCardBorderClass(blocked: boolean) {
+  return blocked
+    ? "border-2 border-destructive ring-1 ring-destructive/20"
+    : "border border-app-panel-border"
 }
 
 function AutomationAccountsSection({

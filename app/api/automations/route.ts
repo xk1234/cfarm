@@ -3,13 +3,19 @@ import { NextResponse } from "next/server"
 
 import { withHandler } from "@/lib/api"
 import {
+  automationCollectionInventory,
+  automationGenerationBlockers,
+} from "@/lib/automation-readiness"
+import {
   automationRecordToSummary,
+  type AutomationRecord,
   createLocalAutomationRecord,
   getAutomationRecord,
   listAutomationRecords,
   patchAutomationRecord,
   upsertAutomationRecords,
 } from "@/lib/automations"
+import { listImageCollections } from "@/lib/image-collections"
 import type {
   AutomationSchedule,
   AutomationSchema,
@@ -20,14 +26,16 @@ import type {
 import { automationHookItems } from "@/lib/realfarm-automation"
 import { ugcLiveConfigurationErrors } from "@/lib/realfarm-automation"
 import { usedHookIdsForAutomation } from "@/lib/hook-publications"
+import { listWordCollections } from "@/lib/word-collections"
 
 export const dynamic = "force-dynamic"
 
 export const GET = withHandler(async () => {
   const records = await listAutomationRecords()
+  const readyRecords = await reconcileAutomationReadiness(records)
   return NextResponse.json({
-    records,
-    automations: records.map(automationRecordToSummary),
+    records: readyRecords.map(({ record }) => record),
+    automations: readyRecords.map(automationWithBlockers),
   })
 })
 
@@ -65,13 +73,17 @@ export const POST = withHandler(async (request: Request) => {
       : undefined,
   })
   const next = await upsertAutomationRecords({ records: [record] })
+  const readyRecords = await reconcileAutomationReadiness(next)
+  const created =
+    readyRecords.find((item) => item.record.id === record.id) ??
+    readyRecords[0]
 
   return NextResponse.json(
     {
-      record,
-      automation: automationRecordToSummary(record),
-      records: next,
-      automations: next.map(automationRecordToSummary),
+      record: created.record,
+      automation: automationWithBlockers(created),
+      records: readyRecords.map((item) => item.record),
+      automations: readyRecords.map(automationWithBlockers),
     },
     { status: 201 }
   )
@@ -154,8 +166,60 @@ export const PATCH = withHandler(async (request: Request) => {
     return NextResponse.json({ error: "Automation not found" }, { status: 404 })
   }
 
+  const [ready] = await reconcileAutomationReadiness([record])
   return NextResponse.json({
-    record,
-    automation: automationRecordToSummary(record),
+    record: ready.record,
+    automation: automationWithBlockers(ready),
   })
 })
+
+type AutomationReadinessResult = {
+  record: AutomationRecord
+  blockers: ReturnType<typeof automationGenerationBlockers>
+}
+
+async function reconcileAutomationReadiness(
+  records: AutomationRecord[]
+): Promise<AutomationReadinessResult[]> {
+  const [storedCollections, wordCollections] = await Promise.all([
+    listImageCollections(),
+    listWordCollections(),
+  ])
+  const collections = automationCollectionInventory(storedCollections)
+
+  return Promise.all(
+    records.map(async (record) => {
+      const blockers = automationGenerationBlockers({
+        schema: record.schema,
+        collections,
+        wordCollections,
+      })
+      if (blockers.length === 0 || record.status === "paused") {
+        return { record, blockers }
+      }
+      const paused =
+        (await patchAutomationRecord({
+          id: record.id,
+          status: "paused",
+          schema: {
+            ...record.schema,
+            schedule: {
+              ...record.schema.schedule,
+              paused: true,
+            },
+          },
+        })) ?? record
+      return { record: paused, blockers }
+    })
+  )
+}
+
+function automationWithBlockers({
+  record,
+  blockers,
+}: AutomationReadinessResult) {
+  return {
+    ...automationRecordToSummary(record),
+    generationBlockers: blockers.map((blocker) => blocker.message),
+  }
+}

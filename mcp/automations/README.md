@@ -134,6 +134,14 @@ to stable hook IDs. Every canonical hook receives publish count, views, shares,
 saves, share rate, and mean slide-1-to-2 retention when Studio captured it;
 historically published deleted hooks remain visible.
 
+Automation reads also return `variableBindings`. Enabled hook tokens are
+resolved automatically against collection `variableName`; explicit persisted
+`hook_slots` are overrides only. In `lumenclip_automation_get`,
+`schema.hook_slots` is the generated read-only map and
+`schema.hook_slot_overrides` preserves the explicit stored values for
+debugging. Runtime tokens such as `[[SLIDE_COUNT]]` appear as runtime bindings
+and never require a collection.
+
 `lumenclip_run_plan_get(runId)` returns the persisted generation decision:
 hook ID/template/substitutions, media selections, complete slides, strategy,
 and reuse warnings. Debug prompt payloads are omitted unless

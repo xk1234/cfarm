@@ -11,8 +11,10 @@ import path from "node:path"
 import {
   getAutomationRecord,
   listAutomationRecords,
+  patchAutomationRecord,
   type AutomationRecord,
 } from "@/lib/automations"
+import { automationGenerationBlockers } from "@/lib/automation-readiness"
 import {
   clearAutomationRunProgress,
   setAutomationRunProgress,
@@ -81,7 +83,6 @@ import {
 import type { ResultRecord } from "@/lib/results"
 import {
   automationSchemaToTempSlideTestingAutomation,
-  hookImpliedSlideCount,
   type TempSlideSpec,
   type TempSlideStructuredOutput,
 } from "@/lib/temp-slide-testing"
@@ -90,7 +91,6 @@ import {
   normalizedTextSignature,
 } from "@/lib/text-similarity"
 import {
-  expandHook,
   expandAllHookCombinations,
   type HookExpansionResult,
 } from "@/lib/hook-expansion"
@@ -255,10 +255,12 @@ export type AutomationRunResult = {
       | "not_live"
       | "not_due"
       | "already_ran"
+      | "blocked"
       | "no_images"
       | "insufficient_unique_images"
       | "hooks_exhausted"
     scheduledFor?: string
+    blockers?: Array<{ code: string; message: string }>
   }[]
 }
 
@@ -492,34 +494,57 @@ export async function runDueAutomations(
       continue
     }
 
-    for (const scheduledFor of dueSlots) {
-      const imageCollections = await readImageCollections(
-        input.imageCollectionDbPath
+    const imageCollections = await readImageCollections(
+      input.imageCollectionDbPath
+    )
+    const wordCollections = await listWordCollections({
+      rootDir: input.wordCollectionRootDir,
+    })
+    const blockers = automationGenerationBlockers({
+      schema: record.schema,
+      collections: imageCollections.map((collection) => ({
+        id: collection.id,
+        name: collection.name,
+        aliases: collection.aliases,
+        assetCount: collection.images.length,
+        mediaType: "image",
+      })),
+      wordCollections,
+    })
+    if (blockers.length > 0) {
+      if (record.status === "live") {
+        await patchAutomationRecord({
+          rootDir: automationRootDir,
+          id: record.id,
+          status: "paused",
+          schema: {
+            ...record.schema,
+            schedule: {
+              ...record.schema.schedule,
+              paused: true,
+            },
+          },
+        })
+      }
+      const onlyCollectionErrors = blockers.every((blocker) =>
+        [
+          "missing_collection_selection",
+          "missing_collection",
+          "empty_collection",
+        ].includes(blocker.code)
       )
-      if (
-        imagesForCollectionIds({
-          collections: imageCollections,
-          collectionIds: automationCollectionIds(record.schema),
-        }).length === 0
-      ) {
+      for (const scheduledFor of dueSlots) {
         result.skipped.push({
           automationId: record.id,
-          reason: "no_images",
+          reason: onlyCollectionErrors ? "no_images" : "blocked",
           scheduledFor,
-        })
-        continue
-      }
-      const wordCollections = await listWordCollections({
-        rootDir: input.wordCollectionRootDir,
-      })
-      for (const hook of automationHooks(record.schema)) {
-        expandHook(hook, record.schema.hook_slots, wordCollections, () => 0, {
-          noDuplicates: record.schema.hook_no_duplicate_slots === true,
-          caseMode: record.schema.prompt_formatting.hook_case,
-          now,
-          timeZone: record.schema.schedule.timezone,
+          blockers,
         })
       }
+      continue
+    }
+
+    for (const scheduledFor of dueSlots) {
       const claim = await claimAutomationRunSlot({
         runRootDir,
         record,
@@ -1061,28 +1086,6 @@ async function createAutomationRunPlan(
     selectedHook,
     automationFormatSection(schema, "hook").textItems[0]?.contentDirection
   )
-  // A hook that promises "N things ..." must produce exactly N body slides.
-  const impliedContentCount = hookImpliedSlideCount(hook)
-  if (
-    impliedContentCount &&
-    impliedContentCount !==
-      automationFormatSection(schema, "content").slideCount
-  ) {
-    const hookSlideCount = automationFormatSection(schema, "hook").slideCount
-    const ctaSlideCount = automationFormatSection(schema, "cta").slideCount
-    schema = {
-      ...updateAutomationFormatSection(schema, "content", {
-        slideCount: impliedContentCount,
-      }),
-      prompt_formatting: {
-        ...schema.prompt_formatting,
-        num_of_slides: Math.max(
-          1,
-          hookSlideCount + impliedContentCount + ctaSlideCount
-        ),
-      },
-    }
-  }
   progress("Writing slide text", hook)
   const slideCount = automationTotalSlideCount(schema)
   const contentRoute = selectAutomationContentRoute(schema, hook)
@@ -1398,20 +1401,40 @@ async function selectAutomationHook(input: {
     ...recentCombinations,
     ...(input.usedHookCombinationKeys ?? []),
   ])
-  const expanded = input.hookItems.flatMap((hookItem, index) =>
-    expandAllHookCombinations(
-      hookItem.text,
-      input.schema.hook_slots,
-      wordCollections,
-      {
-        noDuplicates: input.schema.distinct_variable_draws !== false,
-        caseMode: input.schema.prompt_formatting.hook_case,
-        now: input.now,
-        timeZone: input.schema.schedule.timezone,
-        slideCount: automationFormatSection(input.schema, "content").slideCount,
-      }
-    ).map((expansion) => ({ expansion, index, hookId: hookItem.id }))
-  )
+  const expanded: Array<{
+    expansion: HookExpansionResult
+    index: number
+    hookId: string
+  }> = []
+  const invalidHookErrors: Error[] = []
+  for (const [index, hookItem] of input.hookItems.entries()) {
+    try {
+      expanded.push(
+        ...expandAllHookCombinations(
+          hookItem.text,
+          input.schema.hook_slots,
+          wordCollections,
+          {
+            noDuplicates: input.schema.distinct_variable_draws !== false,
+            caseMode: input.schema.prompt_formatting.hook_case,
+            now: input.now,
+            timeZone: input.schema.schedule.timezone,
+            slideCount: automationFormatSection(input.schema, "content")
+              .slideCount,
+          }
+        ).map((expansion) => ({ expansion, index, hookId: hookItem.id }))
+      )
+    } catch (error) {
+      invalidHookErrors.push(
+        error instanceof Error
+          ? error
+          : new Error("A hook variable cannot be expanded.")
+      )
+    }
+  }
+  if (expanded.length === 0 && invalidHookErrors.length > 0) {
+    throw invalidHookErrors[0]
+  }
   const available = expanded.filter(({ expansion }) => {
     const hookKey = usageKeyForHook(expansion.text)
     const combinationKey = usageKeyForHookCombination(
@@ -2767,7 +2790,10 @@ function pendingAutomationRunPlan(record: AutomationRecord): AutomationRunPlan {
 function normalizeRun(run: RawAutomationRunRecord): AutomationRunRecord | null {
   // UGC workers share the automation_runs table but use a checkpoint-based
   // record contract. Never coerce those rows into slideshow outputs.
-  if (run?.kind === "ugc" || (run?.checkpoints && typeof run.checkpoints === "object")) {
+  if (
+    run?.kind === "ugc" ||
+    (run?.checkpoints && typeof run.checkpoints === "object")
+  ) {
     return null
   }
   const id = clean(run?.id)

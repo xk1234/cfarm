@@ -4,7 +4,7 @@ description: "Configure Telegram lifecycle notifications and acknowledge manuall
 ---
 
 Reminders are configured in **App settings → Reminders**. They are off by
-default. The currently supported methods are **No reminders** and **Telegram**.
+default. Turn on **Send through Telegram** to enable them.
 
 ## Reminder events
 
@@ -43,11 +43,21 @@ button is shown.
 
 ## Telegram setup
 
-1. Create a Telegram bot and set `TELEGRAM_BOT_TOKEN` on the app and worker.
-2. Set a default `TELEGRAM_CHAT_ID`, or enter a chat/channel ID in App settings.
+1. Create a Telegram bot with BotFather.
+2. Enter its bot token and destination chat/channel ID in App settings.
 3. Set `BASE_URL` to the public HTTPS origin of the LumenClip app.
 4. Set a strong `TELEGRAM_WEBHOOK_SECRET` on the app.
-5. Select **Telegram**, choose the events, save, and send a test reminder.
+5. Turn on Telegram, choose the events, save, and send a test reminder.
+
+Deployment-level `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` values remain
+fallbacks for existing installations. A saved workspace token is never
+returned to the browser after storage.
+
+Slideshow messages include a signed public delivery link. It opens a page where
+the recipient can download every rendered slide as a ZIP and copy the title or
+combined description and hashtags without logging in. Links are scoped to one
+output, expire after one year, and use `SLIDESHOW_SHARE_SECRET` (falling back to
+the Appwrite server key if a dedicated share secret is not configured).
 
 Saving Telegram settings registers
 `<BASE_URL>/api/telegram/webhook` with Telegram when the public URL and webhook

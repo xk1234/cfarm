@@ -3,12 +3,28 @@ import { describe, expect, it } from "vitest"
 import {
   automationAccountStatusItems,
   automationAccountSummary,
+  automationCardBorderClass,
   automationRunPreviewImages,
   automationRunPreviewRuns,
   automationRunPreviewSlots,
+  automationStatusActionLabel,
 } from "@/components/realfarm/automations-view"
 
 describe("automation grid previews", () => {
+  it("uses user-facing pause and resume labels", () => {
+    expect(automationStatusActionLabel("live")).toBe("Pause")
+    expect(automationStatusActionLabel("paused")).toBe("Resume")
+  })
+
+  it("uses a destructive border for blocked automations", () => {
+    expect(automationCardBorderClass(true)).toContain(
+      "border-destructive"
+    )
+    expect(automationCardBorderClass(false)).toContain(
+      "border-app-panel-border"
+    )
+  })
+
   it("uses one first-slide image from each recent slideshow run", () => {
     const images = automationRunPreviewImages(
       [

@@ -1,6 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
 
+import { toLumenClipDataError } from "@/lib/appwrite-errors"
+import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
+import { deriveAutomationVariableBindings } from "@/lib/automation-variable-bindings"
 import {
   automationRecordToSummary,
   createLocalAutomationRecord,
@@ -78,11 +81,13 @@ import type {
   AutomationFormatSectionId,
   AutomationHookItem,
   AutomationSchedule,
+  AutomationSchema,
   AutomationTextItem,
   AutomationUgcConfig,
 } from "@/lib/realfarm-automation"
 import {
   automationCollectionIds,
+  automationFormatSection,
   automationHookId,
   automationHookItems,
   normalizeAutomationSchema,
@@ -404,7 +409,7 @@ export function createLumenClipMcpServer(
     name: "lumenclip",
     version: "2.0.0",
   })
-  const owned = <T>(task: () => T) => withSystemOwner(ownerId, task)
+  const owned = <T>(task: () => T) => ownedMcpTask(ownerId, task)
 
   registerAutomationReadAndRunTools(server, ownerId, services)
   registerCollectionTools(server, ownerId, services)
@@ -469,7 +474,7 @@ export function createLumenClipMcpServer(
             await Promise.all([
               services.listAutomationRecords(),
               services.listXAutomations(),
-              services.listJobs({ limit: 500 }).catch(() => []),
+              services.listJobs({ limit: 500 }),
               services.listPostFastPostRecords(),
               services
                 .postfastRequest("/social-posts", {
@@ -765,6 +770,14 @@ export function createLumenClipMcpServer(
       description:
         "Reads the same stored, owner-scoped publications and snapshots used by Studio reporting without refreshing providers. Returns latest-per-post totals, account breakdowns, follower change, per-post followers gained, and recent posts.",
       inputSchema: {
+        automationId: z
+          .string()
+          .trim()
+          .min(1)
+          .optional()
+          .describe(
+            'Optional automation ID whose attributed output metrics should be returned, e.g. "automation_123".'
+          ),
         days: z
           .number()
           .int()
@@ -800,17 +813,63 @@ export function createLumenClipMcpServer(
     },
     async (input) =>
       mcpResult(
-        await owned(async () =>
-          buildAnalyticsReport({
-            snapshots: await services.listMetricSnapshots(),
-            followerSnapshots: await services.listFollowerSnapshots(),
-            publications: await services.listPostFastPostRecords(),
+        await owned(async () => {
+          const [allSnapshots, allFollowers, allPublications, runs] =
+            await Promise.all([
+              services.listMetricSnapshots(),
+              services.listFollowerSnapshots(),
+              services.listPostFastPostRecords(),
+              input.automationId
+                ? services.listAutomationRuns({
+                    automationId: input.automationId,
+                    limit: 500,
+                  })
+                : Promise.resolve([]),
+            ])
+          const sourceIds = new Set(
+            runs.flatMap((run) => [
+              run.id,
+              ...(run.slideshowId ? [run.slideshowId] : []),
+            ])
+          )
+          const publications = input.automationId
+            ? allPublications.filter((item) => sourceIds.has(item.sourceId))
+            : allPublications
+          const publicationIds = new Set(
+            publications.map((publication) => publication.id)
+          )
+          const snapshots = input.automationId
+            ? allSnapshots.filter((snapshot) =>
+                publicationIds.has(snapshot.postId)
+              )
+            : allSnapshots
+          const inferredIntegrationIds = input.automationId
+            ? [
+                ...new Set(
+                  publications
+                    .map((publication) => clean(publication.integrationId))
+                    .filter(Boolean)
+                ),
+              ]
+            : input.integrationIds
+          const report = buildAnalyticsReport({
+            snapshots,
+            followerSnapshots: allFollowers,
+            publications,
             now: services.now(),
             days: input.days,
-            integrationIds: input.integrationIds,
+            integrationIds: input.integrationIds ?? inferredIntegrationIds,
             postLimit: input.postLimit,
           })
-        )
+          return {
+            ...report,
+            automationId: input.automationId,
+            dataWarning:
+              input.automationId && runs.length > 0 && publications.length === 0
+                ? "Outputs exist for this automation, but no publication records are linked. Metrics cannot be attributed until a publication is linked to its output."
+                : undefined,
+          }
+        })
       )
   )
 
@@ -828,7 +887,7 @@ function registerAutomationReadAndRunTools(
   ownerId: string,
   services: LumenClipMcpServices
 ) {
-  const owned = <T>(task: () => T) => withSystemOwner(ownerId, task)
+  const owned = <T>(task: () => T) => ownedMcpTask(ownerId, task)
 
   server.registerTool(
     "lumenclip_automations_list",
@@ -873,19 +932,21 @@ function registerAutomationReadAndRunTools(
     async (input) =>
       mcpResult(
         await owned(async () => {
-          const [standard, social, standardRuns, socialRuns] =
+          const [standard, social, standardRuns, socialRuns, mediaCollections] =
             await Promise.all([
               services.listAutomationRecords(),
               services.listXAutomations(),
               services.listAutomationRuns({ limit: 500 }),
               services.listXAutomationRuns(),
+              services.listImageCollections(),
             ])
           const query = clean(input.query).toLowerCase()
           const items = [
             ...standard.map((record) =>
               automationListItem(
                 record,
-                standardRuns.find((run) => run.automationId === record.id)
+                standardRuns.find((run) => run.automationId === record.id),
+                mediaCollections
               )
             ),
             ...social.map((record) =>
@@ -1073,21 +1134,42 @@ function registerAutomationReadAndRunTools(
         await owned(async () => {
           const standard = await services.getAutomationRecord(automationId)
           if (standard) {
-            const lastRun = (
-              await services.listAutomationRuns({
+            const [runs, wordCollections, mediaCollections] = await Promise.all([
+              services.listAutomationRuns({
                 automationId,
                 limit: 1,
-              })
-            )[0]
+              }),
+              services.listWordCollections(),
+              services.listImageCollections(),
+            ])
+            const lastRun = runs[0]
+            const variableBindings = deriveAutomationVariableBindings({
+              schema: standard.schema,
+              collections: wordCollections,
+            })
+            const collectionReferences = normalizeAutomationCollectionReferences(
+              standard.schema,
+              mediaCollections
+            )
             return {
               automation: {
                 ...serializeStandardAutomation(standard),
-                schema: serializeAutomationSchema(standard.schema),
-                hookPool: serializeAutomationHookPool(standard),
+                schema: {
+                  ...serializeAutomationSchema(standard.schema),
+                  hook_slots: variableBindings.hookSlots,
+                  hook_slot_overrides: variableBindings.explicitOverrides,
+                },
+                hookPool: serializeAutomationHookPool(
+                  standard,
+                  variableBindings
+                ),
+                variableBindings,
                 manualRunSupported:
                   standard.schema.automationKind === "slideshow" ||
                   standard.schema.automationKind === "ugc",
-                linkedCollections: automationCollectionIds(standard.schema),
+                linkedCollections: collectionReferences.ids,
+                unresolvedCollectionReferences:
+                  collectionReferences.unresolved,
                 linkedAccounts:
                   standard.schema.social_integrations.map(safeAccount),
                 publishingPolicy: {
@@ -1350,7 +1432,13 @@ function registerAutomationReadAndRunTools(
         await owned(async () => {
           const record = await services.getAutomationRecord(automationId)
           if (!record) throw new Error("Automation not found")
-          return serializeAutomationHookPool(record)
+          return serializeAutomationHookPool(
+            record,
+            deriveAutomationVariableBindings({
+              schema: record.schema,
+              collections: await services.listWordCollections(),
+            })
+          )
         })
       )
   )
@@ -1689,7 +1777,7 @@ function registerCollectionTools(
   ownerId: string,
   services: LumenClipMcpServices
 ) {
-  const owned = <T>(task: () => T) => withSystemOwner(ownerId, task)
+  const owned = <T>(task: () => T) => ownedMcpTask(ownerId, task)
 
   server.registerTool(
     "lumenclip_collections_list",
@@ -2413,7 +2501,7 @@ function registerOutputAndPublishingTools(
   ownerId: string,
   services: LumenClipMcpServices
 ) {
-  const owned = <T>(task: () => T) => withSystemOwner(ownerId, task)
+  const owned = <T>(task: () => T) => ownedMcpTask(ownerId, task)
 
   server.registerTool(
     "lumenclip_outputs_list",
@@ -2470,6 +2558,14 @@ function registerOutputAndPublishingTools(
           .max(100)
           .default(20)
           .describe("Maximum number of output summaries to return, e.g. 20."),
+        cursor: z
+          .string()
+          .trim()
+          .regex(/^\d+$/)
+          .optional()
+          .describe(
+            'Opaque pagination cursor returned by a prior call, e.g. "20".'
+          ),
       },
       annotations: {
         readOnlyHint: true,
@@ -2507,10 +2603,85 @@ function registerOutputAndPublishingTools(
             .sort((left, right) =>
               right.createdAt.localeCompare(left.createdAt)
             )
+          const offset = input.cursor ? Number(input.cursor) : 0
+          const page = filtered.slice(offset, offset + input.limit)
+          const nextOffset = offset + page.length
           return {
-            items: filtered.slice(0, input.limit),
-            hasMore: filtered.length > input.limit,
+            items: page,
+            nextCursor:
+              nextOffset < filtered.length ? String(nextOffset) : undefined,
+            hasMore: nextOffset < filtered.length,
             total: filtered.length,
+          }
+        })
+      )
+  )
+
+  server.registerTool(
+    "lumenclip_output_get",
+    {
+      title: "Inspect a generated output",
+      description:
+        "Returns one caller-owned generated output with its resolved hook, token values, rendered per-slide text and image identity, publication state, timestamps, and deterministic QA findings.",
+      inputSchema: {
+        outputId: z
+          .string()
+          .trim()
+          .min(1)
+          .describe(
+            'Output ID returned by outputs_list or automation_run, e.g. "slideshow_123".'
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ outputId }) =>
+      mcpResult(
+        await owned(async () => {
+          const output = await getAutomationOutput(services, outputId)
+          if (!output) throw new Error("Output not found")
+          return output
+        })
+      )
+  )
+
+  server.registerTool(
+    "lumenclip_output_validate",
+    {
+      title: "Validate a generated output",
+      description:
+        "Runs deterministic, model-free QA over one caller-owned output. Checks promised count, unresolved tokens, duplicate variable draws, prior hook/value reuse, empty text, and configured word limits.",
+      inputSchema: {
+        outputId: z
+          .string()
+          .trim()
+          .min(1)
+          .describe(
+            'Output ID returned by outputs_list or automation_run, e.g. "slideshow_123".'
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ outputId }) =>
+      mcpResult(
+        await owned(async () => {
+          const output = await getAutomationOutput(services, outputId)
+          if (!output) throw new Error("Output not found")
+          return {
+            outputId: output.id,
+            outputType: output.outputType,
+            status: output.status,
+            qa: output.qa,
+            resourceUri: output.resourceUri,
           }
         })
       )
@@ -2685,16 +2856,23 @@ function registerOutputAndPublishingTools(
           if (job?.type === "run-ugc-automation") {
             return ugcJobOperation(services, job)
           }
-          const ugc = await services.getUgcRunStatus(operationId)
-          if (ugc) return ugcRunOperation(services, ugc)
-          const regular = (
-            await services.listAutomationRuns({ limit: 500 })
-          ).find((run) => run.id === operationId)
-          if (regular) return regularOperation(regular)
+          const regularRuns = await services.listAutomationRuns({ limit: 500 })
+          const regular = regularRuns.find((run) => run.id === operationId)
+          if (regular) {
+            const automation = await services.getAutomationRecord(
+              regular.automationId
+            )
+            return regularOperation(regular, false, {
+              schema: automation?.schema,
+              priorRuns: regularRuns,
+            })
+          }
           const social = await services.getXAutomationRun(operationId)
           if (social) return socialOperation(social)
           const video = await services.getGeneratedVideoExport(operationId)
           if (video) return videoOperation(video)
+          const ugc = await services.getUgcRunStatus(operationId)
+          if (ugc) return ugcRunOperation(services, ugc)
           throw new Error("Operation not found")
         })
       )
@@ -2943,13 +3121,19 @@ async function runAutomationDraft(
         "Saved video automations do not yet have a server-side generation runner. They can be listed, inspected, scheduled, paused, and resumed through MCP."
       )
     }
-    const existing = (
-      await services.listAutomationRuns({
-        automationId: input.automationId,
-        limit: 100,
+    const priorRuns = await services.listAutomationRuns({
+      automationId: input.automationId,
+      limit: 100,
+    })
+    const existing = priorRuns.find(
+      (run) => run.requestId === input.requestId
+    )
+    if (existing) {
+      return regularOperation(existing, true, {
+        schema: standard.schema,
+        priorRuns,
       })
-    ).find((run) => run.requestId === input.requestId)
-    if (existing) return regularOperation(existing, true)
+    }
 
     const result = await services.runDueAutomations({
       automationId: input.automationId,
@@ -2965,7 +3149,10 @@ async function runAutomationDraft(
         now: services.now(),
       })
     }
-    return regularOperation(run)
+    return regularOperation(run, false, {
+      schema: standard.schema,
+      priorRuns,
+    })
   }
 
   const social = await services.getXAutomation(input.automationId)
@@ -3186,10 +3373,12 @@ function skippedAutomationOperation(input: {
     automationId: string
     reason: string
     scheduledFor?: string
+    blockers?: Array<{ code: string; message: string }>
   }>
   now: Date
 }) {
   const reason = input.skipped[0]?.reason ?? "generation_failed"
+  const blockers = input.skipped.flatMap((item) => item.blockers ?? [])
   const timestamp = input.now.toISOString()
   return {
     automationId: input.automationId,
@@ -3209,26 +3398,64 @@ function skippedAutomationOperation(input: {
     skipped: input.skipped,
     warnings: [],
     errors: [
-      {
-        code: reason === "no_images" ? "COLLECTION_EMPTY" : "OPERATION_FAILED",
-        message: `Automation did not create an output: ${reason}`,
-        retryable: true,
-      },
+      ...(blockers.length
+        ? blockers.map((blocker) => ({
+            code: automationBlockerErrorCode(blocker.code),
+            message: blocker.message,
+            retryable: false,
+          }))
+        : [
+            {
+              code:
+                reason === "no_images"
+                  ? "COLLECTION_EMPTY"
+                  : "OPERATION_FAILED",
+              message: `Automation did not create an output: ${reason}`,
+              retryable: true,
+            },
+          ]),
     ],
+  }
+}
+
+function automationBlockerErrorCode(code: string) {
+  switch (code) {
+    case "missing_collection_selection":
+      return "COLLECTION_NOT_SELECTED"
+    case "missing_collection":
+      return "COLLECTION_NOT_FOUND"
+    case "empty_collection":
+      return "COLLECTION_EMPTY"
+    case "missing_hook":
+      return "HOOK_POOL_EMPTY"
+    case "invalid_hook_variable":
+      return "HOOK_VARIABLE_INVALID"
+    case "invalid_ugc_configuration":
+      return "UGC_CONFIGURATION_INVALID"
+    case "unsupported_runner":
+      return "RUNNER_UNSUPPORTED"
+    default:
+      return "AUTOMATION_BLOCKED"
   }
 }
 
 function automationListItem(
   record: AutomationRecord,
-  lastRun?: AutomationRunRecord
+  lastRun: AutomationRunRecord | undefined,
+  mediaCollections: StoredImageCollection[]
 ) {
+  const collectionReferences = normalizeAutomationCollectionReferences(
+    record.schema,
+    mediaCollections
+  )
   return {
     id: record.id,
     name: record.name,
     kind: record.schema.automationKind,
     status: record.status,
     updatedAt: record.updatedAt,
-    collectionIds: automationCollectionIds(record.schema),
+    collectionIds: collectionReferences.ids,
+    unresolvedCollectionReferences: collectionReferences.unresolved,
     platforms: record.schema.social_integrations.map(
       (integration) => integration.provider
     ),
@@ -3251,11 +3478,31 @@ function socialAutomationListItem(
     status: record.status,
     updatedAt: record.updatedAt,
     collectionIds: [] as string[],
+    unresolvedCollectionReferences: [] as string[],
     platforms: [record.platform],
     manualRunSupported: true,
     lastRun: lastRun ? socialRunSummary(lastRun) : null,
     resourceUri: `lumenclip://automations/${encodeURIComponent(record.id)}`,
   }
+}
+
+function normalizeAutomationCollectionReferences(
+  schema: AutomationRecord["schema"],
+  mediaCollections: StoredImageCollection[]
+) {
+  const references = automationCollectionIds(schema)
+  const ids: string[] = []
+  const unresolved: string[] = []
+  for (const reference of references) {
+    const collection = findMediaCollection(mediaCollections, reference)
+    if (!collection) {
+      unresolved.push(reference)
+      continue
+    }
+    const id = storedToCollection(collection).id
+    if (!ids.includes(id)) ids.push(id)
+  }
+  return { ids, unresolved }
 }
 
 function socialRunSummary(run: XAutomationRun) {
@@ -3534,6 +3781,157 @@ async function listOutputSummaries(
   ]
 }
 
+async function getAutomationOutput(
+  services: LumenClipMcpServices,
+  outputId: string
+) {
+  const summaries = await listOutputSummaries(services)
+  const summary = summaries.find((item) => item.id === outputId)
+  if (!summary) return null
+
+  if (summary.outputType === "slideshow") {
+    const runs = await services.listAutomationRuns({ limit: 500 })
+    const run = runs.find(
+      (candidate) =>
+        candidate.id === outputId || candidate.slideshowId === outputId
+    )
+    if (!run) return null
+    const [automation, slideshow] = await Promise.all([
+      services.getAutomationRecord(run.automationId),
+      run.slideshowId
+        ? services
+            .listSlideshowRecords({ id: run.slideshowId, limit: 1 })
+            .then((items) => items[0] ?? null)
+        : Promise.resolve(null),
+    ])
+    const qa = validateAutomationRunOutput({
+      run,
+      schema: automation?.schema,
+      priorRuns: runs.filter(
+        (candidate) => candidate.automationId === run.automationId
+      ),
+    })
+    const rendered = slideshow?.images ?? []
+    const slides = run.plan.slides.map((planSlide, index) => {
+      const renderedSlide = rendered[index]
+      const textItems = (
+        renderedSlide?.textItems ??
+        planSlide.textItems ??
+        (planSlide.text
+          ? [{ id: "text", text: planSlide.text }]
+          : [])
+      ).map((item) => ({ id: item.id, text: item.text }))
+      const section = automation
+        ? automationFormatSection(
+            automation.schema,
+            planSlide.role === "hook"
+              ? "hook"
+              : planSlide.role === "cta"
+                ? "cta"
+                : "content"
+          )
+        : undefined
+      const configuredById = new Map(
+        (section?.textItems ?? []).map((item) => [item.id, item])
+      )
+      const headingItem =
+        textItems.find((item) => /heading|headline|title/i.test(item.id)) ??
+        textItems[0]
+      const paragraphItems = textItems.filter(
+        (item) =>
+          item.id !== headingItem?.id &&
+          (/paragraph|body|description|copy|content/i.test(item.id) ||
+            textItems.length > 1)
+      )
+      return {
+        index: index + 1,
+        id: planSlide.id,
+        role: planSlide.role,
+        heading: headingItem?.text ?? "",
+        paragraph: paragraphItems.map((item) => item.text).join("\n"),
+        renderedText: textItems.map((item) => item.text).join("\n"),
+        textItems: textItems.map((item) => {
+          const configured = configuredById.get(item.id)
+          return {
+            ...item,
+            wordLengthMin: configured?.wordLengthMin,
+            wordLengthMax: configured?.wordLengthMax,
+          }
+        }),
+        imageAssetId: planSlide.imageKey,
+        imageUrl:
+          renderedSlide?.source_image_url ??
+          renderedSlide?.image_url ??
+          planSlide.imageUrl,
+        renderedImageUrl: run.outputImages?.[index],
+      }
+    })
+    return {
+      ...summary,
+      runId: run.id,
+      automationId: run.automationId,
+      resolvedHookText: run.plan.hook,
+      hookId: run.plan.hookId,
+      hookTemplate: run.plan.hookTemplate,
+      tokenValues: run.plan.hookSubstitutions ?? {},
+      actualSlideCount: slides.length,
+      bodySlideCount: slides.filter((slide) => slide.role === "content").length,
+      slides,
+      title: run.plan.title,
+      caption: run.plan.caption,
+      hashtags: run.plan.hashtags,
+      createdAt: run.createdAt,
+      updatedAt: run.updatedAt,
+      error: run.error,
+      qa,
+    }
+  }
+
+  if (summary.outputType === "video") {
+    const video = await services.getGeneratedVideoExport(outputId)
+    if (!video) return null
+    return {
+      ...summary,
+      automationId: clean(video.sourceConfig.automationId) || undefined,
+      title: video.title,
+      description: video.description,
+      hashtags: video.hashtags,
+      videoUrl: video.videoUrl,
+      previewUrl: video.previewUrl,
+      createdAt: video.createdAt,
+      updatedAt: video.updatedAt,
+      error: video.error,
+      qa: {
+        valid: video.status === "ready",
+        actualSlideCount: 0,
+        bodySlideCount: 0,
+        findings: [],
+      },
+    }
+  }
+
+  const social = await services.getXAutomationRun(outputId)
+  if (!social) return null
+  return {
+    ...summary,
+    automationId: social.automationId,
+    platform: social.platform,
+    resolvedHookText: social.hook,
+    topic: social.topic,
+    posts: social.posts,
+    actualSlideCount: 0,
+    createdAt: social.createdAt,
+    updatedAt: social.updatedAt,
+    error: social.error,
+    qa: {
+      valid: social.status !== "failed",
+      actualSlideCount: 0,
+      bodySlideCount: 0,
+      findings: [],
+    },
+  }
+}
+
 function outputAnalyticsSummary(
   publications: PostFastPostRecord[],
   snapshots: PostFastMetricSnapshot[]
@@ -3620,10 +4018,25 @@ function publicationState(
   return "not_published"
 }
 
-function regularOperation(run: AutomationRunRecord, reused = false) {
+function regularOperation(
+  run: AutomationRunRecord,
+  reused = false,
+  qaContext: {
+    schema?: AutomationSchema
+    priorRuns?: AutomationRunRecord[]
+  } = {}
+) {
   const progress =
     run.status === "running" ? automationRunProgress(run.id) : undefined
   const outputId = run.slideshowId
+  const qa =
+    run.status === "succeeded"
+      ? validateAutomationRunOutput({
+          run,
+          schema: qaContext.schema,
+          priorRuns: qaContext.priorRuns,
+        })
+      : undefined
   return {
     operation: {
       id: run.id,
@@ -3650,6 +4063,8 @@ function regularOperation(run: AutomationRunRecord, reused = false) {
             id: outputId,
             outputType: "slideshow",
             publicationState: "not_published",
+            qaFindings: qa?.findings ?? [],
+            qaValid: qa?.valid,
             resourceUri: `lumenclip://outputs/${encodeURIComponent(outputId)}`,
           },
         ]
@@ -5227,13 +5642,17 @@ function serializeAutomationTemplate(
   }
 }
 
-function serializeAutomationHookPool(record: AutomationRecord) {
+function serializeAutomationHookPool(
+  record: AutomationRecord,
+  variableBindings?: ReturnType<typeof deriveAutomationVariableBindings>
+) {
   const hooks = automationHookItems(record.schema)
   return {
     automationId: record.id,
     updatedAt: record.updatedAt,
     hooks,
     ...analyzeAutomationHookPool(hooks),
+    ...(variableBindings ? { variableBindings } : {}),
     resourceUri: `lumenclip://automations/${encodeURIComponent(record.id)}/hooks`,
   }
 }
@@ -5549,5 +5968,13 @@ function mcpResult(value: Record<string, unknown> | unknown[]) {
   return {
     content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
     structuredContent: Array.isArray(value) ? { items: value } : value,
+  }
+}
+
+async function ownedMcpTask<T>(ownerId: string, task: () => T): Promise<T> {
+  try {
+    return await withSystemOwner(ownerId, task)
+  } catch (error) {
+    throw toLumenClipDataError(error)
   }
 }
