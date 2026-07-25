@@ -575,6 +575,8 @@ async function createPlan({
     autoPost: effectivePostingMode(schema) === "auto",
     hookCandidates: automationHooks(schema),
     textModel: generated.model,
+    // Non-fatal quality findings recorded at generation time (word ranges).
+    violations: generated.violations ?? [],
     language: clean(schema.language) || "English",
     debug: { webSearchSources: generated.webSearchSources || [] },
   }
@@ -854,11 +856,8 @@ async function generateText({ schema, automation, hook, placeholders }) {
         },
       })
       const parsed = parseJsonContent(payload.choices?.[0]?.message?.content)
-      const validationErrors = validateScheduledSlideshowText(
-        parsed,
-        placeholders,
-        hook
-      )
+      const { errors: validationErrors, violations } =
+        validateScheduledSlideshowText(parsed, placeholders, hook)
       if (validationErrors.length) {
         throw new Error(validationErrors.join("; "))
       }
@@ -879,6 +878,7 @@ async function generateText({ schema, automation, hook, placeholders }) {
           ])
         ),
         model,
+        violations,
         webSearchSources: parseWebSources(
           payload.choices?.[0]?.message?.annotations
         ),
@@ -894,6 +894,7 @@ async function generateText({ schema, automation, hook, placeholders }) {
 
 function validateScheduledSlideshowText(parsed, placeholders, hook) {
   const errors = []
+  const violations = []
   if (!clean(parsed?.title) || !clean(parsed?.caption)) {
     errors.push("OpenRouter returned empty slideshow metadata")
   }
@@ -916,8 +917,11 @@ function validateScheduledSlideshowText(parsed, placeholders, hook) {
       errors.push(`OpenRouter omitted ${placeholder.id}`)
       continue
     }
+    // Word counts are a quality signal, not a correctness one. Failing here
+    // discards a whole generation over one long line, so the miss is reported
+    // with the output instead. Mirrors lib/slideshow-text-generation.ts.
     const wordError = placeholderWordRangeError(placeholder, value)
-    if (wordError) errors.push(wordError)
+    if (wordError) violations.push(wordError)
   }
   const hookLower = hook.toLowerCase()
   const slopMatches = llmSlopMatches(generatedText)
@@ -926,7 +930,7 @@ function validateScheduledSlideshowText(parsed, placeholders, hook) {
     if (hookLower && hookLower.includes(match.toLowerCase())) continue
     errors.push(slopViolations[index])
   }
-  return errors
+  return { errors, violations }
 }
 
 async function selectImages({
