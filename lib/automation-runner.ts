@@ -359,16 +359,6 @@ export async function listAutomationRuns(
   )
 }
 
-/** Raw, read-only run listing for backup-first data migrations. */
-export async function listAutomationRunsForMigration(
-  input: { runRootDir?: string; automationId?: string } = {}
-) {
-  const runs = await readAutomationRuns(input.runRootDir ?? defaultRunRootDir)
-  return input.automationId
-    ? runs.filter((run) => run.automationId === input.automationId)
-    : runs
-}
-
 function automationRunTimestamp(run: AutomationRunRecord) {
   const createdAt = new Date(run.createdAt).getTime()
   return Number.isFinite(createdAt) ? createdAt : 0

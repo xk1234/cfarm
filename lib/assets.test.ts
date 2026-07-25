@@ -1,9 +1,7 @@
 import path from "node:path"
 
-import { Query } from "node-appwrite"
 import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
-import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
 import {
   createGeneratedAssetRecord,

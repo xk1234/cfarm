@@ -33,7 +33,7 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import type { GeneratedVideoExport } from "@/lib/generated-video-types"
-import type { Automation, RealFarmData } from "@/lib/realfarm-data"
+import type { Automation } from "@/lib/realfarm-data"
 import { cn } from "@/lib/utils"
 
 import { useVideoThumbnailFrame } from "./use-video-thumbnail-frame"
@@ -55,7 +55,6 @@ export function HomeView({
   onGenerationRunRemove,
 }: {
   currentUserId: string
-  data: RealFarmData
   templates: Automation[]
   recentRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
   generatedRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>

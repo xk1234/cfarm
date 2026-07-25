@@ -47,24 +47,31 @@ erDiagram
 The Appwrite `outputs` table is polymorphic: results, X runs, generated videos,
 and publication-only wrappers share it and are distinguished by `source_key`.
 
-## Static seed data
+## Runtime workspace data
 
 ### `RealFarmData`
 
-Source: `lib/realfarm-data.ts` and `data/realfarm.json`.
+Source: `lib/realfarm-data.ts`.
 
-This is read-only seed/configuration data used to bootstrap brand copy, sample
-cards, defaults, and local media catalogs. `loadRealFarmData()` adds runtime
-assets from the media library.
+This is a small runtime shell containing the LumenClip brand name and media
+assets loaded from Appwrite. Other workspace records are fetched from their
+domain APIs.
 
 ```ts
-type RealFarmData = typeof realfarmData & {
+interface RealFarmJson {
+  brand: {
+    name: "LumenClip"
+    owner?: string
+  }
+}
+
+type RealFarmData = RealFarmJson & {
   assets: {
     music: LocalAsset[]
-    greenscreenMemes: LocalAsset[]
-    ctas: LocalAsset[]
     ugcAvatarVideos: LocalAsset[]
     demoVideos: LocalAsset[]
+    greenscreenMemes: LocalAsset[]
+    ctas: LocalAsset[]
   }
 }
 ```

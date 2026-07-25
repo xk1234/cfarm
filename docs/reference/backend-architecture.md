@@ -249,6 +249,7 @@ status, and safe media references, never API keys or Appwrite credentials.
 2. Type definitions in `lib/` are authoritative for serialized domain shapes.
 3. `app/api/**/route.ts` is authoritative for the internal HTTP contract.
 4. Provisioning scripts define physical columns and indexes.
-5. `data/realfarm.json` and `data/seeds/**` are read-only seed/fixture inputs,
-   not mutable production stores.
-6. Roadmap documents describe intended changes and must not be read as current behavior.
+5. Runtime brand configuration lives in `lib/realfarm-data.ts`; persisted
+   workspace data lives in Appwrite.
+6. Roadmap documents describe intended changes and must not be read as current
+   behavior.

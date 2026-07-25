@@ -1,5 +1,3 @@
-import realfarmData from "../data/realfarm.json"
-import demoSeedData from "../data/seeds/demo-realfarm.json"
 import { unstable_cache } from "next/cache"
 
 import {
@@ -26,14 +24,6 @@ export type LocalAsset = {
   text?: string
 }
 
-export type Project = {
-  id: string
-  title: string
-  status: string
-  age: string
-  slides: string[]
-}
-
 export type Automation = {
   id: string
   name: string
@@ -54,26 +44,16 @@ export type Automation = {
   generationBlockers?: string[]
 }
 
-export type ImageCollectionSummary = {
-  id: string
-  title: string
-  imageCount: number
-  withoutCaptions: number
-  theme: string
+interface RealFarmJson {
+  brand: {
+    name: "LumenClip"
+    owner?: string
+  }
 }
 
-type RealFarmJson = Omit<
-  typeof realfarmData,
-  "projects" | "automations" | "imageCollections"
-> & {
-  projects: Project[]
-  automations: Automation[]
-  imageCollections: ImageCollectionSummary[]
-}
-
-type RealFarmDemoSeed = {
-  imageCollections?: RealFarmJson["imageCollections"]
-}
+const BRAND = {
+  name: "LumenClip",
+} as const satisfies RealFarmJson["brand"]
 
 export type RealFarmData = RealFarmJson & {
   assets: {
@@ -84,11 +64,8 @@ export type RealFarmData = RealFarmJson & {
     ctas: LocalAsset[]
   }
 }
-export type Video = RealFarmData["videos"][number]
-export type ImageCollection = RealFarmData["imageCollections"][number]
 
 export type LoadRealFarmDataOptions = {
-  includeDemoSeed?: boolean
   mediaAssets?: MediaLibraryAsset[]
 }
 
@@ -101,22 +78,11 @@ const listCachedMediaLibraryAssets = unstable_cache(
 export async function loadRealFarmData(
   options: LoadRealFarmDataOptions = {}
 ): Promise<RealFarmData> {
-  const data = realfarmData as RealFarmJson
-  const demoSeed = demoSeedData as RealFarmDemoSeed
   const mediaAssets =
     options.mediaAssets ?? (await listCachedMediaLibraryAssets())
-  const seededData = options.includeDemoSeed
-    ? {
-        ...data,
-        imageCollections: [
-          ...data.imageCollections,
-          ...(demoSeed.imageCollections ?? []),
-        ],
-      }
-    : data
 
   return {
-    ...seededData,
+    brand: BRAND,
     assets: {
       music: assetsFor(mediaAssets, "music"),
       ugcAvatarVideos: assetsFor(mediaAssets, "ugc_avatar_videos"),

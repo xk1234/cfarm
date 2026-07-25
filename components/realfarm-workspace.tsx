@@ -272,7 +272,6 @@ export function RealFarmWorkspace({
     deleteCollections,
     toggleCollectionPin,
   } = useCollectionsData({
-    data,
     assets: workspaceAssets,
     enabled:
       view === "collections" || view === "automations" || templateFolderOpen,
@@ -831,7 +830,6 @@ export function RealFarmWorkspace({
           {view === "home" && (
             <HomeView
               currentUserId={user.id}
-              data={data}
               templates={templateAutomations}
               recentRunsByAutomationId={showcaseRunsByAutomationId}
               generatedRunsByAutomationId={recentRunsByAutomationId}

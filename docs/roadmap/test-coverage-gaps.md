@@ -48,8 +48,6 @@ modules reachable only as compiled `appwrite/functions/job-worker/src/*.js`.
 
 - `lib/local-automation-job-worker-config.ts` — `localAutomationJobTypes()` returns a
   hardcoded array; nothing imports it. Safe to delete.
-- `lib/ugc-avatar-videos.ts` — `getOrderedUgcAvatarVideos` had one caller, the test
-  that was trimmed. Parked with the UGC pipeline.
 - `createFallbackPinterestResults` (`lib/pinterest-search.ts`) — no callers.
   Contrast `createFallbackPexelsResults`, which *is* reachable from
   `app/api/pexels/search/route.ts`.
@@ -92,4 +90,5 @@ Worth fixing rather than deleting — the intent is right, the assertion is miss
 
 No specs exist. Rebuilding them needs `data-testid`s added to the elements each
 journey touches — the absence of those is why the previous specs never got past
-status-code assertions. See `e2e/README.md`.
+status-code assertions. See
+[Browser end-to-end tests](/docs/workflows/browser-tests).

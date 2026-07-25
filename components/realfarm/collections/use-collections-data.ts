@@ -17,16 +17,14 @@ import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import type { ProductCollection } from "@/lib/product-collections"
 
 export function useCollectionsData({
-  data,
   assets,
   enabled,
 }: {
-  data: RealFarmData
   assets: RealFarmData["assets"]
   enabled: boolean
 }) {
   const [collections, setCollections] = useState<CreatedImageCollection[]>(() =>
-    defaultImageCollections(data)
+    defaultImageCollections()
   )
   const [collectionsLoaded, setCollectionsLoaded] = useState(false)
   const [productCollections, setProductCollections] = useState<

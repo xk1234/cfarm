@@ -59,3 +59,6 @@ next-env.d.ts
 .agents/logs/
 .vercel
 backups/
+
+# One-off slideshow render output (do not commit generated exports)
+/exports/

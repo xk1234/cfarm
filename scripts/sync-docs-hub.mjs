@@ -237,7 +237,6 @@ async function listFiles(root) {
 function toDocsHubText(text) {
   return text
     .replaceAll("../docs/", "../")
-    .replaceAll("[../../e2e/README.md](../../e2e/README.md)", "`e2e/README.md`")
     .replaceAll("../README.md", "/cfarm/project-setup")
     .replaceAll("../DESIGN.md", "/cfarm/design-system")
     .replaceAll("../../../mcp/README.md", "../../mcp/index.md")

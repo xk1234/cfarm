@@ -120,7 +120,8 @@ The status roll-up in [roadmap/](roadmap/index.mdx) is authoritative.
 - [DESIGN.md](../DESIGN.md) — design tokens and component conventions.
 - [AGENTS.md](../AGENTS.md) — Next.js version rule; read before changing Next
   code.
-- [e2e/README.md](../e2e/README.md) — automated browser-test setup.
+- [Browser end-to-end tests](/docs/workflows/browser-tests) — automated
+  browser-test setup.
 - [mcp/README.md](../mcp/README.md) — MCP tool reference organized by
   app use case, with a complete tool ownership index.
 

@@ -1,0 +1,9 @@
+{
+  "title": "Workflows",
+  "pages": [
+    "index",
+    "mcp-agent-tests",
+    "curtains-slideshow",
+    "browser-tests"
+  ]
+}

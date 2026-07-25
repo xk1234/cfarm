@@ -1,5 +1,4 @@
 import type { StoredImageCollection } from "@/lib/image-collections"
-import type { RealFarmData } from "@/lib/realfarm-data"
 import type { LocalAsset } from "@/lib/realfarm-data"
 import type { PinterestSearchResult } from "@/lib/pinterest-search"
 
@@ -33,16 +32,12 @@ export type PinterestCollectionCreatePayload = {
   auto_caption: boolean
 }
 
-export function defaultImageCollections(
-  data: RealFarmData
-): CreatedImageCollection[] {
-  const backgrounds = data.defaultCollections.backgrounds
-
+export function defaultImageCollections(): CreatedImageCollection[] {
   return [
     {
-      id: backgrounds.id,
-      title: backgrounds.title || "Backgrounds",
-      images: backgrounds.images,
+      id: "default-backgrounds",
+      title: "Backgrounds",
+      images: [],
       createdAt: "default",
       source: "fallback",
     },

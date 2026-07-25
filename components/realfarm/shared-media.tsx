@@ -16,33 +16,8 @@ import {
 } from "@/components/ui/media-card"
 import { Spinner } from "@/components/ui/spinner"
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
-import type { Video } from "@/lib/realfarm-data"
 import type { PinterestSearchResult } from "@/lib/pinterest-search"
 import { cn } from "@/lib/utils"
-
-export function VideoGrid({
-  videos,
-  avatarUrl,
-}: {
-  videos: Video[]
-  avatarUrl?: string
-}) {
-  return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-      {videos.map((video, index) => (
-        <article key={video.id} className="app-card overflow-hidden">
-          <VideoPhone
-            caption={video.caption}
-            tone={video.tone}
-            avatarIndex={index}
-            avatarUrl={avatarUrl}
-            className="h-52 w-full rounded-none"
-          />
-        </article>
-      ))}
-    </div>
-  )
-}
 
 export function VideoPhone({
   caption,

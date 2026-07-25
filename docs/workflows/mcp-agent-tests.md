@@ -1,8 +1,13 @@
-# MCP agent end-to-end tests
+---
+title: "MCP agent workflow tests"
+description: "Guidance for running conversational end-to-end stories against the LumenClip MCP surface."
+---
 
-These are **user stories, executed by an AI agent** with the MCP tools
-connected. Each one gives the agent what a user wants, in the user's words, and
-checks whether the user ends up with it.
+# MCP agent workflow tests
+
+These workflow tests are **user stories executed by an AI agent** with the MCP
+tools connected. Each one gives the agent what a user wants, in the user's
+words, and checks whether the user ends up with it.
 
 They deliberately do not say which tools to call. Working that out is part of
 what's being tested: if an agent can't get from "I want to post about curtains"
@@ -14,7 +19,7 @@ problem no unit test will find.
 The MCP surface *is* the product for anyone driving LumenClip from a chat
 window. Nothing else covers it:
 
-| | `e2e/*.spec.ts` | `e2e/mcp-agent/*.md` |
+| | [Browser tests](/docs/workflows/browser-tests) | [MCP agent workflow tests](/docs/workflows/mcp-agent-tests) |
 |---|---|---|
 | Runner | Playwright | an AI agent |
 | Surface | the web UI | the MCP tools |
@@ -60,5 +65,6 @@ curl -s -X POST "$BASE/mcp" \
 
 ## Stories
 
-- [`curtains-slideshow.md`](curtains-slideshow.md) — a user sets up a curtains
-  slideshow, reworks its hooks and voice, generates one, and throws it away.
+- [Curtains slideshow MCP test](/docs/workflows/curtains-slideshow) — a user
+  sets up a curtains slideshow, reworks its hooks and voice, generates one, and
+  throws it away.

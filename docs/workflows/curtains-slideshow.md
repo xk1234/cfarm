@@ -1,7 +1,12 @@
-# E2E: "I want to post about curtains"
+---
+title: "Curtains slideshow MCP test"
+description: "A conversational end-to-end story for configuring, generating, reviewing, and removing a curtains slideshow."
+---
 
-**Executed by:** an AI agent with the LumenClip MCP tools connected.
-**Not** a script. The agent is given what the user wants and has to work out how
+# Curtains slideshow MCP test
+
+This workflow is executed by an AI agent with the LumenClip MCP tools connected,
+not by a script. The agent is given what the user wants and has to work out how
 to do it. If the agent needs to be told which tool to call, the test has failed
 at something more important than the tool.
 

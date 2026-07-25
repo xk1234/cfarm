@@ -11,7 +11,6 @@
     "env:check": "node scripts/check-env.mjs",
     "appwrite:clone-schema": "node scripts/clone-appwrite-schema.mjs",
     "appwrite:consolidated-stores": "node scripts/provision-consolidated-stores.mjs",
-    "appwrite:migrate-consolidated": "tsx scripts/migrate-consolidated-data.ts",
     "appwrite:scan-legacy-shapes": "tsx scripts/scan-legacy-shapes.ts",
     "appwrite:migrate-legacy-shapes": "NODE_OPTIONS='--conditions=react-server' tsx scripts/migrate-legacy-persisted-shapes.ts",
     "appwrite:local:setup": "node scripts/setup-local-appwrite.mjs",

@@ -42,19 +42,13 @@ describe("realfarm collection helpers", () => {
   })
 
   it("uses provider-neutral static default collection names", () => {
-    const collections = defaultImageCollections({
-      defaultCollections: {
-        backgrounds: {
-          id: "default-backgrounds",
-          title: "Backgrounds",
-          images: [],
-        },
-      },
-    } as unknown as Parameters<typeof defaultImageCollections>[0])
+    const collections = defaultImageCollections()
 
-    expect(collections[0]).toMatchObject({
+    expect(collections[0]).toEqual({
       id: "default-backgrounds",
       title: "Backgrounds",
+      images: [],
+      createdAt: "default",
       source: "fallback",
     })
   })

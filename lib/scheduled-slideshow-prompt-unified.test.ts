@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest"
 import { fileURLToPath } from "node:url"
-import fs from "node:fs"
 
 import { slideshowTextGenerationPayload } from "@/lib/slideshow-text-generation-payload"
 import {
