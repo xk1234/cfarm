@@ -4,6 +4,8 @@
 // Keep generation, render, and PostFast payload changes synchronized with the
 // corresponding lib modules.
 import crypto from "node:crypto"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
 import sharp from "sharp"
 import { Query } from "node-appwrite"
 import { InputFile } from "node-appwrite/file"
@@ -14,6 +16,7 @@ import {
   renderedSlideSvg,
   slideshowTextPositionX,
 } from "./slideshow-renderer.js"
+import { configureFontconfig } from "./font-config.js"
 import { expandAllHookCombinations } from "./hook-expansion.js"
 import { applyResolvedHookCase } from "./hook-casing.js"
 import {
@@ -23,6 +26,14 @@ import {
 } from "./llm-slop.js"
 import { defaultPostFastProviderControls as providerControls } from "./postfast-provider-controls.js"
 import { openRouterModelForUseCase } from "./realfarm-generation-model-registry.js"
+
+// Point fontconfig at the bundled TTF before the first sharp() SVG raster.
+// The Appwrite node-22 (Alpine) runtime ships no fonts and no default
+// fontconfig config, so without this every <text> glyph renders as .notdef
+// tofu. Resolved at startup so the absolute path matches this deployment.
+configureFontconfig(
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "assets", "fonts")
+)
 
 const AUTOMATIONS = "automations"
 const RUNS = "automation_runs"

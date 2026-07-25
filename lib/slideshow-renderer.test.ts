@@ -42,12 +42,12 @@ describe("slideshow renderer", () => {
       },
       "/image.jpg",
       undefined,
-      { aspectRatio: "4:5", font: "Arial" }
+      { aspectRatio: "4:5", font: "TikTok Display Medium" }
     )
 
     expect(svg).toContain('data-layer="overlay"')
     expect(svg).toContain('opacity="0.2"')
-    expect(svg).toContain('font-family="Arial, Inter, Arial, sans-serif"')
+    expect(svg).toContain('font-family="Inter, sans-serif"')
     expect(svg).toContain('id="text-controls" x="540" y="1283"')
   })
 

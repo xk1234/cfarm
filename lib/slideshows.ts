@@ -821,6 +821,8 @@ async function materializeSlideImage(input: {
 }
 
 async function renderSvgToPng(svg: string, outputPath: string) {
+  const { configureFontconfig } = await import("@/lib/font-config")
+  configureFontconfig()
   const sharp = (await import("sharp")).default
   await sharp(Buffer.from(svg)).png().toFile(outputPath)
 }

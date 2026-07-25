@@ -1,5 +1,6 @@
 // Generated from lib/slideshow-renderer.ts. Do not edit by hand.
 import { clean } from "./guards.js";
+import { resolveSlideshowFont } from "./font-config.js";
 import { textStyleToEditorColor, textStyleUsesStroke, } from "./realfarm-slideshow-text-style-config.js";
 export const slideshowOverlayOpacity = 0.2;
 export function slideshowTextPositionX(textAlign, textAnchor) {
@@ -14,7 +15,7 @@ export const defaultSlideshowAspectRatio = "9:16";
 export const defaultSlideshowFont = "TikTok Display Medium";
 export function renderedSlideSvg(slide, sourceUrl, overlayUrl, opts) {
     const { width, height } = slideDimensions(opts?.aspectRatio || defaultSlideshowAspectRatio);
-    const font = opts?.font || defaultSlideshowFont;
+    const font = resolveSlideshowFont(opts?.font);
     const textItems = slide.textItems;
     const overlayImageSvg = slide.overlayImage && overlayUrl
         ? renderedOverlayImageSvg(slide.overlayImage, overlayUrl, width, height)
@@ -212,9 +213,9 @@ function renderedTextItemSvg(rendered, font) {
         return `<tspan x="${x}" dy="${dy}">${escapeXml(line)}</tspan>`;
     })
         .join("");
-    const fontFamily = escapeXml(font || defaultSlideshowFont);
+    const fontFamily = escapeXml(font || resolveSlideshowFont());
     const background = renderedTextBackgroundSvg(rendered);
-    return `${background}<text id="${escapeXml(item.id)}" x="${x}" y="${y}" text-anchor="${textAnchor}" dominant-baseline="middle" font-family="${fontFamily}, Inter, Arial, sans-serif" font-size="${fontSize}" font-weight="800" fill="${fill}"${stroke}>${tspans}</text>`;
+    return `${background}<text id="${escapeXml(item.id)}" x="${x}" y="${y}" text-anchor="${textAnchor}" dominant-baseline="middle" font-family="${fontFamily}, sans-serif" font-size="${fontSize}" font-weight="800" fill="${fill}"${stroke}>${tspans}</text>`;
 }
 function renderedTextBackgroundSvg(rendered) {
     const color = textStyleToEditorColor(rendered.item.textStyle);

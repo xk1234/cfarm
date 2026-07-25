@@ -85,9 +85,14 @@ const generatedModules = [
     target: "appwrite/functions/job-worker/src/slideshow-renderer.js",
     imports: {
       "@/lib/guards": "./guards.js",
+      "@/lib/font-config": "./font-config.js",
       "@/lib/realfarm-slideshow-text-style-config":
         "./realfarm-slideshow-text-style-config.js",
     },
+  },
+  {
+    source: "lib/font-config.ts",
+    target: "appwrite/functions/job-worker/src/font-config.js",
   },
   {
     source: "lib/postfast-provider-controls.ts",
@@ -98,6 +103,14 @@ const generatedModules = [
 for (const definition of generatedModules) {
   syncModule(definition)
 }
+
+// The bundled TTF must ship inside the job-worker tar (deploy.mjs bundles
+// appwrite/functions/job-worker/. only), so mirror it next to the generated
+// font-config.js and verify byte-equality in --check mode.
+syncFontAsset({
+  source: "assets/fonts/Inter-Variable.ttf",
+  target: "appwrite/functions/job-worker/assets/fonts/Inter-Variable.ttf",
+})
 
 if (driftedTargets.length > 0) {
   throw new Error(
@@ -162,4 +175,21 @@ function resolveLocalJsonImport(sourcePath, specifier) {
     return path.resolve(path.dirname(sourcePath), specifier)
   }
   return null
+}
+
+function syncFontAsset({ source, target }) {
+  const sourcePath = path.join(repoRoot, source)
+  const targetPath = path.join(repoRoot, target)
+  const sourceBytes = fs.readFileSync(sourcePath)
+  if (checkOnly) {
+    if (
+      !fs.existsSync(targetPath) ||
+      !fs.readFileSync(targetPath).equals(sourceBytes)
+    ) {
+      driftedTargets.push(target)
+    }
+    return
+  }
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true })
+  fs.writeFileSync(targetPath, sourceBytes)
 }
