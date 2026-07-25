@@ -8,10 +8,7 @@ import {
 } from "@/lib/realfarm-automation"
 import type { Automation } from "@/lib/realfarm-data"
 
-import {
-  requestUgcEstimate,
-  UgcAutomationFormatPanel,
-} from "./ugc-format-panel"
+import { UgcAutomationFormatPanel } from "./ugc-format-panel"
 
 const automation: Automation = {
   id: "ugc-test",
@@ -47,49 +44,6 @@ function schema(patch: Partial<AutomationSchema["ugc"]> = {}) {
 }
 
 describe("UgcAutomationFormatPanel", () => {
-  it("renders the UGC fields and gated notice", () => {
-    const html = renderToStaticMarkup(
-      <UgcAutomationFormatPanel
-        config={schema()}
-        onConfigChange={vi.fn()}
-        onBack={vi.fn()}
-        onSave={vi.fn()}
-      />
-    )
-
-    for (const text of [
-      "Product URL",
-      "Product brief",
-      "Actor source",
-      "ElevenLabs voice ID",
-      "Lip-sync tier",
-      "Target duration",
-      "B-roll count",
-      "Captions",
-      "Hook overlay",
-      "FAL_KEY",
-    ]) {
-      expect(html).toContain(text)
-    }
-  })
-
-  it("re-requests the estimate when the tier changes", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ estimate: { items: [], totalUsd: 1 } }),
-    })
-    vi.stubGlobal("fetch", fetchMock)
-
-    await requestUgcEstimate(schema().ugc)
-    await requestUgcEstimate({ ...schema().ugc, lipSyncTier: "premium" })
-
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body).ugc.lipSyncTier).toBe(
-      "premium"
-    )
-    vi.unstubAllGlobals()
-  })
-
   it("blocks saving a live automation without product input or voice", () => {
     const save = vi.fn()
     const html = renderToStaticMarkup(

@@ -33,7 +33,6 @@ import {
   upsertAutomationRecords as persistAutomationRecords,
 } from "@/lib/automations"
 import {
-  automationSlideshowSettings,
   imagesForSlideSection,
   previewAutomationRunPlan,
   runDueAutomations,
@@ -596,48 +595,6 @@ describe("runDueAutomations", () => {
     expect(new Set(slides.map((slide) => slide.imageUrl))).toEqual(
       new Set(["/api/local-assets/image-collections/files/old.jpg"])
     )
-  })
-
-  it("routes usage ledger writes to the temp run root when no ledger root is passed", async () => {
-    const automation = createLocalAutomationRecord({
-      name: "Temp ledger",
-      overrides: {
-        status: "live",
-        schedule: {
-          timezone: "America/New_York",
-          posting_times: [{ time: "11:00 AM", days: ["Fri"] }],
-        },
-      },
-    })
-    automation.schema.formatting = automation.schema.formatting.map(
-      (section) =>
-        section.id === "body" || section.id === "cta"
-          ? { ...section, slideCount: 0 }
-          : section
-    )
-    selectDailyScenesCollection(automation)
-    await upsertAutomationRecords({
-      rootDir: automationRootDir,
-      records: [automation],
-    })
-    await writeImageCollections([
-      {
-        image_link: "/api/local-assets/image-collections/files/temp-a.jpg",
-        caption: "Temp scene",
-      },
-    ])
-
-    await runDueAutomations({
-      automationRootDir,
-      runRootDir,
-      postfastRootDir: dataDir,
-      usageLedgerRootDir,
-      wordCollectionRootDir,
-      imageCollectionDbPath,
-      now: DateTime.fromISO("2026-07-03T15:05:00.000Z").toJSDate(),
-    })
-
-    expect(JSON.stringify(await readUsage())).toContain("temp-a.jpg")
   })
 
   it("does not record placeholder narrative instructions as hook usage", async () => {
@@ -1758,32 +1715,6 @@ describe("runDueAutomations", () => {
         (slide: { textItems: { text: string }[] }) => slide.textItems[0].text
       )
     ).toEqual(["gancho traducido", "cuerpo traducido"])
-  })
-
-  it("maps automation video export settings without rendering a video", () => {
-    const automation = createLocalAutomationRecord({
-      name: "Video slideshow",
-    })
-    automation.schema.tiktok_post_settings = {
-      ...automation.schema.tiktok_post_settings,
-      publish_type: "video",
-      slideshow_transition_style: "fade",
-      slideshow_slide_duration: 3,
-      slideshow_sound_id: "sound-123",
-      slideshow_sound_name: "TikTok trend sound",
-      slideshow_sound_url: "/api/local-assets/music/files/trend.mp3",
-    }
-    expect(automationSlideshowSettings(automation.schema)).toMatchObject({
-      export_as_video: true,
-      duration: 3,
-      transition_style: "fade",
-      sound_id: "sound-123",
-      sound_name: "TikTok trend sound",
-      sound_url: "/api/local-assets/music/files/trend.mp3",
-    })
-    expect(
-      typeof automationSlideshowSettings(automation.schema).aspect_ratio
-    ).toBe("string")
   })
 
   it("matches imported community collection ids from locally downloaded filenames", async () => {

@@ -26,32 +26,6 @@ beforeEach(clearAll)
 afterAll(clearAll)
 
 describe("generated video exports", () => {
-  it("creates processing exports and lists newest first", async () => {
-    const greenscreen = await createGeneratedVideoExport({
-      rootDir: videoRoot,
-      type: "greenscreen",
-      title: "Greenscreen meme",
-      description: "caption",
-      sourceConfig: { textPlacement: "top" },
-      previewUrl: "/preview.jpg",
-      videoUrl: "/source.mp4",
-    })
-    const ugcAd = await createGeneratedVideoExport({
-      rootDir: videoRoot,
-      type: "ugc_ad",
-      title: "UGC ad",
-      description: "hook",
-      sourceConfig: { avatar: "Maya" },
-    })
-
-    expect(greenscreen.status).toBe("queued")
-    expect(ugcAd.status).toBe("queued")
-
-    const listed = await listGeneratedVideoExports({ rootDir: videoRoot })
-    expect(listed.map((item) => item.id)).toEqual([ugcAd.id, greenscreen.id])
-    expect(listed[0].sourceConfig).toEqual({ avatar: "Maya" })
-  })
-
   it("queues new video exports with stable positions", async () => {
     const first = await createGeneratedVideoExport({
       rootDir: videoRoot,

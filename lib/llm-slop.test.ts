@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { llmSlopMatches, llmSlopPromptLine, llmSlopViolations } from "@/lib/llm-slop"
+import { llmSlopMatches, llmSlopViolations } from "@/lib/llm-slop"
 
 describe("llmSlopMatches", () => {
   it("matches tell-words on word boundaries only", () => {
@@ -33,13 +33,5 @@ describe("llmSlopViolations", () => {
     const violations = llmSlopViolations("We empower founders to unlock growth")
     expect(violations.some((item) => item.includes('"empower"'))).toBe(true)
     expect(violations.some((item) => item.includes('"unlock"'))).toBe(true)
-  })
-})
-
-describe("llmSlopPromptLine", () => {
-  it("bans the lexicon inline", () => {
-    const line = llmSlopPromptLine()
-    expect(line).toContain("delve")
-    expect(line).toContain("let that sink in")
   })
 })

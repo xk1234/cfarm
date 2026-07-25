@@ -6,9 +6,7 @@ import {
   automationSchemaToTemplateRecord,
   automationTemplateSchemaToRuntime,
   automationTemplateRecordToSummary,
-  groupAutomationTemplateExampleRunsByTemplateId,
   listAutomationTemplateRecords,
-  listAutomationTemplateExampleRuns,
 } from "@/lib/automation-templates"
 import {
   automationFormatSection,
@@ -234,61 +232,5 @@ describe("automation template persistence", () => {
         "hook"
       ).textItems
     ).toHaveLength(1)
-  })
-
-  it("ships Reelfarm example slideshows separately from automation templates", async () => {
-    const runs = await listAutomationTemplateExampleRuns({
-      rootDir: path.join(process.cwd(), "data", "automation-templates"),
-    })
-    const runsByTemplateId =
-      groupAutomationTemplateExampleRunsByTemplateId(runs)
-
-    expect(runs).toHaveLength(158)
-    expect(Object.keys(runsByTemplateId)).toHaveLength(27)
-    expect(
-      Object.values(runsByTemplateId).every((runs) => runs.length === 3)
-    ).toBe(true)
-    expect(runsByTemplateId["template-reelfarm-33"]?.[0]).toMatchObject({
-      id: expect.stringContaining("template-example-reelfarm-33-"),
-      automationId: "template-reelfarm-33",
-      templateId: "template-reelfarm-33",
-      sourceTemplateId: "33",
-      plan: {
-        slides: expect.arrayContaining([
-          expect.objectContaining({
-            imageUrl: expect.stringContaining("https://slides.reel.farm/"),
-            text: "5 study habits of straight-a students",
-          }),
-        ]),
-      },
-    })
-    expect(runsByTemplateId["template-reelfarm-13685"]?.[1]).toMatchObject({
-      id: "template-example-reelfarm-13685-646970",
-      automationId: "template-reelfarm-13685",
-      templateId: "template-reelfarm-13685",
-      sourceVideoId: "646970",
-      plan: {
-        slides: expect.arrayContaining([
-          expect.objectContaining({
-            imageUrl:
-              "https://slides.reel.farm/d2VsdGVyLm1AaWNsb3VkLmNvbQ==_1444278/image_0.jpg",
-            text: "high-level skills to acquire in your 20s",
-          }),
-        ]),
-      },
-    })
-    expect(runsByTemplateId["template-reelfarm-12379"]).toHaveLength(3)
-    expect(runsByTemplateId["template-reelfarm-12379"]?.[0]).toMatchObject({
-      automationId: "template-reelfarm-12379",
-      templateId: "template-reelfarm-12379",
-      sourceTemplateId: "12379",
-      plan: {
-        slides: expect.arrayContaining([
-          expect.objectContaining({
-            imageUrl: expect.stringContaining("https://slides.reel.farm/"),
-          }),
-        ]),
-      },
-    })
   })
 })

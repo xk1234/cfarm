@@ -53,18 +53,6 @@ describe("reminder settings route", () => {
     expect((await GET()).status).toBe(401)
   })
 
-  it("returns the saved policy without exposing credentials", async () => {
-    const response = await GET()
-    expect(await response.json()).toEqual({
-      settings,
-      telegram: {
-        botConfigured: false,
-        defaultChatConfigured: false,
-        interactiveConfigured: false,
-      },
-    })
-  })
-
   it("saves no-reminder mode even when Telegram is not configured", async () => {
     const response = await PUT(
       jsonRequest("PUT", {

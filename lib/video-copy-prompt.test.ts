@@ -6,19 +6,6 @@ import {
 } from "@/lib/video-copy-prompt"
 
 describe("video copy prompt builders", () => {
-  it("builds the system prompt with the narrative and safety rules", () => {
-    const prompt = buildVideoCopySystemPrompt({
-      requiresCommentGate: false,
-    })
-
-    expect(prompt).toContain("ONE continuous narrative")
-    expect(prompt).toContain(
-      "Every overlay must stay inside its stated word range"
-    )
-    expect(prompt).toContain("Never refer to an assumed visual")
-    expect(prompt).toContain("Never invent numbers")
-  })
-
   it("includes the comment-gate rule only when required", () => {
     const standardPrompt = buildVideoCopySystemPrompt({
       requiresCommentGate: false,

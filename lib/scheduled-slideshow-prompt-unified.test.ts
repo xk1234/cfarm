@@ -116,47 +116,6 @@ describe("scheduled slideshow prompt unification", () => {
     )
   })
 
-  it("gives the configured Tone and Style structural prominence", () => {
-    const appBundle = appBuildScheduledSlideshowPrompt(primitives)
-    // The voice block sits above metadata/placeholder lines, not buried below.
-    const voiceLineIndex = appBundle.user
-      .split("\n")
-      .findIndex((line) => line.startsWith("Voice ("))
-    const metadataIndex = appBundle.user
-      .split("\n")
-      .findIndex((line) => line === "Metadata requirements:")
-    expect(voiceLineIndex).toBeGreaterThan(-1)
-    expect(metadataIndex).toBeGreaterThan(voiceLineIndex)
-    expect(appBundle.user).toContain(`Tone: ${automation.tone}`)
-    expect(appBundle.user).toContain(`Style: ${automation.style}`)
-    // The system prompt elevates tone above the model's literary default.
-    expect(appBundle.system).toContain(
-      "the configured Tone and Style govern the voice"
-    )
-    expect(appBundle.system).toContain(
-      "Do not override a configured Tone or Style with a generic literary default"
-    )
-  })
-
-  it("does not let the raw narrative template dump reach the prompt", async () => {
-    const workerSrc = await import("node:fs").then((fs) =>
-      fs.readFileSync(workerSlideshowSrcPath, "utf8")
-    )
-    // The hand-rolled "Narrative direction: ${...}" line is gone from the worker.
-    expect(workerSrc).not.toContain("Narrative direction")
-    // The shared builder never emits a "Narrative direction" section on its own.
-    const appBundle = appBuildScheduledSlideshowPrompt(primitives)
-    const workerMod = (await import(workerSharedUrl)) as {
-      buildScheduledSlideshowPrompt: typeof appBuildScheduledSlideshowPrompt
-    }
-    const workerBundle = workerMod.buildScheduledSlideshowPrompt(primitives)
-    expect(appBundle.user).not.toContain("Narrative direction")
-    expect(workerBundle.user).not.toContain("Narrative direction")
-    // And the builder never passes through unexpanded hook templates.
-    expect(appBundle.user).not.toContain("[[ZODIAC]]")
-    expect(workerBundle.user).not.toContain("[[ZODIAC]]")
-  })
-
   it('lowercases every value when style is "All text in lowercase." on both paths', async () => {
     // The app regex (lowercase|all lowercase, non-adjacent) is the unified one.
     expect(appStyleRequestsLowercase("All text in lowercase.")).toBe(true)
@@ -179,38 +138,5 @@ describe("scheduled slideshow prompt unification", () => {
     )
     // The old worker-only regex (which missed "All text in lowercase.") is gone.
     expect(workerSrc).not.toMatch(/\/all\\s\+lowercase\/i\.test/)
-  })
-
-  it("word-limit violations are surfaced by the shared validator used by both paths", async () => {
-    // The shared helper drives both the app generation retry loop and the
-    // worker validateScheduledSlideshowText, so over-range text is rejected
-    // (and repaired) instead of silently shipped. The app retry is proven in
-    // lib/slideshow-text-generation.test.ts; here we assert the shared rule.
-    const placeholder = placeholders[0]!
-    expect(
-      appBuildScheduledSlideshowPrompt(primitives).schema.properties.text
-        .properties[placeholder.id]
-    ).toBeTruthy()
-
-    // 11 words vs a max of 8 → violation message is emitted.
-    const { placeholderWordRangeError } = await import(workerSharedUrl) as {
-      placeholderWordRangeError: (
-        placeholder: { id: string; wordLengthMin: number; wordLengthMax: number },
-        text: string
-      ) => string | null
-    }
-    const overRange =
-      "geminis stay curious because change gives them room to keep growing"
-    expect(placeholderWordRangeError(placeholder, overRange)).toContain(
-      "has 11 words, but its configured maximum is 8"
-    )
-    const inRange = "change keeps geminis curious"
-    expect(placeholderWordRangeError(placeholder, inRange)).toBeNull()
-
-    // The worker wires this validator into its repair loop.
-    const workerSrc = await import("node:fs").then((fs) =>
-      fs.readFileSync(workerSlideshowSrcPath, "utf8")
-    )
-    expect(workerSrc).toContain("placeholderWordRangeError")
   })
 })

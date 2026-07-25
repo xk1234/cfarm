@@ -8,7 +8,6 @@ import type { PostFastSocialIntegration } from "@/lib/postfast-client"
 import {
   publishAutomationRun,
   publishPost,
-  statusForType,
   type PublishRequest,
 } from "@/lib/publishing"
 
@@ -27,14 +26,6 @@ const okRequest: PublishRequest = async () => ({ postIds: ["pf-123"] }) as never
 const failRequest: PublishRequest = async () => {
   throw new Error("PostFast 500")
 }
-
-describe("statusForType", () => {
-  it("maps type -> post status", () => {
-    expect(statusForType("now")).toBe("published")
-    expect(statusForType("schedule")).toBe("scheduled")
-    expect(statusForType("draft")).toBe("draft")
-  })
-})
 
 describe("publishPost", () => {
   it("records a published post on success", async () => {

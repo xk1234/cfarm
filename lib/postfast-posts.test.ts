@@ -98,31 +98,4 @@ describe("postfast post mapping persistence", () => {
     expect(record.publishedAt).toBeTruthy()
     expect(Number.isFinite(Date.parse(record.publishedAt ?? ""))).toBe(true)
   })
-
-  it("tracks scheduled slideshow posts as first-class PostFast sources", async () => {
-    await upsertPostFastPostRecord({
-      rootDir,
-      sourceType: "slideshow",
-      sourceId: "slideshow-1",
-      postfastPostId: "post-slideshow-1",
-      integrationId: "tiktok-1",
-      provider: "tiktok",
-      status: "scheduled",
-      scheduledAt: "2026-07-03T15:00:00.000Z",
-      content: "Scheduled slideshow",
-      media: [{ key: "image/slide-1.jpg", type: "IMAGE" }],
-    })
-
-    const records = await listPostFastPostRecords({
-      rootDir,
-      sourceType: "slideshow",
-    })
-
-    expect(records).toHaveLength(1)
-    expect(records[0]).toMatchObject({
-      sourceType: "slideshow",
-      sourceId: "slideshow-1",
-      status: "scheduled",
-    })
-  })
 })

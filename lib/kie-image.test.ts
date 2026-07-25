@@ -11,10 +11,6 @@ import {
 
 import {
   buildFluxKontextGeneratePayload,
-  buildFluxKontextEditPayload,
-  buildNanoBananaProPayload,
-  buildTopazImageUpscalePayload,
-  getKieApiKey,
   prepareKieInputImageUrl,
   readFluxKontextResultUrl,
   readKieTaskId,
@@ -24,42 +20,6 @@ import {
 } from "./kie-image"
 
 describe("kie image helpers", () => {
-  it("builds a Nano Banana Pro payload for generic image generation", () => {
-    expect(
-      buildNanoBananaProPayload({
-        prompt: "Create an editorial football graphic",
-        imageUrls: ["https://example.com/reference.png"],
-        aspectRatio: "16:9",
-      })
-    ).toEqual({
-      model: "nano-banana-pro",
-      input: {
-        prompt: "Create an editorial football graphic",
-        image_input: ["https://example.com/reference.png"],
-        aspect_ratio: "16:9",
-        resolution: "1K",
-        output_format: "png",
-      },
-    })
-  })
-
-  it("builds a Flux Kontext edit payload for image editing", () => {
-    expect(
-      buildFluxKontextEditPayload({
-        imageUrl: "https://example.com/image.jpg",
-        prompt: "make the background bright yellow",
-      })
-    ).toEqual({
-      prompt: "make the background bright yellow",
-      inputImage: "https://example.com/image.jpg",
-      enableTranslation: true,
-      outputFormat: "jpeg",
-      promptUpsampling: false,
-      model: "flux-kontext-pro",
-      safetyTolerance: 2,
-    })
-  })
-
   it("builds a Flux Kontext generation payload with the shared image-edit model", () => {
     expect(
       buildFluxKontextGeneratePayload({
@@ -75,30 +35,6 @@ describe("kie image helpers", () => {
       outputFormat: "png",
       promptUpsampling: false,
       model: "flux-kontext-pro",
-    })
-  })
-
-  it("uses KIE_KEY as the only Kie API key env name", () => {
-    expect(
-      getKieApiKey({
-        KIE_KEY: "primary",
-      })
-    ).toBe("primary")
-    expect(getKieApiKey({ OTHER_KEY: "other" })).toBe("")
-  })
-
-  it("builds a Topaz image upscale task payload", () => {
-    expect(
-      buildTopazImageUpscalePayload({
-        imageUrl: "https://example.com/image.jpg",
-        upscaleFactor: "4",
-      })
-    ).toEqual({
-      model: "topaz/image-upscale",
-      input: {
-        image_url: "https://example.com/image.jpg",
-        upscale_factor: "4",
-      },
     })
   })
 

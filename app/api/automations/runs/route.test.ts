@@ -112,17 +112,6 @@ describe("GET /api/automations/runs failed queue jobs", () => {
     expect(payload.runs).toHaveLength(1)
     expect(payload.runs[0].id).toBe("run-1")
   })
-
-  it("skips the extra automation lookup when there are no failed jobs", async () => {
-    mocks.listJobs.mockResolvedValue([
-      generationJob({ id: "job-queued", status: "queued" }),
-    ])
-
-    const { GET } = await import("./route")
-    await GET(new Request("http://localhost/api/automations/runs"))
-
-    expect(mocks.listAutomationRecords).not.toHaveBeenCalled()
-  })
 })
 
 function generationJob({

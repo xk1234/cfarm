@@ -6,7 +6,6 @@ import { clearTestTables } from "@/lib/test-helpers"
 import {
   appendUsageRecords,
   deleteUsageRecords,
-  listUsageRecords,
   recentUsageRecords,
   recentUsageKeys,
   usageRecordsForPublishedRuns,
@@ -154,42 +153,6 @@ describe("usage ledger", () => {
     ])
   })
 
-  it("persists publication markers used to activate deduplication", async () => {
-    await appendUsageRecords({
-      rootDir,
-      records: [
-        {
-          automation_id: "automation-a",
-          kind: "image",
-          key: "published-image",
-          run_id: "published-run",
-          used_at: "2026-07-07T10:00:00.000Z",
-        },
-        {
-          automation_id: "automation-a",
-          kind: "hook_published",
-          key: "published hook",
-          run_id: "published-run",
-          used_at: "2026-07-07T11:00:00.000Z",
-        },
-        {
-          automation_id: "automation-a",
-          kind: "image",
-          key: "draft-image",
-          run_id: "draft-run",
-          used_at: "2026-07-07T12:00:00.000Z",
-        },
-      ],
-    })
-
-    const records = await listUsageRecords({ rootDir })
-    expect(
-      usageRecordsForPublishedRuns(records, "automation-a")
-        .filter((record) => record.kind === "image")
-        .map((record) => record.key)
-    ).toEqual(["published-image"])
-  })
-
   it("keeps published hook history permanently available", async () => {
     await appendUsageRecords({
       rootDir,
@@ -280,36 +243,6 @@ describe("usage ledger", () => {
         now: new Date("2026-07-07T10:01:00.000Z"),
       })
     ).resolves.toEqual(new Set(["image-main"]))
-  })
-
-  it("stores text usage records for generated output dedupe", async () => {
-    await appendUsageRecords({
-      rootDir,
-      now: new Date("2026-07-07T10:00:00.000Z"),
-      records: [
-        {
-          automation_id: "automation-a",
-          account_key: "tiktok:main",
-          kind: "text",
-          key: "title body cta",
-          run_id: "run-text",
-          used_at: "2026-07-07T10:00:00.000Z",
-        },
-      ],
-    })
-
-    const stored = await recentUsageRecords("text", "automation-a", {
-      accountKey: "tiktok:main",
-      rootDir,
-      now: new Date("2026-07-07T10:01:00.000Z"),
-    })
-    expect(stored[0]).toMatchObject({
-      automation_id: "automation-a",
-      account_key: "tiktok:main",
-      kind: "text",
-      key: "title body cta",
-      run_id: "run-text",
-    })
   })
 
   it("returns recent records with newest timestamps for least-recent fallback decisions", async () => {

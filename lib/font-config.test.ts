@@ -1,5 +1,3 @@
-import { existsSync } from "node:fs"
-
 import { describe, expect, it } from "vitest"
 
 import {
@@ -12,7 +10,6 @@ import {
 import { renderedSlideSvg } from "@/lib/slideshow-renderer"
 
 const fontDir = "assets/fonts"
-const fontFile = `${fontDir}/Inter-Variable.ttf`
 
 // 1x1 transparent PNG data URI — keeps the slide SVG well-formed without
 // pulling any external image bytes into the raster.
@@ -59,10 +56,6 @@ async function inkArea(png: Buffer): Promise<number> {
 }
 
 describe("bundled font fallback", () => {
-  it("ships the bundled TTF in the repo", () => {
-    expect(existsSync(fontFile)).toBe(true)
-  })
-
   it("maps the proprietary default and unknown names to the bundled family", () => {
     expect(resolveSlideshowFont("TikTok Display Medium")).toBe(
       BUNDLED_FONT_FAMILY

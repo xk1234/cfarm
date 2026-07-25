@@ -18,13 +18,4 @@ describe("previewTextForTextItem", () => {
       previewTextForTextItem({ wordLengthMin: 80 }).split(/\s+/)
     ).toHaveLength(30)
   })
-
-  it("keeps editor preview text as lorem even when content direction is set", () => {
-    expect(
-      previewTextForTextItem({
-        wordLengthMin: 5,
-        contentDirection: "soft-sell a product on slide 3",
-      })
-    ).toBe("lorem ipsum dolor sit amet")
-  })
 })

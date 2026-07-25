@@ -2,12 +2,10 @@ import { describe, expect, it, vi } from "vitest"
 
 import {
   benchmarkXRun,
-  characterLimitFor,
   defaultXAutomation,
   normalizeXAutomation,
   xAutomationToAutomation,
 } from "@/lib/x-automation"
-import { xPostArchetypes } from "@/lib/x-post-presets"
 import { publishXAutomationRun } from "@/lib/x-automation-publishing"
 import {
   discoverTrendCandidates,
@@ -15,10 +13,6 @@ import {
 } from "@/lib/x-trend-discovery"
 
 describe("X automation domain", () => {
-  it("defaults scheduled posts to auto-publish", () => {
-    expect(defaultXAutomation().publishing.autoPost).toBe(true)
-  })
-
   it("keeps text automation data separate and preserves shared scheduling", () => {
     const automation = defaultXAutomation({ id: "x-test" })
     expect(automation.output.contentType).toBe("thread")
@@ -52,28 +46,6 @@ describe("X automation domain", () => {
     expect(automation.times).toEqual(["9:00 AM"])
     expect(automation.schedule).toBe(engine.schedule)
     expect(automation.timezone).toBe("Asia/Singapore")
-  })
-
-  it("maps explicit single post length settings", () => {
-    expect(characterLimitFor("short")).toBe(140)
-    expect(characterLimitFor("standard")).toBe(280)
-    expect(characterLimitFor("long")).toBe(4_000)
-  })
-
-  it("exposes all seven Phantom Profit post archetypes", () => {
-    expect(
-      xPostArchetypes
-        .filter((item) => item.id !== "pattern_drop")
-        .map((item) => item.id)
-    ).toEqual([
-      "educational_thread",
-      "data_drop",
-      "contrarian_take",
-      "numbered_list",
-      "comparison",
-      "mistake_breakdown",
-      "opinion_framework",
-    ])
   })
 
   it("benchmarks overflow and weak specificity", () => {

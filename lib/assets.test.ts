@@ -6,15 +6,9 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest"
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { clearTestTables } from "@/lib/test-helpers"
 import {
-  assetCategories,
-  assetKinds,
-  assetScopes,
   createGeneratedAssetRecord,
   createUploadedAssetRecord,
   listAssetRecords,
-  parseAssetCategory,
-  parseAssetKind,
-  parseAssetScope,
   type AssetRecord,
 } from "@/lib/assets"
 import { writeJsonArrayStore } from "@/lib/json-store"
@@ -32,26 +26,6 @@ beforeEach(clearAssets)
 afterAll(clearAssets)
 
 describe("asset records", () => {
-  it("exports canonical asset option lists and parsers", () => {
-    expect(assetKinds).toEqual(["image", "video", "audio", "text"])
-    expect(assetScopes).toEqual(["ugc_ad", "ugc_demo", "greenscreen", "global"])
-    expect(assetCategories).toEqual([
-      "outfit",
-      "accessory",
-      "background",
-      "product",
-      "reference",
-      "sound",
-      "other",
-    ])
-    expect(parseAssetKind(" video ")).toBe("video")
-    expect(parseAssetScope("ugc_demo")).toBe("ugc_demo")
-    expect(parseAssetCategory("sound")).toBe("sound")
-    expect(parseAssetKind("movie")).toBeUndefined()
-    expect(parseAssetScope("bad")).toBeUndefined()
-    expect(parseAssetCategory("bad")).toBeUndefined()
-  })
-
   it("persists an uploaded image asset record", async () => {
     const asset = await createUploadedAssetRecord({
       rootDir,

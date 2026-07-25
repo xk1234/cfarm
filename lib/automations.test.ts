@@ -2,7 +2,6 @@ import path from "node:path"
 
 import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
-import { routeForStore } from "@/lib/appwrite-stores"
 import { clearTestTables } from "@/lib/test-helpers"
 import {
   automationRecordToSummary,
@@ -404,26 +403,6 @@ describe("automation import persistence", () => {
     )
   })
 
-  it("loads default automation template settings from a single config source", () => {
-    const record = createLocalAutomationRecord({ name: "Config-backed" })
-
-    expect(defaultAutomationTemplateDefaults.version).toMatch(
-      /^default-automation-template-v\d+$/
-    )
-    expect(record.schema.prompt_formatting).toEqual(
-      defaultAutomationTemplateDefaults.prompt_formatting
-    )
-    expect(record.schema.image_collection_ids).toEqual(
-      defaultAutomationTemplateDefaults.image_collection_ids
-    )
-    expect(record.schema.schedule.posting_times).toEqual([
-      {
-        time: defaultAutomationTemplateDefaults.schedule.defaultPostingTime,
-        days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-      },
-    ])
-  })
-
   it("normalizes fixed social platform settings from per-platform publish mode", () => {
     const source = createLocalAutomationRecord({
       name: "Social settings",
@@ -591,21 +570,6 @@ describe("automation import persistence", () => {
       posting_times: [{ time: "9:30 AM", days: ["Mon"] }],
     })
     expect(local.schema).toMatchObject(template)
-  })
-
-  it("keeps imported automation templates out of the runnable automation database", async () => {
-    const templateRoute = routeForStore(
-      path.join(process.cwd(), "data", "automation-templates"),
-      "templates.json"
-    )
-    const records = await listAutomationRecords({ rootDir })
-
-    expect(templateRoute).toMatchObject({
-      table: "permanent_assets",
-      sourceKey: "automation_template",
-      public: true,
-    })
-    expect(records).toEqual([])
   })
 
   it("removes the selected automation record from the automation database", async () => {

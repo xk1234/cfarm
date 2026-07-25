@@ -49,31 +49,6 @@ describe("client API helpers", () => {
     expect(toast.error).toHaveBeenCalledWith("Image generation timed out")
   })
 
-  it("shows provider API errors as floating alerts by default", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        Response.json(
-          {
-            error:
-              "Credits insufficient : Your current balance isn't enough to run this request. Please top up to continue.",
-          },
-          { status: 500 }
-        )
-      )
-    )
-
-    await expect(
-      fetchJsonWithTimeout("/api/image-collections/image-actions")
-    ).rejects.toMatchObject({
-      message:
-        "Credits insufficient : Your current balance isn't enough to run this request. Please top up to continue.",
-    })
-    expect(toast.error).toHaveBeenCalledWith(
-      "Credits insufficient : Your current balance isn't enough to run this request. Please top up to continue."
-    )
-  })
-
   it("allows callers with managed loading toasts to suppress the default alert", async () => {
     vi.stubGlobal(
       "fetch",

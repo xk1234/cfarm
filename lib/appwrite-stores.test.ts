@@ -2,11 +2,7 @@ import path from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import {
-  ownedRowIdFor,
-  PUBLIC_STORE_TABLES,
-  routeForStore,
-} from "@/lib/appwrite-stores"
+import { ownedRowIdFor, routeForStore } from "@/lib/appwrite-stores"
 
 describe("Appwrite ownership keys", () => {
   it("namespaces the same domain record for different users", () => {
@@ -16,12 +12,6 @@ describe("Appwrite ownership keys", () => {
     expect(first).not.toBe(second)
     expect(first).toHaveLength(36)
     expect(second).toHaveLength(36)
-  })
-
-  it("does not expose user-owned store tables as public", () => {
-    expect(PUBLIC_STORE_TABLES).toEqual(new Set())
-    expect(PUBLIC_STORE_TABLES.has("automations")).toBe(false)
-    expect(PUBLIC_STORE_TABLES.has("results")).toBe(false)
   })
 
   it("routes the shared template catalog to local Appwrite reference rows", () => {

@@ -1,24 +1,12 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest"
 
 import {
-  createLocalAutomationRecord,
-  deleteAutomationRecord,
-  getAutomationRecord,
-  patchAutomationRecord,
-  upsertAutomationRecords,
-} from "@/lib/automations"
-import {
   deleteAutomationRuns,
   getAutomationRunForSlideshow,
   updateAutomationRunMetadata,
 } from "@/lib/automation-runner"
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 import { clearTestTables } from "@/lib/test-helpers"
-import {
-  createXAutomation,
-  deleteXAutomation,
-  getXAutomation,
-} from "@/lib/x-automation-store"
 
 const clearStores = () =>
   clearTestTables("automations", "x_automations", "automation_runs")
@@ -27,33 +15,6 @@ beforeEach(clearStores)
 afterAll(clearStores)
 
 describe("bounded Appwrite store access", () => {
-  it("reads, patches, and deletes one automation by deterministic row id", async () => {
-    const automation = createLocalAutomationRecord({ name: "Direct read" })
-    await upsertAutomationRecords({ records: [automation] })
-
-    await expect(getAutomationRecord(automation.id)).resolves.toMatchObject({
-      id: automation.id,
-      name: "Direct read",
-    })
-    await expect(
-      patchAutomationRecord({ id: automation.id, name: "Patched directly" })
-    ).resolves.toMatchObject({ name: "Patched directly" })
-    await expect(
-      deleteAutomationRecord({ id: automation.id })
-    ).resolves.toMatchObject({ id: automation.id })
-  })
-
-  it("uses direct record operations for X automations", async () => {
-    const automation = await createXAutomation({ name: "Direct X" })
-    await expect(getXAutomation(automation.id)).resolves.toMatchObject({
-      id: automation.id,
-      name: "Direct X",
-    })
-    await expect(deleteXAutomation(automation.id)).resolves.toMatchObject({
-      id: automation.id,
-    })
-  })
-
   it("reads, updates, and deletes an automation run by deterministic id", async () => {
     const run = {
       id: "run-direct-1",

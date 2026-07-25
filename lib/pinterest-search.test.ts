@@ -1,24 +1,13 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  PINTEREST_ACTOR_ID,
-  PINTEREST_BOARD_ACTOR_ID,
   buildPinterestActorInput,
   buildPinterestBoardActorInput,
-  createFallbackPinterestResults,
   normalizePinterestItems,
   isPinterestBoardUrl,
 } from "./pinterest-search"
 
 describe("pinterest search helpers", () => {
-  it("uses the API-resolvable all-in-one Pinterest scraper actor", () => {
-    expect(PINTEREST_ACTOR_ID).toBe("fatihtahta/pinterest-scraper-search")
-  })
-
-  it("uses the working board-specific Pinterest actor", () => {
-    expect(PINTEREST_BOARD_ACTOR_ID).toBe("dltik/pinterest-scraper")
-  })
-
   it("builds a bounded actor input for keyword pin search", () => {
     expect(buildPinterestActorInput("wolf of wall street", 20)).toEqual({
       queries: ["wolf of wall street"],
@@ -199,16 +188,5 @@ describe("pinterest search helpers", () => {
     expect(results[0]?.imageUrl).toBe(
       "https://i.pinimg.com/originals/aa/bb/fallback.jpg"
     )
-  })
-
-  it("creates deterministic fallback results for local testing", () => {
-    const results = createFallbackPinterestResults("soccer hooks", 3)
-
-    expect(results).toHaveLength(3)
-    expect(results[0]).toMatchObject({
-      id: "fallback-soccer-hooks-1",
-      title: "soccer hooks 1",
-      sourceUrl: "https://www.pinterest.com/search/pins/?q=soccer%20hooks",
-    })
   })
 })

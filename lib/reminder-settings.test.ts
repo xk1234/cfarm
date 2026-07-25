@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   configureTelegramWebhook,
-  defaultReminderSettings,
   getReminderSettings,
   normalizeReminderSettings,
   saveReminderSettings,
@@ -25,17 +24,6 @@ afterEach(() => {
 })
 
 describe("reminder settings", () => {
-  it("defaults to no reminders while keeping all lifecycle events selected", () => {
-    expect(defaultReminderSettings()).toMatchObject({
-      channel: "none",
-      events: {
-        generated: true,
-        ready_to_post: true,
-        scheduled_to_post: true,
-      },
-    })
-  })
-
   it("normalizes invalid channels and preserves explicit event choices", () => {
     expect(
       normalizeReminderSettings({

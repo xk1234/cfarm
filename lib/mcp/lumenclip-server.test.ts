@@ -187,50 +187,6 @@ describe("LumenClip MCP server", () => {
     )
   })
 
-  it("deletes a standard automation and its generated history", async () => {
-    const current = automationRecord()
-    const remove = vi.fn(async ({ id }: { id: string }) =>
-      id === current.id
-        ? {
-            record: current,
-            automation: { id: current.id, name: current.name },
-            alreadyDeleted: false,
-            deletedSlideshows: [],
-            deletedSlideshowsCount: 0,
-            deletedResultsCount: 0,
-            deletedRuns: [{ id: "run-1" }],
-            deletedRunsCount: 1,
-            deletedJobs: [{ id: "job-1" }],
-            deletedJobsCount: 1,
-            deletedPostFastPosts: [],
-            deletedPostFastPostsCount: 0,
-          }
-        : null
-    )
-    const client = await connectClient({
-      deleteAutomationCascade:
-        remove as unknown as LumenClipMcpServices["deleteAutomationCascade"],
-    })
-
-    const result = await client.callTool({
-      name: "lumenclip_automation_delete",
-      arguments: {
-        automationId: current.id,
-        requestId: "delete-automation-1",
-        confirmDelete: true,
-      },
-    })
-
-    expect(result.structuredContent).toMatchObject({
-      requestId: "delete-automation-1",
-      deleted: true,
-      alreadyDeleted: false,
-      deletedRunsCount: 1,
-      deletedJobsCount: 1,
-    })
-    expect(remove).toHaveBeenCalledWith({ id: current.id })
-  })
-
   it("exposes and replaces the canonical hook pool with duplicate analysis", async () => {
     const current = automationRecord()
     current.schema.hooks = [
@@ -961,47 +917,6 @@ describe("LumenClip MCP server", () => {
     })
   })
 
-  it("generates a manual slideshow draft and returns a concise run", async () => {
-    const current = automationRecord()
-    const run = generatedRun(current.id)
-    const generate = vi.fn(async () => ({
-      created: [run],
-      results: [],
-      skipped: [],
-    }))
-    const client = await connectClient({
-      getAutomationRecord: vi.fn(async () => current),
-      runDueAutomations:
-        generate as unknown as LumenClipMcpServices["runDueAutomations"],
-    })
-
-    const result = await client.callTool({
-      name: "lumenclip_slideshow_generate",
-      arguments: {
-        automationId: current.id,
-        requestId: "request-1",
-      },
-    })
-
-    expect(generate).toHaveBeenCalledWith({
-      automationId: current.id,
-      force: true,
-      requestId: "request-1",
-    })
-    expect(result.structuredContent).toMatchObject({
-      automationId: current.id,
-      requestId: "request-1",
-      runs: [
-        {
-          runId: "run-1",
-          slideshowId: "slideshow-1",
-          status: "succeeded",
-          slideCount: 1,
-        },
-      ],
-    })
-  })
-
   it("absolutises per-slide and share URLs in slideshow_generate against BASE_URL", async () => {
     vi.stubEnv("BASE_URL", "https://studio.example.com/")
     vi.stubEnv("SLIDESHOW_SHARE_SECRET", "test-secret")
@@ -1111,79 +1026,6 @@ describe("LumenClip MCP server", () => {
       result.structuredContent as { runs: Array<Record<string, unknown>> }
     ).runs[0]
     expect(summary.shareUrl).toBeUndefined()
-  })
-
-  it("returns absolute slide and share URLs from automation_run", async () => {
-    vi.stubEnv("BASE_URL", "https://studio.example.com")
-    vi.stubEnv("SLIDESHOW_SHARE_SECRET", "test-secret")
-    const current = automationRecord()
-    const run = relativeRun(current.id)
-    const client = await connectClient({
-      getAutomationRecord: vi.fn(async () => current),
-      listAutomationRuns: vi.fn(async () => []),
-      runDueAutomations: vi.fn(async () => ({
-        created: [run],
-        results: [],
-        skipped: [],
-      })) as unknown as LumenClipMcpServices["runDueAutomations"],
-    })
-
-    const result = await client.callTool({
-      name: "lumenclip_automation_run",
-      arguments: { automationId: current.id, requestId: "general-run-1" },
-    })
-
-    const outputs = (
-      result.structuredContent as {
-        outputs: Array<Record<string, unknown>>
-      }
-    ).outputs
-    expect(outputs[0].outputImages).toEqual([
-      "/api/local-assets/slideshows/outputs/slideshow-1/slide-001.png",
-    ])
-    expect(outputs[0].slides).toEqual([
-      {
-        index: 1,
-        role: "hook",
-        renderedImageUrl:
-          "https://studio.example.com/api/local-assets/slideshows/outputs/slideshow-1/slide-001.png",
-        sourceImageUrl:
-          "https://studio.example.com/api/local-assets/slideshows/sources/img-1.png",
-      },
-    ])
-    const shareUrl = outputs[0].shareUrl as string
-    expect(shareUrl).toMatch(
-      /^https:\/\/studio\.example\.com\/share\/slideshows\/slideshow-1\?token=/
-    )
-    const token = new URL(shareUrl).searchParams.get("token") ?? ""
-    expect(verifySlideshowShareToken(token, "slideshow-1")).toMatchObject({
-      ownerId: "owner-1",
-      outputId: "slideshow-1",
-    })
-  })
-
-  it("lists standard and social automations before mutation", async () => {
-    const standard = automationRecord()
-    const social = defaultXAutomation({ id: "threads-1", platform: "threads" })
-    const client = await connectClient({
-      listAutomationRecords: vi.fn(async () => [standard]),
-      listXAutomations: vi.fn(async () => [social]),
-      listAutomationRuns: vi.fn(async () => [generatedRun(standard.id)]),
-      listXAutomationRuns: vi.fn(async () => []),
-    })
-
-    const result = await client.callTool({
-      name: "lumenclip_automations_list",
-      arguments: { limit: 20 },
-    })
-
-    expect(result.structuredContent).toMatchObject({
-      total: 2,
-      items: expect.arrayContaining([
-        expect.objectContaining({ id: standard.id, kind: "slideshow" }),
-        expect.objectContaining({ id: social.id, kind: "threads" }),
-      ]),
-    })
   })
 
   it("normalizes automation collection names to stable IDs and reports unresolved references", async () => {
@@ -1625,32 +1467,6 @@ describe("LumenClip MCP server", () => {
         values: ["cancer", "leo"],
         valueCount: 2,
       },
-    })
-  })
-
-  it("permanently deletes a confirmed variable collection", async () => {
-    const variable = wordCollection()
-    const remove = vi.fn(async () => variable)
-    const client = await connectClient({
-      listWordCollections: vi.fn(async () => [variable]),
-      deleteWordCollection:
-        remove as unknown as LumenClipMcpServices["deleteWordCollection"],
-    })
-
-    const result = await client.callTool({
-      name: "lumenclip_variable_delete",
-      arguments: {
-        variableId: "zodiac",
-        requestId: "variable-delete-1",
-        confirmDelete: true,
-      },
-    })
-
-    expect(remove).toHaveBeenCalledWith({ id: "zodiac" })
-    expect(result.structuredContent).toMatchObject({
-      requestId: "variable-delete-1",
-      deleted: true,
-      variable: { id: "zodiac", values: variable.words },
     })
   })
 

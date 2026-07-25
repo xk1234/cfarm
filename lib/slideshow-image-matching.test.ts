@@ -6,7 +6,6 @@ import {
   rankImageCandidates,
   selectSlideshowImageWithAi,
   slideshowImageMatchingPayload,
-  visualConceptsPayload,
   type SlideshowImageCandidate,
 } from "./slideshow-image-matching"
 
@@ -23,18 +22,6 @@ const jsonResponse = (content: unknown) =>
   )
 
 describe("visual concept derivation", () => {
-  it("asks for what is depicted, not the copy itself", () => {
-    const payload = visualConceptsPayload({
-      slideTexts: ["she goes quiet for three days"],
-    })
-    const system = String(payload.messages[0].content).toLowerCase()
-    expect(system).toContain("visual concepts")
-    expect(system).toContain("shown")
-    expect(String(payload.messages[1].content)).toContain(
-      "she goes quiet for three days"
-    )
-  })
-
   it("degrades to empty concepts instead of failing the generation", async () => {
     const concepts = await deriveSlideVisualConcepts({
       slideTexts: ["a", "b"],

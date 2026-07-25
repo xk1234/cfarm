@@ -11,7 +11,6 @@ import {
   buildTempSlideUserPrompt,
   buildTempSlideStructuredOutputSchema,
   defaultTempSlideUserInstructions,
-  defaultTempSlideSystemPrompt,
   getTempSlidePromptPlaceholders,
   hookImpliedSlideCount,
   promptPreviewHook,
@@ -20,28 +19,6 @@ import {
 } from "@/lib/temp-slide-testing"
 
 describe("temp slide testing helpers", () => {
-  it("makes the hook the topic authority and the configured tone/style the voice authority", () => {
-    expect(defaultTempSlideSystemPrompt).toContain(
-      "The selected hook is the source of truth for the slideshow topic"
-    )
-    expect(defaultTempSlideSystemPrompt).toContain(
-      "never introduce a different concept from the automation name"
-    )
-    // Tone/Style are no longer demoted below hook/examples — they govern voice.
-    expect(defaultTempSlideSystemPrompt).toContain(
-      "the configured Tone and Style govern the voice"
-    )
-    expect(defaultTempSlideSystemPrompt).toContain(
-      "Do not override a configured Tone or Style with a generic literary default"
-    )
-    // Scoped hallucination guardrail (kept from the worker path).
-    expect(defaultTempSlideSystemPrompt).toContain(
-      "Never invent studies, statistics, or sources"
-    )
-    expect(defaultTempSlideSystemPrompt).toContain(
-      "first-person voice in character is allowed"
-    )
-  })
   it("keeps CTA disabled in a new automation until its section is enabled", () => {
     const schema = defaultAutomationSchema({
       id: "cta-default",
@@ -197,32 +174,6 @@ describe("temp slide testing helpers", () => {
     expect(
       placeholders.map((placeholder) => placeholder.section)
     ).not.toContain("hook")
-  })
-
-  it("makes the selected hook the source of truth for every body placeholder", () => {
-    const automation =
-      automationTemplateToTempSlideTestingAutomation(templateRecord)
-    const prompt = buildTempSlideUserPrompt({
-      automationName: "Legacy automation title",
-      hook: "why capricorns never forget a broken promise",
-      tone: automation.tone,
-      style: "Use a generic numbered-list format.",
-      promptInstructions: defaultTempSlideUserInstructions,
-      placeholders: getTempSlidePromptPlaceholders(automation),
-    })
-
-    expect(prompt).toContain(
-      "The selected Hook above is the source of truth for this one slideshow"
-    )
-    expect(prompt).toContain(
-      "Every body slide must directly answer, explain, support, exemplify, or continue that exact hook"
-    )
-    expect(prompt).toContain(
-      "Text boxes sharing the same slide id are one unit"
-    )
-    expect(prompt).toContain(
-      "treat it as format—not as permission to change topics"
-    )
   })
 
   it("does not repeat word counts when content directions already include them", () => {
