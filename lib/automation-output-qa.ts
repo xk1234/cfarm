@@ -7,6 +7,7 @@ import {
   type AutomationSchema,
   type AutomationTextItem,
 } from "@/lib/realfarm-automation"
+import { wordRangeViolation } from "@/lib/temp-slide-testing-shared"
 
 export type AutomationOutputQaFindingCode =
   | "COUNT_MISMATCH"
@@ -257,33 +258,25 @@ function wordLengthFindings(
   textItemId: string
 ): AutomationOutputQaFinding[] {
   const words = text.split(/\s+/).filter(Boolean).length
-  if (words < configured.wordLengthMin) {
-    return [
-      {
-        code: "TRUNCATED_SLIDE_TEXT",
-        severity: "error",
-        slideIndex: slideIndex + 1,
-        textItemId,
-        expected: `at least ${configured.wordLengthMin} words`,
-        actual: words,
-        message: `Slide ${slideIndex + 1} text item ${textItemId} has ${words} words; its configured minimum is ${configured.wordLengthMin}.`,
-      },
-    ]
-  }
-  if (words > configured.wordLengthMax) {
-    return [
-      {
-        code: "TRUNCATED_SLIDE_TEXT",
-        severity: "error",
-        slideIndex: slideIndex + 1,
-        textItemId,
-        expected: `at most ${configured.wordLengthMax} words`,
-        actual: words,
-        message: `Slide ${slideIndex + 1} text item ${textItemId} has ${words} words; its configured maximum is ${configured.wordLengthMax}.`,
-      },
-    ]
-  }
-  return []
+  const direction = wordRangeViolation(
+    words,
+    configured.wordLengthMin,
+    configured.wordLengthMax
+  )
+  if (!direction) return []
+  const limit =
+    direction === "below" ? configured.wordLengthMin : configured.wordLengthMax
+  return [
+    {
+      code: "TRUNCATED_SLIDE_TEXT",
+      severity: "error",
+      slideIndex: slideIndex + 1,
+      textItemId,
+      expected: `${direction === "below" ? "at least" : "at most"} ${limit} words`,
+      actual: words,
+      message: `Slide ${slideIndex + 1} text item ${textItemId} has ${words} words; its configured ${direction === "below" ? "minimum" : "maximum"} is ${limit}.`,
+    },
+  ]
 }
 
 function integerInRange(value: string, min: number, max: number) {

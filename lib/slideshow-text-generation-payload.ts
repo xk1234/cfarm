@@ -1,10 +1,7 @@
 import { clean } from "@/lib/guards"
 import { defaultSlideshowTextModel } from "@/lib/realfarm-generation-model-registry"
 import {
-  buildTempSlideStructuredOutputSchema,
-  buildTempSlideUserPrompt,
-  defaultTempSlideSystemPrompt,
-  defaultTempSlideUserInstructions,
+  buildScheduledSlideshowPrompt,
   getTempSlidePromptPlaceholders,
   promptPreviewHook,
   type TempSlideTestingAutomation,
@@ -27,9 +24,17 @@ export function slideshowTextGenerationPayload(input: {
   const selectedHook =
     clean(input.selectedHook) || promptPreviewHook(input.automation)
   const placeholders = getTempSlidePromptPlaceholders(input.automation)
-  const systemPrompt = clean(input.systemPrompt) || defaultTempSlideSystemPrompt
-  const promptInstructions =
-    clean(input.promptInstructions) || defaultTempSlideUserInstructions
+  const bundle = buildScheduledSlideshowPrompt({
+    automationName: input.automation.name,
+    hook: selectedHook,
+    tone: input.automation.tone,
+    style: input.automation.style,
+    systemPrompt: input.systemPrompt,
+    promptInstructions: input.promptInstructions,
+    placeholders,
+    avoidSimilarOutputs: input.avoidSimilarOutputs,
+    performanceMemory: input.performanceMemory,
+  })
 
   return {
     model,
@@ -51,7 +56,7 @@ export function slideshowTextGenerationPayload(input: {
     messages: [
       {
         role: "system",
-        content: systemPrompt,
+        content: bundle.system,
       },
       {
         role: "user",
@@ -59,16 +64,7 @@ export function slideshowTextGenerationPayload(input: {
           input.webSearchEnabled
             ? `Web search is required. Search for current, authoritative facts about this exact hook before writing: ${selectedHook}. Do not substitute generic facts about the broader niche.`
             : "",
-          buildTempSlideUserPrompt({
-            automationName: input.automation.name,
-            hook: selectedHook,
-            tone: input.automation.tone,
-            style: input.automation.style,
-            promptInstructions,
-            placeholders,
-            avoidSimilarOutputs: input.avoidSimilarOutputs,
-            performanceMemory: input.performanceMemory,
-          }),
+          bundle.user,
         ]
           .filter(Boolean)
           .join("\n\n"),
@@ -79,7 +75,7 @@ export function slideshowTextGenerationPayload(input: {
       json_schema: {
         name: "temp_slide_testing_text",
         strict: true,
-        schema: buildTempSlideStructuredOutputSchema(placeholders),
+        schema: bundle.schema,
       },
     },
   }

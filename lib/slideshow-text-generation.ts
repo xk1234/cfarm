@@ -1,6 +1,7 @@
 import {
   getTempSlidePromptPlaceholders,
   normalizeTempSlideStructuredOutput,
+  placeholderWordRangeError,
   promptPreviewHook,
   styleRequestsLowercase,
   type TempSlideStructuredOutput,
@@ -334,6 +335,10 @@ function structuredOutputValidationErrors(
       continue
     }
     generatedValues.push(value)
+    const wordRangeError = placeholderWordRangeError(placeholder, value)
+    if (wordRangeError) {
+      errors.push(wordRangeError)
+    }
   }
   // Slop terms echoed from the user-authored hook are exempt — the model must
   // develop the hook subject and cannot avoid its wording.

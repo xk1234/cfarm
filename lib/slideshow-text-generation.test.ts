@@ -351,7 +351,7 @@ describe("slideshow text structured output", () => {
     )
   })
 
-  it("treats requested word ranges as guidance instead of failing a run", async () => {
+  it("retries a word-range violation until the model corrects it", async () => {
     const outsideWordRange = JSON.stringify({
       ...JSON.parse(validContent),
       title: "gemini",
@@ -362,19 +362,25 @@ describe("slideshow text structured output", () => {
     })
     const fetchImpl = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(response(outsideWordRange))
+      .mockResolvedValueOnce(response(outsideWordRange))
+      .mockResolvedValueOnce(response(validContent))
 
     await expect(
       generateSlideshowText({ automation, apiKey: "test-key", fetchImpl })
     ).resolves.toMatchObject({
       result: {
-        title: "gemini",
+        title: "gemini growth guide",
         text: {
-          "content-2__heading":
-            "geminis stay curious because change gives them room to keep growing",
+          "content-2__heading": "change keeps geminis curious",
         },
       },
     })
-    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    const retryBody = JSON.parse(
+      String(fetchImpl.mock.calls[1]?.[1]?.body)
+    ) as { messages: { content: string }[] }
+    expect(retryBody.messages.at(-1)?.content).toContain(
+      "content-2__heading has 11 words, but its configured maximum is 8"
+    )
   })
 })
