@@ -1119,7 +1119,18 @@ describe("runDueAutomations", () => {
         },
       },
     ]
-    const fetchMock = vi.fn(async () => {
+    const fetchMock = vi.fn(async (_url?: unknown, init?: unknown) => {
+      // Image ranking derives visual concepts in a separate call; answer it
+      // without consuming a queued slideshow-text response.
+      const body = String((init as RequestInit | undefined)?.body ?? "")
+      if (body.includes("slide_visual_concepts")) {
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: '{"slides":[]}' } }],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      }
       const output = outputs.shift()
       if (!output) throw new Error("Unexpected extra generation request")
       return new Response(
@@ -1230,8 +1241,16 @@ describe("runDueAutomations", () => {
       random: () => 0,
     })
 
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    const [, repairInit] = fetchMock.mock.calls[1] as unknown as [
+    // Count only slideshow-text generations; concept derivation is a separate
+    // call and would otherwise make this assertion track unrelated changes.
+    const textGenerationCalls = fetchMock.mock.calls.filter(
+      ([, init]) =>
+        !String((init as RequestInit | undefined)?.body ?? "").includes(
+          "slide_visual_concepts"
+        )
+    )
+    expect(textGenerationCalls).toHaveLength(2)
+    const [, repairInit] = textGenerationCalls[1] as unknown as [
       string,
       RequestInit,
     ]

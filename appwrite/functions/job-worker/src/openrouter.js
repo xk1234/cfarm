@@ -6,16 +6,19 @@
 import { clean, isRecord } from "./guards.js";
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
 /**
- * Anthropic's structured-output API rejects array cardinality constraints:
- * `minItems` may only be 0 or 1, and `maxItems` is not supported at all. Either
- * one fails the entire request for any provider routed to Anthropic (including
- * Bedrock). Strip them at the request boundary so callers can keep expressing
- * intent in the schema, and rely on the prompt plus post-generation validation
- * to enforce the real bounds.
+ * Anthropic's structured-output compiler rejects several JSON Schema keywords
+ * outright, and any one of them fails the whole request for every provider
+ * routed to Anthropic (including via Bedrock):
+ *   - `minItems` may only be 0 or 1
+ *   - `maxItems` is unsupported
+ *   - `minimum` / `maximum` are unsupported on numeric types
+ * Strip them at the request boundary so callers can keep expressing intent in
+ * the schema, and rely on the prompt plus post-generation validation to enforce
+ * the real bounds.
  */
-export function clampSchemaMinItems(schema) {
+export function sanitizeStructuredSchema(schema) {
     if (Array.isArray(schema)) {
-        return schema.map((entry) => clampSchemaMinItems(entry));
+        return schema.map((entry) => sanitizeStructuredSchema(entry));
     }
     if (!schema || typeof schema !== "object")
         return schema;
@@ -27,7 +30,11 @@ export function clampSchemaMinItems(schema) {
         }
         if (key === "maxItems" && typeof value === "number")
             continue;
-        next[key] = clampSchemaMinItems(value);
+        if ((key === "minimum" || key === "maximum") &&
+            typeof value === "number") {
+            continue;
+        }
+        next[key] = sanitizeStructuredSchema(value);
     }
     return next;
 }
@@ -119,7 +126,7 @@ export async function openRouterJson(input) {
         messages,
         fetchImpl: input.fetchImpl,
         responseFormat: input.schema
-            ? { type: "json_schema", json_schema: clampSchemaMinItems(input.schema) }
+            ? { type: "json_schema", json_schema: sanitizeStructuredSchema(input.schema) }
             : { type: "json_object" },
         timeoutMs: input.timeoutMs,
         maxTokens: input.maxTokens,

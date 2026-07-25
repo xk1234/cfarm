@@ -29,6 +29,20 @@ const generatedModules = [
     target: "appwrite/functions/job-worker/src/ugc-automation-runner.js",
   },
   {
+    source: "lib/http.ts",
+    target: "appwrite/functions/job-worker/src/http.js",
+  },
+  {
+    source: "lib/slideshow-image-matching.ts",
+    target: "appwrite/functions/job-worker/src/slideshow-image-matching.js",
+    imports: {
+      "@/lib/guards": "./guards.js",
+      "@/lib/http": "./http.js",
+      "@/lib/realfarm-generation-model-registry":
+        "./realfarm-generation-model-registry.js",
+    },
+  },
+  {
     source: "lib/openrouter.ts",
     target: "appwrite/functions/job-worker/src/openrouter.js",
     imports: { "@/lib/guards": "./guards.js" },

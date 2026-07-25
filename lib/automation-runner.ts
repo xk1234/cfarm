@@ -106,7 +106,10 @@ import {
   type UsageRecord,
 } from "@/lib/usage-ledger"
 import { listWordCollections } from "@/lib/word-collections"
-import { selectSlideshowImageWithAi } from "@/lib/slideshow-image-matching"
+import {
+  deriveSlideVisualConcepts,
+  selectSlideshowImageWithAi,
+} from "@/lib/slideshow-image-matching"
 import {
   deleteJsonArrayRecord,
   readJsonArrayRecord,
@@ -1869,6 +1872,24 @@ async function selectImagesForSlides(input: {
   const apiKey = clean(process.env.OPENROUTER_API_KEY)
   const selected: SelectedAutomationRunnerImage[] = []
 
+  // Slide copy describes behaviour ("she goes quiet for three days") while
+  // captions describe what is depicted, so the two rarely share vocabulary.
+  // Derive the imagery each slide implies once, up front, and use it to rank
+  // candidates before asking the model to choose.
+  const slideTexts = input.specs.map((spec, index) =>
+    imageSelectionText({
+      title: input.title,
+      hook: input.hook,
+      spec,
+      slide: input.textAutomation?.slides[index],
+      generatedText: input.generatedText,
+    })
+  )
+  const visualConcepts =
+    apiKey && input.specs.some((spec) => spec.aiImageSelection)
+      ? await deriveSlideVisualConcepts({ slideTexts, apiKey })
+      : []
+
   for (const [index, spec] of input.specs.entries()) {
     const configuredSectionImages = spec.collectionId
       ? imagesForCollectionIds({
@@ -1921,6 +1942,7 @@ async function selectImagesForSlides(input: {
       }
       const selectedId = await selectSlideshowImageWithAi({
         slideText,
+        concepts: visualConcepts[index] ?? [],
         candidates: candidates.map((candidate) => ({
           id: candidate.id,
           imageUrl: candidate.imageUrl,

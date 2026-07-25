@@ -17,7 +17,11 @@ import {
   slideshowTextPositionX,
 } from "./slideshow-renderer.js"
 import { configureFontconfig } from "./font-config.js"
-import { clampSchemaMinItems } from "./openrouter.js"
+import { sanitizeStructuredSchema } from "./openrouter.js"
+import {
+  deriveSlideVisualConcepts,
+  selectSlideshowImageWithAi,
+} from "./slideshow-image-matching.js"
 import { expandAllHookCombinations } from "./hook-expansion.js"
 import { applyResolvedHookCase } from "./hook-casing.js"
 import {
@@ -44,7 +48,10 @@ const PERMANENT_ASSETS = "permanent_assets"
 const USAGE = "usage_ledger"
 const JOBS = "jobs"
 const SLIDESHOW_BUCKET = "slideshows"
-const defaultTextModel = openRouterModelForUseCase("slideshowText")
+// Operational escape hatch: pin a cheaper model while debugging a broken
+// pipeline. Unset the variable and the registry default applies again.
+const defaultTextModel =
+  process.env.SLIDESHOW_TEXT_MODEL || openRouterModelForUseCase("slideshowText")
 const PAGE = 100
 
 export function slideshowRunId(automationId, scheduledFor) {
@@ -956,6 +963,20 @@ async function selectImages({
   const usedKeys = new Set()
   const usedUrls = new Set()
   const selected = []
+  // One call for the whole slideshow: slide copy describes behaviour while
+  // captions describe what is depicted, so the two rarely share vocabulary.
+  // Rank candidates against the imagery each slide implies instead.
+  const conceptsApiKey = clean(process.env.OPENROUTER_API_KEY)
+  const visualConcepts =
+    conceptsApiKey && specs.some((spec) => spec.aiImageSelection)
+      ? await deriveSlideVisualConcepts({
+          slideTexts: specs.map((spec) =>
+            imageTextForSpec(spec, hook, generated)
+          ),
+          apiKey: conceptsApiKey,
+          model: defaultTextModel,
+        })
+      : []
   for (const [index, spec] of specs.entries()) {
     if (!clean(spec.collectionId)) {
       throw new Error(`No image collection is configured for ${spec.id}`)
@@ -982,6 +1003,7 @@ async function selectImages({
       image = await aiSelectImage({
         candidates,
         text: imageTextForSpec(spec, hook, generated),
+        concepts: visualConcepts[index] ?? [],
       })
     }
     usedKeys.add(image.key)
@@ -1009,73 +1031,23 @@ export function usageForPublishedRuns(usage, automationId) {
   )
 }
 
-async function aiSelectImage({ candidates, text }) {
-  const apiKey = clean(process.env.OPENROUTER_API_KEY)
-  if (!apiKey) {
-    throw new Error("OPENROUTER_API_KEY is required for AI image selection")
-  }
-  const content = [
-    {
-      type: "text",
-      text: `Slide text:\n${text}\n\nChoose from these candidate images:`,
-    },
-  ]
-  for (const candidate of candidates) {
-    content.push({
-      type: "text",
-      text: `Candidate ${candidate.id}: ${candidate.imageCaption || "No caption available"}`,
-    })
-    if (/^https?:\/\//i.test(candidate.imageUrl)) {
-      content.push({
-        type: "image_url",
-        image_url: { url: candidate.imageUrl },
-      })
-    }
-  }
-  const payload = await openRouterRequest({
-    apiKey,
-    timeoutMs: 30_000,
-    body: {
-      model: defaultTextModel,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Select the supplied image id most relevant to the finalized slide text. Prefer a direct subject/action match over a generic aesthetic match.",
-        },
-        {
-          role: "user",
-          content,
-        },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "slideshow_image_match",
-          strict: true,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              selectedImageId: {
-                type: "string",
-                enum: candidates.map((item) => item.id),
-              },
-            },
-            required: ["selectedImageId"],
-          },
-        },
-      },
-    },
+// Thin wrapper over the shared matcher (lib/slideshow-image-matching.ts) so the
+// worker and the app rank and choose images identically. The previous private
+// copy sent every candidate and compiled an enum of all their ids, which
+// Anthropic rejects outright once a collection is large.
+async function aiSelectImage({ candidates, text, concepts }) {
+  const selectedId = await selectSlideshowImageWithAi({
+    slideText: text,
+    concepts: concepts ?? [],
+    candidates: candidates.map((candidate) => ({
+      id: candidate.id,
+      imageUrl: candidate.imageUrl,
+      caption: candidate.imageCaption,
+    })),
+    apiKey: clean(process.env.OPENROUTER_API_KEY),
+    model: defaultTextModel,
   })
-  const selectedId = parseJsonContent(
-    payload.choices?.[0]?.message?.content
-  )?.selectedImageId
-  const selected = candidates.find((item) => item.id === selectedId)
-  if (!selected) {
-    throw new Error("AI image selection returned an unknown image id")
-  }
-  return selected
+  return candidates.find((candidate) => candidate.id === selectedId) ?? candidates[0]
 }
 
 function imageTextForSpec(spec, hook, generated) {
@@ -1203,7 +1175,7 @@ async function renderAndStoreSlideshow({
         )
       ),
     ])
-    const sourceUrl = await imageDataUrl(sourceBytes)
+    const sourceUrl = await imageDataUrl(sourceBytes, planSlide.imageUrl)
     const overlayUrl = overlayBytes
       ? await imageDataUrl(overlayBytes)
       : undefined
@@ -1828,9 +1800,21 @@ async function loadAssetBytes(storage, rawUrl) {
   return Buffer.from(await response.arrayBuffer())
 }
 
-async function imageDataUrl(bytes) {
+async function imageDataUrl(bytes, sourceUrl) {
   const image = sharp(bytes, { animated: false })
-  const metadata = await image.metadata()
+  let metadata
+  try {
+    metadata = await image.metadata()
+  } catch (cause) {
+    // The Appwrite node-22 runtime's libvips has no HEIF/HEIC codec, so an
+    // asset in an unsupported format kills the whole generation after all the
+    // expensive LLM work. Name the asset so it can be converted or removed.
+    throw new Error(
+      `Slideshow source image could not be decoded${sourceUrl ? ` (${sourceUrl})` : ""}: ` +
+        `${cause instanceof Error ? cause.message : cause}. ` +
+        `Convert it to JPEG/PNG/WebP; this runtime cannot read HEIF/HEIC.`
+    )
+  }
   if (["jpeg", "png", "svg"].includes(metadata.format)) {
     const mime = metadata.format === "svg" ? "svg+xml" : metadata.format
     return `data:image/${mime};base64,${bytes.toString("base64")}`
@@ -1894,18 +1878,32 @@ async function openRouterRequest({ apiKey, body, timeoutMs }) {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(clampSchemaMinItems(body)),
+      body: JSON.stringify(sanitizeStructuredSchema(body)),
       signal: AbortSignal.timeout(timeoutMs),
     }
   )
-  const payload = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    // OpenRouter's bare "Provider returned error" is undiagnosable; the
-    // upstream cause is in error.metadata. Keep status + metadata.
+  // `.json().catch(() => ({}))` used to swallow the body whenever it was not
+  // JSON, turning every non-JSON response into an indistinguishable empty
+  // object. Keep the raw text so failures are diagnosable.
+  const rawBody = await response.text()
+  let payload
+  try {
+    payload = JSON.parse(rawBody)
+  } catch {
+    payload = {}
+  }
+  // OpenRouter can answer 200 with an error body and no choices; treating that
+  // as success surfaces later as a bogus "unknown image id"-style failure far
+  // from the real cause. Fail here, with the upstream detail from
+  // error.metadata, which is where the provider's reason actually lives.
+  if (!response.ok || payload?.error || !Array.isArray(payload?.choices)) {
     throw new Error(
       [
         payload?.error?.message || `OpenRouter failed (${response.status})`,
         `status=${response.status}`,
+        !Array.isArray(payload?.choices)
+          ? `no choices in response; rawBody=${JSON.stringify(rawBody).slice(0, 600)} (len=${rawBody.length})`
+          : "",
         payload?.error?.metadata
           ? `metadata=${JSON.stringify(payload.error.metadata).slice(0, 600)}`
           : "",
@@ -2094,10 +2092,16 @@ async function syncResultMedia(
   }
   for (const item of media) {
     const path = localAssetPath(item.url)
+    // Deterministic ids make this sync re-runnable, but only if a surviving row
+    // (a racing writer, an eventually-consistent delete, or two media entries
+    // hashing alike) is replaced rather than fatally colliding. A failed create
+    // here used to abort the whole generation after all the expensive work.
+    const mediaRowId = outputMediaRowId(outputRowId, item)
+    await tables.deleteRow(databaseId, OUTPUT_MEDIA, mediaRowId).catch(() => {})
     await tables.createRow(
       databaseId,
       OUTPUT_MEDIA,
-      outputMediaRowId(outputRowId, item),
+      mediaRowId,
       {
         output_id: outputRowId,
         owner_id: ownerId,
