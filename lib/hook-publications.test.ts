@@ -326,6 +326,179 @@ describe("published hook attribution", () => {
     })
   })
 
+  it("reattaches a rendered legacy hook to its canonical pool id", async () => {
+    const schema = defaultAutomationSchema({
+      id: "1",
+      name: "Astrology Informational",
+      status: "live",
+      account: "",
+      handle: "",
+      times: [],
+      theme: "",
+      socialIntegrations: [],
+      favorite: false,
+      automationKind: "slideshow",
+    })
+    schema.hooks = [
+      {
+        id: "hook_0sxku68",
+        text: "[[SLIDE_COUNT]] things a [[ZODIAC]] will never tell you",
+        enabled: true,
+        createdAt: "2026-07-01T00:00:00.000Z",
+      },
+    ]
+    mocks.getAutomationRecord.mockResolvedValue({
+      id: "automation-local-e106cab9-5bb1-4810-afaa-3b2eb25e4467",
+      schema,
+    })
+    mocks.listAutomationRuns.mockResolvedValue([
+      {
+        ...run,
+        automationId:
+          "automation-local-e106cab9-5bb1-4810-afaa-3b2eb25e4467",
+        plan: {
+          ...run.plan,
+          hookId: "hook_0w6nkqy",
+          hook: "3 things a Cancer will never tell you",
+          hookTemplate: undefined,
+        },
+      },
+    ])
+    mocks.listPostFastPostRecords.mockResolvedValue([publication])
+    mocks.listMetricSnapshots.mockResolvedValue([
+      {
+        id: "snapshot-winner",
+        postId: publication.id,
+        integrationId: "account-1",
+        provider: "tiktok",
+        capturedAt: "2026-07-18T12:00:00.000Z",
+        metrics: {
+          views: 29_790,
+          likes: 1_102,
+          shares: 74,
+          saves: 405,
+        },
+        latestMetric: {},
+        rawMetrics: {},
+        observedKeys: [],
+        tiktokStudio: {
+          schemaVersion: 1,
+          studioUrl: "https://www.tiktok.com/tiktokstudio/analytics/1/overview",
+          capturedSections: ["overview"],
+          slides: [
+            { slideIndex: 1, retentionPercent: 1 },
+            { slideIndex: 2, retentionPercent: 0.7536 },
+          ],
+          trafficSources: {},
+          searchTerms: [],
+        },
+      },
+    ])
+
+    const report = await hookAnalyticsReport(
+      "automation-local-e106cab9-5bb1-4810-afaa-3b2eb25e4467"
+    )
+
+    expect(schema.hooks[0].id).toBe("hook_0sxku68")
+    expect(report).toMatchObject({
+      hooks: [
+        {
+          hookId: "hook_0sxku68",
+          used: true,
+          publishedPosts: 1,
+        },
+      ],
+      rows: [
+        expect.objectContaining({
+          hookId: "hook_0sxku68",
+          publishedPosts: 1,
+          views: 29_790,
+          meanSlide1To2RetentionPercent: 75.36,
+        }),
+      ],
+      performance: [
+        expect.objectContaining({
+          hookId: "hook_0sxku68",
+          publishedPosts: 1,
+          views: 29_790,
+        }),
+      ],
+      attribution: {
+        attributedPosts: 1,
+        unattributedPublishedPosts: 0,
+      },
+      dataWarnings: [],
+    })
+    expect(
+      report?.performance.some((item) => item.hookId === "hook_0w6nkqy")
+    ).toBe(false)
+  })
+
+  it("does not guess when rendered text matches multiple pool templates", async () => {
+    const schema = defaultAutomationSchema({
+      id: "1",
+      name: "Ambiguous",
+      status: "live",
+      account: "",
+      handle: "",
+      times: [],
+      theme: "",
+      socialIntegrations: [],
+      favorite: false,
+      automationKind: "slideshow",
+    })
+    schema.hooks = [
+      {
+        id: "canonical-one",
+        text: "[[COUNT]] things a Cancer will never tell you",
+        enabled: true,
+        createdAt: "2026-07-01T00:00:00.000Z",
+      },
+      {
+        id: "canonical-two",
+        text: "3 things a [[ZODIAC]] will never tell you",
+        enabled: true,
+        createdAt: "2026-07-01T00:00:00.000Z",
+      },
+    ]
+    mocks.getAutomationRecord.mockResolvedValue({
+      id: "automation-1",
+      schema,
+    })
+    mocks.listAutomationRuns.mockResolvedValue([
+      {
+        ...run,
+        plan: {
+          ...run.plan,
+          hookId: "ghost-id",
+          hook: "3 things a Cancer will never tell you",
+          hookTemplate: undefined,
+        },
+      },
+    ])
+    mocks.listPostFastPostRecords.mockResolvedValue([publication])
+
+    const report = await hookAnalyticsReport("automation-1")
+
+    expect(schema.hooks.map((hook) => hook.id)).toEqual([
+      "canonical-one",
+      "canonical-two",
+    ])
+    expect(report).toMatchObject({
+      rows: [],
+      attribution: {
+        attributedPosts: 0,
+        unattributedPublishedPosts: 1,
+      },
+      dataWarnings: [
+        "1 published post could not be attributed to a pool hook.",
+      ],
+    })
+    expect(
+      report?.performance.some((item) => item.hookId === "ghost-id")
+    ).toBe(false)
+  })
+
   it("propagates storage quota failures instead of returning zero performance", async () => {
     const schema = defaultAutomationSchema({
       id: "1",

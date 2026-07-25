@@ -24,6 +24,48 @@ type HookExpansionOptions = {
 const slotPattern = /\[\[([a-zA-Z0-9_-]+)\]\]|\{([a-zA-Z0-9_-]+)\}/g
 const properTitleCaseSlots = new Set(["zodiac"])
 
+export function hookTemplateMatchesRenderedText(
+  template: string,
+  renderedText: string
+) {
+  const normalizedTemplate = normalizeHookMatchText(template)
+  const normalizedRenderedText = normalizeHookMatchText(renderedText)
+  if (!normalizedTemplate || !normalizedRenderedText) return false
+
+  slotPattern.lastIndex = 0
+  let literalStart = 0
+  let pattern = "^"
+  for (const match of normalizedTemplate.matchAll(slotPattern)) {
+    pattern += escapeRegExp(
+      normalizedTemplate.slice(literalStart, match.index)
+    )
+    pattern += ".+?"
+    literalStart = (match.index ?? 0) + match[0].length
+  }
+  pattern += escapeRegExp(normalizedTemplate.slice(literalStart))
+  pattern += "$"
+  return new RegExp(pattern, "i").test(normalizedRenderedText)
+}
+
+export function uniqueHookTemplateMatch<T extends { text: string }>(
+  items: T[],
+  input: { hookTemplate?: string; renderedHook: string }
+) {
+  const normalizedTemplate = normalizeHookMatchText(
+    input.hookTemplate ?? ""
+  ).toLowerCase()
+  const matches = normalizedTemplate
+    ? items.filter(
+        (item) =>
+          normalizeHookMatchText(item.text).toLowerCase() ===
+          normalizedTemplate
+      )
+    : items.filter((item) =>
+        hookTemplateMatchesRenderedText(item.text, input.renderedHook)
+      )
+  return matches.length === 1 ? matches[0] : undefined
+}
+
 export function expandHook(
   hook: string,
   slots: Record<string, string> | undefined,
@@ -316,6 +358,10 @@ function correctPluralSuffixes(
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+function normalizeHookMatchText(value: string) {
+  return clean(value).replace(/\s+/g, " ")
 }
 
 function correctIndefiniteArticles(value: string) {
