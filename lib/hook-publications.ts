@@ -1,4 +1,3 @@
-import { clean } from "@/lib/guards"
 import {
   listAutomationRuns,
   type AutomationRunRecord,
@@ -24,6 +23,7 @@ import {
   usageKeyForHookCombination,
 } from "@/lib/usage-ledger"
 import type { CanonicalMetric } from "@/lib/metric-registry"
+import { uniqueHookTemplateMatch } from "@/lib/hook-expansion"
 
 export type HookAnalyticsRow = {
   hookId: string
@@ -267,7 +267,6 @@ export async function hookAnalyticsReport(
           meanSlide1To2RetentionPercent: null,
         }
     ),
-    ...rows.filter((row) => !hookItems.some((item) => item.id === row.hookId)),
   ]
   const publishedOutputsWithoutPublication = runs.filter(
     (run) =>
@@ -281,7 +280,7 @@ export async function hookAnalyticsReport(
       ? [
           `${unattributedPublishedPosts} published ${
             unattributedPublishedPosts === 1 ? "post" : "posts"
-          } could not be attributed to hooks.`,
+          } could not be attributed to a pool hook.`,
         ]
       : []),
     ...(publishedOutputsWithoutPublication > 0
@@ -343,21 +342,19 @@ async function runForPublication(publication: PostFastPostRecord) {
   )
 }
 
-function hookItemForRun(run: AutomationRunRecord, items: AutomationHookItem[]) {
+export function hookItemForRun(
+  run: AutomationRunRecord,
+  items: AutomationHookItem[]
+) {
   if (run.plan.hookId) {
     const byId = items.find((item) => item.id === run.plan.hookId)
     if (byId) return byId
-    return {
-      id: run.plan.hookId,
-      text: run.plan.hookTemplate || run.plan.hook,
-      enabled: false,
-      createdAt: run.createdAt,
-    }
   }
-  const candidates = [run.plan.hookTemplate, run.plan.hook]
-    .map(normalizedText)
-    .filter(Boolean)
-  return items.find((item) => candidates.includes(normalizedText(item.text)))
+
+  return uniqueHookTemplateMatch(items, {
+    hookTemplate: run.plan.hookTemplate,
+    renderedHook: run.plan.hook,
+  })
 }
 
 function runForSource(
@@ -491,8 +488,4 @@ function withEngagementRate(metrics: Partial<Record<CanonicalMetric, number>>) {
 
 function laterDate(left: string, right: string) {
   return Date.parse(right) > Date.parse(left) ? right : left
-}
-
-function normalizedText(value: string | undefined) {
-  return clean(value).toLowerCase().replace(/\s+/g, " ")
 }

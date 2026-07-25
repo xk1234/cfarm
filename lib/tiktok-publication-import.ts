@@ -11,6 +11,7 @@ import {
   automationHookItems,
   schemaWithAutomationHookItems,
 } from "@/lib/realfarm-automation"
+import { uniqueHookTemplateMatch } from "@/lib/hook-expansion"
 import {
   linkPublishedOutput,
   samePublicationProvider,
@@ -380,6 +381,12 @@ async function recoverTikTokPost(input: {
     input.post.caption.match(/#[\p{L}\p{N}_-]+/gu)?.join(" ") ?? ""
   const title = titleFromHook(hook)
   const createdAt = input.post.publishedAt
+  const matchedHook = uniqueHookTemplateMatch(
+    automationHookItems(input.automation.schema),
+    { renderedHook: hook }
+  )
+  const hookTemplate = matchedHook?.text ?? hook
+  const hookId = matchedHook?.id ?? automationHookId(hookTemplate)
   const { slideshow } = await createSlideshowResultRecord({
     automationId: input.automation.id,
     runId,
@@ -447,7 +454,8 @@ async function recoverTikTokPost(input: {
       caption: captionBody(input.post.caption),
       hashtags,
       hook,
-      hookId: automationHookId(hook),
+      hookId,
+      hookTemplate,
       imageCollectionIds: [],
       slides,
       slideCount: { mode: "static", count: slides.length },
@@ -467,9 +475,12 @@ async function ensureHistoricalHook(run: AutomationRunRecord) {
   const items = automationHookItems(automation.schema)
   const sourceText = clean(run.plan.hookTemplate) || clean(run.plan.hook)
   if (!sourceText) return run
-  const normalized = normalizeText(sourceText)
-  const existing = items.find((item) => normalizeText(item.text) === normalized)
+  const existing = uniqueHookTemplateMatch(items, {
+    hookTemplate: run.plan.hookTemplate,
+    renderedHook: run.plan.hook,
+  })
   const hookId = existing?.id ?? automationHookId(sourceText)
+  const hookTemplate = existing?.text ?? sourceText
   if (!existing) {
     await patchAutomationRecord({
       id: automation.id,
@@ -484,8 +495,16 @@ async function ensureHistoricalHook(run: AutomationRunRecord) {
       ]),
     })
   }
-  if (run.plan.hookId === hookId) return run
-  const updated = { ...run, plan: { ...run.plan, hookId } }
+  if (
+    run.plan.hookId === hookId &&
+    run.plan.hookTemplate === hookTemplate
+  ) {
+    return run
+  }
+  const updated = {
+    ...run,
+    plan: { ...run.plan, hookId, hookTemplate },
+  }
   await upsertRecoveredAutomationRun(updated)
   return updated
 }
