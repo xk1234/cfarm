@@ -1,14 +1,39 @@
 ---
 title: "Workflows"
-description: "End-to-end verification guides for browser journeys and MCP-driven user stories."
+description: "The LumenClip user journey end to end — from signing in to a published, measured post — with the agent call and the UI equivalent for each step."
 ---
 
-This section covers end-to-end workflow verification across the LumenClip web
-interface and MCP surface.
+Each page covers one step of the journey twice: what an agent calls over MCP, and what a person
+clicks in the app. Both surfaces hit the same domain services, so they diverge in places — where
+they do, the page says so rather than describing an average.
 
-- [MCP agent workflow tests](/docs/workflows/mcp-agent-tests) explains how to
-  run conversational user stories through the MCP tools.
-- [Curtains slideshow MCP test](/docs/workflows/curtains-slideshow) defines the
-  current MCP-driven curtains slideshow story.
-- [Browser end-to-end tests](/docs/workflows/browser-tests) documents the
-  Playwright setup and the requirements for rebuilding browser specs.
+Every page follows the same shape: the tool call with its real input and output, the UI
+equivalent as a numbered table, then the failures worth checking. Tool schemas, labels, and
+error strings are quoted from the code, not paraphrased.
+
+## The journey
+
+| Step | Workflow | Outcome |
+| --- | --- | --- |
+| 1 | [Signing in](/docs/workflows/signing-in) | An account and a session. Agents cannot log in — read this for what they get instead. |
+| 2 | [Creating a collection](/docs/workflows/create-collection) | An image pool an automation can draw slides from. |
+| 3 | [Creating a slideshow automation](/docs/workflows/create-slideshow-automation) | A configured automation and one draft generated on demand. |
+| 4 | [Scheduling posts](/docs/workflows/schedule-posts) | Recurring posting times, and automatic publishing when you want it. |
+| 5 | [Linking a TikTok account](/docs/workflows/link-tiktok-account) | A publishing destination, connected through PostFast. |
+| 6 | [Importing TikTok Studio data](/docs/workflows/import-tiktok-studio-data) | Private Studio metrics that no API exposes, via the Chrome companion. |
+| 7 | [Reading analytics](/docs/workflows/analytics-report) | Performance attributed back to the automation that produced it. |
+| 8 | [Creating a UGC video automation](/docs/workflows/create-ugc-video) | A talking-actor product video. **Currently gated off.** |
+
+## Before you start
+
+**The agent surface has no per-caller identity.** `/mcp` resolves a single owner from
+`LUMENCLIP_MCP_OWNER_ID` or `LUMENCLIP_SYSTEM_OWNER_ID` and runs every tool as that owner.
+There is no token or scope check on the transport. The `lumenclip:read` / `lumenclip:write`
+scopes described elsewhere under `mcp/` are not implemented. Read
+[Signing in](/docs/workflows/signing-in) before exposing that endpoint.
+
+**Mutating tools take a `requestId`, not an `idempotency_key`.** How strong that guarantee is
+varies by tool, and each page says which kind it is.
+
+**Two tools reach outside the app**: `lumenclip_output_publish` publishes, and
+`lumenclip_ugc_generate` spends money at four providers. Both are called out where they appear.

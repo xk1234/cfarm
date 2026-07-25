@@ -6,8 +6,8 @@ End-to-end browser journeys for the current LumenClip product. They are organize
 the job a user is trying to complete rather than by component. Run them against
 an environment with the relevant Appwrite and provider configuration.
 
-For automated browser setup, see
-[Browser end-to-end tests](/docs/workflows/browser-tests).
+No automated Playwright specs currently exist; `e2e/fixtures.ts` remains as
+scaffolding for rebuilding them.
 For the endpoint calls behind each journey, see
 [backend-endpoints.md](backend-endpoints.md).
 

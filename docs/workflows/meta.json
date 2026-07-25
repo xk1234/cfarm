@@ -2,8 +2,13 @@
   "title": "Workflows",
   "pages": [
     "index",
-    "mcp-agent-tests",
-    "curtains-slideshow",
-    "browser-tests"
+    "signing-in",
+    "create-collection",
+    "create-slideshow-automation",
+    "schedule-posts",
+    "link-tiktok-account",
+    "import-tiktok-studio-data",
+    "analytics-report",
+    "create-ugc-video"
   ]
 }

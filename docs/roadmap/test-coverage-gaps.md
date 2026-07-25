@@ -90,5 +90,6 @@ Worth fixing rather than deleting — the intent is right, the assertion is miss
 
 No specs exist. Rebuilding them needs `data-testid`s added to the elements each
 journey touches — the absence of those is why the previous specs never got past
-status-code assertions. See
-[Browser end-to-end tests](/docs/workflows/browser-tests).
+status-code assertions. `e2e/fixtures.ts` is retained as scaffolding: it stubs the
+app's own `/api/*` endpoints with the shapes the client expects. New specs must
+assert UI state reached through user interaction, not stub status codes.
