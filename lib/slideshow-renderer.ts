@@ -1,4 +1,5 @@
 import { clean } from "@/lib/guards"
+import { resolveSlideshowFont } from "@/lib/font-config"
 import {
   textStyleToEditorColor,
   textStyleUsesStroke,
@@ -88,7 +89,7 @@ export function renderedSlideSvg(
   const { width, height } = slideDimensions(
     opts?.aspectRatio || defaultSlideshowAspectRatio
   )
-  const font = opts?.font || defaultSlideshowFont
+  const font = resolveSlideshowFont(opts?.font)
   const textItems = slide.textItems
   const overlayImageSvg =
     slide.overlayImage && overlayUrl
@@ -396,9 +397,9 @@ function renderedTextItemSvg(rendered: RenderedTextItem, font: string) {
     })
     .join("")
 
-  const fontFamily = escapeXml(font || defaultSlideshowFont)
+  const fontFamily = escapeXml(font || resolveSlideshowFont())
   const background = renderedTextBackgroundSvg(rendered)
-  return `${background}<text id="${escapeXml(item.id)}" x="${x}" y="${y}" text-anchor="${textAnchor}" dominant-baseline="middle" font-family="${fontFamily}, Inter, Arial, sans-serif" font-size="${fontSize}" font-weight="800" fill="${fill}"${stroke}>${tspans}</text>`
+  return `${background}<text id="${escapeXml(item.id)}" x="${x}" y="${y}" text-anchor="${textAnchor}" dominant-baseline="middle" font-family="${fontFamily}, sans-serif" font-size="${fontSize}" font-weight="800" fill="${fill}"${stroke}>${tspans}</text>`
 }
 
 function renderedTextBackgroundSvg(rendered: RenderedTextItem) {
