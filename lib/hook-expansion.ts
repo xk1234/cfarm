@@ -31,6 +31,13 @@ export function hookTemplateMatchesRenderedText(
   const normalizedTemplate = normalizeHookMatchText(template)
   const normalizedRenderedText = normalizeHookMatchText(renderedText)
   if (!normalizedTemplate || !normalizedRenderedText) return false
+  // An all-slot template matches everything and is never evidence of identity.
+  if (
+    hookTextHasSlots(normalizedTemplate) &&
+    hookTemplateLiteralLength(normalizedTemplate) === 0
+  ) {
+    return false
+  }
 
   slotPattern.lastIndex = 0
   let literalStart = 0
@@ -47,6 +54,23 @@ export function hookTemplateMatchesRenderedText(
   return new RegExp(pattern, "i").test(normalizedRenderedText)
 }
 
+/** Whether a hook text still carries unexpanded `[[SLOT]]` / `{slot}` tokens. */
+export function hookTextHasSlots(text: string) {
+  slotPattern.lastIndex = 0
+  return slotPattern.test(text)
+}
+
+/**
+ * Length of a template's literal (non-slot) text. This is the evidence a
+ * template carries when matched against a rendered hook: a template that is
+ * nothing but slots (e.g. `[[ZODIAC_CUSP]]`) compiles to `^.+?$` and matches
+ * every hook ever rendered, so it proves nothing and must never win a match.
+ */
+export function hookTemplateLiteralLength(template: string) {
+  return normalizeHookMatchText(template.replace(slotPattern, " ")).trim()
+    .length
+}
+
 export function uniqueHookTemplateMatch<T extends { text: string }>(
   items: T[],
   input: { hookTemplate?: string; renderedHook: string }
@@ -54,15 +78,29 @@ export function uniqueHookTemplateMatch<T extends { text: string }>(
   const normalizedTemplate = normalizeHookMatchText(
     input.hookTemplate ?? ""
   ).toLowerCase()
-  const matches = normalizedTemplate
-    ? items.filter(
-        (item) =>
-          normalizeHookMatchText(item.text).toLowerCase() ===
-          normalizedTemplate
-      )
-    : items.filter((item) =>
-        hookTemplateMatchesRenderedText(item.text, input.renderedHook)
-      )
+  if (normalizedTemplate) {
+    const exact = items.filter(
+      (item) =>
+        normalizeHookMatchText(item.text).toLowerCase() === normalizedTemplate
+    )
+    return exact.length === 1 ? exact[0] : undefined
+  }
+
+  const matches = items.filter((item) =>
+    hookTemplateMatchesRenderedText(item.text, input.renderedHook)
+  )
+  // A legacy pool entry whose text IS the rendered hook matches itself, which
+  // would otherwise defeat the uniqueness rule and leave the run attributed to
+  // the duplicate. Prefer a tokenized template when exactly one qualifies.
+  const templated = matches.filter(
+    (item) =>
+      hookTextHasSlots(item.text) && hookTemplateLiteralLength(item.text) > 0
+  )
+  if (templated.length === 1) return templated[0]
+  // Two or more substantive templates fitting the same rendered hook is real
+  // ambiguity. Leave it unattributed and let the caller report it rather than
+  // picking a winner on a heuristic.
+  if (templated.length > 1) return undefined
   return matches.length === 1 ? matches[0] : undefined
 }
 

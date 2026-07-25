@@ -23,7 +23,10 @@ import {
   usageKeyForHookCombination,
 } from "@/lib/usage-ledger"
 import type { CanonicalMetric } from "@/lib/metric-registry"
-import { uniqueHookTemplateMatch } from "@/lib/hook-expansion"
+import {
+  hookTextHasSlots,
+  uniqueHookTemplateMatch,
+} from "@/lib/hook-expansion"
 
 export type HookAnalyticsRow = {
   hookId: string
@@ -346,15 +349,31 @@ export function hookItemForRun(
   run: AutomationRunRecord,
   items: AutomationHookItem[]
 ) {
-  if (run.plan.hookId) {
-    const byId = items.find((item) => item.id === run.plan.hookId)
-    if (byId) return byId
-  }
-
-  return uniqueHookTemplateMatch(items, {
+  const templateMatch = uniqueHookTemplateMatch(items, {
     hookTemplate: run.plan.hookTemplate,
     renderedHook: run.plan.hook,
   })
+
+  if (run.plan.hookId) {
+    const byId = items.find((item) => item.id === run.plan.hookId)
+    if (byId) {
+      // Legacy TikTok imports persisted the RENDERED hook text as its own pool
+      // entry (see ensureHistoricalHook), so `byId` can resolve to a duplicate
+      // of the canonical template hook and strand that hook's metrics. When the
+      // matched entry carries no slots and a single tokenized template covers
+      // the same rendered text, the template is the real hook.
+      if (
+        templateMatch &&
+        templateMatch.id !== byId.id &&
+        !hookTextHasSlots(byId.text)
+      ) {
+        return templateMatch
+      }
+      return byId
+    }
+  }
+
+  return templateMatch
 }
 
 function runForSource(

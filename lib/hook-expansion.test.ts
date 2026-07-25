@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import { expandAllHookCombinations, expandHook } from "@/lib/hook-expansion"
+import {
+  expandAllHookCombinations,
+  expandHook,
+  hookTemplateMatchesRenderedText,
+  uniqueHookTemplateMatch,
+} from "@/lib/hook-expansion"
 import type { WordCollectionRecord } from "@/lib/word-collections"
 
 describe("expandHook", () => {
@@ -279,3 +284,42 @@ function wordCollection(id: string, words: string[]): WordCollectionRecord {
     updated_at: "2026-07-07T00:00:00.000Z",
   }
 }
+
+describe("hook template matching against real pool shapes", () => {
+  const rendered = "3 things a Cancer will never tell you"
+  const canonical = {
+    id: "hook_0sxku68",
+    text: "[[SLIDE_COUNT]] things a [[ZODIAC]] will never tell you",
+  }
+  // ensureHistoricalHook persisted the RENDERED hook as its own pool entry.
+  const renderedDuplicate = { id: "hook_0w6nkqy", text: rendered }
+  // A real pool contains hooks that are nothing but a slot.
+  const allSlot = { id: "hook_0oys55t", text: "[[ZODIAC_CUSP]]" }
+
+  it("never matches an all-slot template, which would match every hook", () => {
+    expect(hookTemplateMatchesRenderedText("[[ZODIAC_CUSP]]", rendered)).toBe(
+      false
+    )
+    expect(hookTemplateMatchesRenderedText("{anything}", rendered)).toBe(false)
+  })
+
+  it("prefers the canonical template over a persisted rendered duplicate", () => {
+    expect(
+      uniqueHookTemplateMatch([canonical, renderedDuplicate, allSlot], {
+        renderedHook: rendered,
+      })?.id
+    ).toBe("hook_0sxku68")
+  })
+
+  it("still refuses to guess between two substantive templates", () => {
+    expect(
+      uniqueHookTemplateMatch(
+        [
+          { id: "a", text: "[[COUNT]] things a Cancer will never tell you" },
+          { id: "b", text: "3 things a [[ZODIAC]] will never tell you" },
+        ],
+        { renderedHook: rendered }
+      )
+    ).toBeUndefined()
+  })
+})
