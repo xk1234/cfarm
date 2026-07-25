@@ -1,44 +1,55 @@
 # MCP agent end-to-end tests
 
-Tests in this folder are executed by an **AI agent driving the MCP tools**, not
-by a human and not by a test runner. They exist because the MCP surface is the
-product: the question they answer is *"can an agent be asked to build and
-generate a slideshow, and does it actually work end to end?"*
+These are **user stories, executed by an AI agent** with the MCP tools
+connected. Each one gives the agent what a user wants, in the user's words, and
+checks whether the user ends up with it.
 
-## How these differ from `e2e/*.spec.ts`
+They deliberately do not say which tools to call. Working that out is part of
+what's being tested: if an agent can't get from "I want to post about curtains"
+to a generated slideshow without being handed the tool names, the product has a
+problem no unit test will find.
+
+## Why these exist
+
+The MCP surface *is* the product for anyone driving LumenClip from a chat
+window. Nothing else covers it:
 
 | | `e2e/*.spec.ts` | `e2e/mcp-agent/*.md` |
 |---|---|---|
 | Runner | Playwright | an AI agent |
 | Surface | the web UI | the MCP tools |
 | Data | fixtures | the real configured backend |
-| Assertions | code | stated per step, checked by the agent |
+| Asks | "does the button work" | "did the user get what they wanted" |
 
-## Rules for the executing agent
+Several checks here are judgements — does this copy sound like the tone the user
+asked for, is this image a sensible pick, can you actually read the text on the
+slide. A test runner can't answer those. An agent can.
 
-1. **Follow the steps in order.** Later steps depend on IDs produced earlier.
-2. **Check every stated assertion.** A step without a satisfied assertion is a
-   FAIL — do not proceed past a failed precondition.
-3. **Do not repair the product to make a step pass.** Record the failure with
-   the exact tool name, arguments and response. Fixing the code is a separate
-   task from running the test.
-4. **Report honestly.** State PASS/FAIL per step, then a summary. If a step was
-   skipped, say so and why. Never infer a result you did not observe.
-5. **Clean up** in the final step, even after failures, unless the run is being
-   handed to a human for inspection — say which you did.
+## Running one
 
-## Transport matters
+Play the conversation a turn at a time, doing what the user asks and checking
+the stated outcome before moving on. Don't read ahead — an agent that knows
+turn 6 is coming will over-prepare in turn 1, and real users don't work that way.
 
-An in-process run (importing `createLumenClipMcpServer` and calling handlers
-directly) validates the *handlers* but **not** the wiring an agent actually
-uses. If you cannot reach the MCP endpoint over HTTP, the test result is
-`BLOCKED`, not `PASS`. Record which transport you used:
+Two standing rules:
 
-- `connector` — the MCP connector configured in the agent's client (preferred)
+- **Don't repair the product mid-run.** Record what broke and keep going.
+- **Don't report success you didn't observe.** "I couldn't verify this" is a
+  perfectly good result; a false pass is not.
+
+## Transport, and why it decides the verdict
+
+Importing `createLumenClipMcpServer` and calling the handlers directly will make
+most of a story pass. It also skips the entire path a real user goes through, so
+it proves much less than it appears to. Record which you used:
+
+- `connector` — the MCP connector in the agent's client (what a user actually has)
 - `http` — a direct JSON-RPC POST to `<base>/mcp`
-- `in-process` — handlers imported directly (**diagnostic only, never PASS**)
+- `in-process` — handlers imported directly (**diagnostic only, never a pass**)
 
-## Verifying the transport before you start
+Before trusting an environment, issue one real read. A handshake only proves the
+route is mounted — it has answered happily while the server couldn't reach its
+database at all:
 
 ```bash
 curl -s -X POST "$BASE/mcp" \
@@ -47,11 +58,7 @@ curl -s -X POST "$BASE/mcp" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}'
 ```
 
-A successful handshake proves only that the route is mounted. It does **not**
-prove the server can reach its data backend — issue one real `tools/call`
-(step 0 of the test) before trusting the environment.
+## Stories
 
-## Tests
-
-- [`curtains-slideshow.md`](curtains-slideshow.md) — full CRUD over hooks, tone
-  and granular text settings, then a real generation with rendered slides.
+- [`curtains-slideshow.md`](curtains-slideshow.md) — a user sets up a curtains
+  slideshow, reworks its hooks and voice, generates one, and throws it away.

@@ -1,260 +1,204 @@
-# E2E: build and generate a curtains slideshow through MCP
+# E2E: "I want to post about curtains"
 
-**Executed by:** an AI agent driving the MCP tools.
-**Goal:** prove an agent can be asked to create a slideshow automation, edit its
-hooks, tone and granular text settings, and generate real slides — end to end,
-over the real transport, against the real backend.
+**Executed by:** an AI agent with the LumenClip MCP tools connected.
+**Not** a script. The agent is given what the user wants and has to work out how
+to do it. If the agent needs to be told which tool to call, the test has failed
+at something more important than the tool.
 
-**Result vocabulary:** `PASS` (assertion observed), `FAIL` (assertion not met),
-`BLOCKED` (could not run — e.g. transport unreachable). `BLOCKED` is never
-`PASS`. Report the transport you used (see README).
+## Who the user is
 
-Record the value of every `→ remember` line; later steps depend on them.
+Runs a small home-furnishing account. Knows curtains, does not know what a
+"formatting block" or a "text item id" is. Talks to Claude the way they would
+talk to an assistant, and expects to be told when something can't be done.
 
----
+## How to run this
 
-## Step 0 — Preconditions
+Play the conversation below one turn at a time. For each turn:
 
-**0.1 Transport reachable.** Issue the `initialize` handshake from the README.
-> **Assert:** `result.serverInfo.name === "lumenclip"`.
-> On failure: `BLOCKED`. Do not continue.
+1. Read **what the user says**. That is the entire input — do not read ahead.
+2. Do it.
+3. Check it against **done means**.
+4. Record PASS / FAIL / BLOCKED and, for anything the user would notice, say
+   what they'd see.
 
-**0.2 The server can reach its data backend.** Handshaking proves only that the
-route is mounted, so issue one real read:
+Rules:
 
-```json
-{"name":"lumenclip_automations_list","arguments":{"limit":1}}
-```
-> **Assert:** a result with an `items` array, and `isError` is absent/false.
-> A body of `fetch failed` means the server cannot reach Appwrite — `BLOCKED`,
-> and report the endpoint it is configured against.
-
-**0.3 An image collection exists.**
-
-```json
-{"name":"lumenclip_collections_list","arguments":{"mediaType":"image","minimumItemCount":1,"limit":20}}
-```
-> **Assert:** `total >= 1`.
-> → remember `COLLECTION_ID` = the id of a collection with the most items.
-> Curtain-specific imagery is not required; the test verifies the pipeline, and
-> image *relevance* is judged in step 8, not asserted mechanically.
+- **Don't fix the product mid-run.** If a tool is broken, record it and carry
+  on if you can. Repairing it is a separate job.
+- **Don't fake progress.** If you couldn't verify something, say so. A test that
+  reports success it didn't observe is worse than a failing one.
+- **Judge like the user would.** Several checks below are about whether copy
+  sounds right or an image fits. Give an opinion; don't reduce it to a number.
+- If the MCP tools aren't reachable at all, the run is **BLOCKED** — not a
+  failure of the product's logic, and not a pass. Say which transport you tried.
 
 ---
 
-## Step 1 — Create (C)
+## Turn 1
 
-```json
-{"name":"lumenclip_automation_create","arguments":{
-  "name":"Curtains Buying Guide","kind":"slideshow","status":"paused",
-  "requestId":"<unique-per-run>"}}
-```
-> **Assert:** an automation id is returned.
-> → remember `AUTOMATION_ID`.
-> Keep `status: "paused"` — a live automation would be picked up by the
-> scheduler mid-test.
+> "I want to start posting slideshows about curtains — the buying-guide kind of
+> thing, for people doing up a room. Can you set that up?"
 
-**Note on `expectedUpdatedAt`:** most mutating tools take an optimistic-lock
-timestamp. Re-read the automation with `lumenclip_automation_get` immediately
-before each mutation and pass the fresh `updatedAt`. A stale value is a
-legitimate conflict error, not a product bug.
+**Done means:** a slideshow automation exists, named something a human would
+recognise as this. It is **not** live yet — the user didn't ask to start
+posting, and quietly scheduling real posts would be wrong.
+
+**Watch for:** the agent inventing a name so generic the user can't find it
+later, or switching it live unasked.
 
 ---
 
-## Step 2 — Read (R)
+## Turn 2
 
-```json
-{"name":"lumenclip_automation_get","arguments":{"automationId":"<AUTOMATION_ID>"}}
-```
-> **Assert:** `automation.name === "Curtains Buying Guide"` and `automation.kind === "slideshow"`.
-> → remember `UPDATED_AT`, and the `textItems[0].id` of the `hook`, `body` and
-> `cta` blocks in `schema.formatting`.
->
-> **Do not hardcode text item ids.** They are generated per automation
-> (e.g. `text-aw0wwill`), and differ from the ids on older automations
-> (`text-body-paragraph`). Always read them from the schema.
+> "Give it a few hooks. Stuff like the mistakes people make, blackout vs sheer,
+> that kind of thing. One of them should count the tips, like '5 curtain
+> mistakes…' — I like those."
 
----
+**Done means:** several hooks exist and read like something a real account would
+post. The counting one actually counts — when it generates, the number matches
+how many tips are in the slideshow, rather than being a number someone typed in
+and that drifts out of sync.
 
-## Step 3 — Hooks: create
-
-```json
-{"name":"lumenclip_automation_hook_upsert","arguments":{
-  "automationId":"<AUTOMATION_ID>",
-  "hooks":[
-    {"text":"[[SLIDE_COUNT]] curtain mistakes that make a room look smaller"},
-    {"text":"blackout vs sheer curtains — which one actually suits you"},
-    {"text":"the curtain length nobody gets right"}]}}
-```
-> **Assert:** returned pool `total === 3`.
-> → remember `HOOK_ID` = the id of the "curtain length" hook.
->
-> `[[SLIDE_COUNT]]` is a runtime variable resolved to the rendered body-slide
-> count. It needs no word collection.
+**Watch for:** a hardcoded "5" that will be wrong the moment the slide count
+changes. Ask yourself whether the agent used the mechanism that keeps the number
+honest.
 
 ---
 
-## Step 4 — Hooks: update, disable, delete (U/D)
+## Turn 3
 
-**4.1 Update by id** (re-read `updatedAt` first):
+> "Reading them back — they sound like an ad. I want it to sound like someone
+> who's actually hung a lot of curtains and is telling you what they'd do.
+> Lowercase, no fancy words."
 
-```json
-{"name":"lumenclip_automation_hook_upsert","arguments":{
-  "automationId":"<AUTOMATION_ID>","expectedUpdatedAt":"<UPDATED_AT>",
-  "hooks":[{"id":"<HOOK_ID>","text":"the curtain length almost everyone gets wrong"}]}}
-```
-> **Assert:** the hook with `HOOK_ID` now reads "…almost everyone gets wrong",
-> and pool `total` is still 3 — an edit must not append a duplicate.
+**Done means:** the automation's tone/voice settings say this. The change is
+saved and survives a re-read.
 
-**4.2 Disable:** `lumenclip_automation_hook_set_enabled` with `enabled: false`.
-> **Assert:** that hook has `enabled === false` and is still present. Disabled
-> hooks are retained for performance attribution.
-
-**4.3 Delete:** `lumenclip_automation_hook_delete` with `confirmDelete: true`.
-> **Assert:** pool `total === 2` and `HOOK_ID` is absent.
+**Watch for:** the agent replacing the whole configuration to change one field
+and silently dropping something else (the image collection is the usual
+casualty). After this turn, everything set in turns 1–2 should still be there.
 
 ---
 
-## Step 5 — Tone
+## Turn 4
 
-Tone is not exposed by a dedicated tool. Read the automation, patch
-`schema.tone` and `schema.prompt_formatting.style`, and send the **complete**
-schema back via `lumenclip_automation_schema_update` — it is a whole-schema
-replace, so a partial object will drop configuration.
+> "That one about curtain length is weak. Actually — don't delete it yet, just
+> turn it off, I might want it back."
 
-```jsonc
-"tone": {"value":"practical and warm, like a decorator who has hung a thousand curtains","preset":"custom"},
-"prompt_formatting": {"style":"All text in lowercase. Plain, concrete, no interior-design jargon."}
-```
+then, in the same turn:
 
-Also point every image slot at `COLLECTION_ID` in the same update:
-`schema.image_collection_ids.first_slide.collection`, `.all_slides`, and
-`.cta_slide.cta_collection_id`.
+> "Nah, bin it properly."
 
-> **Assert:** re-reading shows the new `tone.value` and the collection ids.
-> Generation fails without an image collection, so this is a precondition for
-> step 7 as much as a tone check.
+**Done means:** first it stops being used but still exists; then it's gone. The
+other hooks are untouched throughout.
+
+**Watch for:** an agent that treats "turn it off" and "delete" as the same
+thing. The user explicitly distinguished them, and past performance data is
+attached to hooks — that's why disabling exists.
 
 ---
 
-## Step 6 — Granular text settings
+## Turn 5
 
-For each block, using the text item id read in step 2 and a fresh `updatedAt`:
+> "The body text is way too wordy. Keep it to a sentence or so. And each slide
+> should be one tip someone can actually go and do."
 
-| block | patch |
-|---|---|
-| `hook` | `wordLengthMin: 6, wordLengthMax: 12, contentDirection: "lowercase curtain hook", textAlign: "center"` |
-| `body` | `wordLengthMin: 12, wordLengthMax: 18, fontSize: "9px", contentDirection: "one concrete curtain tip a first-time buyer can act on today"` |
-| `cta`  | `wordLengthMin: 5, wordLengthMax: 10, contentDirection: "ask which room they're doing next"` |
+**Done means:** the per-slide text limits are tightened and the guidance for
+body slides says roughly that. The user should not have to know these live in
+three separate blocks.
 
-```json
-{"name":"lumenclip_automation_text_item_update","arguments":{
-  "automationId":"<AUTOMATION_ID>","blockId":"body","textItemId":"<BODY_TEXT_ITEM_ID>",
-  "expectedUpdatedAt":"<UPDATED_AT>","patch":{ }}}
-```
-> **Assert:** each patched field reads back with the value you set.
-
-Then set slide counts so there is something to render:
-
-```json
-{"name":"lumenclip_automation_formatting_update","arguments":{
-  "automationId":"<AUTOMATION_ID>","blockId":"body","expectedUpdatedAt":"<UPDATED_AT>",
-  "patch":{"slideCountMode":"static","slideCount":4,"aiImageSelection":true,"overlay":true}}}
-```
-and the same for `cta` with `slideCount: 1, ctaLocation: "last"`.
-> **Assert:** `body.slideCount === 4` and `cta.slideCount === 1` on read-back.
+**Watch for:** the agent changing the hook or CTA limits by mistake, or setting
+limits so tight that generation can't satisfy them.
 
 ---
 
-## Step 7 — Generate
+## Turn 6
 
-```json
-{"name":"lumenclip_slideshow_generate","arguments":{
-  "automationId":"<AUTOMATION_ID>","requestId":"<unique-per-run>"}}
-```
-This runs the real generator: text generation, visual-concept derivation,
-image ranking and selection, then rasterisation. Expect roughly 30–60s.
+> "Alright, make one and show me."
 
-> **Assert:** a run is returned with `status` not `failed`, and `slideCount === 6`
-> (1 hook + 4 body + 1 cta).
-> → remember `OUTPUT_ID` (the slideshow id) and the returned `slides` links.
->
-> **Assert:** each slide entry carries a `renderedImageUrl`.
-> **Assert:** the response includes a `violations` array — word-range misses are
-> reported here and must **not** fail the run. A non-empty `violations` with a
-> successful run is a PASS, not a FAIL.
->
-> On failure, capture the error verbatim. Provider errors carry the real cause
-> in `metadata`; a bare message means the diagnostics regressed and that is
-> itself a finding.
+**Done means:** a slideshow is generated and the user is shown the actual
+slides — images with the text on them, not a JSON blob or a list of ids.
 
----
+**Watch for, and report:**
 
-## Step 8 — Verify the output
+- **Can you see the words?** Open a rendered slide and look. Text rendering has
+  failed silently before — every character came out as a `□` box — and nothing
+  in the automated suite catches it, because a laptop with fonts installed
+  renders fine even when the bundled font is missing. This is the single most
+  important check in this test.
+- **Does it sound like turn 3?** Practical, lowercase, plain. If it reads like
+  a brochure, the tone setting isn't reaching the writer.
+- **Is it about curtains?** Every slide should be a real curtain tip.
+- **Do the images fit?** They're picked from whatever collection is available,
+  which may not be curtain photography — say what you see rather than failing
+  on it.
+- **Did the counting hook resolve?** If it was chosen, the number should match
+  the number of tips.
+- If the copy slightly overshoots the limits from turn 5, that's **not** a
+  failure — those are reported as warnings alongside the draft by design.
+  Failing the whole generation over one long sentence would be the bug.
 
-```json
-{"name":"lumenclip_output_get","arguments":{"outputId":"<OUTPUT_ID>"}}
-```
-> **Assert:** `actualSlideCount === 6`, `bodySlideCount === 4`.
-> **Assert:** every slide has non-empty `renderedText` and a `renderedImageUrl`.
-> **Assert:** the resolved hook is one of the two surviving hooks from step 4.
-> **Assert:** if the hook contains `[[SLIDE_COUNT]]`, the resolved text contains
-> the body-slide count (`4`), not the literal token.
-
-**Then actually look at a rendered slide.** Fetch `renderedImageUrl` for slide 2
-and view it.
-> **Assert:** the text is legible — real glyphs, not `□` tofu boxes. This is the
-> only check that catches a missing font in the render environment; no
-> programmatic assertion in the suite covers it, because a host with system
-> fonts renders fine even when the bundled font is absent.
-> **Judge, and report in prose:** does the copy read as the configured tone, and
-> is the chosen image plausibly related to the slide's subject? These are
-> qualitative — report them, do not fail the run on them.
+**Also:** nothing should have been posted anywhere. The user asked to see it.
 
 ---
 
-## Step 9 — Clean up
+## Turn 7
 
-```json
-{"name":"lumenclip_automation_delete","arguments":{
-  "automationId":"<AUTOMATION_ID>","requestId":"<unique-per-run>","confirmDelete":true}}
-```
-> **Assert:** the automation no longer appears in `lumenclip_automations_list`.
-> This cascades its generated slideshows, runs, queue jobs and draft
-> publications. Skip only if handing the run to a human — and say so.
+> "Cool. Get rid of it, I was just trying it out."
 
----
+**Done means:** the automation and what it generated are gone, and the user is
+told what was removed.
 
-## Reporting template
-
-```
-transport: connector | http | in-process
-backend:   <APPWRITE_ENDPOINT the server is configured against>
-
-step 0 preconditions      PASS/FAIL/BLOCKED
-step 1 create             …
-step 2 read               …
-step 3 hooks create       …
-step 4 hooks u/d          …
-step 5 tone               …
-step 6 text settings      …
-step 7 generate           …
-step 8 verify output      …
-step 9 cleanup            …
-
-qualitative: <tone fidelity, image relevance, anything surprising>
-findings:    <product bugs observed, with exact tool + args + response>
-```
+**Watch for:** leftovers — generated slideshows, queued jobs, draft posts. If
+anything survives, say what.
 
 ---
 
-## Known state at time of writing (2026-07-25)
+## Reporting
 
-- Steps 1–6 have been observed `PASS` in-process against the VPS backend
-  (`http://66.42.56.29/v1`). That is `in-process` transport, so by the rule
-  above it is **not** a passing run of this test.
-- The deployed endpoint (`https://cfarm-eight.vercel.app/mcp`) **handshakes**
-  but every `tools/call` returns `fetch failed`, i.e. the deployed app cannot
-  reach its Appwrite backend — step 0.2 is currently `BLOCKED` there. Likely its
-  environment still points at the exhausted Appwrite Cloud project rather than
-  the VPS, and its `APPWRITE_ENDPOINT` needs updating.
-- Steps 7–9 have never been run over a real transport.
+Write it as a short account of how the conversation went, not a table dump:
+
+```
+transport: <connector / direct http / none — BLOCKED>
+backend:   <which environment the tools were talking to>
+
+turn 1 …  PASS/FAIL/BLOCKED — one line on what the user would have seen
+…
+turn 7 …
+
+did it work?      <would this user have gotten what they wanted?>
+what looked off?  <tone, imagery, anything clumsy>
+bugs found        <exact tool, what you sent, what came back>
+friction          <where the agent had to guess, or the user would've been confused>
+```
+
+The last line matters most. If the agent had to guess at something the user
+never said, that's a gap in the tools or their descriptions — and it's the kind
+of thing only this test will surface.
+
+---
+
+## Notes for whoever runs this
+
+A few things that have bitten before, worth knowing but not worth telling the
+agent up front — if the agent trips on them, that *is* the finding:
+
+- Ids for individual text items are generated per automation. Anything that
+  assumes a fixed name will fail on a fresh one.
+- The schema update tool replaces the whole schema rather than patching it.
+- Most edits take an optimistic-lock timestamp; re-read before each write.
+- A successful MCP handshake does **not** mean the server can reach its
+  database. Issue one real read before trusting the environment.
+- Running the tool handlers in-process proves the handlers work, not the wiring
+  the user actually goes through. That's `BLOCKED`, not `PASS`.
+
+## Known state (2026-07-25)
+
+Turns 1–5 have been observed working, but only by calling the handlers directly
+rather than over a real connection — so by the rule above, this test has **not
+yet passed**. Turns 6–7 have never been run over a real connection.
+
+The deployed endpoint answers a handshake but fails every actual call with
+`fetch failed`: it can't reach its database, most likely because its hosting
+environment still points at the exhausted Appwrite Cloud project instead of the
+current server.
