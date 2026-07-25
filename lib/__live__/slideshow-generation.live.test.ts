@@ -25,7 +25,11 @@ const automation: TempSlideTestingAutomation = {
   id: "live-slideshow-generation",
   name: "Live slideshow generation",
   theme: "testing",
-  hooks: ["two visual checks that catch broken slideshow exports"],
+  // A concrete-noun hook, like the ones real automations use. Meta hooks
+  // ("ways to test hooks") trip outputDevelopsHookSubject, which matches whole
+  // words without stemming, and that would make this test about the gate
+  // rather than about generation and rendering.
+  hooks: ["three things a scorpio will never tell you"],
   tone: "direct",
   style: "plain language",
   imageCollectionIds: { hook: "live", content: "live", cta: "" },

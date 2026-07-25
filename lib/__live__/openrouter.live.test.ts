@@ -38,7 +38,7 @@ const templateRecord: any = {
       all_slides: "collection-content",
       cta_slide: { cta_collection_id: "collection-cta" },
     }),
-    hooks: ["3 ways to test hooks"],
+    hooks: ["3 ways to keep a small kitchen tidy"],
     format: {
       hook: {
         aspect_ratio: "9:16",
@@ -85,7 +85,7 @@ const templateRecord: any = {
             text_item_width: "80%",
             word_length_min: 4,
             word_length_max: 8,
-            content_direction: "specific numbered point",
+            content_direction: "one specific numbered tip about the hook's subject",
             text_mode: "prompt",
             static_text: "",
             text_align: "center",
@@ -141,7 +141,7 @@ describe.skipIf(!process.env.RUN_LIVE)("LIVE OpenRouter — slideshow text gener
       automation,
       apiKey,
       model: "google/gemini-2.5-flash",
-      selectedHook: "3 ways to test hooks",
+      selectedHook: "3 ways to keep a small kitchen tidy",
     })
 
     console.log("\nLIVE OpenRouter raw result:", JSON.stringify(res.result, null, 2))
@@ -181,7 +181,7 @@ describe.skipIf(!process.env.RUN_LIVE)("LIVE OpenRouter — slideshow text gener
         automation,
         apiKey,
         model,
-        selectedHook: "3 ways to test hooks",
+        selectedHook: "3 ways to keep a small kitchen tidy",
       })
       console.log(
         `\n[${model}] hashtags=${JSON.stringify(res.result.hashtags)} title=${JSON.stringify(res.result.title)}`
@@ -196,7 +196,7 @@ describe.skipIf(!process.env.RUN_LIVE)("LIVE OpenRouter — slideshow text gener
     const res = await generateSlideshowText({
       automation,
       apiKey,
-      selectedHook: "3 ways to test hooks",
+      selectedHook: "3 ways to keep a small kitchen tidy",
       avoidSimilarOutputs: ["Three simple testing tricks", "Test smarter today"],
     })
     expect(res.skippedOpenRouter).toBe(false)

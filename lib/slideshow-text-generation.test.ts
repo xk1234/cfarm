@@ -397,3 +397,26 @@ describe("slideshow text structured output", () => {
     ).rejects.toThrow(/title must not be empty/)
   })
 })
+
+describe("hook subject coverage", () => {
+  const body = (text: string) => ({ text: { "content-1__a": text } })
+
+  it("accepts copy that develops the hook in a different inflection", () => {
+    // Rejecting this discarded whole generations that were perfectly on-topic.
+    expect(
+      outputDevelopsHookSubject(
+        body("small kitchens stay tidier when everything has a home"),
+        "3 ways to keep a small kitchen tidy"
+      )
+    ).toBe(true)
+  })
+
+  it("still rejects copy that drifts off the hook subject", () => {
+    expect(
+      outputDevelopsHookSubject(
+        body("bright red sports cars depreciate fast"),
+        "3 ways to keep a small kitchen tidy"
+      )
+    ).toBe(false)
+  })
+})

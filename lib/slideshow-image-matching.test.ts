@@ -117,7 +117,9 @@ describe("slideshow AI image matching", () => {
     expect(content).toContain("three ways to create a calmer bathroom")
     expect(content).toContain("minimal bathroom")
     expect(content).toContain("Candidate 0")
-    expect(content).toContain('"type":"image_url"')
+    // No image blocks: providers fetch those server-side and reject many hosts,
+    // which failed the whole selection. Captions carry the signal instead.
+    expect(content).not.toContain('"type":"image_url"')
 
     const schema = payload.response_format.json_schema.schema
     expect(schema.properties.selectedImageIndex).toEqual({ type: "integer" })

@@ -11,6 +11,12 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL(".", import.meta.url)),
+      // Same stub the unit config uses. Without it every live test that
+      // reaches a server-only module fails to import, which is why the whole
+      // live suite has never run.
+      "server-only": fileURLToPath(
+        new URL("./test/server-only.ts", import.meta.url)
+      ),
     },
   },
 })

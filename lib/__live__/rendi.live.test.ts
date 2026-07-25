@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs"
 import { readFileSync, statSync } from "node:fs"
 import { resolve } from "node:path"
 
@@ -23,10 +24,12 @@ function loadEnvKey(name: string): string | undefined {
 }
 
 const apiKey = loadEnvKey("RENDI_API_KEY")
-const INPUT = "/tmp/rendi_in.mp4"
+const INPUT = process.env.RENDI_TEST_INPUT || "/tmp/rendi_in.mp4"
 const OUTPUT = "/tmp/rendi_out.mp4"
 
-describe.skipIf(!process.env.RUN_LIVE)("LIVE Rendi — upload + ffmpeg + download (A5 video templates)", () => {
+// Skip rather than fail when the sample clip is absent: a live test whose
+// fixture is missing tells you nothing about Rendi.
+describe.skipIf(!process.env.RUN_LIVE || !existsSync(INPUT))("LIVE Rendi — upload + ffmpeg + download (A5 video templates)", () => {
   it("uploads a real file, runs a real ffmpeg command, downloads the output", async () => {
     expect(apiKey, "RENDI_API_KEY must be present").toBeTruthy()
 

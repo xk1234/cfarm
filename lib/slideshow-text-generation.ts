@@ -498,9 +498,19 @@ export function outputDevelopsHookSubject(output: unknown, hook: string) {
   if (!subjects?.length) {
     return true
   }
-  return subjects.some((subject) =>
-    new RegExp(`\\b${escapeRegExp(subject)}\\b`, "i").test(body)
-  )
+  // Whole-word matching alone rejects copy that develops the hook in a
+  // different inflection ("kitchens" for "kitchen", "tidying" for "tidy"),
+  // which fails an otherwise good generation. Accept a shared stem for
+  // subjects long enough that a prefix match still means the same thing.
+  const bodyWords = body.match(/[a-z0-9]+(?:-[a-z0-9]+)*/g) ?? []
+  return subjects.some((subject) => {
+    if (new RegExp(`\\b${escapeRegExp(subject)}\\b`, "i").test(body)) return true
+    if (subject.length < 5) return false
+    const stem = subject.slice(0, Math.max(4, subject.length - 2))
+    return bodyWords.some(
+      (word) => word.startsWith(stem) || subject.startsWith(word.slice(0, stem.length))
+    )
+  })
 }
 
 function escapeRegExp(value: string) {

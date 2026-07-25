@@ -18,6 +18,22 @@ const stopWords = new Set([
     "she", "that", "the", "their", "them", "they", "this", "to", "was",
     "what", "when", "who", "will", "with", "you", "your",
 ]);
+/** Keep the provider's status and reason; a bare message hides the cause. */
+function providerErrorMessage(label) {
+    return (response, payload) => {
+        const error = payload
+            ?.error;
+        return [
+            `${label} (${response.status})`,
+            error?.message,
+            error?.metadata
+                ? `metadata=${JSON.stringify(error.metadata).slice(0, 400)}`
+                : "",
+        ]
+            .filter(Boolean)
+            .join(" | ");
+    };
+}
 function tokenize(value) {
     return clean(value)
         .toLowerCase()
@@ -137,12 +153,11 @@ export function slideshowImageMatchingPayload(input) {
             type: "text",
             text: `Candidate ${index}: ${clean(candidate.caption) || "No caption available"}`,
         });
-        if (/^https?:\/\//i.test(candidate.imageUrl)) {
-            content.push({
-                type: "image_url",
-                image_url: { url: candidate.imageUrl },
-            });
-        }
+        // Deliberately no `image_url` block. Providers fetch those server-side and
+        // refuse plenty of hosts ("This URL is disallowed by the website's
+        // robots.txt file"), which fails the whole selection. Captions already
+        // describe the image and are what the local ranker scores, so attaching
+        // the bytes adds cost and a failure mode without adding signal.
     }
     return {
         model: clean(input.model) || defaultSlideshowTextModel,
@@ -195,7 +210,7 @@ export async function deriveSlideVisualConcepts(input) {
         }, {
             fetchImpl: input.fetchImpl,
             timeoutMs: 60_000,
-            errorMessage: () => "Visual concept derivation failed",
+            errorMessage: providerErrorMessage("Visual concept derivation failed"),
         });
         const parsed = parsedContent(response);
         if (!parsed?.slides)
@@ -235,7 +250,7 @@ export async function selectSlideshowImageWithAi(input) {
     }, {
         fetchImpl: input.fetchImpl,
         timeoutMs: 60_000,
-        errorMessage: () => "AI image matching failed",
+        errorMessage: providerErrorMessage("AI image matching failed"),
     });
     const parsed = parsedContent(response);
     const index = parsed?.selectedImageIndex;
