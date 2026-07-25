@@ -158,4 +158,4 @@ Several tools named in `mcp/` do not exist — `lumenclip_slideshow_create`,
 `lumenclip_automation_preview` are proposals. The callable names are the ones above.
 
 Previous: [Creating a collection](/docs/workflows/create-collection) ·
-Next: [Scheduling posts](/docs/workflows/schedule-posts)
+Next: [Testing automation variations](/docs/workflows/test-automation-variations)
