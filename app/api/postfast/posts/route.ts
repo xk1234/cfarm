@@ -125,7 +125,7 @@ export async function POST(request: Request) {
       scheduledAt: stringValue(payload?.date),
       publishedAt: posted ? stringValue(payload?.date) : undefined,
       releaseUrl,
-      externallyManaged: true,
+      linkState: "manually_linked",
       content,
       media,
     })

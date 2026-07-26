@@ -7,6 +7,7 @@ import {
   writeOutputPublications,
 } from "@/lib/output-publications"
 import type { PostFastMedia } from "@/lib/postfast-client"
+import type { PublicationLinkState } from "@/lib/publication-link-state"
 
 export type PostFastPostStatus =
   | "awaiting_manual_post"
@@ -38,6 +39,8 @@ export type PostFastAnalyticsMetric = {
   percentageChange?: number
 }
 
+export type PostFastStatsSource = "postfast" | "tiktok_studio"
+
 export type PostFastPostRecord = {
   id: string
   sourceType: PostFastSourceType
@@ -49,6 +52,9 @@ export type PostFastPostRecord = {
   scheduledAt?: string
   publishedAt?: string
   releaseUrl?: string
+  linkState: PublicationLinkState
+  statsSources: PostFastStatsSource[]
+  /** @deprecated Read-only compatibility for pre-migration records. */
   externallyManaged?: boolean
   externalPostId?: string
   content: string
@@ -133,7 +139,10 @@ export async function upsertPostFastPostRecord(
         ? (existing?.publishedAt ?? now)
         : existing?.publishedAt),
     releaseUrl: clean(input.releaseUrl) || existing?.releaseUrl,
-    externallyManaged: input.externallyManaged ?? existing?.externallyManaged,
+    linkState: input.linkState ?? existing?.linkState ?? "unlinked",
+    statsSources: normalizeStatsSources(
+      input.statsSources ?? existing?.statsSources
+    ),
     externalPostId: clean(input.externalPostId) || existing?.externalPostId,
     content: input.content,
     media: input.media,
@@ -191,6 +200,8 @@ export async function patchPostFastPostRecord(input: {
   publishedAt?: string | null
   postfastPostId?: string
   releaseUrl?: string
+  linkState?: PublicationLinkState
+  statsSources?: PostFastStatsSource[]
   error?: string | null
 }) {
   const records = await readPostFastPostRecords()
@@ -220,6 +231,11 @@ export async function patchPostFastPostRecord(input: {
       input.releaseUrl === undefined
         ? current.releaseUrl
         : clean(input.releaseUrl) || undefined,
+    linkState: input.linkState ?? current.linkState,
+    statsSources:
+      input.statsSources === undefined
+        ? current.statsSources
+        : normalizeStatsSources(input.statsSources),
     error:
       input.error === undefined
         ? current.error
@@ -233,6 +249,35 @@ export async function patchPostFastPostRecord(input: {
   )
   await recordHookPublication(updated)
   return updated
+}
+
+export async function addPostFastPostStatsSources(
+  sourcesByPostId: ReadonlyMap<string, readonly PostFastStatsSource[]>
+) {
+  if (sourcesByPostId.size === 0) return 0
+  const records = await readPostFastPostRecords()
+  let changed = 0
+  const now = new Date().toISOString()
+  const next = records.map((record) => {
+    const incoming = sourcesByPostId.get(record.id)
+    if (!incoming?.length) return record
+    const statsSources = normalizeStatsSources([
+      ...record.statsSources,
+      ...incoming,
+    ])
+    if (
+      statsSources.length === record.statsSources.length &&
+      statsSources.every(
+        (source, index) => source === record.statsSources[index]
+      )
+    ) {
+      return record
+    }
+    changed += 1
+    return { ...record, statsSources, updatedAt: now }
+  })
+  if (changed > 0) await writePostFastPostRecords(undefined, next)
+  return changed
 }
 
 async function recordHookPublication(record: PostFastPostRecord) {
@@ -310,7 +355,13 @@ async function writePostFastPostRecords(
   _rootDir: string | undefined,
   records: PostFastPostRecord[]
 ) {
-  await writeOutputPublications(records)
+  await writeOutputPublications(
+    records.map((record) => {
+      const persisted = { ...record }
+      delete persisted.externallyManaged
+      return persisted
+    })
+  )
 }
 
 function normalizeRecord(
@@ -330,12 +381,29 @@ function normalizeRecord(
     status: isStatus(record.status) ? record.status : "draft",
     content: clean(record.content),
     media: Array.isArray(record.media) ? record.media : [],
+    linkState:
+      record.linkState === "postfast_published" ||
+      record.linkState === "manually_linked"
+        ? record.linkState
+        : record.externallyManaged === true
+          ? "manually_linked"
+          : "unlinked",
+    statsSources: normalizeStatsSources(record.statsSources),
     createdAt: clean(record.createdAt) || new Date().toISOString(),
     updatedAt:
       clean(record.updatedAt) ||
       clean(record.createdAt) ||
       new Date().toISOString(),
   }
+}
+
+function normalizeStatsSources(
+  values: readonly PostFastStatsSource[] | undefined
+): PostFastStatsSource[] {
+  const sources = new Set(values ?? [])
+  return (["postfast", "tiktok_studio"] as const).filter((source) =>
+    sources.has(source)
+  )
 }
 
 function isStatus(value: unknown): value is PostFastPostStatus {

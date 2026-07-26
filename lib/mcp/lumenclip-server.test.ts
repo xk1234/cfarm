@@ -651,6 +651,8 @@ describe("LumenClip MCP server", () => {
       sourceId: "slideshow-review",
       integrationId: "tiktok-1",
       provider: "tiktok",
+      linkState: "unlinked" as const,
+      statsSources: [],
       status: "ready_for_review" as const,
       content: "Review me",
       media: [],
@@ -787,6 +789,8 @@ describe("LumenClip MCP server", () => {
       sourceId: run.slideshowId!,
       integrationId: "tiktok-1",
       provider: "tiktok",
+      linkState: "postfast_published" as const,
+      statsSources: ["tiktok_studio" as const],
       status: "published" as const,
       content: "Cancer secrets",
       media: [],
@@ -995,7 +999,9 @@ describe("LumenClip MCP server", () => {
       },
     ])
     const shareUrl = summary.shareUrl as string
-    expect(shareUrl.startsWith("/share/slideshows/slideshow-1?token=")).toBe(true)
+    expect(shareUrl.startsWith("/share/slideshows/slideshow-1?token=")).toBe(
+      true
+    )
     const token = shareUrl.split("token=")[1] ?? ""
     expect(verifySlideshowShareToken(token, "slideshow-1")).toMatchObject({
       ownerId: "owner-1",
@@ -1070,10 +1076,7 @@ describe("LumenClip MCP server", () => {
   it("runs a slideshow through the general retry-safe automation tool", async () => {
     const current = automationRecord()
     const run = generatedRun(current.id)
-    run.plan.slides[0].text = Array.from(
-      { length: 20 },
-      () => "word"
-    ).join(" ")
+    run.plan.slides[0].text = Array.from({ length: 20 }, () => "word").join(" ")
     const generate = vi.fn(async () => ({
       created: [run],
       results: [],
@@ -1624,6 +1627,8 @@ describe("LumenClip MCP server", () => {
       sourceId: run.slideshowId!,
       integrationId: "account-1",
       provider: "tiktok",
+      linkState: "postfast_published" as const,
+      statsSources: [],
       status: "published" as const,
       content: "Already published",
       media: [],
@@ -1673,6 +1678,8 @@ describe("LumenClip MCP server", () => {
       sourceId: run.slideshowId!,
       integrationId: "account-1",
       provider: "tiktok",
+      linkState: "postfast_published" as const,
+      statsSources: [],
       status: "published" as const,
       content: "Generated caption",
       media: [{ key: "uploaded-1", type: "IMAGE" as const }],
@@ -1768,6 +1775,8 @@ describe("MCP analytics report", () => {
           sourceId: "slideshow-1",
           integrationId: "tiktok-current",
           provider: "tiktok",
+          linkState: "postfast_published",
+          statsSources: ["tiktok_studio"],
           status: "published",
           content: "Cancer secrets",
           media: [],

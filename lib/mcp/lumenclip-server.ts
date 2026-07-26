@@ -40,10 +40,7 @@ import {
   markGeneratedVideoExportPublished,
   type GeneratedVideoExport,
 } from "@/lib/generated-videos"
-import {
-  absoluteAssetUrl,
-  slideshowShareLink,
-} from "@/lib/asset-urls"
+import { absoluteAssetUrl, slideshowShareLink } from "@/lib/asset-urls"
 import { listAssetRecords } from "@/lib/assets"
 import { deleteAutomationCascade } from "@/lib/delete-automation"
 import { clean, isRecord } from "@/lib/guards"
@@ -76,6 +73,7 @@ import {
   type PostFastPostRecord,
   type PostFastSourceType,
 } from "@/lib/postfast-posts"
+import { publicationLinkState as resolvedPublicationLinkState } from "@/lib/publication-link-state"
 import { publishPost } from "@/lib/publishing"
 import { enqueueJob, getJob, listJobs, type Job } from "@/lib/queue"
 import type { Automation } from "@/lib/realfarm-data"
@@ -1141,23 +1139,26 @@ function registerAutomationReadAndRunTools(
         await owned(async () => {
           const standard = await services.getAutomationRecord(automationId)
           if (standard) {
-            const [runs, wordCollections, mediaCollections] = await Promise.all([
-              services.listAutomationRuns({
-                automationId,
-                limit: 1,
-              }),
-              services.listWordCollections(),
-              services.listImageCollections(),
-            ])
+            const [runs, wordCollections, mediaCollections] = await Promise.all(
+              [
+                services.listAutomationRuns({
+                  automationId,
+                  limit: 1,
+                }),
+                services.listWordCollections(),
+                services.listImageCollections(),
+              ]
+            )
             const lastRun = runs[0]
             const variableBindings = deriveAutomationVariableBindings({
               schema: standard.schema,
               collections: wordCollections,
             })
-            const collectionReferences = normalizeAutomationCollectionReferences(
-              standard.schema,
-              mediaCollections
-            )
+            const collectionReferences =
+              normalizeAutomationCollectionReferences(
+                standard.schema,
+                mediaCollections
+              )
             return {
               automation: {
                 ...serializeStandardAutomation(standard),
@@ -1175,8 +1176,7 @@ function registerAutomationReadAndRunTools(
                   standard.schema.automationKind === "slideshow" ||
                   standard.schema.automationKind === "ugc",
                 linkedCollections: collectionReferences.ids,
-                unresolvedCollectionReferences:
-                  collectionReferences.unresolved,
+                unresolvedCollectionReferences: collectionReferences.unresolved,
                 linkedAccounts:
                   standard.schema.social_integrations.map(safeAccount),
                 publishingPolicy: {
@@ -1775,9 +1775,7 @@ function registerAutomationReadAndRunTools(
       },
     },
     async (input) =>
-      mcpResult(
-        await owned(() => runAutomationDraft(services, input, ownerId))
-      )
+      mcpResult(await owned(() => runAutomationDraft(services, input, ownerId)))
   )
 }
 
@@ -2871,10 +2869,15 @@ function registerOutputAndPublishingTools(
             const automation = await services.getAutomationRecord(
               regular.automationId
             )
-            return regularOperation(regular, false, {
-              schema: automation?.schema,
-              priorRuns: regularRuns,
-            }, ownerId)
+            return regularOperation(
+              regular,
+              false,
+              {
+                schema: automation?.schema,
+                priorRuns: regularRuns,
+              },
+              ownerId
+            )
           }
           const social = await services.getXAutomationRun(operationId)
           if (social) return socialOperation(social)
@@ -3135,14 +3138,17 @@ async function runAutomationDraft(
       automationId: input.automationId,
       limit: 100,
     })
-    const existing = priorRuns.find(
-      (run) => run.requestId === input.requestId
-    )
+    const existing = priorRuns.find((run) => run.requestId === input.requestId)
     if (existing) {
-      return regularOperation(existing, true, {
-        schema: standard.schema,
-        priorRuns,
-      }, ownerId)
+      return regularOperation(
+        existing,
+        true,
+        {
+          schema: standard.schema,
+          priorRuns,
+        },
+        ownerId
+      )
     }
 
     const result = await services.runDueAutomations({
@@ -3159,10 +3165,15 @@ async function runAutomationDraft(
         now: services.now(),
       })
     }
-    return regularOperation(run, false, {
-      schema: standard.schema,
-      priorRuns,
-    }, ownerId)
+    return regularOperation(
+      run,
+      false,
+      {
+        schema: standard.schema,
+        priorRuns,
+      },
+      ownerId
+    )
   }
 
   const social = await services.getXAutomation(input.automationId)
@@ -3828,9 +3839,7 @@ async function getAutomationOutput(
       const textItems = (
         renderedSlide?.textItems ??
         planSlide.textItems ??
-        (planSlide.text
-          ? [{ id: "text", text: planSlide.text }]
-          : [])
+        (planSlide.text ? [{ id: "text", text: planSlide.text }] : [])
       ).map((item) => ({ id: item.id, text: item.text }))
       const section = automation
         ? automationFormatSection(
@@ -4013,8 +4022,11 @@ function publicationState(
   publications: PostFastPostRecord[],
   manuallyPublishedAt?: string
 ): OutputSummary["publicationState"] {
-  if (publications.some((item) => item.status === "published")) {
-    return "published"
+  const published = publications.find((item) => item.status === "published")
+  if (published) {
+    return resolvedPublicationLinkState(published).state === "unlinked"
+      ? "published_unlinked"
+      : "published"
   }
   if (manuallyPublishedAt) return "published_unlinked"
   if (publications.some((item) => item.status === "scheduled"))
@@ -4083,7 +4095,7 @@ function regularOperation(
             outputImages: run.outputImages ?? [],
             slides: buildRunSlides(run),
             shareUrl: ownerId
-              ? slideshowShareLink({ ownerId, outputId }) ?? undefined
+              ? (slideshowShareLink({ ownerId, outputId }) ?? undefined)
               : undefined,
             resourceUri: `lumenclip://outputs/${encodeURIComponent(outputId)}`,
           },
@@ -5806,8 +5818,7 @@ function buildRunSlides(run: AutomationRunRecord) {
   return run.plan.slides.map((planSlide, index) => {
     const renderedSlide = run.renderedSlides?.[index]
     const renderedPath = run.outputImages?.[index] ?? ""
-    const sourcePath =
-      renderedSlide?.sourceImageUrl ?? planSlide.imageUrl ?? ""
+    const sourcePath = renderedSlide?.sourceImageUrl ?? planSlide.imageUrl ?? ""
     return {
       index: index + 1,
       role: planSlide.role,
@@ -5830,7 +5841,8 @@ function generatedRunSummary(run: AutomationRunRecord, ownerId: string) {
     outputImages: run.outputImages,
     slides: buildRunSlides(run),
     shareUrl: run.slideshowId
-      ? slideshowShareLink({ ownerId, outputId: run.slideshowId }) ?? undefined
+      ? (slideshowShareLink({ ownerId, outputId: run.slideshowId }) ??
+        undefined)
       : undefined,
     createdAt: run.createdAt,
     error: run.error,

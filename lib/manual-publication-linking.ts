@@ -55,7 +55,7 @@ export async function linkPublishedOutput(input: {
     publishedAt: clean(input.publishedAt),
     releaseUrl: parsed.releaseUrl,
     externalPostId: parsed.externalPostId,
-    externallyManaged: true,
+    linkState: "manually_linked",
     content: clean(input.content),
     media: input.media ?? [],
   })

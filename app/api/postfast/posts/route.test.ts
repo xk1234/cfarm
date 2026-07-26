@@ -237,7 +237,7 @@ describe("POST /api/postfast/posts", () => {
       sourceType: "slideshow",
       sourceId: "slideshow-generated-1",
       status: "published",
-      externallyManaged: true,
+      linkState: "manually_linked",
       externalPostId: "7512345678901234567",
       releaseUrl: "https://www.tiktok.com/@creator/video/7512345678901234567",
     })

@@ -118,6 +118,7 @@ export async function appendMetricSnapshots(
     key: "snapshots",
     records,
   })
+  await syncPublicationStatsSources(records)
   return records
 }
 
@@ -139,7 +140,24 @@ export async function upsertMetricSnapshot(snapshot: PostFastMetricSnapshot) {
     record: snapshot,
     position: "first",
   })
+  await syncPublicationStatsSources([snapshot])
   return snapshot
+}
+
+async function syncPublicationStatsSources(
+  snapshots: readonly PostFastMetricSnapshot[]
+) {
+  const sourcesByPostId = new Map<string, Array<"postfast" | "tiktok_studio">>()
+  for (const snapshot of snapshots) {
+    const source =
+      snapshot.source === "tiktok_studio" ? "tiktok_studio" : "postfast"
+    sourcesByPostId.set(snapshot.postId, [
+      ...(sourcesByPostId.get(snapshot.postId) ?? []),
+      source,
+    ])
+  }
+  const { addPostFastPostStatsSources } = await import("@/lib/postfast-posts")
+  await addPostFastPostStatsSources(sourcesByPostId)
 }
 
 export function listFollowerSnapshots() {

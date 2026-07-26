@@ -150,6 +150,7 @@ const captureDates = [
 export function buildAnalyticsPreviewData(): AnalyticsPayload {
   const integrations: AnalyticsPayload["integrations"] = []
   const snapshots: AnalyticsPayload["snapshots"] = []
+  const publications: AnalyticsPayload["publications"] = []
   const followerSnapshots: AnalyticsPayload["followerSnapshots"] = []
   const capabilities: AnalyticsPayload["capabilities"] = {}
 
@@ -235,6 +236,7 @@ export function buildAnalyticsPreviewData(): AnalyticsPayload {
   return {
     integrations,
     snapshots,
+    publications,
     followerSnapshots,
     capabilities,
     days: 30,

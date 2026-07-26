@@ -1,0 +1,60 @@
+import type {
+  PostFastPostRecord,
+  PostFastStatsSource,
+} from "@/lib/postfast-posts"
+
+export const PUBLICATION_LINK_STATES = [
+  "postfast_published",
+  "manually_linked",
+  "unlinked",
+] as const
+
+export type PublicationLinkState = (typeof PUBLICATION_LINK_STATES)[number]
+
+type PublicationLinkStateRecord = Pick<
+  PostFastPostRecord,
+  "linkState" | "statsSources"
+> & {
+  /** @deprecated Read compatibility for records created before linkState. */
+  externallyManaged?: boolean
+}
+
+export function publicationLinkState(
+  record: Partial<PublicationLinkStateRecord>
+): {
+  state: PublicationLinkState
+  hasApiStats: boolean
+  hasStudioStats: boolean
+  label: string
+  description: string
+} {
+  const state =
+    record.linkState ??
+    (record.externallyManaged === true ? "manually_linked" : "unlinked")
+  const statsSources = new Set<PostFastStatsSource>(record.statsSources ?? [])
+  const copy = {
+    postfast_published: {
+      label: "PostFast linked",
+      description:
+        "Published through PostFast with automatic publication attribution.",
+    },
+    manually_linked: {
+      label: "Manually linked",
+      description: "Published elsewhere and linked to LumenClip by hand.",
+    },
+    unlinked: {
+      label: "Unlinked",
+      description:
+        "The publication exists, but its publishing and attribution state is unknown.",
+    },
+  } satisfies Record<
+    PublicationLinkState,
+    { label: string; description: string }
+  >
+  return {
+    state,
+    hasApiStats: statsSources.has("postfast"),
+    hasStudioStats: statsSources.has("tiktok_studio"),
+    ...copy[state],
+  }
+}
