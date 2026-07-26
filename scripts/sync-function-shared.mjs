@@ -163,6 +163,69 @@ const generatedModules = [
     source: "lib/postfast-provider-controls.ts",
     target: "appwrite/functions/job-worker/src/postfast-provider-controls.js",
   },
+  {
+    source: "lib/slideshow-publishing-config.ts",
+    target: "appwrite/functions/job-worker/src/slideshow-publishing-config.js",
+  },
+  {
+    source: "lib/poll.ts",
+    target: "appwrite/functions/job-worker/src/poll.js",
+    imports: {
+      "@/lib/guards": "./guards.js",
+    },
+  },
+  {
+    source: "lib/postfast-client.ts",
+    target: "appwrite/functions/job-worker/src/postfast-client.js",
+    imports: {
+      "@/lib/guards": "./guards.js",
+      "@/lib/http": "./http.js",
+    },
+  },
+  {
+    source: "lib/deepl-translate.ts",
+    target: "appwrite/functions/job-worker/src/deepl-translate.js",
+    imports: {
+      "@/lib/http": "./http.js",
+      "@/lib/slideshow-publishing-config": "./slideshow-publishing-config.js",
+    },
+  },
+  {
+    source: "lib/slideshow-plan-core.ts",
+    target: "appwrite/functions/job-worker/src/slideshow-plan-core.js",
+    imports: {
+      "@/lib/guards": "./guards.js",
+      "@/lib/hook-casing": "./hook-casing.js",
+      "@/lib/temp-slide-testing-shared": "./temp-slide-testing-shared.js",
+    },
+  },
+  {
+    source: "lib/publishing-core.ts",
+    target: "appwrite/functions/job-worker/src/publishing-core.js",
+    imports: {
+      "@/lib/postfast-provider-controls": "./postfast-provider-controls.js",
+    },
+  },
+  {
+    source: "lib/usage-core.ts",
+    target: "appwrite/functions/job-worker/src/usage-core.js",
+  },
+  {
+    source: "lib/slideshow-raster-renderer.ts",
+    target: "appwrite/functions/job-worker/src/slideshow-raster-renderer.js",
+    imports: {
+      "@/lib/slideshow-renderer": "./slideshow-renderer.js",
+    },
+  },
+  {
+    source: "lib/rendi-client.ts",
+    target: "appwrite/functions/job-worker/src/rendi-client.js",
+    imports: {
+      "@/lib/guards": "./guards.js",
+      "@/lib/http": "./http.js",
+      "@/lib/poll": "./poll.js",
+    },
+  },
 ]
 
 for (const definition of generatedModules) {

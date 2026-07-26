@@ -86,6 +86,30 @@ describe("postfastRequest", () => {
     expect(calls).toBe(2)
   })
 
+  it("preserves the provider status and response body on failure", async () => {
+    await expect(
+      postfastRequest("/social-posts", {
+        apiKey: "pf_key_123",
+        fetcher: async () =>
+          new Response(
+            JSON.stringify({
+              message: "Publishing window is closed",
+              requestId: "pf-request-7",
+            }),
+            { status: 422 }
+          ),
+        retry: { minRequestGapMs: 0 },
+      })
+    ).rejects.toMatchObject({
+      status: 422,
+      message: "Publishing window is closed",
+      details: {
+        message: "Publishing window is closed",
+        requestId: "pf-request-7",
+      },
+    })
+  })
+
   it("serializes concurrent requests", async () => {
     let active = 0
     let maxActive = 0

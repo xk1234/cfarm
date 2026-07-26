@@ -28,6 +28,7 @@ import {
   defaultSlideshowTransition,
   slideshowDurationValue,
 } from "@/lib/slideshow-publishing-config"
+export { slideshowRunId } from "@/lib/slideshow-plan-core"
 import {
   automationCollectionIds,
   automationFormatSection,

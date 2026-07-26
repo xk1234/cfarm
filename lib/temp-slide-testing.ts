@@ -27,6 +27,13 @@ import {
 } from "@/lib/temp-slide-testing-shared"
 
 export * from "@/lib/temp-slide-testing-shared"
+export {
+  selectedBodySlideCount,
+  slideSpecs,
+  slideshowTextItem,
+  specForSection,
+  textItemsForSpec,
+} from "@/lib/slideshow-plan-core"
 
 export function automationTemplateToTempSlideTestingAutomation(
   record: AutomationTemplateRecord

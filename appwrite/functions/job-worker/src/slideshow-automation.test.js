@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  automationHookItems,
-  usageForPublishedRuns,
-} from "./slideshow-automation.js"
+import { automationHookItems } from "./slideshow-plan-core.js"
+import { usageForPublishedRuns } from "./usage-core.js"
 import {
   selectSlideshowHook,
   selectSlideshowImages,
@@ -220,13 +218,14 @@ describe("scheduled worker pinned first-slide image selection", () => {
 describe("scheduled worker hook selection", () => {
   it("uses enabled catalog items and excludes only recently published hooks", () => {
     const value = schema()
-    expect(automationHookItems(value).map((item) => item.id)).toEqual([
-      "published",
-      "fresh",
-    ])
+    expect(
+      automationHookItems(value)
+        .filter((item) => item.enabled)
+        .map((item) => item.id)
+    ).toEqual(["published", "fresh"])
 
     const selected = selectSlideshowHook({
-      hookItems: automationHookItems(value),
+      hookItems: automationHookItems(value).filter((item) => item.enabled),
       hookSlots: value.hook_slots,
       wordCollections: [],
       usedHookKeys: new Set(["published hook"]),
@@ -248,7 +247,7 @@ describe("scheduled worker hook selection", () => {
     value.hooks = [{ id: "draft", text: "Draft-only hook", enabled: true }]
 
     const selected = selectSlideshowHook({
-      hookItems: automationHookItems(value),
+      hookItems: automationHookItems(value).filter((item) => item.enabled),
       hookSlots: value.hook_slots,
       wordCollections: [],
       usedHookKeys: new Set(),
@@ -277,7 +276,7 @@ describe("scheduled worker hook selection", () => {
     ]
 
     const selected = selectSlideshowHook({
-      hookItems: automationHookItems(value),
+      hookItems: automationHookItems(value).filter((item) => item.enabled),
       hookSlots: value.hook_slots,
       wordCollections: [],
       usedHookKeys: new Set(),

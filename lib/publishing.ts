@@ -15,6 +15,11 @@ import {
   type PostFastSourceType,
 } from "@/lib/postfast-posts"
 
+export {
+  effectivePostingMode,
+  postFastSchedulePayload,
+} from "@/lib/publishing-core"
+
 // A8.1 — shared publishing seam.
 //
 // Both the manual `POST /api/postfast/posts` route and the automation runner

@@ -19,6 +19,13 @@ import {
   defaultSlideshowTransition,
   slideshowDurationValue,
 } from "@/lib/slideshow-publishing-config"
+import {
+  automationHookItems as coreAutomationHookItems,
+  automationHooks as coreAutomationHooks,
+  isHookInstruction,
+} from "@/lib/slideshow-plan-core"
+
+export { applyHookCase } from "@/lib/slideshow-plan-core"
 
 export type AutomationStatus = "paused" | "live"
 // Canonical persisted/lifecycle status. `unknown` covers records that predate
@@ -963,43 +970,17 @@ export function updateAutomationFormatSection<
 }
 
 export function automationHooks(schema: Partial<AutomationSchema>) {
-  return automationHookItems(schema)
-    .filter((item) => item.enabled)
-    .map((item) => item.text)
+  return coreAutomationHooks(schema)
 }
 
 export function automationHookItems(
   schema: Partial<AutomationSchema>
 ): AutomationHookItem[] {
-  return normalizeAutomationHookItems(schema.hooks, [])
+  return coreAutomationHookItems(schema) as AutomationHookItem[]
 }
 
 export function isAutomationHookInstruction(value: string) {
-  const normalized = value.trim().toLowerCase()
-  if (!normalized) {
-    return true
-  }
-  if (
-    [
-      "hook text",
-      "hook text, all lowercase",
-      "fixed hook text from the automation",
-      "create a concise slideshow narrative for the selected topic.",
-    ].includes(normalized)
-  ) {
-    return true
-  }
-  return (
-    normalized.startsWith("hook text") ||
-    [
-      "lowercase numbered list introduction",
-      "numbered list concept introduction",
-      "numbered heading",
-    ].some((marker) => normalized.startsWith(marker)) ||
-    normalized.includes("using narratives") ||
-    normalized.includes("content varies based on narrative") ||
-    normalized.includes("e.g.")
-  )
+  return isHookInstruction(value)
 }
 
 export function schemaWithAutomationHooks(

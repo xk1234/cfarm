@@ -7,6 +7,9 @@ import {
   readJsonArrayStore,
   withJsonArrayStore,
 } from "@/lib/json-store"
+import { usageForPublishedRuns } from "@/lib/usage-core"
+
+export { usageForPublishedRuns } from "@/lib/usage-core"
 
 export type UsageKind =
   "hook_published" | "hook_combination_published" | "image" | "text"
@@ -167,25 +170,7 @@ export function usageRecordsForPublishedRuns(
   records: UsageRecord[],
   automationId: string
 ) {
-  const publishedAtByRun = new Map<string, string>()
-  for (const record of records) {
-    if (
-      record.automation_id !== automationId ||
-      (record.kind !== "hook_published" &&
-        record.kind !== "hook_combination_published")
-    ) {
-      continue
-    }
-    const current = publishedAtByRun.get(record.run_id)
-    if (!current || Date.parse(record.used_at) > Date.parse(current)) {
-      publishedAtByRun.set(record.run_id, record.used_at)
-    }
-  }
-  return records.flatMap((record) => {
-    if (record.automation_id !== automationId) return []
-    const publishedAt = publishedAtByRun.get(record.run_id)
-    return publishedAt ? [{ ...record, used_at: publishedAt }] : []
-  })
+  return usageForPublishedRuns(records, automationId)
 }
 
 export function usageKeyForHookCombination(

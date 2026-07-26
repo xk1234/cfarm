@@ -38,12 +38,12 @@ import {
 import {
   defaultSlideshowAspectRatio,
   defaultSlideshowFont,
-  renderedSlideSvg,
   type SlideshowOverlayImage,
   type SlideshowOvalIconLayout,
   type SlideshowSlide,
   type SlideshowTextItem,
 } from "@/lib/slideshow-renderer"
+import { renderSlideshowSlideBuffers } from "@/lib/slideshow-raster-renderer"
 import { fetchWithTimeout } from "@/lib/http"
 export type {
   SlideshowOverlayImage,
@@ -790,25 +790,25 @@ async function materializeSlideImage(input: {
     )
   )
   const fileName = `slide-${String(input.slideIndex + 1).padStart(3, "0")}.svg`
-  const svg = renderedSlideSvg(
-    input.slide,
-    await imageDataUri(source.filePath, source.extension),
-    overlaySource
+  const { configureFontconfig } = await import("@/lib/font-config")
+  configureFontconfig()
+  const { svg, png } = await renderSlideshowSlideBuffers({
+    slide: input.slide,
+    sourceUrl: await imageDataUri(source.filePath, source.extension),
+    overlayUrl: overlaySource
       ? await imageDataUri(overlaySource.filePath, overlaySource.extension)
       : undefined,
-    {
-      aspectRatio: input.aspectRatio,
-      font: input.font,
-      iconUrls: await Promise.all(
-        iconSources.map((icon) => imageDataUri(icon.filePath, icon.extension))
-      ),
-    }
-  )
+    aspectRatio: input.aspectRatio,
+    font: input.font,
+    iconUrls: await Promise.all(
+      iconSources.map((icon) => imageDataUri(icon.filePath, icon.extension))
+    ),
+  })
   const svgPath = path.join(input.outputDir, fileName)
   await writeFile(svgPath, svg)
   const rasterFileName = `slide-${String(input.slideIndex + 1).padStart(3, "0")}.png`
   const rasterPath = path.join(input.outputDir, rasterFileName)
-  await renderSvgToPng(svg, rasterPath)
+  await writeFile(rasterPath, png)
 
   return {
     fileName,
@@ -818,13 +818,6 @@ async function materializeSlideImage(input: {
     overlayPublicUrl: overlaySource?.publicUrl,
     iconPublicUrls: iconSources.map((icon) => icon.publicUrl),
   }
-}
-
-async function renderSvgToPng(svg: string, outputPath: string) {
-  const { configureFontconfig } = await import("@/lib/font-config")
-  configureFontconfig()
-  const sharp = (await import("sharp")).default
-  await sharp(Buffer.from(svg)).png().toFile(outputPath)
 }
 
 async function materializeSlideshowVideo(input: {
