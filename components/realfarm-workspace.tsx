@@ -1096,6 +1096,14 @@ export function RealFarmWorkspace({
                 }
                 xRunsByAutomationId={xRunsByAutomationId}
                 onCreateNew={() => setTemplateFolderOpen(true)}
+                onCreateFromTone={async (fields) => {
+                  const automation = await createLocalAutomation({
+                    name: "Matched TikTok slideshow",
+                    schema: fields as AutomationSchema,
+                  })
+                  setView("automations")
+                  setEditingAutomation(automation)
+                }}
                 onRename={(automation, name) => {
                   setAutomationNameEdits((current) => ({
                     ...current,

@@ -11,6 +11,7 @@ export type OpenRouterModelUseCase =
   | "contentHumanize"
   | "contentReview"
   | "imageCaptioning"
+  | "toneAnalysis"
   | "ugcAnalysis"
   | "ugcScript"
 
@@ -40,6 +41,9 @@ export const generationModelRegistry = {
     },
     imageCaptioning: {
       model: "google/gemini-2.5-flash",
+    },
+    toneAnalysis: {
+      model: "google/gemini-3.1-flash-lite",
     },
     ugcAnalysis: { model: "openai/gpt-5.4-mini" },
     ugcScript: { model: "anthropic/claude-sonnet-5" },

@@ -111,6 +111,11 @@ import { deleteSlideshowRecord, listSlideshowRecords } from "@/lib/slideshows"
 import { withSystemOwner } from "@/lib/system-owner-context"
 import { assertPublicHttpUrl } from "@/lib/url-guard"
 import {
+  analyzeSlideshowTone,
+  slideshowToneToAutomationFields,
+  transcribeTikTokSlideshow,
+} from "@/lib/slideshow-tone-analysis"
+import {
   inspectTikTokPublicationImport,
   linkTikTokPublicationImport,
   startTikTokPublicationImport,
@@ -328,6 +333,9 @@ export type LumenClipMcpServices = {
   startTikTokPublicationImport: typeof startTikTokPublicationImport
   inspectTikTokPublicationImport: typeof inspectTikTokPublicationImport
   linkTikTokPublicationImport: typeof linkTikTokPublicationImport
+  transcribeTikTokSlideshow: typeof transcribeTikTokSlideshow
+  analyzeSlideshowTone: typeof analyzeSlideshowTone
+  slideshowToneToAutomationFields: typeof slideshowToneToAutomationFields
   createTikTokStudioAnalyticsImport: typeof createTikTokStudioAnalyticsImport
   inspectTikTokStudioAnalyticsImport: typeof inspectTikTokStudioAnalyticsImport
   createTikTokStudioAnalyticsBatch: typeof createTikTokStudioAnalyticsBatch
@@ -390,6 +398,9 @@ const defaultServices: LumenClipMcpServices = {
   startTikTokPublicationImport,
   inspectTikTokPublicationImport,
   linkTikTokPublicationImport,
+  transcribeTikTokSlideshow,
+  analyzeSlideshowTone,
+  slideshowToneToAutomationFields,
   createTikTokStudioAnalyticsImport,
   inspectTikTokStudioAnalyticsImport,
   createTikTokStudioAnalyticsBatch,
@@ -4681,6 +4692,50 @@ function registerTikTokPublicationTools(
   ownerId: string,
   services: LumenClipMcpServices
 ) {
+  server.registerTool(
+    "lumenclip_slideshow_analyze",
+    {
+      title: "Analyze a TikTok slideshow tone",
+      description:
+        "Transcribes every image in one public TikTok photo slideshow, analyzes its writing voice, and returns fields that can seed a matching LumenClip automation.",
+      inputSchema: {
+        url: z
+          .string()
+          .url()
+          .describe(
+            'Public TikTok /photo/ slideshow URL to analyze, e.g. "https://www.tiktok.com/@horoiq/photo/7662360324313517330".'
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ url }) =>
+      mcpResult(
+        await withSystemOwner(ownerId, async () => {
+          const transcript =
+            await services.transcribeTikTokSlideshow(url)
+          if (!transcript) throw new Error("TikTok slideshow not found")
+          const analysis = await services.analyzeSlideshowTone(transcript)
+          return {
+            transcript,
+            analysis,
+            suggestedFields:
+              services.slideshowToneToAutomationFields(analysis),
+            ...(transcript.transcriptionFallback
+              ? {
+                  warning:
+                    "OpenRouter is not configured. Slide 1 uses the post caption and remaining slides are blank; this is not a full transcription.",
+                }
+              : {}),
+          }
+        })
+      )
+  )
+
   server.registerTool(
     "lumenclip_tiktok_import_start",
     {

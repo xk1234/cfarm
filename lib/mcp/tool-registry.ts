@@ -26,6 +26,7 @@ export const LUMENCLIP_MCP_TOOLS = [
   { name: "lumenclip_automation_run", category: "automations" },
   { name: "lumenclip_schedule_get", category: "scheduling" },
   { name: "lumenclip_slideshow_generate", category: "slideshows" },
+  { name: "lumenclip_slideshow_analyze", category: "slideshows" },
   { name: "lumenclip_ugc_estimate", category: "videos" },
   { name: "lumenclip_ugc_generate", category: "videos" },
   { name: "lumenclip_automation_update", category: "automations" },

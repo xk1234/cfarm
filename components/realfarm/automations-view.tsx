@@ -16,6 +16,7 @@ import { CardGridSkeleton } from "@/components/ui/loading-skeleton"
 import { GeneratedSlideshowViewerModal } from "@/components/realfarm/automation-settings/generated-slideshow-viewer"
 import { GeneratedAutomationVideoViewer } from "@/components/realfarm/automation-settings/generated-video-viewer"
 import { GeneratedVideoThumbnail } from "@/components/realfarm/generated-video-thumbnail"
+import { SlideshowToneAnalyzerDialog } from "@/components/realfarm/slideshow-tone-analyzer-dialog"
 import { GenerationFailurePlaceholder } from "@/components/realfarm/shared-media"
 import { XThreadsBrandIcon } from "@/components/realfarm/x-threads-brand-icon"
 import type { AutomationRunApiRecord } from "@/components/realfarm/automation-settings/types"
@@ -25,6 +26,7 @@ import {
 } from "@/components/realfarm/social-account-status"
 import { upcomingAutomationPosts } from "@/lib/automation-upcoming-posts"
 import type { Automation } from "@/lib/realfarm-data"
+import type { AutomationSchema } from "@/lib/realfarm-automation"
 import type { XAutomationRun } from "@/lib/x-automation"
 import { xThreadsPlatformForDisplay } from "@/lib/x-automation-platform"
 import { cn } from "@/lib/utils"
@@ -60,6 +62,7 @@ export function AutomationsView({
   recentRunsLoading,
   xRunsByAutomationId,
   onCreateNew,
+  onCreateFromTone,
   onRename,
   onToggleFavorite,
   onToggleStatus,
@@ -74,6 +77,7 @@ export function AutomationsView({
   recentRunsLoading?: boolean
   xRunsByAutomationId?: Record<string, XAutomationRun[]>
   onCreateNew: () => void
+  onCreateFromTone: (fields: Partial<AutomationSchema>) => Promise<void>
   onRename: (automation: Automation, name: string) => void
   onToggleFavorite: (automation: Automation) => void
   onToggleStatus: (automation: Automation) => void
@@ -82,11 +86,20 @@ export function AutomationsView({
   onGenerationRunUpdate?: (run: AutomationRunApiRecord) => void
   onEdit: (automation: Automation) => void
 }) {
+  const [toneAnalyzerOpen, setToneAnalyzerOpen] = useState(false)
   return (
     <div className="mx-auto max-w-[1160px]">
       <div className="mb-5 flex items-center justify-between">
         <h1 className="text-[24px] font-semibold">Automations</h1>
         <div className="flex gap-3">
+          <Button
+            variant="softControl"
+            size="appDefault"
+            onClick={() => setToneAnalyzerOpen(true)}
+          >
+            <IconSlideshow className="size-4" />
+            Match slideshow
+          </Button>
           <Button variant="action" size="appDefault" onClick={onCreateNew}>
             <IconPlus className="size-4" />
             New automation
@@ -132,6 +145,12 @@ export function AutomationsView({
           </div>
         )}
       </div>
+      {toneAnalyzerOpen ? (
+        <SlideshowToneAnalyzerDialog
+          onClose={() => setToneAnalyzerOpen(false)}
+          onCreate={onCreateFromTone}
+        />
+      ) : null}
     </div>
   )
 }

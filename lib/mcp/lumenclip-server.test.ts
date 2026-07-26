@@ -48,6 +48,45 @@ describe("LumenClip MCP server", () => {
     )
   })
 
+  it("analyzes a TikTok slideshow through injected read-only services", async () => {
+    const transcript = {
+      postId: "7662360324313517330",
+      url: "https://www.tiktok.com/@lumenclip/photo/7662360324313517330",
+      authorUsername: "lumenclip",
+      caption: "A concise caption",
+      hashtags: [],
+      publishedAt: "2026-07-14T12:31:26.000Z",
+      slides: [{ index: 1, text: "Stop making this layout mistake" }],
+      transcriptionFallback: false,
+    }
+    const analysis = {
+      tone: { value: "Bold & Provocative", preset: "bold" },
+      structure: { hookSlides: 1, bodySlides: 0, ctaSlides: 0 },
+      wordRange: { min: 5, max: 5 },
+      language: "English",
+      observations: ["Direct second person.", "Short imperative sentence."],
+      seedHook: transcript.slides[0].text,
+    }
+    const client = await connectClient({
+      transcribeTikTokSlideshow: vi.fn(async () => transcript),
+      analyzeSlideshowTone: vi.fn(async () => analysis),
+      slideshowToneToAutomationFields: vi.fn(() => ({
+        tone: analysis.tone,
+      })),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_slideshow_analyze",
+      arguments: { url: transcript.url },
+    })
+
+    expect(result.structuredContent).toMatchObject({
+      transcript: { postId: transcript.postId },
+      analysis: { tone: analysis.tone },
+      suggestedFields: { tone: analysis.tone },
+    })
+  })
+
   it.each([
     {
       name: "lumenclip_automations_list",

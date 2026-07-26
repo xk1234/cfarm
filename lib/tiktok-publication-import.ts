@@ -532,7 +532,7 @@ async function extractTikTokHook(post: TikTokImportedPost) {
   return clean(text[0]) || undefined
 }
 
-async function extractTikTokSlideTexts(post: TikTokImportedPost) {
+export async function extractTikTokSlideTexts(post: TikTokImportedPost) {
   const apiKey = getOpenRouterApiKey()
   if (!apiKey) return fallbackSlideTexts(post)
   const count = post.photos.length
@@ -601,6 +601,28 @@ async function extractTikTokSlideTexts(post: TikTokImportedPost) {
   return post.photos.map((_, index) => byIndex.get(index + 1) ?? "")
 }
 
+export async function fetchTikTokSlideshowPost(
+  url: string
+): Promise<TikTokImportedPost | null> {
+  const [normalizedUrl] = normalizeTikTokUrls([url])
+  const actor = apifyActor()
+  const items = await apifyJson<DatasetItem[]>(
+    // The synchronous actor run has to finish inside the route's own budget
+    // (maxDuration 60), so it is capped well below it. A scrape that needs
+    // longer belongs on the async startTikTokPublicationImport path instead.
+    `/acts/${encodeURIComponent(actor.replace("/", "~"))}/run-sync-get-dataset-items?clean=true&format=json&timeout=45`,
+    {
+      method: "POST",
+      body: {
+        slideshowUrls: [{ url: normalizedUrl }],
+        maxItems: MAX_PHOTOS_PER_URL,
+      },
+      timeoutMs: 50_000,
+    }
+  )
+  return tiktokPostsFromDatasetItems(items)[0] ?? null
+}
+
 function fallbackSlideTexts(post: TikTokImportedPost) {
   return post.photos.map((_, index) =>
     index === 0 ? captionBody(post.caption) : ""
@@ -611,6 +633,10 @@ async function readTikTokPosts(datasetId: string) {
   const items = await apifyJson<DatasetItem[]>(
     `/datasets/${encodeURIComponent(datasetId)}/items?clean=true&format=json&limit=${MAX_URLS * MAX_PHOTOS_PER_URL}`
   )
+  return tiktokPostsFromDatasetItems(items)
+}
+
+function tiktokPostsFromDatasetItems(items: DatasetItem[]) {
   const grouped = new Map<string, TikTokImportedPost>()
   for (const item of Array.isArray(items) ? items : []) {
     const id = clean(item.videoId)
@@ -705,7 +731,7 @@ function apifyToken() {
 
 async function apifyJson<T>(
   path: string,
-  init: { method?: string; body?: unknown } = {}
+  init: { method?: string; body?: unknown; timeoutMs?: number } = {}
 ): Promise<T> {
   const response = await fetch(`${APIFY_API}${path}`, {
     method: init.method ?? "GET",
@@ -716,7 +742,7 @@ async function apifyJson<T>(
         : { "Content-Type": "application/json" }),
     },
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(init.timeoutMs ?? 30_000),
   })
   const payload = (await response.json().catch(() => ({}))) as T & {
     error?: { message?: string }
