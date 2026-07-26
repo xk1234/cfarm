@@ -49,6 +49,34 @@ function selectCtaImages(input: {
   })
 }
 
+function selectFirstSlideImages(input: {
+  firstSlidePinnedImageId: string
+  recentImageUsage?: Map<string, string>
+  random?: () => number
+}) {
+  return selectImagesForSlides({
+    title: "First slide selection",
+    hook: "Choose the hook image",
+    images: [],
+    imageCollections: [ctaImageCollection],
+    specs: [
+      {
+        id: "hook-1",
+        index: 0,
+        section: "hook",
+        title: "Hook",
+        aspectRatio: "9:16",
+        imageGrid: "none",
+        overlay: false,
+        displayText: true,
+        collectionId: "cta-collection",
+        textItems: [],
+      },
+    ],
+    ...input,
+  })
+}
+
 describe("automation runner pinned CTA image selection", () => {
   it("selects exactly the pinned CTA image by id", async () => {
     await expect(
@@ -77,6 +105,46 @@ describe("automation runner pinned CTA image selection", () => {
     await expect(
       selectCtaImages({
         ctaPinnedImageId: "image-b",
+        recentImageUsage: new Map([["image-b", "2026-07-25T00:00:00.000Z"]]),
+      })
+    ).resolves.toMatchObject([
+      {
+        id: "image-b",
+        reusedRecently: true,
+        lastUsedAt: "2026-07-25T00:00:00.000Z",
+      },
+    ])
+  })
+})
+
+describe("automation runner pinned first-slide image selection", () => {
+  it("selects exactly the pinned first-slide image by id", async () => {
+    await expect(
+      selectFirstSlideImages({ firstSlidePinnedImageId: "image-b" })
+    ).resolves.toMatchObject([{ id: "image-b" }])
+  })
+
+  it("selects exactly the pinned first-slide image by image URL", async () => {
+    await expect(
+      selectFirstSlideImages({
+        firstSlidePinnedImageId: "https://example.com/b.jpg",
+      })
+    ).resolves.toMatchObject([{ id: "image-b" }])
+  })
+
+  it("falls back to the full first-slide collection when the pin is missing", async () => {
+    await expect(
+      selectFirstSlideImages({
+        firstSlidePinnedImageId: "deleted-image",
+        random: () => 0,
+      })
+    ).resolves.toMatchObject([{ id: "image-a" }])
+  })
+
+  it("selects a pinned first-slide image even when it was used recently", async () => {
+    await expect(
+      selectFirstSlideImages({
+        firstSlidePinnedImageId: "image-b",
         recentImageUsage: new Map([["image-b", "2026-07-25T00:00:00.000Z"]]),
       })
     ).resolves.toMatchObject([

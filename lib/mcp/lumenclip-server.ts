@@ -920,9 +920,6 @@ export function createLumenClipMcpServer(
   return server
 }
 
-// Compatibility alias for existing local MCP client configuration.
-export const createLumenClipTikTokMcpServer = createLumenClipMcpServer
-
 function registerAutomationReadAndRunTools(
   server: McpServer,
   ownerId: string,

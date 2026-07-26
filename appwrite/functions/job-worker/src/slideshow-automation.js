@@ -954,6 +954,10 @@ export async function selectImagesForSlides({
   const usedKeys = new Set()
   const usedUrls = new Set()
   const selected = []
+  const firstSlidePinnedImageId =
+    automation.schema.image_collection_ids?.first_slide?.mode === "single_image"
+      ? clean(automation.schema.image_collection_ids?.first_slide?.single_image)
+      : ""
   const cta = formatSection(automation.schema, "cta")
   const ctaPinnedImageId =
     cta.imageMode === "single_image"
@@ -985,6 +989,14 @@ export async function selectImagesForSlides({
         `No images exist in database collection ${spec.collectionId} for ${spec.id}`
       )
     }
+    const pinnedFirstSlideImage =
+      spec.section === "hook" && firstSlidePinnedImageId
+        ? collectionPool.find(
+            (image) =>
+              image.id === firstSlidePinnedImageId ||
+              image.imageUrl === firstSlidePinnedImageId
+          )
+        : undefined
     const pinnedCtaImage =
       spec.section === "cta" && ctaPinnedImageId
         ? collectionPool.find(
@@ -993,7 +1005,11 @@ export async function selectImagesForSlides({
               image.imageUrl === ctaPinnedImageId
           )
         : undefined
-    const pool = pinnedCtaImage ? [pinnedCtaImage] : collectionPool
+    const pool = pinnedFirstSlideImage
+      ? [pinnedFirstSlideImage]
+      : pinnedCtaImage
+        ? [pinnedCtaImage]
+        : collectionPool
     const fresh = pool.filter(
       (image) =>
         !usedKeys.has(image.key) &&

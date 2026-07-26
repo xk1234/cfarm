@@ -1178,6 +1178,10 @@ async function createAutomationRunPlan(
   const recentImages = new Map(
     recentImageRecords.map((record) => [record.key, record.used_at] as const)
   )
+  const firstSlidePinnedImageId =
+    schema.image_collection_ids.first_slide.mode === "single_image"
+      ? schema.image_collection_ids.first_slide.single_image
+      : null
   const cta = automationFormatSection(schema, "cta")
   const ctaPinnedImageId =
     cta.imageMode === "single_image"
@@ -1194,6 +1198,7 @@ async function createAutomationRunPlan(
     generatedText: textGeneration.result,
     random: options.random,
     fetchImpl: options.fetchImpl,
+    firstSlidePinnedImageId,
     ctaPinnedImageId,
   })
   let imageTextCoherenceRepair = false
@@ -1228,6 +1233,7 @@ async function createAutomationRunPlan(
       fetchImpl: options.fetchImpl,
       selectedImages: slideResult.selectedImages,
       iconLayouts: slideResult.iconLayouts,
+      firstSlidePinnedImageId,
       ctaPinnedImageId,
     })
   }
@@ -1724,6 +1730,7 @@ async function createSlides(input: {
   selectedImages?: SelectedAutomationRunnerImage[]
   iconLayouts?: Array<OvalIconLayout | undefined>
   fetchImpl?: typeof fetch
+  firstSlidePinnedImageId?: string | null
   ctaPinnedImageId?: string | null
 }): Promise<{
   slides: AutomationRunSlide[]
@@ -1881,6 +1888,7 @@ export async function selectImagesForSlides(input: {
   random?: () => number
   specs: TempSlideSpec[]
   fetchImpl?: typeof fetch
+  firstSlidePinnedImageId?: string | null
   ctaPinnedImageId?: string | null
 }) {
   const usedKeys = new Set<string>()
@@ -1922,6 +1930,14 @@ export async function selectImagesForSlides(input: {
       spec.collectionId ? configuredSectionImages : input.images,
       spec.section
     )
+    const pinnedFirstSlideImage =
+      spec.section === "hook" && input.firstSlidePinnedImageId
+        ? configuredSectionImages.find(
+            (image) =>
+              image.id === input.firstSlidePinnedImageId ||
+              image.imageUrl === input.firstSlidePinnedImageId
+          )
+        : undefined
     const pinnedCtaImage =
       spec.section === "cta" && input.ctaPinnedImageId
         ? configuredSectionImages.find(
@@ -1931,11 +1947,15 @@ export async function selectImagesForSlides(input: {
           )
         : undefined
     const sectionImages =
-      spec.section === "cta" && input.ctaPinnedImageId
-        ? pinnedCtaImage
-          ? [pinnedCtaImage]
+      spec.section === "hook" && input.firstSlidePinnedImageId
+        ? pinnedFirstSlideImage
+          ? [pinnedFirstSlideImage]
           : configuredSectionImages
-        : defaultSectionImages
+        : spec.section === "cta" && input.ctaPinnedImageId
+          ? pinnedCtaImage
+            ? [pinnedCtaImage]
+            : configuredSectionImages
+          : defaultSectionImages
     if (sectionImages.length === 0) {
       throw new Error(
         `No images exist in the configured collection for ${spec.title}`

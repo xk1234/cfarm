@@ -367,7 +367,9 @@ function normalizeAutomationTemplateExampleRun(
 function automationTemplateKind(
   record: Pick<AutomationTemplateRecord, "automationKind"> | undefined
 ) {
-  return record?.automationKind === "video" ? "video" : "slideshow"
+  return record?.automationKind === "video" || record?.automationKind === "ugc"
+    ? record.automationKind
+    : "slideshow"
 }
 
 function templateCollectionIds(record: AutomationTemplateRecord) {
