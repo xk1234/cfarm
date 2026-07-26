@@ -13,77 +13,48 @@
 }
 
 body {
-  width: 340px;
+  width: 300px;
   margin: 0;
 }
 
 main {
-  padding: 20px;
+  padding: 16px;
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #6d28d9;
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .brand img {
   display: block;
   flex: 0 0 auto;
-}
-
-h1 {
-  margin: 10px 0 0;
-  font-size: 22px;
-  letter-spacing: -0.04em;
-}
-
-.intro {
-  margin: 9px 0 17px;
-  color: #6e6878;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-button {
-  width: 100%;
-  margin-top: 10px;
-  border: 0;
-  border-radius: 9px;
-  padding: 10px 12px;
-  background: #6d28d9;
-  color: white;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-button.secondary {
-  border: 1px solid #ded9e8;
-  background: white;
-  color: #31283f;
-}
-
-button.link {
-  margin-top: 6px;
-  padding: 5px;
-  background: transparent;
-  color: #7a7285;
+  border-radius: 6px;
 }
 
 .status {
-  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
   border-radius: 9px;
-  padding: 10px;
+  padding: 9px 11px;
   background: #efedf4;
   color: #625b6d;
-  font-size: 11px;
-  line-height: 1.45;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.status .dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .status.success {
@@ -94,4 +65,55 @@ button.link {
 .status.error {
   background: #fff0f0;
   color: #a12a2a;
+}
+
+.status.running {
+  background: #fff6e6;
+  color: #8a5a00;
+}
+
+.actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+button {
+  width: 100%;
+  border: 0;
+  border-radius: 9px;
+  padding: 11px 12px;
+  background: #6d28d9;
+  color: white;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #5b21b6;
+}
+
+button.secondary {
+  border: 1px solid #ded9e8;
+  background: white;
+  color: #31283f;
+}
+
+button.secondary:hover:not(:disabled) {
+  background: #f4f2f8;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+button:focus-visible {
+  outline: 2px solid #6d28d9;
+  outline-offset: 2px;
+}
+
+button[hidden] {
+  display: none;
 }

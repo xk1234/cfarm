@@ -175,6 +175,18 @@ async function activatePendingCapture({ autoStart }) {
   })
   const manifest = await response.json().catch(() => ({}))
   if (!response.ok) {
+    // A rejected token can never recover on its own. Leaving deviceConfig in
+    // place kept the popup in a paired state with no way back, so the only
+    // visible action was one that would fail again. Drop it and ask to
+    // reconnect instead.
+    if (isDeadPairing(response.status, manifest.error)) {
+      await forgetPairing(
+        "This connection expired. Reconnect from LumenClip to continue."
+      )
+      throw new Error(
+        "This connection expired. Reconnect from LumenClip to continue."
+      )
+    }
     throw new Error(manifest.error || `Connection failed (${response.status})`)
   }
   if (!Array.isArray(manifest.posts) || manifest.posts.length === 0) {
@@ -462,4 +474,30 @@ function studioSection(value) {
   } catch {
     return undefined
   }
+}
+
+// A capture token is signed server-side; once the signing secret moves, every
+// token minted under the old one is permanently unverifiable.
+function isDeadPairing(status, error) {
+  return (
+    status === 401 ||
+    status === 403 ||
+    /capture token|expired|unauthor/i.test(String(error ?? ""))
+  )
+}
+
+async function forgetPairing(message) {
+  await chrome.alarms.clear(STEP_ALARM)
+  await chrome.storage.local.remove([
+    "deviceConfig",
+    "captureConfig",
+    "batchSync",
+  ])
+  await chrome.storage.local.set({
+    captureStatus: {
+      kind: "error",
+      message,
+      updatedAt: new Date().toISOString(),
+    },
+  })
 }

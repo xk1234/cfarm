@@ -8,21 +8,22 @@
   </head>
   <body>
     <main>
-      <div class="brand">
-        <img src="icons/icon48.png" alt="" width="28" height="28" />
-        <span>LumenClip companion</span>
+      <header class="brand">
+        <img src="icons/icon48.png" alt="" width="24" height="24" />
+        <span>TikTok Studio analytics</span>
+      </header>
+
+      <div id="status" class="status">
+        <span class="dot" aria-hidden="true"></span>
+        <span id="statusText">Checking…</span>
       </div>
-      <h1>TikTok Studio analytics</h1>
-      <p class="intro">
-        Connect once from LumenClip. New allowlisted analytics syncs are discovered,
-        captured, and saved automatically without sending TikTok cookies.
-      </p>
-      <button id="pair">Open LumenClip to connect</button>
-      <button id="openStudio" class="secondary" hidden>
-        Check for pending sync
-      </button>
-      <div id="status" class="status">Not paired</div>
-      <button id="clear" class="link" hidden>Clear pairing</button>
+
+      <div class="actions">
+        <button id="pair" class="primary" hidden>Connect</button>
+        <button id="openStudio" class="primary" hidden>Sync now</button>
+        <button id="reconnect" class="secondary" hidden>Reconnect</button>
+        <button id="clear" class="secondary" hidden>Clear pairing</button>
+      </div>
     </main>
     <script src="popup.js"></script>
   </body>

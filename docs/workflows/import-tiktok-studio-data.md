@@ -96,7 +96,7 @@ gender, and country percentages.
 | Step | Action | What happens |
 | --- | --- | --- |
 | 1 | Press **Download Chrome companion** | Gets `lumenclip-tiktok-studio-analytics.zip` |
-| 2 | Load it unpacked in Chrome | *Install or reload version 1.2.0 once. No pairing codes are required.* |
+| 2 | Load it unpacked in Chrome | *Install or reload version 1.3.0 once. No pairing codes are required.* |
 | 3 | Open `/app/analytics` with TikTok selected | Header shows **Sync TikTok Studio** |
 | 4 | Choose **Sync scope** | **New posts only**, **Posts from the last 90 days**, **All linked posts** |
 | 5 | Press **Create account sync** | Progress cards **Linked posts**, **Captured**, **Saved to LumenClip** |
@@ -115,27 +115,36 @@ For one post, `/app/analytics/posts/[id]` offers **Import from TikTok Studio** �
 2. **The device token lasts a year.** The v3 companion token has a 365-day TTL. Only the
    per-job records expire quickly — 15 minutes for a single import, 60 for a batch.
 3. **`APPWRITE_API_KEY` is an accepted signing secret.** The HMAC secret list is
-   `[TIKTOK_STUDIO_CAPTURE_SECRET, APPWRITE_API_KEY]`. If the dedicated secret is unset, the
-   Appwrite admin key signs long-lived browser tokens. Set `TIKTOK_STUDIO_CAPTURE_SECRET`.
-4. **Sections are inferred from payload content, not the URL.** A Viewers page that returns
+   `[TIKTOK_STUDIO_CAPTURE_SECRET, APPWRITE_API_KEY]`, and signing always uses the *first*
+   entry. If the dedicated secret is unset, the Appwrite admin key signs long-lived browser
+   tokens — and rotating that key silently invalidates every companion pairing. Set
+   `TIKTOK_STUDIO_CAPTURE_SECRET` in every environment that mints tokens.
+4. **`Invalid capture token` means the signing secret moved, not that the token expired.**
+   Expiry produces `Capture token is invalid or expired`; a bare `Invalid capture token` is a
+   failed signature check, so the token was minted under a secret this environment no longer
+   holds — commonly a token minted against localhost and used against production, or one minted
+   before `TIKTOK_STUDIO_CAPTURE_SECRET` was introduced. It cannot be recovered; reconnect.
+   From version 1.3.0 the companion detects this, drops the dead pairing itself, and shows
+   **Connect** rather than stranding you in a paired state where every action fails.
+5. **Sections are inferred from payload content, not the URL.** A Viewers page that returns
    nothing yields zero sections and the ingest returns `{ accepted: false }` with no error.
-5. **A post with no platform id cannot be captured**:
+6. **A post with no platform id cannot be captured**:
    `This TikTok publication has no platform post ID. Link its public TikTok URL first.`
-6. **Mode `new` can legitimately find nothing**:
+7. **Mode `new` can legitimately find nothing**:
    `Every linked TikTok post in this scope already has Studio analytics`.
-7. **Payloads over 2,500,000 bytes are rejected** with `413 Capture payload is too large`.
-8. **Re-capturing at the same `capturedAt` upserts rather than appends** — snapshot ids are
+8. **Payloads over 2,500,000 bytes are rejected** with `413 Capture payload is too large`.
+9. **Re-capturing at the same `capturedAt` upserts rather than appends** — snapshot ids are
    derived from `postId` plus `capturedAt`, and re-linking deliberately reuses the existing
    timestamp.
-9. **The companion must be detected within 4 seconds**, else
+10. **The companion must be detected within 4 seconds**, else
    `Chrome companion not detected. Install or reload the latest companion, then retry.`
-10. **Do not confuse this with `lumenclip_tiktok_import_*`.** Those scrape *public* TikTok
+11. **Do not confuse this with `lumenclip_tiktok_import_*`.** Those scrape *public* TikTok
     `/photo/` URLs through Apify to match publications; they have nothing to do with the
     extension or with private Studio metrics.
 
 ## Additional workflow notes
 
-The extension is MV3, version 1.2.0, with permissions `storage`, `tabs`, `alarms` and host
+The extension is MV3, version 1.3.0, with permissions `storage`, `tabs`, `alarms` and host
 access to `www.tiktok.com`, the deployed origin, and `localhost`. A one-minute alarm polls for
 pending captures; each step has a 30-second timeout and one retry.
 
