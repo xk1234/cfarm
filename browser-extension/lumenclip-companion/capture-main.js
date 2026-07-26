@@ -1,4 +1,4 @@
-(() => {
+;(() => {
   const EVENT_NAME = "__lumenclipTikTokStudioAnalytics"
   const INSIGHT_PATHS = [
     "/aweme/v2/data/insight/",
@@ -44,11 +44,7 @@
 
   const originalOpen = XMLHttpRequest.prototype.open
   const originalSend = XMLHttpRequest.prototype.send
-  XMLHttpRequest.prototype.open = function lumenclipOpen(
-    method,
-    url,
-    ...rest
-  ) {
+  XMLHttpRequest.prototype.open = function lumenclipOpen(method, url, ...rest) {
     this.__lumenclipInsightUrl = isInsightUrl(url)
     return originalOpen.call(this, method, url, ...rest)
   }

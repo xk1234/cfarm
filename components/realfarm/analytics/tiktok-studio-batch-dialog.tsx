@@ -198,7 +198,7 @@ export function TikTokStudioBatchDialog({
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] leading-4 font-medium text-app-muted-text">
                   <a
-                    href="/downloads/lumenclip-tiktok-studio-analytics.zip"
+                    href="/downloads/lumenclip-companion.zip"
                     download
                     className="lc-focus-ring rounded-[7px] font-semibold text-app-text hover:underline"
                   >

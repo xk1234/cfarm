@@ -199,7 +199,7 @@ export function TikTokStudioImportDialog({
                     </a>
                   </Button>
                   <a
-                    href="/downloads/lumenclip-tiktok-studio-analytics.zip"
+                    href="/downloads/lumenclip-companion.zip"
                     download
                     className="lc-focus-ring inline-flex items-center rounded-[8px] px-2.5 text-[10px] font-semibold text-app-muted-text hover:bg-app-control-hover hover:text-app-text"
                   >
