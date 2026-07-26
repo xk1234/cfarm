@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   automationHookItems,
+  selectImagesForSlides,
   selectHook,
   usageForPublishedRuns,
 } from "./slideshow-automation.js"
@@ -20,6 +21,103 @@ function schema() {
     reuse_policy: { hook_exclusion_days: 45 },
   }
 }
+
+const ctaImages = [
+  {
+    id: "image-a",
+    key: "key-a",
+    imageUrl: "https://example.com/a.jpg",
+    imageCaption: "First CTA",
+  },
+  {
+    id: "image-b",
+    key: "key-b",
+    imageUrl: "https://example.com/b.jpg",
+    imageCaption: "Pinned CTA",
+  },
+]
+
+function selectWorkerCtaImages({ pinnedImageId, usage = [], seedValue = 0 }) {
+  return selectImagesForSlides({
+    automation: {
+      id: "automation-1",
+      schema: {
+        formatting: [{ id: "cta", imageMode: "single_image" }],
+        image_collection_ids: {
+          cta_slide: { image_id: pinnedImageId },
+        },
+      },
+    },
+    hook: "Choose the CTA",
+    specs: [
+      {
+        id: "cta-1",
+        section: "cta",
+        collectionId: "cta-collection",
+        aiImageSelection: false,
+        textItems: [],
+      },
+    ],
+    generated: { text: {} },
+    collections: [
+      {
+        aliases: ["cta-collection"],
+        images: ctaImages,
+      },
+    ],
+    usage,
+    seed: Buffer.from([0, seedValue]),
+  })
+}
+
+describe("scheduled worker pinned CTA image selection", () => {
+  it("selects exactly the pinned CTA image by id", async () => {
+    await expect(
+      selectWorkerCtaImages({ pinnedImageId: "image-b" })
+    ).resolves.toMatchObject([{ id: "image-b" }])
+  })
+
+  it("selects exactly the pinned CTA image by image URL", async () => {
+    await expect(
+      selectWorkerCtaImages({
+        pinnedImageId: "https://example.com/b.jpg",
+      })
+    ).resolves.toMatchObject([{ id: "image-b" }])
+  })
+
+  it("falls back to the full CTA collection when the pinned image is missing", async () => {
+    await expect(
+      selectWorkerCtaImages({
+        pinnedImageId: "deleted-image",
+        seedValue: 1,
+      })
+    ).resolves.toMatchObject([{ id: "image-b" }])
+  })
+
+  it("selects a pinned CTA image even when it was used recently", async () => {
+    await expect(
+      selectWorkerCtaImages({
+        pinnedImageId: "image-b",
+        usage: [
+          {
+            automation_id: "automation-1",
+            run_id: "published-run",
+            kind: "image",
+            key: "key-b",
+            used_at: "2026-07-25T00:00:00.000Z",
+          },
+          {
+            automation_id: "automation-1",
+            run_id: "published-run",
+            kind: "hook_published",
+            key: "published hook",
+            used_at: "2026-07-25T00:00:00.000Z",
+          },
+        ],
+      })
+    ).resolves.toMatchObject([{ id: "image-b" }])
+  })
+})
 
 describe("scheduled worker hook selection", () => {
   it("uses enabled catalog items and excludes only recently published hooks", () => {

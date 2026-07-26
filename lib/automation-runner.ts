@@ -1178,6 +1178,11 @@ async function createAutomationRunPlan(
   const recentImages = new Map(
     recentImageRecords.map((record) => [record.key, record.used_at] as const)
   )
+  const cta = automationFormatSection(schema, "cta")
+  const ctaPinnedImageId =
+    cta.imageMode === "single_image"
+      ? schema.image_collection_ids.cta_slide.image_id
+      : null
   let slideResult = await createSlides({
     title: options.automationTitle ?? "Automation",
     hook,
@@ -1189,6 +1194,7 @@ async function createAutomationRunPlan(
     generatedText: textGeneration.result,
     random: options.random,
     fetchImpl: options.fetchImpl,
+    ctaPinnedImageId,
   })
   let imageTextCoherenceRepair = false
   const coherenceInstructions = imageTextCoherenceRepairInstructions({
@@ -1222,6 +1228,7 @@ async function createAutomationRunPlan(
       fetchImpl: options.fetchImpl,
       selectedImages: slideResult.selectedImages,
       iconLayouts: slideResult.iconLayouts,
+      ctaPinnedImageId,
     })
   }
   const slides = await translateAutomationSlides({
@@ -1626,7 +1633,7 @@ function imagesForCollectionIds(input: {
     )
     .flatMap((collection) =>
       collection.images.map((image, index) => ({
-        id: `${collection.id}-${index}`,
+        id: image.hash || `stored-${collection.id}-${index}`,
         key: image.hash || image.image_link,
         imageUrl: image.image_link,
         imageCaption: image.caption,
@@ -1717,6 +1724,7 @@ async function createSlides(input: {
   selectedImages?: SelectedAutomationRunnerImage[]
   iconLayouts?: Array<OvalIconLayout | undefined>
   fetchImpl?: typeof fetch
+  ctaPinnedImageId?: string | null
 }): Promise<{
   slides: AutomationRunSlide[]
   reuseWarnings: AutomationRunReuseWarning[]
@@ -1860,7 +1868,7 @@ function imageTextCoherenceRepairInstructions(input: {
   ].join("\n")
 }
 
-async function selectImagesForSlides(input: {
+export async function selectImagesForSlides(input: {
   title: string
   hook: string
   images: AutomationRunnerImage[]
@@ -1873,6 +1881,7 @@ async function selectImagesForSlides(input: {
   random?: () => number
   specs: TempSlideSpec[]
   fetchImpl?: typeof fetch
+  ctaPinnedImageId?: string | null
 }) {
   const usedKeys = new Set<string>()
   const usedUrls = new Set<string>()
@@ -1909,10 +1918,24 @@ async function selectImagesForSlides(input: {
           collectionIds: [spec.collectionId],
         })
       : input.images
-    const sectionImages = imagesForSlideSection(
+    const defaultSectionImages = imagesForSlideSection(
       spec.collectionId ? configuredSectionImages : input.images,
       spec.section
     )
+    const pinnedCtaImage =
+      spec.section === "cta" && input.ctaPinnedImageId
+        ? configuredSectionImages.find(
+            (image) =>
+              image.id === input.ctaPinnedImageId ||
+              image.imageUrl === input.ctaPinnedImageId
+          )
+        : undefined
+    const sectionImages =
+      spec.section === "cta" && input.ctaPinnedImageId
+        ? pinnedCtaImage
+          ? [pinnedCtaImage]
+          : configuredSectionImages
+        : defaultSectionImages
     if (sectionImages.length === 0) {
       throw new Error(
         `No images exist in the configured collection for ${spec.title}`

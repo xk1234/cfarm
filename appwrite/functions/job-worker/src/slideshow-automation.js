@@ -496,7 +496,7 @@ async function createPlan({
     hook,
     placeholders,
   })
-  const selectedImages = await selectImages({
+  const selectedImages = await selectImagesForSlides({
     schema,
     automation,
     hook,
@@ -933,7 +933,7 @@ function validateScheduledSlideshowText(parsed, placeholders, hook) {
   return { errors, violations }
 }
 
-async function selectImages({
+export async function selectImagesForSlides({
   automation,
   hook,
   specs,
@@ -954,6 +954,11 @@ async function selectImages({
   const usedKeys = new Set()
   const usedUrls = new Set()
   const selected = []
+  const cta = formatSection(automation.schema, "cta")
+  const ctaPinnedImageId =
+    cta.imageMode === "single_image"
+      ? clean(automation.schema.image_collection_ids?.cta_slide?.image_id)
+      : ""
   // One call for the whole slideshow: slide copy describes behaviour while
   // captions describe what is depicted, so the two rarely share vocabulary.
   // Rank candidates against the imagery each slide implies instead.
@@ -972,12 +977,23 @@ async function selectImages({
     if (!clean(spec.collectionId)) {
       throw new Error(`No image collection is configured for ${spec.id}`)
     }
-    const pool = imagesForCollectionIds(collections, [spec.collectionId])
-    if (!pool.length) {
+    const collectionPool = imagesForCollectionIds(collections, [
+      spec.collectionId,
+    ])
+    if (!collectionPool.length) {
       throw new Error(
         `No images exist in database collection ${spec.collectionId} for ${spec.id}`
       )
     }
+    const pinnedCtaImage =
+      spec.section === "cta" && ctaPinnedImageId
+        ? collectionPool.find(
+            (image) =>
+              image.id === ctaPinnedImageId ||
+              image.imageUrl === ctaPinnedImageId
+          )
+        : undefined
+    const pool = pinnedCtaImage ? [pinnedCtaImage] : collectionPool
     const fresh = pool.filter(
       (image) =>
         !usedKeys.has(image.key) &&
@@ -2231,7 +2247,7 @@ function normalizeCollection(collection) {
     if (!imageUrl) return []
     return [
       {
-        id: clean(image.hash) || `${id}-${index}`,
+        id: clean(image.hash) || `stored-${slugify(name)}-${index}`,
         key: clean(image.hash) || imageUrl,
         imageUrl,
         imageCaption: clean(image.caption),
