@@ -48,6 +48,66 @@ describe("LumenClip MCP server", () => {
     )
   })
 
+  it("inspects and runs read-only automation experiments through injected services", async () => {
+    const dimensions = {
+      automationId: "automation-1",
+      variables: [],
+      fixed: [],
+      enabledHookCount: 2,
+    }
+    const experiment = {
+      experimentId: "automation-experiment-1",
+      automationId: "automation-1",
+      seed: 42,
+      cells: [],
+    }
+    const getDimensions = vi.fn(async () => dimensions)
+    const runExperiment = vi.fn(async () => experiment)
+    const client = await connectClient({
+      getAutomationExperimentDimensions:
+        getDimensions as LumenClipMcpServices["getAutomationExperimentDimensions"],
+      runAutomationExperiment:
+        runExperiment as LumenClipMcpServices["runAutomationExperiment"],
+    })
+
+    const inspected = await client.callTool({
+      name: "lumenclip_automation_experiment_dimensions",
+      arguments: { automationId: "automation-1" },
+    })
+    const run = await client.callTool({
+      name: "lumenclip_automation_experiment_run",
+      arguments: {
+        automationId: "automation-1",
+        vary: [
+          {
+            dimension: "variable",
+            name: "zodiac",
+            values: ["Aries", "Taurus"],
+          },
+        ],
+        allHooks: true,
+        repeats: 2,
+        seed: 42,
+      },
+    })
+
+    expect(inspected.structuredContent).toEqual(dimensions)
+    expect(run.structuredContent).toEqual(experiment)
+    expect(runExperiment).toHaveBeenCalledWith({
+      automationId: "automation-1",
+      vary: [
+        {
+          dimension: "variable",
+          name: "zodiac",
+          values: ["Aries", "Taurus"],
+        },
+      ],
+      allHooks: true,
+      repeats: 2,
+      seed: 42,
+    })
+  })
+
   it("analyzes a TikTok slideshow through injected read-only services", async () => {
     const transcript = {
       postId: "7662360324313517330",

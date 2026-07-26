@@ -3,6 +3,14 @@ export const LUMENCLIP_MCP_TOOLS = [
   { name: "lumenclip_automation_templates_list", category: "automations" },
   { name: "lumenclip_automation_create", category: "automations" },
   { name: "lumenclip_automation_get", category: "automations" },
+  {
+    name: "lumenclip_automation_experiment_dimensions",
+    category: "automations",
+  },
+  {
+    name: "lumenclip_automation_experiment_run",
+    category: "automations",
+  },
   { name: "lumenclip_automation_schema_update", category: "automations" },
   {
     name: "lumenclip_automation_formatting_update",

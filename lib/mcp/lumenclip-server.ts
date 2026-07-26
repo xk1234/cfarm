@@ -3,6 +3,10 @@ import { z } from "zod"
 
 import { toLumenClipDataError } from "@/lib/appwrite-errors"
 import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
+import {
+  getAutomationExperimentDimensions,
+  runAutomationExperiment,
+} from "@/lib/automation-experiment"
 import { deriveAutomationVariableBindings } from "@/lib/automation-variable-bindings"
 import {
   automationRecordToSummary,
@@ -289,6 +293,8 @@ export type LumenClipMcpServices = {
   getAutomationRecord: typeof getAutomationRecord
   upsertAutomationRecords: typeof upsertAutomationRecords
   patchAutomationRecord: typeof patchAutomationRecord
+  getAutomationExperimentDimensions: typeof getAutomationExperimentDimensions
+  runAutomationExperiment: typeof runAutomationExperiment
   deleteAutomationCascade: typeof deleteAutomationCascade
   listAutomationTemplateRecords: typeof listAutomationTemplateRecords
   hookAnalyticsReport: typeof hookAnalyticsReport
@@ -354,6 +360,8 @@ const defaultServices: LumenClipMcpServices = {
   getAutomationRecord,
   upsertAutomationRecords,
   patchAutomationRecord,
+  getAutomationExperimentDimensions,
+  runAutomationExperiment,
   deleteAutomationCascade,
   listAutomationTemplateRecords,
   hookAnalyticsReport,
@@ -1227,6 +1235,110 @@ function registerAutomationReadAndRunTools(
           }
         })
       )
+  )
+
+  server.registerTool(
+    "lumenclip_automation_experiment_dimensions",
+    {
+      title: "Inspect automation experiment dimensions",
+      description:
+        "Returns sweepable variables with their bound collections and sample values, fixed runtime variables, and the enabled hook count. Call this before running an automation experiment.",
+      inputSchema: {
+        automationId: z
+          .string()
+          .trim()
+          .min(1)
+          .describe(
+            'Saved slideshow automation ID to inspect, e.g. "automation_123".'
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ automationId }) =>
+      mcpResult(
+        await owned(() =>
+          services.getAutomationExperimentDimensions(automationId)
+        )
+      )
+  )
+
+  const experimentVariationSchema = z.object({
+    dimension: z
+      .enum(["hook", "variable", "tone", "model", "collection"])
+      .describe('Input axis to sweep, e.g. "variable" for a bound hook token.'),
+    name: z
+      .string()
+      .trim()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe(
+        'Variable token name when dimension is "variable", e.g. "zodiac"; omit for other dimensions.'
+      ),
+    values: z
+      .array(z.string().trim().min(1).max(1_000))
+      .min(1)
+      .max(200)
+      .describe('Values for this axis, e.g. ["Aries", "Taurus", "Gemini"].'),
+  })
+
+  server.registerTool(
+    "lumenclip_automation_experiment_run",
+    {
+      title: "Run an automation experiment",
+      description:
+        "Previews the Cartesian product of selected dimensions against one saved slideshow automation without persisting, publishing, or consuming hooks. Individual cell failures are returned without aborting the sweep.",
+      inputSchema: {
+        automationId: z
+          .string()
+          .trim()
+          .min(1)
+          .describe(
+            'Saved slideshow automation ID to test, e.g. "automation_123".'
+          ),
+        vary: z
+          .array(experimentVariationSchema)
+          .max(20)
+          .describe(
+            'Dimensions to combine, e.g. [{"dimension":"variable","name":"zodiac","values":["Aries","Taurus"]},{"dimension":"tone","values":["Bold & Provocative"]}].'
+          ),
+        allHooks: z
+          .boolean()
+          .optional()
+          .describe(
+            "Whether to add every enabled hook as a sweep axis, e.g. true."
+          ),
+        repeats: z
+          .number()
+          .int()
+          .min(1)
+          .max(20)
+          .optional()
+          .describe(
+            "Number of seeded previews for every variant, e.g. 2; defaults to 1."
+          ),
+        seed: z
+          .number()
+          .int()
+          .optional()
+          .describe(
+            "Base integer seed for reproducible variable draws, e.g. 4242."
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input) =>
+      mcpResult(await owned(() => services.runAutomationExperiment(input)))
   )
 
   server.registerTool(
@@ -4728,15 +4840,13 @@ function registerTikTokPublicationTools(
     async ({ url }) =>
       mcpResult(
         await withSystemOwner(ownerId, async () => {
-          const transcript =
-            await services.transcribeTikTokSlideshow(url)
+          const transcript = await services.transcribeTikTokSlideshow(url)
           if (!transcript) throw new Error("TikTok slideshow not found")
           const analysis = await services.analyzeSlideshowTone(transcript)
           return {
             transcript,
             analysis,
-            suggestedFields:
-              services.slideshowToneToAutomationFields(analysis),
+            suggestedFields: services.slideshowToneToAutomationFields(analysis),
             ...(transcript.transcriptionFallback
               ? {
                   warning:

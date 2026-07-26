@@ -14,6 +14,7 @@ import {
   IconPlus,
   IconPencilPlus,
   IconSettings,
+  IconTestPipe,
 } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
@@ -42,6 +43,7 @@ const topNav: NavItem[] = [
 
 const slideshowNav: NavItem[] = [
   { key: "automations", label: "Automations", icon: IconBolt },
+  { key: "testing", label: "Testing facility", icon: IconTestPipe },
   { key: "collections", label: "Collections", icon: IconPhoto },
 ]
 
@@ -162,7 +164,7 @@ export function MobileNavigation({
   return (
     <nav
       aria-label="Primary navigation"
-      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-app-panel-border bg-white/95 px-1 pt-1 pb-[max(.5rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(25,18,45,0.08)] backdrop-blur md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-7 border-t border-app-panel-border bg-white/95 px-1 pt-1 pb-[max(.5rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(25,18,45,0.08)] backdrop-blur md:hidden"
     >
       {[...topNav, ...slideshowNav].map((item) => {
         const Icon = item.icon
@@ -216,11 +218,11 @@ function SidebarButton({
 }) {
   const Icon = item.icon
   const className = cn(
-        "lc-focus-ring relative flex h-9 w-full items-center gap-2.5 overflow-hidden rounded-[10px] px-3 text-left text-[12px] font-medium text-[#454551] transition duration-200 active:translate-y-px",
-        active
-          ? "bg-app-strong text-white shadow-[0_8px_24px_rgba(25,18,45,0.16)] before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-[linear-gradient(180deg,#6d28d9,#e92a9a,#ff9f1c)]"
-          : "hover:bg-app-control-hover hover:text-app-text"
-      )
+    "lc-focus-ring relative flex h-9 w-full items-center gap-2.5 overflow-hidden rounded-[10px] px-3 text-left text-[12px] font-medium text-[#454551] transition duration-200 active:translate-y-px",
+    active
+      ? "bg-app-strong text-white shadow-[0_8px_24px_rgba(25,18,45,0.16)] before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-[linear-gradient(180deg,#6d28d9,#e92a9a,#ff9f1c)]"
+      : "hover:bg-app-control-hover hover:text-app-text"
+  )
   const content = (
     <>
       <Icon className="size-4" />
@@ -258,9 +260,7 @@ function SidebarButton({
   )
 }
 
-function isPlainNavigationClick(
-  event: React.MouseEvent<HTMLAnchorElement>
-) {
+function isPlainNavigationClick(event: React.MouseEvent<HTMLAnchorElement>) {
   return (
     event.button === 0 &&
     !event.metaKey &&

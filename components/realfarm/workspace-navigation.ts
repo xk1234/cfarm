@@ -5,6 +5,7 @@ export type ViewKey =
   | "analytics"
   | "collections"
   | "automations"
+  | "testing"
 
 export type WorkspaceLocation = {
   view: ViewKey
@@ -18,6 +19,7 @@ const viewKeys = new Set<ViewKey>([
   "analytics",
   "collections",
   "automations",
+  "testing",
 ])
 
 export function workspaceViewHref(view: ViewKey) {
@@ -26,6 +28,7 @@ export function workspaceViewHref(view: ViewKey) {
   if (view === "schedule") return "/app?view=schedule"
   if (view === "analytics") return "/app/analytics"
   if (view === "collections") return "/app/collections"
+  if (view === "testing") return "/app/testing"
   return "/app?view=automations"
 }
 
@@ -43,6 +46,7 @@ export function workspaceLocationFromUrl(
     }
   }
   if (pathname === "/app/collections") return { view: "collections" }
+  if (pathname === "/app/testing") return { view: "testing" }
 
   const requestedView = new URLSearchParams(search).get("view")
   return {

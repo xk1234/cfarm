@@ -32,6 +32,8 @@ may link to a shared tool but do not invent a second incompatible schema.
 - `lumenclip_automation_templates_list`
 - `lumenclip_automation_create`
 - `lumenclip_automation_get`
+- `lumenclip_automation_experiment_dimensions`
+- `lumenclip_automation_experiment_run`
 - `lumenclip_automation_schema_update`
 - `lumenclip_automation_formatting_update`
 - `lumenclip_automation_text_item_update`
@@ -46,6 +48,7 @@ may link to a shared tool but do not invent a second incompatible schema.
 - `lumenclip_automation_run`
 - `lumenclip_schedule_get`
 - `lumenclip_slideshow_generate`
+- `lumenclip_slideshow_analyze`
 - `lumenclip_ugc_estimate`
 - `lumenclip_ugc_generate`
 - `lumenclip_automation_update`
