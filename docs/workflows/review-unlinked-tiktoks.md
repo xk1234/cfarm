@@ -79,7 +79,7 @@ list can be driven by publications with snapshots joined in — rather than the 
 ## Migration
 
 `scripts/migrate-publication-link-state.mts`, following the same pattern as
-`scripts/migrate-automation-variable-bindings.ts`: it loads `--env-file` (default `.env.local`),
+`scripts/migrate-automation-variable-bindings.mts`: it loads `--env-file` (default `.env.local`),
 requires `LUMENCLIP_SYSTEM_OWNER_ID` or `LUMENCLIP_MCP_OWNER_ID`, and wraps its work in
 `withSystemOwner`.
 

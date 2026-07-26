@@ -35,6 +35,7 @@
     "tiktok-studio:package": "node scripts/package-tiktok-studio-extension.mjs",
     "tiktok-studio:backfill-urls": "NODE_OPTIONS='--conditions=react-server' tsx scripts/backfill-tiktok-canonical-urls.mts",
     "migrate:publication-link-state": "NODE_OPTIONS='--conditions=react-server' tsx scripts/migrate-publication-link-state.mts",
+    "migrate:automation-variable-bindings": "NODE_OPTIONS='--conditions=react-server' tsx scripts/migrate-automation-variable-bindings.mts",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit"
   },

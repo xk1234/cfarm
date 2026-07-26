@@ -167,7 +167,7 @@ must not decide whether an automation token resolves. Variable CRUD remains
 delegated to `lumenclip_variable_get`, `lumenclip_variable_save`, and
 `lumenclip_variable_delete`.
 
-Use `scripts/migrate-automation-variable-bindings.ts` to report missing tokens,
+Use `scripts/migrate-automation-variable-bindings.mts` to report missing tokens,
 unused overrides, variable-name conflicts, and differences between explicit
 overrides and derived bindings. It does not silently resolve binding
 mismatches.
