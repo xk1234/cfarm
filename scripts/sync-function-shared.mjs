@@ -48,6 +48,36 @@ const generatedModules = [
     imports: { "@/lib/guards": "./guards.js" },
   },
   {
+    source: "lib/slideshow-text-generation-payload.ts",
+    target:
+      "appwrite/functions/job-worker/src/slideshow-text-generation-payload.js",
+    imports: {
+      "@/lib/guards": "./guards.js",
+      "@/lib/realfarm-generation-model-registry":
+        "./realfarm-generation-model-registry.js",
+      "@/lib/openrouter": "./openrouter.js",
+      "@/lib/temp-slide-testing-shared":
+        "./temp-slide-testing-shared.js",
+    },
+  },
+  {
+    source: "lib/slideshow-generation-engine.ts",
+    target:
+      "appwrite/functions/job-worker/src/slideshow-generation-engine.js",
+    imports: {
+      "@/lib/temp-slide-testing-shared":
+        "./temp-slide-testing-shared.js",
+      "@/lib/slideshow-text-generation-payload":
+        "./slideshow-text-generation-payload.js",
+      "@/lib/realfarm-generation-model-registry":
+        "./realfarm-generation-model-registry.js",
+      "@/lib/guards": "./guards.js",
+      "@/lib/http": "./http.js",
+      "@/lib/llm-slop": "./llm-slop.js",
+      "@/lib/openrouter": "./openrouter.js",
+    },
+  },
+  {
     source: "lib/ugc-video-generation.ts",
     target: "appwrite/functions/job-worker/src/ugc-video-generation.js",
     imports: {

@@ -49,7 +49,7 @@ import {
   defaultSlideshowTextModel,
   generateSlideshowText,
   type SlideshowTextGenerationResult,
-} from "@/lib/slideshow-text-generation"
+} from "@/lib/slideshow-generation-engine"
 import {
   listPostFastPostRecords,
   type PostFastPostRecord,
