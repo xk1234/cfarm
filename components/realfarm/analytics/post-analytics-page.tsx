@@ -17,17 +17,20 @@ import {
   IconArrowLeft,
   IconBrandTiktok,
   IconExternalLink,
+  IconLoader2,
+  IconMessageCircle,
   IconPhoto,
   IconRefresh,
   IconVideo,
 } from "@tabler/icons-react"
+import { toast } from "sonner"
 
 import {
   AccountProfileIcon,
   providerName,
 } from "@/components/realfarm/analytics/account-profile-icon"
 import { Button } from "@/components/ui/button"
-import { fetchJsonWithTimeout } from "@/lib/client-api"
+import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import {
   canonicalMetricOrder,
   metricLabel,
@@ -39,6 +42,10 @@ import {
 } from "@/lib/post-content-type"
 import type { SocialIntegration } from "@/lib/social/provider-contract"
 import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
+import {
+  collectTikTokCommentsForPublication,
+  TIKTOK_PLATFORM_POST_ID_REQUIRED,
+} from "@/lib/tiktok-comment-collection-client"
 import { cn } from "@/lib/utils"
 import { TikTokStudioImportDialog } from "./tiktok-studio-import-dialog"
 
@@ -46,10 +53,12 @@ export function PostAnalyticsPage({
   snapshots,
   integration,
   contentType,
+  publicationPlatformPostId,
 }: {
   snapshots: PostFastMetricSnapshot[]
   integration: SocialIntegration
   contentType: PostContentType
+  publicationPlatformPostId?: string
 }) {
   const router = useRouter()
   const ordered = useMemo(
@@ -64,6 +73,7 @@ export function PostAnalyticsPage({
   const metrics = availableMetrics(ordered)
   const [metric, setMetric] = useState<CanonicalMetric>(defaultMetric(metrics))
   const [syncing, setSyncing] = useState(false)
+  const [collectingComments, setCollectingComments] = useState(false)
   const [studioImportOpen, setStudioImportOpen] = useState(false)
   const activeMetric = metrics.includes(metric)
     ? metric
@@ -75,6 +85,11 @@ export function PostAnalyticsPage({
     .reverse()
     .find((snapshot) => snapshot.tiktokStudio)
   const studio = studioSnapshot?.tiktokStudio
+  const isTikTok = latest.provider.toLowerCase().startsWith("tiktok")
+  const platformPostId =
+    publicationPlatformPostId?.trim() ||
+    [...ordered].reverse().find((snapshot) => snapshot.platformPostId?.trim())
+      ?.platformPostId
 
   async function sync() {
     setSyncing(true)
@@ -94,6 +109,25 @@ export function PostAnalyticsPage({
     }
   }
 
+  async function collectComments() {
+    setCollectingComments(true)
+    try {
+      await collectTikTokCommentsForPublication(
+        {
+          id: latest.postId,
+          platformPostId,
+        },
+        { navigate: (href) => router.push(href) }
+      )
+    } catch (error) {
+      toast.error(
+        getApiErrorMessage(error, "TikTok comments could not be collected")
+      )
+    } finally {
+      setCollectingComments(false)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#f8f7fb] px-4 py-6 sm:px-7 lg:px-10 lg:py-9">
       <div className="mx-auto max-w-[1380px]">
@@ -105,15 +139,39 @@ export function PostAnalyticsPage({
             <IconArrowLeft className="size-4" /> Analytics
           </Link>
           <div className="flex flex-wrap items-center gap-2">
-            {latest.provider === "tiktok" ? (
-              <Button
-                variant="softControl"
-                size="compact"
-                onClick={() => setStudioImportOpen(true)}
-              >
-                <IconBrandTiktok className="size-4" />
-                Import from TikTok Studio
-              </Button>
+            {isTikTok ? (
+              <>
+                <Button
+                  variant="softControl"
+                  size="compact"
+                  onClick={() => setStudioImportOpen(true)}
+                >
+                  <IconBrandTiktok className="size-4" />
+                  Import from TikTok Studio
+                </Button>
+                {platformPostId ? (
+                  <Button
+                    variant="softControl"
+                    size="compact"
+                    onClick={() => void collectComments()}
+                    disabled={collectingComments}
+                  >
+                    {collectingComments ? (
+                      <IconLoader2 className="size-4 animate-spin" />
+                    ) : (
+                      <IconMessageCircle className="size-4" />
+                    )}
+                    Collect comments
+                  </Button>
+                ) : (
+                  <span
+                    role="alert"
+                    className="max-w-sm text-caption font-medium text-app-danger"
+                  >
+                    {TIKTOK_PLATFORM_POST_ID_REQUIRED}
+                  </span>
+                )}
+              </>
             ) : null}
             <Button
               variant="softControl"
@@ -121,7 +179,9 @@ export function PostAnalyticsPage({
               onClick={() => void sync()}
               disabled={syncing}
             >
-              <IconRefresh className={cn("size-4", syncing && "animate-spin")} />
+              <IconRefresh
+                className={cn("size-4", syncing && "animate-spin")}
+              />
               Sync this account
             </Button>
           </div>
@@ -335,7 +395,7 @@ export function PostAnalyticsPage({
               />
               <DetailRow
                 label="Post ID"
-                value={latest.platformPostId || latest.postId}
+                value={platformPostId || latest.postId}
                 mono
               />
             </dl>
@@ -421,10 +481,7 @@ function TikTokStudioBreakdown({
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-3">
-        <StudioList
-          title="Traffic sources"
-          values={studio.trafficSources}
-        />
+        <StudioList title="Traffic sources" values={studio.trafficSources} />
         <StudioList
           title="Viewer countries"
           values={studio.audience?.countryPercent ?? {}}

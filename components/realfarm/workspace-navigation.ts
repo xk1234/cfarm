@@ -3,6 +3,7 @@ export type ViewKey =
   | "compose"
   | "schedule"
   | "analytics"
+  | "comments"
   | "collections"
   | "automations"
   | "testing"
@@ -10,6 +11,7 @@ export type ViewKey =
 export type WorkspaceLocation = {
   view: ViewKey
   collectionId?: string
+  commentCollectionId?: string
 }
 
 const viewKeys = new Set<ViewKey>([
@@ -17,6 +19,7 @@ const viewKeys = new Set<ViewKey>([
   "compose",
   "schedule",
   "analytics",
+  "comments",
   "collections",
   "automations",
   "testing",
@@ -27,6 +30,7 @@ export function workspaceViewHref(view: ViewKey) {
   if (view === "compose") return "/app/compose"
   if (view === "schedule") return "/app?view=schedule"
   if (view === "analytics") return "/app/analytics"
+  if (view === "comments") return "/app/tiktok-comments"
   if (view === "collections") return "/app/collections"
   if (view === "testing") return "/app/testing"
   return "/app?view=automations"
@@ -38,6 +42,13 @@ export function workspaceLocationFromUrl(
 ): WorkspaceLocation {
   if (pathname === "/app/compose") return { view: "compose" }
   if (pathname.startsWith("/app/analytics")) return { view: "analytics" }
+  if (pathname === "/app/tiktok-comments") {
+    return {
+      view: "comments",
+      commentCollectionId:
+        new URLSearchParams(search).get("collectionId") || undefined,
+    }
+  }
   if (pathname.startsWith("/app/collections/")) {
     const encodedId = pathname.slice("/app/collections/".length).split("/")[0]
     return {

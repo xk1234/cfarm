@@ -51,6 +51,11 @@ const AnalyticsView = dynamic(() =>
     (module) => module.AnalyticsView
   )
 )
+const TikTokCommentApprovalQueue = dynamic(() =>
+  import("@/app/app/tiktok-comments/approval-queue").then(
+    (module) => module.TikTokCommentApprovalQueue
+  )
+)
 const CollectionsView = dynamic(() =>
   import("@/components/realfarm/collections-view").then(
     (module) => module.CollectionsView
@@ -173,6 +178,7 @@ export function RealFarmWorkspace({
     automationId?: string
     runId?: string
     collectionId?: string
+    commentCollectionId?: string
   }
   composeAccounts?: ConnectedComposerAccount[]
   user: { id: string; email: string; emailVerified: boolean }
@@ -180,6 +186,9 @@ export function RealFarmWorkspace({
   const [view, setView] = useState<ViewKey>(initialNavigation?.view ?? "home")
   const [selectedCollectionId, setSelectedCollectionId] = useState(
     initialNavigation?.collectionId ?? null
+  )
+  const [commentCollectionId, setCommentCollectionId] = useState(
+    initialNavigation?.commentCollectionId ?? ""
   )
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [selectedSoundId] = useState("")
@@ -320,6 +329,7 @@ export function RealFarmWorkspace({
       )
       setView(location.view)
       setSelectedCollectionId(location.collectionId ?? null)
+      setCommentCollectionId(location.commentCollectionId ?? "")
     }
 
     window.addEventListener("popstate", restoreWorkspaceLocation)
@@ -767,6 +777,7 @@ export function RealFarmWorkspace({
       refreshRecentAutomationRuns()
     }
     if (nextView === "collections") setSelectedCollectionId(null)
+    if (nextView === "comments") setCommentCollectionId("")
     setView(nextView)
     pushWorkspaceUrl(workspaceViewHref(nextView))
   }
@@ -885,6 +896,11 @@ export function RealFarmWorkspace({
             />
           )}
           {view === "analytics" && <AnalyticsView />}
+          {view === "comments" && (
+            <TikTokCommentApprovalQueue
+              initialCollectionId={commentCollectionId}
+            />
+          )}
           {view === "testing" && <TestingFacility />}
           {view === "collections" &&
             (selectedCollection ? (

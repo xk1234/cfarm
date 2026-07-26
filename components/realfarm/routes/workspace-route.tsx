@@ -22,6 +22,7 @@ export type WorkspaceNavigation = {
   automationId?: string
   runId?: string
   collectionId?: string
+  commentCollectionId?: string
 }
 
 export async function WorkspaceRoute({

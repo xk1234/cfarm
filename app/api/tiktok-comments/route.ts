@@ -7,6 +7,7 @@ import { withSystemOwner } from "@/lib/system-owner-context"
 import {
   approveTikTokReplyDrafts,
   createTikTokCommentCollection,
+  listTikTokCommentCollections,
   listTikTokComments,
   listTikTokReplyApprovals,
   listTikTokReplyDrafts,
@@ -56,7 +57,11 @@ export const GET = withHandler(async (request: Request) => {
   const collectionId = params.get("collectionId")?.trim()
   const postId = params.get("postId")?.trim()
   if (!collectionId && !postId) {
-    throw new ApiError(400, "collectionId or postId is required")
+    return NextResponse.json({
+      collections: await withSystemOwner(user.$id, () =>
+        listTikTokCommentCollections()
+      ),
+    })
   }
   const result = await withSystemOwner(user.$id, async () => ({
     comments: await listTikTokComments({ collectionId, postId }),

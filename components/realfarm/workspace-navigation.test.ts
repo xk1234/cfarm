@@ -11,6 +11,7 @@ describe("workspace navigation", () => {
     ["compose", "/app/compose"],
     ["schedule", "/app?view=schedule"],
     ["analytics", "/app/analytics"],
+    ["comments", "/app/tiktok-comments"],
     ["collections", "/app/collections"],
     ["automations", "/app?view=automations"],
   ] as const)("maps %s to its shareable URL", (view, href) => {
@@ -23,6 +24,15 @@ describe("workspace navigation", () => {
     })
     expect(workspaceLocationFromUrl("/app/analytics")).toEqual({
       view: "analytics",
+    })
+    expect(
+      workspaceLocationFromUrl(
+        "/app/tiktok-comments",
+        "?collectionId=collection%2Fone"
+      )
+    ).toEqual({
+      view: "comments",
+      commentCollectionId: "collection/one",
     })
     expect(
       workspaceLocationFromUrl("/app/collections/mystical%20pictures")
