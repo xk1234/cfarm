@@ -247,8 +247,6 @@ const formattingBlockPatchSchema = z
     overlay: z.boolean().optional(),
     aiImageSelection: z.boolean().optional(),
     noText: z.boolean().optional(),
-    ctaLocation: z.enum(["last", "static"]).optional(),
-    ctaStaticPosition: z.string().trim().max(100).optional(),
     imageMode: z.enum(["collection", "single_image"]).optional(),
     overlayImage: overlayImagePatchSchema.optional(),
     slideOverrides: z

@@ -517,7 +517,6 @@ function cloneSchedule(schedule: AutomationSchedule): AutomationSchedule {
     })),
     paused: schedule.paused,
     jitter_minutes: schedule.jitter_minutes,
-    min_gap_minutes: schedule.min_gap_minutes,
   }
 }
 
@@ -541,9 +540,6 @@ function normalizeStatus(value: unknown): AutomationRecordStatus {
   const normalized = clean(value).toLowerCase()
   if (normalized === "live" || normalized === "paused") {
     return normalized
-  }
-  if (normalized === "draft") {
-    return "paused"
   }
   return normalized ? "unknown" : "live"
 }

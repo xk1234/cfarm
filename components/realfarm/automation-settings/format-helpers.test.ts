@@ -57,7 +57,6 @@ function previewItem(): AutomationFormatPreviewItem {
     label: "Content 1",
     section: {
       id: "body",
-      image_url: "",
       textItems: [first, second],
       aspect_ratio: "1:1",
       imageGrid: "none",

@@ -264,13 +264,6 @@ export function AutomationFormatPanel({
   function updateCtaImageMode(value: "collection" | "single_image") {
     updateSchema((current) => ({
       ...updateAutomationFormatSection(current, "cta", { imageMode: value }),
-      image_collection_ids: {
-        ...current.image_collection_ids,
-        cta_slide: {
-          ...current.image_collection_ids.cta_slide,
-          cta_collection_check: value === "collection",
-        },
-      },
     }))
   }
 

@@ -34,15 +34,12 @@ export type DefaultAutomationTextItemConfig = {
 }
 
 export type DefaultAutomationFormatSectionConfig = {
-  image_url: string
   textItem: DefaultAutomationTextItemConfig
   aspect_ratio: AutomationAspectRatio
   imageGrid: AutomationImageGrid
   slideCount: number
   noText: boolean
   overlay: boolean
-  ctaLocation?: "last" | "static"
-  ctaStaticPosition?: string
   imageMode?: AutomationImageMode
 }
 
@@ -81,16 +78,13 @@ export const defaultAutomationTemplateDefaults = {
     all_slides: "",
     cta_slide: {
       check: false,
-      cta_collection_check: false,
       cta_collection_id: "",
       image_id: null,
-      cta_location: "last_slide",
     },
     video_demo_asset_id: "",
   } satisfies ImageCollectionConfig,
   formatting: {
     hook: {
-      image_url: "",
       textItem: {
         fontSize: "10px",
         textStyle: "whiteText",
@@ -112,7 +106,6 @@ export const defaultAutomationTemplateDefaults = {
       overlay: true,
     },
     body: {
-      image_url: "",
       textItem: {
         fontSize: "8px",
         textStyle: "whiteText",
@@ -134,7 +127,6 @@ export const defaultAutomationTemplateDefaults = {
       overlay: true,
     },
     cta: {
-      image_url: "",
       textItem: {
         fontSize: "12px",
         textStyle: "yellowText",
@@ -152,8 +144,6 @@ export const defaultAutomationTemplateDefaults = {
       aspect_ratio: "4:5",
       imageGrid: "none",
       slideCount: 0,
-      ctaLocation: "last",
-      ctaStaticPosition: undefined,
       noText: false,
       overlay: false,
       imageMode: "collection",

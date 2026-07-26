@@ -803,7 +803,6 @@ describe("runDueAutomations", () => {
               ? {
                   ...section,
                   slideCount: 0,
-                  ctaLocation: "last",
                 }
               : section
     )
@@ -818,10 +817,8 @@ describe("runDueAutomations", () => {
       all_slides: "collection-brand-scenes-2026-07-03t00-00-00-000z",
       cta_slide: {
         check: true,
-        cta_collection_check: true,
         cta_collection_id: "collection-brand-scenes-2026-07-03t00-00-00-000z",
         image_id: null,
-        cta_location: "last_slide",
       },
     }
     await upsertAutomationRecords({
@@ -976,10 +973,8 @@ describe("runDueAutomations", () => {
       all_slides: "collection-brand-scenes-2026-07-03t00-00-00-000z",
       cta_slide: {
         check: false,
-        cta_collection_check: false,
         cta_collection_id: "",
         image_id: null,
-        cta_location: "last_slide",
       },
     }
     await upsertAutomationRecords({
@@ -1164,10 +1159,8 @@ describe("runDueAutomations", () => {
       all_slides: "collection-eco-scenes-2026-07-19t00-00-00-000z",
       cta_slide: {
         check: false,
-        cta_collection_check: false,
         cta_collection_id: "",
         image_id: null,
-        cta_location: "last_slide",
       },
     }
     await upsertAutomationRecords({
@@ -1284,10 +1277,8 @@ describe("runDueAutomations", () => {
       all_slides: "collection-daily-scenes-2026-07-03t00-00-00-000z",
       cta_slide: {
         check: false,
-        cta_collection_check: false,
         cta_collection_id: "",
         image_id: null,
-        cta_location: "last_slide",
       },
     }
     await upsertAutomationRecords({
@@ -1436,10 +1427,8 @@ describe("runDueAutomations", () => {
       all_slides: "collection-daily-scenes-2026-07-03t00-00-00-000z",
       cta_slide: {
         check: false,
-        cta_collection_check: false,
         cta_collection_id: "",
         image_id: null,
-        cta_location: "last_slide",
       },
     }
     await upsertAutomationRecords({
@@ -1623,10 +1612,8 @@ describe("runDueAutomations", () => {
       all_slides: "collection-brand-scenes-2026-07-03t00-00-00-000z",
       cta_slide: {
         check: false,
-        cta_collection_check: false,
         cta_collection_id: "",
         image_id: null,
-        cta_location: "last_slide",
       },
     }
     automation.schema.formatting = automation.schema.formatting.map(
@@ -1746,10 +1733,8 @@ describe("runDueAutomations", () => {
       all_slides: "community_collection_11436",
       cta_slide: {
         check: true,
-        cta_collection_check: true,
         cta_collection_id: "community_collection_11436",
         image_id: null,
-        cta_location: "last_slide",
       },
     }
     automation.schema.prompt_formatting.num_of_slides = 1
@@ -1850,10 +1835,8 @@ describe("runDueAutomations", () => {
       all_slides: "collection-base-scenes-2026-07-03t00-00-00-000z",
       cta_slide: {
         check: false,
-        cta_collection_check: false,
         cta_collection_id: "",
         image_id: null,
-        cta_location: "last_slide",
       },
     }
     automation.schema.prompt_formatting.num_of_slides = 2
@@ -2200,11 +2183,9 @@ describe("runDueAutomations", () => {
         all_slides: "collection-override-scenes-2026-07-03t00-00-00-000z",
         cta_slide: {
           check: true,
-          cta_collection_check: true,
           cta_collection_id:
             "collection-override-scenes-2026-07-03t00-00-00-000z",
           image_id: null,
-          cta_location: "last_slide" as const,
         },
       },
       prompt_formatting: {

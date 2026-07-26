@@ -8,7 +8,6 @@ import {
   withJsonArrayStore,
 } from "@/lib/json-store"
 import {
-  benchmarkXRun,
   defaultXAutomation,
   normalizeXAutomation,
   type XAutomationRecord,
@@ -147,33 +146,19 @@ export async function deleteXAutomationRun(id: string) {
 }
 
 function normalizeXAutomationRun(run: XAutomationRun) {
-  if (!run?.id || !run?.automationId) return null
+  if (!run?.id || !run?.automationId || !run.benchmark?.comparison) return null
   const setup = typeof run.setup === "string" ? run.setup : ""
   const proof = typeof run.proof === "string" ? run.proof : ""
   const curiosityGap =
     typeof run.curiosityGap === "string" ? run.curiosityGap : ""
   const platform =
     run.platform === "threads" || run.platform === "x" ? run.platform : "x"
-  const benchmark = run.benchmark?.comparison
-    ? run.benchmark
-    : benchmarkXRun({
-        platform,
-        contentType: run.contentType,
-        hook: run.hook,
-        setup,
-        content: Array.isArray(run.content) ? run.content : [],
-        proof,
-        curiosityGap,
-        cta: run.cta,
-        posts: Array.isArray(run.posts) ? run.posts : [],
-        maxCharacters: 280,
-      })
   return {
     ...run,
     platform,
     setup,
     proof,
     curiosityGap,
-    benchmark,
+    benchmark: run.benchmark,
   }
 }

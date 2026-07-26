@@ -102,6 +102,63 @@ describe("automation schema normalization", () => {
     expect(normalized.image_collection_ids).not.toHaveProperty("noTextOnSlides")
   })
 
+  it("ignores removed persisted keys while retaining sibling data", () => {
+    const base = defaultAutomationSchema(automation)
+    const normalized = normalizeAutomationSchema(
+      {
+        ...base,
+        schedule: {
+          ...base.schedule,
+          timezone: "Europe/Paris",
+          min_gap_minutes: 180,
+        },
+        image_collection_ids: {
+          ...base.image_collection_ids,
+          all_slides: "body-collection",
+          cta_slide: {
+            ...base.image_collection_ids.cta_slide,
+            check: true,
+            cta_collection_id: "cta-collection",
+            cta_collection_check: true,
+            cta_location: "last_slide",
+          },
+        },
+        formatting: base.formatting.map((section) => ({
+          ...section,
+          slideCount: section.id === "body" ? 7 : section.slideCount,
+          image_url: "https://legacy.example/image.jpg",
+          ctaLocation: "static",
+          ctaStaticPosition: "2",
+        })),
+      } as unknown as AutomationSchema,
+      automation
+    )
+
+    expect(normalized.schedule.timezone).toBe("Europe/Paris")
+    expect(normalized.schedule).not.toHaveProperty("min_gap_minutes")
+    expect(normalized.image_collection_ids).toMatchObject({
+      all_slides: "body-collection",
+      cta_slide: {
+        check: true,
+        cta_collection_id: "cta-collection",
+      },
+    })
+    expect(normalized.image_collection_ids.cta_slide).not.toHaveProperty(
+      "cta_collection_check"
+    )
+    expect(normalized.image_collection_ids.cta_slide).not.toHaveProperty(
+      "cta_location"
+    )
+    expect(
+      normalized.formatting.find((section) => section.id === "body")?.slideCount
+    ).toBe(7)
+    for (const section of normalized.formatting) {
+      expect(section).not.toHaveProperty("image_url")
+      expect(section).not.toHaveProperty("ctaLocation")
+      expect(section).not.toHaveProperty("ctaStaticPosition")
+    }
+  })
+
   it("keeps image fitting and language at the automation root", () => {
     const base = defaultAutomationSchema(automation)
     const normalized = normalizeAutomationSchema(

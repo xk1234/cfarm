@@ -218,17 +218,14 @@ function scheduleInput(
 }
 
 function scheduleForAutomation(
-  automation: Pick<Automation, "schedule" | "times">,
+  automation: Pick<Automation, "schedule">,
   timezone: string
 ): AutomationScheduleInput {
   const schedule = automation.schedule as AutomationScheduleInput | undefined
-  if (schedule?.posting_times?.length) return schedule
+  if (schedule) return schedule
   return {
     timezone,
-    posting_times: automation.times.map((time) => ({
-      time,
-      days: weekdays,
-    })),
+    posting_times: [],
   }
 }
 

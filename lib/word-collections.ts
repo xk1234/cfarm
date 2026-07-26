@@ -111,10 +111,6 @@ function normalizeWordCollection(
 ): WordCollectionRecord | null {
   const record: Record<string, unknown> = isRecord(raw) ? raw : {}
   const id = clean(record.id) || `word-collection-${randomUUID()}`
-  // Old workspaces stored the current year as a one-item random collection.
-  // Keep that retired record out of every variable picker; legacy [[YEAR]]
-  // references are resolved and migrated by hook-variables.ts.
-  if (id.toLowerCase() === "year") return null
   const now = new Date().toISOString()
   const words = normalizeWords(record.words)
   return {

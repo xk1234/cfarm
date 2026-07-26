@@ -56,10 +56,8 @@ export type ImageCollectionConfig = {
   all_slides: string
   cta_slide: {
     check: boolean
-    cta_collection_check: boolean
     cta_collection_id: string
     image_id: string | null
-    cta_location: "last_slide" | string
   }
   video_demo_asset_id?: string
 }
@@ -105,7 +103,6 @@ export type AutomationImageOverride = {
 
 export type AutomationFormatSection = {
   id: AutomationFormatSectionId
-  image_url: string
   textItems: AutomationTextItem[]
   aspect_ratio: AutomationAspectRatio
   imageGrid: AutomationImageGrid
@@ -123,8 +120,6 @@ export type AutomationFormatSection = {
   }
   slideOverrides?: AutomationSlideOverride[]
   imageOverrides?: AutomationImageOverride[]
-  ctaLocation?: "last" | "static"
-  ctaStaticPosition?: string
   imageMode?: AutomationImageMode
 }
 
@@ -193,7 +188,6 @@ export type AutomationSchedule = {
   }[]
   paused?: boolean
   jitter_minutes?: number
-  min_gap_minutes?: number
 }
 
 export type AutomationPostingMode = "manual" | "review" | "auto"
@@ -482,7 +476,6 @@ export function defaultAutomationTemplate(
     formatting: [
       {
         id: "hook",
-        image_url: hookDefaults.image_url,
         textItems: [
           defaultAutomationTextItem({
             ...hookDefaults.textItem,
@@ -496,7 +489,6 @@ export function defaultAutomationTemplate(
       },
       {
         id: "body",
-        image_url: bodyDefaults.image_url,
         textItems: [
           defaultAutomationTextItem({
             ...bodyDefaults.textItem,
@@ -510,7 +502,6 @@ export function defaultAutomationTemplate(
       },
       {
         id: "cta",
-        image_url: ctaDefaults.image_url,
         textItems: [
           defaultAutomationTextItem({
             ...ctaDefaults.textItem,
@@ -519,8 +510,6 @@ export function defaultAutomationTemplate(
         aspect_ratio: ctaDefaults.aspect_ratio,
         imageGrid: ctaDefaults.imageGrid,
         slideCount: ctaDefaults.slideCount,
-        ctaLocation: ctaDefaults.ctaLocation,
-        ctaStaticPosition: ctaDefaults.ctaStaticPosition,
         noText: ctaDefaults.noText,
         overlay: ctaDefaults.overlay,
         imageMode: ctaDefaults.imageMode,
@@ -696,9 +685,6 @@ export function normalizeAutomationSchema(
       paused: Boolean(sourceSchedule?.paused),
       jitter_minutes: normalizeNonNegativeNumber(
         sourceSchedule?.jitter_minutes
-      ),
-      min_gap_minutes: normalizeNonNegativeNumber(
-        sourceSchedule?.min_gap_minutes
       ),
     },
     posting_mode:
@@ -1323,7 +1309,6 @@ export function schemaWithAutomationCollectionId(
         cta_slide: {
           ...schema.image_collection_ids.cta_slide,
           check: true,
-          cta_collection_check: true,
           cta_collection_id: collectionId,
         },
       },
@@ -1524,7 +1509,6 @@ function defaultAutomationSection(
 ): AutomationFormatSection {
   return {
     id,
-    image_url: "",
     textItems: [defaultAutomationTextItem()],
     aspect_ratio: "4:5",
     imageGrid: "none",
@@ -1535,7 +1519,6 @@ function defaultAutomationSection(
     aiImageSelection: false,
     slideOverrides: [],
     imageOverrides: [],
-    ctaLocation: id === "cta" ? "last" : undefined,
     imageMode: id === "cta" ? "collection" : undefined,
   }
 }
@@ -1596,16 +1579,10 @@ function normalizeImageCollectionConfig(
     all_slides: clean(record.all_slides) || fallback.all_slides,
     cta_slide: {
       check: booleanValue(ctaSlide.check, fallback.cta_slide.check),
-      cta_collection_check: booleanValue(
-        ctaSlide.cta_collection_check,
-        fallback.cta_slide.cta_collection_check
-      ),
       cta_collection_id:
         clean(ctaSlide.cta_collection_id) ||
         fallback.cta_slide.cta_collection_id,
       image_id: clean(ctaSlide.image_id) || null,
-      cta_location:
-        clean(ctaSlide.cta_location) || fallback.cta_slide.cta_location,
     },
     video_demo_asset_id:
       clean(record.video_demo_asset_id) || fallback.video_demo_asset_id || "",
@@ -1646,7 +1623,6 @@ function normalizeFormattingItem(value: unknown): AutomationFormattingItem[] {
     {
       ...defaultAutomationSection(id),
       id,
-      image_url: clean(record.image_url),
       textItems: Array.isArray(record.textItems)
         ? record.textItems.map(normalizeTextItem)
         : defaultAutomationSection(id).textItems,
@@ -1683,13 +1659,6 @@ function normalizeFormattingItem(value: unknown): AutomationFormattingItem[] {
       overlayImage: normalizeOverlayImage(record.overlayImage),
       slideOverrides: normalizeSlideOverrides(record.slideOverrides),
       imageOverrides: normalizeImageOverrides(record.imageOverrides),
-      ctaLocation:
-        record.ctaLocation === "static"
-          ? "static"
-          : record.ctaLocation === "last"
-            ? "last"
-            : defaultAutomationSection(id).ctaLocation,
-      ctaStaticPosition: clean(record.ctaStaticPosition) || undefined,
       imageMode:
         record.imageMode === "single_image"
           ? "single_image"

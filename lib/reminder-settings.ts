@@ -121,11 +121,6 @@ export function normalizeReminderSettings(
       ? (input.events as Record<string, unknown>)
       : {}
   const defaults = defaultReminderSettings()
-  const legacyChannel: ReminderChannel =
-    input.channel === "telegram" ? "telegram" : "none"
-  const legacyShape = reminderEvents.some(
-    (event) => typeof rawEvents[event] === "boolean"
-  )
   const events = Object.fromEntries(
     reminderEvents.map((event) => {
       const metadata = reminderEventMetadata[event]
@@ -134,15 +129,8 @@ export function normalizeReminderSettings(
         raw && typeof raw === "object" && !Array.isArray(raw)
           ? (raw as Record<string, unknown>)
           : null
-      const channel: ReminderChannel = legacyShape
-        ? typeof raw === "boolean"
-          ? raw && legacyChannel === "telegram"
-            ? "telegram"
-            : "none"
-          : legacyChannel
-        : rawEvent?.channel === "telegram"
-          ? "telegram"
-          : "none"
+      const channel: ReminderChannel =
+        rawEvent?.channel === "telegram" ? "telegram" : "none"
       const offsetsHours = metadata.supportsOffsets
         ? normalizeOffsets(
             rawEvent?.offsetsHours,
@@ -207,7 +195,8 @@ export async function saveReminderSettings(
 }
 
 export function publicReminderSettings(settings: ReminderSettings) {
-  const { telegramBotToken: _telegramBotToken, ...safe } = settings
+  const safe = { ...settings }
+  delete safe.telegramBotToken
   return safe
 }
 

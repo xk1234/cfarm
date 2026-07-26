@@ -430,7 +430,6 @@ export function defaultXAutomation(
       ],
       paused: false,
       jitter_minutes: 10,
-      min_gap_minutes: 180,
     },
     usage: { recentArchetypes: [], recentHooks: [], recentBodies: [] },
     operations: [],
@@ -597,7 +596,14 @@ export function normalizeXAutomation(value: unknown): XAutomationRecord | null {
           )
         : [],
     } as XAutomationRecord["publishing"],
-    schedule: { ...defaults.schedule, ...schedule } as AutomationSchedule,
+    schedule: {
+      timezone: clean(schedule.timezone) || defaults.schedule.timezone,
+      posting_times: Array.isArray(schedule.posting_times)
+        ? (schedule.posting_times as AutomationSchedule["posting_times"])
+        : defaults.schedule.posting_times,
+      paused: Boolean(schedule.paused),
+      jitter_minutes: Math.max(0, Number(schedule.jitter_minutes) || 0),
+    },
     usage: normalizeUsage(value.usage),
     operations: normalizeOperations(value.operations),
     createdAt: clean(value.createdAt) || defaults.createdAt,

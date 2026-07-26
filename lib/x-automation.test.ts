@@ -15,12 +15,17 @@ import {
 describe("X automation domain", () => {
   it("keeps text automation data separate and preserves shared scheduling", () => {
     const automation = defaultXAutomation({ id: "x-test" })
+    const stored = JSON.parse(JSON.stringify(automation))
+    stored.schedule.timezone = "Europe/Paris"
+    stored.schedule.min_gap_minutes = 180
+    const normalized = normalizeXAutomation(stored)
+
     expect(automation.output.contentType).toBe("thread")
     expect(automation.schedule.timezone).toBe("Asia/Singapore")
     expect(automation).not.toHaveProperty("formatting")
-    expect(
-      normalizeXAutomation(JSON.parse(JSON.stringify(automation)))?.id
-    ).toBe("x-test")
+    expect(normalized?.id).toBe("x-test")
+    expect(normalized?.schedule.timezone).toBe("Europe/Paris")
+    expect(normalized?.schedule).not.toHaveProperty("min_gap_minutes")
   })
 
   it("preserves accounts and posting times for the shared automation card", () => {

@@ -54,6 +54,29 @@ describe("automation slot projection", () => {
     expect(slots[0].scheduledFor).toBe("2026-07-15T01:00:00.000Z")
   })
 
+  it("does not expand retired flat times when posting_times are absent", () => {
+    const automation = {
+      id: "legacy-flat-times",
+      name: "Legacy flat times",
+      status: "live",
+      account: "Account",
+      handle: "@account",
+      times: ["9:00 AM"],
+      timezone: "UTC",
+      favorite: false,
+      theme: "ugc",
+      socialIntegrations: [],
+    } satisfies Automation
+
+    expect(
+      automationSlotsInRange(
+        automation,
+        new Date("2026-07-15T00:00:00.000Z"),
+        new Date("2026-07-15T23:59:59.000Z")
+      )
+    ).toEqual([])
+  })
+
   it("uses the same schedule projection for due-run checks", () => {
     expect(
       dueAutomationSlots(

@@ -26,13 +26,13 @@ afterEach(() => {
 })
 
 describe("reminder settings", () => {
-  it("upgrades legacy Telegram settings and drops unknown events", () => {
+  it("ignores legacy global-channel and boolean events without losing modern siblings", () => {
     expect(
       normalizeReminderSettings({
         channel: "telegram",
         events: {
           generated: true,
-          ready_to_post: true,
+          ready_to_post: { channel: "telegram" },
           scheduled_to_post: false,
           unknown_event: true,
         },
@@ -40,39 +40,17 @@ describe("reminder settings", () => {
     ).toEqual({
       id: "reminders",
       events: {
-        generated: { channel: "telegram" },
+        generated: { channel: "none" },
         ready_to_post: { channel: "telegram" },
         scheduled_to_post: { channel: "none" },
         respond_to_comments: {
-          channel: "telegram",
+          channel: "none",
           offsetsHours: [24, 72],
         },
-        publish_failed: { channel: "telegram" },
-        generation_failed: { channel: "telegram" },
-      },
-      updatedAt: new Date(0).toISOString(),
-    })
-  })
-
-  it("upgrades legacy off settings with every event disabled", () => {
-    expect(
-      normalizeReminderSettings({
-        channel: "none",
-        events: {
-          generated: true,
-          ready_to_post: true,
-          scheduled_to_post: true,
-        },
-      })
-    ).toMatchObject({
-      events: {
-        generated: { channel: "none" },
-        ready_to_post: { channel: "none" },
-        scheduled_to_post: { channel: "none" },
-        respond_to_comments: { channel: "none" },
         publish_failed: { channel: "none" },
         generation_failed: { channel: "none" },
       },
+      updatedAt: new Date(0).toISOString(),
     })
   })
 

@@ -174,7 +174,6 @@ describe("automation import persistence", () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: "hook",
-          image_url: "",
           imageGrid: "none",
           slideCount: 1,
           textItems: [
@@ -231,10 +230,8 @@ describe("automation import persistence", () => {
       all_slides: "community_collection_body",
       cta_slide: {
         check: true,
-        cta_collection_check: true,
         cta_collection_id: "community_collection_cta",
         image_id: null,
-        cta_location: "last_slide",
       },
       video_demo_asset_id: "",
     })
@@ -377,12 +374,8 @@ describe("automation import persistence", () => {
           check:
             defaultAutomationTemplateDefaults.image_collection_ids.cta_slide
               .check,
-          cta_collection_check:
-            defaultAutomationTemplateDefaults.image_collection_ids.cta_slide
-              .cta_collection_check,
           cta_collection_id: "",
           image_id: null,
-          cta_location: "last_slide",
         },
       },
       formatting: expect.arrayContaining([
