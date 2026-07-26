@@ -93,14 +93,17 @@ describe("reminder settings route", () => {
     expect(mocks.saveReminderSettings).not.toHaveBeenCalled()
   })
 
-  it("sends a test only after Telegram is selected", async () => {
+  it("sends a test before any event is wired to Telegram", async () => {
+    // Proving the connection works is the step that comes BEFORE choosing
+    // events, so the test must not require one to already be routed.
     mocks.getReminderSettings.mockResolvedValue({
       ...settings,
-      events: {
-        ...settings.events,
-        generated: { channel: "telegram" },
-      },
       telegramChatId: "123456",
+    })
+    mocks.telegramReminderConfiguration.mockReturnValue({
+      botConfigured: true,
+      defaultChatConfigured: false,
+      interactiveConfigured: false,
     })
     mocks.sendTelegramReminder.mockResolvedValue({ sent: true })
     const response = await POST(jsonRequest("POST", {}))
