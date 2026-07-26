@@ -123,6 +123,11 @@ describe("LumenClip MCP server", () => {
       tone: { value: "Bold & Provocative", preset: "bold" },
       structure: { hookSlides: 1, bodySlides: 0, ctaSlides: 0 },
       wordRange: { min: 5, max: 5 },
+      wordRangeByRole: {
+        hook: { min: 5, max: 5 },
+        body: { min: 5, max: 5 },
+        cta: { min: 5, max: 5 },
+      },
       language: "English",
       observations: ["Direct second person.", "Short imperative sentence."],
       seedHook: transcript.slides[0].text,
