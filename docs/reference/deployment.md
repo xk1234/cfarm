@@ -23,7 +23,7 @@ The web deployment does not replace the Appwrite Function deployment.
 
 - Node.js 22
 - pnpm 10 (`packageManager` is pinned in `package.json`)
-- Appwrite Cloud project and `cfarm` database
+- Self-hosted Appwrite instance and `cfarm` database
 - A production Appwrite API key kept server-side
 - Provider credentials for the product capabilities being enabled
 
@@ -44,7 +44,7 @@ Set these on the **Next.js deployment**:
 
 | Variable                         | Requirement                   | Purpose                                                           |
 | -------------------------------- | ----------------------------- | ----------------------------------------------------------------- |
-| `APPWRITE_ENDPOINT`              | Required                      | Cloud Appwrite API endpoint; never a localhost URL in production  |
+| `APPWRITE_ENDPOINT`              | Required                      | Self-hosted Appwrite API endpoint; never a localhost URL in production |
 | `APPWRITE_PROJECT_ID`            | Required                      | Production Appwrite project                                       |
 | `APPWRITE_API_KEY`               | Required, secret              | Server-side TablesDB, Storage, Teams, and Users access            |
 | `APPWRITE_DATABASE_ID`           | Required                      | Defaults to `cfarm`                                               |

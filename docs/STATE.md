@@ -4,7 +4,7 @@ title: "State of the App"
 
 > **Living document.** The single source of truth for what LumenClip (repo `cfarm`) _is and does today_. Aspirational/planned work lives in the [roadmap](/docs/roadmap), not here. If you change what the app does, update this file in the same PR.
 >
-> Last verified: 2026-07-18 · Next.js 16 (App Router) · shared local Appwrite + Appwrite Cloud (`sgp`)
+> Last verified: 2026-07-26 · Next.js 16 (App Router) · shared local Appwrite + self-hosted Appwrite
 
 ## 1. What it is
 
@@ -32,7 +32,7 @@ post back to its slideshow. Slideshow automations also have a **Published
 Posts** workflow for TikTok photo posts: Apify imports the slides, visible text
 and run history are compared before confirmation, and missing historical
 outputs/hooks can be restored without republishing externally. The same
-owner-scoped service is exposed through 22 MCP tools over the public
+owner-scoped service is exposed through 55 MCP tools over the public
 owner-scoped `/mcp` route and local stdio transport: schedule inspection,
 manual slideshow generation, safe automation updates, stored analytics reads,
 and three focused
@@ -49,8 +49,9 @@ renamed or deleted but can be disabled. Each automation has a hook analytics
 table backed by its attributed publication metric snapshots.
 
 **Not a view:** `creator-ui.tsx` is a shared component library. The testing
-center (`components/temp/slide-testing-center.tsx`, `/app/debug`) is a
-debug-only surface, not in product nav.
+center (`components/temp/slide-testing-center.tsx`) is reachable two ways: the
+internal `/debug` page, and the product `Testing facility` nav entry at
+`/app/testing`.
 
 ## 3. Subsystems
 
@@ -71,7 +72,7 @@ debug-only surface, not in product nav.
 
 ## 4. Backend & infra
 
-**Appwrite Cloud** — LumenClip's legacy project and database IDs are `cfarm`; the project runs in region `sgp`.
+**Appwrite** — LumenClip runs on self-hosted Appwrite; the database ID is `cfarm`. The former Cloud project (region `sgp`) is retired and its read quota is exhausted.
 
 - **Consolidated tables:** `permanent_assets` stores reusable inputs and `outputs` stores generated content/publication state, both discriminated by `source_key`; `output_media` holds normalized media references. Dedicated active tables include `automations`, `automation_runs`, `x_automations`, `usage_ledger`, analytics snapshots, `jobs`, `workspace_members`, and `demos`. See [reference/backend-architecture.md](reference/backend-architecture.md).
 - **Automation template catalog:** 29 definitions and 158 curated example runs were moved from cloud into public local `permanent_assets` categories; the app reads them from local Appwrite.

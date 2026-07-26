@@ -8,7 +8,7 @@ LumenClip is a content-production and automation workspace for social slideshows
 | --------- | --------------------------------------------------------------------------------- |
 | Framework | Next.js 16.2.6 (App Router)                                                       |
 | UI        | React 19.2.4 · TypeScript · Tailwind CSS v4 · shadcn · Radix · AG Grid · Recharts |
-| Backend   | Appwrite Cloud in production · self-hosted Appwrite for local development         |
+| Backend   | Self-hosted Appwrite in production and for local development                      |
 | Runtime   | Node 22 functions · pnpm 10                                                       |
 | Testing   | vitest 4                                                                          |
 | Tooling   | prettier · eslint · Geist Mono / Inter (see `DESIGN.md`)                          |
@@ -58,7 +58,10 @@ scripts/                 Provisioning, import, and maintenance tools
 
 ## Backend — Appwrite
 
-LumenClip runs on Appwrite Cloud (legacy project ID `cfarm`, region `sgp`, endpoint `https://sgp.cloud.appwrite.io/v1`).
+LumenClip runs on self-hosted Appwrite. The database ID is `cfarm`; set
+`APPWRITE_ENDPOINT` to the deployment's own endpoint. The former Appwrite Cloud
+project (region `sgp`) is retired -- its read quota is exhausted and it serves
+no traffic.
 
 - **TablesDB** database `cfarm` stores owned application data, consolidated permanent assets, generated outputs, and output media.
 - **Storage** holds source media and generated assets. Asset file ids are deterministic (`sha256(path).slice(0,36)`).

@@ -78,6 +78,11 @@ may link to a shared tool but do not invent a second incompatible schema.
 - `lumenclip_tiktok_studio_analytics_import_start`
 - `lumenclip_tiktok_studio_analytics_report`
 - `lumenclip_tiktok_studio_analytics_batch_start`
+- `lumenclip_tiktok_comments_collect_start`
+- `lumenclip_tiktok_comments_list`
+- `lumenclip_tiktok_comment_replies_draft`
+- `lumenclip_tiktok_comment_replies_approve`
+- `lumenclip_tiktok_comment_replies_send`
 <!-- END:callable-tools -->
 
 The remaining names in this reference describe the intended general MCP
