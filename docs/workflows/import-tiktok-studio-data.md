@@ -145,7 +145,7 @@ For one post, `/app/analytics/posts/[id]` offers **Import from TikTok Studio** â
 ## Additional workflow notes
 
 The companion is one MV3 extension, version 2.0.0, covering **both** Studio analytics and
-comment replies. It lives in `browser-extension/lumenclip-companion/` with permissions
+comment replies. It lives in `browser-extension/` with permissions
 `storage`, `tabs`, `alarms` and host
 access to `www.tiktok.com`, the deployed origin, and `localhost`. A one-minute alarm polls for
 pending captures; each step has a 30-second timeout and one retry.

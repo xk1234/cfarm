@@ -17,7 +17,7 @@ replies in LumenClip, and approve them in one pass.
 | Stores | `lib/tiktok-comments.ts` — collections, comments, drafts, approvals, sends (separate keys) |
 | Drafting | `lib/tiktok-comment-replies.ts`, model use case `tiktokCommentReply` |
 | MCP | `..._comments_collect_start`, `..._comments_list`, `..._comment_replies_draft`, `..._comment_replies_approve`, `..._comment_replies_send` |
-| Extension | `browser-extension/lumenclip-companion/` — the single companion, shared with Studio analytics |
+| Extension | `browser-extension/` — the single companion, shared with Studio analytics |
 | Queue | `/app/tiktok-comments?collectionId=…` |
 
 The extension is deliberately **separate** from the Studio companion: this one needs write

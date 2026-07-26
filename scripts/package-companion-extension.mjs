@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url"
 import JSZip from "jszip"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const sourceDir = path.join(root, "browser-extension", "lumenclip-companion")
+const sourceDir = path.join(root, "browser-extension")
 const outputDir = path.join(root, "public", "downloads")
 const outputPaths = [
   path.join(outputDir, "lumenclip-tiktok-studio-analytics.zip"),

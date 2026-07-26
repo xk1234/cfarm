@@ -6,7 +6,7 @@ This Chrome MV3 extension connects a logged-in TikTok session to LumenClip. It i
 
 1. Open `chrome://extensions`.
 2. Turn on **Developer mode**.
-3. Choose **Load unpacked** and select `browser-extension/lumenclip-companion`.
+3. Choose **Load unpacked** and select `browser-extension`.
 4. Open the extension popup and connect each feature from its LumenClip page.
 
 ## Content scripts
