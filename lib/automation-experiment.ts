@@ -50,6 +50,8 @@ export type AutomationExperimentCell = {
   variant: AutomationExperimentVariant
   plan?: Awaited<ReturnType<typeof previewAutomationRunPlan>>["plan"]
   qa?: AutomationOutputQaReport
+  /** Non-fatal notes, e.g. a swept variable the drawn hook never uses. */
+  warnings?: string[]
   error?: string
 }
 
@@ -149,11 +151,17 @@ export async function runAutomationExperiment(
         dimensions,
         variant
       )
+      // Seed by REPEAT, not by cell. Every cell of the same repeat must share
+      // one RNG stream so the hook and image draws are identical and the only
+      // thing that moved is the varied dimension — seeding per cell made each
+      // cell draw a different hook, which is exactly the confound this feature
+      // exists to remove. Separate repeats still get their own stream, which is
+      // what makes repeats measure variance.
       const preview = await previewAutomationRunPlan(schema, {
         automationId,
         textModel,
         includeTextGenerationResult: true,
-        random: mulberry32(normalizeSeed(seed + index)),
+        random: mulberry32(normalizeSeed(seed + (index % repeats))),
       })
       const plan = {
         ...preview.plan,
@@ -176,11 +184,32 @@ export async function runAutomationExperiment(
           error: preview.error,
         },
       })
+      // A varied variable only reaches the output when the drawn hook actually
+      // contains its token. Without this the cell looks like a clean success
+      // while the swept value changed nothing at all.
+      const inertVariables = dimensions
+        .filter((variation) => variation.dimension === "variable")
+        .map((variation) => hookVariableNameFromLabel(variation.name))
+        .filter(
+          (name): name is string =>
+            Boolean(name) &&
+            !new RegExp(`\\[\\[\\s*${name}\\s*\\]\\]`, "i").test(
+              plan.hookTemplate ?? plan.hook ?? ""
+            )
+        )
       cells.push({
         cellId,
         variant: repeatedVariant,
         plan,
         qa,
+        ...(inertVariables.length
+          ? {
+              warnings: inertVariables.map(
+                (name) =>
+                  `The drawn hook does not use [[${name.toUpperCase()}]], so varying it changed nothing in this cell.`
+              ),
+            }
+          : {}),
         ...(preview.error ? { error: preview.error } : {}),
       })
     } catch (error) {

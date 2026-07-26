@@ -171,3 +171,47 @@ describe("runAutomationExperiment", () => {
 function draws(result: Awaited<ReturnType<typeof runAutomationExperiment>>) {
   return result.cells.map((cell) => cell.plan?.hookSubstitutions?.zodiac)
 }
+
+describe("holding everything but the varied input constant", () => {
+  it("gives every cell of one repeat the same RNG stream", async () => {
+    const streams: number[][] = []
+    mocks.previewAutomationRunPlan.mockImplementation((async (
+      _schema: unknown,
+      options: { random?: () => number }
+    ) => {
+      streams.push([options.random!(), options.random!(), options.random!()])
+      return { status: "succeeded", plan: { hook: "Try [[ZODIAC]] this week", hookTemplate: "Try [[ZODIAC]] this week", slides: [], hookSubstitutions: {} } }
+    }) as never)
+
+    await runAutomationExperiment({
+      automationId: "a1",
+      vary: [{ dimension: "variable", name: "zodiac", values: ["leo", "virgo"] }],
+      seed: 7,
+    })
+
+    expect(streams).toHaveLength(2)
+    // Same hook and image draws across the sweep: only the variable moved.
+    expect(streams[0]).toEqual(streams[1])
+  })
+
+  it("gives separate repeats different streams so variance is measurable", async () => {
+    const streams: number[][] = []
+    mocks.previewAutomationRunPlan.mockImplementation((async (
+      _schema: unknown,
+      options: { random?: () => number }
+    ) => {
+      streams.push([options.random!(), options.random!()])
+      return { status: "succeeded", plan: { hook: "Try [[ZODIAC]] this week", hookTemplate: "Try [[ZODIAC]] this week", slides: [], hookSubstitutions: {} } }
+    }) as never)
+
+    await runAutomationExperiment({
+      automationId: "a1",
+      vary: [{ dimension: "variable", name: "zodiac", values: ["leo"] }],
+      repeats: 2,
+      seed: 7,
+    })
+
+    expect(streams).toHaveLength(2)
+    expect(streams[0]).not.toEqual(streams[1])
+  })
+})
