@@ -5,27 +5,27 @@ import { fileURLToPath } from "node:url"
 import JSZip from "jszip"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const sourceDir = path.join(
-  root,
-  "browser-extension",
-  "tiktok-studio-analytics"
-)
+const sourceDir = path.join(root, "browser-extension", "lumenclip-companion")
 const outputDir = path.join(root, "public", "downloads")
-const outputPath = path.join(outputDir, "lumenclip-tiktok-studio-analytics.zip")
+const outputPaths = [
+  path.join(outputDir, "lumenclip-tiktok-studio-analytics.zip"),
+  path.join(outputDir, "lumenclip-companion.zip"),
+]
 const zip = new JSZip()
 
-await addDirectory(sourceDir, "lumenclip-tiktok-studio-analytics")
+await addDirectory(sourceDir, "lumenclip-companion")
+
+const archive = await zip.generateAsync({
+  type: "nodebuffer",
+  compression: "DEFLATE",
+  compressionOptions: { level: 9 },
+})
 
 await mkdir(outputDir, { recursive: true })
-await writeFile(
-  outputPath,
-  await zip.generateAsync({
-    type: "nodebuffer",
-    compression: "DEFLATE",
-    compressionOptions: { level: 9 },
-  })
-)
-console.log(path.relative(root, outputPath))
+for (const outputPath of outputPaths) {
+  await writeFile(outputPath, archive)
+  console.log(path.relative(root, outputPath))
+}
 
 async function addDirectory(directory, zipPath) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "LumenClip TikTok Studio Analytics",
-  "version": "1.3.0",
-  "description": "Imports analytics from your logged-in TikTok Studio tab into LumenClip without copying TikTok cookies.",
+  "name": "LumenClip companion",
+  "version": "2.0.0",
+  "description": "Imports TikTok Studio analytics, collects top-level comments, and posts only explicitly approved replies through your logged-in TikTok session.",
   "permissions": ["storage", "tabs", "alarms"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
   "host_permissions": [
@@ -32,16 +32,18 @@
       "run_at": "document_start"
     },
     {
-      "matches": [
-        "https://cfarm-eight.vercel.app/*",
-        "http://localhost/*"
-      ],
+      "matches": ["https://www.tiktok.com/@*/*"],
+      "js": ["tiktok.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://cfarm-eight.vercel.app/*", "http://localhost/*"],
       "js": ["lumenclip-bridge.js"],
       "run_at": "document_start"
     }
   ],
   "action": {
-    "default_title": "LumenClip TikTok Studio Analytics",
+    "default_title": "LumenClip companion",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
