@@ -70,6 +70,31 @@ const RAW_STORE_ROUTES: Record<string, StoreRoute | string> = {
     sourceKey: "tiktok_studio_analytics_batch",
     public: false,
   },
+  "tiktok-comments/collections.json": {
+    table: "permanent_assets",
+    sourceKey: "tiktok_comment_collection",
+    public: false,
+  },
+  "tiktok-comments/comments.json": {
+    table: "permanent_assets",
+    sourceKey: "tiktok_captured_comment",
+    public: false,
+  },
+  "tiktok-comments/drafts.json": {
+    table: "permanent_assets",
+    sourceKey: "tiktok_comment_reply_draft",
+    public: false,
+  },
+  "tiktok-comments/approvals.json": {
+    table: "permanent_assets",
+    sourceKey: "tiktok_comment_reply_approval",
+    public: false,
+  },
+  "tiktok-comments/send-results.json": {
+    table: "permanent_assets",
+    sourceKey: "tiktok_comment_reply_send_result",
+    public: false,
+  },
   "account-follower-snapshots.json": "account_follower_snapshots",
   "generated-videos/exports.json": {
     table: "outputs",

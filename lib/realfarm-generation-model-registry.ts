@@ -14,6 +14,7 @@ export type OpenRouterModelUseCase =
   | "toneAnalysis"
   | "ugcAnalysis"
   | "ugcScript"
+  | "tiktokCommentReply"
 
 export const generationModelRegistry = {
   openRouter: {
@@ -47,6 +48,7 @@ export const generationModelRegistry = {
     },
     ugcAnalysis: { model: "openai/gpt-5.4-mini" },
     ugcScript: { model: "anthropic/claude-sonnet-5" },
+    tiktokCommentReply: { model: "google/gemini-3.1-flash-lite" },
     tempTestingCenter: {
       featuredModelIds: [
         "anthropic/claude-sonnet-4.5",
@@ -113,7 +115,8 @@ export const generationModelRegistry = {
     // ENABLE_UGC_AUTOMATION since fal versions/prices drift.
     falFlux2ProEndpoint: "fal-ai/flux-2-pro",
     // Hailuo + Kling are namespaced by tier — the bare slugs 404, the /standard path is required.
-    falHailuo23FastEndpoint: "fal-ai/minimax/hailuo-2.3-fast/standard/image-to-video",
+    falHailuo23FastEndpoint:
+      "fal-ai/minimax/hailuo-2.3-fast/standard/image-to-video",
     falVeedLipSyncEndpoint: "veed/lipsync",
     falKlingAvatarV2Endpoint: "fal-ai/kling-video/ai-avatar/v2/standard",
     // eleven_multilingual_v2 is the documented default for the with-timestamps endpoint

@@ -129,6 +129,13 @@ import {
   inspectTikTokStudioAnalyticsImport,
 } from "@/lib/tiktok-studio-analytics"
 import { buildTikTokStudioMcpReport } from "@/lib/mcp/tiktok-studio-report"
+import {
+  approveTikTokReplyDrafts,
+  createTikTokCommentCollection,
+  listTikTokComments,
+  queueApprovedTikTokReplies,
+} from "@/lib/tiktok-comments"
+import { draftTikTokCommentReplies } from "@/lib/tiktok-comment-replies"
 import type { XAutomationRecord, XAutomationRun } from "@/lib/x-automation"
 import { generateStoredXAutomationRun } from "@/lib/x-automation-runner"
 import {
@@ -344,6 +351,11 @@ export type LumenClipMcpServices = {
   inspectTikTokStudioAnalyticsImport: typeof inspectTikTokStudioAnalyticsImport
   createTikTokStudioAnalyticsBatch: typeof createTikTokStudioAnalyticsBatch
   inspectTikTokStudioAnalyticsBatch: typeof inspectTikTokStudioAnalyticsBatch
+  createTikTokCommentCollection: typeof createTikTokCommentCollection
+  listTikTokComments: typeof listTikTokComments
+  draftTikTokCommentReplies: typeof draftTikTokCommentReplies
+  approveTikTokReplyDrafts: typeof approveTikTokReplyDrafts
+  queueApprovedTikTokReplies: typeof queueApprovedTikTokReplies
   enqueueJob: typeof enqueueJob
   getJob: typeof getJob
   listJobs: typeof listJobs
@@ -411,6 +423,11 @@ const defaultServices: LumenClipMcpServices = {
   inspectTikTokStudioAnalyticsImport,
   createTikTokStudioAnalyticsBatch,
   inspectTikTokStudioAnalyticsBatch,
+  createTikTokCommentCollection,
+  listTikTokComments,
+  draftTikTokCommentReplies,
+  approveTikTokReplyDrafts,
+  queueApprovedTikTokReplies,
   enqueueJob,
   getJob,
   listJobs,
@@ -898,6 +915,7 @@ export function createLumenClipMcpServer(
 
   registerTikTokPublicationTools(server, ownerId, services)
   registerTikTokStudioAnalyticsTools(server, ownerId, services)
+  registerTikTokCommentTools(server, ownerId, services)
 
   return server
 }
@@ -5224,6 +5242,248 @@ function registerTikTokStudioAnalyticsTools(
           }
         })
       )
+  )
+}
+
+function registerTikTokCommentTools(
+  server: McpServer,
+  ownerId: string,
+  services: LumenClipMcpServices
+) {
+  server.registerTool(
+    "lumenclip_tiktok_comments_collect_start",
+    {
+      title: "Collect top-level TikTok comments",
+      description:
+        "Creates a scoped collection job for local LumenClip TikTok publications and returns the HMAC-authenticated Chrome companion configuration.",
+      inputSchema: {
+        postIds: z
+          .array(z.string().trim().min(1))
+          .min(1)
+          .max(50)
+          .describe(
+            'Local LumenClip publication IDs, e.g. ["publication_123"].'
+          ),
+        scope: z
+          .literal("topLevel")
+          .default("topLevel")
+          .describe(
+            'Comment scope; currently literal "topLevel", e.g. "topLevel".'
+          ),
+        maxComments: z
+          .number()
+          .int()
+          .min(1)
+          .max(500)
+          .default(100)
+          .describe("Maximum top-level comments per post, e.g. 100."),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (input) =>
+      mcpResult(
+        await withSystemOwner(ownerId, async () => {
+          const result = await services.createTikTokCommentCollection({
+            ownerId,
+            ...input,
+          })
+          const baseUrl = (
+            process.env.BASE_URL || "http://localhost:3000"
+          ).replace(/\/$/, "")
+          return {
+            collectionId: result.collection.id,
+            status: result.collection.status,
+            postCount: result.collection.posts.length,
+            expiresAt: result.collection.expiresAt,
+            companion: {
+              version: 1,
+              endpoint: `${baseUrl}/api/tiktok-comments/capture`,
+              token: result.token,
+              expiresAt: result.collection.expiresAt,
+            },
+          }
+        })
+      )
+  )
+
+  server.registerTool(
+    "lumenclip_tiktok_comments_list",
+    {
+      title: "List captured TikTok comments",
+      description:
+        "Reads captured top-level comments for one collection or one local LumenClip publication.",
+      inputSchema: {
+        collectionId: z
+          .string()
+          .trim()
+          .min(1)
+          .optional()
+          .describe('Optional collection job ID, e.g. "collection_123".'),
+        postId: z
+          .string()
+          .trim()
+          .min(1)
+          .optional()
+          .describe(
+            'Optional local LumenClip publication ID, e.g. "publication_123".'
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (input) =>
+      mcpResult({
+        comments: await withSystemOwner(ownerId, () =>
+          services.listTikTokComments(input)
+        ),
+      })
+  )
+
+  server.registerTool(
+    "lumenclip_tiktok_comment_replies_draft",
+    {
+      title: "Draft replies to every captured TikTok comment",
+      description:
+        "Classifies reply style and creates a separate unsendable draft for every captured comment. Emoji replies are assembled in code.",
+      inputSchema: {
+        collectionId: z
+          .string()
+          .trim()
+          .min(1)
+          .describe('Collection job ID, e.g. "collection_123".'),
+        postContextById: z
+          .record(z.string(), z.string().max(100000))
+          .optional()
+          .describe(
+            'Optional local publication ID to post-text map, e.g. {"publication_123":"Five-slide Cancer traits post"}.'
+          ),
+        emojiSet: z
+          .array(z.string().trim().min(1).max(20))
+          .min(4)
+          .max(40)
+          .optional()
+          .describe(
+            'Optional per-automation emoji set, e.g. ["✨","💛","🙌","♋"].'
+          ),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (input) =>
+      mcpResult({
+        drafts: await withSystemOwner(ownerId, () =>
+          services.draftTikTokCommentReplies(input)
+        ),
+      })
+  )
+
+  server.registerTool(
+    "lumenclip_tiktok_comment_replies_approve",
+    {
+      title: "Approve reviewed TikTok comment replies",
+      description:
+        "Writes explicit approval records scoped to one collection. Omitted drafts remain unapproved and unsendable.",
+      inputSchema: {
+        collectionId: z
+          .string()
+          .trim()
+          .min(1)
+          .describe('Collection job ID, e.g. "collection_123".'),
+        approvals: z
+          .array(
+            z.object({
+              draftId: z
+                .string()
+                .trim()
+                .min(1)
+                .describe('Reviewed draft ID, e.g. "draft_123".'),
+              text: z
+                .string()
+                .trim()
+                .min(1)
+                .max(1000)
+                .optional()
+                .describe(
+                  'Optional human-edited final reply, e.g. "That last slide really lands.".'
+                ),
+              heart: z
+                .boolean()
+                .default(false)
+                .describe("Whether to heart this comment, e.g. true."),
+            })
+          )
+          .min(1)
+          .max(500)
+          .describe(
+            'Approvals only for this collection, e.g. [{"draftId":"draft_123","heart":true}].'
+          ),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (input) =>
+      mcpResult({
+        approvals: await withSystemOwner(ownerId, () =>
+          services.approveTikTokReplyDrafts(input)
+        ),
+      })
+  )
+
+  server.registerTool(
+    "lumenclip_tiktok_comment_replies_send",
+    {
+      title: "Queue approved TikTok comment replies for sending",
+      description:
+        "Queues only drafts carrying separate explicit approval records. Requires literal send confirmation; the Chrome companion performs paced browser actions.",
+      inputSchema: {
+        collectionId: z
+          .string()
+          .trim()
+          .min(1)
+          .describe('Collection job ID, e.g. "collection_123".'),
+        draftIds: z
+          .array(z.string().trim().min(1))
+          .min(1)
+          .max(500)
+          .describe(
+            'Explicit approved draft IDs, e.g. ["draft_123","draft_124"].'
+          ),
+        confirmSend: z
+          .literal(true)
+          .describe(
+            "Must be literal true after every selected reply and heart action has been reviewed."
+          ),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (input) =>
+      mcpResult({
+        sends: await withSystemOwner(ownerId, () =>
+          services.queueApprovedTikTokReplies(input)
+        ),
+      })
   )
 }
 

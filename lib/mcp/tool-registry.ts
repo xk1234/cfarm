@@ -73,6 +73,11 @@ export const LUMENCLIP_MCP_TOOLS = [
     name: "lumenclip_tiktok_studio_analytics_batch_start",
     category: "analytics",
   },
+  { name: "lumenclip_tiktok_comments_collect_start", category: "publishing" },
+  { name: "lumenclip_tiktok_comments_list", category: "publishing" },
+  { name: "lumenclip_tiktok_comment_replies_draft", category: "publishing" },
+  { name: "lumenclip_tiktok_comment_replies_approve", category: "publishing" },
+  { name: "lumenclip_tiktok_comment_replies_send", category: "publishing" },
 ] as const
 
 export const LUMENCLIP_MCP_TOOL_NAMES = LUMENCLIP_MCP_TOOLS.map(
