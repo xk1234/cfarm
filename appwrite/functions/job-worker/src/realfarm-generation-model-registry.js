@@ -26,8 +26,12 @@ export const generationModelRegistry = {
         imageCaptioning: {
             model: "google/gemini-2.5-flash",
         },
+        toneAnalysis: {
+            model: "google/gemini-3.1-flash-lite",
+        },
         ugcAnalysis: { model: "openai/gpt-5.4-mini" },
         ugcScript: { model: "anthropic/claude-sonnet-5" },
+        tiktokCommentReply: { model: "google/gemini-3.1-flash-lite" },
         tempTestingCenter: {
             featuredModelIds: [
                 "anthropic/claude-sonnet-4.5",
