@@ -122,6 +122,14 @@ async function sendApproved(send) {
     return extracted?.tiktokCommentId === comment.tiktokCommentId
   })
   if (!wrapper) throw new Error("Approved comment is no longer visible")
+  if (send.heart === true) {
+    const alreadyHearted = wrapper.querySelector('[aria-label^="Unlike video"]')
+    const heartControl = wrapper.querySelector('[aria-label^="Like video"]')
+    if (!alreadyHearted && heartControl) {
+      heartControl.click()
+      await delay(500 + Math.random() * 600)
+    }
+  }
   wrapper.querySelector('[aria-label="Reply"]')?.click()
   await delay(700 + Math.random() * 900)
   const input = await waitFor(() =>

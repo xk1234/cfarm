@@ -349,12 +349,21 @@ export async function getTikTokCommentCompanionManifest(tokenValue: string) {
     token.collectionId
   )
   if (!collection) throw new Error("Comment collection not found")
-  const sends = (await list<TikTokCommentReplySendResult>("sends")).filter(
-    (item) => item.collectionId === collection.id && item.status === "pending"
-  )
-  const comments = await listTikTokComments({ collectionId: collection.id })
+  const [allSends, comments, drafts, approvals] = await Promise.all([
+    list<TikTokCommentReplySendResult>("sends").then((items) =>
+      items.filter((item) => item.collectionId === collection.id)
+    ),
+    listTikTokComments({ collectionId: collection.id }),
+    listTikTokReplyDrafts(collection.id),
+    listTikTokReplyApprovals(collection.id),
+  ])
+  const sends = allSends.filter((item) => item.status === "pending")
   return {
     collection,
+    comments,
+    drafts,
+    approvals,
+    sendResults: allSends,
     sends: sends.map((send) => ({
       ...send,
       comment: comments.find((item) => item.id === send.commentId),
@@ -394,8 +403,12 @@ export async function recordTikTokCommentSendResults(input: {
   return updated
 }
 
-export function tiktokCommentCaptureOwnerId(token: string) {
-  return verifyToken(token).ownerId
+export function tiktokCommentCaptureContext(token: string) {
+  const claims = verifyToken(token)
+  return {
+    ownerId: claims.ownerId,
+    collectionId: claims.collectionId,
+  }
 }
 
 function signToken(payload: CaptureToken) {

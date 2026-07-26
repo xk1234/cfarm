@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "LumenClip companion",
-  "version": "2.0.0",
-  "description": "Imports TikTok Studio analytics, collects top-level comments, and posts only explicitly approved replies through your logged-in TikTok session.",
+  "version": "2.1.0",
+  "description": "Imports TikTok Studio analytics and reviews, approves, and sends drafted comment replies through your logged-in TikTok session.",
   "permissions": ["storage", "tabs", "alarms"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
   "host_permissions": [

@@ -1,5 +1,9 @@
 import { fetchJsonWithTimeout } from "@/lib/client-api"
 import { TIKTOK_PLATFORM_POST_ID_REQUIRED } from "@/lib/tiktok-comment-errors"
+import {
+  connectTikTokCommentsCompanion,
+  type TikTokCommentsCompanionConfig,
+} from "@/lib/tiktok-comments-companion"
 
 export { TIKTOK_PLATFORM_POST_ID_REQUIRED } from "@/lib/tiktok-comment-errors"
 
@@ -7,6 +11,7 @@ type StartCollectionResponse = {
   collection: {
     id: string
   }
+  companion: TikTokCommentsCompanionConfig
 }
 
 type StartCollectionRequest =
@@ -19,14 +24,15 @@ export async function collectTikTokCommentsForPublication(
   },
   dependencies: {
     request?: StartCollectionRequest
-    navigate: (href: string) => void
-  }
+    connect?: typeof connectTikTokCommentsCompanion
+  } = {}
 ) {
   if (!publication.platformPostId?.trim()) {
     throw new Error(TIKTOK_PLATFORM_POST_ID_REQUIRED)
   }
 
   const request = dependencies.request ?? fetchJsonWithTimeout
+  const connect = dependencies.connect ?? connectTikTokCommentsCompanion
   const result = await request("/api/tiktok-comments", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -42,8 +48,6 @@ export async function collectTikTokCommentsForPublication(
     throw new Error("Comment collection did not return an ID")
   }
 
-  dependencies.navigate(
-    `/app/tiktok-comments?collectionId=${encodeURIComponent(collectionId)}`
-  )
+  await connect(result.companion)
   return result
 }

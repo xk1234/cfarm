@@ -112,13 +112,11 @@ export function PostAnalyticsPage({
   async function collectComments() {
     setCollectingComments(true)
     try {
-      await collectTikTokCommentsForPublication(
-        {
-          id: latest.postId,
-          platformPostId,
-        },
-        { navigate: (href) => router.push(href) }
-      )
+      await collectTikTokCommentsForPublication({
+        id: latest.postId,
+        platformPostId,
+      })
+      toast.success("Comment collection sent to the TikTok extension")
     } catch (error) {
       toast.error(
         getApiErrorMessage(error, "TikTok comments could not be collected")
@@ -161,7 +159,7 @@ export function PostAnalyticsPage({
                     ) : (
                       <IconMessageCircle className="size-4" />
                     )}
-                    Collect comments
+                    Collect in extension
                   </Button>
                 ) : (
                   <span

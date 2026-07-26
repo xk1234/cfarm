@@ -39,10 +39,12 @@ vi.mock("@/lib/json-store", () => ({
 import {
   approveTikTokReplyDrafts,
   createTikTokCommentCollection,
+  getTikTokCommentCompanionManifest,
   ingestTikTokComments,
   listTikTokComments,
   queueApprovedTikTokReplies,
   saveTikTokReplyDrafts,
+  tiktokCommentCaptureContext,
 } from "@/lib/tiktok-comments"
 import {
   assembleEmojiReplies,
@@ -242,5 +244,73 @@ describe("TikTok comment storage and approval gate", () => {
         confirmSend: true,
       })
     ).resolves.toHaveLength(1)
+  })
+
+  it("returns comments, drafts, approvals, and send state to the extension", async () => {
+    const session = await createTikTokCommentCollection({
+      ownerId: "owner-1",
+      postIds: ["publication-1"],
+    })
+    await ingestTikTokComments({
+      token: session.token,
+      collectionId: session.collection.id,
+      postId: "publication-1",
+      comments: [
+        {
+          platformPostId: "7662360324313517330",
+          tiktokCommentId: "comment-1",
+          displayName: "Nick",
+          handle: "nick",
+          text: "This is too real",
+          likeCount: 3,
+          replyCount: 0,
+        },
+      ],
+      complete: {
+        topLevelCaptured: 1,
+        nestedReplyCount: 0,
+        headerCount: 1,
+      },
+    })
+    const [comment] = await listTikTokComments({
+      collectionId: session.collection.id,
+    })
+    const [draft] = await saveTikTokReplyDrafts([
+      {
+        id: "draft-1",
+        collectionId: session.collection.id,
+        commentId: comment.id,
+        postId: comment.postId,
+        style: "affirming",
+        text: "It really is.",
+        careful: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ])
+    await approveTikTokReplyDrafts({
+      collectionId: session.collection.id,
+      approvals: [{ draftId: draft.id, text: "It really is.", heart: true }],
+    })
+    await queueApprovedTikTokReplies({
+      collectionId: session.collection.id,
+      draftIds: [draft.id],
+      confirmSend: true,
+    })
+
+    expect(tiktokCommentCaptureContext(session.token)).toEqual({
+      ownerId: "owner-1",
+      collectionId: session.collection.id,
+    })
+    await expect(
+      getTikTokCommentCompanionManifest(session.token)
+    ).resolves.toMatchObject({
+      collection: { id: session.collection.id, status: "ready" },
+      comments: [{ id: comment.id, text: "This is too real" }],
+      drafts: [{ id: draft.id, text: "It really is." }],
+      approvals: [{ draftId: draft.id, heart: true }],
+      sends: [{ draftId: draft.id, status: "pending" }],
+      sendResults: [{ draftId: draft.id, status: "pending" }],
+    })
   })
 })
