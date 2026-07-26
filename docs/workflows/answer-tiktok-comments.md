@@ -8,12 +8,35 @@ description: "Proposed: the Chrome companion reads top-level comments off a TikT
 Open one of your posts, let the companion collect its top-level comments, review the drafted
 replies in LumenClip, and approve them in one pass.
 
-> **Proposed workflow.** None of this is built. There is no comment tool in the MCP surface, no
-> comment text anywhere in the data model, and no reply capability in the PostFast client. What is
-> settled is feasibility: detection was verified live against the target post in a logged-in
-> browser, and it works cleanly. The extraction contract below is measured, not guessed.
+`Last tested: 2026-07-26 — DOM contract measured live; MCP surface exercised; no reply has been sent`
 
-`Last tested: 2026-07-26 — live logged-in DOM check against the target post; workflow not implemented`
+## What shipped
+
+| Piece | Name |
+| --- | --- |
+| Stores | `lib/tiktok-comments.ts` — collections, comments, drafts, approvals, sends (separate keys) |
+| Drafting | `lib/tiktok-comment-replies.ts`, model use case `tiktokCommentReply` |
+| MCP | `..._comments_collect_start`, `..._comments_list`, `..._comment_replies_draft`, `..._comment_replies_approve`, `..._comment_replies_send` |
+| Extension | `browser-extension/tiktok-comments/` — separate MV3 extension |
+| Queue | `/app/tiktok-comments?collectionId=…` |
+
+The extension is deliberately **separate** from the Studio companion: this one needs write
+permissions, and isolating them keeps the read-only analytics capture on its own release lifecycle.
+It paces sends 20–45 seconds apart, and treats a login wall or CAPTCHA as a hard stop.
+
+**The send gate, verified over MCP.** Drafts, approvals, and sends live in separate stores.
+`queueApprovedTikTokReplies` requires literal `confirmSend: true`, resolves every requested draft id
+to its own approval record, and rejects the **entire** batch if any is missing — then sends the
+approval's reviewed text, not the draft's. Called over the real MCP server with an unapproved id, it
+returns an error:
+
+```
+Explicit approval record required for draft ids: fake-draft
+```
+
+**Approve all means all.** Flagged (`careful`) rows are included, not withheld — withholding them
+would quietly leave comments unanswered, which is the opposite of the requirement. When flagged rows
+are present the button reads *"Approve N, including M flagged?"* and needs a second press.
 
 ## What the live check found
 

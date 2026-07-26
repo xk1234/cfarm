@@ -11,13 +11,35 @@ results side by side.
 Change one input — the hook, a variable draw, the tone, the model — and see how the output moves
 while everything else stays fixed.
 
-> **Proposed workflow.** A narrow version ships today at `/debug` as the **Slide Testing Center**,
-> and it is internal-only. The screen described here is not built, and the mechanism it needs —
-> per-run input overrides — does not exist. Every other primitive does: non-persisting previews,
-> hook enumeration, variable binding resolution, deterministic QA. They are named below so this can
-> be built or dropped on evidence rather than guesswork.
+`Last tested: 2026-07-26 — exercised over MCP against the local stack; see the caveat below`
 
-`Last tested: not implemented — Slide Testing Center and building blocks verified 2026-07-26`
+## What shipped
+
+| Piece | Name |
+| --- | --- |
+| Sweep engine | `runAutomationExperiment(input)` in `lib/automation-experiment.ts` |
+| Dimension discovery | `getAutomationExperimentDimensions(automationId)` |
+| MCP tools | `lumenclip_automation_experiment_dimensions`, `lumenclip_automation_experiment_run` |
+| Route | `GET`/`POST /api/automations/[id]/experiment`, `maxDuration = 300` |
+| UI | `/app/testing`, in normal workspace navigation — **not** behind `internalToolsEnabled()` |
+| Cap | `AUTOMATION_EXPERIMENT_CELL_CAP` = 200 cells; repeats 1–20 |
+
+It reads **saved automations**, not templates. Each cell clones the schema in memory, applies one
+variation to the clone, and calls `previewAutomationRunPlan` — no saved record is ever written, and
+a test asserts that.
+
+Determinism is real now: the base seed is normalised to a uint32, the cell index is added, and that
+initialises a `mulberry32` PRNG passed as `random`. Same seed and cell order → identical variable
+draws. Repeats are separate cells with their own per-cell seed.
+
+> **Verified over MCP, with one gap.** `lumenclip_automation_experiment_dimensions` returns the real
+> sweepable variables and their collection values. `lumenclip_automation_experiment_run` builds the
+> right cells, echoes the seed, and isolates per-cell failures. But on the local Appwrite
+> (`cfarm-local`) **every cell failed** with `No images exist in the configured collection for Hook`,
+> so no copy was generated. That is environmental, not a regression: a control run of the
+> pre-existing `previewAutomationRunPlan` on the same automation fails identically, and
+> `listImageCollections()` returns empty there while the cloud instance holds 202 images. Re-run
+> against an environment with images before trusting the grid.
 
 ## Why it does not work today
 
