@@ -12,6 +12,15 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/auth", () => ({ getCurrentUser: mocks.getCurrentUser }))
 vi.mock("@/lib/reminder-settings", () => ({
+  reminderEvents: [
+    "generated",
+    "ready_to_post",
+    "scheduled_to_post",
+    "respond_to_comments",
+    "publish_failed",
+    "generation_failed",
+  ],
+  reminderEventMetadata: {},
   configureTelegramWebhook: mocks.configureTelegramWebhook,
   getReminderSettings: mocks.getReminderSettings,
   saveReminderSettings: mocks.saveReminderSettings,
@@ -24,11 +33,16 @@ import { GET, POST, PUT } from "@/app/api/settings/reminders/route"
 
 const settings = {
   id: "reminders",
-  channel: "none" as const,
   events: {
-    generated: true,
-    ready_to_post: true,
-    scheduled_to_post: true,
+    generated: { channel: "none" as const },
+    ready_to_post: { channel: "none" as const },
+    scheduled_to_post: { channel: "none" as const },
+    respond_to_comments: {
+      channel: "none" as const,
+      offsetsHours: [24, 72],
+    },
+    publish_failed: { channel: "none" as const },
+    generation_failed: { channel: "none" as const },
   },
   updatedAt: "2026-07-18T00:00:00.000Z",
 }
@@ -56,13 +70,11 @@ describe("reminder settings route", () => {
   it("saves no-reminder mode even when Telegram is not configured", async () => {
     const response = await PUT(
       jsonRequest("PUT", {
-        channel: "none",
         events: settings.events,
       })
     )
     expect(response.status).toBe(200)
     expect(mocks.saveReminderSettings).toHaveBeenCalledWith({
-      channel: "none",
       events: settings.events,
     })
   })
@@ -70,9 +82,11 @@ describe("reminder settings route", () => {
   it("does not enable Telegram without a server bot token", async () => {
     const response = await PUT(
       jsonRequest("PUT", {
-        channel: "telegram",
         telegramChatId: "123456",
-        events: settings.events,
+        events: {
+          ...settings.events,
+          generated: { channel: "telegram" },
+        },
       })
     )
     expect(response.status).toBe(400)
@@ -82,7 +96,10 @@ describe("reminder settings route", () => {
   it("sends a test only after Telegram is selected", async () => {
     mocks.getReminderSettings.mockResolvedValue({
       ...settings,
-      channel: "telegram",
+      events: {
+        ...settings.events,
+        generated: { channel: "telegram" },
+      },
       telegramChatId: "123456",
     })
     mocks.sendTelegramReminder.mockResolvedValue({ sent: true })

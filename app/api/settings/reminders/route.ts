@@ -6,6 +6,8 @@ import {
   configureTelegramWebhook,
   getReminderSettings,
   publicReminderSettings,
+  reminderEventMetadata,
+  reminderEvents,
   saveReminderSettings,
   sendTelegramReminder,
   telegramReminderConfiguration,
@@ -13,16 +15,24 @@ import {
 
 export const dynamic = "force-dynamic"
 
-const settingsSchema = z.object({
+const eventSettingsSchema = z.object({
   channel: z.enum(["none", "telegram"]),
+  offsetsHours: z.array(z.number().int().positive()).optional(),
+})
+
+const settingsSchema = z.object({
   telegramChatId: z.string().trim().max(255).optional(),
   telegramBotToken: z.string().trim().max(255).optional(),
-  events: z.object({
-    generated: z.boolean(),
-    ready_to_post: z.boolean(),
-    scheduled_to_post: z.boolean(),
-  }),
+  events: z.object(
+    Object.fromEntries(
+      reminderEvents.map((event) => [event, eventSettingsSchema])
+    ) as Record<(typeof reminderEvents)[number], typeof eventSettingsSchema>
+  ),
 })
+
+function usesTelegram(events: z.infer<typeof settingsSchema>["events"]) {
+  return reminderEvents.some((event) => events[event].channel === "telegram")
+}
 
 export async function GET() {
   const user = await getCurrentUser()
@@ -31,6 +41,7 @@ export async function GET() {
   const settings = await getReminderSettings()
   return NextResponse.json({
     settings: publicReminderSettings(settings),
+    eventMetadata: reminderEventMetadata,
     telegram: telegramReminderConfiguration(settings),
   })
 }
@@ -61,14 +72,14 @@ export async function PUT(request: Request) {
     id: "reminders",
     updatedAt: current.updatedAt,
   })
-  if (parsed.data.channel === "telegram" && !configuration.botConfigured) {
+  if (usesTelegram(parsed.data.events) && !configuration.botConfigured) {
     return NextResponse.json(
       { error: "Telegram reminders are not configured on the server." },
       { status: 400 }
     )
   }
   if (
-    parsed.data.channel === "telegram" &&
+    usesTelegram(parsed.data.events) &&
     !parsed.data.telegramChatId &&
     !configuration.defaultChatConfigured
   ) {
@@ -78,14 +89,14 @@ export async function PUT(request: Request) {
     )
   }
   const settings = await saveReminderSettings(candidate)
-  const webhook =
-    settings.channel === "telegram"
-      ? await configureTelegramWebhook(settings).catch(() => ({
-          configured: false,
-        }))
-      : { configured: false }
+  const webhook = usesTelegram(settings.events)
+    ? await configureTelegramWebhook(settings).catch(() => ({
+        configured: false,
+      }))
+    : { configured: false }
   return NextResponse.json({
     settings: publicReminderSettings(settings),
+    eventMetadata: reminderEventMetadata,
     telegram: telegramReminderConfiguration(settings),
     webhook,
   })
@@ -97,7 +108,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const payload = await request.json().catch(() => null)
   const settings = await getReminderSettings()
-  if (settings.channel !== "telegram") {
+  if (!usesTelegram(settings.events)) {
     return NextResponse.json(
       { error: "Save Telegram as the reminder method first." },
       { status: 400 }

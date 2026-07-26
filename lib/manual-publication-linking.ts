@@ -9,6 +9,7 @@ import {
   type PostFastSourceType,
 } from "@/lib/postfast-posts"
 import type { PostFastMedia } from "@/lib/postfast-client"
+import { enqueuePublishedCommentReminders } from "@/lib/publishing"
 
 export class ManualPublicationConflictError extends Error {
   readonly status = 409
@@ -46,7 +47,7 @@ export async function linkPublishedOutput(input: {
     )
   }
 
-  return upsertPostFastPostRecord({
+  const publication = await upsertPostFastPostRecord({
     sourceType: input.sourceType,
     sourceId: clean(input.sourceId),
     integrationId: clean(input.integrationId),
@@ -59,6 +60,14 @@ export async function linkPublishedOutput(input: {
     content: clean(input.content),
     media: input.media ?? [],
   })
+  await enqueuePublishedCommentReminders({
+    sourceType: publication.sourceType,
+    sourceId: publication.sourceId,
+    content: publication.content,
+    releaseUrl: publication.releaseUrl,
+    publishedAt: publication.publishedAt,
+  }).catch(() => undefined)
+  return publication
 }
 
 export function manualPublicationErrorStatus(error: unknown) {

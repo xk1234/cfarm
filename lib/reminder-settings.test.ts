@@ -24,24 +24,83 @@ afterEach(() => {
 })
 
 describe("reminder settings", () => {
-  it("normalizes invalid channels and preserves explicit event choices", () => {
+  it("upgrades legacy Telegram settings and drops unknown events", () => {
     expect(
       normalizeReminderSettings({
-        channel: "email",
+        channel: "telegram",
         events: {
-          generated: false,
+          generated: true,
           ready_to_post: true,
           scheduled_to_post: false,
+          unknown_event: true,
+        },
+      })
+    ).toEqual({
+      id: "reminders",
+      events: {
+        generated: { channel: "telegram" },
+        ready_to_post: { channel: "telegram" },
+        scheduled_to_post: { channel: "none" },
+        respond_to_comments: {
+          channel: "telegram",
+          offsetsHours: [24, 72],
+        },
+        publish_failed: { channel: "telegram" },
+        generation_failed: { channel: "telegram" },
+      },
+      updatedAt: new Date(0).toISOString(),
+    })
+  })
+
+  it("upgrades legacy off settings with every event disabled", () => {
+    expect(
+      normalizeReminderSettings({
+        channel: "none",
+        events: {
+          generated: true,
+          ready_to_post: true,
+          scheduled_to_post: true,
         },
       })
     ).toMatchObject({
-      channel: "none",
       events: {
-        generated: false,
-        ready_to_post: true,
-        scheduled_to_post: false,
+        generated: { channel: "none" },
+        ready_to_post: { channel: "none" },
+        scheduled_to_post: { channel: "none" },
+        respond_to_comments: { channel: "none" },
+        publish_failed: { channel: "none" },
+        generation_failed: { channel: "none" },
       },
     })
+  })
+
+  it("ignores offsets for events that do not support delays", () => {
+    expect(
+      normalizeReminderSettings({
+        events: {
+          generated: { channel: "telegram", offsetsHours: [24] },
+          respond_to_comments: {
+            channel: "telegram",
+            offsetsHours: [72, -1, 24, 72],
+          },
+        },
+      })
+    ).toMatchObject({
+      events: {
+        generated: { channel: "telegram" },
+        respond_to_comments: {
+          channel: "telegram",
+          offsetsHours: [24, 72],
+        },
+      },
+    })
+    expect(
+      normalizeReminderSettings({
+        events: {
+          generated: { channel: "telegram", offsetsHours: [24] },
+        },
+      })?.events.generated
+    ).not.toHaveProperty("offsetsHours")
   })
 
   it("sends a Telegram message to the saved destination", async () => {
@@ -74,20 +133,24 @@ describe("reminder settings", () => {
     await withSystemOwner(ownerId, async () => {
       try {
         await saveReminderSettings({
-          channel: "none",
           events: {
-            generated: false,
-            ready_to_post: true,
-            scheduled_to_post: false,
+            generated: { channel: "none" },
+            ready_to_post: { channel: "telegram" },
+            scheduled_to_post: { channel: "none" },
+            respond_to_comments: {
+              channel: "telegram",
+              offsetsHours: [24, 72],
+            },
+            publish_failed: { channel: "none" },
+            generation_failed: { channel: "none" },
           },
         })
         await expect(getReminderSettings()).resolves.toMatchObject({
           id: "reminders",
-          channel: "none",
           events: {
-            generated: false,
-            ready_to_post: true,
-            scheduled_to_post: false,
+            generated: { channel: "none" },
+            ready_to_post: { channel: "telegram" },
+            scheduled_to_post: { channel: "none" },
           },
         })
       } finally {

@@ -6,6 +6,7 @@ import {
   type PostFastSocialIntegration,
 } from "@/lib/postfast-client"
 import { defaultPostFastProviderControls } from "@/lib/postfast-provider-controls"
+import { getReminderSettings } from "@/lib/reminder-settings"
 import { enqueueReminder } from "@/lib/reminders"
 import {
   upsertPostFastPostRecord,
@@ -40,6 +41,7 @@ export type PublishPostInput = {
   sourceId: string
   rootDir?: string
   request?: PublishRequest
+  now?: Date
 }
 
 export type PublishPostResult = {
@@ -71,6 +73,55 @@ export function postFastPostIds(value: unknown): string[] {
     : []
 }
 
+export function postFastReleaseUrl(value: unknown): string | undefined {
+  const record =
+    typeof value === "object" && value !== null
+      ? (value as Record<string, unknown>)
+      : {}
+  const post = Array.isArray(record.posts) ? record.posts[0] : undefined
+  const postRecord =
+    post && typeof post === "object" ? (post as Record<string, unknown>) : {}
+  const valueFromResponse =
+    record.releaseUrl ??
+    record.releaseURL ??
+    postRecord.releaseUrl ??
+    postRecord.releaseURL
+  return typeof valueFromResponse === "string" && valueFromResponse.trim()
+    ? valueFromResponse.trim()
+    : undefined
+}
+
+export async function enqueuePublishedCommentReminders(input: {
+  sourceType: PostFastSourceType
+  sourceId: string
+  content: string
+  releaseUrl?: string
+  publishedAt?: string
+  now?: Date
+}) {
+  if (!input.releaseUrl) return []
+  const settings = await getReminderSettings()
+  const eventSettings = settings.events.respond_to_comments
+  if (eventSettings.channel === "none") return []
+  const publishedAt = Date.parse(input.publishedAt ?? "")
+  const baseTime = Number.isFinite(publishedAt)
+    ? publishedAt
+    : (input.now ?? new Date()).getTime()
+  const postName = input.content.split("\n")[0]?.trim() || "Published post"
+  return Promise.all(
+    (eventSettings.offsetsHours ?? []).map((offsetHours) =>
+      enqueueReminder({
+        event: "respond_to_comments",
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        availableAt: new Date(baseTime + offsetHours * 60 * 60 * 1000),
+        dedupeSuffix: `${offsetHours}h`,
+        text: ["Respond to comments", postName, input.releaseUrl].join("\n"),
+      })
+    )
+  )
+}
+
 export async function publishPost(
   input: PublishPostInput
 ): Promise<PublishPostResult> {
@@ -94,6 +145,7 @@ export async function publishPost(
       body: payload,
     })
     const postIds = postFastPostIds(postfastPosts)
+    const releaseUrl = postFastReleaseUrl(postfastPosts)
     const record = await upsertPostFastPostRecord({
       rootDir: input.rootDir,
       sourceType: input.sourceType,
@@ -103,6 +155,7 @@ export async function publishPost(
       provider: input.provider,
       linkState: "postfast_published",
       status: statusForType(type),
+      releaseUrl,
       scheduledAt: type === "schedule" ? input.date : undefined,
       content: input.content,
       media: input.media ?? [],
@@ -121,6 +174,15 @@ export async function publishPost(
         ]
           .filter(Boolean)
           .join("\n"),
+      }).catch(() => undefined)
+    } else if (type === "now") {
+      await enqueuePublishedCommentReminders({
+        sourceType: record.sourceType,
+        sourceId: record.sourceId,
+        content: record.content,
+        releaseUrl: record.releaseUrl,
+        publishedAt: record.publishedAt,
+        now: input.now,
       }).catch(() => undefined)
     }
     return { ok: true, record, postfastPosts }
