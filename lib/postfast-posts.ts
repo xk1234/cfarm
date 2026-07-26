@@ -54,8 +54,6 @@ export type PostFastPostRecord = {
   releaseUrl?: string
   linkState: PublicationLinkState
   statsSources: PostFastStatsSource[]
-  /** @deprecated Read-only compatibility for pre-migration records. */
-  externallyManaged?: boolean
   externalPostId?: string
   content: string
   media: PostFastMedia[]
@@ -357,9 +355,7 @@ async function writePostFastPostRecords(
 ) {
   await writeOutputPublications(
     records.map((record) => {
-      const persisted = { ...record }
-      delete persisted.externallyManaged
-      return persisted
+      return { ...record }
     })
   )
 }
@@ -385,9 +381,7 @@ function normalizeRecord(
       record.linkState === "postfast_published" ||
       record.linkState === "manually_linked"
         ? record.linkState
-        : record.externallyManaged === true
-          ? "manually_linked"
-          : "unlinked",
+        : "unlinked",
     statsSources: normalizeStatsSources(record.statsSources),
     createdAt: clean(record.createdAt) || new Date().toISOString(),
     updatedAt:

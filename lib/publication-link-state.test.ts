@@ -28,9 +28,9 @@ describe("publicationLinkState", () => {
     ).toMatchObject({ hasApiStats: false, hasStudioStats: true })
   })
 
-  it("reads externallyManaged as a deprecated legacy alias", () => {
-    expect(publicationLinkState({ externallyManaged: true })).toMatchObject({
-      state: "manually_linked",
+  it("treats a record with no linkState as unlinked", () => {
+    expect(publicationLinkState({})).toMatchObject({
+      state: "unlinked",
       hasApiStats: false,
       hasStudioStats: false,
     })

@@ -8,12 +8,17 @@ const apply = process.argv.includes("--apply")
 const environment = parseEnv(readFileSync(path.resolve(root, envFile), "utf8"))
 for (const [key, value] of Object.entries(environment)) process.env[key] = value
 
+// Owner precedence matches scripts/lumenclip-mcp.mts, and --owner-id overrides
+// both: an env file can name a system owner that holds no publications, and a
+// run against the wrong owner reports zero records, which reads exactly like
+// "nothing to migrate". The owner is echoed in the output for the same reason.
 const ownerId =
-  environment.LUMENCLIP_SYSTEM_OWNER_ID?.trim() ||
-  environment.LUMENCLIP_MCP_OWNER_ID?.trim()
+  argumentValue("--owner-id") ||
+  environment.LUMENCLIP_MCP_OWNER_ID?.trim() ||
+  environment.LUMENCLIP_SYSTEM_OWNER_ID?.trim()
 if (!ownerId) {
   throw new Error(
-    `${envFile} must define LUMENCLIP_SYSTEM_OWNER_ID or LUMENCLIP_MCP_OWNER_ID.`
+    `${envFile} must define LUMENCLIP_MCP_OWNER_ID or LUMENCLIP_SYSTEM_OWNER_ID, or pass --owner-id.`
   )
 }
 process.env.LUMENCLIP_SYSTEM_OWNER_ID = ownerId
@@ -57,6 +62,7 @@ const result = await withSystemOwner(ownerId, async () => {
 
   return {
     environment: envFile,
+    ownerId,
     dryRun: !apply,
     publicationsScanned: publications.length,
     snapshotsScanned: snapshots.length,

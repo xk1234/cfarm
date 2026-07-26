@@ -14,10 +14,7 @@ export type PublicationLinkState = (typeof PUBLICATION_LINK_STATES)[number]
 type PublicationLinkStateRecord = Pick<
   PostFastPostRecord,
   "linkState" | "statsSources"
-> & {
-  /** @deprecated Read compatibility for records created before linkState. */
-  externallyManaged?: boolean
-}
+>
 
 export function publicationLinkState(
   record: Partial<PublicationLinkStateRecord>
@@ -28,9 +25,7 @@ export function publicationLinkState(
   label: string
   description: string
 } {
-  const state =
-    record.linkState ??
-    (record.externallyManaged === true ? "manually_linked" : "unlinked")
+  const state = record.linkState ?? "unlinked"
   const statsSources = new Set<PostFastStatsSource>(record.statsSources ?? [])
   const copy = {
     postfast_published: {
