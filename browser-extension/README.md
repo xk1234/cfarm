@@ -1,6 +1,22 @@
 # LumenClip companion
 
-This Chrome MV3 extension connects a logged-in TikTok session to LumenClip. It imports TikTok Studio analytics, collects top-level comments, and posts only replies that the LumenClip server has explicitly approved.
+This Chrome MV3 extension connects a logged-in TikTok session to LumenClip. It
+imports TikTok Studio analytics and owns the TikTok comment workflow: capture,
+draft review, editing, approval, optional hearts, and sending.
+
+## Comment review
+
+Start **Collect in extension** from a TikTok post in LumenClip Analytics. The
+signed collection is handed to the extension and capture starts immediately.
+Open the extension in **Comments** mode to see every captured comment beside
+its drafted response.
+
+- Edit or approve one response at a time.
+- **Approve all** requires another confirmation when careful/flagged replies
+  are included.
+- Only approved drafts can be queued for sending.
+- The extension posts queued replies through the logged-in TikTok tab and
+  shows queued, sent, or failed state per response.
 
 ## Load unpacked
 

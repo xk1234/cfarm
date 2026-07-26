@@ -18,6 +18,25 @@
         <span id="statusText">Checking…</span>
       </div>
 
+      <section id="commentsReview" class="review" hidden>
+        <div class="review-heading">
+          <div>
+            <div class="eyebrow">Reply review</div>
+            <h1>Comments and drafts</h1>
+          </div>
+          <span id="reviewCount" class="count"></span>
+        </div>
+        <p id="reviewSummary" class="review-summary"></p>
+        <div id="commentList" class="comment-list"></div>
+        <div class="review-actions">
+          <button id="draftReplies" class="secondary" hidden>
+            Draft replies
+          </button>
+          <button id="approveAll" class="secondary" hidden>Approve all</button>
+          <button id="sendApproved" hidden>Send approved</button>
+        </div>
+      </section>
+
       <div class="actions">
         <button id="connect" class="primary" hidden>Connect</button>
         <button id="sync" class="primary" hidden>Sync now</button>

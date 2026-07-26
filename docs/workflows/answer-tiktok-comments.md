@@ -5,24 +5,26 @@ description: "Proposed: the Chrome companion reads top-level comments off a TikT
 
 # Answering TikTok comments
 
-Open one of your posts, let the companion collect its top-level comments, review the drafted
-replies in LumenClip, and approve them in one pass.
+Open one of your posts and let the Chrome companion own comment collection,
+draft review, approval, and sending. LumenClip has no Comments tab or standalone
+comments page.
 
 `Last tested: 2026-07-26 — DOM contract measured live; MCP surface exercised; no reply has been sent`
 
 ## What shipped
 
-| Piece | Name |
-| --- | --- |
-| Stores | `lib/tiktok-comments.ts` — collections, comments, drafts, approvals, sends (separate keys) |
-| Drafting | `lib/tiktok-comment-replies.ts`, model use case `tiktokCommentReply` |
-| MCP | `..._comments_collect_start`, `..._comments_list`, `..._comment_replies_draft`, `..._comment_replies_approve`, `..._comment_replies_send` |
-| Extension | `browser-extension/` — the single companion, shared with Studio analytics |
-| Queue | `/app/tiktok-comments?collectionId=…` |
+| Piece     | Name                                                                                                                                      |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Stores    | `lib/tiktok-comments.ts` — collections, comments, drafts, approvals, sends (separate keys)                                                |
+| Drafting  | `lib/tiktok-comment-replies.ts`, model use case `tiktokCommentReply`                                                                      |
+| MCP       | `..._comments_collect_start`, `..._comments_list`, `..._comment_replies_draft`, `..._comment_replies_approve`, `..._comment_replies_send` |
+| Extension | `browser-extension/` — owns capture, draft review/editing, approvals, optional hearts, and sending; there is no app Comments tab          |
 
-The extension is deliberately **separate** from the Studio companion: this one needs write
-permissions, and isolating them keeps the read-only analytics capture on its own release lifecycle.
-It paces sends 20–45 seconds apart, and treats a login wall or CAPTCHA as a hard stop.
+The feature is a mode of the same LumenClip companion used for Studio
+analytics. Comment work needs TikTok write access, paces sends 20–45 seconds
+apart, and treats a login wall or CAPTCHA as a hard stop. Starting collection
+from post analytics hands the signed collection directly to the extension; it
+does not navigate to another app page.
 
 **The send gate, verified over MCP.** Drafts, approvals, and sends live in separate stores.
 `queueApprovedTikTokReplies` requires literal `confirmSend: true`, resolves every requested draft id
@@ -34,9 +36,9 @@ returns an error:
 Explicit approval record required for draft ids: fake-draft
 ```
 
-**Approve all means all.** Flagged (`careful`) rows are included, not withheld — withholding them
-would quietly leave comments unanswered, which is the opposite of the requirement. When flagged rows
-are present the button reads *"Approve N, including M flagged?"* and needs a second press.
+**Approve all means all.** Flagged (`careful`) rows are included, not withheld
+— withholding them would quietly leave comments unanswered. The extension
+must require a second confirmation when flagged rows are included.
 
 ## What the live check found
 
@@ -54,15 +56,15 @@ full structure. No CAPTCHA, no rate limiting, no interstitial.
 
 **The extraction contract.** Each comment is one `div[class*="DivCommentObjectWrapper"]`, holding:
 
-| Field | Source |
-| --- | --- |
-| Display name | `[data-e2e="comment-username-1"]` |
-| Handle | the wrapper's `a[href^="/@"]` |
-| Comment text | `[data-e2e="comment-level-1"]` |
-| Like count | the like button's `aria-label`, e.g. `"Like video\n2 likes"` |
-| Date | a `span` matching `M-D` |
-| Reply count | the wrapper's `View N replies` affordance |
-| Reply action | `aria-label="Reply"` |
+| Field        | Source                                                       |
+| ------------ | ------------------------------------------------------------ |
+| Display name | `[data-e2e="comment-username-1"]`                            |
+| Handle       | the wrapper's `a[href^="/@"]`                                |
+| Comment text | `[data-e2e="comment-level-1"]`                               |
+| Like count   | the like button's `aria-label`, e.g. `"Like video\n2 likes"` |
+| Date         | a `span` matching `M-D`                                      |
+| Reply count  | the wrapper's `View N replies` affordance                    |
+| Reply action | `aria-label="Reply"`                                         |
 
 Two of those are traps. The like button is labelled **`Like video`** even on a comment — TikTok's
 own mislabelling, so an implementation matching on `aria-label === "Like comment"` finds nothing.
@@ -74,8 +76,7 @@ The `data-e2e` hooks that only exist once logged in and once the panel is open:
 `comment-count` exist.
 
 **The header count is not the top-level count.** The header says **17**. Twelve top-level comments
-rendered, carrying `View N replies` affordances summing to 6 — so 12 + 6 = 18, against a header of
-17. The three numbers do not reconcile, and they will not: deleted, filtered, and author-hidden
+rendered, carrying `View N replies` affordances summing to 6 — so 12 + 6 = 18, against a header of 17. The three numbers do not reconcile, and they will not: deleted, filtered, and author-hidden
 comments are counted differently from how they are rendered. **Never treat the header count as a
 completion target for a capture job.**
 
@@ -90,28 +91,28 @@ should not be designed around without its own check.
 This matters because it sets the range the drafter has to cover — **every one of these gets a
 reply**, including the emoji-only ones:
 
-| # | Commenter | Comment |
-| --- | --- | --- |
-| 1 | Phirum Amante | *Being Cancer must stop commit these 3 things; no one see Cancer's intentions.* |
-| 2 | 🌛moon priestess🌛🇦🇺 | a long first-person story about the last slide |
-| 3 | 📍 | *well anybody else feel called out bigger than hell here* |
-| 4 | poshy❤️ | *We never forget* |
-| 5 | user19778026790 | *it's hard being a cancer and somehow people see us sensitive and crying baby.* |
-| 6 | Dr Ebi | *[Sticker] Too real 😩cancer ♋️* |
-| 7 | snowywillow0 | *just described me to a tee 🥰🥰* |
-| 8 | Nick | *all I see is her struggling smh* |
-| 9–12 | kryptoDave, eviemanuel8, 💛💛LJ💕💕 ×2 | `💯💯💯` · `😁😁😁` · `❤️❤️❤️` · `🥰🥰🥰` |
+| #    | Commenter                              | Comment                                                                         |
+| ---- | -------------------------------------- | ------------------------------------------------------------------------------- |
+| 1    | Phirum Amante                          | _Being Cancer must stop commit these 3 things; no one see Cancer's intentions._ |
+| 2    | 🌛moon priestess🌛🇦🇺                   | a long first-person story about the last slide                                  |
+| 3    | 📍                                     | _well anybody else feel called out bigger than hell here_                       |
+| 4    | poshy❤️                                | _We never forget_                                                               |
+| 5    | user19778026790                        | _it's hard being a cancer and somehow people see us sensitive and crying baby._ |
+| 6    | Dr Ebi                                 | _[Sticker] Too real 😩cancer ♋️_                                                |
+| 7    | snowywillow0                           | _just described me to a tee 🥰🥰_                                               |
+| 8    | Nick                                   | _all I see is her struggling smh_                                               |
+| 9–12 | kryptoDave, eviemanuel8, 💛💛LJ💕💕 ×2 | `💯💯💯` · `😁😁😁` · `❤️❤️❤️` · `🥰🥰🥰`                                       |
 
 Four of twelve are emoji-only. One is a sticker. One (#8) is off-topic and mildly hostile. One
 commenter appears twice. Every one of them is answered — the classifier picks a **reply style**,
 it never withholds a reply:
 
-| Style | Applies to | What the draft looks like |
-| --- | --- | --- |
-| `substantive` | #1, #2, #3, #5 | A real sentence engaging the claim, the question, or the story |
-| `affirming` | #4, #6, #7 | One short line that agrees and adds a beat |
-| `emoji` | #9–12, and any sticker or emoji-only comment | Emoji, drawn at random from a per-automation set, optionally with 1–3 words |
-| `careful` | #8 | Still drafted, but flagged in the queue as hostile or off-topic so the person reads it before approving |
+| Style         | Applies to                                   | What the draft looks like                                                                               |
+| ------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `substantive` | #1, #2, #3, #5                               | A real sentence engaging the claim, the question, or the story                                          |
+| `affirming`   | #4, #6, #7                                   | One short line that agrees and adds a beat                                                              |
+| `emoji`       | #9–12, and any sticker or emoji-only comment | Emoji, drawn at random from a per-automation set, optionally with 1–3 words                             |
+| `careful`     | #8                                           | Still drafted, but flagged in the queue as hostile or off-topic so the person reads it before approving |
 
 `careful` is a flag, not a skip. Nothing is dropped from the queue.
 
@@ -121,21 +122,22 @@ can emit. So the emoji set is **drawn at random per reply and de-duplicated with
 replies in one batch use the same emoji sequence, and no reply mirrors the comment it answers.
 Randomness here is a variety requirement, not decoration.
 
-Drafted replies were **not** written out in this document. Putting generated replies to
-identifiable people into a doc is a step toward sending them; the drafting prompt gets validated in
-the approval queue, where a human sees every draft before it can go anywhere.
+Drafted replies were **not** written out in this document. Putting generated
+replies to identifiable people into a doc is a step toward sending them; the
+extension’s approval surface is where a human must see every draft before it
+can go anywhere.
 
 ## Why the workflow does not work today
 
-| Piece | Status |
-| --- | --- |
-| Read comment text | Nothing. `comments` exists only as a `CanonicalMetric` — a count. |
-| Post a reply | Nothing. `lib/postfast-client.ts` has no comment endpoint of any kind. |
-| Like ("heart") a comment | Nothing. |
-| Approval queue | Nothing. |
-| Read TikTok in the user's session | **Exists** — the Chrome companion. |
+| Piece                             | Status                                                                 |
+| --------------------------------- | ---------------------------------------------------------------------- |
+| Read comment text                 | Nothing. `comments` exists only as a `CanonicalMetric` — a count.      |
+| Post a reply                      | Nothing. `lib/postfast-client.ts` has no comment endpoint of any kind. |
+| Like ("heart") a comment          | Nothing.                                                               |
+| Approval queue                    | Nothing.                                                               |
+| Read TikTok in the user's session | **Exists** — the Chrome companion.                                     |
 
-The companion is one MV3 extension, version 2.0.0, shared with Studio analytics. Permissions `storage`,
+The companion is one MV3 extension, version 2.1.0, shared with Studio analytics. Permissions `storage`,
 `tabs`, `alarms`, host access to `www.tiktok.com`, the deployed origin, and `localhost`. It already
 drives TikTok tabs on its own and posts findings back with an HMAC bearer token. A one-minute alarm
 polls for pending work; each step has a 30-second timeout and one retry. See
@@ -147,7 +149,7 @@ polls for pending work; each step has a 30-second timeout and one retry. See
 
 > "Read the comments on my last three posts and draft replies for me to approve."
 
-### 2. Agent calls `lumenclip_tiktok_comments_collect_start` *(proposed)*
+### 2. Agent calls `lumenclip_tiktok_comments_collect_start` _(proposed)_
 
 **In**
 
@@ -178,7 +180,7 @@ only — `View N replies` threads are recorded as a count, not expanded.
 Completion is decided by **scroll exhaustion**, not by reaching the header count. The job reports
 `{ topLevelCaptured, nestedReplyCount, headerCount }` and lets them disagree.
 
-### 4. Agent calls `lumenclip_tiktok_comment_replies_draft` *(proposed)*
+### 4. Agent calls `lumenclip_tiktok_comment_replies_draft` _(proposed)_
 
 Drafting takes the collected comments plus the post's own slide text, which LumenClip already has
 for anything it generated — the reply should sound like the post it is answering. **Every comment
@@ -192,9 +194,10 @@ comment being answered. That keeps `emoji` replies varied without spending a mod
 
 ### 5. Human approves
 
-Nothing sends before this step. The queue shows each comment, its reply style, its drafted reply, and a
-heart toggle, with **Approve all** as one action and per-row approve, edit, and skip as the others.
-`careful` rows are visibly marked so **Approve all** does not wave one through unread.
+Nothing sends before this step. The extension shows each comment, its reply
+style, its drafted reply, and a heart toggle, with **Approve all** as one action
+and per-row approve, edit, and skip as the others. `careful` rows are visibly
+marked so **Approve all** does not wave one through unread.
 
 ### 6. Result
 
@@ -217,7 +220,7 @@ that reach outside LumenClip, and it requires explicit confirmation.
 ## Failures to check
 
 1. **Logged-out reads are CAPTCHA-gated.** The same post, checked logged out, served a slider
-   puzzle — *"Drag the slider to fit the puzzle"* — and **Log in to comment**, with zero comment
+   puzzle — _"Drag the slider to fit the puzzle"_ — and **Log in to comment**, with zero comment
    nodes in the DOM. The companion must run in the user's authenticated session, and must treat a
    CAPTCHA as a hard stop that surfaces to the person rather than something to solve or retry
    around.
@@ -235,8 +238,8 @@ that reach outside LumenClip, and it requires explicit confirmation.
    each other read as a bot even when every one was approved. Enforce it mechanically: no repeated
    emoji sequence within a run, no reply that mirrors the comment it answers, and no two
    `affirming` replies sharing an opening.
-7. **Hostile comments will appear** and still get a draft. #8 — *"all I see is her struggling
-   smh"* — is exactly the row that must be visually flagged, because the failure mode is a person
+7. **Hostile comments will appear** and still get a draft. #8 — _"all I see is her struggling
+   smh"_ — is exactly the row that must be visually flagged, because the failure mode is a person
    pressing **Approve all** and shipping a chirpy reply to an insult.
 8. **The same comment can arrive twice.** Re-running a collection must upsert on the TikTok comment
    id, the way Studio snapshots upsert on `postId` + `capturedAt`.

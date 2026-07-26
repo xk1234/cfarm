@@ -106,6 +106,74 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true
   }
 
+  if (message?.type === "GET_COMMENTS_REVIEW") {
+    void commentsManifest()
+      .then((review) => sendResponse({ ok: true, review }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Comment review could not be loaded",
+        })
+      )
+    return true
+  }
+
+  if (message?.type === "DRAFT_COMMENT_REPLIES") {
+    void commentCompanionAction("draft")
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Replies could not be drafted",
+        })
+      )
+    return true
+  }
+
+  if (message?.type === "APPROVE_COMMENT_REPLIES") {
+    void commentCompanionAction("approve", {
+      approvals: message.approvals,
+    })
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Replies could not be approved",
+        })
+      )
+    return true
+  }
+
+  if (message?.type === "QUEUE_COMMENT_REPLIES") {
+    void commentCompanionAction("send", {
+      draftIds: message.draftIds,
+      confirmSend: message.confirmSend === true,
+    })
+      .then((result) => {
+        sendResponse({ ok: true, result })
+        void runPendingComments().catch(() => undefined)
+      })
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Replies could not be queued",
+        })
+      )
+    return true
+  }
+
   if (message?.type === "SET_CONFIG") {
     void configureComments(message.config)
       .then(() => sendResponse({ ok: true }))
@@ -637,6 +705,14 @@ async function runPendingComments() {
           "collect"
         )
       }
+      if (pending.length && !(manifest.drafts || []).length) {
+        await commentCompanionActionWithConfig(
+          commentsConfig,
+          "draft",
+          {},
+          manifest.collection.id
+        )
+      }
       for (const send of sends) {
         const post = posts.find((item) => item.postId === send.comment?.postId)
         if (post && send.comment) {
@@ -659,6 +735,54 @@ async function runPendingComments() {
     await setCommentsStatus("error", message)
     throw error
   }
+}
+
+async function commentsManifest() {
+  const { commentsConfig } = await chrome.storage.local.get("commentsConfig")
+  if (!commentsConfig) throw new Error("Connect comments from LumenClip first")
+  const response = await fetch(commentsConfig.endpoint, {
+    headers: { authorization: `Bearer ${commentsConfig.token}` },
+  })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(body.error || `Comment review failed (${response.status})`)
+  }
+  return body
+}
+
+async function commentCompanionAction(action, payload = {}) {
+  const { commentsConfig } = await chrome.storage.local.get("commentsConfig")
+  if (!commentsConfig) throw new Error("Connect comments from LumenClip first")
+  return commentCompanionActionWithConfig(commentsConfig, action, payload)
+}
+
+async function commentCompanionActionWithConfig(
+  config,
+  action,
+  payload = {},
+  collectionId
+) {
+  const manifest = collectionId ? null : await commentsManifest()
+  const resolvedCollectionId = collectionId || manifest?.collection?.id
+  if (!resolvedCollectionId)
+    throw new Error("Comment collection is unavailable")
+  const response = await fetch(config.endpoint, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${config.token}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      action,
+      collectionId: resolvedCollectionId,
+      ...payload,
+    }),
+  })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(body.error || `Comment action failed (${response.status})`)
+  }
+  return body
 }
 
 async function runCommentsPost(config, collectionId, post, mode, send) {
@@ -721,6 +845,26 @@ async function runCommentsPost(config, collectionId, post, mode, send) {
         postId: post.postId,
         comments: [],
         error: lastError?.message || "Capture failed",
+      }),
+    })
+  } else if (send?.id) {
+    await fetch(config.endpoint, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${config.token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        collectionId,
+        postId: post.postId,
+        comments: [],
+        sendResults: [
+          {
+            sendId: send.id,
+            status: "failed",
+            error: lastError?.message || "Reply failed",
+          },
+        ],
       }),
     })
   }

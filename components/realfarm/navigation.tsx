@@ -10,7 +10,6 @@ import {
   IconCalendar,
   IconHome,
   IconLogout,
-  IconMessageCircle,
   IconPhoto,
   IconPlus,
   IconPencilPlus,
@@ -40,7 +39,6 @@ const topNav: NavItem[] = [
   { key: "compose", label: "Compose", icon: IconPencilPlus },
   { key: "schedule", label: "Schedule", icon: IconCalendar },
   { key: "analytics", label: "Analytics", icon: IconBolt },
-  { key: "comments", label: "Comments", icon: IconMessageCircle },
 ]
 
 const slideshowNav: NavItem[] = [
@@ -104,8 +102,7 @@ export function Sidebar({
               (view === "home" && item.label === "Home") ||
               (view === "compose" && item.label === "Compose") ||
               (view === "schedule" && item.label === "Schedule") ||
-              (view === "analytics" && item.label === "Analytics") ||
-              (view === "comments" && item.label === "Comments")
+              (view === "analytics" && item.label === "Analytics")
             }
             onClick={() => onViewChange(item.key)}
             href={workspaceViewHref(item.key)}

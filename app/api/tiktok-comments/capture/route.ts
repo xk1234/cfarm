@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server"
 
 import { withSystemOwner } from "@/lib/system-owner-context"
+import { draftTikTokCommentReplies } from "@/lib/tiktok-comment-replies"
 import {
+  approveTikTokReplyDrafts,
   getTikTokCommentCompanionManifest,
   ingestTikTokComments,
+  queueApprovedTikTokReplies,
   recordTikTokCommentSendResults,
-  tiktokCommentCaptureOwnerId,
+  tiktokCommentCaptureContext,
 } from "@/lib/tiktok-comments"
 
 export const dynamic = "force-dynamic"
@@ -26,8 +29,8 @@ export function OPTIONS() {
 export async function GET(request: Request) {
   try {
     const token = bearerToken(request.headers.get("authorization"))
-    const ownerId = tiktokCommentCaptureOwnerId(token)
-    const manifest = await withSystemOwner(ownerId, () =>
+    const context = tiktokCommentCaptureContext(token)
+    const manifest = await withSystemOwner(context.ownerId, () =>
       getTikTokCommentCompanionManifest(token)
     )
     return json(manifest)
@@ -47,11 +50,45 @@ export async function POST(request: Request) {
       return json({ error: "Capture payload is too large" }, 413)
     }
     const body = JSON.parse(text)
-    const ownerId = tiktokCommentCaptureOwnerId(token)
-    const result = await withSystemOwner(ownerId, async () => {
+    const context = tiktokCommentCaptureContext(token)
+    const result = await withSystemOwner(context.ownerId, async () => {
+      if (typeof body.action === "string") {
+        assertCollection(context.collectionId, body.collectionId)
+        if (body.action === "draft") {
+          return {
+            drafts: await draftTikTokCommentReplies({
+              collectionId: context.collectionId,
+            }),
+          }
+        }
+        if (body.action === "approve") {
+          return {
+            approvals: await approveTikTokReplyDrafts({
+              collectionId: context.collectionId,
+              approvals: companionApprovals(body.approvals),
+            }),
+          }
+        }
+        if (body.action === "send") {
+          if (body.confirmSend !== true) {
+            throw new Error("confirmSend must be true")
+          }
+          return {
+            sends: await queueApprovedTikTokReplies({
+              collectionId: context.collectionId,
+              draftIds: companionDraftIds(body.draftIds),
+              confirmSend: true,
+            }),
+          }
+        }
+        throw new Error("Unknown comment companion action")
+      }
       const sendResults = Array.isArray(body.sendResults)
         ? await recordTikTokCommentSendResults({
-            collectionId: String(body.collectionId || ""),
+            collectionId: assertedCollection(
+              context.collectionId,
+              body.collectionId
+            ),
             results: body.sendResults,
           })
         : []
@@ -59,7 +96,10 @@ export async function POST(request: Request) {
         Array.isArray(body.comments) && !Array.isArray(body.sendResults)
           ? await ingestTikTokComments({
               token,
-              collectionId: String(body.collectionId || ""),
+              collectionId: assertedCollection(
+                context.collectionId,
+                body.collectionId
+              ),
               postId: String(body.postId || ""),
               comments: body.comments,
               complete: body.complete,
@@ -68,14 +108,50 @@ export async function POST(request: Request) {
           : { accepted: 0, collection: undefined }
       return { ...capture, sendResults }
     })
-    return json({
-      accepted: result.accepted,
-      collection: result.collection,
-      sendResults: result.sendResults,
-    })
+    return json(result)
   } catch (error) {
     return json({ error: message(error, "Comment capture failed") }, 401)
   }
+}
+
+function assertedCollection(expected: string, supplied: unknown) {
+  assertCollection(expected, supplied)
+  return expected
+}
+
+function assertCollection(expected: string, supplied: unknown) {
+  if (String(supplied || "").trim() !== expected) {
+    throw new Error("Capture token does not match collection")
+  }
+}
+
+function companionApprovals(value: unknown) {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 500) {
+    throw new Error("Select at least one reply to approve")
+  }
+  return value.map((item) => {
+    const input =
+      item && typeof item === "object" ? (item as Record<string, unknown>) : {}
+    const draftId = String(input.draftId || "").trim()
+    const text = String(input.text || "").trim()
+    if (!draftId || !text) throw new Error("Approved reply text is required")
+    return {
+      draftId,
+      text: text.slice(0, 1000),
+      heart: input.heart === true,
+    }
+  })
+}
+
+function companionDraftIds(value: unknown) {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 500) {
+    throw new Error("Select at least one approved reply to send")
+  }
+  const ids = [...new Set(value.map((item) => String(item || "").trim()))]
+    .filter(Boolean)
+    .slice(0, 500)
+  if (!ids.length) throw new Error("Select at least one approved reply to send")
+  return ids
 }
 
 function bearerToken(value: string | null) {
