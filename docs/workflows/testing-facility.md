@@ -178,7 +178,7 @@ for a first version:
 - **`lumenclip_output_get`** returns per-slide text and image identity.
 - **`lumenclip_output_validate`** is deterministic and model-free, returning `COUNT_MISMATCH`,
   `UNRESOLVED_TOKEN`, `DUPLICATE_VARIABLE_DRAW`, `NEAR_DUPLICATE_OUTPUT`, `EMPTY_SLIDE_TEXT`,
-  `TRUNCATED_SLIDE_TEXT`.
+  `WORD_LENGTH_VIOLATION`.
 - **`lumenclip_automation_hooks_get`** returns the canonical pool with `total`, `enabled`,
   `disabled`, `uniqueSuggested`, `duplicateSlotCount`, and `duplicateGroups` whose `kind` is
   `"exact"` or `"near"` — so the grid can grey out hooks that duplicate one already shown.

@@ -73,7 +73,13 @@ export function analyzeAutomationHookPool(hooks: AutomationHookItem[]) {
 
 export function replaceAutomationHookPool(input: {
   current: AutomationHookItem[]
-  hooks: Array<{ id?: string; text: string; enabled?: boolean }>
+  hooks: Array<{
+    id?: string
+    text: string
+    enabled?: boolean
+    bodySlideCount?: number | null
+    tone?: string | null
+  }>
   now: string
   deduplicateNearMatches?: boolean
 }) {
@@ -90,13 +96,27 @@ export function replaceAutomationHookPool(input: {
       currentByText.get(exactHookKey(text))
     const id = requestedId || existing?.id || automationHookId(text)
     const enabled = candidate.enabled ?? existing?.enabled ?? true
+    const bodySlideCount =
+      candidate.bodySlideCount === undefined
+        ? existing?.bodySlideCount
+        : (candidate.bodySlideCount ?? undefined)
+    const tone =
+      candidate.tone === undefined
+        ? existing?.tone
+        : clean(candidate.tone) || undefined
     const changed =
-      !existing || existing.text !== text || existing.enabled !== enabled
+      !existing ||
+      existing.text !== text ||
+      existing.enabled !== enabled ||
+      existing.bodySlideCount !== bodySlideCount ||
+      existing.tone !== tone
     return [
       {
         id,
         text,
         enabled,
+        ...(bodySlideCount ? { bodySlideCount } : {}),
+        ...(tone ? { tone } : {}),
         createdAt: existing?.createdAt ?? input.now,
         ...(changed
           ? { updatedAt: input.now }
@@ -146,7 +166,8 @@ function duplicateGroups(hooks: AutomationHookItem[]): HookDuplicateGroup[] {
       )
       const exact = indexes.every(
         (index) =>
-          exactHookKey(hooks[index].text) === exactHookKey(hooks[indexes[0]].text)
+          exactHookKey(hooks[index].text) ===
+          exactHookKey(hooks[indexes[0]].text)
       )
       return {
         kind: exact ? ("exact" as const) : ("near" as const),
@@ -210,10 +231,7 @@ function exactHookKey(value: string) {
 function semanticTokens(value: string) {
   const normalized = exactHookKey(value)
     .replace(/\{\{[^}]+\}\}|\{[^}]+\}/g, " variable ")
-    .replace(
-      new RegExp(`\\b(?:${zodiacTerms.join("|")})\\b`, "g"),
-      " zodiac "
-    )
+    .replace(new RegExp(`\\b(?:${zodiacTerms.join("|")})\\b`, "g"), " zodiac ")
   return new Set(
     normalized
       .split(" ")
@@ -224,8 +242,7 @@ function semanticTokens(value: string) {
 
 function stemToken(value: string) {
   if (value.length > 5 && value.endsWith("ing")) return value.slice(0, -3)
-  if (value.length > 4 && value.endsWith("ies"))
-    return `${value.slice(0, -3)}y`
+  if (value.length > 4 && value.endsWith("ies")) return `${value.slice(0, -3)}y`
   if (value.length > 3 && value.endsWith("s")) return value.slice(0, -1)
   return value
 }

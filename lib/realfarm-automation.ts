@@ -212,6 +212,8 @@ export type AutomationHookItem = {
   id: string
   text: string
   enabled: boolean
+  bodySlideCount?: number
+  tone?: string
   createdAt: string
   updatedAt?: string
 }
@@ -1029,6 +1031,10 @@ function normalizeAutomationHookItems(
         id: clean(raw.id) || automationHookId(text),
         text,
         enabled: raw.enabled !== false,
+        ...(hookBodySlideCount(raw.bodySlideCount) !== undefined
+          ? { bodySlideCount: hookBodySlideCount(raw.bodySlideCount) }
+          : {}),
+        ...(clean(raw.tone) ? { tone: clean(raw.tone) } : {}),
         createdAt: clean(raw.createdAt) || new Date(0).toISOString(),
         ...(clean(raw.updatedAt) ? { updatedAt: clean(raw.updatedAt) } : {}),
       } satisfies AutomationHookItem,
@@ -1047,6 +1053,13 @@ function hookItemsFromTexts(texts: string[]): AutomationHookItem[] {
     enabled: true,
     createdAt,
   }))
+}
+
+function hookBodySlideCount(value: unknown) {
+  const count = Number(value)
+  return Number.isInteger(count) && count >= 1 && count <= 100
+    ? count
+    : undefined
 }
 
 function mergeHookTextsWithCatalog(
@@ -1893,9 +1906,6 @@ function fixedAutomationProviderControls(
       }
     case "youtube":
       return {
-        youtubeTitle: tiktokSettings
-          ? tiktokPostSettingsToPostFastControls(tiktokSettings).tiktokTitle
-          : "",
         youtubeIsShort: true,
         youtubeMadeForKids: false,
       }
@@ -1942,9 +1952,8 @@ function normalizeSocialPostSettings(
   }
 
   return Object.fromEntries(
-    socialPostSettingProviders.map((provider) => [
-      provider,
-      automationPostFastProviderControls(
+    socialPostSettingProviders.map((provider) => {
+      const controls = automationPostFastProviderControls(
         provider,
         tiktokSettings,
         socialPublishAs,
@@ -1952,8 +1961,20 @@ function normalizeSocialPostSettings(
           ...(defaults[provider] ?? {}),
           ...(isRecord(record[provider]) ? record[provider] : {}),
         }
-      ),
-    ])
+      )
+      if (provider === "youtube") {
+        const youtubeControls =
+          controls as PostFastProviderControlsByProvider["youtube"]
+        if (
+          tiktokSettings?.description.mode === "prompt" &&
+          clean(youtubeControls.youtubeTitle) ===
+            clean(tiktokSettings.description.prompt_text)
+        ) {
+          youtubeControls.youtubeTitle = ""
+        }
+      }
+      return [provider, controls]
+    })
   ) as AutomationSocialPostSettings
 }
 

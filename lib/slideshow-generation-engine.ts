@@ -92,6 +92,8 @@ export type SlideshowHookSelection = {
   expansion: HookExpansionResult
   index: number
   hookId: string
+  bodySlideCount?: number
+  tone?: string
 }
 
 /**
@@ -99,7 +101,12 @@ export type SlideshowHookSelection = {
  * runs. Loading word collections and usage history remains a caller adapter.
  */
 export function selectSlideshowHook(input: {
-  hookItems: Array<{ id: string; text: string }>
+  hookItems: Array<{
+    id: string
+    text: string
+    bodySlideCount?: number
+    tone?: string
+  }>
   hookSlots?: Record<string, string>
   wordCollections: WordCollectionRecord[]
   usedHookKeys?: ReadonlySet<string>
@@ -130,12 +137,14 @@ export function selectSlideshowHook(input: {
             caseMode: input.caseMode,
             now: input.now,
             timeZone: input.timeZone,
-            slideCount: input.slideCount,
+            slideCount: hookItem.bodySlideCount ?? input.slideCount,
           }
         ).map((expansion) => ({
           expansion,
           index,
           hookId: hookItem.id,
+          bodySlideCount: hookItem.bodySlideCount,
+          tone: hookItem.tone,
         }))
       )
     } catch (error) {
@@ -608,7 +617,7 @@ async function requestStructuredOutput(input: {
       const output = JSON.parse(
         parseOpenRouterContent(choice?.message?.content)
       )
-      const { errors: validationErrors, violations } = structuredOutputFindings(
+      const { errors: validationErrors } = structuredOutputFindings(
         output,
         input.placeholders,
         input.selectedHook
@@ -627,7 +636,7 @@ async function requestStructuredOutput(input: {
           `Generated body text does not develop the selected hook subject: ${input.selectedHook}`
         )
       }
-      return { output, webSearchSources, model: attemptModel, violations }
+      return { output, webSearchSources, model: attemptModel, violations: [] }
     } catch (error) {
       lastError = error
       repairError = error
@@ -725,12 +734,7 @@ function structuredOutputFindings(
     }
     generatedValues.push(value)
     const wordRangeError = placeholderWordRangeError(placeholder, value)
-    if (wordRangeError) {
-      // Word counts are a quality signal, not a correctness one. Failing the
-      // run over one short line throws away a whole generation, so these are
-      // reported alongside the output instead of aborting it.
-      violations.push(wordRangeError)
-    }
+    if (wordRangeError) errors.push(wordRangeError)
   }
   // Slop terms echoed from the user-authored hook are exempt — the model must
   // develop the hook subject and cannot avoid its wording.

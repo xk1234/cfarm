@@ -46,7 +46,7 @@ describe("automation output QA", () => {
         "UNRESOLVED_TOKEN",
         "DUPLICATE_VARIABLE_DRAW",
         "NEAR_DUPLICATE_OUTPUT",
-        "TRUNCATED_SLIDE_TEXT",
+        "WORD_LENGTH_VIOLATION",
       ])
     )
     expect(report.valid).toBe(false)

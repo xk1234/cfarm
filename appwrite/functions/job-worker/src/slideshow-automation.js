@@ -26,8 +26,11 @@ import {
   applyHookCase,
   automationHookItems,
   automationHooks,
+  resolveSlideshowCaption,
+  resolveSlideshowHashtags,
   selectedBodySlideCount,
   slideSpecs,
+  slideshowMetadataPromptInstructions,
   slideshowRunId,
   textItemsForSpec,
 } from "./slideshow-plan-core.js"
@@ -434,7 +437,7 @@ async function createPlan({
 }) {
   const schema = automation.schema
   const seed = seededBytes(`${runId}:${scheduledFor}`)
-  const bodySlideCount = selectedBodySlideCount(schema, seed[1])
+  const defaultBodySlideCount = selectedBodySlideCount(schema, seed[1])
   const hookCutoff =
     Date.parse(scheduledFor) -
     Math.max(0, Number(schema.reuse_policy?.hook_exclusion_days) || 45) *
@@ -478,9 +481,11 @@ async function createPlan({
     caseMode: schema.prompt_formatting?.hook_case || "mixed",
     now: new Date(scheduledFor),
     timeZone: schema.schedule?.timezone,
-    slideCount: bodySlideCount,
+    slideCount: defaultBodySlideCount,
     selectIndex: (candidateCount) => seed[0] % candidateCount,
   })
+  const bodySlideCount =
+    hookSelection.bodySlideCount || defaultBodySlideCount
   const hook = applyHookCase(
     hookSelection.expansion.text,
     schema.prompt_formatting
@@ -492,7 +497,10 @@ async function createPlan({
       name: automation.name,
       theme: "automation",
       hooks: [hook],
-      tone: clean(schema.tone?.value) || "Conversational & Relatable",
+      tone:
+        clean(hookSelection.tone) ||
+        clean(schema.tone?.value) ||
+        "Conversational & Relatable",
       style:
         clean(schema.prompt_formatting?.style) ||
         "Use the automation's native slideshow style.",
@@ -505,6 +513,7 @@ async function createPlan({
     },
     model: defaultTextModel,
     selectedHook: hook,
+    promptInstructions: slideshowMetadataPromptInstructions(schema),
     webSearchEnabled: schema.web_search_enabled,
     apiKey: clean(process.env.OPENROUTER_API_KEY),
     fetchImpl: fetch,
@@ -595,10 +604,22 @@ async function createPlan({
 
   return {
     title: requiredGeneratedValue("title", generated.title),
-    caption: requiredGeneratedValue("caption", generated.caption),
+    caption: requiredGeneratedValue(
+      "caption",
+      resolveSlideshowCaption({
+        setting: schema.tiktok_post_settings?.caption,
+        generated: generated.caption,
+        hook,
+      })
+    ),
     hashtags: requiredGeneratedValue(
       "hashtags",
-      normalizeHashtags(generated.hashtags)
+      normalizeHashtags(
+        resolveSlideshowHashtags({
+          setting: schema.tiktok_post_settings?.description,
+          generated: generated.hashtags,
+        })
+      )
     ),
     hook,
     hookId: hookSelection.hookId,
@@ -617,7 +638,6 @@ async function createPlan({
     autoPost: effectivePostingMode(schema) === "auto",
     hookCandidates: automationHooks(schema),
     textModel: generated.model,
-    // Non-fatal quality findings recorded at generation time (word ranges).
     violations: generated.violations ?? [],
     language: clean(schema.language) || "English",
     debug: { webSearchSources: generated.webSearchSources || [] },

@@ -8,6 +8,8 @@ type HookItem = {
   id: string
   text: string
   enabled: boolean
+  bodySlideCount?: number
+  tone?: string
   createdAt?: string
   updatedAt?: string
 }
@@ -61,6 +63,16 @@ type PlanSchema = {
     first_slide?: { collection?: string }
     cta_slide?: { check?: boolean; cta_collection_id?: string }
   }
+  tiktok_post_settings?: {
+    caption?: PostTextSetting
+    description?: PostTextSetting
+  }
+}
+
+type PostTextSetting = {
+  mode?: string
+  static_text?: string
+  prompt_text?: string
 }
 
 export function slideshowRunId(automationId: string, scheduledFor: string) {
@@ -94,11 +106,75 @@ export function automationHookItems(
         id: clean(item.id) || hookId(text),
         text,
         enabled: item.enabled !== false,
+        ...(validBodySlideCount(item.bodySlideCount) !== undefined
+          ? { bodySlideCount: validBodySlideCount(item.bodySlideCount) }
+          : {}),
+        ...(clean(item.tone) ? { tone: clean(item.tone) } : {}),
         createdAt: clean(item.createdAt) || new Date(0).toISOString(),
         ...(clean(item.updatedAt) ? { updatedAt: clean(item.updatedAt) } : {}),
       },
     ]
   })
+}
+
+function validBodySlideCount(value: unknown) {
+  const count = Number(value)
+  return Number.isInteger(count) && count >= 1 && count <= 100
+    ? count
+    : undefined
+}
+
+export function slideshowMetadataPromptInstructions(schema: PlanSchema) {
+  const caption = schema.tiktok_post_settings?.caption
+  const hashtags = schema.tiktok_post_settings?.description
+  return [
+    postTextPromptLine("Caption", caption),
+    postTextPromptLine("Hashtags", hashtags),
+  ]
+    .filter(Boolean)
+    .join("\n")
+}
+
+export function resolveSlideshowCaption(input: {
+  setting?: PostTextSetting
+  generated: string
+  hook: string
+}) {
+  const setting = input.setting
+  if (setting?.mode === "static") {
+    return clean(setting.static_text) || clean(input.generated)
+  }
+  const prompt = clean(setting?.prompt_text)
+  let caption = /same exact text as (?:the )?(?:first text item|hook)/i.test(
+    prompt
+  )
+    ? clean(input.hook)
+    : clean(input.generated)
+  if (/lower\s*case|all\s*lowercase/i.test(prompt)) {
+    caption = caption.toLowerCase()
+  }
+  return caption
+}
+
+export function resolveSlideshowHashtags(input: {
+  setting?: PostTextSetting
+  generated: string
+}) {
+  return input.setting?.mode === "static"
+    ? clean(input.setting.static_text) || clean(input.generated)
+    : clean(input.generated)
+}
+
+function postTextPromptLine(label: string, setting?: PostTextSetting) {
+  if (!setting) return ""
+  const value =
+    setting.mode === "static"
+      ? clean(setting.static_text)
+      : clean(setting.prompt_text)
+  if (!value) return ""
+  return setting.mode === "static"
+    ? `${label} requirement: return exactly ${JSON.stringify(value)}.`
+    : `${label} requirement: ${value}`
 }
 
 export function isHookInstruction(value: string) {

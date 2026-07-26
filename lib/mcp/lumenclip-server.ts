@@ -292,6 +292,14 @@ const textItemPatchSchema = z
     message: "Provide at least one text-item field to update.",
   })
 
+const automationHookMutationSchema = z.object({
+  id: z.string().trim().min(1).optional(),
+  text: z.string().trim().min(1).max(2_000),
+  enabled: z.boolean().optional(),
+  bodySlideCount: z.number().int().min(1).max(100).nullable().optional(),
+  tone: z.string().trim().min(1).max(1_000).nullable().optional(),
+})
+
 export type LumenClipMcpServices = {
   now: () => Date
   listAutomationRecords: typeof listAutomationRecords
@@ -1145,6 +1153,83 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
+    "lumenclip_automation_clone",
+    {
+      title: "Clone an automation",
+      description:
+        "Deep-copies one caller-owned automation's normalized schema, hook pool, collection bindings, publishing configuration, and schedule into a new paused automation. Run history and outputs are not copied.",
+      inputSchema: {
+        sourceAutomationId: z.string().trim().min(1),
+        name: z.string().trim().min(1).max(200),
+        expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
+        requestId: z.string().trim().min(1).max(200),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (input) =>
+      mcpResult(
+        await owned(async () => {
+          const current = await services.listAutomationRecords()
+          const existing = current.find(
+            (record) =>
+              record.raw?.mcpRequestId === input.requestId &&
+              record.raw?.mcpOperation === "automation_clone"
+          )
+          if (existing) {
+            return {
+              created: false,
+              reused: true,
+              requestId: input.requestId,
+              sourceAutomationId: existing.raw?.sourceAutomationId,
+              automation: {
+                ...serializeStandardAutomation(existing),
+                schema: serializeAutomationSchema(existing.schema),
+              },
+            }
+          }
+          const source = current.find(
+            (record) => record.id === input.sourceAutomationId
+          )
+          if (!source) throw new Error("Source automation not found")
+          assertExpectedVersion(source.updatedAt, input.expectedUpdatedAt)
+          const clone = createLocalAutomationRecord({
+            name: input.name,
+            automationKind: source.schema.automationKind,
+            schema: structuredClone(source.schema),
+            overrides: { status: "paused" },
+          })
+          const saved: AutomationRecord = {
+            ...clone,
+            status: "paused",
+            favorite: false,
+            theme: source.theme,
+            raw: {
+              mcpOperation: "automation_clone",
+              mcpRequestId: input.requestId,
+              sourceAutomationId: source.id,
+            },
+          }
+          await services.upsertAutomationRecords({ records: [saved] })
+          return {
+            created: true,
+            reused: false,
+            requestId: input.requestId,
+            sourceAutomationId: source.id,
+            automation: {
+              ...serializeStandardAutomation(saved),
+              schema: serializeAutomationSchema(saved.schema),
+            },
+          }
+        })
+      )
+  )
+
+  server.registerTool(
     "lumenclip_automation_get",
     {
       title: "Get automation",
@@ -1608,13 +1693,7 @@ function registerAutomationReadAndRunTools(
             "Optimistic-lock timestamp returned by automation_hooks_get."
           ),
         hooks: z
-          .array(
-            z.object({
-              id: z.string().trim().min(1).optional(),
-              text: z.string().trim().min(1).max(2_000),
-              enabled: z.boolean().optional(),
-            })
-          )
+          .array(automationHookMutationSchema)
           .max(500)
           .describe(
             "Complete desired hook pool. Omitted existing hooks are pruned."
@@ -1671,16 +1750,7 @@ function registerAutomationReadAndRunTools(
       inputSchema: {
         automationId: z.string().trim().min(1),
         expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
-        hooks: z
-          .array(
-            z.object({
-              id: z.string().trim().min(1).optional(),
-              text: z.string().trim().min(1).max(2_000),
-              enabled: z.boolean().optional(),
-            })
-          )
-          .min(1)
-          .max(100),
+        hooks: z.array(automationHookMutationSchema).min(1).max(100),
       },
       annotations: {
         readOnlyHint: false,
@@ -6124,7 +6194,13 @@ async function patchAutomationHooks(
 
 function upsertAutomationHooks(input: {
   current: AutomationHookItem[]
-  updates: Array<{ id?: string; text: string; enabled?: boolean }>
+  updates: Array<{
+    id?: string
+    text: string
+    enabled?: boolean
+    bodySlideCount?: number | null
+    tone?: string | null
+  }>
   now: string
 }) {
   const updatesById = new Map(
@@ -6139,9 +6215,25 @@ function upsertAutomationHooks(input: {
     consumed.add(hook.id)
     const text = clean(update.text)
     const enabled = update.enabled ?? hook.enabled
-    return text === hook.text && enabled === hook.enabled
+    const bodySlideCount =
+      update.bodySlideCount === undefined
+        ? hook.bodySlideCount
+        : (update.bodySlideCount ?? undefined)
+    const tone =
+      update.tone === undefined ? hook.tone : clean(update.tone) || undefined
+    return text === hook.text &&
+      enabled === hook.enabled &&
+      bodySlideCount === hook.bodySlideCount &&
+      tone === hook.tone
       ? hook
-      : { ...hook, text, enabled, updatedAt: input.now }
+      : {
+          ...hook,
+          text,
+          enabled,
+          bodySlideCount,
+          tone,
+          updatedAt: input.now,
+        }
   })
   for (const update of input.updates) {
     const requestedId = clean(update.id)
@@ -6151,8 +6243,23 @@ function upsertAutomationHooks(input: {
       (hook) => hook.text.toLowerCase() === text.toLowerCase()
     )
     if (existing) {
-      if (update.enabled !== undefined && update.enabled !== existing.enabled) {
-        existing.enabled = update.enabled
+      const nextEnabled = update.enabled ?? existing.enabled
+      const nextBodySlideCount =
+        update.bodySlideCount === undefined
+          ? existing.bodySlideCount
+          : (update.bodySlideCount ?? undefined)
+      const nextTone =
+        update.tone === undefined
+          ? existing.tone
+          : clean(update.tone) || undefined
+      if (
+        nextEnabled !== existing.enabled ||
+        nextBodySlideCount !== existing.bodySlideCount ||
+        nextTone !== existing.tone
+      ) {
+        existing.enabled = nextEnabled
+        existing.bodySlideCount = nextBodySlideCount
+        existing.tone = nextTone
         existing.updatedAt = input.now
       }
       continue
@@ -6161,6 +6268,10 @@ function upsertAutomationHooks(input: {
       id: requestedId || automationHookId(text),
       text,
       enabled: update.enabled ?? true,
+      ...(update.bodySlideCount
+        ? { bodySlideCount: update.bodySlideCount }
+        : {}),
+      ...(clean(update.tone) ? { tone: clean(update.tone) } : {}),
       createdAt: input.now,
     })
   }

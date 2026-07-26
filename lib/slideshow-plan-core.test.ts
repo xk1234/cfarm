@@ -1,0 +1,73 @@
+import { describe, expect, it } from "vitest"
+
+import { selectSlideshowHook } from "@/lib/slideshow-generation-engine"
+import {
+  resolveSlideshowCaption,
+  slideshowMetadataPromptInstructions,
+} from "@/lib/slideshow-plan-core"
+
+describe("slideshow plan metadata and hook overrides", () => {
+  it("passes saved caption and hashtag prompts into text generation", () => {
+    const instructions = slideshowMetadataPromptInstructions({
+      tiktok_post_settings: {
+        caption: {
+          mode: "prompt",
+          prompt_text:
+            'this should be in "lowercase," same exact text as the first text item.',
+        },
+        description: {
+          mode: "prompt",
+          prompt_text: "give me 3-5 broad hashtags related to astrology",
+        },
+      },
+    })
+
+    expect(instructions).toContain(
+      'Caption requirement: this should be in "lowercase," same exact text as the first text item.'
+    )
+    expect(instructions).toContain(
+      "Hashtags requirement: give me 3-5 broad hashtags related to astrology"
+    )
+  })
+
+  it("deterministically honors an exact first-text-item caption instruction", () => {
+    expect(
+      resolveSlideshowCaption({
+        setting: {
+          mode: "prompt",
+          prompt_text:
+            'this should be in "lowercase," same exact text as the first text item.',
+        },
+        generated: "A different model-written caption",
+        hook: "May Gemini vs. June Gemini",
+      })
+    ).toBe("may gemini vs. june gemini")
+  })
+
+  it("uses a hook body-slide override for SLIDE_COUNT and returns its tone", () => {
+    const selection = selectSlideshowHook({
+      hookItems: [
+        {
+          id: "all-signs",
+          text: "[[SLIDE_COUNT]] zodiac signs, ranked",
+          bodySlideCount: 12,
+          tone: "Shadow voice",
+        },
+      ],
+      wordCollections: [],
+      now: new Date("2026-07-26T00:00:00.000Z"),
+      slideCount: 5,
+      selectIndex: () => 0,
+    })
+
+    expect(selection).toMatchObject({
+      hookId: "all-signs",
+      bodySlideCount: 12,
+      tone: "Shadow voice",
+      expansion: {
+        text: "12 zodiac signs, ranked",
+        substitutions: { SLIDE_COUNT: "12" },
+      },
+    })
+  })
+})

@@ -15,7 +15,7 @@ export type AutomationOutputQaFindingCode =
   | "DUPLICATE_VARIABLE_DRAW"
   | "NEAR_DUPLICATE_OUTPUT"
   | "EMPTY_SLIDE_TEXT"
-  | "TRUNCATED_SLIDE_TEXT"
+  | "WORD_LENGTH_VIOLATION"
 
 export type AutomationOutputQaFinding = {
   code: AutomationOutputQaFindingCode
@@ -268,7 +268,7 @@ function wordLengthFindings(
     direction === "below" ? configured.wordLengthMin : configured.wordLengthMax
   return [
     {
-      code: "TRUNCATED_SLIDE_TEXT",
+      code: "WORD_LENGTH_VIOLATION",
       severity: "error",
       slideIndex: slideIndex + 1,
       textItemId,

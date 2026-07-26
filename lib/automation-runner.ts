@@ -30,6 +30,11 @@ import {
 } from "@/lib/slideshow-publishing-config"
 export { slideshowRunId } from "@/lib/slideshow-plan-core"
 import {
+  resolveSlideshowCaption,
+  resolveSlideshowHashtags,
+  slideshowMetadataPromptInstructions,
+} from "@/lib/slideshow-plan-core"
+import {
   automationCollectionIds,
   automationFormatSection,
   automationHookItems,
@@ -1034,17 +1039,16 @@ async function createAutomationRunPlan(
     : []
   const configuredContent = automationFormatSection(schema, "content")
   const slideCountMode = configuredContent.slideCountMode ?? "static"
-  const {
-    count: selectedContentSlideCount,
-    min: slideCountMin,
-    max: slideCountMax,
-  } = selectContentSlideCount({
+  const selectedSlideCount = selectContentSlideCount({
     mode: slideCountMode,
     count: configuredContent.slideCount,
     min: configuredContent.slideCountMin,
     max: configuredContent.slideCountMax,
     random: options.random,
   })
+  let selectedContentSlideCount = selectedSlideCount.count
+  const slideCountMin = selectedSlideCount.min
+  const slideCountMax = selectedSlideCount.max
   if (selectedContentSlideCount !== configuredContent.slideCount) {
     const hookCount = automationFormatSection(schema, "hook").slideCount
     const ctaCount = automationFormatSection(schema, "cta").slideCount
@@ -1076,6 +1080,27 @@ async function createAutomationRunPlan(
     now: options.now,
     random: options.random,
   })
+  if (
+    hookSelection.bodySlideCount &&
+    hookSelection.bodySlideCount !== selectedContentSlideCount
+  ) {
+    selectedContentSlideCount = hookSelection.bodySlideCount
+    const hookCount = automationFormatSection(schema, "hook").slideCount
+    const ctaCount = automationFormatSection(schema, "cta").slideCount
+    schema = {
+      ...updateAutomationFormatSection(schema, "content", {
+        slideCount: selectedContentSlideCount,
+        slideCountMode: "static",
+      }),
+      prompt_formatting: {
+        ...schema.prompt_formatting,
+        num_of_slides: Math.max(
+          1,
+          hookCount + selectedContentSlideCount + ctaCount
+        ),
+      },
+    }
+  }
   const selectedHook = clean(hookSelection.expansion.text)
   if (!selectedHook) {
     throw new Error("The automation database record has no usable hook")
@@ -1089,8 +1114,11 @@ async function createAutomationRunPlan(
   const contentRoute = selectAutomationContentRoute(schema, hook)
   const collectionIds =
     contentRoute?.collection_ids ?? automationCollectionIds(schema)
-  const baseTextAutomation =
+  const baseTextAutomationFromSchema =
     automationSchemaToTempSlideTestingAutomation(schema)
+  const baseTextAutomation = clean(hookSelection.tone)
+    ? { ...baseTextAutomationFromSchema, tone: clean(hookSelection.tone) }
+    : baseTextAutomationFromSchema
   const textAutomation = contentRoute
     ? {
         ...baseTextAutomation,
@@ -1103,6 +1131,7 @@ async function createAutomationRunPlan(
   const promptInstructions = [
     options.promptInstructions,
     contentRoutePrompt(contentRoute),
+    slideshowMetadataPromptInstructions(schema),
   ]
     .filter(Boolean)
     .join("\n\n")
@@ -1233,11 +1262,18 @@ async function createAutomationRunPlan(
   const title = requiredGeneratedValue("title", textGeneration.result.title)
   const caption = requiredGeneratedValue(
     "caption",
-    textGeneration.result.caption
+    resolveSlideshowCaption({
+      setting: schema.tiktok_post_settings.caption,
+      generated: textGeneration.result.caption,
+      hook,
+    })
   )
   const hashtags = requiredGeneratedValue(
     "hashtags",
-    textGeneration.result.hashtags
+    resolveSlideshowHashtags({
+      setting: schema.tiktok_post_settings.description,
+      generated: textGeneration.result.hashtags,
+    })
   )
 
   return {
@@ -1260,9 +1296,6 @@ async function createAutomationRunPlan(
     autoMusic: schema.tiktok_post_settings.auto_music,
     autoPost: schema.tiktok_post_settings.auto_post,
     reuseWarnings: slideResult.reuseWarnings,
-    // Quality findings that did not justify discarding the generation (text
-    // outside its configured word range). Kept beside the copy so the draft can
-    // be judged, rather than fatally enforced or silently dropped.
     violations: textGeneration.violations ?? [],
     hookCandidates,
     textModel: textGeneration.model,

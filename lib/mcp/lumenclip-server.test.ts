@@ -398,6 +398,7 @@ describe("LumenClip MCP server", () => {
         patch as unknown as LumenClipMcpServices["patchAutomationRecord"],
       listAutomationRuns: vi.fn(async () => []),
       listWordCollections: vi.fn(async () => []),
+      listImageCollections: vi.fn(async () => []),
       now: () => new Date("2026-07-23T12:00:00.000Z"),
     })
 
@@ -419,13 +420,25 @@ describe("LumenClip MCP server", () => {
       name: "lumenclip_automation_hook_upsert",
       arguments: {
         automationId: current.id,
-        hooks: [{ id: "hook-new", text: "A new hook" }],
+        hooks: [
+          {
+            id: "hook-new",
+            text: "A new hook",
+            bodySlideCount: 12,
+            tone: "Shadow voice",
+          },
+        ],
       },
     })
     expect(upserted.structuredContent).toMatchObject({
       total: 2,
       hooks: expect.arrayContaining([
-        expect.objectContaining({ id: "hook-new", enabled: true }),
+        expect.objectContaining({
+          id: "hook-new",
+          enabled: true,
+          bodySlideCount: 12,
+          tone: "Shadow voice",
+        }),
       ]),
     })
 
@@ -456,6 +469,75 @@ describe("LumenClip MCP server", () => {
       deletedHookIds: ["hook-new"],
       total: 1,
     })
+  })
+
+  it("deep-clones an automation into a paused copy without run history", async () => {
+    const source = automationRecord()
+    source.schema.hooks = [
+      {
+        id: "all-signs",
+        text: "[[SLIDE_COUNT]] zodiac signs, ranked",
+        enabled: true,
+        bodySlideCount: 12,
+        tone: "Shadow voice",
+        createdAt: "2026-07-01T00:00:00.000Z",
+      },
+    ]
+    source.schema.image_collection_ids.all_slides = "mystical-pictures"
+    let records = [source]
+    const upsert = vi.fn(async ({ records: incoming }) => {
+      records = [...incoming, ...records]
+      return records
+    })
+    const client = await connectClient({
+      listAutomationRecords: vi.fn(async () => records),
+      upsertAutomationRecords:
+        upsert as unknown as LumenClipMcpServices["upsertAutomationRecords"],
+    })
+
+    const first = await client.callTool({
+      name: "lumenclip_automation_clone",
+      arguments: {
+        sourceAutomationId: source.id,
+        name: "Astrology rankings",
+        expectedUpdatedAt: source.updatedAt,
+        requestId: "clone-rankings-1",
+      },
+    })
+    const second = await client.callTool({
+      name: "lumenclip_automation_clone",
+      arguments: {
+        sourceAutomationId: source.id,
+        name: "Astrology rankings",
+        expectedUpdatedAt: source.updatedAt,
+        requestId: "clone-rankings-1",
+      },
+    })
+
+    expect(first.structuredContent).toMatchObject({
+      created: true,
+      sourceAutomationId: source.id,
+      automation: {
+        name: "Astrology rankings",
+        status: "paused",
+        schema: {
+          hooks: [
+            expect.objectContaining({
+              bodySlideCount: 12,
+              tone: "Shadow voice",
+            }),
+          ],
+          image_collection_ids: {
+            all_slides: "mystical-pictures",
+          },
+        },
+      },
+    })
+    expect(second.structuredContent).toMatchObject({
+      created: false,
+      reused: true,
+    })
+    expect(upsert).toHaveBeenCalledTimes(1)
   })
 
   it("patches formatting blocks and text items without replacing the schema", async () => {
@@ -564,6 +646,7 @@ describe("LumenClip MCP server", () => {
       getAutomationRecord: vi.fn(async () => current),
       listAutomationRuns: vi.fn(async () => []),
       listWordCollections: vi.fn(async () => [wordCollection()]),
+      listImageCollections: vi.fn(async () => []),
     })
 
     const result = await client.callTool({
@@ -771,6 +854,7 @@ describe("LumenClip MCP server", () => {
       listPostFastPostRecords: vi.fn(async () => [publication]),
       listAutomationRuns: vi.fn(async () => []),
       listXAutomationRuns: vi.fn(async () => []),
+      listImageCollections: vi.fn(async () => []),
       listGeneratedVideoExports: vi.fn(async () => []),
       listAssetRecords: vi.fn(async () => [
         {
@@ -1213,7 +1297,7 @@ describe("LumenClip MCP server", () => {
           publicationState: "not_published",
           qaValid: false,
           qaFindings: [
-            expect.objectContaining({ code: "TRUNCATED_SLIDE_TEXT" }),
+            expect.objectContaining({ code: "WORD_LENGTH_VIOLATION" }),
           ],
         },
       ],
@@ -1261,6 +1345,7 @@ describe("LumenClip MCP server", () => {
       listAutomationRuns: vi.fn(async () => []),
       listXAutomations: vi.fn(async () => []),
       listXAutomationRuns: vi.fn(async () => []),
+      listImageCollections: vi.fn(async () => []),
     })
 
     const result = await client.callTool({
