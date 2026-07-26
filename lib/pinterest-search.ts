@@ -167,38 +167,6 @@ export function normalizePinterestItems(
     ]
   })
 }
-
-export function createFallbackPinterestResults(
-  query: string,
-  limit: number
-): PinterestSearchResult[] {
-  const normalizedQuery = query.trim() || "pinterest"
-  const slug =
-    normalizedQuery
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "") || "pinterest"
-  const colors = [
-    "#b88772",
-    "#78996b",
-    "#6d98bf",
-    "#c39b4c",
-    "#746f66",
-    "#b077a3",
-  ]
-
-  return Array.from({ length: Math.max(1, limit) }, (_, index) => ({
-    id: `fallback-${slug}-${index + 1}`,
-    title: `${normalizedQuery} ${index + 1}`,
-    description: `Local preview result for ${normalizedQuery}`,
-    imageUrl: "",
-    sourceUrl: `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(normalizedQuery)}`,
-    dominantColor: colors[index % colors.length],
-    width: index % 3 === 0 ? 736 : 600,
-    height: index % 3 === 0 ? 1104 : 900,
-  }))
-}
-
 export async function runPinterestImport(
   query: string,
   limit: number,

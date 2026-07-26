@@ -46,11 +46,6 @@ Zero non-test callers. Confirmed by grep including the
 `scripts/sync-function-shared.mjs` worker-sync path, which makes some `lib/`
 modules reachable only as compiled `appwrite/functions/job-worker/src/*.js`.
 
-- `lib/local-automation-job-worker-config.ts` — `localAutomationJobTypes()` returns a
-  hardcoded array; nothing imports it. Safe to delete.
-- `createFallbackPinterestResults` (`lib/pinterest-search.ts`) — no callers.
-  Contrast `createFallbackPexelsResults`, which *is* reachable from
-  `app/api/pexels/search/route.ts`.
 
 The parked UGC pipeline (`lib/fal-client.ts`, `lib/elevenlabs-tts.ts`,
 `lib/ugc-rendi-compositor.ts`, `lib/ugc-video-generation.ts`) has no non-test
