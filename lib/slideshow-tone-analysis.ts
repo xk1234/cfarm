@@ -32,6 +32,11 @@ export type SlideshowToneAnalysis = {
     ctaSlides: number
   }
   wordRange: { min: number; max: number }
+  wordRangeByRole: {
+    hook: { min: number; max: number }
+    body: { min: number; max: number }
+    cta: { min: number; max: number }
+  }
   language: string
   observations: string[]
   seedHook: string
@@ -114,6 +119,7 @@ export async function analyzeSlideshowTone(
     tone,
     structure: computeSlideStructure(transcript.slides),
     wordRange: computeWordRange(transcript.slides),
+    wordRangeByRole: computeWordRangesByRole(transcript.slides),
     language: clean(result.language) || "English",
     observations,
     seedHook: clean(transcript.slides[0]?.text),
@@ -132,8 +138,8 @@ export function slideshowToneToAutomationFields(
         id: "hook",
         textItems: [
           {
-            wordLengthMin: analysis.wordRange.min,
-            wordLengthMax: analysis.wordRange.max,
+            wordLengthMin: analysis.wordRangeByRole.hook.min,
+            wordLengthMax: analysis.wordRangeByRole.hook.max,
           },
         ],
       },
@@ -141,8 +147,8 @@ export function slideshowToneToAutomationFields(
         id: "body",
         textItems: [
           {
-            wordLengthMin: analysis.wordRange.min,
-            wordLengthMax: analysis.wordRange.max,
+            wordLengthMin: analysis.wordRangeByRole.body.min,
+            wordLengthMax: analysis.wordRangeByRole.body.max,
           },
         ],
       },
@@ -150,8 +156,8 @@ export function slideshowToneToAutomationFields(
         id: "cta",
         textItems: [
           {
-            wordLengthMin: analysis.wordRange.min,
-            wordLengthMax: analysis.wordRange.max,
+            wordLengthMin: analysis.wordRangeByRole.cta.min,
+            wordLengthMax: analysis.wordRangeByRole.cta.max,
           },
         ],
       },
@@ -185,6 +191,23 @@ export function computeWordRange(
     .filter((count) => count > 0)
   if (counts.length === 0) return { min: 0, max: 0 }
   return { min: Math.min(...counts), max: Math.max(...counts) }
+}
+
+// A hook and a body slide are not the same length, so one range across both is
+// useless: the measured Cancer slideshow spans 8-62 words, which would permit a
+// 62-word hook and an 8-word body — the inverse of the slideshow it came from.
+export function computeWordRangesByRole(slides: Array<{ text: string }>) {
+  const written = slides.filter((slide) => wordCount(slide.text) > 0)
+  const overall = computeWordRange(written)
+  if (written.length < 2) return { hook: overall, body: overall, cta: overall }
+  const [hook, ...rest] = written
+  const cta = rest.length > 1 ? rest[rest.length - 1] : undefined
+  const body = cta ? rest.slice(0, -1) : rest
+  return {
+    hook: computeWordRange([hook]),
+    body: computeWordRange(body.length ? body : rest),
+    cta: cta ? computeWordRange([cta]) : overall,
+  }
 }
 
 export function normalizeTone(value: unknown): {

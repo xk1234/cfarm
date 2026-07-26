@@ -607,17 +607,18 @@ export async function fetchTikTokSlideshowPost(
   const [normalizedUrl] = normalizeTikTokUrls([url])
   const actor = apifyActor()
   const items = await apifyJson<DatasetItem[]>(
-    // The synchronous actor run has to finish inside the route's own budget
-    // (maxDuration 60), so it is capped well below it. A scrape that needs
-    // longer belongs on the async startTikTokPublicationImport path instead.
-    `/acts/${encodeURIComponent(actor.replace("/", "~"))}/run-sync-get-dataset-items?clean=true&format=json&timeout=45`,
+    // Measured against a real post on 2026-07-26: 45s TIMED-OUT, 120s
+    // succeeded. The sync run therefore needs most of the route's 300s budget,
+    // and a scrape slower than this belongs on the async
+    // startTikTokPublicationImport path instead.
+    `/acts/${encodeURIComponent(actor.replace("/", "~"))}/run-sync-get-dataset-items?clean=true&format=json&timeout=180`,
     {
       method: "POST",
       body: {
         slideshowUrls: [{ url: normalizedUrl }],
         maxItems: MAX_PHOTOS_PER_URL,
       },
-      timeoutMs: 50_000,
+      timeoutMs: 185_000,
     }
   )
   return tiktokPostsFromDatasetItems(items)[0] ?? null

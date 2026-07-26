@@ -8,9 +8,11 @@ import {
 import { normalizeTikTokUrls } from "@/lib/tiktok-publication-import"
 
 export const dynamic = "force-dynamic"
-// Scraping the slideshow and transcribing its slides both happen inline, so
-// this route needs more than the platform default.
-export const maxDuration = 60
+// Scraping the slideshow and transcribing its slides both happen inline. A
+// measured real scrape took over 45s, so this needs the long end of the
+// platform budget; deployments capped below 300s should use the async
+// startTikTokPublicationImport path instead.
+export const maxDuration = 300
 
 export async function POST(request: Request) {
   const payload = (await request.json().catch(() => null)) as {
