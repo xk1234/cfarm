@@ -73,6 +73,8 @@ type ReminderResponse = {
   telegram: {
     botConfigured: boolean
     customBotConfigured: boolean
+    username?: string
+    name?: string
     defaultChatConfigured: boolean
     interactiveConfigured: boolean
   }
@@ -175,7 +177,7 @@ function RemindersPanel({
     mutate,
   } = useSWR<ReminderResponse>("/api/settings/reminders", clientSWRFetcher)
   const [draft, setDraft] = useState<ReminderSettings | null>(null)
-  const [pending, setPending] = useState<"save" | "test" | "">("")
+  const [pending, setPending] = useState<"save" | "test" | "detect" | "">("")
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
   const settings = draft ?? data?.settings ?? null
@@ -222,6 +224,35 @@ function RemindersPanel({
           saveError,
           "Notification settings could not be saved."
         )
+      )
+    } finally {
+      setPending("")
+    }
+  }
+
+  async function detectChat() {
+    setPending("detect")
+    setError("")
+    setMessage("")
+    try {
+      const detected = await fetchJsonWithTimeout<{
+        chatId: string
+        title?: string
+      }>("/api/settings/reminders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "detect-chat" }),
+        toastOnError: false,
+      })
+      edit((current) => ({ ...current, telegramChatId: detected.chatId }))
+      setMessage(
+        detected.title
+          ? `Found ${detected.title}. Save to keep it.`
+          : "Chat detected. Save to keep it."
+      )
+    } catch (detectError) {
+      setError(
+        getApiErrorMessage(detectError, "The Telegram chat was not detected.")
       )
     } finally {
       setPending("")
@@ -286,51 +317,84 @@ function RemindersPanel({
                   </p>
                 </div>
               </div>
-              <label className="block text-sm font-semibold">
-                Telegram bot token
-                <input
-                  type="password"
-                  autoComplete="off"
-                  value={settings.telegramBotToken ?? ""}
-                  onChange={(event) =>
-                    edit((current) => ({
-                      ...current,
-                      telegramBotToken: event.target.value,
-                    }))
-                  }
-                  placeholder={
-                    data?.telegram.customBotConfigured
-                      ? "Saved — enter a new token to replace it"
-                      : data?.telegram.botConfigured
-                        ? "Using the workspace default"
-                        : "123456789:AA…"
-                  }
-                  className="mt-2 h-10 w-full rounded-lg border border-app-panel-border bg-background px-3 text-sm outline-none focus:border-app-action focus:ring-2 focus:ring-app-action/15"
-                />
-              </label>
+              {data?.telegram.botConfigured &&
+              !data?.telegram.customBotConfigured ? (
+                <p className="rounded-lg bg-app-control-bg px-3 py-2 text-xs leading-5 text-app-text-faint">
+                  Using the workspace bot
+                  {data.telegram.username ? (
+                    <>
+                      {" "}
+                      <a
+                        href={`https://t.me/${data.telegram.username}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-semibold text-app-action underline"
+                      >
+                        @{data.telegram.username}
+                      </a>
+                    </>
+                  ) : null}
+                  . Open it in Telegram, send <code>/start</code>, then detect
+                  your chat below — no bot token needed.
+                </p>
+              ) : null}
               <label className="block text-sm font-semibold">
                 Telegram chat or channel ID
-                <input
-                  value={settings.telegramChatId ?? ""}
-                  onChange={(event) =>
-                    edit((current) => ({
-                      ...current,
-                      telegramChatId: event.target.value,
-                    }))
-                  }
-                  placeholder={
-                    data?.telegram.defaultChatConfigured
-                      ? "Using the workspace default"
-                      : "123456789 or @channelname"
-                  }
-                  className="mt-2 h-10 w-full rounded-lg border border-app-panel-border bg-background px-3 text-sm outline-none focus:border-app-action focus:ring-2 focus:ring-app-action/15"
-                />
+                <div className="mt-2 flex gap-2">
+                  <input
+                    value={settings.telegramChatId ?? ""}
+                    onChange={(event) =>
+                      edit((current) => ({
+                        ...current,
+                        telegramChatId: event.target.value,
+                      }))
+                    }
+                    placeholder={
+                      data?.telegram.defaultChatConfigured
+                        ? "Using the workspace default"
+                        : "123456789 or @channelname"
+                    }
+                    className="h-10 w-full rounded-lg border border-app-panel-border bg-background px-3 text-sm outline-none focus:border-app-action focus:ring-2 focus:ring-app-action/15"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={pending !== "" || !data?.telegram.botConfigured}
+                    onClick={() => void detectChat()}
+                  >
+                    {pending === "detect" ? "Detecting…" : "Detect"}
+                  </Button>
+                </div>
               </label>
-              <p className="text-xs leading-5 text-app-text-faint">
-                Create a bot with BotFather, start a chat with it, then enter
-                the bot token and destination ID. Saved tokens are never
-                returned to the browser.
-              </p>
+              <details className="text-xs">
+                <summary className="cursor-pointer font-semibold text-app-text-faint">
+                  Use a different bot
+                </summary>
+                <label className="mt-3 block text-sm font-semibold">
+                  Telegram bot token
+                  <input
+                    type="password"
+                    autoComplete="off"
+                    value={settings.telegramBotToken ?? ""}
+                    onChange={(event) =>
+                      edit((current) => ({
+                        ...current,
+                        telegramBotToken: event.target.value,
+                      }))
+                    }
+                    placeholder={
+                      data?.telegram.customBotConfigured
+                        ? "Saved — enter a new token to replace it"
+                        : "123456789:AA…"
+                    }
+                    className="mt-2 h-10 w-full rounded-lg border border-app-panel-border bg-background px-3 text-sm outline-none focus:border-app-action focus:ring-2 focus:ring-app-action/15"
+                  />
+                </label>
+                <p className="mt-2 leading-5 text-app-text-faint">
+                  Create a bot with BotFather and paste its token to override the
+                  workspace bot. Saved tokens are never returned to the browser.
+                </p>
+              </details>
               {!data?.telegram.botConfigured ? (
                 <p className="mt-3 text-xs font-medium text-destructive">
                   Telegram delivery needs a server bot token before it can be

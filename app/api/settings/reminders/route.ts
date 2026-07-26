@@ -4,7 +4,9 @@ import { z } from "zod"
 import { getCurrentUser } from "@/lib/auth"
 import {
   configureTelegramWebhook,
+  detectTelegramChat,
   getReminderSettings,
+  telegramBotIdentity,
   publicReminderSettings,
   reminderEventMetadata,
   reminderEvents,
@@ -39,10 +41,18 @@ export async function GET() {
   if (!user)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const settings = await getReminderSettings()
+  const telegram = telegramReminderConfiguration(settings)
+  // Best effort: naming the bot is a convenience, so a Telegram outage must not
+  // take the whole settings page down with it.
+  const identity = telegram.botConfigured
+    ? await telegramBotIdentity({
+        botToken: settings.telegramBotToken,
+      }).catch(() => ({ username: undefined, name: undefined }))
+    : { username: undefined, name: undefined }
   return NextResponse.json({
     settings: publicReminderSettings(settings),
     eventMetadata: reminderEventMetadata,
-    telegram: telegramReminderConfiguration(settings),
+    telegram: { ...telegram, ...identity },
   })
 }
 
@@ -108,6 +118,38 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const payload = await request.json().catch(() => null)
   const settings = await getReminderSettings()
+
+  // Detecting the chat only reads the bot's own updates, so it works before any
+  // event is routed to Telegram — which is the point, since you need the chat ID
+  // in order to configure one.
+  if (payload?.action === "detect-chat") {
+    try {
+      const detected = await detectTelegramChat({
+        botToken: settings.telegramBotToken,
+      })
+      if (!detected.chatId) {
+        return NextResponse.json(
+          {
+            error:
+              "No recent chat found. Open the bot in Telegram, send it /start, then try again.",
+          },
+          { status: 404 }
+        )
+      }
+      return NextResponse.json(detected)
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : "The Telegram chat could not be detected.",
+        },
+        { status: 502 }
+      )
+    }
+  }
+
   if (!usesTelegram(settings.events)) {
     return NextResponse.json(
       { error: "Save Telegram as the reminder method first." },

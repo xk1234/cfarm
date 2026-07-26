@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
+  detectTelegramChat,
+  telegramBotIdentity,
   configureTelegramWebhook,
   getReminderSettings,
   normalizeReminderSettings,
@@ -193,3 +195,50 @@ function restoreEnv(key: string, value: string | undefined) {
   if (value === undefined) delete process.env[key]
   else process.env[key] = value
 }
+
+describe("telegram bot discovery", () => {
+  function jsonFetcher(payload: unknown) {
+    return (async () =>
+      new Response(JSON.stringify({ ok: true, result: payload }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })) as unknown as typeof fetch
+  }
+
+  it("names the bot so the settings page can say which one to open", async () => {
+    const identity = await telegramBotIdentity({
+      botToken: "test-token",
+      fetcher: jsonFetcher({ username: "lumenclipnotif", first_name: "Lumen" }),
+    })
+    expect(identity).toEqual({ username: "lumenclipnotif", name: "Lumen" })
+  })
+
+  it("detects the most recent chat rather than the oldest", async () => {
+    const detected = await detectTelegramChat({
+      botToken: "test-token",
+      fetcher: jsonFetcher([
+        { message: { chat: { id: 111, first_name: "Older" } } },
+        { message: { chat: { id: 222, first_name: "Newer" } } },
+      ]),
+    })
+    expect(detected).toEqual({ chatId: "222", title: "Newer" })
+  })
+
+  it("reads channel posts, not just direct messages", async () => {
+    const detected = await detectTelegramChat({
+      botToken: "test-token",
+      fetcher: jsonFetcher([
+        { channel_post: { chat: { id: -100123, title: "Updates" } } },
+      ]),
+    })
+    expect(detected).toEqual({ chatId: "-100123", title: "Updates" })
+  })
+
+  it("reports no chat when the bot has never been messaged", async () => {
+    const detected = await detectTelegramChat({
+      botToken: "test-token",
+      fetcher: jsonFetcher([]),
+    })
+    expect(detected.chatId).toBeUndefined()
+  })
+})

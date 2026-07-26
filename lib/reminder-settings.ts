@@ -2,7 +2,7 @@ import "server-only"
 
 import path from "node:path"
 
-import { clean } from "@/lib/guards"
+import { clean, isRecord } from "@/lib/guards"
 import { readJsonArrayRecord, upsertJsonArrayRecord } from "@/lib/json-store"
 
 export const reminderEvents = [
@@ -298,6 +298,76 @@ export async function configureTelegramWebhook(
     settings?.telegramBotToken
   )
   return { configured: true }
+}
+
+/**
+ * Who the workspace bot is. Shown in settings so a person knows which bot to
+ * open — "enter a chat ID" is unanswerable if you cannot tell which bot is
+ * asking.
+ */
+export async function telegramBotIdentity(input: {
+  botToken?: string
+  fetcher?: typeof fetch
+}) {
+  const payload = await telegramBotRequest(
+    "getMe",
+    {},
+    input.fetcher,
+    input.botToken
+  )
+  // telegramBotRequest returns Telegram's whole `{ok, result}` envelope.
+  const result =
+    isRecord(payload) && isRecord(payload.result) ? payload.result : {}
+  const username = clean(result.username)
+  return {
+    username: username || undefined,
+    name: clean(result.first_name) || undefined,
+  }
+}
+
+/**
+ * Resolve the chat ID from the bot's own recent updates, so nobody has to open
+ * a getUpdates URL by hand. Returns the most recent chat that messaged the bot.
+ */
+export async function detectTelegramChat(input: {
+  botToken?: string
+  fetcher?: typeof fetch
+}) {
+  const payload = await telegramBotRequest(
+    "getUpdates",
+    { limit: 100, allowed_updates: ["message", "channel_post"] },
+    input.fetcher,
+    input.botToken
+  )
+  const updates =
+    isRecord(payload) && Array.isArray(payload.result) ? payload.result : []
+  for (const update of [...updates].reverse()) {
+    if (!isRecord(update)) continue
+    const message = isRecord(update.message)
+      ? update.message
+      : isRecord(update.channel_post)
+        ? update.channel_post
+        : undefined
+    const chat = message && isRecord(message.chat) ? message.chat : undefined
+    // Chat IDs arrive as numbers, and negative for groups and channels, so
+    // clean() would drop every one of them.
+    const id =
+      typeof chat?.id === "number" || typeof chat?.id === "string"
+        ? String(chat.id)
+        : ""
+    if (!id) continue
+    return {
+      chatId: id,
+      title:
+        clean(chat?.title) ||
+        [clean(chat?.first_name), clean(chat?.last_name)]
+          .filter(Boolean)
+          .join(" ") ||
+        clean(chat?.username) ||
+        undefined,
+    }
+  }
+  return { chatId: undefined, title: undefined }
 }
 
 export async function sendTelegramReminder(input: {
