@@ -95,8 +95,8 @@ gender, and country percentages.
 
 | Step | Action | What happens |
 | --- | --- | --- |
-| 1 | Press **Download Chrome companion** | Gets `lumenclip-tiktok-studio-analytics.zip` |
-| 2 | Load it unpacked in Chrome | *Install or reload version 1.3.0 once. No pairing codes are required.* |
+| 1 | Press **Download Chrome companion** | Gets `lumenclip-companion.zip` |
+| 2 | Remove any older LumenClip extension, then load this one unpacked | *Version 2.0.0 lives in a new directory, so Chrome treats it as a separate extension. Leaving both loaded runs two capture workers against `www.tiktok.com`.* |
 | 3 | Open `/app/analytics` with TikTok selected | Header shows **Sync TikTok Studio** |
 | 4 | Choose **Sync scope** | **New posts only**, **Posts from the last 90 days**, **All linked posts** |
 | 5 | Press **Create account sync** | Progress cards **Linked posts**, **Captured**, **Saved to LumenClip** |
@@ -124,7 +124,7 @@ For one post, `/app/analytics/posts/[id]` offers **Import from TikTok Studio** â
    failed signature check, so the token was minted under a secret this environment no longer
    holds â€” commonly a token minted against localhost and used against production, or one minted
    before `TIKTOK_STUDIO_CAPTURE_SECRET` was introduced. It cannot be recovered; reconnect.
-   From version 1.3.0 the companion detects this, drops the dead pairing itself, and shows
+   From version 2.0.0 the companion detects this, drops the dead pairing itself, and shows
    **Connect** rather than stranding you in a paired state where every action fails.
 5. **Sections are inferred from payload content, not the URL.** A Viewers page that returns
    nothing yields zero sections and the ingest returns `{ accepted: false }` with no error.
@@ -144,7 +144,9 @@ For one post, `/app/analytics/posts/[id]` offers **Import from TikTok Studio** â
 
 ## Additional workflow notes
 
-The extension is MV3, version 1.3.0, with permissions `storage`, `tabs`, `alarms` and host
+The companion is one MV3 extension, version 2.0.0, covering **both** Studio analytics and
+comment replies. It lives in `browser-extension/lumenclip-companion/` with permissions
+`storage`, `tabs`, `alarms` and host
 access to `www.tiktok.com`, the deployed origin, and `localhost`. A one-minute alarm polls for
 pending captures; each step has a 30-second timeout and one retry.
 

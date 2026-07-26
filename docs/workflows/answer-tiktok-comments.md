@@ -17,7 +17,7 @@ replies in LumenClip, and approve them in one pass.
 | Stores | `lib/tiktok-comments.ts` — collections, comments, drafts, approvals, sends (separate keys) |
 | Drafting | `lib/tiktok-comment-replies.ts`, model use case `tiktokCommentReply` |
 | MCP | `..._comments_collect_start`, `..._comments_list`, `..._comment_replies_draft`, `..._comment_replies_approve`, `..._comment_replies_send` |
-| Extension | `browser-extension/tiktok-comments/` — separate MV3 extension |
+| Extension | `browser-extension/lumenclip-companion/` — the single companion, shared with Studio analytics |
 | Queue | `/app/tiktok-comments?collectionId=…` |
 
 The extension is deliberately **separate** from the Studio companion: this one needs write
@@ -135,7 +135,7 @@ the approval queue, where a human sees every draft before it can go anywhere.
 | Approval queue | Nothing. |
 | Read TikTok in the user's session | **Exists** — the Chrome companion. |
 
-The companion is the only asset, and it is a real one: MV3, version 1.2.0, permissions `storage`,
+The companion is one MV3 extension, version 2.0.0, shared with Studio analytics. Permissions `storage`,
 `tabs`, `alarms`, host access to `www.tiktok.com`, the deployed origin, and `localhost`. It already
 drives TikTok tabs on its own and posts findings back with an HMAC bearer token. A one-minute alarm
 polls for pending work; each step has a 30-second timeout and one retry. See
