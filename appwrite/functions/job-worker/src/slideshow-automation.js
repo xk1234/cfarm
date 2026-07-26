@@ -1,8 +1,6 @@
-// Cloud-native port of the scheduled slideshow path in
-// lib/automation-runner.ts + lib/publishing.ts. This module intentionally lives
-// inside the Function source tree so an Appwrite deployment is self-contained.
-// Keep generation, render, and PostFast payload changes synchronized with the
-// corresponding lib modules.
+// Appwrite adapters for scheduled slideshow storage, rendering, and publishing.
+// Hook expansion, text generation/validation/research, and image selection run
+// through the generated slideshow-generation-engine.js shared with the app.
 import crypto from "node:crypto"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -17,31 +15,27 @@ import {
   slideshowTextPositionX,
 } from "./slideshow-renderer.js"
 import { configureFontconfig } from "./font-config.js"
-import { sanitizeStructuredSchema } from "./openrouter.js"
 import {
-  deriveSlideVisualConcepts,
-  selectSlideshowImageWithAi,
-} from "./slideshow-image-matching.js"
-import { expandAllHookCombinations } from "./hook-expansion.js"
+  generateSlideshowText,
+  selectSlideshowHook,
+  selectSlideshowImages,
+} from "./slideshow-generation-engine.js"
 import { applyResolvedHookCase } from "./hook-casing.js"
-import {
-  llmSlopMatches,
-  llmSlopViolations,
-} from "./llm-slop.js"
 import { defaultPostFastProviderControls as providerControls } from "./postfast-provider-controls.js"
 import { openRouterModelForUseCase } from "./realfarm-generation-model-registry.js"
-import {
-  buildScheduledSlideshowPrompt,
-  placeholderWordRangeError,
-  styleRequestsLowercase,
-} from "./temp-slide-testing-shared.js"
+import { styleRequestsLowercase } from "./temp-slide-testing-shared.js"
 
 // Point fontconfig at the bundled TTF before the first sharp() SVG raster.
 // The Appwrite node-22 (Alpine) runtime ships no fonts and no default
 // fontconfig config, so without this every <text> glyph renders as .notdef
 // tofu. Resolved at startup so the absolute path matches this deployment.
 configureFontconfig(
-  path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "assets", "fonts")
+  path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "assets",
+    "fonts"
+  )
 )
 
 const AUTOMATIONS = "automations"
@@ -474,37 +468,112 @@ async function createPlan({
   const schema = automation.schema
   const seed = seededBytes(`${runId}:${scheduledFor}`)
   const bodySlideCount = selectedBodySlideCount(schema, seed[1])
-  const hookSelection = selectHook({
-    schema,
-    wordCollections,
-    usage,
-    automationId: automation.id,
-    scheduledFor,
-    seed,
-    bodySlideCount,
-  })
-  const hook = applyHookCase(hookSelection.text, schema.prompt_formatting)
-  const specs = slideSpecs(schema, hook, bodySlideCount)
-  const placeholders = specs.flatMap((spec) =>
-    spec.section !== "hook" && spec.displayText
-      ? spec.textItems.filter((item) => item.textMode !== "static")
-      : []
+  const hookCutoff =
+    Date.parse(scheduledFor) -
+    Math.max(0, Number(schema.reuse_policy?.hook_exclusion_days) || 45) *
+      24 *
+      60 *
+      60 *
+      1000
+  const usedHookKeys = new Set(
+    usage
+      .filter(
+        (record) =>
+          record.automation_id === automation.id &&
+          record.kind === "hook_published" &&
+          Date.parse(record.used_at) >= hookCutoff
+      )
+      .map((record) => clean(record.key).toLowerCase().replace(/\s+/g, " "))
   )
-  const generated = await generateText({
-    schema,
-    automation,
-    hook,
-    placeholders,
+  const usedHookCombinationKeys = new Set(
+    usage
+      .filter(
+        (record) =>
+          record.automation_id === automation.id &&
+          record.kind === "hook_combination_published" &&
+          Date.parse(record.used_at) >= hookCutoff
+      )
+      .map((record) => record.key)
+  )
+  const hookSelection = selectSlideshowHook({
+    hookItems: automationHookItems(schema),
+    hookSlots: schema.hook_slots,
+    wordCollections,
+    usedHookKeys,
+    usedHookCombinationKeys,
+    noDuplicateSlots: schema.distinct_variable_draws !== false,
+    caseMode: schema.prompt_formatting?.hook_case || "mixed",
+    now: new Date(scheduledFor),
+    timeZone: schema.schedule?.timezone,
+    slideCount: bodySlideCount,
+    selectIndex: (candidateCount) => seed[0] % candidateCount,
   })
-  const selectedImages = await selectImagesForSlides({
-    schema,
-    automation,
+  const hook = applyHookCase(
+    hookSelection.expansion.text,
+    schema.prompt_formatting
+  )
+  const specs = slideSpecs(schema, hook, bodySlideCount)
+  const textGeneration = await generateSlideshowText({
+    automation: {
+      id: automation.id,
+      name: automation.name,
+      theme: "automation",
+      hooks: [hook],
+      tone: clean(schema.tone?.value) || "Conversational & Relatable",
+      style:
+        clean(schema.prompt_formatting?.style) ||
+        "Use the automation's native slideshow style.",
+      imageCollectionIds: {
+        hook: automationCollectionId(schema, "hook"),
+        content: automationCollectionId(schema, "content"),
+        cta: automationCollectionId(schema, "cta"),
+      },
+      slides: specs,
+    },
+    model: defaultTextModel,
+    selectedHook: hook,
+    webSearchEnabled: schema.web_search_enabled,
+    apiKey: clean(process.env.OPENROUTER_API_KEY),
+    fetchImpl: fetch,
+  })
+  const generated = {
+    ...textGeneration.result,
+    model: textGeneration.model,
+    violations: textGeneration.violations,
+    webSearchSources: textGeneration.webSearchSources,
+  }
+  const publishedUsage = usageForPublishedRuns(usage, automation.id)
+  const recentImageUsage = new Map(
+    publishedUsage
+      .filter(
+        (record) =>
+          record.automation_id === automation.id && record.kind === "image"
+      )
+      .map((record) => [record.key, record.used_at])
+  )
+  const firstSlidePinnedImageId =
+    schema.image_collection_ids?.first_slide?.mode === "single_image"
+      ? clean(schema.image_collection_ids?.first_slide?.single_image)
+      : ""
+  const cta = formatSection(schema, "cta")
+  const ctaPinnedImageId =
+    cta.imageMode === "single_image"
+      ? clean(schema.image_collection_ids?.cta_slide?.image_id)
+      : ""
+  const selectedImages = await selectSlideshowImages({
     hook,
+    fallbackTitle: automation.name,
     specs,
-    generated,
-    collections,
-    usage,
-    seed,
+    generatedText: textGeneration.result,
+    firstSlidePinnedImageId,
+    ctaPinnedImageId,
+    candidatesForSpec: (spec) =>
+      imagesForCollectionIds(collections, [spec.collectionId]),
+    recentImageUsage,
+    random: seededRandom(`${runId}:${scheduledFor}:images`),
+    apiKey: clean(process.env.OPENROUTER_API_KEY),
+    model: defaultTextModel,
+    fetchImpl: fetch,
   })
   if (selectedImages.length < specs.length) {
     throw new Error(
@@ -560,8 +629,8 @@ async function createPlan({
     ),
     hook,
     hookId: hookSelection.hookId,
-    hookTemplate: hookSelection.template,
-    hookSubstitutions: hookSelection.substitutions,
+    hookTemplate: hookSelection.expansion.template,
+    hookSubstitutions: hookSelection.expansion.substitutions,
     imageCollectionIds: automationCollectionIds(schema),
     slides,
     slideCount: {
@@ -580,86 +649,6 @@ async function createPlan({
     language: clean(schema.language) || "English",
     debug: { webSearchSources: generated.webSearchSources || [] },
   }
-}
-
-export function selectHook({
-  schema,
-  wordCollections,
-  usage,
-  automationId,
-  scheduledFor,
-  seed,
-  bodySlideCount,
-}) {
-  const candidates = automationHookItems(schema)
-  const cutoff =
-    Date.parse(scheduledFor) -
-    Math.max(0, Number(schema.reuse_policy?.hook_exclusion_days) || 45) *
-      24 *
-      60 *
-      60 *
-      1000
-  const usedHooks = new Set(
-    usage
-      .filter(
-        (record) =>
-          record.automation_id === automationId &&
-          record.kind === "hook_published" &&
-          Date.parse(record.used_at) >= cutoff
-      )
-      .map((record) => normalizeSignature(record.key))
-  )
-  const usedCombinations = new Set(
-    usage
-      .filter(
-        (record) =>
-          record.automation_id === automationId &&
-          record.kind === "hook_combination_published" &&
-          Date.parse(record.used_at) >= cutoff
-      )
-      .map((record) => record.key)
-  )
-  const expanded = []
-  const invalidHookErrors = []
-  for (const hookItem of candidates) {
-    try {
-      expanded.push(
-        ...expandAllHookCombinations(
-          hookItem.text,
-          schema.hook_slots,
-          wordCollections,
-          {
-            noDuplicates: schema.distinct_variable_draws !== false,
-            caseMode: schema.prompt_formatting?.hook_case || "mixed",
-            now: new Date(scheduledFor),
-            timeZone: schema.schedule?.timezone,
-            slideCount: bodySlideCount,
-          }
-        ).map((expansion) => ({ ...expansion, hookId: hookItem.id }))
-      )
-    } catch (error) {
-      invalidHookErrors.push(
-        error instanceof Error
-          ? error
-          : new Error("A hook variable cannot be expanded.")
-      )
-    }
-  }
-  if (!expanded.length && invalidHookErrors.length) {
-    throw invalidHookErrors[0]
-  }
-  const available = expanded.filter((item) => {
-    const combinationKey = hookCombinationKey(item.template, item.substitutions)
-    return (
-      !usedHooks.has(normalizeSignature(item.text)) &&
-      (!Object.keys(item.substitutions).length ||
-        !usedCombinations.has(combinationKey))
-    )
-  })
-  if (!available.length) {
-    throw new Error("No unused hook combinations remain for this automation.")
-  }
-  return available[seed[0] % available.length]
 }
 
 function automationHooks(schema) {
@@ -760,7 +749,9 @@ function selectedBodySlideCount(schema, seedValue) {
   )
   const max = Math.max(
     min,
-    Math.round(Number(content.slideCountMax) || Number(content.slideCount) || min)
+    Math.round(
+      Number(content.slideCountMax) || Number(content.slideCount) || min
+    )
   )
   return min + (Number(seedValue) % (max - min + 1))
 }
@@ -793,249 +784,6 @@ function specForSection(schema, section, role, index, collectionOverride) {
   }
 }
 
-async function generateText({ schema, automation, hook, placeholders }) {
-  const apiKey = clean(process.env.OPENROUTER_API_KEY)
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-  const tone = clean(schema.tone?.value) || "Conversational & Relatable"
-  const style =
-    clean(schema.prompt_formatting?.style) ||
-    "Use the automation's native slideshow style."
-  // The prompt bundle is the SAME shared builder used by the Next app
-  // (lib/slideshow-text-generation-payload.ts → buildScheduledSlideshowPrompt),
-  // synced here via scripts/sync-function-shared.mjs. The raw
-  // `prompt_formatting.narrative` template dump is deliberately NOT passed —
-  // it contains unexpanded [[slot]] tokens and is the largest source of prompt
-  // noise drowning out the Tone line (see lib/automation-runner.ts).
-  const bundle = buildScheduledSlideshowPrompt({
-    automationName: automation.name,
-    hook,
-    tone,
-    style,
-    placeholders,
-  })
-  const responseFormat = {
-    type: "json_schema",
-    json_schema: {
-      name: "scheduled_slideshow_text",
-      strict: true,
-      schema: bundle.schema,
-    },
-  }
-  let lastError
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const model = defaultTextModel
-    try {
-      const payload = await openRouterRequest({
-        apiKey,
-        timeoutMs: 120_000,
-        body: {
-          model,
-          stream: false,
-          max_tokens: Math.min(
-            8192,
-            Math.max(2048, 512 + placeholders.length * 256)
-          ),
-          provider: { require_parameters: true },
-          plugins: [
-            { id: "response-healing" },
-            ...(schema.web_search_enabled
-              ? [{ id: "web", engine: "exa", max_results: 5 }]
-              : []),
-          ],
-          messages: [
-            { role: "system", content: bundle.system },
-            {
-              role: "user",
-              content:
-                attempt === 0
-                  ? bundle.user
-                  : `${bundle.user}\nThe previous JSON was invalid. Correct only the reported problems and return the complete JSON object again.\nValidation errors:\n- ${errorMessage(lastError).replaceAll("; ", "\n- ")}`,
-            },
-          ],
-          response_format: responseFormat,
-        },
-      })
-      const parsed = parseJsonContent(payload.choices?.[0]?.message?.content)
-      const { errors: validationErrors, violations } =
-        validateScheduledSlideshowText(parsed, placeholders, hook)
-      if (validationErrors.length) {
-        throw new Error(validationErrors.join("; "))
-      }
-      const lowercase = styleRequestsLowercase(style)
-      const maybeLower = (value) =>
-        lowercase ? clean(value).toLowerCase() : clean(value)
-      const hashtags = Array.isArray(parsed?.hashtags)
-        ? parsed.hashtags.map(clean).filter(Boolean)
-        : []
-      return {
-        title: maybeLower(parsed.title),
-        caption: maybeLower(parsed.caption),
-        hashtags: hashtags.map(maybeLower),
-        text: Object.fromEntries(
-          placeholders.map((placeholder) => [
-            placeholder.id,
-            maybeLower(parsed.text[placeholder.id]),
-          ])
-        ),
-        model,
-        violations,
-        webSearchSources: parseWebSources(
-          payload.choices?.[0]?.message?.annotations
-        ),
-      }
-    } catch (error) {
-      lastError = error
-    }
-  }
-  throw new Error(
-    `OpenRouter did not return complete slideshow text: ${errorMessage(lastError)}`
-  )
-}
-
-function validateScheduledSlideshowText(parsed, placeholders, hook) {
-  const errors = []
-  const violations = []
-  if (!clean(parsed?.title) || !clean(parsed?.caption)) {
-    errors.push("OpenRouter returned empty slideshow metadata")
-  }
-  const hashtags = Array.isArray(parsed?.hashtags)
-    ? parsed.hashtags.map(clean).filter(Boolean)
-    : []
-  if (hashtags.length < 3 || hashtags.length > 5) {
-    errors.push("OpenRouter must return 3-5 slideshow hashtags")
-  }
-  const generatedText = [
-    clean(parsed?.title),
-    clean(parsed?.caption),
-    ...placeholders.map((placeholder) =>
-      clean(parsed?.text?.[placeholder.id])
-    ),
-  ].join("\n")
-  for (const placeholder of placeholders) {
-    const value = clean(parsed?.text?.[placeholder.id])
-    if (!value) {
-      errors.push(`OpenRouter omitted ${placeholder.id}`)
-      continue
-    }
-    // Word counts are a quality signal, not a correctness one. Failing here
-    // discards a whole generation over one long line, so the miss is reported
-    // with the output instead. Mirrors lib/slideshow-text-generation.ts.
-    const wordError = placeholderWordRangeError(placeholder, value)
-    if (wordError) violations.push(wordError)
-  }
-  const hookLower = hook.toLowerCase()
-  const slopMatches = llmSlopMatches(generatedText)
-  const slopViolations = llmSlopViolations(generatedText)
-  for (const [index, match] of slopMatches.entries()) {
-    if (hookLower && hookLower.includes(match.toLowerCase())) continue
-    errors.push(slopViolations[index])
-  }
-  return { errors, violations }
-}
-
-export async function selectImagesForSlides({
-  automation,
-  hook,
-  specs,
-  generated,
-  collections,
-  usage,
-  seed,
-}) {
-  const publishedUsage = usageForPublishedRuns(usage, automation.id)
-  const recent = new Map(
-    publishedUsage
-      .filter(
-        (record) =>
-          record.automation_id === automation.id && record.kind === "image"
-      )
-      .map((record) => [record.key, record.used_at])
-  )
-  const usedKeys = new Set()
-  const usedUrls = new Set()
-  const selected = []
-  const firstSlidePinnedImageId =
-    automation.schema.image_collection_ids?.first_slide?.mode === "single_image"
-      ? clean(automation.schema.image_collection_ids?.first_slide?.single_image)
-      : ""
-  const cta = formatSection(automation.schema, "cta")
-  const ctaPinnedImageId =
-    cta.imageMode === "single_image"
-      ? clean(automation.schema.image_collection_ids?.cta_slide?.image_id)
-      : ""
-  // One call for the whole slideshow: slide copy describes behaviour while
-  // captions describe what is depicted, so the two rarely share vocabulary.
-  // Rank candidates against the imagery each slide implies instead.
-  const conceptsApiKey = clean(process.env.OPENROUTER_API_KEY)
-  const visualConcepts =
-    conceptsApiKey && specs.some((spec) => spec.aiImageSelection)
-      ? await deriveSlideVisualConcepts({
-          slideTexts: specs.map((spec) =>
-            imageTextForSpec(spec, hook, generated)
-          ),
-          apiKey: conceptsApiKey,
-          model: defaultTextModel,
-        })
-      : []
-  for (const [index, spec] of specs.entries()) {
-    if (!clean(spec.collectionId)) {
-      throw new Error(`No image collection is configured for ${spec.id}`)
-    }
-    const collectionPool = imagesForCollectionIds(collections, [
-      spec.collectionId,
-    ])
-    if (!collectionPool.length) {
-      throw new Error(
-        `No images exist in database collection ${spec.collectionId} for ${spec.id}`
-      )
-    }
-    const pinnedFirstSlideImage =
-      spec.section === "hook" && firstSlidePinnedImageId
-        ? collectionPool.find(
-            (image) =>
-              image.id === firstSlidePinnedImageId ||
-              image.imageUrl === firstSlidePinnedImageId
-          )
-        : undefined
-    const pinnedCtaImage =
-      spec.section === "cta" && ctaPinnedImageId
-        ? collectionPool.find(
-            (image) =>
-              image.id === ctaPinnedImageId ||
-              image.imageUrl === ctaPinnedImageId
-          )
-        : undefined
-    const pool = pinnedFirstSlideImage
-      ? [pinnedFirstSlideImage]
-      : pinnedCtaImage
-        ? [pinnedCtaImage]
-        : collectionPool
-    const fresh = pool.filter(
-      (image) =>
-        !usedKeys.has(image.key) &&
-        !usedUrls.has(image.imageUrl) &&
-        !recent.has(image.key)
-    )
-    const unused = pool.filter(
-      (image) => !usedKeys.has(image.key) && !usedUrls.has(image.imageUrl)
-    )
-    const candidates = fresh.length ? fresh : unused.length ? unused : pool
-    if (!candidates.length) continue
-    let image = candidates[seed[(index + 1) % seed.length] % candidates.length]
-    if (spec.aiImageSelection && candidates.length > 1) {
-      image = await aiSelectImage({
-        candidates,
-        text: imageTextForSpec(spec, hook, generated),
-        concepts: visualConcepts[index] ?? [],
-      })
-    }
-    usedKeys.add(image.key)
-    usedUrls.add(image.imageUrl)
-    selected.push(image)
-  }
-  return selected
-}
-
 export function usageForPublishedRuns(usage, automationId) {
   const publishedRunIds = new Set(
     usage
@@ -1051,38 +799,6 @@ export function usageForPublishedRuns(usage, automationId) {
     (record) =>
       record.automation_id === automationId &&
       publishedRunIds.has(record.run_id)
-  )
-}
-
-// Thin wrapper over the shared matcher (lib/slideshow-image-matching.ts) so the
-// worker and the app rank and choose images identically. The previous private
-// copy sent every candidate and compiled an enum of all their ids, which
-// Anthropic rejects outright once a collection is large.
-async function aiSelectImage({ candidates, text, concepts }) {
-  const selectedId = await selectSlideshowImageWithAi({
-    slideText: text,
-    concepts: concepts ?? [],
-    candidates: candidates.map((candidate) => ({
-      id: candidate.id,
-      imageUrl: candidate.imageUrl,
-      caption: candidate.imageCaption,
-    })),
-    apiKey: clean(process.env.OPENROUTER_API_KEY),
-    model: defaultTextModel,
-  })
-  return candidates.find((candidate) => candidate.id === selectedId) ?? candidates[0]
-}
-
-function imageTextForSpec(spec, hook, generated) {
-  return (
-    spec.textItems
-      .map((item) =>
-        item.textMode === "static"
-          ? clean(item.staticText)
-          : clean(generated.text?.[item.id])
-      )
-      .filter(Boolean)
-      .join("\n") || hook
   )
 }
 
@@ -1892,52 +1608,6 @@ async function postFastRequest(path, body) {
   throw lastError || new Error("PostFast request failed")
 }
 
-async function openRouterRequest({ apiKey, body, timeoutMs }) {
-  const response = await fetch(
-    "https://openrouter.ai/api/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(sanitizeStructuredSchema(body)),
-      signal: AbortSignal.timeout(timeoutMs),
-    }
-  )
-  // `.json().catch(() => ({}))` used to swallow the body whenever it was not
-  // JSON, turning every non-JSON response into an indistinguishable empty
-  // object. Keep the raw text so failures are diagnosable.
-  const rawBody = await response.text()
-  let payload
-  try {
-    payload = JSON.parse(rawBody)
-  } catch {
-    payload = {}
-  }
-  // OpenRouter can answer 200 with an error body and no choices; treating that
-  // as success surfaces later as a bogus "unknown image id"-style failure far
-  // from the real cause. Fail here, with the upstream detail from
-  // error.metadata, which is where the provider's reason actually lives.
-  if (!response.ok || payload?.error || !Array.isArray(payload?.choices)) {
-    throw new Error(
-      [
-        payload?.error?.message || `OpenRouter failed (${response.status})`,
-        `status=${response.status}`,
-        !Array.isArray(payload?.choices)
-          ? `no choices in response; rawBody=${JSON.stringify(rawBody).slice(0, 600)} (len=${rawBody.length})`
-          : "",
-        payload?.error?.metadata
-          ? `metadata=${JSON.stringify(payload.error.metadata).slice(0, 600)}`
-          : "",
-      ]
-        .filter(Boolean)
-        .join(" | ")
-    )
-  }
-  return payload
-}
-
 async function listStoredRecords(
   tables,
   databaseId,
@@ -2121,31 +1791,26 @@ async function syncResultMedia(
     // here used to abort the whole generation after all the expensive work.
     const mediaRowId = outputMediaRowId(outputRowId, item)
     await tables.deleteRow(databaseId, OUTPUT_MEDIA, mediaRowId).catch(() => {})
-    await tables.createRow(
-      databaseId,
-      OUTPUT_MEDIA,
-      mediaRowId,
-      {
-        output_id: outputRowId,
-        owner_id: ownerId,
-        permanent_asset_id: null,
-        kind: item.kind,
-        role: item.role,
-        position: item.position,
-        storage_bucket: path ? bucketForPath(path) : null,
-        storage_file_id: path ? fileId(path) : null,
-        storage_path: path,
-        url: item.url,
-        mime_type: null,
-        bytes: null,
-        width: null,
-        height: null,
-        duration_ms: null,
-        checksum: null,
-        data: "null",
-        created_at: new Date().toISOString(),
-      }
-    )
+    await tables.createRow(databaseId, OUTPUT_MEDIA, mediaRowId, {
+      output_id: outputRowId,
+      owner_id: ownerId,
+      permanent_asset_id: null,
+      kind: item.kind,
+      role: item.role,
+      position: item.position,
+      storage_bucket: path ? bucketForPath(path) : null,
+      storage_file_id: path ? fileId(path) : null,
+      storage_path: path,
+      url: item.url,
+      mime_type: null,
+      bytes: null,
+      width: null,
+      height: null,
+      duration_ms: null,
+      checksum: null,
+      data: "null",
+      created_at: new Date().toISOString(),
+    })
   }
 }
 
@@ -2445,22 +2110,6 @@ function deepLTarget(language) {
   }
 }
 
-function parseWebSources(value) {
-  if (!Array.isArray(value)) return []
-  return value.flatMap((annotation) => {
-    const nested = annotation?.url_citation || annotation
-    return clean(nested?.url)
-      ? [
-          {
-            url: clean(nested.url),
-            title: clean(nested.title) || undefined,
-            content: clean(nested.content) || undefined,
-          },
-        ]
-      : []
-  })
-}
-
 function localAssetPath(value) {
   try {
     const pathname = new URL(value, "http://local").pathname
@@ -2517,13 +2166,6 @@ function jobId(key) {
   return (
     "j" + crypto.createHash("sha256").update(key).digest("hex").slice(0, 35)
   )
-}
-
-function hookCombinationKey(template, substitutions) {
-  return `${template}::${Object.entries(substitutions)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `${key}=${value}`)
-    .join("|")}`
 }
 
 function normalizeSignature(value) {
@@ -2654,15 +2296,6 @@ function slugify(value) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
-}
-
-function parseJsonContent(value) {
-  if (value && typeof value === "object") return value
-  return safeJson(
-    clean(value)
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/, "")
-  )
 }
 
 function safeJson(value) {

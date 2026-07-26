@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { fileURLToPath } from "node:url"
 
+import {
+  generateSlideshowText as appGenerateSlideshowText,
+  selectSlideshowImages as appSelectSlideshowImages,
+} from "@/lib/slideshow-generation-engine"
 import { slideshowTextGenerationPayload } from "@/lib/slideshow-text-generation-payload"
 import {
   buildScheduledSlideshowPrompt as appBuildScheduledSlideshowPrompt,
@@ -8,9 +12,14 @@ import {
   styleRequestsLowercase as appStyleRequestsLowercase,
   type TempSlideTestingAutomation,
 } from "@/lib/temp-slide-testing-shared"
+import { buildScheduledSlideshowPrompt as testingBuildScheduledSlideshowPrompt } from "@/lib/temp-slide-testing"
 
 const workerSharedUrl = new URL(
   "../appwrite/functions/job-worker/src/temp-slide-testing-shared.js",
+  import.meta.url
+).href
+const workerEngineUrl = new URL(
+  "../appwrite/functions/job-worker/src/slideshow-generation-engine.js",
   import.meta.url
 ).href
 const workerSlideshowSrcPath = fileURLToPath(
@@ -18,6 +27,9 @@ const workerSlideshowSrcPath = fileURLToPath(
     "../appwrite/functions/job-worker/src/slideshow-automation.js",
     import.meta.url
   )
+)
+const testingRouteSrcPath = fileURLToPath(
+  new URL("../app/api/temp/testing-center/generate/route.ts", import.meta.url)
 )
 
 const automation: TempSlideTestingAutomation = {
@@ -87,6 +99,39 @@ const primitives = {
   placeholders,
 }
 
+function completion(output: unknown) {
+  return new Response(
+    JSON.stringify({
+      choices: [
+        {
+          finish_reason: "stop",
+          native_finish_reason: "stop",
+          message: { content: JSON.stringify(output) },
+        },
+      ],
+    }),
+    { status: 200, headers: { "Content-Type": "application/json" } }
+  )
+}
+
+const onTopicOutput = {
+  title: "capricorns remember",
+  caption: "broken promises stay with capricorns.",
+  hashtags: "#capricorn #astrology #trust",
+  text: {
+    "content-2__heading": "capricorns remember broken promises",
+  },
+}
+
+const offTopicOutput = {
+  title: "sports car guide",
+  caption: "bright cars can lose value quickly.",
+  hashtags: "#cars #driving #money",
+  text: {
+    "content-2__heading": "sports cars depreciate quickly",
+  },
+}
+
 describe("scheduled slideshow prompt unification", () => {
   it("builds the same system, user, and schema on the app and worker paths", async () => {
     const appBundle = appBuildScheduledSlideshowPrompt(primitives)
@@ -113,6 +158,10 @@ describe("scheduled slideshow prompt unification", () => {
     expect(JSON.stringify(workerBundle.schema)).toBe(
       JSON.stringify(appBundle.schema)
     )
+
+    // Testing-center imports the app-only adapter, whose prompt API is now a
+    // re-export of the same shared source rather than a private copy.
+    expect(testingBuildScheduledSlideshowPrompt(primitives)).toEqual(appBundle)
   })
 
   it('lowercases every value when style is "All text in lowercase." on both paths', async () => {
@@ -130,12 +179,149 @@ describe("scheduled slideshow prompt unification", () => {
     const workerMod = (await import(workerSharedUrl)) as {
       styleRequestsLowercase: typeof appStyleRequestsLowercase
     }
-    expect(workerMod.styleRequestsLowercase("All text in lowercase.")).toBe(true)
+    expect(workerMod.styleRequestsLowercase("All text in lowercase.")).toBe(
+      true
+    )
 
     const workerSrc = await import("node:fs").then((fs) =>
       fs.readFileSync(workerSlideshowSrcPath, "utf8")
     )
     // The old worker-only regex (which missed "All text in lowercase.") is gone.
     expect(workerSrc).not.toMatch(/\/all\\s\+lowercase\/i\.test/)
+  })
+
+  it("runs byte-identical prompt construction in the app and generated worker engines", async () => {
+    const workerMod = (await import(workerEngineUrl)) as {
+      generateSlideshowText: typeof appGenerateSlideshowText
+    }
+    const appFetch = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () => completion(onTopicOutput))
+    const workerFetch = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () => completion(onTopicOutput))
+
+    const [appResult, workerResult] = await Promise.all([
+      appGenerateSlideshowText({
+        automation,
+        selectedHook,
+        apiKey: "test-key",
+        fetchImpl: appFetch,
+      }),
+      workerMod.generateSlideshowText({
+        automation,
+        selectedHook,
+        apiKey: "test-key",
+        fetchImpl: workerFetch,
+      }),
+    ])
+
+    expect(appResult.result).toEqual(workerResult.result)
+    expect(JSON.parse(String(appFetch.mock.calls[0]?.[1]?.body))).toEqual(
+      JSON.parse(String(workerFetch.mock.calls[0]?.[1]?.body))
+    )
+  })
+
+  it("honours pinned first-slide and CTA images through both unified engines", async () => {
+    const workerMod = (await import(workerEngineUrl)) as {
+      selectSlideshowImages: typeof appSelectSlideshowImages
+    }
+    const specs = [
+      { ...automation.slides[0]!, collectionId: "shared-collection" },
+      {
+        ...automation.slides[1]!,
+        id: "cta-2",
+        section: "cta" as const,
+        title: "CTA",
+        collectionId: "shared-collection",
+      },
+    ]
+    const images = [
+      {
+        id: "decoy",
+        key: "decoy",
+        imageUrl: "https://example.com/decoy.jpg",
+        imageCaption: "General collection image",
+      },
+      {
+        id: "pinned-hook",
+        key: "pinned-hook",
+        imageUrl: "https://example.com/hook.jpg",
+        imageCaption: "Pinned hook image",
+      },
+      {
+        id: "pinned-cta",
+        key: "pinned-cta",
+        imageUrl: "https://example.com/cta.jpg",
+        imageCaption: "Pinned CTA image",
+      },
+    ]
+    const input = {
+      hook: selectedHook,
+      fallbackTitle: automation.name,
+      specs,
+      generatedText: onTopicOutput,
+      firstSlidePinnedImageId: "pinned-hook",
+      ctaPinnedImageId: "https://example.com/cta.jpg",
+      candidatesForSpec: () => images,
+      random: () => 0,
+    }
+
+    await expect(appSelectSlideshowImages(input)).resolves.toMatchObject([
+      { id: "pinned-hook" },
+      { id: "pinned-cta" },
+    ])
+    await expect(workerMod.selectSlideshowImages(input)).resolves.toMatchObject(
+      [{ id: "pinned-hook" }, { id: "pinned-cta" }]
+    )
+  })
+
+  it("rejects copy that misses the hook subject on both app and worker paths", async () => {
+    const workerMod = (await import(workerEngineUrl)) as {
+      generateSlideshowText: typeof appGenerateSlideshowText
+    }
+    const appFetch = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () => completion(offTopicOutput))
+    const workerFetch = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () => completion(offTopicOutput))
+
+    const appGeneration = appGenerateSlideshowText({
+      automation,
+      selectedHook,
+      apiKey: "test-key",
+      fetchImpl: appFetch,
+    })
+    const workerGeneration = workerMod.generateSlideshowText({
+      automation,
+      selectedHook,
+      apiKey: "test-key",
+      fetchImpl: workerFetch,
+    })
+
+    await expect(appGeneration).rejects.toThrow(
+      "does not develop the selected hook subject"
+    )
+    await expect(workerGeneration).rejects.toThrow(
+      "does not develop the selected hook subject"
+    )
+    expect(appFetch).toHaveBeenCalledTimes(2)
+    expect(workerFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it("keeps the worker and testing facility as engine callers, not generation forks", async () => {
+    const fs = await import("node:fs")
+    const workerSrc = fs.readFileSync(workerSlideshowSrcPath, "utf8")
+    const testingRouteSrc = fs.readFileSync(testingRouteSrcPath, "utf8")
+
+    expect(workerSrc).toContain('from "./slideshow-generation-engine.js"')
+    expect(workerSrc).not.toMatch(
+      /function (?:generateText|validateScheduledSlideshowText|selectHook|selectImages)\b/
+    )
+    expect(testingRouteSrc).toContain("previewAutomationRunPlan")
+    expect(testingRouteSrc).not.toMatch(
+      /function (?:generateText|validateSlideshowText|selectHook|selectImages)\b/
+    )
   })
 })

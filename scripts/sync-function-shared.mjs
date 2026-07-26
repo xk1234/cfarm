@@ -56,17 +56,14 @@ const generatedModules = [
       "@/lib/realfarm-generation-model-registry":
         "./realfarm-generation-model-registry.js",
       "@/lib/openrouter": "./openrouter.js",
-      "@/lib/temp-slide-testing-shared":
-        "./temp-slide-testing-shared.js",
+      "@/lib/temp-slide-testing-shared": "./temp-slide-testing-shared.js",
     },
   },
   {
     source: "lib/slideshow-generation-engine.ts",
-    target:
-      "appwrite/functions/job-worker/src/slideshow-generation-engine.js",
+    target: "appwrite/functions/job-worker/src/slideshow-generation-engine.js",
     imports: {
-      "@/lib/temp-slide-testing-shared":
-        "./temp-slide-testing-shared.js",
+      "@/lib/temp-slide-testing-shared": "./temp-slide-testing-shared.js",
       "@/lib/slideshow-text-generation-payload":
         "./slideshow-text-generation-payload.js",
       "@/lib/realfarm-generation-model-registry":
@@ -75,6 +72,8 @@ const generatedModules = [
       "@/lib/http": "./http.js",
       "@/lib/llm-slop": "./llm-slop.js",
       "@/lib/openrouter": "./openrouter.js",
+      "@/lib/hook-expansion": "./hook-expansion.js",
+      "@/lib/slideshow-image-matching": "./slideshow-image-matching.js",
     },
   },
   {
@@ -82,7 +81,8 @@ const generatedModules = [
     target: "appwrite/functions/job-worker/src/ugc-video-generation.js",
     imports: {
       "@/lib/openrouter": "./openrouter.js",
-      "@/lib/realfarm-generation-model-registry": "./realfarm-generation-model-registry.js",
+      "@/lib/realfarm-generation-model-registry":
+        "./realfarm-generation-model-registry.js",
     },
   },
   {

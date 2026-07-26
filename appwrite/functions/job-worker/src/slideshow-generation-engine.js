@@ -7,7 +7,251 @@ import { clean } from "./guards.js";
 import { fetchJson, providerErrorMessage } from "./http.js";
 import { llmSlopMatches } from "./llm-slop.js";
 import { parseOpenRouterContent } from "./openrouter.js";
+import { expandAllHookCombinations, } from "./hook-expansion.js";
+import { deriveSlideVisualConcepts, selectSlideshowImageWithAi, } from "./slideshow-image-matching.js";
 export { defaultSlideshowTextModel };
+export class SlideshowHookCombinationsExhaustedError extends Error {
+    reason = "hooks_exhausted";
+    constructor() {
+        super("No unused hook combinations remain for this automation.");
+        this.name = "SlideshowHookCombinationsExhaustedError";
+    }
+}
+/**
+ * Pure hook expansion and reuse filtering shared by interactive and scheduled
+ * runs. Loading word collections and usage history remains a caller adapter.
+ */
+export function selectSlideshowHook(input) {
+    if (input.hookItems.length === 0) {
+        throw new Error("The automation database record has no usable hooks");
+    }
+    const expanded = [];
+    const invalidHookErrors = [];
+    for (const [index, hookItem] of input.hookItems.entries()) {
+        try {
+            expanded.push(...expandAllHookCombinations(hookItem.text, input.hookSlots, input.wordCollections, {
+                noDuplicates: input.noDuplicateSlots,
+                caseMode: input.caseMode,
+                now: input.now,
+                timeZone: input.timeZone,
+                slideCount: input.slideCount,
+            }).map((expansion) => ({
+                expansion,
+                index,
+                hookId: hookItem.id,
+            })));
+        }
+        catch (error) {
+            invalidHookErrors.push(error instanceof Error
+                ? error
+                : new Error("A hook variable cannot be expanded."));
+        }
+    }
+    if (expanded.length === 0 && invalidHookErrors.length > 0) {
+        throw invalidHookErrors[0];
+    }
+    const usedHooks = input.usedHookKeys ?? new Set();
+    const usedCombinations = input.usedHookCombinationKeys ?? new Set();
+    const available = expanded.filter(({ expansion }) => {
+        const hookKey = slideshowHookUsageKey(expansion.text);
+        const combinationKey = slideshowHookCombinationUsageKey(expansion.template, expansion.substitutions);
+        return (!usedHooks.has(hookKey) &&
+            (!Object.keys(expansion.substitutions).length ||
+                !usedCombinations.has(combinationKey)));
+    });
+    if (available.length === 0) {
+        throw new SlideshowHookCombinationsExhaustedError();
+    }
+    const selectedIndex = input.selectIndex
+        ? input.selectIndex(available.length)
+        : Math.floor(Math.min(1 - Number.EPSILON, Math.max(0, (input.random ?? Math.random)())) * available.length);
+    return available[Math.min(available.length - 1, Math.max(0, selectedIndex))];
+}
+export function slideshowHookUsageKey(hook) {
+    return clean(hook).toLowerCase().replace(/\s+/g, " ");
+}
+export function slideshowHookCombinationUsageKey(template, substitutions) {
+    const parts = Object.entries(substitutions)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, value]) => `${key}=${value}`)
+        .join("|");
+    return `${template}::${parts}`;
+}
+export function imagesForSlideshowSection(images, section) {
+    const taggedForSection = images.filter((image) => slideshowImageCaptionSection(image.imageCaption) === section);
+    if (taggedForSection.length > 0 && section !== "content") {
+        return taggedForSection;
+    }
+    if (section === "content") {
+        const contentImages = images.filter((image) => {
+            const taggedSection = slideshowImageCaptionSection(image.imageCaption);
+            return !taggedSection || taggedSection === "content";
+        });
+        if (contentImages.length > 0)
+            return contentImages;
+    }
+    return images;
+}
+/**
+ * Shared visual-concept derivation and image choice. Callers inject already
+ * loaded candidates for each slide, keeping storage and Appwrite out of this
+ * module while preserving one selection algorithm.
+ */
+export async function selectSlideshowImages(input) {
+    const apiKey = clean(input.apiKey);
+    const firstAiSelectedSpec = input.specs.find((spec) => spec.aiImageSelection);
+    if (firstAiSelectedSpec && !apiKey) {
+        throw new Error(`OPENROUTER_API_KEY is required for AI image selection on ${firstAiSelectedSpec.title}`);
+    }
+    const slideTexts = input.specs.map((spec) => slideshowImageSelectionText({
+        hook: input.hook,
+        fallbackTitle: input.fallbackTitle,
+        spec,
+        generatedText: input.generatedText,
+    }));
+    const visualConcepts = apiKey && input.specs.some((spec) => spec.aiImageSelection)
+        ? await deriveSlideVisualConcepts({
+            slideTexts,
+            apiKey,
+            model: input.model,
+            fetchImpl: input.fetchImpl,
+        })
+        : [];
+    const usedKeys = new Set();
+    const usedUrls = new Set();
+    const usedSlideImagePairs = new Set();
+    const selected = [];
+    for (const [index, spec] of input.specs.entries()) {
+        const configuredCandidates = input.candidatesForSpec(spec, index);
+        if (configuredCandidates.length === 0) {
+            throw new Error(`No images exist in the configured collection for ${spec.title}`);
+        }
+        const pinnedImageId = clean(spec.section === "hook"
+            ? input.firstSlidePinnedImageId
+            : spec.section === "cta"
+                ? input.ctaPinnedImageId
+                : "");
+        const pinnedImage = pinnedImageId
+            ? configuredCandidates.find((image) => image.id === pinnedImageId || image.imageUrl === pinnedImageId)
+            : undefined;
+        const candidatesForSlide = pinnedImage
+            ? [pinnedImage]
+            : pinnedImageId
+                ? configuredCandidates
+                : imagesForSlideshowSection(configuredCandidates, spec.section);
+        const slideText = slideTexts[index] ?? input.fallbackTitle;
+        const unusedCandidates = candidatesForSlide.filter((image) => !usedKeys.has(image.key) && !usedUrls.has(image.imageUrl));
+        const reusableCandidates = candidatesForSlide.filter((image) => !usedSlideImagePairs.has(slideshowImagePairKey(input.hook, slideText, image)));
+        const candidates = unusedCandidates.length
+            ? unusedCandidates
+            : reusableCandidates;
+        const preselected = chooseSlideshowImages(candidates, 1, input.random, {
+            recentUsage: input.recentImageUsage,
+        })[0];
+        if (!preselected)
+            continue;
+        let image = preselected;
+        if (spec.aiImageSelection && candidates.length > 1) {
+            const selectedId = await selectSlideshowImageWithAi({
+                slideText,
+                concepts: visualConcepts[index] ?? [],
+                candidates: candidates.map((candidate) => ({
+                    id: candidate.id,
+                    imageUrl: candidate.imageUrl,
+                    caption: candidate.imageCaption,
+                })),
+                apiKey,
+                model: input.model,
+                fetchImpl: input.fetchImpl,
+            });
+            const matched = candidates.find((candidate) => candidate.id === selectedId);
+            if (!matched) {
+                throw new Error("AI image selection returned an unknown image id");
+            }
+            image = {
+                ...matched,
+                reusedRecently: input.recentImageUsage?.has(matched.key),
+                lastUsedAt: input.recentImageUsage?.get(matched.key),
+            };
+        }
+        usedKeys.add(image.key);
+        usedUrls.add(image.imageUrl);
+        usedSlideImagePairs.add(slideshowImagePairKey(input.hook, slideText, image));
+        selected.push(image);
+    }
+    return selected;
+}
+export function chooseSlideshowImages(items, count, random = Math.random, options = {}) {
+    if (items.length === 0 || count <= 0)
+        return [];
+    const recentUsage = options.recentUsage ?? new Map();
+    const keys = new Set();
+    const urls = new Set();
+    const uniqueItems = items.filter((item) => {
+        if ((item.key && keys.has(item.key)) ||
+            (item.imageUrl && urls.has(item.imageUrl))) {
+            return false;
+        }
+        if (item.key)
+            keys.add(item.key);
+        if (item.imageUrl)
+            urls.add(item.imageUrl);
+        return true;
+    });
+    const fresh = recentUsage.size
+        ? uniqueItems.filter((item) => !item.key || !recentUsage.has(item.key))
+        : uniqueItems;
+    const fallback = uniqueItems
+        .filter((item) => item.key && recentUsage.has(item.key))
+        .sort((left, right) => Date.parse(recentUsage.get(left.key) ?? "") -
+        Date.parse(recentUsage.get(right.key) ?? ""));
+    const freshPool = [...fresh];
+    const fallbackPool = [...fallback];
+    const selected = [];
+    while (selected.length < count) {
+        if (freshPool.length > 0) {
+            const index = Math.min(freshPool.length - 1, Math.floor(random() * freshPool.length));
+            selected.push(freshPool.splice(index, 1)[0]);
+            continue;
+        }
+        const item = fallbackPool.shift();
+        if (!item)
+            break;
+        selected.push({
+            ...item,
+            reusedRecently: true,
+            lastUsedAt: item.key ? recentUsage.get(item.key) : undefined,
+        });
+    }
+    return selected;
+}
+function slideshowImageSelectionText(input) {
+    if (input.spec.section === "hook")
+        return input.hook;
+    const text = input.spec.textItems
+        .map((item) => item.textMode === "static"
+        ? clean(item.staticText)
+        : clean(input.generatedText.text[item.id]))
+        .filter(Boolean)
+        .join("\n");
+    return text || input.fallbackTitle;
+}
+function slideshowImagePairKey(hook, slideText, image) {
+    return [hook, slideText, image.key || image.imageUrl]
+        .map((value) => clean(value).toLowerCase().replace(/\s+/g, " "))
+        .filter(Boolean)
+        .join("\n");
+}
+function slideshowImageCaptionSection(caption) {
+    const value = clean(caption).toLowerCase();
+    if (value.startsWith("hook asset:"))
+        return "hook";
+    if (value.startsWith("content asset:"))
+        return "content";
+    if (value.startsWith("cta asset:"))
+        return "cta";
+    return undefined;
+}
 export async function generateSlideshowText(input) {
     const model = clean(input.model) || defaultSlideshowTextModel;
     const selectedHook = clean(input.selectedHook) || promptPreviewHook(input.automation);

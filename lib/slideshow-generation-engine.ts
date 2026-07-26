@@ -4,6 +4,7 @@ import {
   placeholderWordRangeError,
   promptPreviewHook,
   styleRequestsLowercase,
+  type TempSlideSpec,
   type TempSlideStructuredOutput,
   type TempSlideTestingAutomation,
 } from "@/lib/temp-slide-testing-shared"
@@ -18,6 +19,16 @@ import { clean } from "@/lib/guards"
 import { fetchJson, providerErrorMessage } from "@/lib/http"
 import { llmSlopMatches } from "@/lib/llm-slop"
 import { parseOpenRouterContent } from "@/lib/openrouter"
+import {
+  expandAllHookCombinations,
+  type HookExpansionResult,
+} from "@/lib/hook-expansion"
+import type { HookCaseMode } from "@/lib/hook-casing"
+import type { WordCollectionRecord } from "@/lib/word-collections"
+import {
+  deriveSlideVisualConcepts,
+  selectSlideshowImageWithAi,
+} from "@/lib/slideshow-image-matching"
 
 export { defaultSlideshowTextModel }
 
@@ -66,6 +77,376 @@ export type SlideshowWebSearchSource = {
   url: string
   title?: string
   content?: string
+}
+
+export class SlideshowHookCombinationsExhaustedError extends Error {
+  readonly reason = "hooks_exhausted" as const
+
+  constructor() {
+    super("No unused hook combinations remain for this automation.")
+    this.name = "SlideshowHookCombinationsExhaustedError"
+  }
+}
+
+export type SlideshowHookSelection = {
+  expansion: HookExpansionResult
+  index: number
+  hookId: string
+}
+
+/**
+ * Pure hook expansion and reuse filtering shared by interactive and scheduled
+ * runs. Loading word collections and usage history remains a caller adapter.
+ */
+export function selectSlideshowHook(input: {
+  hookItems: Array<{ id: string; text: string }>
+  hookSlots?: Record<string, string>
+  wordCollections: WordCollectionRecord[]
+  usedHookKeys?: ReadonlySet<string>
+  usedHookCombinationKeys?: ReadonlySet<string>
+  noDuplicateSlots?: boolean
+  caseMode?: HookCaseMode
+  now: Date
+  timeZone?: string
+  slideCount?: number
+  random?: () => number
+  selectIndex?: (candidateCount: number) => number
+}): SlideshowHookSelection {
+  if (input.hookItems.length === 0) {
+    throw new Error("The automation database record has no usable hooks")
+  }
+
+  const expanded: SlideshowHookSelection[] = []
+  const invalidHookErrors: Error[] = []
+  for (const [index, hookItem] of input.hookItems.entries()) {
+    try {
+      expanded.push(
+        ...expandAllHookCombinations(
+          hookItem.text,
+          input.hookSlots,
+          input.wordCollections,
+          {
+            noDuplicates: input.noDuplicateSlots,
+            caseMode: input.caseMode,
+            now: input.now,
+            timeZone: input.timeZone,
+            slideCount: input.slideCount,
+          }
+        ).map((expansion) => ({
+          expansion,
+          index,
+          hookId: hookItem.id,
+        }))
+      )
+    } catch (error) {
+      invalidHookErrors.push(
+        error instanceof Error
+          ? error
+          : new Error("A hook variable cannot be expanded.")
+      )
+    }
+  }
+  if (expanded.length === 0 && invalidHookErrors.length > 0) {
+    throw invalidHookErrors[0]
+  }
+
+  const usedHooks = input.usedHookKeys ?? new Set<string>()
+  const usedCombinations = input.usedHookCombinationKeys ?? new Set<string>()
+  const available = expanded.filter(({ expansion }) => {
+    const hookKey = slideshowHookUsageKey(expansion.text)
+    const combinationKey = slideshowHookCombinationUsageKey(
+      expansion.template,
+      expansion.substitutions
+    )
+    return (
+      !usedHooks.has(hookKey) &&
+      (!Object.keys(expansion.substitutions).length ||
+        !usedCombinations.has(combinationKey))
+    )
+  })
+  if (available.length === 0) {
+    throw new SlideshowHookCombinationsExhaustedError()
+  }
+
+  const selectedIndex = input.selectIndex
+    ? input.selectIndex(available.length)
+    : Math.floor(
+        Math.min(
+          1 - Number.EPSILON,
+          Math.max(0, (input.random ?? Math.random)())
+        ) * available.length
+      )
+  return available[Math.min(available.length - 1, Math.max(0, selectedIndex))]
+}
+
+export function slideshowHookUsageKey(hook: string) {
+  return clean(hook).toLowerCase().replace(/\s+/g, " ")
+}
+
+export function slideshowHookCombinationUsageKey(
+  template: string,
+  substitutions: Record<string, string>
+) {
+  const parts = Object.entries(substitutions)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("|")
+  return `${template}::${parts}`
+}
+
+export type SlideshowGenerationImage = {
+  id: string
+  key: string
+  imageUrl: string
+  imageCaption: string
+}
+
+export type SelectedSlideshowGenerationImage<T> = T & {
+  reusedRecently?: boolean
+  lastUsedAt?: string
+}
+
+export function imagesForSlideshowSection<T extends { imageCaption: string }>(
+  images: T[],
+  section: TempSlideSpec["section"]
+) {
+  const taggedForSection = images.filter(
+    (image) => slideshowImageCaptionSection(image.imageCaption) === section
+  )
+  if (taggedForSection.length > 0 && section !== "content") {
+    return taggedForSection
+  }
+  if (section === "content") {
+    const contentImages = images.filter((image) => {
+      const taggedSection = slideshowImageCaptionSection(image.imageCaption)
+      return !taggedSection || taggedSection === "content"
+    })
+    if (contentImages.length > 0) return contentImages
+  }
+  return images
+}
+
+/**
+ * Shared visual-concept derivation and image choice. Callers inject already
+ * loaded candidates for each slide, keeping storage and Appwrite out of this
+ * module while preserving one selection algorithm.
+ */
+export async function selectSlideshowImages<
+  T extends SlideshowGenerationImage,
+>(input: {
+  hook: string
+  fallbackTitle: string
+  specs: TempSlideSpec[]
+  generatedText: TempSlideStructuredOutput
+  firstSlidePinnedImageId?: string | null
+  ctaPinnedImageId?: string | null
+  candidatesForSpec: (spec: TempSlideSpec, index: number) => T[]
+  recentImageUsage?: ReadonlyMap<string, string>
+  random?: () => number
+  apiKey?: string
+  model?: string
+  fetchImpl?: typeof fetch
+}): Promise<Array<SelectedSlideshowGenerationImage<T>>> {
+  const apiKey = clean(input.apiKey)
+  const firstAiSelectedSpec = input.specs.find((spec) => spec.aiImageSelection)
+  if (firstAiSelectedSpec && !apiKey) {
+    throw new Error(
+      `OPENROUTER_API_KEY is required for AI image selection on ${firstAiSelectedSpec.title}`
+    )
+  }
+  const slideTexts = input.specs.map((spec) =>
+    slideshowImageSelectionText({
+      hook: input.hook,
+      fallbackTitle: input.fallbackTitle,
+      spec,
+      generatedText: input.generatedText,
+    })
+  )
+  const visualConcepts =
+    apiKey && input.specs.some((spec) => spec.aiImageSelection)
+      ? await deriveSlideVisualConcepts({
+          slideTexts,
+          apiKey,
+          model: input.model,
+          fetchImpl: input.fetchImpl,
+        })
+      : []
+  const usedKeys = new Set<string>()
+  const usedUrls = new Set<string>()
+  const usedSlideImagePairs = new Set<string>()
+  const selected: Array<SelectedSlideshowGenerationImage<T>> = []
+
+  for (const [index, spec] of input.specs.entries()) {
+    const configuredCandidates = input.candidatesForSpec(spec, index)
+    if (configuredCandidates.length === 0) {
+      throw new Error(
+        `No images exist in the configured collection for ${spec.title}`
+      )
+    }
+    const pinnedImageId = clean(
+      spec.section === "hook"
+        ? input.firstSlidePinnedImageId
+        : spec.section === "cta"
+          ? input.ctaPinnedImageId
+          : ""
+    )
+    const pinnedImage = pinnedImageId
+      ? configuredCandidates.find(
+          (image) =>
+            image.id === pinnedImageId || image.imageUrl === pinnedImageId
+        )
+      : undefined
+    const candidatesForSlide = pinnedImage
+      ? [pinnedImage]
+      : pinnedImageId
+        ? configuredCandidates
+        : imagesForSlideshowSection(configuredCandidates, spec.section)
+    const slideText = slideTexts[index] ?? input.fallbackTitle
+    const unusedCandidates = candidatesForSlide.filter(
+      (image) => !usedKeys.has(image.key) && !usedUrls.has(image.imageUrl)
+    )
+    const reusableCandidates = candidatesForSlide.filter(
+      (image) =>
+        !usedSlideImagePairs.has(
+          slideshowImagePairKey(input.hook, slideText, image)
+        )
+    )
+    const candidates = unusedCandidates.length
+      ? unusedCandidates
+      : reusableCandidates
+    const preselected = chooseSlideshowImages(candidates, 1, input.random, {
+      recentUsage: input.recentImageUsage,
+    })[0]
+    if (!preselected) continue
+
+    let image = preselected
+    if (spec.aiImageSelection && candidates.length > 1) {
+      const selectedId = await selectSlideshowImageWithAi({
+        slideText,
+        concepts: visualConcepts[index] ?? [],
+        candidates: candidates.map((candidate) => ({
+          id: candidate.id,
+          imageUrl: candidate.imageUrl,
+          caption: candidate.imageCaption,
+        })),
+        apiKey,
+        model: input.model,
+        fetchImpl: input.fetchImpl,
+      })
+      const matched = candidates.find(
+        (candidate) => candidate.id === selectedId
+      )
+      if (!matched) {
+        throw new Error("AI image selection returned an unknown image id")
+      }
+      image = {
+        ...matched,
+        reusedRecently: input.recentImageUsage?.has(matched.key),
+        lastUsedAt: input.recentImageUsage?.get(matched.key),
+      }
+    }
+
+    usedKeys.add(image.key)
+    usedUrls.add(image.imageUrl)
+    usedSlideImagePairs.add(slideshowImagePairKey(input.hook, slideText, image))
+    selected.push(image)
+  }
+
+  return selected
+}
+
+export function chooseSlideshowImages<
+  T extends { key?: string; imageUrl?: string },
+>(
+  items: T[],
+  count: number,
+  random = Math.random,
+  options: { recentUsage?: ReadonlyMap<string, string> } = {}
+) {
+  if (items.length === 0 || count <= 0) return []
+
+  const recentUsage = options.recentUsage ?? new Map<string, string>()
+  const keys = new Set<string>()
+  const urls = new Set<string>()
+  const uniqueItems = items.filter((item) => {
+    if (
+      (item.key && keys.has(item.key)) ||
+      (item.imageUrl && urls.has(item.imageUrl))
+    ) {
+      return false
+    }
+    if (item.key) keys.add(item.key)
+    if (item.imageUrl) urls.add(item.imageUrl)
+    return true
+  })
+  const fresh = recentUsage.size
+    ? uniqueItems.filter((item) => !item.key || !recentUsage.has(item.key))
+    : uniqueItems
+  const fallback = uniqueItems
+    .filter((item) => item.key && recentUsage.has(item.key))
+    .sort(
+      (left, right) =>
+        Date.parse(recentUsage.get(left.key!) ?? "") -
+        Date.parse(recentUsage.get(right.key!) ?? "")
+    )
+  const freshPool = [...fresh]
+  const fallbackPool = [...fallback]
+  const selected: Array<SelectedSlideshowGenerationImage<T>> = []
+  while (selected.length < count) {
+    if (freshPool.length > 0) {
+      const index = Math.min(
+        freshPool.length - 1,
+        Math.floor(random() * freshPool.length)
+      )
+      selected.push(freshPool.splice(index, 1)[0])
+      continue
+    }
+    const item = fallbackPool.shift()
+    if (!item) break
+    selected.push({
+      ...item,
+      reusedRecently: true,
+      lastUsedAt: item.key ? recentUsage.get(item.key) : undefined,
+    })
+  }
+  return selected
+}
+
+function slideshowImageSelectionText(input: {
+  hook: string
+  fallbackTitle: string
+  spec: TempSlideSpec
+  generatedText: TempSlideStructuredOutput
+}) {
+  if (input.spec.section === "hook") return input.hook
+  const text = input.spec.textItems
+    .map((item) =>
+      item.textMode === "static"
+        ? clean(item.staticText)
+        : clean(input.generatedText.text[item.id])
+    )
+    .filter(Boolean)
+    .join("\n")
+  return text || input.fallbackTitle
+}
+
+function slideshowImagePairKey(
+  hook: string,
+  slideText: string,
+  image: SlideshowGenerationImage
+) {
+  return [hook, slideText, image.key || image.imageUrl]
+    .map((value) => clean(value).toLowerCase().replace(/\s+/g, " "))
+    .filter(Boolean)
+    .join("\n")
+}
+
+function slideshowImageCaptionSection(caption: string) {
+  const value = clean(caption).toLowerCase()
+  if (value.startsWith("hook asset:")) return "hook" as const
+  if (value.startsWith("content asset:")) return "content" as const
+  if (value.startsWith("cta asset:")) return "cta" as const
+  return undefined
 }
 
 export async function generateSlideshowText(input: {
@@ -504,11 +885,13 @@ export function outputDevelopsHookSubject(output: unknown, hook: string) {
   // subjects long enough that a prefix match still means the same thing.
   const bodyWords = body.match(/[a-z0-9]+(?:-[a-z0-9]+)*/g) ?? []
   return subjects.some((subject) => {
-    if (new RegExp(`\\b${escapeRegExp(subject)}\\b`, "i").test(body)) return true
+    if (new RegExp(`\\b${escapeRegExp(subject)}\\b`, "i").test(body))
+      return true
     if (subject.length < 5) return false
     const stem = subject.slice(0, Math.max(4, subject.length - 2))
     return bodyWords.some(
-      (word) => word.startsWith(stem) || subject.startsWith(word.slice(0, stem.length))
+      (word) =>
+        word.startsWith(stem) || subject.startsWith(word.slice(0, stem.length))
     )
   })
 }

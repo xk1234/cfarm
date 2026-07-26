@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest"
 
 import {
   automationHookItems,
-  selectImagesForSlides,
-  selectHook,
   usageForPublishedRuns,
 } from "./slideshow-automation.js"
+import {
+  selectSlideshowHook,
+  selectSlideshowImages,
+} from "./slideshow-generation-engine.js"
 
 function schema() {
   return {
@@ -38,38 +40,34 @@ const ctaImages = [
 ]
 
 function selectWorkerCtaImages({ pinnedImageId, usage = [], seedValue = 0 }) {
-  return selectImagesForSlides({
-    automation: {
-      id: "automation-1",
-      schema: {
-        formatting: [
-          { id: "hook", imageMode: "collection" },
-          { id: "cta", imageMode: "single_image" },
-        ],
-        image_collection_ids: {
-          cta_slide: { image_id: pinnedImageId },
-        },
-      },
-    },
+  const recentImageUsage = new Map(
+    usageForPublishedRuns(usage, "automation-1")
+      .filter((record) => record.kind === "image")
+      .map((record) => [record.key, record.used_at])
+  )
+  return selectSlideshowImages({
     hook: "Choose the CTA",
+    fallbackTitle: "CTA selection",
     specs: [
       {
         id: "cta-1",
+        index: 0,
         section: "cta",
+        title: "CTA",
+        aspectRatio: "9:16",
+        imageGrid: "none",
+        overlay: false,
+        displayText: false,
         collectionId: "cta-collection",
         aiImageSelection: false,
         textItems: [],
       },
     ],
-    generated: { text: {} },
-    collections: [
-      {
-        aliases: ["cta-collection"],
-        images: ctaImages,
-      },
-    ],
-    usage,
-    seed: Buffer.from([0, seedValue]),
+    generatedText: { title: "", caption: "", hashtags: "", text: {} },
+    ctaPinnedImageId: pinnedImageId,
+    candidatesForSpec: () => ctaImages,
+    recentImageUsage,
+    random: () => seedValue / ctaImages.length,
   })
 }
 
@@ -79,39 +77,35 @@ function selectWorkerFirstSlideImages({
   usage = [],
   seedValue = 0,
 }) {
-  return selectImagesForSlides({
-    automation: {
-      id: "automation-1",
-      schema: {
-        formatting: [
-          { id: "hook" },
-          { id: "cta", imageMode: "collection" },
-        ],
-        image_collection_ids: {
-          first_slide: { mode, single_image: pinnedImageId },
-          cta_slide: {},
-        },
-      },
-    },
+  const recentImageUsage = new Map(
+    usageForPublishedRuns(usage, "automation-1")
+      .filter((record) => record.kind === "image")
+      .map((record) => [record.key, record.used_at])
+  )
+  return selectSlideshowImages({
     hook: "Choose the hook image",
+    fallbackTitle: "First slide selection",
     specs: [
       {
         id: "hook-1",
+        index: 0,
         section: "hook",
+        title: "Hook",
+        aspectRatio: "9:16",
+        imageGrid: "none",
+        overlay: false,
+        displayText: true,
         collectionId: "cta-collection",
         aiImageSelection: false,
         textItems: [],
       },
     ],
-    generated: { text: {} },
-    collections: [
-      {
-        aliases: ["cta-collection"],
-        images: ctaImages,
-      },
-    ],
-    usage,
-    seed: Buffer.from([0, seedValue]),
+    generatedText: { title: "", caption: "", hashtags: "", text: {} },
+    firstSlidePinnedImageId:
+      mode === "single_image" ? pinnedImageId : undefined,
+    candidatesForSpec: () => ctaImages,
+    recentImageUsage,
+    random: () => seedValue / ctaImages.length,
   })
 }
 
@@ -231,46 +225,44 @@ describe("scheduled worker hook selection", () => {
       "fresh",
     ])
 
-    const selected = selectHook({
-      schema: value,
+    const selected = selectSlideshowHook({
+      hookItems: automationHookItems(value),
+      hookSlots: value.hook_slots,
       wordCollections: [],
-      usage: [
-        {
-          automation_id: "automation-1",
-          kind: "hook_published",
-          key: "published hook",
-          used_at: "2026-07-17T12:00:00.000Z",
-        },
-      ],
-      automationId: "automation-1",
-      scheduledFor: "2026-07-18T12:00:00.000Z",
-      seed: Buffer.from([0]),
+      usedHookKeys: new Set(["published hook"]),
+      noDuplicateSlots: true,
+      caseMode: "mixed",
+      now: new Date("2026-07-18T12:00:00.000Z"),
+      timeZone: "UTC",
+      selectIndex: () => 0,
     })
 
-    expect(selected).toMatchObject({ hookId: "fresh", text: "Fresh hook" })
+    expect(selected).toMatchObject({
+      hookId: "fresh",
+      expansion: { text: "Fresh hook" },
+    })
   })
 
   it("does not treat draft media usage as publication", () => {
     const value = schema()
     value.hooks = [{ id: "draft", text: "Draft-only hook", enabled: true }]
 
-    const selected = selectHook({
-      schema: value,
+    const selected = selectSlideshowHook({
+      hookItems: automationHookItems(value),
+      hookSlots: value.hook_slots,
       wordCollections: [],
-      usage: [
-        {
-          automation_id: "automation-1",
-          kind: "image",
-          key: "draft-image",
-          used_at: "2026-07-18T11:00:00.000Z",
-        },
-      ],
-      automationId: "automation-1",
-      scheduledFor: "2026-07-18T12:00:00.000Z",
-      seed: Buffer.from([0]),
+      usedHookKeys: new Set(),
+      noDuplicateSlots: true,
+      caseMode: "mixed",
+      now: new Date("2026-07-18T12:00:00.000Z"),
+      timeZone: "UTC",
+      selectIndex: () => 0,
     })
 
-    expect(selected).toMatchObject({ hookId: "draft", text: "Draft-only hook" })
+    expect(selected).toMatchObject({
+      hookId: "draft",
+      expansion: { text: "Draft-only hook" },
+    })
   })
 
   it("skips an invalid hook and resolves SLIDE_COUNT on a usable hook", () => {
@@ -284,20 +276,25 @@ describe("scheduled worker hook selection", () => {
       },
     ]
 
-    const selected = selectHook({
-      schema: value,
+    const selected = selectSlideshowHook({
+      hookItems: automationHookItems(value),
+      hookSlots: value.hook_slots,
       wordCollections: [],
-      usage: [],
-      automationId: "automation-1",
-      scheduledFor: "2026-07-18T12:00:00.000Z",
-      seed: Buffer.from([0]),
-      bodySlideCount: 5,
+      usedHookKeys: new Set(),
+      noDuplicateSlots: true,
+      caseMode: "mixed",
+      now: new Date("2026-07-18T12:00:00.000Z"),
+      timeZone: "UTC",
+      slideCount: 5,
+      selectIndex: () => 0,
     })
 
     expect(selected).toMatchObject({
       hookId: "count-aware",
-      text: "5 things worth knowing",
-      substitutions: { SLIDE_COUNT: "5" },
+      expansion: {
+        text: "5 things worth knowing",
+        substitutions: { SLIDE_COUNT: "5" },
+      },
     })
   })
 })
