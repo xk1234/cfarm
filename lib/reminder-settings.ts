@@ -9,23 +9,75 @@ export const reminderEvents = [
   "generated",
   "ready_to_post",
   "scheduled_to_post",
+  "respond_to_comments",
+  "publish_failed",
+  "generation_failed",
 ] as const
 
 export type ReminderEvent = (typeof reminderEvents)[number]
 export type ReminderChannel = "none" | "telegram"
 
+export type ReminderEventMetadata = {
+  label: string
+  description: string
+  supportsOffsets: boolean
+  defaultOffsetsHours?: readonly number[]
+}
+
+export const reminderEventMetadata: Record<
+  ReminderEvent,
+  ReminderEventMetadata
+> = {
+  generated: {
+    label: "Generation complete",
+    description: "Send as soon as a slideshow or video finishes generating.",
+    supportsOffsets: false,
+  },
+  ready_to_post: {
+    label: "Ready to post",
+    description:
+      "Send at the post's due time when a review or manual post is ready.",
+    supportsOffsets: false,
+  },
+  scheduled_to_post: {
+    label: "Scheduled to post",
+    description: "Send when a post is successfully scheduled with PostFast.",
+    supportsOffsets: false,
+  },
+  respond_to_comments: {
+    label: "Respond to comments",
+    description: "Follow up after publishing while the conversation is active.",
+    supportsOffsets: true,
+    defaultOffsetsHours: [24, 72],
+  },
+  publish_failed: {
+    label: "Publishing failed",
+    description: "Send when LumenClip cannot publish a post.",
+    supportsOffsets: false,
+  },
+  generation_failed: {
+    label: "Generation failed",
+    description: "Send when a slideshow or video cannot be generated.",
+    supportsOffsets: false,
+  },
+}
+
+export type ReminderEventSettings = {
+  channel: ReminderChannel
+  offsetsHours?: number[]
+}
+
 export type ReminderSettings = {
   id: "reminders"
-  channel: ReminderChannel
   telegramChatId?: string
   telegramBotToken?: string
-  events: Record<ReminderEvent, boolean>
+  events: Record<ReminderEvent, ReminderEventSettings>
   updatedAt: string
 }
 
 export type ReminderSettingsInput = Pick<
   ReminderSettings,
-  "channel" | "telegramChatId" | "telegramBotToken" | "events"
+  "telegramChatId" | "telegramBotToken" | "events"
 >
 
 const rootDir = path.join(process.cwd(), "data", "settings")
@@ -38,12 +90,21 @@ const store = {
 export function defaultReminderSettings(): ReminderSettings {
   return {
     id: "reminders",
-    channel: "none",
-    events: {
-      generated: true,
-      ready_to_post: true,
-      scheduled_to_post: true,
-    },
+    events: Object.fromEntries(
+      reminderEvents.map((event) => [
+        event,
+        {
+          channel: "none",
+          ...(reminderEventMetadata[event].supportsOffsets
+            ? {
+                offsetsHours: [
+                  ...(reminderEventMetadata[event].defaultOffsetsHours ?? []),
+                ],
+              }
+            : {}),
+        },
+      ])
+    ) as Record<ReminderEvent, ReminderEventSettings>,
     updatedAt: new Date(0).toISOString(),
   }
 }
@@ -52,32 +113,74 @@ export function normalizeReminderSettings(
   value: unknown
 ): ReminderSettings | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null
-  const input = value as Partial<ReminderSettings>
-  const rawEvents: Partial<Record<ReminderEvent, unknown>> =
-    input.events && typeof input.events === "object" ? input.events : {}
+  const input = value as Record<string, unknown>
+  const rawEvents =
+    input.events &&
+    typeof input.events === "object" &&
+    !Array.isArray(input.events)
+      ? (input.events as Record<string, unknown>)
+      : {}
   const defaults = defaultReminderSettings()
+  const legacyChannel: ReminderChannel =
+    input.channel === "telegram" ? "telegram" : "none"
+  const legacyShape = reminderEvents.some(
+    (event) => typeof rawEvents[event] === "boolean"
+  )
+  const events = Object.fromEntries(
+    reminderEvents.map((event) => {
+      const metadata = reminderEventMetadata[event]
+      const raw = rawEvents[event]
+      const rawEvent =
+        raw && typeof raw === "object" && !Array.isArray(raw)
+          ? (raw as Record<string, unknown>)
+          : null
+      const channel: ReminderChannel = legacyShape
+        ? typeof raw === "boolean"
+          ? raw && legacyChannel === "telegram"
+            ? "telegram"
+            : "none"
+          : legacyChannel
+        : rawEvent?.channel === "telegram"
+          ? "telegram"
+          : "none"
+      const offsetsHours = metadata.supportsOffsets
+        ? normalizeOffsets(
+            rawEvent?.offsetsHours,
+            defaults.events[event].offsetsHours ?? []
+          )
+        : undefined
+      return [
+        event,
+        {
+          channel,
+          ...(offsetsHours ? { offsetsHours } : {}),
+        },
+      ]
+    })
+  ) as Record<ReminderEvent, ReminderEventSettings>
 
   return {
     id: "reminders",
-    channel: input.channel === "telegram" ? "telegram" : "none",
     telegramChatId: clean(input.telegramChatId) || undefined,
     telegramBotToken: clean(input.telegramBotToken) || undefined,
-    events: {
-      generated:
-        typeof rawEvents.generated === "boolean"
-          ? rawEvents.generated
-          : defaults.events.generated,
-      ready_to_post:
-        typeof rawEvents.ready_to_post === "boolean"
-          ? rawEvents.ready_to_post
-          : defaults.events.ready_to_post,
-      scheduled_to_post:
-        typeof rawEvents.scheduled_to_post === "boolean"
-          ? rawEvents.scheduled_to_post
-          : defaults.events.scheduled_to_post,
-    },
+    events,
     updatedAt: clean(input.updatedAt) || defaults.updatedAt,
   }
+}
+
+function normalizeOffsets(value: unknown, fallback: number[]) {
+  if (!Array.isArray(value)) return [...fallback]
+  return [
+    ...new Set(
+      value.filter(
+        (offset): offset is number =>
+          typeof offset === "number" &&
+          Number.isInteger(offset) &&
+          offset > 0 &&
+          offset <= 24 * 365
+      )
+    ),
+  ].sort((left, right) => left - right)
 }
 
 export async function getReminderSettings(): Promise<ReminderSettings> {
@@ -112,8 +215,7 @@ export function telegramReminderConfiguration(settings?: ReminderSettings) {
   const baseUrl = clean(process.env.BASE_URL).replace(/\/$/, "")
   const webhookSecret = clean(process.env.TELEGRAM_WEBHOOK_SECRET)
   const token =
-    clean(settings?.telegramBotToken) ||
-    clean(process.env.TELEGRAM_BOT_TOKEN)
+    clean(settings?.telegramBotToken) || clean(process.env.TELEGRAM_BOT_TOKEN)
   return {
     botConfigured: Boolean(token),
     customBotConfigured: Boolean(settings?.telegramBotToken),
@@ -129,8 +231,7 @@ export async function telegramBotRequest(
   fetcher: typeof fetch = fetch,
   botToken?: string
 ) {
-  const token =
-    clean(botToken) || process.env.TELEGRAM_BOT_TOKEN?.trim()
+  const token = clean(botToken) || process.env.TELEGRAM_BOT_TOKEN?.trim()
   if (!token)
     throw new Error("Telegram reminders are not configured on the server.")
   const response = await fetcher(
@@ -153,7 +254,11 @@ export async function telegramBotRequest(
   } catch {
     payload = null
   }
-  if (payload && typeof payload === "object" && (payload as { ok?: boolean }).ok === false) {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    (payload as { ok?: boolean }).ok === false
+  ) {
     const detail = payload as { error_code?: number; description?: string }
     throw new Error(
       [
@@ -201,8 +306,7 @@ export async function sendTelegramReminder(input: {
   botToken?: string
   fetcher?: typeof fetch
 }) {
-  const token =
-    clean(input.botToken) || process.env.TELEGRAM_BOT_TOKEN?.trim()
+  const token = clean(input.botToken) || process.env.TELEGRAM_BOT_TOKEN?.trim()
   const chatId = clean(input.chatId) || process.env.TELEGRAM_CHAT_ID?.trim()
   if (!token)
     throw new Error("Telegram reminders are not configured on the server.")

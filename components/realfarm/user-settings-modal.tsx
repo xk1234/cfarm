@@ -43,15 +43,33 @@ type Member = {
   createdAt: string
 }
 type Demo = { id: string; title: string; url: string; createdAt: string }
-type ReminderEvent = "generated" | "ready_to_post" | "scheduled_to_post"
+type ReminderEvent =
+  | "generated"
+  | "ready_to_post"
+  | "scheduled_to_post"
+  | "respond_to_comments"
+  | "publish_failed"
+  | "generation_failed"
+type ReminderChannel = "none" | "telegram"
 type ReminderSettings = {
-  channel: "none" | "telegram"
   telegramChatId?: string
   telegramBotToken?: string
-  events: Record<ReminderEvent, boolean>
+  events: Record<
+    ReminderEvent,
+    { channel: ReminderChannel; offsetsHours?: number[] }
+  >
 }
 type ReminderResponse = {
   settings: ReminderSettings
+  eventMetadata: Record<
+    ReminderEvent,
+    {
+      label: string
+      description: string
+      supportsOffsets: boolean
+      defaultOffsetsHours?: number[]
+    }
+  >
   telegram: {
     botConfigured: boolean
     customBotConfigured: boolean
@@ -63,7 +81,7 @@ type ReminderResponse = {
 const tabs = [
   { id: "billing", label: "Billing & plans", icon: IconCreditCard },
   { id: "accounts", label: "Connected accounts", icon: IconExternalLink },
-  { id: "reminders", label: "Reminders", icon: IconBell },
+  { id: "reminders", label: "Notifications", icon: IconBell },
   { id: "team", label: "Team members", icon: IconUsers },
   { id: "demos", label: "Demos", icon: IconVideo },
 ] as const
@@ -145,29 +163,6 @@ export function UserSettingsModal({
   )
 }
 
-const reminderEventOptions: Array<{
-  id: ReminderEvent
-  title: string
-  description: string
-}> = [
-  {
-    id: "generated",
-    title: "Generation complete",
-    description: "Send as soon as a slideshow or video finishes generating.",
-  },
-  {
-    id: "ready_to_post",
-    title: "Ready to post",
-    description:
-      "Send at the post's due time when a review or manual post is ready.",
-  },
-  {
-    id: "scheduled_to_post",
-    title: "Scheduled to post",
-    description: "Send when a post is successfully scheduled with PostFast.",
-  },
-]
-
 function RemindersPanel({
   onDirtyChange,
 }: {
@@ -184,6 +179,10 @@ function RemindersPanel({
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
   const settings = draft ?? data?.settings ?? null
+  const usesTelegram = Boolean(
+    settings &&
+    Object.values(settings.events).some((event) => event.channel === "telegram")
+  )
   const dirty = Boolean(
     draft &&
     data?.settings &&
@@ -216,10 +215,13 @@ function RemindersPanel({
       )
       setDraft(payload.settings)
       await mutate(payload, false)
-      setMessage("Reminder settings saved.")
+      setMessage("Notification settings saved.")
     } catch (saveError) {
       setError(
-        getApiErrorMessage(saveError, "Reminder settings could not be saved.")
+        getApiErrorMessage(
+          saveError,
+          "Notification settings could not be saved."
+        )
       )
     } finally {
       setPending("")
@@ -238,7 +240,7 @@ function RemindersPanel({
         body: JSON.stringify({ telegramChatId: settings.telegramChatId }),
         toastOnError: false,
       })
-      setMessage("Test reminder sent to Telegram.")
+      setMessage("Test notification sent to Telegram.")
     } catch (testError) {
       setError(
         getApiErrorMessage(testError, "The Telegram test could not be sent.")
@@ -251,13 +253,13 @@ function RemindersPanel({
   return (
     <div>
       <PanelHeading
-        title="Reminders"
+        title="Notifications"
         description="Choose where LumenClip should notify you as content moves through generation and publishing."
       />
       {loadError && !settings ? (
         <div className="rounded-[8px] border border-red-200 bg-red-50 p-4">
           <p className="text-sm font-medium text-destructive">
-            Reminder settings could not be loaded.
+            Notification settings could not be loaded.
           </p>
           <Button
             className="mt-3"
@@ -271,51 +273,19 @@ function RemindersPanel({
         <ListSkeleton count={4} className="border-y border-app-panel-border" />
       ) : (
         <div className="space-y-7">
-          <section>
-            <h3 className="text-sm font-semibold">Telegram notifications</h3>
-            <div className="mt-3 flex items-center gap-4 rounded-xl border border-app-panel-border p-4">
-              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-app-control-hover text-app-muted-text">
-                <IconBrandTelegram className="size-4.5" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold">Send through Telegram</p>
-                <p className="mt-0.5 text-xs leading-5 text-app-text-faint">
-                  Receive generation updates and a public slide delivery link.
-                </p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-label="Telegram notifications"
-                aria-checked={settings.channel === "telegram"}
-                onClick={() =>
-                  edit((current) => ({
-                    ...current,
-                    channel:
-                      current.channel === "telegram" ? "none" : "telegram",
-                  }))
-                }
-                className={cn(
-                  "relative ml-auto h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-app-action/30 focus-visible:outline-none",
-                  settings.channel === "telegram"
-                    ? "bg-app-action"
-                    : "bg-app-control-hover"
-                )}
-              >
-                <span
-                  className={cn(
-                    "absolute top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform",
-                    settings.channel === "telegram"
-                      ? "translate-x-5"
-                      : "translate-x-0.5"
-                  )}
-                />
-              </button>
-            </div>
-          </section>
-
-          {settings.channel === "telegram" ? (
+          {usesTelegram ? (
             <section className="space-y-4 rounded-xl border border-app-panel-border bg-app-control-bg p-4">
+              <div className="flex items-center gap-3">
+                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-app-control-hover text-app-muted-text">
+                  <IconBrandTelegram className="size-4.5" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-semibold">Telegram delivery</h3>
+                  <p className="text-xs leading-5 text-app-text-faint">
+                    Used by every event routed to Telegram.
+                  </p>
+                </div>
+              </div>
               <label className="block text-sm font-semibold">
                 Telegram bot token
                 <input
@@ -376,57 +346,123 @@ function RemindersPanel({
           ) : null}
 
           <section>
-            <h3 className="text-sm font-semibold">Remind me when</h3>
+            <h3 className="text-sm font-semibold">Notify me when</h3>
             <div className="mt-3 divide-y divide-app-panel-border rounded-xl border border-app-panel-border">
-              {reminderEventOptions.map((option) => (
-                <div
-                  key={option.id}
-                  className="flex items-center gap-4 px-4 py-3.5"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold">{option.title}</p>
-                    <p className="mt-0.5 text-xs leading-5 text-app-text-faint">
-                      {option.description}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-label={option.title}
-                    aria-checked={settings.events[option.id]}
-                    onClick={() =>
-                      edit((current) => ({
-                        ...current,
-                        events: {
-                          ...current.events,
-                          [option.id]: !current.events[option.id],
-                        },
-                      }))
+              {data?.eventMetadata
+                ? Object.entries(data.eventMetadata).map(
+                    ([event, metadata]) => {
+                      const eventId = event as ReminderEvent
+                      const eventSettings = settings.events[eventId]
+                      return (
+                        <div
+                          key={eventId}
+                          className="grid gap-3 px-4 py-3.5 sm:grid-cols-[minmax(0,1fr)_9rem] sm:items-start"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold">
+                              {metadata.label}
+                            </p>
+                            <p className="mt-0.5 text-xs leading-5 text-app-text-faint">
+                              {metadata.description}
+                            </p>
+                            {metadata.supportsOffsets ? (
+                              <div
+                                className="mt-3 flex flex-wrap gap-2"
+                                aria-label={`${metadata.label} timing`}
+                              >
+                                {(metadata.defaultOffsetsHours ?? []).map(
+                                  (offsetHours) => {
+                                    const selected =
+                                      eventSettings.offsetsHours?.includes(
+                                        offsetHours
+                                      ) ?? false
+                                    return (
+                                      <button
+                                        key={offsetHours}
+                                        type="button"
+                                        disabled={
+                                          eventSettings.channel === "none"
+                                        }
+                                        aria-pressed={selected}
+                                        onClick={() =>
+                                          edit((current) => {
+                                            const offsets =
+                                              current.events[eventId]
+                                                .offsetsHours ?? []
+                                            return {
+                                              ...current,
+                                              events: {
+                                                ...current.events,
+                                                [eventId]: {
+                                                  ...current.events[eventId],
+                                                  offsetsHours: selected
+                                                    ? offsets.filter(
+                                                        (value) =>
+                                                          value !== offsetHours
+                                                      )
+                                                    : [
+                                                        ...offsets,
+                                                        offsetHours,
+                                                      ].sort(
+                                                        (left, right) =>
+                                                          left - right
+                                                      ),
+                                                },
+                                              },
+                                            }
+                                          })
+                                        }
+                                        className={cn(
+                                          "min-h-10 rounded-control border px-3 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-app-action/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-45",
+                                          selected
+                                            ? "border-app-action bg-app-action text-white"
+                                            : "border-app-panel-border bg-background text-app-muted-text hover:bg-app-control-hover"
+                                        )}
+                                      >
+                                        {offsetHours / 24}{" "}
+                                        {offsetHours === 24 ? "day" : "days"}
+                                      </button>
+                                    )
+                                  }
+                                )}
+                              </div>
+                            ) : null}
+                          </div>
+                          <label className="text-xs font-medium text-app-muted-text">
+                            Channel
+                            <select
+                              aria-label={`${metadata.label} channel`}
+                              value={eventSettings.channel}
+                              onChange={(selectEvent) =>
+                                edit((current) => ({
+                                  ...current,
+                                  events: {
+                                    ...current.events,
+                                    [eventId]: {
+                                      ...current.events[eventId],
+                                      channel: selectEvent.target
+                                        .value as ReminderChannel,
+                                    },
+                                  },
+                                }))
+                              }
+                              className="mt-1 h-10 w-full rounded-control border border-app-panel-border bg-background px-3 text-sm text-app-text transition-colors outline-none focus:border-app-action focus:ring-2 focus:ring-app-action/15"
+                            >
+                              <option value="none">Off</option>
+                              <option value="telegram">Telegram</option>
+                            </select>
+                          </label>
+                        </div>
+                      )
                     }
-                    className={cn(
-                      "relative ml-auto h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-app-action/30 focus-visible:outline-none",
-                      settings.events[option.id]
-                        ? "bg-app-action"
-                        : "bg-app-control-hover"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "absolute top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform",
-                        settings.events[option.id]
-                          ? "translate-x-5"
-                          : "translate-x-0.5"
-                      )}
-                    />
-                  </button>
-                </div>
-              ))}
+                  )
+                : null}
             </div>
           </section>
 
           {loadError || error ? (
             <p className="text-sm font-medium text-destructive">
-              {error || "Reminder settings could not be loaded."}
+              {error || "Notification settings could not be loaded."}
             </p>
           ) : null}
           {message ? (
@@ -438,9 +474,9 @@ function RemindersPanel({
               disabled={pending !== ""}
               onClick={() => void save()}
             >
-              {pending === "save" ? "Saving…" : "Save reminders"}
+              {pending === "save" ? "Saving…" : "Save notifications"}
             </Button>
-            {settings.channel === "telegram" ? (
+            {usesTelegram ? (
               <Button
                 variant="outline"
                 disabled={pending !== "" || !data?.telegram.botConfigured}

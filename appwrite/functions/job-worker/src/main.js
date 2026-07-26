@@ -13,7 +13,6 @@ import { openRouterModelForUseCase } from "./realfarm-generation-model-registry.
 import { runSlideshowAutomation } from "./slideshow-automation.js"
 import { runUgcAutomationJob } from "./ugc-automation.js"
 
-
 // Self-hosted Appwrite injects APPWRITE_FUNCTION_API_ENDPOINT from _APP_DOMAIN,
 // which is not guaranteed to be routable from inside the function container.
 // An explicitly configured endpoint always wins.
@@ -111,7 +110,10 @@ async function failOrRetry(t, job, err) {
       error: message,
       updated_at: nowIso(),
     })
-    if (err?.telegramNotified !== true) await sendTelegram(`Dead job: ${job.type}\n${job.$id}\n${message}`).catch(() => undefined)
+    if (err?.telegramNotified !== true)
+      await sendTelegram(`Dead job: ${job.type}\n${job.$id}\n${message}`).catch(
+        () => undefined
+      )
   } else {
     await t.updateRow(DB, "jobs", job.$id, {
       status: "queued",
@@ -125,8 +127,7 @@ async function failOrRetry(t, job, err) {
 }
 
 async function sendTelegram(text, chatIdOverride, options = {}) {
-  const token =
-    cleanString(options.botToken) || process.env.TELEGRAM_BOT_TOKEN
+  const token = cleanString(options.botToken) || process.env.TELEGRAM_BOT_TOKEN
   const chatId = cleanString(chatIdOverride) || process.env.TELEGRAM_CHAT_ID
   if (!token || !chatId) return { sent: false, reason: "not_configured" }
   const buttons = []
@@ -177,8 +178,8 @@ async function reminderSettings(t, ownerId) {
     Query.limit(1),
   ])
   const value = safeJson(response.rows[0]?.data)
-  if (!value || value.channel !== "telegram") return null
-  return value
+  if (value?.channel === "none") return null
+  return value || null
 }
 
 function cleanString(value) {
@@ -190,13 +191,23 @@ export async function sendConfiguredReminder(payload, t, job) {
   if (
     event !== "generated" &&
     event !== "ready_to_post" &&
-    event !== "scheduled_to_post"
+    event !== "scheduled_to_post" &&
+    event !== "respond_to_comments" &&
+    event !== "publish_failed" &&
+    event !== "generation_failed"
   ) {
     throw new Error("send-notification: invalid reminder event")
   }
   const settings = await reminderSettings(t, job?.owner_id)
   if (!settings) return { sent: false, reason: "disabled" }
-  if (settings.events?.[event] !== true) {
+  const eventSettings = settings.events?.[event]
+  const channel =
+    typeof eventSettings === "boolean"
+      ? eventSettings && settings.channel === "telegram"
+        ? "telegram"
+        : "none"
+      : eventSettings?.channel
+  if (channel !== "telegram") {
     return { sent: false, reason: "event_disabled" }
   }
   return sendTelegram(payload.text, settings.telegramChatId, {
@@ -685,7 +696,14 @@ const handlers = {
   },
 
   async ["run-ugc-automation"](payload, t, job) {
-    return runUgcAutomationJob({ payload, tables: t, storage: storage(), job, databaseId: DB, sendTelegram })
+    return runUgcAutomationJob({
+      payload,
+      tables: t,
+      storage: storage(),
+      job,
+      databaseId: DB,
+      sendTelegram,
+    })
   },
 
   async ["run-x-automation"](payload, t, job) {
