@@ -212,11 +212,9 @@ describe("TikTok Studio MCP report", () => {
       capturedAt: "2026-07-23T05:42:00.000Z",
       tiktokStudio: {
         ...studioSnapshot().tiktokStudio!,
-        capturedSections: [
-          "overview",
-          "viewers",
-          "engagement",
-        ] as Array<"overview" | "viewers" | "engagement">,
+        capturedSections: ["overview", "viewers", "engagement"] as Array<
+          "overview" | "viewers" | "engagement"
+        >,
         slides: [
           {
             slideIndex: 1,
@@ -369,6 +367,8 @@ function slideshowPublication(): PostFastPostRecord {
     sourceId: "slideshow-1",
     integrationId: "tiktok-1",
     provider: "tiktok",
+    linkState: "postfast_published",
+    statsSources: ["tiktok_studio"],
     status: "published",
     publishedAt: "2026-07-20T00:00:00.000Z",
     releaseUrl: "https://www.tiktok.com/@horoiq/photo/7662360324313517330",

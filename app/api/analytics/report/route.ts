@@ -17,6 +17,7 @@ import {
   listAnalyticsIntegrations,
   syncPostFastAnalytics,
 } from "@/lib/postfast-analytics"
+import { listPostFastPostRecords } from "@/lib/postfast-posts"
 import { postfastRouteError } from "@/lib/postfast-route"
 
 export const dynamic = "force-dynamic"
@@ -31,7 +32,8 @@ export async function GET(request: Request) {
       .filter(Boolean)
   )
   try {
-    const [integrationResult, snapshots, followerSnapshots] = await Promise.all([
+    const [integrationResult, snapshots, followerSnapshots, publications] =
+      await Promise.all([
         listAnalyticsIntegrations()
           .then((integrations) => ({ integrations, error: "" }))
           .catch((error) => ({
@@ -43,6 +45,7 @@ export async function GET(request: Request) {
           })),
         listMetricSnapshots().catch(() => []),
         listFollowerSnapshots().catch(() => []),
+        listPostFastPostRecords().catch(() => []),
       ])
     const integrations =
       integrationResult.integrations.length > 0
@@ -54,16 +57,24 @@ export async function GET(request: Request) {
         : integrations
     const selectedIds = new Set(selected.map((item) => item.integration_id))
     const since = Date.now() - days * 24 * 60 * 60 * 1000
-    const visibleSnapshots = snapshots
-      .filter(
-        (snapshot) =>
-          selectedIds.has(snapshot.integrationId) &&
-          Date.parse(snapshot.capturedAt) >= since
-      )
+    const visibleSnapshots = snapshots.filter(
+      (snapshot) =>
+        selectedIds.has(snapshot.integrationId) &&
+        Date.parse(snapshot.capturedAt) >= since
+    )
     const visibleFollowers = followerSnapshots.filter(
       (snapshot) =>
         selectedIds.has(snapshot.integrationId) &&
         Date.parse(snapshot.capturedAt) >= since
+    )
+    const visiblePublications = publications.filter(
+      (publication) =>
+        selectedIds.has(publication.integrationId) &&
+        Date.parse(
+          publication.publishedAt ??
+            publication.scheduledAt ??
+            publication.updatedAt
+        ) >= since
     )
     const capabilities = Object.fromEntries(
       selected.map((integration) => {
@@ -87,6 +98,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       integrations: selected,
       snapshots: visibleSnapshots,
+      publications: visiblePublications,
       followerSnapshots: visibleFollowers,
       capabilities,
       days,

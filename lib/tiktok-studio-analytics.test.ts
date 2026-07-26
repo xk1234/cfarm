@@ -319,6 +319,8 @@ function publication(
     sourceId: id,
     integrationId,
     provider: "tiktok",
+    linkState: "postfast_published",
+    statsSources: ["tiktok_studio"],
     status: "published",
     externalPostId,
     releaseUrl: `https://www.tiktok.com/@horoiq/photo/${externalPostId}`,

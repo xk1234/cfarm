@@ -11,6 +11,7 @@ import type {
   PostFastMetricSnapshot,
 } from "@/lib/postfast-metric-snapshots"
 import type { SocialIntegration } from "@/lib/social/provider-contract"
+import type { PostFastPostRecord } from "@/lib/postfast-posts"
 import {
   AnalyticsHeader,
   AnalyticsOverview,
@@ -22,7 +23,7 @@ import {
   availablePlatformMetrics,
   defaultPlatformMetric,
   initialMetricForPlatform,
-  latestSnapshotsByPost,
+  latestPublicationsByPost,
   type LatestPost,
 } from "@/components/realfarm/analytics/analytics-selectors"
 import { TikTokStudioBatchDialog } from "@/components/realfarm/analytics/tiktok-studio-batch-dialog"
@@ -30,6 +31,7 @@ import { TikTokStudioBatchDialog } from "@/components/realfarm/analytics/tiktok-
 export type AnalyticsPayload = {
   integrations: SocialIntegration[]
   snapshots: PostFastMetricSnapshot[]
+  publications: PostFastPostRecord[]
   followerSnapshots: AccountFollowerSnapshot[]
   capabilities: Record<
     string,
@@ -73,8 +75,9 @@ export function AnalyticsView({
     [data?.integrations]
   )
   const latestPosts = useMemo(
-    () => latestSnapshotsByPost(data?.snapshots ?? []),
-    [data?.snapshots]
+    () =>
+      latestPublicationsByPost(data?.publications ?? [], data?.snapshots ?? []),
+    [data?.publications, data?.snapshots]
   )
   const platformAccounts = useMemo(
     () =>

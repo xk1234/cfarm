@@ -20,7 +20,10 @@ import {
   IconArrowUpRight,
   IconBrandTiktok,
   IconChartBar,
+  IconLink,
+  IconLinkOff,
   IconRefresh,
+  IconUserCheck,
   IconUsers,
   IconWorld,
 } from "@tabler/icons-react"
@@ -44,6 +47,7 @@ import {
   postContentTypeLabel,
 } from "@/lib/post-content-type"
 import { cn } from "@/lib/utils"
+import { publicationLinkState } from "@/lib/publication-link-state"
 import {
   postMetricSeries,
   audienceSeries,
@@ -463,15 +467,60 @@ export function RecentPosts({
               : post.metrics.impressions !== undefined
                 ? "impressions"
                 : "views"
+          const link = publicationLinkState(
+            post.publication ?? {
+              linkState: "unlinked",
+              statsSources: [post.source ?? "postfast"],
+            }
+          )
+          const LinkIcon =
+            link.state === "postfast_published"
+              ? IconLink
+              : link.state === "manually_linked"
+                ? IconUserCheck
+                : IconLinkOff
           return (
             <button
               key={`${post.integrationId}:${post.postId}`}
               type="button"
               onClick={() => onSelect(post)}
-              className="lc-focus-ring group min-w-[220px] flex-1 basis-0 overflow-hidden rounded-[14px] border border-app-panel-border bg-app-surface text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(35,24,67,0.09)] active:translate-y-0"
+              className={cn(
+                "lc-focus-ring group min-w-[220px] flex-1 basis-0 overflow-hidden rounded-card border bg-app-surface text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(35,24,67,0.09)] active:translate-y-0",
+                link.state === "unlinked"
+                  ? "border-2 border-dashed border-app-danger"
+                  : link.state === "manually_linked"
+                    ? "border-app-warning"
+                    : "border-app-panel-border"
+              )}
             >
               <PostThumbnail post={post} />
               <span className="block p-3.5">
+                <span className="mb-3 flex flex-wrap gap-1.5">
+                  <span
+                    title={`${link.label}: ${link.description}`}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-2 py-1 text-caption font-semibold",
+                      link.state === "unlinked"
+                        ? "bg-app-danger-surface text-app-danger"
+                        : "bg-app-control-hover text-app-text-soft"
+                    )}
+                  >
+                    <LinkIcon className="size-3.5" aria-hidden="true" />
+                    {link.label}
+                  </span>
+                  {link.hasStudioStats ? (
+                    <span
+                      title="Stats imported from TikTok Studio"
+                      className="inline-flex items-center gap-1 rounded-full bg-app-control-hover px-2 py-1 text-caption font-semibold text-app-text-soft"
+                    >
+                      <IconBrandTiktok
+                        className="size-3.5"
+                        aria-hidden="true"
+                      />
+                      Studio stats
+                    </span>
+                  ) : null}
+                </span>
                 <span className="flex items-center justify-between gap-2">
                   <AccountProfileIcon integration={account} size="sm" tooltip />
                   <span className="text-[9px] font-medium text-app-text-faint">

@@ -65,6 +65,8 @@ const publication = {
   sourceId: "slideshow-1",
   integrationId: "account-1",
   provider: "tiktok",
+  linkState: "postfast_published" as const,
+  statsSources: [],
   status: "published" as const,
   publishedAt: "2026-07-17T12:00:00.000Z",
   content: "Caption",
@@ -354,8 +356,7 @@ describe("published hook attribution", () => {
     mocks.listAutomationRuns.mockResolvedValue([
       {
         ...run,
-        automationId:
-          "automation-local-e106cab9-5bb1-4810-afaa-3b2eb25e4467",
+        automationId: "automation-local-e106cab9-5bb1-4810-afaa-3b2eb25e4467",
         plan: {
           ...run.plan,
           hookId: "hook_0w6nkqy",
@@ -494,9 +495,9 @@ describe("published hook attribution", () => {
         "1 published post could not be attributed to a pool hook.",
       ],
     })
-    expect(
-      report?.performance.some((item) => item.hookId === "ghost-id")
-    ).toBe(false)
+    expect(report?.performance.some((item) => item.hookId === "ghost-id")).toBe(
+      false
+    )
   })
 
   it("propagates storage quota failures instead of returning zero performance", async () => {

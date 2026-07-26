@@ -1,13 +1,24 @@
 import { DateTime } from "luxon"
 import { providerName } from "./account-profile-icon"
 import type { AnalyticsPayload } from "./analytics-view"
-import { canonicalMetricOrder, type CanonicalMetric } from "@/lib/metric-registry"
-import type { AccountFollowerSnapshot, PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
+import {
+  canonicalMetricOrder,
+  type CanonicalMetric,
+} from "@/lib/metric-registry"
+import type {
+  AccountFollowerSnapshot,
+  PostFastMetricSnapshot,
+} from "@/lib/postfast-metric-snapshots"
 import type { SocialIntegration } from "@/lib/social/provider-contract"
+import type { PostFastPostRecord } from "@/lib/postfast-posts"
 
-export type LatestPost = PostFastMetricSnapshot & { previous?: PostFastMetricSnapshot }
+export type LatestPost = PostFastMetricSnapshot & {
+  publication?: PostFastPostRecord
+  previous?: PostFastMetricSnapshot
+}
 
-export function latestSnapshotsByPost(
+export function latestPublicationsByPost(
+  publications: PostFastPostRecord[],
   snapshots: PostFastMetricSnapshot[]
 ): LatestPost[] {
   const groups = new Map<string, PostFastMetricSnapshot[]>()
@@ -15,12 +26,57 @@ export function latestSnapshotsByPost(
     const key = `${snapshot.integrationId}:${snapshot.postId}`
     groups.set(key, [...(groups.get(key) ?? []), snapshot])
   }
-  return [...groups.values()].map((group) => {
+  const publicationsById = new Map(
+    publications.map((publication) => [publication.id, publication])
+  )
+  const posts: LatestPost[] = [...groups.values()].map((group) => {
     const sorted = group.sort(
       (a, b) => Date.parse(a.capturedAt) - Date.parse(b.capturedAt)
     )
-    return { ...sorted[sorted.length - 1], previous: sorted.at(-2) }
+    const latest = sorted[sorted.length - 1]
+    return {
+      ...latest,
+      publication: publicationsById.get(latest.postId),
+      previous: sorted.at(-2),
+    }
   })
+  const represented = new Set(posts.map((post) => post.postId))
+  for (const publication of publications) {
+    if (represented.has(publication.id)) continue
+    posts.push(snapshotlessPublication(publication))
+  }
+  return posts
+}
+
+export function latestSnapshotsByPost(
+  snapshots: PostFastMetricSnapshot[]
+): LatestPost[] {
+  return latestPublicationsByPost([], snapshots)
+}
+
+function snapshotlessPublication(publication: PostFastPostRecord): LatestPost {
+  return {
+    id: `publication:${publication.id}`,
+    postId: publication.id,
+    platformPostId: publication.externalPostId,
+    integrationId: publication.integrationId,
+    provider: publication.provider,
+    capturedAt:
+      publication.publishedAt ??
+      publication.scheduledAt ??
+      publication.updatedAt,
+    publishedAt: publication.publishedAt,
+    content: publication.content,
+    releaseUrl: publication.releaseUrl,
+    sourceType: publication.sourceType,
+    sourceId: publication.sourceId,
+    mediaCount: publication.media.length,
+    metrics: {},
+    latestMetric: {},
+    rawMetrics: {},
+    observedKeys: [],
+    publication,
+  }
 }
 
 export function postMetricSeries(
@@ -282,7 +338,10 @@ export function availablePlatformMetrics({
   return canonicalMetricOrder.filter((metric) => metrics.has(metric))
 }
 
-export function defaultPlatformMetric(platform: string, metrics: CanonicalMetric[]) {
+export function defaultPlatformMetric(
+  platform: string,
+  metrics: CanonicalMetric[]
+) {
   const preferred: CanonicalMetric[] = [
     "instagram",
     "facebook",
@@ -376,7 +435,10 @@ export function seriesDelta(series: Array<{ value: number }>) {
   return ((series.at(-1)!.value - series[0].value) / series[0].value) * 100
 }
 
-export function postCoverageLabel(posts: LatestPost[], metric: CanonicalMetric) {
+export function postCoverageLabel(
+  posts: LatestPost[],
+  metric: CanonicalMetric
+) {
   const count = posts.filter(
     (post) => post.metrics[metric] !== undefined
   ).length
@@ -403,7 +465,10 @@ export function formatPostDate(post: LatestPost) {
   return date.isValid ? date.toFormat("LLL d") : "Recent"
 }
 
-export function formatMetric(metric: CanonicalMetric, value: number | undefined) {
+export function formatMetric(
+  metric: CanonicalMetric,
+  value: number | undefined
+) {
   if (value === undefined) return "—"
   return metric === "engagementRate"
     ? `${value.toFixed(2)}%`
