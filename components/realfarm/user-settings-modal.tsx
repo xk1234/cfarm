@@ -54,6 +54,7 @@ type ReminderChannel = "none" | "telegram"
 type ReminderSettings = {
   telegramChatId?: string
   telegramBotToken?: string
+  notificationDefaultsApplied?: boolean
   events: Record<
     ReminderEvent,
     { channel: ReminderChannel; offsetsHours?: number[] }
@@ -395,8 +396,9 @@ function RemindersPanel({
                   />
                 </label>
                 <p className="mt-2 leading-5 text-app-text-faint">
-                  Create a bot with BotFather and paste its token to override the
-                  workspace bot. Saved tokens are never returned to the browser.
+                  Create a bot with BotFather and paste its token to override
+                  the workspace bot. Saved tokens are never returned to the
+                  browser.
                 </p>
               </details>
               {!data?.telegram.botConfigured ? (

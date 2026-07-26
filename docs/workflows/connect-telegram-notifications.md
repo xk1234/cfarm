@@ -8,7 +8,7 @@ description: "Linking a Telegram bot to LumenClip so generation and publishing u
 Connect a Telegram bot to receive generation-complete, ready-to-post, and
 scheduled-to-post updates from LumenClip.
 
-`Last tested: 2026-07-26, against cfarm-eight.vercel.app`
+`Last tested: 2026-07-27, against cfarm-eight.vercel.app`
 
 > Telegram reminders and publishing **to** Telegram are separate integrations.
 > This workflow connects a notification bot. To publish posts into Telegram,
@@ -95,6 +95,11 @@ secret required for interactive buttons.
 
 ## Choose notification events
 
+When Telegram is linked for the first time, **Generation complete** is enabled
+automatically. Existing linked workspaces that predate this behavior are
+migrated the same way. You can still turn it Off explicitly; LumenClip records
+that choice and will not turn it back on.
+
 Each event routes to its own channel, so "notify me on failures only" is a
 matter of leaving the rest **Off**.
 
@@ -150,7 +155,7 @@ empty list — and Telegram drops updates after roughly 24 hours, so a very old
 
 ### Settings say Telegram needs a server bot token
 
-`TELEGRAM_BOT_TOKEN` is not set in the environment the app is *running in*.
+`TELEGRAM_BOT_TOKEN` is not set in the environment the app is _running in_.
 Setting it in a local `.env` does nothing for a deployed instance; it must be
 added to the deployment's own environment and the instance redeployed.
 

@@ -6,6 +6,7 @@ import {
   selectSlideshowHook,
   selectSlideshowImages,
 } from "./slideshow-generation-engine.js"
+import { reminderChannel } from "./slideshow-automation.js"
 
 function schema() {
   return {
@@ -21,6 +22,45 @@ function schema() {
     reuse_policy: { hook_exclusion_days: 45 },
   }
 }
+
+describe("scheduled worker Telegram reminder policy", () => {
+  it("uses the nested per-event channel", () => {
+    expect(
+      reminderChannel(
+        {
+          notificationDefaultsApplied: true,
+          events: { generated: { channel: "telegram" } },
+        },
+        "generated"
+      )
+    ).toBe("telegram")
+  })
+
+  it("migrates a linked legacy all-Off workspace to generation delivery", () => {
+    expect(
+      reminderChannel(
+        {
+          telegramChatId: "123456",
+          events: { generated: { channel: "none" } },
+        },
+        "generated"
+      )
+    ).toBe("telegram")
+  })
+
+  it("respects an intentional all-Off policy after migration", () => {
+    expect(
+      reminderChannel(
+        {
+          telegramChatId: "123456",
+          notificationDefaultsApplied: true,
+          events: { generated: { channel: "none" } },
+        },
+        "generated"
+      )
+    ).toBe("none")
+  })
+})
 
 const ctaImages = [
   {

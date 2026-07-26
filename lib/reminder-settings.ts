@@ -71,6 +71,7 @@ export type ReminderSettings = {
   id: "reminders"
   telegramChatId?: string
   telegramBotToken?: string
+  notificationDefaultsApplied: boolean
   events: Record<ReminderEvent, ReminderEventSettings>
   updatedAt: string
 }
@@ -78,7 +79,9 @@ export type ReminderSettings = {
 export type ReminderSettingsInput = Pick<
   ReminderSettings,
   "telegramChatId" | "telegramBotToken" | "events"
->
+> & {
+  notificationDefaultsApplied?: boolean
+}
 
 const rootDir = path.join(process.cwd(), "data", "settings")
 const store = {
@@ -90,6 +93,7 @@ const store = {
 export function defaultReminderSettings(): ReminderSettings {
   return {
     id: "reminders",
+    notificationDefaultsApplied: false,
     events: Object.fromEntries(
       reminderEvents.map((event) => [
         event,
@@ -121,6 +125,8 @@ export function normalizeReminderSettings(
       ? (input.events as Record<string, unknown>)
       : {}
   const defaults = defaultReminderSettings()
+  const telegramChatId = clean(input.telegramChatId) || undefined
+  const notificationDefaultsApplied = input.notificationDefaultsApplied === true
   const events = Object.fromEntries(
     reminderEvents.map((event) => {
       const metadata = reminderEventMetadata[event]
@@ -147,10 +153,24 @@ export function normalizeReminderSettings(
     })
   ) as Record<ReminderEvent, ReminderEventSettings>
 
+  // Existing linked Telegram workspaces predate an explicit connection
+  // default. Migrate each one once so linking Telegram actually enables the
+  // delivery users connected it for. Once saved, the marker preserves an
+  // intentional all-Off configuration.
+  if (
+    telegramChatId &&
+    !notificationDefaultsApplied &&
+    !reminderEvents.some((event) => events[event].channel === "telegram")
+  ) {
+    events.generated = { channel: "telegram" }
+  }
+
   return {
     id: "reminders",
-    telegramChatId: clean(input.telegramChatId) || undefined,
+    telegramChatId,
     telegramBotToken: clean(input.telegramBotToken) || undefined,
+    notificationDefaultsApplied:
+      notificationDefaultsApplied || Boolean(telegramChatId),
     events,
     updatedAt: clean(input.updatedAt) || defaults.updatedAt,
   }

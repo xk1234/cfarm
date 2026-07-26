@@ -10,7 +10,10 @@ import crypto from "node:crypto"
 import { Client, TablesDB, Storage, Query } from "node-appwrite"
 import { llmSlopPromptLine, llmSlopViolations } from "./llm-slop.js"
 import { openRouterModelForUseCase } from "./realfarm-generation-model-registry.js"
-import { runSlideshowAutomation } from "./slideshow-automation.js"
+import {
+  reminderChannel,
+  runSlideshowAutomation,
+} from "./slideshow-automation.js"
 import { runUgcAutomationJob } from "./ugc-automation.js"
 
 // Self-hosted Appwrite injects APPWRITE_FUNCTION_API_ENDPOINT from _APP_DOMAIN,
@@ -200,14 +203,7 @@ export async function sendConfiguredReminder(payload, t, job) {
   }
   const settings = await reminderSettings(t, job?.owner_id)
   if (!settings) return { sent: false, reason: "disabled" }
-  const eventSettings = settings.events?.[event]
-  const channel =
-    typeof eventSettings === "boolean"
-      ? eventSettings && settings.channel === "telegram"
-        ? "telegram"
-        : "none"
-      : eventSettings?.channel
-  if (channel !== "telegram") {
+  if (reminderChannel(settings, event) !== "telegram") {
     return { sent: false, reason: "event_disabled" }
   }
   return sendTelegram(payload.text, settings.telegramChatId, {

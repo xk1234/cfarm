@@ -93,6 +93,30 @@ describe("reminder settings route", () => {
     expect(mocks.saveReminderSettings).not.toHaveBeenCalled()
   })
 
+  it("enables generation notifications when Telegram is first linked", async () => {
+    mocks.telegramReminderConfiguration.mockReturnValue({
+      botConfigured: true,
+      defaultChatConfigured: false,
+      interactiveConfigured: true,
+    })
+    const response = await PUT(
+      jsonRequest("PUT", {
+        telegramChatId: "123456",
+        notificationDefaultsApplied: false,
+        events: settings.events,
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(mocks.saveReminderSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notificationDefaultsApplied: true,
+        events: expect.objectContaining({
+          generated: { channel: "telegram" },
+        }),
+      })
+    )
+  })
+
   it("sends a test before any event is wired to Telegram", async () => {
     // Proving the connection works is the step that comes BEFORE choosing
     // events, so the test must not require one to already be routed.

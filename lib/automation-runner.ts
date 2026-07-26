@@ -654,6 +654,7 @@ async function createAutomationRun(input: {
   try {
     plan = await createAutomationRunPlan(input.record.schema, {
       automationId: input.record.id,
+      automationTitle: input.record.name,
       imageCollectionDbPath: input.imageCollectionDbPath,
       wordCollectionRootDir: input.wordCollectionRootDir,
       usageLedgerRootDir: input.usageLedgerRootDir,
@@ -1115,7 +1116,10 @@ async function createAutomationRunPlan(
   const collectionIds =
     contentRoute?.collection_ids ?? automationCollectionIds(schema)
   const baseTextAutomationFromSchema =
-    automationSchemaToTempSlideTestingAutomation(schema)
+    automationSchemaToTempSlideTestingAutomation(schema, {
+      id: options.automationId ?? "main-app-automation",
+      name: clean(options.automationTitle) || "Automation",
+    })
   const baseTextAutomation = clean(hookSelection.tone)
     ? { ...baseTextAutomationFromSchema, tone: clean(hookSelection.tone) }
     : baseTextAutomationFromSchema
@@ -1205,7 +1209,7 @@ async function createAutomationRunPlan(
     cta.imageMode === "single_image"
       ? schema.image_collection_ids.cta_slide.image_id
       : null
-  let slideResult = await createSlides({
+  const slideResult = await createSlides({
     title: options.automationTitle ?? "Automation",
     hook,
     images,
@@ -1219,42 +1223,6 @@ async function createAutomationRunPlan(
     firstSlidePinnedImageId,
     ctaPinnedImageId,
   })
-  let imageTextCoherenceRepair = false
-  const coherenceInstructions = imageTextCoherenceRepairInstructions({
-    automation: textAutomation,
-    selectedImages: slideResult.selectedImages,
-    generatedText: textGeneration.result,
-  })
-  if (coherenceInstructions) {
-    progress("Aligning slide text with selected images", hook)
-    textGeneration = await generateAutomationText({
-      automation: textAutomation,
-      hook,
-      model: options.textModel,
-      systemPrompt: options.systemPrompt,
-      promptInstructions: [promptInstructions, coherenceInstructions]
-        .filter(Boolean)
-        .join("\n\n"),
-      webSearchEnabled: schema.web_search_enabled,
-    })
-    imageTextCoherenceRepair = true
-    slideResult = await createSlides({
-      title: options.automationTitle ?? "Automation",
-      hook,
-      images,
-      recentImageUsage: recentImages,
-      imageCollections,
-      slideCount,
-      textAutomation,
-      generatedText: textGeneration.result,
-      random: options.random,
-      fetchImpl: options.fetchImpl,
-      selectedImages: slideResult.selectedImages,
-      iconLayouts: slideResult.iconLayouts,
-      firstSlidePinnedImageId,
-      ctaPinnedImageId,
-    })
-  }
   const slides = await translateAutomationSlides({
     language: schema.language || defaultAutomationLanguage,
     slides: slideResult.slides,
@@ -1320,7 +1288,7 @@ async function createAutomationRunPlan(
       textGenerationResult: options.includeTextGenerationResult
         ? textGeneration.result
         : undefined,
-      imageTextCoherenceRepair,
+      imageTextCoherenceRepair: false,
     },
   }
 }
@@ -1817,41 +1785,6 @@ async function createSlides(input: {
     ]
   })
   return { slides, reuseWarnings, selectedImages, iconLayouts }
-}
-
-function imageTextCoherenceRepairInstructions(input: {
-  automation: ReturnType<typeof automationSchemaToTempSlideTestingAutomation>
-  selectedImages: SelectedAutomationRunnerImage[]
-  generatedText: TempSlideStructuredOutput
-}) {
-  const slideContexts = input.automation.slides.flatMap((slide, index) => {
-    if (!slide.aiImageSelection) return []
-    const imageCaption = clean(input.selectedImages[index]?.imageCaption)
-    const promptItems = slide.textItems.filter(
-      (textItem) => textItem.textMode === "prompt"
-    )
-    if (!imageCaption || promptItems.length === 0) return []
-    const draftLines = promptItems.map((textItem) => {
-      const draft = clean(input.generatedText.text[textItem.id])
-      return `  - ${textItem.id}: ${JSON.stringify(draft)}`
-    })
-    return [
-      [
-        `- ${slide.id} selected image caption: ${JSON.stringify(imageCaption)}`,
-        "  Current draft text:",
-        ...draftLines,
-      ].join("\n"),
-    ]
-  })
-  if (slideContexts.length === 0) return ""
-
-  return [
-    "Selected-image coherence repair (mandatory):",
-    "Rewrite the generated text fields listed below so each one directly and truthfully matches its slide's locked selected image caption.",
-    "Treat each caption as the source of truth for visible objects, people, settings, and actions. Do not mention an object or action absent from that caption.",
-    "Keep the selected hook and all static text unchanged. Preserve every placeholder's word limits, content direction, and the slideshow's overall narrative. Return the complete required JSON object, including unlisted fields.",
-    ...slideContexts,
-  ].join("\n")
 }
 
 export async function selectImagesForSlides(input: {

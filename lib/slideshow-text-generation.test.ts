@@ -351,7 +351,7 @@ describe("slideshow text structured output", () => {
     )
   })
 
-  it("retries a word-range miss with field-specific feedback", async () => {
+  it("reports a word-range miss without retrying or rejecting the output", async () => {
     const outsideWordRange = JSON.stringify({
       ...JSON.parse(validContent),
       title: "gemini",
@@ -363,6 +363,30 @@ describe("slideshow text structured output", () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(response(outsideWordRange))
+
+    const generated = await generateSlideshowText({
+      automation,
+      apiKey: "test-key",
+      fetchImpl,
+    })
+
+    expect(generated.result.text["content-2__heading"]).toBe(
+      "geminis stay curious because change gives them room to keep growing"
+    )
+    expect(generated.violations).toEqual([
+      "content-2__heading has 11 words, but its configured maximum is 8.",
+    ])
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+
+  it("still retries structural failures while word ranges stay non-fatal", async () => {
+    const missingHeading = JSON.stringify({
+      ...JSON.parse(validContent),
+      text: { "content-2__heading": "" },
+    })
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(response(missingHeading))
       .mockResolvedValueOnce(response(validContent))
 
     const generated = await generateSlideshowText({
@@ -380,7 +404,7 @@ describe("slideshow text structured output", () => {
       String(fetchImpl.mock.calls[1]?.[1]?.body)
     ) as { messages: { content: string }[] }
     expect(retryBody.messages.at(-1)?.content).toContain(
-      "content-2__heading has 11 words, but its configured maximum is 8"
+      "content-2__heading must not be empty"
     )
   })
 

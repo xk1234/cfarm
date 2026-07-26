@@ -1470,6 +1470,8 @@ function registerAutomationReadAndRunTools(
           const updated = await services.patchAutomationRecord({
             id: record.id,
             schema,
+            expectedUpdatedAt: input.expectedUpdatedAt,
+            now: services.now(),
           })
           if (!updated) throw new Error("Automation not found")
           return {
@@ -1515,6 +1517,8 @@ function registerAutomationReadAndRunTools(
           const updated = await services.patchAutomationRecord({
             id: record.id,
             schema: { ...record.schema, formatting },
+            expectedUpdatedAt: input.expectedUpdatedAt,
+            now: services.now(),
           })
           if (!updated) throw new Error("Automation not found")
           return {
@@ -1563,6 +1567,8 @@ function registerAutomationReadAndRunTools(
           const updated = await services.patchAutomationRecord({
             id: record.id,
             schema: { ...record.schema, formatting },
+            expectedUpdatedAt: input.expectedUpdatedAt,
+            now: services.now(),
           })
           if (!updated) throw new Error("Automation not found")
           const block = updated.schema.formatting.find(
@@ -1731,6 +1737,8 @@ function registerAutomationReadAndRunTools(
           const updated = await services.patchAutomationRecord({
             id: record.id,
             schema: schemaWithAutomationHookItems(record.schema, hooks),
+            expectedUpdatedAt: input.expectedUpdatedAt,
+            now: services.now(),
           })
           if (!updated) throw new Error("Automation not found")
           return {
@@ -1774,7 +1782,12 @@ function registerAutomationReadAndRunTools(
             updates: input.hooks,
             now: services.now().toISOString(),
           })
-          const updated = await patchAutomationHooks(services, record, hooks)
+          const updated = await patchAutomationHooks(
+            services,
+            record,
+            hooks,
+            input.expectedUpdatedAt
+          )
           return {
             ...serializeAutomationHookPool(updated),
             tokenWarnings: tokenValidation.warnings,
@@ -1817,7 +1830,12 @@ function registerAutomationReadAndRunTools(
               ? { ...hook, enabled: input.enabled, updatedAt: now }
               : hook
           )
-          const updated = await patchAutomationHooks(services, record, hooks)
+          const updated = await patchAutomationHooks(
+            services,
+            record,
+            hooks,
+            input.expectedUpdatedAt
+          )
           return serializeAutomationHookPool(updated)
         })
       )
@@ -1855,7 +1873,12 @@ function registerAutomationReadAndRunTools(
           const updated =
             hooks.length === current.length
               ? record
-              : await patchAutomationHooks(services, record, hooks)
+              : await patchAutomationHooks(
+                  services,
+                  record,
+                  hooks,
+                  input.expectedUpdatedAt
+                )
           return {
             deletedHookIds: current
               .filter((hook) => ids.has(hook.id))
@@ -5604,6 +5627,8 @@ async function updateAutomation(
       favorite: input.favorite,
       status,
       schema,
+      expectedUpdatedAt: input.expectedUpdatedAt,
+      now: services.now(),
     })
     if (!updated) throw new Error("Automation not found")
     return serializeStandardAutomation(updated)
@@ -6182,11 +6207,14 @@ function serializeAutomationHookPool(
 async function patchAutomationHooks(
   services: LumenClipMcpServices,
   record: AutomationRecord,
-  hooks: AutomationHookItem[]
+  hooks: AutomationHookItem[],
+  expectedUpdatedAt?: string
 ) {
   const updated = await services.patchAutomationRecord({
     id: record.id,
     schema: schemaWithAutomationHookItems(record.schema, hooks),
+    expectedUpdatedAt,
+    now: services.now(),
   })
   if (!updated) throw new Error("Automation not found")
   return updated

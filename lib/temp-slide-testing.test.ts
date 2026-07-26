@@ -259,6 +259,33 @@ describe("temp slide testing helpers", () => {
     expect(prompt).toContain("content-2__body-title")
   })
 
+  it("replaces conflicting stored word counts with the configured range", () => {
+    const automation =
+      automationTemplateToTempSlideTestingAutomation(templateRecord)
+    const placeholders = getTempSlidePromptPlaceholders(automation)
+    const heading = placeholders.find(
+      (placeholder) => placeholder.id === "content-2__body-title"
+    )!
+    heading.contentDirection = "a heading, exactly 1-2 words"
+    heading.wordLengthMin = 2
+    heading.wordLengthMax = 3
+
+    const prompt = buildTempSlideUserPrompt({
+      automationName: automation.name,
+      hook: promptPreviewHook(automation),
+      tone: automation.tone,
+      style: automation.style,
+      promptInstructions: defaultTempSlideUserInstructions,
+      placeholders,
+    })
+
+    const headingLine = prompt
+      .split("\n")
+      .find((line) => line.includes("content-2__body-title"))
+    expect(headingLine).toContain("exactly 2-3 words")
+    expect(headingLine).not.toContain("1-2 words")
+  })
+
   it("converts stored image collections into renderable temp collections", () => {
     const collections = storedCollectionsToTempSlideCollections([
       {

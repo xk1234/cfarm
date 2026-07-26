@@ -484,8 +484,7 @@ async function createPlan({
     slideCount: defaultBodySlideCount,
     selectIndex: (candidateCount) => seed[0] % candidateCount,
   })
-  const bodySlideCount =
-    hookSelection.bodySlideCount || defaultBodySlideCount
+  const bodySlideCount = hookSelection.bodySlideCount || defaultBodySlideCount
   const hook = applyHookCase(
     hookSelection.expansion.text,
     schema.prompt_formatting
@@ -1095,7 +1094,7 @@ async function enqueueNotification({
   text,
 }) {
   const settings = await reminderSettings(tables, databaseId, ownerId)
-  if (!settings || settings.events?.[event] !== true) return
+  if (!settings || reminderChannel(settings, event) !== "telegram") return
   const now = new Date().toISOString()
   const dedupe = [
     "reminder",
@@ -1140,7 +1139,37 @@ async function reminderSettings(tables, databaseId, ownerId) {
     Query.limit(1),
   ])
   const value = safeJson(response.rows[0]?.data)
-  return value?.channel === "telegram" ? value : null
+  return value || null
+}
+
+export function reminderChannel(settings, event) {
+  const eventSettings = settings?.events?.[event]
+  const channel =
+    typeof eventSettings === "boolean"
+      ? eventSettings && settings?.channel === "telegram"
+        ? "telegram"
+        : "none"
+      : eventSettings?.channel === "telegram"
+        ? "telegram"
+        : "none"
+  if (channel === "telegram") return channel
+
+  const hasDestination =
+    Boolean(clean(settings?.telegramChatId)) ||
+    Boolean(clean(process.env.TELEGRAM_CHAT_ID))
+  const anyEventEnabled = Object.values(settings?.events || {}).some(
+    (configured) =>
+      configured === true ||
+      (configured &&
+        typeof configured === "object" &&
+        configured.channel === "telegram")
+  )
+  return event === "generated" &&
+    hasDestination &&
+    settings?.notificationDefaultsApplied !== true &&
+    !anyEventEnabled
+    ? "telegram"
+    : "none"
 }
 
 async function recordUsage({

@@ -542,6 +542,7 @@ describe("LumenClip MCP server", () => {
 
   it("patches formatting blocks and text items without replacing the schema", async () => {
     let current = automationRecord()
+    const initialUpdatedAt = current.updatedAt
     current.schema.hooks = [
       {
         id: "hook-existing",
@@ -559,11 +560,21 @@ describe("LumenClip MCP server", () => {
       wordLengthMax: 25,
     }
     const patch = vi.fn(
-      async ({ schema }: { schema?: typeof current.schema }) => {
+      async ({
+        schema,
+        expectedUpdatedAt,
+        now,
+      }: {
+        schema?: typeof current.schema
+        expectedUpdatedAt?: string
+        now?: Date
+      }) => {
+        expect(expectedUpdatedAt).toBe(current.updatedAt)
+        expect(now?.toISOString()).toBe("2026-07-23T12:00:00.000Z")
         current = {
           ...current,
           schema: schema ?? current.schema,
-          updatedAt: "2026-07-23T12:00:00.000Z",
+          updatedAt: new Date(Date.parse(current.updatedAt) + 1).toISOString(),
         }
         return current
       }
@@ -572,6 +583,7 @@ describe("LumenClip MCP server", () => {
       getAutomationRecord: vi.fn(async () => current),
       patchAutomationRecord:
         patch as unknown as LumenClipMcpServices["patchAutomationRecord"],
+      now: () => new Date("2026-07-23T12:00:00.000Z"),
     })
 
     const blockResult = await client.callTool({
@@ -628,6 +640,7 @@ describe("LumenClip MCP server", () => {
     })
     expect(current.schema.hooks).toHaveLength(1)
     expect(current.schema.social_post_settings).toEqual(originalSocialSettings)
+    expect(current.updatedAt).not.toBe(initialUpdatedAt)
     expect(patch).toHaveBeenCalledTimes(2)
   })
 

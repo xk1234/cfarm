@@ -298,8 +298,7 @@ export async function generateSlideshowText(input) {
             selectedHook !== "Create a high-performing TikTok slideshow.",
     });
     const lowercase = styleRequestsLowercase(input.automation.style) ||
-        styleRequestsLowercase(input.systemPrompt) ||
-        styleRequestsLowercase(input.promptInstructions);
+        styleRequestsLowercase(input.systemPrompt);
     return {
         model: completion.model,
         selectedHook,
@@ -369,7 +368,7 @@ async function requestStructuredOutput(input) {
         try {
             assertCompleteStructuredChoice(choice);
             const output = JSON.parse(parseOpenRouterContent(choice?.message?.content));
-            const { errors: validationErrors } = structuredOutputFindings(output, input.placeholders, input.selectedHook);
+            const { errors: validationErrors, violations } = structuredOutputFindings(output, input.placeholders, input.selectedHook);
             if (validationErrors.length > 0) {
                 throw new Error(validationErrors.join("; "));
             }
@@ -378,7 +377,7 @@ async function requestStructuredOutput(input) {
                 !outputDevelopsHookSubject(output, input.selectedHook)) {
                 throw new Error(`Generated body text does not develop the selected hook subject: ${input.selectedHook}`);
             }
-            return { output, webSearchSources, model: attemptModel, violations: [] };
+            return { output, webSearchSources, model: attemptModel, violations };
         }
         catch (error) {
             lastError = error;
@@ -454,7 +453,7 @@ function structuredOutputFindings(output, placeholders, selectedHook) {
         generatedValues.push(value);
         const wordRangeError = placeholderWordRangeError(placeholder, value);
         if (wordRangeError)
-            errors.push(wordRangeError);
+            violations.push(wordRangeError);
     }
     // Slop terms echoed from the user-authored hook are exempt — the model must
     // develop the hook subject and cannot avoid its wording.

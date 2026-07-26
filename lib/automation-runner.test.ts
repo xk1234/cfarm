@@ -1060,9 +1060,7 @@ describe("runDueAutomations", () => {
     expect(request.messages[1].content).toContain("Metadata requirements:")
     expect(result.created[0].plan.textModel).toBe(defaultSlideshowTextModel)
     expect(result.created[0].plan.title).toBe("Generated Study Tips")
-    expect(result.created[0].plan.caption).toBe(
-      "Try these study habits before your next exam."
-    )
+    expect(result.created[0].plan.caption).toBe("fixed hook")
     expect(result.created[0].plan.hashtags).toBe(
       "#studytips #learning #productivity"
     )
@@ -1070,7 +1068,7 @@ describe("runDueAutomations", () => {
     expect(results.results[0]).toMatchObject({
       title: "Generated Study Tips",
       payload: {
-        caption: "Try these study habits before your next exam.",
+        caption: "fixed hook",
         hashtags: "#studytips #learning #productivity",
       },
     })
@@ -1082,7 +1080,7 @@ describe("runDueAutomations", () => {
     ])
   })
 
-  it("repairs generated copy against locked selected-image captions", async () => {
+  it("preserves specific generated copy after selecting stock images", async () => {
     vi.stubEnv("OPENROUTER_API_KEY", "test-openrouter-key")
     const outputs = [
       {
@@ -1232,22 +1230,11 @@ describe("runDueAutomations", () => {
           "slide_visual_concepts"
         )
     )
-    expect(textGenerationCalls).toHaveLength(2)
-    const [, repairInit] = textGenerationCalls[1] as unknown as [
-      string,
-      RequestInit,
-    ]
-    const repairRequest = JSON.parse(repairInit.body as string)
-    expect(repairRequest.messages[1].content).toContain(
-      "Phone charger being unplugged from a wall outlet"
-    )
-    expect(repairRequest.messages[1].content).toContain(
-      "lower-impact habit: bring reusable bags to the grocery store"
-    )
-    expect(result.plan.debug?.imageTextCoherenceRepair).toBe(true)
+    expect(textGenerationCalls).toHaveLength(1)
+    expect(result.plan.debug?.imageTextCoherenceRepair).toBe(false)
     expect(result.plan.slides[1]).toMatchObject({
       imageCaption: "Phone charger being unplugged from a wall outlet",
-      text: "lower-impact habit: unplug unused chargers to reduce standby power",
+      text: "lower-impact habit: bring reusable bags to the grocery store",
     })
   })
 
@@ -1494,6 +1481,12 @@ describe("runDueAutomations", () => {
       "second hook",
     ])
     expect(result.created[0].plan.debug?.textModelPrompt).toEqual(request)
+    expect(JSON.stringify(request.messages)).toContain(
+      "Automation: Daily hooks"
+    )
+    expect(JSON.stringify(request.messages)).not.toContain(
+      "Automation: Automation"
+    )
     expect(result.created[0].plan.debug?.selectedHookIndex).toBe(1)
     expect(result.created[0].plan.slides[0].text).toBe("second hook")
   })
