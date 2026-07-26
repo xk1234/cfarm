@@ -5,12 +5,16 @@ import type {
 } from "@/lib/postfast-posts"
 import type { PublicationLinkState } from "@/lib/publication-link-state"
 
+// The legacy shape lives here rather than on PostFastPostRecord: production is
+// migrated and the runtime type no longer carries externallyManaged, but this
+// module still has to read records written before that.
 export type LegacyPostFastPostRecord = Omit<
   PostFastPostRecord,
   "linkState" | "statsSources"
 > & {
   linkState?: PublicationLinkState
   statsSources?: PostFastStatsSource[]
+  externallyManaged?: boolean
 }
 
 export function migratePublicationLinkState(
@@ -30,14 +34,14 @@ export function migratePublicationLinkState(
   const migrated = records.map((record): PostFastPostRecord => {
     const linkState = backfilledLinkState(record)
     const statsSources = orderedStatsSources(sourcesByPostId.get(record.id))
-    const next: PostFastPostRecord = {
+    const next: LegacyPostFastPostRecord = {
       ...record,
       linkState,
       statsSources,
     }
     delete next.externallyManaged
     if (JSON.stringify(record) !== JSON.stringify(next)) changed += 1
-    return next
+    return next as PostFastPostRecord
   })
   return { records: migrated, changed }
 }
