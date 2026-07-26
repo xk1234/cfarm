@@ -304,7 +304,11 @@ function RemindersPanel({
         <ListSkeleton count={4} className="border-y border-app-panel-border" />
       ) : (
         <div className="space-y-7">
-          {usesTelegram ? (
+          {/* Shown whenever a bot exists, not only once an event already routes
+              to Telegram — otherwise connecting is undiscoverable, because the
+              only way to reach these fields was to first pick a channel you had
+              not been able to set up yet. */}
+          {data?.telegram.botConfigured || usesTelegram ? (
             <section className="space-y-4 rounded-xl border border-app-panel-border bg-app-control-bg p-4">
               <div className="flex items-center gap-3">
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-app-control-hover text-app-muted-text">
@@ -540,10 +544,10 @@ function RemindersPanel({
             >
               {pending === "save" ? "Saving…" : "Save notifications"}
             </Button>
-            {usesTelegram ? (
+            {data?.telegram.botConfigured ? (
               <Button
                 variant="outline"
-                disabled={pending !== "" || !data?.telegram.botConfigured}
+                disabled={pending !== "" || !settings.telegramChatId}
                 onClick={() => void testTelegram()}
               >
                 {pending === "test" ? "Sending…" : "Send test"}

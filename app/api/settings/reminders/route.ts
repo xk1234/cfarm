@@ -150,9 +150,12 @@ export async function POST(request: Request) {
     }
   }
 
-  if (!usesTelegram(settings.events)) {
+  // Deliberately not gated on an event already routing to Telegram: the whole
+  // point of the test is to prove the connection works BEFORE wiring events to
+  // it. It still needs a bot and a destination, which is what actually matters.
+  if (!telegramReminderConfiguration(settings).botConfigured) {
     return NextResponse.json(
-      { error: "Save Telegram as the reminder method first." },
+      { error: "Telegram reminders are not configured on the server." },
       { status: 400 }
     )
   }
