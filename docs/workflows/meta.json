@@ -5,10 +5,14 @@
     "signing-in",
     "create-collection",
     "create-slideshow-automation",
-    "test-automation-variations",
+    "analyze-slideshow-tone",
+    "testing-facility",
     "schedule-posts",
+    "connect-telegram-notifications",
     "link-tiktok-account",
     "import-tiktok-studio-data",
+    "review-unlinked-tiktoks",
+    "answer-tiktok-comments",
     "analytics-report",
     "create-ugc-video"
   ]

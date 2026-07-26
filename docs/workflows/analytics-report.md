@@ -165,5 +165,5 @@ For per-slide retention and audience breakdowns, use
 `lumenclip_tiktok_studio_analytics_report` instead — this report intentionally stays at
 publication level.
 
-Previous: [Importing TikTok Studio data](/docs/workflows/import-tiktok-studio-data) ·
+Previous: [Answering TikTok comments](/docs/workflows/answer-tiktok-comments) ·
 Next: [Creating a UGC video automation](/docs/workflows/create-ugc-video)

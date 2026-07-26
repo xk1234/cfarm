@@ -137,5 +137,5 @@ MCP cannot drain the queue, tick the scheduler, or schedule a one-off run.
 `lumenclip_automation_run` always produces an unscheduled draft. One-off scheduling goes
 through `lumenclip_output_publish` with a target `mode: "schedule"`.
 
-Previous: [Testing automation variations](/docs/workflows/test-automation-variations) ·
+Previous: [The testing facility](/docs/workflows/testing-facility) ·
 Next: [Linking a TikTok account](/docs/workflows/link-tiktok-account)

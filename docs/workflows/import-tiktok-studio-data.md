@@ -148,4 +148,4 @@ Popup labels are **LumenClip companion**, **TikTok Studio analytics**,
 defaulting to **Not paired**.
 
 Previous: [Linking a TikTok account](/docs/workflows/link-tiktok-account) ·
-Next: [Reading analytics](/docs/workflows/analytics-report)
+Next: [Reviewing unlinked TikToks](/docs/workflows/review-unlinked-tiktoks)
