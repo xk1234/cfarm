@@ -18,9 +18,17 @@ scheduled-to-post updates from LumenClip.
 
 You need:
 
-- access to Telegram and [BotFather](https://t.me/BotFather);
+- access to Telegram;
 - permission to add a bot if the destination is a channel;
 - the LumenClip workspace that should own the reminder policy.
+
+**BotFather is only needed if there is no workspace bot.** When the server has
+`TELEGRAM_BOT_TOKEN` set, everyone shares that bot and connecting is: open it,
+send `/start`, press **Detect**.
+
+The bot's `@handle` is read from Telegram's `getMe` and shown in settings — do
+not assume it matches the bot's display name. They are different fields and
+frequently differ.
 
 There is no MCP tool for reminder configuration. The setup is browser-only
 because it writes a private, per-user bot credential.
@@ -62,29 +70,42 @@ the real token in it.
 
 ### 3. Save the connection in LumenClip
 
-| Step | Action                                                           | Expected result                                             |
-| ---- | ---------------------------------------------------------------- | ----------------------------------------------------------- |
-| 1    | Open LumenClip and select your name at the bottom of the sidebar | App settings opens                                          |
-| 2    | Select **Reminders**                                             | The Telegram notification settings load                     |
-| 3    | Turn on **Send through Telegram**                                | Bot and destination fields appear                           |
-| 4    | Paste the **Telegram bot token**                                 | The token is accepted but will not be returned after saving |
-| 5    | Enter the **Telegram chat or channel ID**                        | Numeric IDs and `@channelname` destinations are supported   |
-| 6    | Choose the events under **Remind me when**                       | Each event can be enabled independently                     |
-| 7    | Select **Save reminders**                                        | The policy is stored for the signed-in workspace owner      |
-| 8    | Select **Send test**                                             | Telegram receives “LumenClip reminder test”                 |
+**If the workspace bot is configured, skip steps 1 and 2 above entirely.** When
+`TELEGRAM_BOT_TOKEN` is set on the server, settings names that bot and links to
+it, and no BotFather work or token entry is needed.
+
+| Step | Action                                                           | Expected result                                                  |
+| ---- | ---------------------------------------------------------------- | ---------------------------------------------------------------- |
+| 1    | Open LumenClip and select your name at the bottom of the sidebar | App settings opens                                               |
+| 2    | Select **Notifications**                                         | Every event loads with its own **Channel** select                |
+| 3    | Open the linked bot in Telegram and send it `/start`             | The bot now has an update to read; without this, detection fails |
+| 4    | Select **Detect** beside **Telegram chat or channel ID**         | The field fills from the bot's most recent chat                  |
+| 5    | Set the events you want to **Telegram**                          | Each event routes independently                                  |
+| 6    | For **Respond to comments**, pick **1 day** / **3 days**         | Offsets are only editable once the event is not **Off**          |
+| 7    | Select **Save reminders**                                        | The policy is stored for the signed-in workspace owner           |
+| 8    | Select **Send test**                                             | Telegram receives “LumenClip reminder test”                      |
+
+To use a different bot, expand **Use a different bot** and paste its token; a
+saved custom token overrides the workspace one and is never returned to the
+browser.
 
 Saving attempts to register the production callback webhook for the bot. The
 current production deployment already has the public base URL and webhook
-secret required for interactive buttons. It does not provide a shared default
-bot or destination, so each workspace must save its own token and chat ID.
+secret required for interactive buttons.
 
 ## Choose notification events
+
+Each event routes to its own channel, so "notify me on failures only" is a
+matter of leaving the rest **Off**.
 
 | Event                   | Delivery time                                                          | Telegram action                                                     |
 | ----------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | **Generation complete** | After a slideshow, video, or supported social post finishes generating | Informational                                                       |
 | **Ready to post**       | At the due time for a manual or review workflow                        | Includes **Yes, I posted it** when the output supports confirmation |
 | **Scheduled to post**   | After PostFast accepts an automatic scheduled post                     | Informational; automatic publishing does not wait for Telegram      |
+| **Respond to comments** | 1 day and 3 days after a post is confirmed published                   | Informational; carries the post's public URL                        |
+| **Publishing failed**   | When LumenClip cannot publish a post                                   | Informational                                                       |
+| **Generation failed**   | When a generation run fails                                            | Informational                                                       |
 
 A slideshow message can also include **Download slides + copy post**, a signed
 public link scoped to that output.
@@ -119,6 +140,19 @@ The webhook accepts only Telegram `callback_query` updates and only actionable
 ordinary messages or commands.
 
 ## Troubleshooting
+
+### Detect says no recent chat was found
+
+The bot has no updates to read. Open it in Telegram and send `/start`, then try
+again. Detection reads `getUpdates`, so a bot nobody has messaged returns an
+empty list — and Telegram drops updates after roughly 24 hours, so a very old
+`/start` may also need repeating.
+
+### Settings say Telegram needs a server bot token
+
+`TELEGRAM_BOT_TOKEN` is not set in the environment the app is *running in*.
+Setting it in a local `.env` does nothing for a deployed instance; it must be
+added to the deployment's own environment and the instance redeployed.
 
 ### The test says the chat was not found
 
