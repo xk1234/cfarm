@@ -71,11 +71,21 @@ const FUNCTIONS = [
       ...(process.env.LUMENCLIP_SYSTEM_OWNER_ID
         ? { LUMENCLIP_SYSTEM_OWNER_ID: process.env.LUMENCLIP_SYSTEM_OWNER_ID }
         : {}),
+      // The scheduler decides whether to enqueue UGC slots at all
+      // (automation-scheduler/src/main.js checks this flag), so it needs the
+      // value too. Forwarding it only to the job-worker meant scheduled UGC
+      // was skipped silently no matter how the worker was configured.
+      ...(process.env.ENABLE_UGC_AUTOMATION
+        ? { ENABLE_UGC_AUTOMATION: process.env.ENABLE_UGC_AUTOMATION }
+        : {}),
     },
   },
   {
     id: "job-worker",
-    schedule: "* * * * *",
+    // Must match appwrite.json, which is the other deployment source for this
+    // function. They previously disagreed (*/2 here vs every minute), so the
+    // effective cadence depended on which deploy path ran last.
+    schedule: "*/2 * * * *",
     timeout: 900,
     vars: {
       APPWRITE_API_KEY: API_KEY,
