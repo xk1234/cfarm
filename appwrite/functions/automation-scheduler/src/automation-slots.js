@@ -133,14 +133,11 @@ function scheduleInput(value) {
 }
 function scheduleForAutomation(automation, timezone) {
     const schedule = automation.schedule;
-    if (schedule?.posting_times?.length)
+    if (schedule)
         return schedule;
     return {
         timezone,
-        posting_times: automation.times.map((time) => ({
-            time,
-            days: weekdays,
-        })),
+        posting_times: [],
     };
 }
 function parsePostingTime(value, zone) {
