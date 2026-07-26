@@ -29,6 +29,7 @@ function initialView(value: string): ViewKey {
     "compose",
     "schedule",
     "analytics",
+    "comments",
     "collections",
     "automations",
   ].includes(value)

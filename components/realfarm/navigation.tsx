@@ -10,6 +10,7 @@ import {
   IconCalendar,
   IconHome,
   IconLogout,
+  IconMessageCircle,
   IconPhoto,
   IconPlus,
   IconPencilPlus,
@@ -39,6 +40,7 @@ const topNav: NavItem[] = [
   { key: "compose", label: "Compose", icon: IconPencilPlus },
   { key: "schedule", label: "Schedule", icon: IconCalendar },
   { key: "analytics", label: "Analytics", icon: IconBolt },
+  { key: "comments", label: "Comments", icon: IconMessageCircle },
 ]
 
 const slideshowNav: NavItem[] = [
@@ -102,7 +104,8 @@ export function Sidebar({
               (view === "home" && item.label === "Home") ||
               (view === "compose" && item.label === "Compose") ||
               (view === "schedule" && item.label === "Schedule") ||
-              (view === "analytics" && item.label === "Analytics")
+              (view === "analytics" && item.label === "Analytics") ||
+              (view === "comments" && item.label === "Comments")
             }
             onClick={() => onViewChange(item.key)}
             href={workspaceViewHref(item.key)}
@@ -164,7 +167,7 @@ export function MobileNavigation({
   return (
     <nav
       aria-label="Primary navigation"
-      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-7 border-t border-app-panel-border bg-white/95 px-1 pt-1 pb-[max(.5rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(25,18,45,0.08)] backdrop-blur md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-8 border-t border-app-panel-border bg-white/95 px-1 pt-1 pb-[max(.5rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(25,18,45,0.08)] backdrop-blur md:hidden"
     >
       {[...topNav, ...slideshowNav].map((item) => {
         const Icon = item.icon

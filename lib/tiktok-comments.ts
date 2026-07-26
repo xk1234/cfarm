@@ -10,6 +10,7 @@ import {
 } from "@/lib/json-store"
 import { listPostFastPostRecords } from "@/lib/postfast-posts"
 import { parseManualPublicationUrl } from "@/lib/manual-publication"
+import { TIKTOK_PLATFORM_POST_ID_REQUIRED } from "@/lib/tiktok-comment-errors"
 
 const rootDir = path.join(process.cwd(), "data")
 const stores = {
@@ -123,9 +124,7 @@ export async function createTikTokCommentCollection(input: {
       clean(publication.externalPostId) ||
       platformIdFromReleaseUrl(publication.releaseUrl)
     if (!platformPostId) {
-      throw new Error(
-        "This TikTok publication has no platform post ID. Link its public TikTok URL first."
-      )
+      throw new Error(TIKTOK_PLATFORM_POST_ID_REQUIRED)
     }
     const releaseUrl = clean(publication.releaseUrl)
     return {
@@ -171,6 +170,15 @@ function platformIdFromReleaseUrl(value?: string) {
   } catch {
     return ""
   }
+}
+
+export async function listTikTokCommentCollections(limit = 10) {
+  const collections = await list<TikTokCommentCollection>("collections")
+  return collections
+    .sort(
+      (left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt)
+    )
+    .slice(0, Math.max(1, limit))
 }
 
 export async function listTikTokComments(input: {

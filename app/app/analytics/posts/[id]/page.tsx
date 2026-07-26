@@ -51,6 +51,7 @@ export default async function PostAnalyticsRoute({
       snapshots={snapshots}
       integration={integration}
       contentType={latest.contentType || contentType}
+      publicationPlatformPostId={publication?.externalPostId}
     />
   )
 }
