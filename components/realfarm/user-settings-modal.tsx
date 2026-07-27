@@ -201,6 +201,19 @@ function RemindersPanel({
     if (settings) setDraft(update(settings))
   }
 
+  function setAllNotifications(channel: ReminderChannel) {
+    edit((current) => ({
+      ...current,
+      notificationDefaultsApplied: true,
+      events: Object.fromEntries(
+        Object.entries(current.events).map(([event, eventSettings]) => [
+          event,
+          { ...eventSettings, channel },
+        ])
+      ) as ReminderSettings["events"],
+    }))
+  }
+
   async function save() {
     if (!settings) return
     setPending("save")
@@ -416,7 +429,28 @@ function RemindersPanel({
           ) : null}
 
           <section>
-            <h3 className="text-sm font-semibold">Notify me when</h3>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold">Notify me when</h3>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="softControl"
+                  size="compact"
+                  disabled={!data?.telegram.botConfigured}
+                  onClick={() => setAllNotifications("telegram")}
+                >
+                  Turn all on
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="compact"
+                  onClick={() => setAllNotifications("none")}
+                >
+                  Turn all off
+                </Button>
+              </div>
+            </div>
             <div className="mt-3 divide-y divide-app-panel-border rounded-xl border border-app-panel-border">
               {data?.eventMetadata
                 ? Object.entries(data.eventMetadata).map(

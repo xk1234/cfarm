@@ -465,6 +465,7 @@ export async function generateSlideshowText(input: {
   promptInstructions?: string
   selectedHook?: string
   avoidSimilarOutputs?: string[]
+  avoidSimilarHeadings?: string[]
   performanceMemory?: {
     provenPatterns: string[]
     avoidPatterns: string[]
@@ -507,6 +508,7 @@ export async function generateSlideshowText(input: {
       .filter(Boolean)
       .join("\n\n"),
     avoidSimilarOutputs: input.avoidSimilarOutputs,
+    avoidSimilarHeadings: input.avoidSimilarHeadings,
     performanceMemory: input.performanceMemory,
   })
   const completion = await requestStructuredOutput({

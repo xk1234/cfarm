@@ -1148,12 +1148,22 @@ async function createAutomationRunPlan(
         records: publishedUsageRecords,
       })
     : []
+  const recentHeadingRecords = options.automationId
+    ? await recentUsageRecords("heading", options.automationId, {
+        rootDir: options.usageLedgerRootDir,
+        withinDays: schema.reuse_policy?.text_exclusion_days ?? 45,
+        limit: Math.max(schema.reuse_policy?.text_exclusion_limit ?? 20, 50),
+        now: options.now,
+        records: publishedUsageRecords,
+      })
+    : []
   let textGeneration = await generateAutomationText({
     automation: textAutomation,
     hook,
     model: options.textModel,
     systemPrompt: options.systemPrompt,
     promptInstructions,
+    avoidSimilarHeadings: recentHeadingRecords.map((record) => record.key),
     webSearchEnabled: schema.web_search_enabled,
     fetchImpl: options.fetchImpl,
   })
@@ -1171,6 +1181,7 @@ async function createAutomationRunPlan(
       automation: textAutomation,
       hook,
       avoidSimilarOutputs: recentTextRecords.map((record) => record.key),
+      avoidSimilarHeadings: recentHeadingRecords.map((record) => record.key),
       model: options.textModel,
       systemPrompt: options.systemPrompt,
       promptInstructions,
@@ -1464,6 +1475,15 @@ async function recordRunUsage(input: {
       used_at: usedAt,
     })
   }
+  for (const headingKey of headingUsageKeysFromPlan(input.plan)) {
+    records.push({
+      automation_id: input.automationId,
+      kind: "heading",
+      key: headingKey,
+      run_id: input.runId,
+      used_at: usedAt,
+    })
+  }
   await appendUsageRecords({ rootDir: input.rootDir, records })
 }
 
@@ -1531,6 +1551,7 @@ async function generateAutomationText(input: {
   automation: ReturnType<typeof automationSchemaToTempSlideTestingAutomation>
   hook: string
   avoidSimilarOutputs?: string[]
+  avoidSimilarHeadings?: string[]
   model?: string
   systemPrompt?: string
   promptInstructions?: string
@@ -1549,6 +1570,7 @@ async function generateAutomationText(input: {
     promptInstructions: input.promptInstructions,
     selectedHook: input.hook,
     avoidSimilarOutputs: input.avoidSimilarOutputs,
+    avoidSimilarHeadings: input.avoidSimilarHeadings,
     webSearchEnabled: input.webSearchEnabled,
     apiKey,
     fetchImpl: input.fetchImpl,
@@ -1569,6 +1591,23 @@ function textUsageKeyFromPlan(plan: AutomationRunPlan) {
     plan.caption,
     ...plan.slides.map((slide) => slide.text),
   ])
+}
+
+export function headingUsageKeysFromPlan(plan: AutomationRunPlan) {
+  return [
+    ...new Set(
+      plan.slides
+        .filter((slide) => slide.role === "content")
+        .flatMap((slide) => {
+          const heading =
+            slide.textItems?.find((item) => /heading/i.test(item.id))?.text ??
+            slide.textItems?.[0]?.text ??
+            slide.text
+          const key = normalizedTextSignature([heading])
+          return key ? [key] : []
+        })
+    ),
+  ]
 }
 
 function imagesForCollectionIds(input: {

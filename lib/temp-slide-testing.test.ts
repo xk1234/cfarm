@@ -259,6 +259,24 @@ describe("temp slide testing helpers", () => {
     expect(prompt).toContain("content-2__body-title")
   })
 
+  it("tells the model not to recycle recent body headings", () => {
+    const automation =
+      automationTemplateToTempSlideTestingAutomation(templateRecord)
+    const prompt = buildTempSlideUserPrompt({
+      automationName: automation.name,
+      hook: promptPreviewHook(automation),
+      tone: automation.tone,
+      style: automation.style,
+      promptInstructions: defaultTempSlideUserInstructions,
+      placeholders: getTempSlidePromptPlaceholders(automation),
+      avoidSimilarHeadings: ["quietly stacking cash", "reads it twice"],
+    })
+
+    expect(prompt).toContain("recently published body headings")
+    expect(prompt).toContain("- quietly stacking cash")
+    expect(prompt).toContain("- reads it twice")
+  })
+
   it("replaces conflicting stored word counts with the configured range", () => {
     const automation =
       automationTemplateToTempSlideTestingAutomation(templateRecord)

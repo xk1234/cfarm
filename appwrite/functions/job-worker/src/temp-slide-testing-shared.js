@@ -27,6 +27,7 @@ export function buildTempSlideUserPrompt(input) {
         "- Text boxes sharing the same slide id are one unit: later text boxes must explain or support the first text box on that slide, never introduce an unrelated point.",
         "- Across body slides, create a logical progression without repeating the same point.",
         ...avoidSimilarOutputLines(input.avoidSimilarOutputs),
+        ...avoidSimilarHeadingLines(input.avoidSimilarHeadings),
         ...strictOutputRuleLines(input.style),
         "Placeholders:",
         ...placeholderLines,
@@ -66,6 +67,15 @@ function avoidSimilarOutputLines(outputs) {
     }
     return [
         "Avoid making the title, caption, or body slide text substantially similar to these prior outputs:",
+        ...values.map((value) => `- ${value}`),
+    ];
+}
+function avoidSimilarHeadingLines(headings) {
+    const values = (headings ?? []).map(clean).filter(Boolean).slice(0, 20);
+    if (values.length === 0)
+        return [];
+    return [
+        "Do not reuse these recently published body headings or substantially repeat their angles:",
         ...values.map((value) => `- ${value}`),
     ];
 }
@@ -136,6 +146,7 @@ export function buildScheduledSlideshowPrompt(input) {
             promptInstructions,
             placeholders: input.placeholders,
             avoidSimilarOutputs: input.avoidSimilarOutputs,
+            avoidSimilarHeadings: input.avoidSimilarHeadings,
             performanceMemory: input.performanceMemory,
         }),
         schema: buildTempSlideStructuredOutputSchema(input.placeholders),

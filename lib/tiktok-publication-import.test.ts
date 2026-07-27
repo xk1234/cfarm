@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest"
 import type { AutomationRunRecord } from "./automation-runner"
 import {
   candidateForPost,
+  inferHistoricalHookTemplate,
   normalizeTikTokUrls,
+  recoveredTikTokSlideRole,
   tiktokPublishedAt,
 } from "./tiktok-publication-import"
 
@@ -66,6 +68,35 @@ describe("TikTok publication imports", () => {
         { ...run({}), status: "failed" }
       )
     ).toBeNull()
+  })
+
+  it("turns recovered literal hooks into reusable automation variables", () => {
+    expect(inferHistoricalHookTemplate("Leo VERSUS Pisces")).toBe(
+      "[[ZODIAC]] VERSUS [[ZODIAC]]"
+    )
+    expect(
+      inferHistoricalHookTemplate("3 things a Cancer will never tell you")
+    ).toBe("[[SLIDE_COUNT]] things a [[ZODIAC]] will never tell you")
+    expect(inferHistoricalHookTemplate("when virgo is hurting")).toBe(
+      "when [[ZODIAC]] is hurting"
+    )
+  })
+
+  it("keeps a recovered final slide as content unless it is a real CTA", () => {
+    expect(
+      recoveredTikTokSlideRole({
+        text: "They read it twice, then delete it",
+        index: 3,
+        count: 4,
+      })
+    ).toBe("content")
+    expect(
+      recoveredTikTokSlideRole({
+        text: "Follow for part 2",
+        index: 3,
+        count: 4,
+      })
+    ).toBe("cta")
   })
 })
 

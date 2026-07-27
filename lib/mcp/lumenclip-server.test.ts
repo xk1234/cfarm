@@ -10,6 +10,7 @@ import {
   buildAnalyticsReport,
   buildScheduleReport,
   createLumenClipMcpServer,
+  mergeAutomationSchemaPatch,
   type LumenClipMcpServices,
 } from "@/lib/mcp/lumenclip-server"
 import { LUMENCLIP_MCP_TOOL_NAMES } from "@/lib/mcp/tool-registry"
@@ -25,6 +26,28 @@ import type { WordCollectionRecord } from "@/lib/word-collections"
 
 const clients: Client[] = []
 const servers: ReturnType<typeof createLumenClipMcpServer>[] = []
+
+describe("automation schema patches", () => {
+  it("preserves omitted nested fields and replaces only supplied arrays", () => {
+    expect(
+      mergeAutomationSchemaPatch(
+        {
+          tone: "direct",
+          formatting: [{ id: "hook" }, { id: "body" }],
+          schedule: { timezone: "Asia/Singapore", paused: false },
+        },
+        {
+          formatting: [{ id: "body", slideCount: 7 }],
+          schedule: { paused: true },
+        }
+      )
+    ).toEqual({
+      tone: "direct",
+      formatting: [{ id: "body", slideCount: 7 }],
+      schedule: { timezone: "Asia/Singapore", paused: true },
+    })
+  })
+})
 
 afterEach(async () => {
   vi.unstubAllEnvs()
@@ -1321,6 +1344,8 @@ describe("LumenClip MCP server", () => {
     const current = automationRecord()
     const run = generatedRun(current.id)
     const client = await connectClient({
+      getJob: vi.fn(async () => null),
+      getAutomationRecord: vi.fn(async () => current),
       listAutomationRuns: vi.fn(async () => [run]),
       getUgcRunStatus: vi.fn(async (): Promise<UgcRunStatus> => ({
         id: run.id,
@@ -2002,6 +2027,75 @@ describe("MCP analytics report", () => {
       newFollowers: 29,
       studioReportTool: "lumenclip_tiktok_studio_analytics_report",
     })
+  })
+
+  it("counts every publication while separating posts awaiting metrics", () => {
+    const captured = metricSnapshot(
+      "snapshot-captured",
+      "2026-07-18T00:00:00.000Z",
+      250
+    )
+    const publications = [
+      {
+        id: captured.postId,
+        externalPostId: "7000000000000000001",
+        sourceType: "slideshow" as const,
+        sourceId: "slideshow-1",
+        integrationId: "integration-1",
+        provider: "tiktok",
+        linkState: "manually_linked" as const,
+        statsSources: ["tiktok_studio" as const],
+        status: "published" as const,
+        publishedAt: "2026-07-17T00:00:00.000Z",
+        content: "Cancer secrets",
+        media: [],
+        createdAt: "2026-07-17T00:00:00.000Z",
+        updatedAt: "2026-07-18T00:00:00.000Z",
+      },
+      ...[2, 3, 4].map((index) => ({
+        id: `publication-${index}`,
+        externalPostId: `700000000000000000${index}`,
+        sourceType: "slideshow" as const,
+        sourceId: `slideshow-${index}`,
+        integrationId: "integration-1",
+        provider: "tiktok",
+        linkState: "manually_linked" as const,
+        statsSources: [],
+        status: "published" as const,
+        publishedAt: `2026-07-${16 - index}T00:00:00.000Z`,
+        content: `Post ${index}`,
+        media: [],
+        createdAt: `2026-07-${16 - index}T00:00:00.000Z`,
+        updatedAt: `2026-07-${16 - index}T00:00:00.000Z`,
+      })),
+    ]
+
+    const report = buildAnalyticsReport({
+      snapshots: [captured],
+      followerSnapshots: [],
+      publications,
+      now: new Date("2026-07-18T12:00:00.000Z"),
+      days: 30,
+      postLimit: 10,
+    })
+
+    expect(report).toMatchObject({
+      postCount: 4,
+      withMetrics: 1,
+      awaitingCapture: 3,
+      accounts: [
+        {
+          postCount: 4,
+          withMetrics: 1,
+          awaitingCapture: 3,
+        },
+      ],
+    })
+    expect(report.posts).toHaveLength(4)
+    expect(report.posts.filter((post) => post.hasMetrics)).toHaveLength(1)
+    expect(
+      report.posts.filter((post) => post.metricsStatus === "awaiting_capture")
+    ).toHaveLength(3)
   })
 })
 

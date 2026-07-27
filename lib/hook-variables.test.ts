@@ -60,6 +60,11 @@ describe("hook variables", () => {
     const input = { now, timeZone: "Asia/Singapore" }
 
     expect(runtimeHookVariableValue("current_year", input)).toBe("2027")
+    expect(runtimeHookVariableValue("next_year", input)).toBe("2028")
+    expect(runtimeHookVariableValue("current_sign", input)).toBe("Capricorn")
+    expect(runtimeHookVariableValue("current_sign_cusp", input)).toBe(
+      "december capricorn vs january capricorn"
+    )
     expect(runtimeHookVariableValue("current_month", input)).toBe("January")
     expect(runtimeHookVariableValue("current_month_number", input)).toBe("01")
     expect(runtimeHookVariableValue("current_day", input)).toBe("1")
@@ -70,5 +75,20 @@ describe("hook variables", () => {
     expect(runtimeHookVariableValue("current_iso_date", input)).toBe(
       "2027-01-01"
     )
+  })
+
+  it("resolves zodiac season boundaries in the automation timezone", () => {
+    expect(
+      runtimeHookVariableValue("current_sign", {
+        now: new Date("2026-07-22T15:59:00.000Z"),
+        timeZone: "Asia/Singapore",
+      })
+    ).toBe("Cancer")
+    expect(
+      runtimeHookVariableValue("current_sign_cusp", {
+        now: new Date("2026-07-22T16:00:00.000Z"),
+        timeZone: "Asia/Singapore",
+      })
+    ).toBe("july leo vs august leo")
   })
 })

@@ -197,8 +197,11 @@ updatedAt? }` items. Disabled items remain stored but are not selected.
   enablement.
 - `tiktok_post_settings` retains the legacy name but contains general post
   caption/music/publish behavior used by supported social targets.
-- Runtime variables such as `CURRENT_YEAR` are evaluated at generation time;
-  `YEAR` is retired and filtered from word collections.
+- Runtime variables are evaluated in the automation timezone at generation
+  time. Date variables include `CURRENT_YEAR`, `NEXT_YEAR`, `CURRENT_MONTH`,
+  `CURRENT_DATE`, and `CURRENT_TIME`; astrology seasonality can use
+  `CURRENT_SIGN` and `CURRENT_SIGN_CUSP`. `SLIDE_COUNT` resolves to the selected
+  body-slide count. `YEAR` is retired and filtered from word collections.
 
 ### `AutomationTemplateRecord`
 
@@ -508,7 +511,9 @@ type WordCollectionRecord = {
 ```
 
 The ID is the runtime hook-variable tag. The retired `YEAR` record is ignored;
-use the built-in `CURRENT_YEAR` runtime variable.
+use the built-in `CURRENT_YEAR` runtime variable. Seasonal values do not need
+word collections: `CURRENT_SIGN`, `CURRENT_SIGN_CUSP`, and `NEXT_YEAR` are
+derived from the scheduled run date.
 
 ### `ProductCollection`
 

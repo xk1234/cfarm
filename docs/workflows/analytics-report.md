@@ -37,12 +37,17 @@ range, and no cohort support.**
   "generatedAt": "…",
   "since": "…",
   "days": 30,
+  "postCount": 9,
+  "withMetrics": 6,
+  "awaitingCapture": 3,
   "totals": { "views": 12040, "likes": 812, "interactions": 954 },
   "accounts": [
     {
       "integrationId": "pf_account_123",
       "provider": "tiktok",
       "postCount": 9,
+      "withMetrics": 6,
+      "awaitingCapture": 3,
       "metrics": { … },
       "newFollowers": 41,
       "followers": 1203,
@@ -53,6 +58,8 @@ range, and no cohort support.**
     {
       "postId": "…",
       "provider": "tiktok",
+      "hasMetrics": false,
+      "metricsStatus": "awaiting_capture",
       "capturedAt": "…",
       "publishedAt": "…",
       "metrics": { … },
@@ -63,21 +70,27 @@ range, and no cohort support.**
 }
 ```
 
-`analyticsSource` defaults to `"postfast"`. `studioReportTool` is only present when the
-snapshot came from the Chrome companion, and points at the richer per-slide report.
+All published publication records appear in `posts`, including manually linked,
+automatically posted, and historically imported TikToks. A publication without
+a snapshot has `hasMetrics: false`, `metricsStatus: "awaiting_capture"`, and an
+empty metrics object; it is not silently removed from `postCount`.
+
+`analyticsSource` is present once a snapshot exists. `studioReportTool` is only present when
+the snapshot came from the Chrome companion, and points at the richer per-slide report.
 
 ### 3. Intermediate steps
 
 Two producers write into the same store, discriminated by `source`:
 
-| Source | How it arrives |
-| --- | --- |
-| `postfast` | A user-triggered sync pulls `/social-posts/analytics` per integration |
-| `tiktok_studio` | The Chrome companion pushes captures |
+| Source          | How it arrives                                                        |
+| --------------- | --------------------------------------------------------------------- |
+| `postfast`      | A user-triggered sync pulls `/social-posts/analytics` per integration |
+| `tiktok_studio` | The Chrome companion pushes captures                                  |
 
-Publication ownership **overrides** the snapshot's own `integrationId`, `provider`,
+Publication records are the canonical post inventory. Publication ownership **overrides** the snapshot's own `integrationId`, `provider`,
 `publishedAt`, `content`, and `releaseUrl`. Rows are deduped on `integrationId:postId`,
-keeping only the latest `capturedAt`, so repeat syncs do not double-count.
+keeping only the latest `capturedAt`, so repeat syncs do not double-count. Duplicate
+publication paths for the same provider post ID collapse to one canonical post.
 
 ### 4. Result
 
@@ -89,32 +102,32 @@ are force-added even when they have no data, producing accounts with empty metri
 Only seven providers are seeded. Anything else reports whatever has actually been observed in
 stored snapshots.
 
-| Provider | Seeded metrics |
-| --- | --- |
-| `tiktok` | views, likes, comments, shares, saves, interactions |
-| `instagram` | views, impressions, reach, likes, comments, shares, saves, interactions |
-| `facebook` | views, impressions, reach, likes, comments, shares, clicks, interactions |
-| `youtube` | views, likes, comments, shares, interactions |
-| `linkedin` | impressions, reach, likes, comments, shares, clicks, interactions |
-| `pinterest` | impressions, views, saves, clicks, interactions |
-| `threads` | views, likes, comments, shares, interactions |
+| Provider    | Seeded metrics                                                           |
+| ----------- | ------------------------------------------------------------------------ |
+| `tiktok`    | views, likes, comments, shares, saves, interactions                      |
+| `instagram` | views, impressions, reach, likes, comments, shares, saves, interactions  |
+| `facebook`  | views, impressions, reach, likes, comments, shares, clicks, interactions |
+| `youtube`   | views, likes, comments, shares, interactions                             |
+| `linkedin`  | impressions, reach, likes, comments, shares, clicks, interactions        |
+| `pinterest` | impressions, views, saves, clicks, interactions                          |
+| `threads`   | views, likes, comments, shares, interactions                             |
 
 `x`, `twitter`, `bluesky`, `telegram`, `google`, `google-business-profile`, and both TikTok
 variants have **no seed at all**.
 
 ## UI workflow
 
-| Step | Action | What happens |
-| --- | --- | --- |
-| 1 | Open `/app/analytics` | H1 **Analytics**, subtitle *See audience, distribution, engagement, recent posts, and account health in one view.* |
-| 2 | Pick a range | **7 days**, **30 days**, **60 days**, **90 days** |
-| 3 | Press **Sync analytics** | Pulls from PostFast, 120-second timeout, then revalidates |
-| 4 | Click a post | Opens `/app/analytics/posts/{postId}` |
+| Step | Action                   | What happens                                                                                                       |
+| ---- | ------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| 1    | Open `/app/analytics`    | H1 **Analytics**, subtitle _See audience, distribution, engagement, recent posts, and account health in one view._ |
+| 2    | Pick a range             | **7 days**, **30 days**, **60 days**, **90 days**                                                                  |
+| 3    | Press **Sync analytics** | Pulls from PostFast, 120-second timeout, then revalidates                                                          |
+| 4    | Click a post             | Opens `/app/analytics/posts/{postId}`                                                                              |
 
-With no accounts the view reads **No connected social accounts** / *Connect accounts in
-Settings, then sync analytics to start building history.* With accounts but no data:
-**No stored analytics yet** / *Run Sync analytics now. Each sync appends a snapshot, so trends
-become more useful over time.*
+With no accounts the view reads **No connected social accounts** / _Connect accounts in
+Settings, then sync analytics to start building history._ With accounts but no data:
+**No stored analytics yet** / _Run Sync analytics now. Each sync appends a snapshot, so trends
+become more useful over time._
 
 ## Failures to check
 
@@ -140,13 +153,13 @@ become more useful over time.*
 8. **Per-integration sync errors are collected, not thrown, and not displayed.** The POST
    response carries them; the UI shows nothing.
 9. **PostFast being unreachable degrades rather than fails.** Integrations are synthesised from
-   stored snapshots and named `<Provider> account`. A banner reads *Showing stored analytics.
-   Connected accounts could not be refreshed from PostFast right now.*
+   stored snapshots and named `<Provider> account`. A banner reads _Showing stored analytics.
+   Connected accounts could not be refreshed from PostFast right now._
 10. **Follower history failures are swallowed** — it is not available for every provider or
     account type.
 11. **An automation with outputs but no linked publications returns a warning, not metrics**:
-    *Outputs exist for this automation, but no publication records are linked. Metrics cannot
-    be attributed until a publication is linked to its output.*
+    _Outputs exist for this automation, but no publication records are linked. Metrics cannot
+    be attributed until a publication is linked to its output._
 12. **The UI range select and the route clamp disagree.** The UI offers 7/30/60/90; the route
     accepts 1–365 and also accepts a comma-separated `integrationIds` query the UI never sends.
 

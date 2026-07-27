@@ -16,6 +16,7 @@ export function slideshowTextGenerationPayload(input) {
         promptInstructions: input.promptInstructions,
         placeholders,
         avoidSimilarOutputs: input.avoidSimilarOutputs,
+        avoidSimilarHeadings: input.avoidSimilarHeadings,
         performanceMemory: input.performanceMemory,
     });
     return {
