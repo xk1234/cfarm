@@ -17,7 +17,14 @@ const requestSchema = z.object({
   vary: z
     .array(
       z.object({
-        dimension: z.enum(["hook", "variable", "tone", "model", "collection"]),
+        dimension: z.enum([
+          "hook",
+          "variable",
+          "tone",
+          "model",
+          "collection",
+          "contentDirection",
+        ]),
         name: z.string().trim().min(1).max(200).optional(),
         values: z.array(z.string().trim().min(1).max(1_000)).min(1).max(200),
       })
