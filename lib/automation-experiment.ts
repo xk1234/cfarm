@@ -14,12 +14,17 @@ import {
 } from "@/lib/hook-variables"
 import {
   automationHookItems,
+  automationTonePresetOptions,
   schemaWithAutomationCollectionId,
   schemaWithAutomationHookItems,
   schemaWithAutomationContentDirection,
   schemaWithAutomationTone,
   type AutomationSchema,
 } from "@/lib/realfarm-automation"
+import {
+  defaultSlideshowTextModel,
+  featuredOpenRouterModelIds,
+} from "@/lib/realfarm-generation-model-registry"
 import {
   listWordCollections,
   type WordCollectionRecord,
@@ -28,17 +33,20 @@ import {
 export const AUTOMATION_EXPERIMENT_CELL_CAP = 200
 
 export type AutomationExperimentDimension =
-  | "hook"
-  | "variable"
-  | "tone"
-  | "model"
-  | "collection"
-  | "contentDirection"
+  "hook" | "variable" | "tone" | "model" | "collection" | "contentDirection"
 
 export type AutomationExperimentVariation = {
   dimension: AutomationExperimentDimension
   name?: string
   values: string[]
+}
+
+export type AutomationExperimentAvailableDimension = {
+  dimension: "contentDirection" | "tone" | "model"
+  name?: string
+  label: string
+  currentValue: string
+  sampleValues: string[]
 }
 
 export type AutomationExperimentInput = {
@@ -81,6 +89,36 @@ export async function getAutomationExperimentDimensions(automationId: string) {
 
   return {
     automationId,
+    automationDimensions: [
+      ...automation.schema.formatting.map(
+        (block): AutomationExperimentAvailableDimension => ({
+          dimension: "contentDirection",
+          name: block.id,
+          label: `${formattingBlockLabel(block.id)} content direction`,
+          currentValue:
+            block.textItems.find((item) => item.contentDirection.trim())
+              ?.contentDirection ?? "",
+          sampleValues: [],
+        })
+      ),
+      {
+        dimension: "tone",
+        label: "Tone",
+        currentValue: automation.schema.tone.value,
+        sampleValues: [...automationTonePresetOptions],
+      },
+      {
+        dimension: "model",
+        label: "Model",
+        currentValue: defaultSlideshowTextModel,
+        sampleValues: [
+          ...new Set([
+            defaultSlideshowTextModel,
+            ...featuredOpenRouterModelIds,
+          ]),
+        ],
+      },
+    ],
     variables: bindings.bindings
       .filter((binding) => binding.source !== "runtime")
       .map((binding) => ({
@@ -107,6 +145,11 @@ export async function getAutomationExperimentDimensions(automationId: string) {
       (hook) => hook.enabled
     ).length,
   }
+}
+
+function formattingBlockLabel(blockId: string) {
+  if (blockId === "cta") return "CTA"
+  return `${blockId.charAt(0).toUpperCase()}${blockId.slice(1)}`
 }
 
 export async function runAutomationExperiment(

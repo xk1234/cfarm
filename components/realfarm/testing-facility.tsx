@@ -24,10 +24,31 @@ type FixedDimension = {
   reason: string
 }
 
+type AutomationLevelDimension = {
+  dimension: "contentDirection" | "tone" | "model"
+  name?: string
+  label: string
+  currentValue: string
+  sampleValues: string[]
+}
+
 type DimensionsResponse = {
+  automationDimensions: AutomationLevelDimension[]
   variables: VariableDimension[]
   fixed: FixedDimension[]
   enabledHookCount: number
+}
+
+type ExperimentDimensionChoice = {
+  key: string
+  dimension: "contentDirection" | "tone" | "model" | "variable"
+  name?: string
+  label: string
+  detail?: string
+  currentValue?: string
+  sampleValues: string[]
+  sweepable: boolean
+  reason?: string
 }
 
 type ExperimentCell = {
@@ -58,7 +79,7 @@ export function TestingFacility() {
   const [automations, setAutomations] = useState<AutomationRecord[]>([])
   const [automationId, setAutomationId] = useState("")
   const [dimensions, setDimensions] = useState<DimensionsResponse | null>(null)
-  const [selectedVariables, setSelectedVariables] = useState<string[]>([])
+  const [selectedDimensions, setSelectedDimensions] = useState<string[]>([])
   const [variationValues, setVariationValues] = useState<
     Record<string, string>
   >({})
@@ -113,6 +134,7 @@ export function TestingFacility() {
   }, [automationId])
 
   const grid = useMemo(() => experimentGrid(result?.cells ?? []), [result])
+  const choices = useMemo(() => dimensionChoices(dimensions), [dimensions])
 
   async function runExperiment() {
     if (!automationId) return
@@ -120,13 +142,18 @@ export function TestingFacility() {
     setError("")
     setResult(null)
     try {
-      const vary = selectedVariables.map((name) => ({
-        dimension: "variable" as const,
-        name,
-        values: parseValues(variationValues[name]),
-      }))
+      const vary = selectedDimensions.map((key) => {
+        const choice = choices.find((candidate) => candidate.key === key)
+        if (!choice)
+          throw new Error("A chosen dimension is no longer available")
+        return {
+          dimension: choice.dimension,
+          name: choice.name,
+          values: parseValues(variationValues[key]),
+        }
+      })
       if (vary.some((variation) => variation.values.length === 0)) {
-        throw new Error("Add at least one variation for every chosen variable")
+        throw new Error("Add at least one variation for every chosen dimension")
       }
       const response = await fetch(
         `/api/automations/${encodeURIComponent(automationId)}/experiment`,
@@ -168,7 +195,7 @@ export function TestingFacility() {
               onChange={(event) => {
                 setError("")
                 setDimensions(null)
-                setSelectedVariables([])
+                setSelectedDimensions([])
                 setVariationValues({})
                 setResult(null)
                 setAutomationId(event.target.value)
@@ -192,45 +219,62 @@ export function TestingFacility() {
                 </p>
               ) : !dimensions ? (
                 <div className="h-6 animate-pulse rounded-control bg-app-control-hover" />
-              ) : dimensions.variables.length === 0 ? (
-                <p className="px-1 py-1 text-xs text-app-muted-text">
-                  This automation has no hook variables.
-                </p>
               ) : (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {dimensions.variables.map((variable) => (
-                    <label
-                      key={variable.variableName}
-                      title={variable.reason}
-                      className="flex min-h-10 items-start gap-2 rounded-control px-2 py-2 text-xs text-app-text hover:bg-app-control-hover"
-                    >
-                      <input
-                        type="checkbox"
-                        className="mt-0.5 accent-app-action"
-                        disabled={!variable.sweepable}
-                        checked={selectedVariables.includes(
-                          variable.variableName
-                        )}
-                        onChange={(event) =>
-                          setSelectedVariables((current) =>
-                            event.target.checked
-                              ? [...current, variable.variableName]
-                              : current.filter(
-                                  (name) => name !== variable.variableName
+                <div className="space-y-3">
+                  <div>
+                    <h3 className="px-2 pb-1 text-xs font-semibold text-app-text">
+                      Automation-level inputs
+                    </h3>
+                    <div className="grid gap-1 sm:grid-cols-2">
+                      {choices
+                        .filter((choice) => choice.dimension !== "variable")
+                        .map((choice) => (
+                          <DimensionOption
+                            key={choice.key}
+                            choice={choice}
+                            selected={selectedDimensions.includes(choice.key)}
+                            onChange={(checked) =>
+                              setSelectedDimensions((current) =>
+                                checked
+                                  ? [...current, choice.key]
+                                  : current.filter((key) => key !== choice.key)
+                              )
+                            }
+                          />
+                        ))}
+                    </div>
+                  </div>
+                  <div className="border-t border-app-panel-border pt-3">
+                    <h3 className="px-2 pb-1 text-xs font-semibold text-app-muted-text">
+                      Hook variables
+                    </h3>
+                    {dimensions.variables.length === 0 ? (
+                      <p className="px-2 py-1 text-xs text-app-muted-text">
+                        This automation has no hook variables.
+                      </p>
+                    ) : (
+                      <div className="grid gap-1 sm:grid-cols-2">
+                        {choices
+                          .filter((choice) => choice.dimension === "variable")
+                          .map((choice) => (
+                            <DimensionOption
+                              key={choice.key}
+                              choice={choice}
+                              selected={selectedDimensions.includes(choice.key)}
+                              onChange={(checked) =>
+                                setSelectedDimensions((current) =>
+                                  checked
+                                    ? [...current, choice.key]
+                                    : current.filter(
+                                        (key) => key !== choice.key
+                                      )
                                 )
-                          )
-                        }
-                      />
-                      <span>
-                        <span className="font-mono">{variable.token}</span>
-                        <span className="block text-app-muted-text">
-                          {variable.sweepable
-                            ? variable.collectionName
-                            : variable.reason}
-                        </span>
-                      </span>
-                    </label>
-                  ))}
+                              }
+                            />
+                          ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -238,35 +282,62 @@ export function TestingFacility() {
 
           <Field label="Choose variations">
             <div className="space-y-3">
-              {selectedVariables.length === 0 ? (
+              {selectedDimensions.length === 0 ? (
                 <p className="rounded-control border border-dashed border-app-panel-border p-3 text-xs text-app-muted-text">
-                  Select a variable to enter comma-separated values.
+                  Select an input, then enter one variation per line or separate
+                  them with commas.
                 </p>
               ) : (
-                selectedVariables.map((name) => {
-                  const variable = dimensions?.variables.find(
-                    (item) => item.variableName === name
+                selectedDimensions.map((key) => {
+                  const choice = choices.find(
+                    (candidate) => candidate.key === key
                   )
+                  if (!choice) return null
+                  const placeholder =
+                    choice.dimension === "contentDirection"
+                      ? "One variation per line or comma-separated"
+                      : choice.sampleValues.join(", ")
                   return (
-                    <div key={name} className="space-y-1.5">
+                    <div key={key} className="space-y-1.5">
                       <label
-                        htmlFor={`variations-${name}`}
+                        htmlFor={`variations-${key}`}
                         className="text-xs font-medium text-app-text"
                       >
-                        {variable?.token}
+                        {choice.label}
                       </label>
-                      <input
-                        id={`variations-${name}`}
-                        value={variationValues[name] ?? ""}
-                        onChange={(event) =>
-                          setVariationValues((current) => ({
-                            ...current,
-                            [name]: event.target.value,
-                          }))
-                        }
-                        placeholder={variable?.sampleValues.join(", ")}
-                        className="lc-focus-ring h-10 w-full rounded-control border border-app-panel-border bg-app-control-bg px-3 text-sm text-app-text placeholder:text-app-text-faint"
-                      />
+                      {choice.dimension === "contentDirection" ? (
+                        <textarea
+                          id={`variations-${key}`}
+                          rows={3}
+                          value={variationValues[key] ?? ""}
+                          onChange={(event) =>
+                            setVariationValues((current) => ({
+                              ...current,
+                              [key]: event.target.value,
+                            }))
+                          }
+                          placeholder={placeholder}
+                          className="lc-focus-ring min-h-20 w-full resize-y rounded-control border border-app-panel-border bg-app-control-bg px-3 py-2 text-sm text-app-text placeholder:text-app-text-faint"
+                        />
+                      ) : (
+                        <input
+                          id={`variations-${key}`}
+                          value={variationValues[key] ?? ""}
+                          onChange={(event) =>
+                            setVariationValues((current) => ({
+                              ...current,
+                              [key]: event.target.value,
+                            }))
+                          }
+                          placeholder={placeholder}
+                          className="lc-focus-ring h-10 w-full rounded-control border border-app-panel-border bg-app-control-bg px-3 text-sm text-app-text placeholder:text-app-text-faint"
+                        />
+                      )}
+                      {choice.currentValue ? (
+                        <p className="text-xs text-app-muted-text">
+                          Current: {choice.currentValue}
+                        </p>
+                      ) : null}
                     </div>
                   )
                 })
@@ -372,6 +443,46 @@ function Field({
       <h2 className="text-role-label text-app-text">{label}</h2>
       {children}
     </div>
+  )
+}
+
+function DimensionOption({
+  choice,
+  selected,
+  onChange,
+}: {
+  choice: ExperimentDimensionChoice
+  selected: boolean
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <label
+      title={choice.reason ?? choice.currentValue}
+      className="flex min-h-10 items-start gap-2 rounded-control px-2 py-2 text-xs text-app-text hover:bg-app-control-hover"
+    >
+      <input
+        type="checkbox"
+        className="mt-0.5 accent-app-action"
+        disabled={!choice.sweepable}
+        checked={selected}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span className="min-w-0">
+        <span
+          className={
+            choice.dimension === "variable" ? "font-mono" : "font-medium"
+          }
+        >
+          {choice.label}
+        </span>
+        <span className="block text-app-muted-text">
+          {choice.detail ??
+            (choice.currentValue
+              ? `Current: ${choice.currentValue}`
+              : "No current value")}
+        </span>
+      </span>
+    </label>
   )
 }
 
@@ -510,6 +621,29 @@ function parseValues(value = "") {
   return [...new Set(value.split(/[\n,]/).map((item) => item.trim()))].filter(
     Boolean
   )
+}
+
+function dimensionChoices(
+  dimensions: DimensionsResponse | null
+): ExperimentDimensionChoice[] {
+  if (!dimensions) return []
+  return [
+    ...dimensions.automationDimensions.map((dimension) => ({
+      ...dimension,
+      key: `${dimension.dimension}:${dimension.name ?? ""}`,
+      sweepable: true,
+    })),
+    ...dimensions.variables.map((variable) => ({
+      key: `variable:${variable.variableName}`,
+      dimension: "variable" as const,
+      name: variable.variableName,
+      label: variable.token,
+      detail: variable.sweepable ? variable.collectionName : variable.reason,
+      sampleValues: variable.sampleValues,
+      sweepable: variable.sweepable,
+      reason: variable.reason,
+    })),
+  ]
 }
 
 function experimentGrid(cells: ExperimentCell[]) {

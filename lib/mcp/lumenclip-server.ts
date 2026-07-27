@@ -1421,7 +1421,7 @@ function registerAutomationReadAndRunTools(
     {
       title: "Inspect automation experiment dimensions",
       description:
-        "Returns sweepable variables with their bound collections and sample values, fixed runtime variables, and the enabled hook count. Call this before running an automation experiment.",
+        "Returns automation-level content-direction, tone, and model dimensions with their current values; sweepable hook variables with their bound collections and sample values; fixed runtime variables; and the enabled hook count. Call this before running an automation experiment.",
       inputSchema: {
         automationId: z
           .string()
@@ -1448,8 +1448,17 @@ function registerAutomationReadAndRunTools(
 
   const experimentVariationSchema = z.object({
     dimension: z
-      .enum(["hook", "variable", "tone", "model", "collection"])
-      .describe('Input axis to sweep, e.g. "variable" for a bound hook token.'),
+      .enum([
+        "hook",
+        "variable",
+        "tone",
+        "model",
+        "collection",
+        "contentDirection",
+      ])
+      .describe(
+        'Input axis to sweep, e.g. "contentDirection" for one formatting block.'
+      ),
     name: z
       .string()
       .trim()
@@ -1457,7 +1466,7 @@ function registerAutomationReadAndRunTools(
       .max(200)
       .optional()
       .describe(
-        'Variable token name when dimension is "variable", e.g. "zodiac"; omit for other dimensions.'
+        'Variable token name for "variable", e.g. "zodiac", or formatting block ID for "contentDirection", e.g. "body"; omit for other dimensions.'
       ),
     values: z
       .array(z.string().trim().min(1).max(1_000))

@@ -88,6 +88,27 @@ describe("LumenClip MCP server", () => {
   it("inspects and runs read-only automation experiments through injected services", async () => {
     const dimensions = {
       automationId: "automation-1",
+      automationDimensions: [
+        {
+          dimension: "contentDirection",
+          name: "body",
+          label: "Body content direction",
+          currentValue: "One practical recommendation",
+          sampleValues: [],
+        },
+        {
+          dimension: "tone",
+          label: "Tone",
+          currentValue: "Educational & Informative",
+          sampleValues: ["Bold & Provocative"],
+        },
+        {
+          dimension: "model",
+          label: "Model",
+          currentValue: "anthropic/claude-sonnet-5",
+          sampleValues: ["anthropic/claude-sonnet-5"],
+        },
+      ],
       variables: [],
       fixed: [],
       enabledHookCount: 2,
@@ -117,9 +138,9 @@ describe("LumenClip MCP server", () => {
         automationId: "automation-1",
         vary: [
           {
-            dimension: "variable",
-            name: "zodiac",
-            values: ["Aries", "Taurus"],
+            dimension: "contentDirection",
+            name: "body",
+            values: ["One concrete tip", "One surprising stat"],
           },
         ],
         allHooks: true,
@@ -134,9 +155,9 @@ describe("LumenClip MCP server", () => {
       automationId: "automation-1",
       vary: [
         {
-          dimension: "variable",
-          name: "zodiac",
-          values: ["Aries", "Taurus"],
+          dimension: "contentDirection",
+          name: "body",
+          values: ["One concrete tip", "One surprising stat"],
         },
       ],
       allHooks: true,
