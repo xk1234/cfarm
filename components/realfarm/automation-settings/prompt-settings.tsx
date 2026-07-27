@@ -459,24 +459,22 @@ export function PromptConfigPanel({
                 }
               />
             ) : null}
-            <PromptTextarea
-              title={
-                isVideoAutomation
-                  ? "Video writing style"
-                  : "Slideshow writing style"
-              }
-              value={config.prompt_formatting.style}
-              large
-              onChange={(value) =>
-                onConfigChange({
-                  ...config,
-                  prompt_formatting: {
-                    ...config.prompt_formatting,
-                    style: value,
-                  },
-                })
-              }
-            />
+            {isVideoAutomation ? (
+              <PromptTextarea
+                title="Video writing style"
+                value={config.prompt_formatting.style}
+                large
+                onChange={(value) =>
+                  onConfigChange({
+                    ...config,
+                    prompt_formatting: {
+                      ...config.prompt_formatting,
+                      style: value,
+                    },
+                  })
+                }
+              />
+            ) : null}
           </>
         ) : null}
 

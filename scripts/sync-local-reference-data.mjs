@@ -3,9 +3,9 @@
  * cloud project into local Appwrite. Full local setup runs this automatically;
  * `pnpm dev` uses setup's lightweight --ensure path and does not re-copy data.
  *
- * The cloud project still uses separate source collection tables while the
- * local app reads the consolidated `permanent_assets` table. Owners are mapped
- * by account email so local rows remain visible to the matching local account.
+ * Both environments use the consolidated `permanent_assets` table. Owners are
+ * mapped by account email so local rows remain visible to the matching local
+ * account.
  */
 import crypto from "node:crypto"
 import { readFileSync } from "node:fs"
@@ -26,30 +26,30 @@ const sourceFilter = argumentValue("--source")
 const ridFilter = argumentValue("--rid").toLowerCase()
 const collectionSources = [
   {
-    tableId: "image_collections",
+    tableId: "permanent_assets",
     sourceKey: "image_collection",
     fallbackPrefix: "image-collection",
   },
   {
-    tableId: "word_collections",
+    tableId: "permanent_assets",
     sourceKey: "word_collection",
     fallbackPrefix: "word-collection",
   },
   {
-    tableId: "product_collections",
+    tableId: "permanent_assets",
     sourceKey: "product_collection",
     fallbackPrefix: "product-collection",
   },
 ]
 const assetSources = [
   {
-    tableId: "media_library",
+    tableId: "permanent_assets",
     sourceKey: "media_library_asset",
     fallbackPrefix: "media-library-asset",
     public: true,
   },
   {
-    tableId: "assets",
+    tableId: "permanent_assets",
     sourceKey: "uploaded_asset",
     fallbackPrefix: "uploaded-asset",
     public: false,
@@ -90,17 +90,19 @@ if (
 const cloud = services(cloudEnv)
 const local = services(localEnv)
 
-const [cloudUsers, localUsers, sourceRowsByTable] = await Promise.all([
+const [cloudUsers, localUsers, sourceRowsBySource] = await Promise.all([
   listAllUsers(cloud.users),
   listAllUsers(local.users),
   Promise.all(
     selectedSources.map(async (source) => [
-      source.tableId,
-      await listAllRows(cloud.tables, sourceDatabaseId, source.tableId),
+      source.sourceKey,
+      await listAllRows(cloud.tables, sourceDatabaseId, source.tableId, [
+        Query.equal("source_key", [source.sourceKey]),
+      ]),
     ])
   ),
 ])
-const sourceRows = new Map(sourceRowsByTable)
+const sourceRows = new Map(sourceRowsBySource)
 const localUsersByEmail = new Map(
   localUsers.map((user) => [user.email.trim().toLowerCase(), user])
 )
@@ -108,7 +110,7 @@ const cloudUsersById = new Map(cloudUsers.map((user) => [user.$id, user]))
 const ownerMap = new Map()
 
 for (const source of selectedSources.filter((item) => !item.public)) {
-  const rows = sourceRows.get(source.tableId) || []
+  const rows = sourceRows.get(source.sourceKey) || []
   for (const row of rows) {
     const record = parseCollectionRecord(row)
     const cloudOwnerId = clean(row.owner_id || record.ownerId)
@@ -127,7 +129,7 @@ for (const source of selectedSources.filter((item) => !item.public)) {
 
 const collections = []
 for (const source of selectedCollectionSources) {
-  const rows = sourceRows.get(source.tableId) || []
+  const rows = sourceRows.get(source.sourceKey) || []
   const selectedRows = rows
     .map((row, index) => ({ row, index }))
     .filter(({ row }) => matchesRidFilter(row))
@@ -188,7 +190,7 @@ for (const source of selectedCollectionSources) {
 
 const assets = []
 for (const source of selectedAssetSources) {
-  const rows = sourceRows.get(source.tableId) || []
+  const rows = sourceRows.get(source.sourceKey) || []
   const selectedRows = rows
     .map((row, index) => ({ row, index }))
     .filter(({ row }) => matchesRidFilter(row))
@@ -356,11 +358,11 @@ function requireEnvironment(env, fileName) {
   }
 }
 
-async function listAllRows(tables, databaseId, tableId) {
+async function listAllRows(tables, databaseId, tableId, baseQueries = []) {
   const rows = []
   let cursor = ""
   for (;;) {
-    const queries = [Query.limit(100)]
+    const queries = [...baseQueries, Query.limit(100)]
     if (cursor) queries.push(Query.cursorAfter(cursor))
     const page = await tables.listRows({
       databaseId,

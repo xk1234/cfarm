@@ -977,6 +977,8 @@ describe("LumenClip MCP server", () => {
   })
 
   it("inspects rendered slideshow content and returns deterministic QA", async () => {
+    vi.stubEnv("BASE_URL", "https://studio.example.com")
+    vi.stubEnv("SLIDESHOW_SHARE_SECRET", "test-secret")
     const automation = automationRecord()
     const run = generatedRun(automation.id)
     run.plan.hook = "7 things Cancer hides"
@@ -1002,6 +1004,12 @@ describe("LumenClip MCP server", () => {
       resolvedHookText: run.plan.hook,
       hookId: "hook-7",
       tokenValues: { ZODIAC: "Cancer" },
+      previewUrl: expect.stringMatching(
+        /^https:\/\/studio\.example\.com\/share\/slideshows\//
+      ),
+      downloadUrl: expect.stringMatching(
+        /^https:\/\/studio\.example\.com\/api\/public\/slideshows\/.+\/download\?token=/
+      ),
       actualSlideCount: 1,
       slides: [
         expect.objectContaining({
@@ -1014,6 +1022,7 @@ describe("LumenClip MCP server", () => {
         actualSlideCount: 1,
       },
     })
+    expect(inspected.structuredContent).not.toHaveProperty("shareUrl")
 
     const validated = await client.callTool({
       name: "lumenclip_output_validate",
@@ -1025,7 +1034,7 @@ describe("LumenClip MCP server", () => {
     })
   })
 
-  it("absolutises per-slide and share URLs in slideshow_generate against BASE_URL", async () => {
+  it("absolutises per-slide and delivery URLs in slideshow_generate against BASE_URL", async () => {
     vi.stubEnv("BASE_URL", "https://studio.example.com/")
     vi.stubEnv("SLIDESHOW_SHARE_SECRET", "test-secret")
     const current = automationRecord()
@@ -1060,11 +1069,15 @@ describe("LumenClip MCP server", () => {
           "https://studio.example.com/api/local-assets/slideshows/sources/img-1.png",
       },
     ])
-    const shareUrl = summary.shareUrl as string
-    expect(shareUrl).toMatch(
+    const previewUrl = summary.previewUrl as string
+    expect(summary.downloadUrl).toMatch(
+      /^https:\/\/studio\.example\.com\/api\/public\/slideshows\/slideshow-1\/download\?token=/
+    )
+    expect(previewUrl).toMatch(
       /^https:\/\/studio\.example\.com\/share\/slideshows\/slideshow-1\?token=/
     )
-    const token = new URL(shareUrl).searchParams.get("token") ?? ""
+    expect(summary).not.toHaveProperty("shareUrl")
+    const token = new URL(previewUrl).searchParams.get("token") ?? ""
     expect(verifySlideshowShareToken(token, "slideshow-1")).toMatchObject({
       ownerId: "owner-1",
       outputId: "slideshow-1",
@@ -1102,18 +1115,22 @@ describe("LumenClip MCP server", () => {
         sourceImageUrl: "/api/local-assets/slideshows/sources/img-1.png",
       },
     ])
-    const shareUrl = summary.shareUrl as string
-    expect(shareUrl.startsWith("/share/slideshows/slideshow-1?token=")).toBe(
+    const previewUrl = summary.previewUrl as string
+    expect(summary.downloadUrl).toMatch(
+      /^\/api\/public\/slideshows\/slideshow-1\/download\?token=/
+    )
+    expect(previewUrl.startsWith("/share/slideshows/slideshow-1?token=")).toBe(
       true
     )
-    const token = shareUrl.split("token=")[1] ?? ""
+    expect(summary).not.toHaveProperty("shareUrl")
+    const token = previewUrl.split("token=")[1] ?? ""
     expect(verifySlideshowShareToken(token, "slideshow-1")).toMatchObject({
       ownerId: "owner-1",
       outputId: "slideshow-1",
     })
   })
 
-  it("omits the share URL when sharing is not configured", async () => {
+  it("omits delivery URLs when sharing is not configured", async () => {
     vi.stubEnv("SLIDESHOW_SHARE_SECRET", "")
     vi.stubEnv("APPWRITE_API_KEY", "")
     const current = automationRecord()
@@ -1135,7 +1152,9 @@ describe("LumenClip MCP server", () => {
     const summary = (
       result.structuredContent as { runs: Array<Record<string, unknown>> }
     ).runs[0]
-    expect(summary.shareUrl).toBeUndefined()
+    expect(summary.previewUrl).toBeUndefined()
+    expect(summary.downloadUrl).toBeUndefined()
+    expect(summary).not.toHaveProperty("shareUrl")
   })
 
   it("normalizes automation collection names to stable IDs and reports unresolved references", async () => {

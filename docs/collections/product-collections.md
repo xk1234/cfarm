@@ -83,21 +83,13 @@ five collections, ten products per collection, SGD/Amazon.sg data captured on
 13 July 2026. Treat those as importer constraints, not a general product-domain
 guarantee.
 
-## Persistence mismatch
+## Persistence
 
-Application reads use the logical product store, mapped to owner-scoped
-`permanent_assets` rows with `source_key=product_collection`. The current import
-script writes the dedicated `product_collections` table. This drift can make a
-successful import invisible to `GET /api/product-collections` in a schema that
-uses only the consolidated route.
-
-Before running or modifying the importer:
-
-1. inspect the environment's active table schema;
-2. choose the consolidated store as the source of truth;
-3. migrate any dedicated-table rows rather than maintaining two writable
-   copies;
-4. verify the Products tab as the end-to-end read check.
+Application reads and `scripts/import-product-collections.mjs` both use
+owner-scoped `permanent_assets` rows with
+`source_key=product_collection`. Product image bytes remain in the
+`product_images` Storage bucket. Verify the Products tab after an import as the
+end-to-end read check.
 
 ## Automation use
 

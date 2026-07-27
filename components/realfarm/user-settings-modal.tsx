@@ -89,11 +89,9 @@ const tabs = [
 ] as const
 
 export function UserSettingsModal({
-  email,
   onClose,
   onSocialAccountDisconnected,
 }: {
-  email: string
   onClose: () => void
   onSocialAccountDisconnected?: (integrationId: string) => void
 }) {
@@ -119,7 +117,6 @@ export function UserSettingsModal({
         <AppModalPanel className="max-h-[calc(100vh-2rem)] max-w-[980px] overflow-hidden p-0">
           <AppModalHeader
             title="Workspace settings"
-            description={email}
             closeLabel="Close settings"
             onClose={requestClose}
           />
@@ -283,10 +280,7 @@ function RemindersPanel({
 
   return (
     <div>
-      <PanelHeading
-        title="Notifications"
-        description="Choose where LumenClip should notify you as content moves through generation and publishing."
-      />
+      <PanelHeading title="Notifications" />
       {loadError && !settings ? (
         <div className="rounded-[8px] border border-red-200 bg-red-50 p-4">
           <p className="text-sm font-medium text-destructive">
@@ -395,8 +389,9 @@ function RemindersPanel({
                   />
                 </label>
                 <p className="mt-2 leading-5 text-app-text-faint">
-                  Create a bot with BotFather and paste its token to override the
-                  workspace bot. Saved tokens are never returned to the browser.
+                  Create a bot with BotFather and paste its token to override
+                  the workspace bot. Saved tokens are never returned to the
+                  browser.
                 </p>
               </details>
               {!data?.telegram.botConfigured ? (
@@ -560,19 +555,10 @@ function RemindersPanel({
   )
 }
 
-function PanelHeading({
-  title,
-  description,
-}: {
-  title: string
-  description: string
-}) {
+function PanelHeading({ title }: { title: string }) {
   return (
     <div className="mb-7">
       <h2 className="text-2xl font-semibold tracking-[-0.035em]">{title}</h2>
-      <p className="mt-1 text-sm leading-6 text-app-muted-text">
-        {description}
-      </p>
     </div>
   )
 }
@@ -580,10 +566,7 @@ function PanelHeading({
 function BillingPanel() {
   return (
     <div>
-      <PanelHeading
-        title="Billing & plans"
-        description="Manage your LumenClip subscription and usage."
-      />
+      <PanelHeading title="Billing & plans" />
       <div className="rounded-[14px] border border-[#e4d7ff] bg-[#f6f2ff] p-5">
         <div className="flex items-center justify-between">
           <div>
@@ -686,10 +669,7 @@ function AccountsPanel({
   }
   return (
     <div>
-      <PanelHeading
-        title="Connected accounts"
-        description="Connect social profiles once, then choose them in any automation. Disconnecting here removes an account from every LumenClip automation."
-      />
+      <PanelHeading title="Connected accounts" />
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <button
           onClick={connect}
@@ -872,10 +852,7 @@ function TeamPanel() {
   }
   return (
     <div>
-      <PanelHeading
-        title="Team members"
-        description="Collaborators can view your generations. Your automations stay private and editable only by you."
-      />
+      <PanelHeading title="Team members" />
       <button
         onClick={() => setOpen(true)}
         className="mb-6 inline-flex h-10 items-center gap-2 rounded-[10px] bg-app-action px-4 text-sm font-semibold text-white"
@@ -929,7 +906,6 @@ function TeamPanel() {
           <AppModalPanel className="max-w-[470px] p-0">
             <AppModalHeader
               title="Invite collaborator"
-              description="They’ll receive an email invitation to LumenClip."
               closeLabel="Close invite"
               onClose={() => setOpen(false)}
             />
@@ -1009,10 +985,7 @@ function DemosPanel() {
   }
   return (
     <div>
-      <PanelHeading
-        title="Demos"
-        description="Upload product walkthroughs and example videos for your workspace."
-      />
+      <PanelHeading title="Demos" />
       <UploadDropzone
         inputRef={input}
         accept="video/*"

@@ -15,7 +15,6 @@ export type OutputMediaDraft = {
   role: string
   position: number
   url: string
-  data?: Record<string, unknown>
 }
 
 export function canonicalRowFields(
@@ -24,14 +23,23 @@ export function canonicalRowFields(
   storedData: unknown
 ): Record<string, unknown> {
   const obj = asRecord(record)
-  const common = {
+  const common: Record<string, unknown> = {
     ...(route.table === "outputs" || route.table === "permanent_assets"
       ? { source_key: route.sourceKey }
       : {}),
-    name: pickField(record, NAME_KEYS)?.slice(0, 2048) ?? null,
-    status: pickField(record, STATUS_KEYS)?.slice(0, 255) ?? null,
-    created_raw: pickField(record, CREATED_KEYS)?.slice(0, 64) ?? null,
     data: JSON.stringify(storedData),
+  }
+  if (
+    route.table !== "usage_ledger" &&
+    route.table !== "postfast_metric_snapshots" &&
+    route.table !== "account_follower_snapshots"
+  ) {
+    common.name = pickField(record, NAME_KEYS)?.slice(0, 2048) ?? null
+    common.status = pickField(record, STATUS_KEYS)?.slice(0, 255) ?? null
+  }
+  if (route.table !== "automations") {
+    common.created_raw =
+      pickField(record, CREATED_KEYS)?.slice(0, 64) ?? null
   }
 
   if (route.table === "outputs") {
@@ -78,26 +86,17 @@ export function canonicalRowFields(
       visibility: route.public ? "public" : "private",
       asset_type: route.sourceKey,
       kind: permanentAssetKind(route.sourceKey, obj),
-      parent_id:
-        stringValue(obj.parentId ?? obj.collectionId).slice(0, 255) || null,
       description:
         stringValue(obj.description ?? obj.caption).slice(0, 100000) || null,
       text: permanentAssetText(obj).slice(0, 100000) || null,
-      tags: JSON.stringify(arrayValue(obj.tags)),
       storage_bucket: storage?.bucket ?? null,
       storage_file_id: storage?.fileId ?? null,
       storage_path: storage?.path ?? null,
       url: fileUrl.slice(0, 10000) || null,
       mime_type:
         stringValue(obj.mimeType ?? obj.mime_type).slice(0, 255) || null,
-      bytes: finiteNumber(obj.bytes ?? obj.size) ?? null,
-      width: finiteNumber(obj.width) ?? null,
-      height: finiteNumber(obj.height) ?? null,
-      duration_ms: finiteNumber(obj.durationMs ?? obj.duration_ms) ?? null,
-      checksum: stringValue(obj.hash ?? obj.checksum).slice(0, 255) || null,
       source_url:
         stringValue(obj.sourceUrl ?? obj.source_url).slice(0, 10000) || null,
-      position: finiteNumber(obj.position ?? obj.ord) ?? null,
       updated_at:
         stringValue(obj.updatedAt ?? obj.updated_at ?? obj.createdAt) || null,
       migration_source: null,
@@ -129,13 +128,12 @@ export function extractOutputMedia(
     rawUrl: unknown,
     kind: OutputMediaDraft["kind"],
     role: string,
-    position = 0,
-    data?: Record<string, unknown>
+    position = 0
   ) => {
     const url = stringValue(rawUrl)
     if (!url || seen.has(`${role}:${position}:${url}`)) return
     seen.add(`${role}:${position}:${url}`)
-    media.push({ kind, role, position, url, data })
+    media.push({ kind, role, position, url })
   }
 
   if (sourceKey === "result") {
@@ -249,7 +247,6 @@ export function outputMediaRowFields(
   return {
     output_id: outputRowId,
     owner_id: ownerId,
-    permanent_asset_id: null,
     kind: media.kind,
     role: media.role,
     position: media.position,
@@ -257,13 +254,6 @@ export function outputMediaRowFields(
     storage_file_id: storage?.fileId ?? null,
     storage_path: storage?.path ?? null,
     url: media.url,
-    mime_type: null,
-    bytes: null,
-    width: null,
-    height: null,
-    duration_ms: null,
-    checksum: null,
-    data: JSON.stringify(media.data ?? null),
     created_at: new Date().toISOString(),
   }
 }
@@ -404,9 +394,4 @@ function stringValue(value: unknown): string {
   return typeof value === "string" || typeof value === "number"
     ? String(value).trim()
     : ""
-}
-
-function finiteNumber(value: unknown): number | null {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
 }

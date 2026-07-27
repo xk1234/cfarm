@@ -216,7 +216,7 @@ function classifyConfiguration(error, stage) {
 async function recordUsage(tables, databaseId, ownerId, automationId, runId, stage, detail) {
   const now = nowIso(), id = `usage-${crypto.createHash("sha256").update(`${runId}:${stage}`).digest("hex").slice(0, 24)}`
   const record = { id, automation_id: automationId, run_id: runId, kind: "ugc_provider", stage, provider: detail.provider, model: detail.model, request_id: detail.requestId, units: detail.units, used_at: now, ownerId }
-  await tables.upsertRow(databaseId, USAGE, ownedRowId(USAGE, ownerId, id), { rid: id, name: stage, status: "recorded", created_raw: now, ord: -Date.now(), owner_id: ownerId, data: JSON.stringify(record) })
+  await tables.upsertRow(databaseId, USAGE, ownedRowId(USAGE, ownerId, id), { rid: id, created_raw: now, ord: -Date.now(), owner_id: ownerId, data: JSON.stringify(record) })
 }
 
 async function upsertGeneratedOutput(tables, databaseId, ownerId, input) {
@@ -234,7 +234,7 @@ async function syncOutputMedia(tables, databaseId, ownerId, outputRowId, media) 
   for (const row of response.rows || []) await tables.deleteRow(databaseId, OUTPUT_MEDIA, row.$id)
   for (const [position, item] of media.entries()) {
     const relative = item.path.replace(/^data\//, ""), id = `m${crypto.createHash("sha256").update(`${outputRowId}:${item.role}`).digest("hex").slice(0, 35)}`
-    await tables.createRow(databaseId, OUTPUT_MEDIA, id, { output_id: outputRowId, owner_id: ownerId, permanent_asset_id: null, kind: item.kind, role: item.role, position, storage_bucket: UGC_BUCKET, storage_file_id: fileId(relative), storage_path: item.path, url: `/api/assets/${relative}`, mime_type: item.mime, bytes: null, width: null, height: null, duration_ms: null, checksum: null, data: "null", created_at: nowIso() })
+    await tables.createRow(databaseId, OUTPUT_MEDIA, id, { output_id: outputRowId, owner_id: ownerId, kind: item.kind, role: item.role, position, storage_bucket: UGC_BUCKET, storage_file_id: fileId(relative), storage_path: item.path, url: `/api/assets/${relative}`, created_at: nowIso() })
   }
 }
 

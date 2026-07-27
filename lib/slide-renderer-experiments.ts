@@ -288,29 +288,6 @@ export function generateSlideshowSettingComparisons(
       })),
     }),
     compare({
-      id: "slideshow-writing-style",
-      title: "Slideshow writing style",
-      category: "Hooks & voice",
-      editorLocation: "Hooks & style → Style",
-      description:
-        "Adds free-form writing instructions to every generated slide. It changes generated wording, not the renderer itself.",
-      impact: "generation",
-      values: [
-        {
-          label: "Short editorial",
-          value: "Short editorial lines. No filler.",
-          options: { text: "Warm wood. Soft light. One clear focal point." },
-        },
-        {
-          label: "Detailed teaching",
-          value: "Explain the design principle and why it works.",
-          options: {
-            text: "A repeated wood tone connects separate pieces and makes the layout feel deliberate",
-          },
-        },
-      ],
-    }),
-    compare({
       id: "aspect-ratio",
       title: "Aspect ratio",
       category: "Whole slideshow",

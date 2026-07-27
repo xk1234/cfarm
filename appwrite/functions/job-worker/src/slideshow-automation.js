@@ -24,16 +24,13 @@ import {
 } from "./slideshow-image-matching.js"
 import { expandAllHookCombinations } from "./hook-expansion.js"
 import { applyResolvedHookCase } from "./hook-casing.js"
-import {
-  llmSlopMatches,
-  llmSlopViolations,
-} from "./llm-slop.js"
+import { llmSlopMatches, llmSlopViolations } from "./llm-slop.js"
 import { defaultPostFastProviderControls as providerControls } from "./postfast-provider-controls.js"
 import { openRouterModelForUseCase } from "./realfarm-generation-model-registry.js"
 import {
   buildScheduledSlideshowPrompt,
   placeholderWordRangeError,
-  styleRequestsLowercase,
+  toneRequestsLowercase,
 } from "./temp-slide-testing-shared.js"
 
 // Point fontconfig at the bundled TTF before the first sharp() SVG raster.
@@ -41,7 +38,12 @@ import {
 // fontconfig config, so without this every <text> glyph renders as .notdef
 // tofu. Resolved at startup so the absolute path matches this deployment.
 configureFontconfig(
-  path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "assets", "fonts")
+  path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "assets",
+    "fonts"
+  )
 )
 
 const AUTOMATIONS = "automations"
@@ -693,13 +695,7 @@ function isHookInstruction(value) {
 
 function applyHookCase(text, promptFormatting) {
   const value = clean(text)
-  const cased = applyResolvedHookCase(
-    value,
-    promptFormatting?.hook_case || "mixed"
-  )
-  return styleRequestsLowercase(promptFormatting?.style)
-    ? cased.toLowerCase()
-    : cased
+  return applyResolvedHookCase(value, promptFormatting?.hook_case || "mixed")
 }
 
 function slideSpecs(schema, hook, bodySlideCount) {
@@ -760,7 +756,9 @@ function selectedBodySlideCount(schema, seedValue) {
   )
   const max = Math.max(
     min,
-    Math.round(Number(content.slideCountMax) || Number(content.slideCount) || min)
+    Math.round(
+      Number(content.slideCountMax) || Number(content.slideCount) || min
+    )
   )
   return min + (Number(seedValue) % (max - min + 1))
 }
@@ -797,9 +795,6 @@ async function generateText({ schema, automation, hook, placeholders }) {
   const apiKey = clean(process.env.OPENROUTER_API_KEY)
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
   const tone = clean(schema.tone?.value) || "Conversational & Relatable"
-  const style =
-    clean(schema.prompt_formatting?.style) ||
-    "Use the automation's native slideshow style."
   // The prompt bundle is the SAME shared builder used by the Next app
   // (lib/slideshow-text-generation-payload.ts → buildScheduledSlideshowPrompt),
   // synced here via scripts/sync-function-shared.mjs. The raw
@@ -810,7 +805,6 @@ async function generateText({ schema, automation, hook, placeholders }) {
     automationName: automation.name,
     hook,
     tone,
-    style,
     placeholders,
   })
   const responseFormat = {
@@ -861,7 +855,7 @@ async function generateText({ schema, automation, hook, placeholders }) {
       if (validationErrors.length) {
         throw new Error(validationErrors.join("; "))
       }
-      const lowercase = styleRequestsLowercase(style)
+      const lowercase = toneRequestsLowercase(tone)
       const maybeLower = (value) =>
         lowercase ? clean(value).toLowerCase() : clean(value)
       const hashtags = Array.isArray(parsed?.hashtags)
@@ -907,9 +901,7 @@ function validateScheduledSlideshowText(parsed, placeholders, hook) {
   const generatedText = [
     clean(parsed?.title),
     clean(parsed?.caption),
-    ...placeholders.map((placeholder) =>
-      clean(parsed?.text?.[placeholder.id])
-    ),
+    ...placeholders.map((placeholder) => clean(parsed?.text?.[placeholder.id])),
   ].join("\n")
   for (const placeholder of placeholders) {
     const value = clean(parsed?.text?.[placeholder.id])
@@ -1070,7 +1062,9 @@ async function aiSelectImage({ candidates, text, concepts }) {
     apiKey: clean(process.env.OPENROUTER_API_KEY),
     model: defaultTextModel,
   })
-  return candidates.find((candidate) => candidate.id === selectedId) ?? candidates[0]
+  return (
+    candidates.find((candidate) => candidate.id === selectedId) ?? candidates[0]
+  )
 }
 
 function imageTextForSpec(spec, hook, generated) {
@@ -1987,14 +1981,20 @@ async function upsertStoredRecord(tables, databaseId, table, ownerId, record) {
     if (error?.code !== 404) throw error
   }
   const ownedRecord = { ...record, ownerId }
+  const projected =
+    table === USAGE
+      ? {}
+      : {
+          name:
+            clean(record.name || record.title || record.automationTitle).slice(
+              0,
+              2048
+            ) || null,
+          status: clean(record.status).slice(0, 255) || null,
+        }
   await tables.upsertRow(databaseId, table, rowId, {
     rid: rid.slice(0, 1024),
-    name:
-      clean(record.name || record.title || record.automationTitle).slice(
-        0,
-        2048
-      ) || null,
-    status: clean(record.status).slice(0, 255) || null,
+    ...projected,
     created_raw:
       clean(record.createdAt || record.created_at || record.used_at).slice(
         0,
@@ -2121,31 +2121,18 @@ async function syncResultMedia(
     // here used to abort the whole generation after all the expensive work.
     const mediaRowId = outputMediaRowId(outputRowId, item)
     await tables.deleteRow(databaseId, OUTPUT_MEDIA, mediaRowId).catch(() => {})
-    await tables.createRow(
-      databaseId,
-      OUTPUT_MEDIA,
-      mediaRowId,
-      {
-        output_id: outputRowId,
-        owner_id: ownerId,
-        permanent_asset_id: null,
-        kind: item.kind,
-        role: item.role,
-        position: item.position,
-        storage_bucket: path ? bucketForPath(path) : null,
-        storage_file_id: path ? fileId(path) : null,
-        storage_path: path,
-        url: item.url,
-        mime_type: null,
-        bytes: null,
-        width: null,
-        height: null,
-        duration_ms: null,
-        checksum: null,
-        data: "null",
-        created_at: new Date().toISOString(),
-      }
-    )
+    await tables.createRow(databaseId, OUTPUT_MEDIA, mediaRowId, {
+      output_id: outputRowId,
+      owner_id: ownerId,
+      kind: item.kind,
+      role: item.role,
+      position: item.position,
+      storage_bucket: path ? bucketForPath(path) : null,
+      storage_file_id: path ? fileId(path) : null,
+      storage_path: path,
+      url: item.url,
+      created_at: new Date().toISOString(),
+    })
   }
 }
 

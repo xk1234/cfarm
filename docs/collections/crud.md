@@ -97,12 +97,10 @@ by `scripts/import-product-collections.mjs`, which downloads marketplace
 images, generates lifestyle images, uploads both, and upserts the curated
 records.
 
-There is a current persistence mismatch to resolve before relying on the
-importer: application reads route the logical store to
-`permanent_assets/source_key=product_collection`, while the importer writes the
-dedicated legacy `product_collections` table. Verify the target table and row
-visibility in the environment before running it. Do not manually delete product
-rows or Storage objects without checking both locations.
+The importer and application both use
+`permanent_assets/source_key=product_collection`; product image bytes use the
+`product_images` Storage bucket. Do not manually delete product rows or Storage
+objects without checking their references.
 
 ## Safe maintenance checklist
 

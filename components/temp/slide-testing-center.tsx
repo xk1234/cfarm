@@ -632,14 +632,10 @@ function AutomationTemplateInfo({
         </span>
       </div>
 
-      <dl className="grid gap-2">
+      <dl>
         <div>
           <dt className="font-semibold uppercase">Tone</dt>
           <dd>{automation.tone}</dd>
-        </div>
-        <div>
-          <dt className="font-semibold uppercase">Style</dt>
-          <dd>{automation.style}</dd>
         </div>
       </dl>
 

@@ -5,7 +5,7 @@ import { slideshowTextGenerationPayload } from "@/lib/slideshow-text-generation-
 import {
   buildScheduledSlideshowPrompt as appBuildScheduledSlideshowPrompt,
   getTempSlidePromptPlaceholders,
-  styleRequestsLowercase as appStyleRequestsLowercase,
+  toneRequestsLowercase as appToneRequestsLowercase,
   type TempSlideTestingAutomation,
 } from "@/lib/temp-slide-testing-shared"
 
@@ -25,8 +25,7 @@ const automation: TempSlideTestingAutomation = {
   name: "Unified Prompt Automation",
   theme: "astrology",
   hooks: ["why capricorns never forget a broken promise"],
-  tone: "personal, raw, hype — a best friend testifying, street-smart and affectionate",
-  style: "All text in lowercase.",
+  tone: "personal, raw, hype, and all lowercase — a best friend testifying, street-smart and affectionate",
   imageCollectionIds: { hook: "", content: "", cta: "" },
   slides: [
     {
@@ -83,13 +82,13 @@ const primitives = {
   automationName: automation.name,
   hook: selectedHook,
   tone: automation.tone,
-  style: automation.style,
   placeholders,
 }
 
 describe("scheduled slideshow prompt unification", () => {
   it("builds the same system, user, and schema on the app and worker paths", async () => {
     const appBundle = appBuildScheduledSlideshowPrompt(primitives)
+    expect(appBundle.user).not.toContain("\nStyle:")
 
     // App path: slideshowTextGenerationPayload must funnel through the shared
     // builder, so its messages + schema match the bundle byte-for-byte.
@@ -105,7 +104,7 @@ describe("scheduled slideshow prompt unification", () => {
     // same primitives must yield a byte-identical bundle.
     const workerMod = (await import(workerSharedUrl)) as {
       buildScheduledSlideshowPrompt: typeof appBuildScheduledSlideshowPrompt
-      styleRequestsLowercase: typeof appStyleRequestsLowercase
+      toneRequestsLowercase: typeof appToneRequestsLowercase
     }
     const workerBundle = workerMod.buildScheduledSlideshowPrompt(primitives)
     expect(workerBundle.system).toBe(appBundle.system)
@@ -115,10 +114,9 @@ describe("scheduled slideshow prompt unification", () => {
     )
   })
 
-  it('lowercases every value when style is "All text in lowercase." on both paths', async () => {
-    // The app regex (lowercase|all lowercase, non-adjacent) is the unified one.
-    expect(appStyleRequestsLowercase("All text in lowercase.")).toBe(true)
-    expect(appStyleRequestsLowercase("everything lowercase")).toBe(true)
+  it('lowercases every value when tone requests "all lowercase" on both paths', async () => {
+    expect(appToneRequestsLowercase("All text in lowercase.")).toBe(true)
+    expect(appToneRequestsLowercase("everything lowercase")).toBe(true)
 
     // The shared builder emits the explicit lowercase rule line.
     const appBundle = appBuildScheduledSlideshowPrompt(primitives)
@@ -128,9 +126,9 @@ describe("scheduled slideshow prompt unification", () => {
 
     // The worker uses the SAME shared helper (no longer its stricter adjacent-only regex).
     const workerMod = (await import(workerSharedUrl)) as {
-      styleRequestsLowercase: typeof appStyleRequestsLowercase
+      toneRequestsLowercase: typeof appToneRequestsLowercase
     }
-    expect(workerMod.styleRequestsLowercase("All text in lowercase.")).toBe(true)
+    expect(workerMod.toneRequestsLowercase("All text in lowercase.")).toBe(true)
 
     const workerSrc = await import("node:fs").then((fs) =>
       fs.readFileSync(workerSlideshowSrcPath, "utf8")

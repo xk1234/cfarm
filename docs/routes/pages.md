@@ -18,6 +18,17 @@ description: Current App Router pages and their access model.
 | `/verify-email` | `app/verify-email/page.tsx` | Email verification result  |
 | `/team-invite`  | `app/team-invite/page.tsx`  | Team invitation acceptance |
 
+## Signed generation previews
+
+| Route                    | Source                               | Purpose                                    |
+| ------------------------ | ------------------------------------ | ------------------------------------------ |
+| `/share/slideshows/[id]` | `app/share/slideshows/[id]/page.tsx` | Login-free, token-scoped slideshow preview |
+
+The matching direct ZIP route is
+`/api/public/slideshows/[id]/download?token=…`. Both paths require a valid
+output-scoped token; “public” means no workspace login is required, not that
+the output can be enumerated.
+
 ## Documentation
 
 | Route      | Source                          | Purpose                              |

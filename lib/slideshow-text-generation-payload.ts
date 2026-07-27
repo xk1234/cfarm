@@ -29,7 +29,6 @@ export function slideshowTextGenerationPayload(input: {
     automationName: input.automation.name,
     hook: selectedHook,
     tone: input.automation.tone,
-    style: input.automation.style,
     systemPrompt: input.systemPrompt,
     promptInstructions: input.promptInstructions,
     placeholders,

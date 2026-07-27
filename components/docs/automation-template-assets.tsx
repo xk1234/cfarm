@@ -102,9 +102,7 @@ async function loadSlideshowTemplateItems(): Promise<
           name: record.name,
           eyebrow: `${record.theme || "General"} slideshow`,
           description: `${record.name} is a ${tone.toLowerCase()} slideshow automation with ${automation.slides.length} configured slide slots. Its catalog definition supplies the hooks, media collections, text constraints, and publishing-ready runtime settings copied into a new automation.`,
-          styleBrief:
-            schema.prompt_formatting.style ||
-            `Use the ${tone.toLowerCase()} tone while keeping every slide specific to its selected hook.`,
+          styleBrief: `Use the ${tone.toLowerCase()} tone while keeping every slide specific to its selected hook.`,
           metadata: [
             `${automation.slides.length} slides`,
             tone,

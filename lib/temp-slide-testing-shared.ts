@@ -67,7 +67,6 @@ export type TempSlideTestingAutomation = {
   theme: string
   hooks: string[]
   tone: string
-  style: string
   imageCollectionIds: {
     hook: string
     content: string
@@ -84,7 +83,7 @@ export type TempSlideStructuredOutput = {
 }
 
 export const defaultTempSlideSystemPrompt =
-  "You fill metadata and text placeholders for TikTok slideshow posts. The selected hook is the source of truth for the slideshow topic: never change it, and never introduce a different concept from the automation name, a content direction, or an example. Each placeholder's content direction defines what that text box must say about the hook and its required format; treat a content direction as format guidance (heading, list item, explanation), never as permission to change the subject. Within those topic constraints, the configured Tone and Style govern the voice — register, diction, sentence rhythm, capitalization, and word choice — and you must follow them exactly, even when they call for lowercase, slang, a raw or personal register, or a break from polished literary habits. Do not override a configured Tone or Style with a generic literary default. Return only JSON matching the schema. Never invent studies, statistics, or sources, and do not fabricate testimonials as quoted research; first-person voice in character is allowed. Do not add visual parameters, image prompts, commentary, markdown, or extra keys."
+  "You fill metadata and text placeholders for TikTok slideshow posts. The selected hook is the source of truth for the slideshow topic: never change it, and never introduce a different concept from the automation name, a content direction, or an example. Each placeholder's content direction defines what that text box must say about the hook and its required format; treat a content direction as format guidance (heading, list item, explanation), never as permission to change the subject. Within those topic constraints, the configured Tone governs the voice — register, diction, sentence rhythm, capitalization, and word choice — and you must follow it exactly, even when it calls for lowercase, slang, a raw or personal register, or a break from polished literary habits. Do not override the configured Tone with a generic literary default. Return only JSON matching the schema. Never invent studies, statistics, or sources, and do not fabricate testimonials as quoted research; first-person voice in character is allowed. Do not add visual parameters, image prompts, commentary, markdown, or extra keys."
 
 export const defaultTempSlideUserInstructions =
   "Generate a concise slideshow title, a short social caption, and broad niche hashtags. Fill every non-hook placeholder text box. Use the fixed hook as context only and do not rewrite it. Every body slide must directly develop the exact subject and claim in the selected hook while following its own content direction. Body slides should be specific to the hook, not merely the automation category. Return slide text only in the schema's text object."
@@ -93,7 +92,6 @@ export type TempSlidePromptInput = {
   automationName: string
   hook: string
   tone: string
-  style: string
   promptInstructions: string
   placeholders: TempSlideTextPlaceholder[]
   avoidSimilarOutputs?: string[]
@@ -111,9 +109,8 @@ export function buildTempSlideUserPrompt(input: TempSlidePromptInput) {
   return [
     `Automation: ${input.automationName}`,
     `Hook: ${input.hook}`,
-    "Voice (governs register, diction, rhythm, and casing — apply to every field; do not substitute a literary default):",
+    "Tone (governs register, diction, rhythm, and casing — apply to every field; do not substitute a literary default):",
     `Tone: ${input.tone}`,
-    `Style: ${input.style}`,
     "Metadata requirements:",
     ...socialPostMetadataPromptLines("slideshow"),
     "Prompt instructions:",
@@ -122,12 +119,12 @@ export function buildTempSlideUserPrompt(input: TempSlidePromptInput) {
     "Hook-to-content coherence rules:",
     "- The selected Hook above is the source of truth for this one slideshow. First identify its exact subject, people/sign/product, and claim or question.",
     "- Every body slide must directly answer, explain, support, exemplify, or continue that exact hook. Reuse the hook's specific subject where needed so the connection is unmistakable.",
-    "- Do not switch to a different concept, stock framework, or theme just because it appears in the automation name, style, or an example inside a content direction.",
+    "- Do not switch to a different concept, stock framework, or theme just because it appears in the automation name, tone, or an example inside a content direction.",
     "- Follow each placeholder's content direction about the selected hook. If a direction specifies format (for example heading, explanation, list item), treat it as format—not as permission to change topics.",
     "- Text boxes sharing the same slide id are one unit: later text boxes must explain or support the first text box on that slide, never introduce an unrelated point.",
     "- Across body slides, create a logical progression without repeating the same point.",
     ...avoidSimilarOutputLines(input.avoidSimilarOutputs),
-    ...strictOutputRuleLines(input.style),
+    ...strictOutputRuleLines(input.tone),
     "Placeholders:",
     ...placeholderLines,
   ].join("\n")
@@ -147,18 +144,18 @@ function performanceMemoryLines(
   ]
 }
 
-export function styleRequestsLowercase(style: string | undefined) {
-  return /lower\s*case|all\s*lowercase/i.test(style ?? "")
+export function toneRequestsLowercase(tone: string | undefined) {
+  return /lower\s*case|all\s*lowercase/i.test(tone ?? "")
 }
 
-function strictOutputRuleLines(style: string | undefined) {
+function strictOutputRuleLines(tone: string | undefined) {
   const lines = [
     "Strict output rules:",
     "- Fill EVERY field. Never return an empty string for title, caption, hashtags, or any placeholder.",
     "- Keep each placeholder within the exact word range stated for it; count words before answering.",
     "- hashtags must be a JSON array of 3-5 tags, each starting with '#' (e.g. ['#focus', '#wellness', '#mindset']).",
   ]
-  if (styleRequestsLowercase(style)) {
+  if (toneRequestsLowercase(tone)) {
     lines.push(
       "- Write EVERY value — title, caption, hashtags, and all slide text — in all lowercase with no capital letters anywhere."
     )
@@ -261,7 +258,6 @@ export function buildScheduledSlideshowPrompt(input: {
   automationName: string
   hook: string
   tone: string
-  style: string
   systemPrompt?: string
   promptInstructions?: string
   placeholders: TempSlideTextPlaceholder[]
@@ -280,7 +276,6 @@ export function buildScheduledSlideshowPrompt(input: {
       automationName: input.automationName,
       hook: input.hook,
       tone: input.tone,
-      style: input.style,
       promptInstructions,
       placeholders: input.placeholders,
       avoidSimilarOutputs: input.avoidSimilarOutputs,

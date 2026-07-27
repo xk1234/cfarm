@@ -56,11 +56,13 @@ Deployment-level `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` values remain
 fallbacks for existing installations. A saved workspace token is never
 returned to the browser after storage.
 
-Slideshow messages include a signed public delivery link. It opens a page where
-the recipient can download every rendered slide as a ZIP and copy the title or
-combined description and hashtags without logging in. Links are scoped to one
-output, expire after one year, and use `SLIDESHOW_SHARE_SECRET` (falling back to
-the Appwrite server key if a dedicated share secret is not configured).
+Completed slideshow messages include two signed public delivery links:
+**Preview generation** opens a login-free preview where the recipient can copy
+the title or combined description and hashtags, while **Download slides
+(.zip)** points directly to a downloadable archive of every rendered slide.
+Both links are scoped to one output, expire after one year, and use
+`SLIDESHOW_SHARE_SECRET` (falling back to the Appwrite server key if a dedicated
+share secret is not configured).
 
 Saving Telegram settings registers
 `<BASE_URL>/api/telegram/webhook` with Telegram when the public URL and webhook

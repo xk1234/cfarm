@@ -44,7 +44,7 @@ import {
   markGeneratedVideoExportPublished,
   type GeneratedVideoExport,
 } from "@/lib/generated-videos"
-import { absoluteAssetUrl, slideshowShareLink } from "@/lib/asset-urls"
+import { absoluteAssetUrl, slideshowDeliveryLinks } from "@/lib/asset-urls"
 import { listAssetRecords } from "@/lib/assets"
 import { deleteAutomationCascade } from "@/lib/delete-automation"
 import { clean, isRecord } from "@/lib/guards"
@@ -559,7 +559,7 @@ export function createLumenClipMcpServer(
     {
       title: "Generate a slideshow draft",
       description:
-        "Runs one existing slideshow automation immediately and returns an unpublished, unscheduled draft summary. It never auto-publishes, even when the saved automation is live. Each run summary carries `outputImages` (relative slide paths) plus a per-slide `slides` array (`index`, `role`, absolute `renderedImageUrl`, absolute `sourceImageUrl`) and a signed `shareUrl` for the whole slideshow. Slide and share URLs are absolutised against the server's BASE_URL; when BASE_URL is unset they fall back to relative paths.",
+        "Runs one existing slideshow automation immediately and returns an unpublished, unscheduled draft summary. It never auto-publishes, even when the saved automation is live. Each completed run carries `outputImages` (relative slide paths), a per-slide `slides` array (`index`, `role`, absolute `renderedImageUrl`, absolute `sourceImageUrl`), a signed public `previewUrl`, and a signed direct ZIP `downloadUrl`. Delivery and slide URLs are absolutised against the server's BASE_URL; when BASE_URL is unset they fall back to relative paths.",
       inputSchema: {
         automationId: z
           .string()
@@ -1877,7 +1877,7 @@ function registerAutomationReadAndRunTools(
     {
       title: "Run an automation",
       description:
-        "Generates one unpublished, unscheduled draft from a saved slideshow, AI UGC, X, or Threads automation. AI UGC runs asynchronously and returns a pollable operation. Saved video automations remain discoverable but do not yet have a shared runner. For slideshow runs the output entry includes `outputImages` (relative slide paths), a per-slide `slides` array (`index`, `role`, absolute `renderedImageUrl`, absolute `sourceImageUrl`), and a signed `shareUrl` for the whole slideshow. Slide and share URLs are absolutised against the server's BASE_URL; when BASE_URL is unset they fall back to relative paths.",
+        "Generates one unpublished, unscheduled draft from a saved slideshow, AI UGC, X, or Threads automation. AI UGC runs asynchronously and returns a pollable operation. Saved video automations remain discoverable but do not yet have a shared runner. For completed slideshow runs the output entry includes `outputImages` (relative slide paths), a per-slide `slides` array (`index`, `role`, absolute `renderedImageUrl`, absolute `sourceImageUrl`), a signed public `previewUrl`, and a signed direct ZIP `downloadUrl`. Delivery and slide URLs are absolutised against the server's BASE_URL; when BASE_URL is unset they fall back to relative paths.",
       inputSchema: {
         automationId: z
           .string()
@@ -2765,7 +2765,7 @@ function registerOutputAndPublishingTools(
     {
       title: "Inspect a generated output",
       description:
-        "Returns one caller-owned generated output with its resolved hook, token values, rendered per-slide text and image identity, publication state, timestamps, and deterministic QA findings.",
+        "Returns one caller-owned generated output with its resolved hook, token values, rendered per-slide text and image identity, publication state, timestamps, deterministic QA findings, and signed public preview/direct-download URLs when the output is a slideshow.",
       inputSchema: {
         outputId: z
           .string()
@@ -2785,7 +2785,7 @@ function registerOutputAndPublishingTools(
     async ({ outputId }) =>
       mcpResult(
         await owned(async () => {
-          const output = await getAutomationOutput(services, outputId)
+          const output = await getAutomationOutput(services, outputId, ownerId)
           if (!output) throw new Error("Output not found")
           return output
         })
@@ -2817,7 +2817,7 @@ function registerOutputAndPublishingTools(
     async ({ outputId }) =>
       mcpResult(
         await owned(async () => {
-          const output = await getAutomationOutput(services, outputId)
+          const output = await getAutomationOutput(services, outputId, ownerId)
           if (!output) throw new Error("Output not found")
           return {
             outputId: output.id,
@@ -3941,7 +3941,8 @@ async function listOutputSummaries(
 
 async function getAutomationOutput(
   services: LumenClipMcpServices,
-  outputId: string
+  outputId: string,
+  ownerId = ""
 ) {
   const summaries = await listOutputSummaries(services)
   const summary = summaries.find((item) => item.id === outputId)
@@ -4024,6 +4025,7 @@ async function getAutomationOutput(
     })
     return {
       ...summary,
+      ...slideshowDeliveryFields(ownerId, run.slideshowId || summary.id),
       runId: run.id,
       automationId: run.automationId,
       resolvedHookText: run.plan.hook,
@@ -4200,6 +4202,9 @@ function regularOperation(
           priorRuns: qaContext.priorRuns,
         })
       : undefined
+  const delivery = outputId
+    ? slideshowDeliveryFields(ownerId, outputId)
+    : undefined
   return {
     operation: {
       id: run.id,
@@ -4230,9 +4235,7 @@ function regularOperation(
             qaValid: qa?.valid,
             outputImages: run.outputImages ?? [],
             slides: buildRunSlides(run),
-            shareUrl: ownerId
-              ? (slideshowShareLink({ ownerId, outputId }) ?? undefined)
-              : undefined,
+            ...delivery,
             resourceUri: `lumenclip://outputs/${encodeURIComponent(outputId)}`,
           },
         ]
@@ -6248,6 +6251,17 @@ function buildRunSlides(run: AutomationRunRecord) {
   })
 }
 
+function slideshowDeliveryFields(ownerId: string, outputId: string) {
+  if (!ownerId || !outputId) return {}
+  const delivery = slideshowDeliveryLinks({ ownerId, outputId })
+  return delivery
+    ? {
+        previewUrl: delivery.previewUrl,
+        downloadUrl: delivery.downloadUrl,
+      }
+    : {}
+}
+
 function generatedRunSummary(run: AutomationRunRecord, ownerId: string) {
   return {
     runId: run.id,
@@ -6260,10 +6274,9 @@ function generatedRunSummary(run: AutomationRunRecord, ownerId: string) {
     thumbnailUrl: run.thumbnailUrl,
     outputImages: run.outputImages,
     slides: buildRunSlides(run),
-    shareUrl: run.slideshowId
-      ? (slideshowShareLink({ ownerId, outputId: run.slideshowId }) ??
-        undefined)
-      : undefined,
+    ...(run.slideshowId
+      ? slideshowDeliveryFields(ownerId, run.slideshowId)
+      : {}),
     createdAt: run.createdAt,
     error: run.error,
   }

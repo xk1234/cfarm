@@ -122,7 +122,7 @@ describe("configured reminders", () => {
     })
   })
 
-  it("uses saved bot credentials and adds the public slideshow delivery link", async () => {
+  it("uses saved bot credentials and adds public preview and ZIP links", async () => {
     vi.stubEnv("BASE_URL", "https://lumenclip.example")
     vi.stubEnv("SLIDESHOW_SHARE_SECRET", "share-secret")
     const fetcher = vi.fn().mockResolvedValue({ ok: true })
@@ -156,11 +156,22 @@ describe("configured reminders", () => {
     expect(fetcher.mock.calls[0][0]).toContain("/botsaved-token/sendMessage")
     const request = JSON.parse(fetcher.mock.calls[0][1].body)
     expect(request.reply_markup.inline_keyboard[0][0]).toMatchObject({
-      text: "Download slides + copy post",
+      text: "Preview generation",
       url: expect.stringMatching(
         /^https:\/\/lumenclip\.example\/share\/slideshows\/slideshow-1\?token=/
       ),
     })
+    expect(request.reply_markup.inline_keyboard[1][0]).toMatchObject({
+      text: "Download slides (.zip)",
+      url: expect.stringMatching(
+        /^https:\/\/lumenclip\.example\/api\/public\/slideshows\/slideshow-1\/download\?token=/
+      ),
+    })
+    const previewUrl = new URL(request.reply_markup.inline_keyboard[0][0].url)
+    const downloadUrl = new URL(request.reply_markup.inline_keyboard[1][0].url)
+    expect(downloadUrl.searchParams.get("token")).toBe(
+      previewUrl.searchParams.get("token")
+    )
   })
 
   it("keeps automatic scheduling reminders notification-only", async () => {

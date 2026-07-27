@@ -11,7 +11,8 @@ import sharp from "sharp"
 
 const execFileAsync = promisify(execFile)
 const DB = process.env.APPWRITE_DATABASE_ID || "cfarm"
-const TABLE = "product_collections"
+const TABLE = "permanent_assets"
+const SOURCE_KEY = "product_collection"
 const BUCKET = "product_images"
 const OWNER = process.env.LUMENCLIP_SYSTEM_OWNER_ID?.trim()
 const SOURCE = process.argv[2] || "/tmp/lumenclip-product-source.json"
@@ -98,6 +99,7 @@ console.log("DONE: 5 product collections, 50 products, 50 generated lifestyle im
 async function existingCollections() {
   const response = await tables.listRows(DB, TABLE, [
     Query.equal("owner_id", [OWNER]),
+    Query.equal("source_key", [SOURCE_KEY]),
     Query.limit(100),
   ])
   return new Map(response.rows.flatMap((row) => {
@@ -125,12 +127,26 @@ async function upsertCollection(sourceCollection, items, ord) {
   }
   await tables.upsertRow(DB, TABLE, ownedRowId(sourceCollection.id), {
     rid: sourceCollection.id,
+    owner_id: OWNER,
+    source_key: SOURCE_KEY,
     name: sourceCollection.name,
     status: items.length === 10 ? "ready" : "generating",
     created_raw: record.createdAt,
-    owner_id: OWNER,
     ord,
     data: JSON.stringify(record),
+    visibility: "private",
+    asset_type: SOURCE_KEY,
+    kind: "collection",
+    description: sourceCollection.description?.slice(0, 100000) || null,
+    text: null,
+    storage_bucket: null,
+    storage_file_id: null,
+    storage_path: null,
+    url: null,
+    mime_type: null,
+    source_url: null,
+    updated_at: record.updatedAt,
+    migration_source: null,
   })
 }
 
@@ -190,7 +206,7 @@ async function uploadAsset(relativePath, bytes) {
 }
 
 function ownedRowId(id) {
-  return `u${createHash("sha256").update(`${TABLE}:${OWNER}:${id}`).digest("hex").slice(0, 35)}`
+  return `u${createHash("sha256").update(`${TABLE}:${SOURCE_KEY}:${OWNER}:${id}`).digest("hex").slice(0, 35)}`
 }
 
 function localAssetUrl(relativePath) {

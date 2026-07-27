@@ -1182,7 +1182,6 @@ export function RealFarmWorkspace({
       )}
       {settingsOpen ? (
         <UserSettingsModal
-          email={user.email}
           onSocialAccountDisconnected={onSocialAccountDisconnected}
           onClose={() => setSettingsOpen(false)}
         />

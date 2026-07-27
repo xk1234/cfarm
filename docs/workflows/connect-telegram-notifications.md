@@ -107,8 +107,12 @@ matter of leaving the rest **Off**.
 | **Publishing failed**   | When LumenClip cannot publish a post                                   | Informational                                                       |
 | **Generation failed**   | When a generation run fails                                            | Informational                                                       |
 
-A slideshow message can also include **Download slides + copy post**, a signed
-public link scoped to that output.
+A completed slideshow message also includes two signed, output-scoped links:
+
+- **Preview generation** opens the public preview without requiring a LumenClip
+  login.
+- **Download slides (.zip)** downloads the rendered slides as a ZIP file
+  directly.
 
 ### What “Yes, I posted it” does
 
@@ -135,6 +139,11 @@ immediately before delivery and then calls Telegram's `sendMessage` API.
 Delivery failures retry up to five times. Turning reminders off, or disabling
 an individual event, also suppresses matching jobs that were queued earlier.
 
+For slideshow notifications, the worker signs the preview and download paths
+at delivery time. Both URLs use the same output-scoped token, expire after one
+year, and stop working if the signature is invalid or the output does not
+exist.
+
 The webhook accepts only Telegram `callback_query` updates and only actionable
 **Ready to post** jobs. It is not a conversational bot and does not process
 ordinary messages or commands.
@@ -150,7 +159,7 @@ empty list — and Telegram drops updates after roughly 24 hours, so a very old
 
 ### Settings say Telegram needs a server bot token
 
-`TELEGRAM_BOT_TOKEN` is not set in the environment the app is *running in*.
+`TELEGRAM_BOT_TOKEN` is not set in the environment the app is _running in_.
 Setting it in a local `.env` does nothing for a deployed instance; it must be
 added to the deployment's own environment and the instance redeployed.
 

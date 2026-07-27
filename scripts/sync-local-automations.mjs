@@ -83,11 +83,6 @@ for (const [index, row] of sourceRows.entries()) {
       owner_id: localOwner.$id,
       name: clean(record.name || row.name).slice(0, 2048) || null,
       status: clean(record.status || row.status).slice(0, 255) || null,
-      created_raw:
-        clean(record.createdAt || record.created_at || row.created_raw).slice(
-          0,
-          64
-        ) || null,
       data: JSON.stringify(localRecord),
       ord: Number.isFinite(Number(row.ord)) ? Number(row.ord) : index,
     },

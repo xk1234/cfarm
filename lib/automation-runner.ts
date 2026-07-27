@@ -2253,11 +2253,7 @@ export function automationSlideshowSettings(schema: AutomationSchema) {
 }
 
 function automationSlideshowPrompt(schema: AutomationSchema, hook: string) {
-  return [
-    schema.prompt_formatting.narrative,
-    schema.prompt_formatting.style,
-    hook ? `Hook: ${hook}` : "",
-  ]
+  return [schema.prompt_formatting.narrative, hook ? `Hook: ${hook}` : ""]
     .filter(Boolean)
     .join("\n\n")
 }

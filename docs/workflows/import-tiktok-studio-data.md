@@ -35,7 +35,12 @@ reads them from your own logged-in session and posts them back.
   "status": "pending",
   "postCount": 12,
   "expiresAt": "…",
-  "nextActions": [{ "tool": "lumenclip_tiktok_studio_analytics_report", "arguments": { "batchId": "…" } }]
+  "nextActions": [
+    {
+      "tool": "lumenclip_tiktok_studio_analytics_report",
+      "arguments": { "batchId": "…" }
+    }
+  ]
 }
 ```
 
@@ -68,7 +73,7 @@ The token is an HMAC, not a session. Only `overview` is required — it triggers
 
 ### 4. Agent calls `lumenclip_tiktok_studio_analytics_report`
 
-Every input is optional: `importId`, `batchId`, `postIds` (≤100, accepts local *or* TikTok
+Every input is optional: `importId`, `batchId`, `postIds` (≤100, accepts local _or_ TikTok
 ids), `integrationIds` (≤50), `automationId`, `days` (1–3650, default 365), `offset`,
 `limit` (1–50, default 20), `historyLimit` (1–10, default 3).
 
@@ -93,14 +98,14 @@ gender, and country percentages.
 
 ## UI workflow
 
-| Step | Action | What happens |
-| --- | --- | --- |
-| 1 | Press **Download Chrome companion** | Gets `lumenclip-companion.zip` |
-| 2 | Remove any older LumenClip extension, then load this one unpacked | *Version 2.0.0 lives in a new directory, so Chrome treats it as a separate extension. Leaving both loaded runs two capture workers against `www.tiktok.com`.* |
-| 3 | Open `/app/analytics` with TikTok selected | Header shows **Sync TikTok Studio** |
-| 4 | Choose **Sync scope** | **New posts only**, **Posts from the last 90 days**, **All linked posts** |
-| 5 | Press **Create account sync** | Progress cards **Linked posts**, **Captured**, **Saved to LumenClip** |
-| 6 | Watch per-item state | **Linked** / `N/3 captured` / **Waiting** |
+| Step | Action                                                            | What happens                                                                                                                                        |
+| ---- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | Press **Download Chrome companion**                               | Gets `lumenclip-companion.zip`                                                                                                                      |
+| 2    | Remove any older LumenClip extension, then load this one unpacked | _Use version 2.1.0 for the in-extension comment review surface. Leaving an older copy loaded can run two capture workers against `www.tiktok.com`._ |
+| 3    | Open `/app/analytics` with TikTok selected                        | Header shows **Sync TikTok Studio**                                                                                                                 |
+| 4    | Choose **Sync scope**                                             | **New posts only**, **Posts from the last 90 days**, **All linked posts**                                                                           |
+| 5    | Press **Create account sync**                                     | Progress cards **Linked posts**, **Captured**, **Saved to LumenClip**                                                                               |
+| 6    | Watch per-item state                                              | **Linked** / `N/3 captured` / **Waiting**                                                                                                           |
 
 For one post, `/app/analytics/posts/[id]` offers **Import from TikTok Studio** →
 **Start automatic capture**, with captured sections labelled **Overview + slide retention**,
@@ -115,7 +120,7 @@ For one post, `/app/analytics/posts/[id]` offers **Import from TikTok Studio** �
 2. **The device token lasts a year.** The v3 companion token has a 365-day TTL. Only the
    per-job records expire quickly — 15 minutes for a single import, 60 for a batch.
 3. **`APPWRITE_API_KEY` is an accepted signing secret.** The HMAC secret list is
-   `[TIKTOK_STUDIO_CAPTURE_SECRET, APPWRITE_API_KEY]`, and signing always uses the *first*
+   `[TIKTOK_STUDIO_CAPTURE_SECRET, APPWRITE_API_KEY]`, and signing always uses the _first_
    entry. If the dedicated secret is unset, the Appwrite admin key signs long-lived browser
    tokens — and rotating that key silently invalidates every companion pairing. Set
    `TIKTOK_STUDIO_CAPTURE_SECRET` in every environment that mints tokens.
@@ -137,14 +142,14 @@ For one post, `/app/analytics/posts/[id]` offers **Import from TikTok Studio** �
    derived from `postId` plus `capturedAt`, and re-linking deliberately reuses the existing
    timestamp.
 10. **The companion must be detected within 4 seconds**, else
-   `Chrome companion not detected. Install or reload the latest companion, then retry.`
-11. **Do not confuse this with `lumenclip_tiktok_import_*`.** Those scrape *public* TikTok
+    `Chrome companion not detected. Install or reload the latest companion, then retry.`
+11. **Do not confuse this with `lumenclip_tiktok_import_*`.** Those scrape _public_ TikTok
     `/photo/` URLs through Apify to match publications; they have nothing to do with the
     extension or with private Studio metrics.
 
 ## Additional workflow notes
 
-The companion is one MV3 extension, version 2.0.0, covering **both** Studio analytics and
+The companion is one MV3 extension, version 2.1.0, covering **both** Studio analytics and
 comment replies. It lives in `browser-extension/` with permissions
 `storage`, `tabs`, `alarms` and host
 access to `www.tiktok.com`, the deployed origin, and `localhost`. A one-minute alarm polls for

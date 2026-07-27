@@ -72,21 +72,36 @@ the posting schedule are both bypassed.
 **Out**
 
 ```json
-{ "automationId": "…", "requestId": "hdb-draft-001", "runs": [ … ], "skipped": [ … ] }
+{
+  "automationId": "…",
+  "requestId": "hdb-draft-001",
+  "runs": [
+    {
+      "slideshowId": "…",
+      "previewUrl": "https://…/share/slideshows/…?token=…",
+      "downloadUrl": "https://…/api/public/slideshows/…/download?token=…"
+    }
+  ],
+  "skipped": []
+}
 ```
+
+`previewUrl` is the public review page and `downloadUrl` is a direct ZIP
+download. The same fields are returned in the slideshow output from
+`lumenclip_automation_run` and by `lumenclip_output_get`.
 
 ### 5. Intermediate steps
 
 The runner claims a slot, creates a run, then builds the plan. Progress strings are literal:
 
-| Stage | What happens |
-| --- | --- |
-| `Selecting hook` | Picks from enabled hooks in the pool |
-| `Writing slide text` | OpenRouter; needs `OPENROUTER_API_KEY` |
-| `Rewriting slide text (too similar to a recent post)` | Only if similarity ≥ 0.85 against the last 45 days / 20 records |
-| `Choosing images` | Draws from the configured collections; per-slide AI selection also uses OpenRouter |
-| `Aligning slide text with selected images` | One coherence-repair pass |
-| `Rendering slides` | SVG per slide, rasterised to PNG with `sharp` |
+| Stage                                                 | What happens                                                                       |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `Selecting hook`                                      | Picks from enabled hooks in the pool                                               |
+| `Writing slide text`                                  | OpenRouter; needs `OPENROUTER_API_KEY`                                             |
+| `Rewriting slide text (too similar to a recent post)` | Only if similarity ≥ 0.85 against the last 45 days / 20 records                    |
+| `Choosing images`                                     | Draws from the configured collections; per-slide AI selection also uses OpenRouter |
+| `Aligning slide text with selected images`            | One coherence-repair pass                                                          |
+| `Rendering slides`                                    | SVG per slide, rasterised to PNG with `sharp`                                      |
 
 Slides land at `/api/local-assets/slideshows/outputs/<slideshowId>/slide-001.png` and are
 mirrored to the Appwrite Storage bucket `slideshows`.
@@ -98,14 +113,14 @@ gated on `generationSource !== "manual"`, and `force: true` always marks the run
 
 ## UI workflow
 
-| Step | Action | What happens |
-| --- | --- | --- |
-| 1 | Open `/app?view=automations` | The automations list |
-| 2 | Press **New automation** | Opens the template picker, accessible title *Automation templates* |
-| 3 | Filter by **Slideshow**, **Video**, or **Other social media** | Search placeholder *Search templates...* |
-| 4 | Hover a card and press **Add** | Creates from that template |
-| 5 | Editor sidebar | **Overview**, **Slideshow Format**, **Hooks (N) & Style**, **Analytics**, **Schedule**, **Social Media Settings**, **Published Posts**, **Settings** |
-| 6 | Press **Generate** | Reads **Generating…** while running |
+| Step | Action                                                        | What happens                                                                                                                                         |
+| ---- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | Open `/app?view=automations`                                  | The automations list                                                                                                                                 |
+| 2    | Press **New automation**                                      | Opens the template picker, accessible title _Automation templates_                                                                                   |
+| 3    | Filter by **Slideshow**, **Video**, or **Other social media** | Search placeholder _Search templates..._                                                                                                             |
+| 4    | Hover a card and press **Add**                                | Creates from that template                                                                                                                           |
+| 5    | Editor sidebar                                                | **Overview**, **Slideshow Format**, **Hooks (N) & Style**, **Analytics**, **Schedule**, **Social Media Settings**, **Published Posts**, **Settings** |
+| 6    | Press **Generate**                                            | Reads **Generating…** while running                                                                                                                  |
 
 ## Failures to check
 
@@ -121,7 +136,7 @@ gated on `generationSource !== "manual"`, and `force: true` always marks the run
    `idempotentHint: false`. Its own description calls it an idempotency key; that description
    is wrong, on a billable call.
 4. **Blockers force-pause a live automation.** If readiness checks fail, the run is skipped
-   *and* the automation is set to `paused`. Blocker messages include
+   _and_ the automation is set to `paused`. Blocker messages include
    `Add at least one enabled hook.`, `Select an image collection.`,
    `Collection “<name>” has no usable images.`
 5. **Skip reasons are a fixed union**: `not_live`, `not_due`, `already_ran`, `blocked`,

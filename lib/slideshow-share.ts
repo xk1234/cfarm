@@ -77,14 +77,31 @@ export async function loadSharedSlideshow(
   })
 }
 
-export function slideshowShareUrl(input: {
+export function slideshowDeliveryPaths(input: {
+  ownerId: string
+  outputId: string
+}) {
+  const outputId = required(input.outputId, "output")
+  const token = createSlideshowShareToken({ ...input, outputId })
+  const encodedOutputId = encodeURIComponent(outputId)
+  const encodedToken = encodeURIComponent(token)
+  return {
+    previewUrl: `/share/slideshows/${encodedOutputId}?token=${encodedToken}`,
+    downloadUrl: `/api/public/slideshows/${encodedOutputId}/download?token=${encodedToken}`,
+  }
+}
+
+export function slideshowDeliveryUrls(input: {
   baseUrl: string
   ownerId: string
   outputId: string
 }) {
   const baseUrl = required(input.baseUrl, "base URL").replace(/\/$/, "")
-  const token = createSlideshowShareToken(input)
-  return `${baseUrl}/share/slideshows/${encodeURIComponent(input.outputId)}?token=${encodeURIComponent(token)}`
+  const paths = slideshowDeliveryPaths(input)
+  return {
+    previewUrl: `${baseUrl}${paths.previewUrl}`,
+    downloadUrl: `${baseUrl}${paths.downloadUrl}`,
+  }
 }
 
 function signature(payload: string) {

@@ -3,7 +3,7 @@ import {
   normalizeTempSlideStructuredOutput,
   placeholderWordRangeError,
   promptPreviewHook,
-  styleRequestsLowercase,
+  toneRequestsLowercase,
   type TempSlideStructuredOutput,
   type TempSlideTestingAutomation,
 } from "@/lib/temp-slide-testing-shared"
@@ -130,10 +130,7 @@ export async function generateSlideshowText(input: {
       input.requireHookSubjectCoverage ??
       selectedHook !== "Create a high-performing TikTok slideshow.",
   })
-  const lowercase =
-    styleRequestsLowercase(input.automation.style) ||
-    styleRequestsLowercase(input.systemPrompt) ||
-    styleRequestsLowercase(input.promptInstructions)
+  const lowercase = toneRequestsLowercase(input.automation.tone)
   return {
     model: completion.model,
     selectedHook,
@@ -504,11 +501,13 @@ export function outputDevelopsHookSubject(output: unknown, hook: string) {
   // subjects long enough that a prefix match still means the same thing.
   const bodyWords = body.match(/[a-z0-9]+(?:-[a-z0-9]+)*/g) ?? []
   return subjects.some((subject) => {
-    if (new RegExp(`\\b${escapeRegExp(subject)}\\b`, "i").test(body)) return true
+    if (new RegExp(`\\b${escapeRegExp(subject)}\\b`, "i").test(body))
+      return true
     if (subject.length < 5) return false
     const stem = subject.slice(0, Math.max(4, subject.length - 2))
     return bodyWords.some(
-      (word) => word.startsWith(stem) || subject.startsWith(word.slice(0, stem.length))
+      (word) =>
+        word.startsWith(stem) || subject.startsWith(word.slice(0, stem.length))
     )
   })
 }

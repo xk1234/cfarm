@@ -2,8 +2,8 @@ import "server-only"
 
 import { clean } from "@/lib/guards"
 import {
-  createSlideshowShareToken,
-  slideshowShareUrl,
+  slideshowDeliveryPaths,
+  slideshowDeliveryUrls,
 } from "@/lib/slideshow-share"
 
 export function configuredBaseUrl(): string {
@@ -27,24 +27,20 @@ export function absoluteAssetUrl(path: string): string {
   return `${base}${normalized.startsWith("/") ? "" : "/"}${normalized}`
 }
 
-export function slideshowShareLink(input: {
+export function slideshowDeliveryLinks(input: {
   ownerId: string
   outputId: string
-}): string | null {
+}): { previewUrl: string; downloadUrl: string } | null {
   if (!slideshowShareConfigured()) return null
   const base = configuredBaseUrl()
-  if (!base) {
-    const token = createSlideshowShareToken(input)
-    return `/share/slideshows/${encodeURIComponent(
-      input.outputId
-    )}?token=${encodeURIComponent(token)}`
-  }
-  return slideshowShareUrl({ baseUrl: base, ...input })
+  return base
+    ? slideshowDeliveryUrls({ baseUrl: base, ...input })
+    : slideshowDeliveryPaths(input)
 }
 
 function slideshowShareConfigured(): boolean {
   return Boolean(
     clean(process.env.SLIDESHOW_SHARE_SECRET) ||
-      clean(process.env.APPWRITE_API_KEY)
+    clean(process.env.APPWRITE_API_KEY)
   )
 }

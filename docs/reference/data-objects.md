@@ -812,17 +812,11 @@ type DemoVideo = {
 Metadata uses the `demos` table; bytes use the private `demos` bucket and are
 served only after owner verification.
 
-## Removed and legacy structures
+## Removed structures
 
 The character/AI UGC-avatar workspace, knowledge bases, swipes, standalone
 benchmark/research stores, and their API routes were removed from the current
-product. Appwrite schemas cloned from older environments may still contain
-their tables, but `lib/appwrite-stores.ts` no longer routes active domain calls
-to them. Do not build new code against those legacy structures.
-
-Likewise, old one-table-per-type names such as `results`,
-`generated_video_exports`, `postfast_posts`, `automation_templates`, and
-`media_library` may exist physically. Current generated records route through
+product and maintained Appwrite schema. Current generated records route through
 `outputs`/`permanent_assets`; automation templates use the local
 `permanent_assets` reference categories described above.
 

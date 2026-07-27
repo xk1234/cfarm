@@ -115,7 +115,9 @@ type ConsolidatedRow = {
 
 `output_media` is deleted and recreated when its parent output is updated. The
 JSON-store hydrates normalized media rows back into the domain object before its
-normalizer runs.
+normalizer runs. Rows contain only the parent/owner IDs, media kind and role,
+position, storage reference, URL, and creation time. File metadata belongs to
+Storage and is not duplicated in this join table.
 
 ### 3. Dedicated physical tables
 
@@ -133,11 +135,11 @@ High-churn or operational records keep dedicated tables:
 | `workspace_members`          | Team invitation and access records              | Direct TablesDB queries  |
 | `demos`                      | Settings demo-video metadata                    | Direct TablesDB queries  |
 
-Tables such as `characters`, `character_generations`, `postfast_posts`,
-`results`, and `generated_video_exports` may still exist in cloned Appwrite
-schemas from earlier versions. They are not the active physical store for the
-current app. Current results and generated videos use `outputs`; PostFast
-publication records are embedded in an output's `publications` field.
+Pre-consolidation tables are not part of the maintained schema. Run
+`pnpm appwrite:prune-schema -- --env=<environment file>` to audit them and add
+`--apply` to delete only tables that Appwrite confirms are empty. Current
+results and generated videos use `outputs`; PostFast publication records are
+embedded in an output's `publications` field.
 
 ## Logical-to-physical store map
 
@@ -156,15 +158,16 @@ This table mirrors `STORE_ROUTES` in `lib/appwrite-stores.ts`.
 | Generated video exports          | `outputs`                    | `generated_video`             | Workspace-shareable read | Active |
 | X/Threads runs                   | `outputs`                    | `x_automation_run`            | Workspace-shareable read | Active |
 | Publication-only wrappers        | `outputs`                    | `publication_wrapper`         | Owner-only               | Active |
-| Slideshow/video automations      | `automations`                | `automations_automations`     | Owner-only               | Active |
-| Automation runs                  | `automation_runs`            | `automations_runs`            | Owner-only               | Active |
-| X/Threads automations            | `x_automations`              | `x-automations_automations`   | Owner-only               | Active |
-| Usage records                    | `usage_ledger`               | `usage-ledger`                | Owner-only               | Active |
-| Post analytics snapshots         | `postfast_metric_snapshots`  | `postfast-metric-snapshots`   | Owner-only               | Active |
-| Follower snapshots               | `account_follower_snapshots` | `account-follower-snapshots`  | Owner-only               | Active |
+| Slideshow/video automations      | `automations`                | Not applicable                | Owner-only               | Active |
+| Automation runs                  | `automation_runs`            | Not applicable                | Owner-only               | Active |
+| X/Threads automations            | `x_automations`              | Not applicable                | Owner-only               | Active |
+| Usage records                    | `usage_ledger`               | Not applicable                | Owner-only               | Active |
+| Post analytics snapshots         | `postfast_metric_snapshots`  | Not applicable                | Owner-only               | Active |
+| Follower snapshots               | `account_follower_snapshots` | Not applicable                | Owner-only               | Active |
 
-For dedicated tables, `source_key` is compatibility metadata rather than a
-cross-type discriminator.
+Dedicated tables do not carry `source_key`; their table identity is already the
+record discriminator. Snapshot and usage tables store query fields plus the
+serialized domain record without unused generic `name` or `status` columns.
 
 Automation template definitions and curated example runs live in local
 Appwrite as public reference categories. Creating a user automation writes a

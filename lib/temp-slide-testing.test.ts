@@ -164,7 +164,6 @@ describe("temp slide testing helpers", () => {
       automationName: automation.name,
       hook: promptPreviewHook(automation),
       tone: automation.tone,
-      style: automation.style,
       promptInstructions: defaultTempSlideUserInstructions,
       placeholders,
     })
@@ -198,7 +197,6 @@ describe("temp slide testing helpers", () => {
       automationName: automation.name,
       hook: promptPreviewHook(automation),
       tone: automation.tone,
-      style: automation.style,
       promptInstructions: defaultTempSlideUserInstructions,
       placeholders,
     })
@@ -243,14 +241,14 @@ describe("temp slide testing helpers", () => {
       automationName: automation.name,
       hook: promptPreviewHook(automation),
       tone: automation.tone,
-      style: automation.style,
       promptInstructions: defaultTempSlideUserInstructions,
       placeholders,
     })
 
     expect(prompt).toContain("Automation: Test Automation")
     expect(prompt).toContain("Hook: 3 ways to test hooks")
-    expect(prompt).toContain("Tone: Educational & Informative")
+    expect(prompt).toContain("Tone: direct and test-focused")
+    expect(prompt).not.toContain("\nStyle:")
     expect(prompt).toContain("Metadata requirements:")
     expect(prompt).toContain("return an array of 3-5 broad lowercase hashtags")
     expect(prompt).toContain("Prompt instructions:")

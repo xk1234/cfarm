@@ -131,11 +131,19 @@ async function sendTelegram(text, chatIdOverride, options = {}) {
   const chatId = cleanString(chatIdOverride) || process.env.TELEGRAM_CHAT_ID
   if (!token || !chatId) return { sent: false, reason: "not_configured" }
   const buttons = []
-  if (options.deliveryUrl) {
+  if (options.previewUrl) {
     buttons.push([
       {
-        text: "Download slides + copy post",
-        url: options.deliveryUrl,
+        text: "Preview generation",
+        url: options.previewUrl,
+      },
+    ])
+  }
+  if (options.downloadUrl) {
+    buttons.push([
+      {
+        text: "Download slides (.zip)",
+        url: options.downloadUrl,
       },
     ])
   }
@@ -210,21 +218,23 @@ export async function sendConfiguredReminder(payload, t, job) {
   if (channel !== "telegram") {
     return { sent: false, reason: "event_disabled" }
   }
+  const delivery =
+    payload.sourceType === "slideshow"
+      ? slideshowDeliveryUrls({
+          ownerId: job?.owner_id,
+          outputId: payload.sourceId,
+        })
+      : undefined
   return sendTelegram(payload.text, settings.telegramChatId, {
     botToken: settings.telegramBotToken,
-    deliveryUrl:
-      payload.sourceType === "slideshow"
-        ? slideshowDeliveryUrl({
-            ownerId: job?.owner_id,
-            outputId: payload.sourceId,
-          })
-        : undefined,
+    previewUrl: delivery?.previewUrl,
+    downloadUrl: delivery?.downloadUrl,
     confirmationJobId:
       payload.requiresPostConfirmation === true ? job?.$id : undefined,
   })
 }
 
-function slideshowDeliveryUrl({ ownerId, outputId }) {
+function slideshowDeliveryUrls({ ownerId, outputId }) {
   const baseUrl = cleanString(process.env.BASE_URL).replace(/\/$/, "")
   const secret =
     cleanString(process.env.SLIDESHOW_SHARE_SECRET) ||
@@ -243,7 +253,12 @@ function slideshowDeliveryUrl({ ownerId, outputId }) {
     .update(payload)
     .digest("base64url")
   const token = `${payload}.${signature}`
-  return `${baseUrl}/share/slideshows/${encodeURIComponent(claims.outputId)}?token=${encodeURIComponent(token)}`
+  const encodedOutputId = encodeURIComponent(claims.outputId)
+  const encodedToken = encodeURIComponent(token)
+  return {
+    previewUrl: `${baseUrl}/share/slideshows/${encodedOutputId}?token=${encodedToken}`,
+    downloadUrl: `${baseUrl}/api/public/slideshows/${encodedOutputId}/download?token=${encodedToken}`,
+  }
 }
 
 async function enqueueReminderJob(t, ownerId, input) {
@@ -411,7 +426,6 @@ async function upsertXOutput(t, record, ownerId) {
     await t.createRow(DB, "output_media", mediaId, {
       output_id: rowId,
       owner_id: ownerId,
-      permanent_asset_id: null,
       kind: "image",
       role: "post_image",
       position,
@@ -419,13 +433,6 @@ async function upsertXOutput(t, record, ownerId) {
       storage_file_id: null,
       storage_path: null,
       url,
-      mime_type: null,
-      bytes: null,
-      width: null,
-      height: null,
-      duration_ms: null,
-      checksum: null,
-      data: "null",
       created_at: nowIso(),
     })
   }

@@ -13,7 +13,6 @@ const automation: TempSlideTestingAutomation = {
   theme: "astrology",
   hooks: ["why geminis need room to change"],
   tone: "Educational & Informative",
-  style: "all lowercase",
   imageCollectionIds: { hook: "", content: "", cta: "" },
   slides: [
     {

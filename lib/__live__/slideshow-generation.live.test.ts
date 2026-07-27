@@ -14,7 +14,12 @@ function envKey(name: string) {
     const line = readFileSync(".env", "utf8")
       .split("\n")
       .find((entry) => entry.match(new RegExp(`^\\s*${name}\\s*=`)))
-    return line?.split("=").slice(1).join("=").trim().replace(/^["']|["']$/g, "")
+    return line
+      ?.split("=")
+      .slice(1)
+      .join("=")
+      .trim()
+      .replace(/^["']|["']$/g, "")
   } catch {
     return undefined
   }
@@ -31,7 +36,6 @@ const automation: TempSlideTestingAutomation = {
   // rather than about generation and rendering.
   hooks: ["three things a scorpio will never tell you"],
   tone: "direct",
-  style: "plain language",
   imageCollectionIds: { hook: "live", content: "live", cta: "" },
   slides: [
     {
@@ -108,7 +112,8 @@ async function ink(text: string) {
   const rgba = await sharp(Buffer.from(svg)).raw().toBuffer()
   let count = 0
   for (let index = 0; index < rgba.length; index += 4) {
-    if (rgba[index] > 128 && rgba[index + 1] > 128 && rgba[index + 2] > 128) count++
+    if (rgba[index] > 128 && rgba[index + 1] > 128 && rgba[index + 2] > 128)
+      count++
   }
   return count
 }
