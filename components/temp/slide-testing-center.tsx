@@ -394,10 +394,6 @@ export function SlideTestingCenter({
               <h1 className="text-2xl font-semibold tracking-normal">
                 Slideshow Debug &amp; Testing Center
               </h1>
-              <p className="max-w-3xl text-sm text-[#69675f]">
-                Inspect template JSON and compare slideshow generation across
-                OpenRouter models without touching live workflows.
-              </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">

@@ -89,18 +89,24 @@ export function AutomationsView({
   const [toneAnalyzerOpen, setToneAnalyzerOpen] = useState(false)
   return (
     <div className="mx-auto max-w-[1160px]">
-      <div className="mb-5 flex items-center justify-between">
+      <div className="mb-5">
         <h1 className="text-[24px] font-semibold">Automations</h1>
-        <div className="flex gap-3">
+        <div className="mt-4 flex flex-wrap justify-end gap-2 sm:gap-3">
           <Button
             variant="softControl"
             size="appDefault"
+            className="h-10 sm:h-9"
             onClick={() => setToneAnalyzerOpen(true)}
           >
             <IconSlideshow className="size-4" />
             Match slideshow
           </Button>
-          <Button variant="action" size="appDefault" onClick={onCreateNew}>
+          <Button
+            variant="action"
+            size="appDefault"
+            className="h-10 sm:h-9"
+            onClick={onCreateNew}
+          >
             <IconPlus className="size-4" />
             New automation
           </Button>

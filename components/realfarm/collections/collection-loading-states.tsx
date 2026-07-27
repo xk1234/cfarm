@@ -6,7 +6,7 @@ export function CollectionGridSkeleton() {
       role="status"
       aria-label="Loading collections"
       aria-busy="true"
-      className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-5"
+      className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 md:gap-5"
     >
       {Array.from({ length: 14 }, (_, index) => (
         <div

@@ -249,10 +249,6 @@ export function PostAnalyticsPage({
               <h2 className="text-[18px] font-semibold tracking-[-0.025em] text-app-text">
                 Performance over time
               </h2>
-              <p className="mt-1 text-[11px] font-medium text-app-muted-text">
-                {series.length} stored capture{series.length === 1 ? "" : "s"}.
-                Values are cumulative totals reported by the platform.
-              </p>
             </div>
             <div className="flex max-w-full gap-1.5 overflow-x-auto pb-1">
               {metrics.map((item) => (
@@ -342,10 +338,6 @@ export function PostAnalyticsPage({
             <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-app-text">
               Platform-specific metrics
             </h2>
-            <p className="mt-1 text-[11px] font-medium text-app-muted-text">
-              Raw fields returned by PostFast that do not fit the shared
-              cross-platform KPI set.
-            </p>
             {rawMetrics.length ? (
               <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                 {rawMetrics.map((item) => (

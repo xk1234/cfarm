@@ -173,17 +173,18 @@ export function VariableCollectionsPanel() {
 
   return (
     <div>
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-5 flex items-center justify-between gap-3">
         <SearchControl
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search variables"
           aria-label="Search variable collections"
-          className="max-w-[440px]"
+          className="h-10 min-w-0 flex-1 sm:h-9 sm:max-w-[440px]"
         />
         <Button
           variant="action"
           size="appDefault"
+          className="h-10 sm:h-9"
           onClick={() => openDraft(emptyDraft)}
         >
           <IconPlus className="size-4" />
@@ -240,6 +241,7 @@ export function VariableCollectionsPanel() {
                   <Button
                     variant="iconControl"
                     size="icon-control-sm"
+                    className="size-10 sm:size-7"
                     aria-label={`Edit ${wordCollectionVariableName(collection)}`}
                     onClick={() =>
                       openDraft({
@@ -255,7 +257,7 @@ export function VariableCollectionsPanel() {
                   <Button
                     variant="iconControl"
                     size="icon-control-sm"
-                    className="text-app-danger"
+                    className="size-10 text-app-danger sm:size-7"
                     aria-label={`Delete ${wordCollectionVariableName(collection)}`}
                     onClick={() => setDeleting(collection)}
                   >
@@ -346,6 +348,7 @@ function VariableCollectionModal({
           <Button
             variant="iconControl"
             size="icon-control-sm"
+            className="size-10 sm:size-7"
             onClick={onClose}
             aria-label="Close variable editor"
           >

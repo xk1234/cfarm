@@ -93,7 +93,7 @@ function ProductCollectionModal({
         accessibleTitle={collection.name}
         className="flex max-h-[92vh] max-w-[1240px] flex-col overflow-hidden rounded-[12px] bg-[#f6f5f0]"
       >
-        <header className="flex items-start justify-between gap-5 border-b border-app-panel-border bg-app-surface px-6 py-5">
+        <header className="flex items-start justify-between gap-4 border-b border-app-panel-border bg-app-surface px-4 py-4 sm:gap-5 sm:px-6 sm:py-5">
           <div>
             <h2 className="text-[22px] font-bold text-app-text">
               {collection.name}
@@ -120,14 +120,14 @@ function ProductCollectionModal({
           </div>
           <button
             type="button"
-            className="grid size-9 shrink-0 place-items-center rounded-[7px] text-app-muted-text hover:bg-app-control-hover"
+            className="grid size-10 shrink-0 place-items-center rounded-[7px] text-app-muted-text hover:bg-app-control-hover"
             onClick={onClose}
             aria-label="Close product collection"
           >
             <IconX className="size-5" />
           </button>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {collection.items.map((item) => (
               <article
@@ -159,7 +159,7 @@ function ProductCollectionModal({
                     href={item.marketplaceUrl}
                     target="_blank"
                     rel="noreferrer sponsored"
-                    className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-[7px] bg-[#151513] px-3 text-[12px] font-semibold text-white transition hover:bg-black"
+                    className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[7px] bg-[#151513] px-3 text-[12px] font-semibold text-white transition hover:bg-black"
                   >
                     <IconBrandAmazon className="size-4" />
                     View on Amazon

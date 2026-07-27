@@ -118,6 +118,7 @@ export function ContentCalendarView({
   const [calendarActionError, setCalendarActionError] = useState("")
   const [filters, setFilters] = useState<CalendarFilters>(defaultFilters)
   const [filtersHydrated, setFiltersHydrated] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const requestKey = `/api/calendar?from=${encodeURIComponent(visibleRange.from)}&to=${encodeURIComponent(visibleRange.to)}`
   const { data, error, isLoading, isValidating, mutate } =
     useSWR<CalendarPayload>(requestKey, clientSWRFetcher, {
@@ -141,6 +142,20 @@ export function ContentCalendarView({
     if (!filtersHydrated) return
     window.localStorage.setItem(filterStorageKey, JSON.stringify(filters))
   }, [filters, filtersHydrated])
+
+  useEffect(() => {
+    if (!filtersOpen) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFiltersOpen(false)
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => {
+      document.body.style.overflow = previous
+      window.removeEventListener("keydown", onKeyDown)
+    }
+  }, [filtersOpen])
 
   const items = useMemo(() => data?.items ?? [], [data?.items])
   const accounts = useMemo(() => accountOptions(items), [items])
@@ -203,6 +218,7 @@ export function ContentCalendarView({
       })),
     [visibleItems]
   )
+  const activeFilterCount = countActiveFilters(activeFilters)
 
   function handleDatesSet(info: DatesSetArg) {
     const next = {
@@ -246,62 +262,10 @@ export function ContentCalendarView({
     }
   }
 
-  return (
-    <div className="mx-auto max-w-[1380px] pb-12">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-5">
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-app-muted-text">
-            <IconCalendar className="size-4" /> Planning workspace
-          </div>
-          <h1 className="text-[30px] leading-none font-semibold tracking-[-0.035em] text-[#20201d]">
-            Content calendar
-          </h1>
-          <p className="mt-3 max-w-[620px] text-[14px] leading-6 font-medium text-app-muted-text">
-            Planned slots, generation work, manual tasks, scheduled posts, and
-            failures across every account.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="softControl"
-            size="compact"
-            onClick={() => void mutate()}
-            disabled={isValidating}
-          >
-            <IconRefresh
-              className={cn("size-4", isValidating && "animate-spin")}
-            />
-            Refresh
-          </Button>
-          <Button variant="action" size="compact" onClick={onGoAutomations}>
-            <IconSparkles className="size-4" /> Automations
-          </Button>
-        </div>
-      </header>
-
-      <section className="mb-4 grid gap-2 sm:grid-cols-3">
-        <SummaryCard
-          label="Needs action"
-          value={visibleSummary.needsAction}
-          tone="amber"
-        />
-        <SummaryCard
-          label="Failures"
-          value={visibleSummary.failed}
-          tone="red"
-        />
-        <SummaryCard
-          label="Planned slots"
-          value={visibleSummary.planned}
-          tone="neutral"
-        />
-      </section>
-
-      <section className="mb-4 rounded-[12px] border border-app-panel-border bg-app-surface p-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="mr-1 inline-flex items-center gap-1.5 text-[12px] font-semibold text-app-muted-text">
-            <IconFilter className="size-4" /> Filters
-          </span>
+  function renderFilterControls(mobile: boolean) {
+    return (
+      <>
+        <FilterControlSlot label="Accounts" mobile={mobile}>
           <MultiSelectFilter
             label="Accounts"
             allLabel="All accounts"
@@ -316,6 +280,8 @@ export function ContentCalendarView({
               setFilters((current) => ({ ...current, accounts }))
             }
           />
+        </FilterControlSlot>
+        <FilterControlSlot label="Platform" mobile={mobile}>
           <CalendarSelectFilter
             label="Platform"
             allLabel="All platforms"
@@ -333,6 +299,8 @@ export function ContentCalendarView({
               }))
             }
           />
+        </FilterControlSlot>
+        <FilterControlSlot label="Lifecycle" mobile={mobile}>
           <MultiSelectFilter
             label="Lifecycle"
             allLabel="All lifecycle states"
@@ -357,6 +325,8 @@ export function ContentCalendarView({
               }))
             }
           />
+        </FilterControlSlot>
+        <FilterControlSlot label="Automation" mobile={mobile}>
           <CalendarSelectFilter
             label="Automation"
             allLabel="All automations"
@@ -372,6 +342,8 @@ export function ContentCalendarView({
               }))
             }
           />
+        </FilterControlSlot>
+        <FilterControlSlot label="Source" mobile={mobile}>
           <CalendarSelectFilter
             label="Source"
             allLabel="All sources"
@@ -387,6 +359,84 @@ export function ContentCalendarView({
               }))
             }
           />
+        </FilterControlSlot>
+      </>
+    )
+  }
+
+  return (
+    <div className="mx-auto max-w-[1380px] pb-12">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-5">
+        <div>
+          <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-app-muted-text">
+            <IconCalendar className="size-4" /> Planning workspace
+          </div>
+          <h1 className="text-[30px] leading-none font-semibold tracking-[-0.035em] text-[#20201d]">
+            Content calendar
+          </h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="softControl"
+            size="compact"
+            onClick={() => void mutate()}
+            disabled={isValidating}
+          >
+            <IconRefresh
+              className={cn("size-4", isValidating && "animate-spin")}
+            />
+            Refresh
+          </Button>
+          <Button variant="action" size="compact" onClick={onGoAutomations}>
+            <IconSparkles className="size-4" /> Automations
+          </Button>
+        </div>
+      </header>
+
+      <section className="mb-4 grid grid-cols-3 gap-2">
+        <SummaryCard
+          label="Needs action"
+          value={visibleSummary.needsAction}
+          tone="amber"
+        />
+        <SummaryCard
+          label="Failures"
+          value={visibleSummary.failed}
+          tone="red"
+        />
+        <SummaryCard
+          label="Planned slots"
+          value={visibleSummary.planned}
+          tone="neutral"
+        />
+      </section>
+
+      <section className="mb-4 md:hidden">
+        <Button
+          type="button"
+          variant="softControl"
+          size="appDefault"
+          className="h-10 w-full justify-between"
+          aria-expanded={filtersOpen}
+          aria-controls="calendar-mobile-filters"
+          onClick={() => setFiltersOpen(true)}
+        >
+          <span className="inline-flex items-center gap-2">
+            <IconFilter className="size-4" />
+            Filters
+          </span>
+          <span className="rounded-full bg-app-surface-subtle px-2 py-0.5 text-[11px] tabular-nums">
+            {activeFilterCount} active
+          </span>
+        </Button>
+      </section>
+
+      <section className="mb-4 hidden rounded-[12px] border border-app-panel-border bg-app-surface p-3 md:block">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 inline-flex items-center gap-1.5 text-[12px] font-semibold text-app-muted-text">
+            <IconFilter className="size-4" /> Filters
+          </span>
+          {renderFilterControls(false)}
           {hasFilters(activeFilters) ? (
             <button
               type="button"
@@ -398,6 +448,61 @@ export function ContentCalendarView({
           ) : null}
         </div>
       </section>
+
+      {filtersOpen ? (
+        <div className="fixed inset-0 z-[70] md:hidden">
+          <button
+            type="button"
+            aria-label="Close filters"
+            className="absolute inset-0 bg-black/35"
+            onClick={() => setFiltersOpen(false)}
+          />
+          <section
+            id="calendar-mobile-filters"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Calendar filters"
+            className="absolute inset-x-0 bottom-0 max-h-[85dvh] overflow-y-auto rounded-t-[18px] bg-app-surface shadow-[0_-16px_40px_rgba(25,18,45,0.18)]"
+          >
+            <div className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-app-panel-border bg-app-surface px-4">
+              <span className="text-[15px] font-semibold text-app-text">
+                Filters
+              </span>
+              <button
+                type="button"
+                aria-label="Close filters"
+                className="lc-focus-ring flex size-10 items-center justify-center rounded-[10px] text-app-text active:bg-app-control-hover"
+                onClick={() => setFiltersOpen(false)}
+              >
+                <IconX className="size-5" />
+              </button>
+            </div>
+            <div className="space-y-4 p-4">{renderFilterControls(true)}</div>
+            <div className="sticky bottom-0 flex gap-2 border-t border-app-panel-border bg-app-surface p-4">
+              {hasFilters(activeFilters) ? (
+                <Button
+                  type="button"
+                  variant="softControl"
+                  size="appDefault"
+                  className="h-10 flex-1"
+                  onClick={() => setFilters(defaultFilters)}
+                >
+                  Clear filters
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="action"
+                size="appDefault"
+                className="h-10 flex-1"
+                onClick={() => setFiltersOpen(false)}
+              >
+                Done
+              </Button>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {error && !data ? (
         <InlineState
@@ -719,6 +824,33 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   )
 }
 
+function FilterControlSlot({
+  label,
+  mobile,
+  children,
+}: {
+  label: string
+  mobile: boolean
+  children: ReactNode
+}) {
+  return (
+    <div
+      className={
+        mobile
+          ? "[&>button]:h-10 [&>button]:w-full [&>button]:max-w-none"
+          : "contents"
+      }
+    >
+      {mobile ? (
+        <div className="mb-1.5 text-[12px] font-semibold text-app-muted-text">
+          {label}
+        </div>
+      ) : null}
+      {children}
+    </div>
+  )
+}
+
 function MultiSelectFilter({
   label,
   allLabel,
@@ -921,7 +1053,7 @@ function SummaryCard({
   return (
     <div
       className={cn(
-        "rounded-[10px] px-4 py-3",
+        "min-w-0 rounded-[10px] px-2 py-3 sm:px-4",
         tone === "amber"
           ? "bg-[#fff2d8]"
           : tone === "red"
@@ -929,10 +1061,10 @@ function SummaryCard({
             : "bg-[#eeede7]"
       )}
     >
-      <div className="text-[11px] font-semibold tracking-[0.06em] text-app-muted-text uppercase">
+      <div className="min-h-8 text-[10px] leading-4 font-semibold tracking-[0.04em] break-words text-app-muted-text uppercase sm:min-h-0 sm:text-[11px] sm:tracking-[0.06em]">
         {label}
       </div>
-      <div className="mt-1 text-[22px] font-semibold text-app-text tabular-nums">
+      <div className="mt-1 text-[22px] leading-none font-semibold text-app-text tabular-nums">
         {value}
       </div>
     </div>
@@ -1177,6 +1309,16 @@ function hasFilters(filters: CalendarFilters) {
     filters.platform !== "all" ||
     filters.automation !== "all" ||
     filters.sourceType !== "all"
+  )
+}
+
+function countActiveFilters(filters: CalendarFilters) {
+  return (
+    filters.accounts.length +
+    filters.statuses.length +
+    Number(filters.platform !== "all") +
+    Number(filters.automation !== "all") +
+    Number(filters.sourceType !== "all")
   )
 }
 

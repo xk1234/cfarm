@@ -158,10 +158,6 @@ export function TestingFacility() {
         <h1 className="text-3xl font-semibold tracking-tight text-app-text">
           Compare automation previews
         </h1>
-        <p className="text-sm leading-6 text-app-muted-text">
-          Hold a saved automation steady, move selected inputs, and inspect
-          every preview. Experiments cannot save or publish.
-        </p>
       </header>
 
       <section className="rounded-dialog border border-app-panel-border bg-app-surface-raised p-5">
@@ -402,12 +398,7 @@ function ResultsGrid({
 
   return (
     <section className="space-y-3">
-      <div>
-        <h2 className="text-heading font-semibold text-app-text">Results</h2>
-        <p className="text-sm text-app-muted-text">
-          Rows are hooks. Columns are variations.
-        </p>
-      </div>
+      <h2 className="text-heading font-semibold text-app-text">Results</h2>
       <div className="overflow-x-auto rounded-dialog border border-app-panel-border bg-app-surface-raised">
         <table className="min-w-full border-collapse text-left">
           <thead>
