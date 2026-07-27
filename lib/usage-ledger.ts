@@ -12,7 +12,7 @@ import { usageForPublishedRuns } from "@/lib/usage-core"
 export { usageForPublishedRuns } from "@/lib/usage-core"
 
 export type UsageKind =
-  "hook_published" | "hook_combination_published" | "image" | "text"
+  "hook_published" | "hook_combination_published" | "image" | "text" | "heading"
 
 export type UsageRecord = {
   id?: string
@@ -235,7 +235,8 @@ function normalizeKind(value: unknown): UsageKind | null {
   return value === "hook_published" ||
     value === "hook_combination_published" ||
     value === "image" ||
-    value === "text"
+    value === "text" ||
+    value === "heading"
     ? value
     : null
 }

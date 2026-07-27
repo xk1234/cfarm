@@ -24,6 +24,7 @@ export type GeneratedShowcaseRun = {
   slideshowId?: string
   socialStatuses?: Array<{ status?: string }>
   createdAt?: string
+  updatedAt?: string
   error?: string
   plan?: {
     title?: string

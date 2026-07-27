@@ -5,6 +5,7 @@ import {
   captureOwnerId,
   getTikTokStudioCaptureManifest,
   ingestTikTokStudioAnalyticsCapture,
+  reportTikTokStudioAnalyticsFailure,
 } from "@/lib/tiktok-studio-analytics"
 import { syncTikTokStudioSnapshotToCloud } from "@/lib/tiktok-studio-cloud-sync"
 
@@ -53,14 +54,44 @@ export async function POST(request: Request) {
       return json({ error: "Capture payload is too large" }, 413)
     }
     const body = JSON.parse(text) as {
+      action?: unknown
       captureId?: unknown
       studioUrl?: unknown
       payload?: unknown
+      section?: unknown
+      reason?: unknown
     }
-    if (typeof body.studioUrl !== "string" || body.payload === undefined) {
-      return json({ error: "studioUrl and payload are required" }, 400)
+    if (typeof body.studioUrl !== "string") {
+      return json({ error: "studioUrl is required" }, 400)
     }
     const ownerId = captureOwnerId(token)
+    if (body.action === "failure") {
+      const failure = await withSystemOwner(ownerId, () =>
+        reportTikTokStudioAnalyticsFailure({
+          token,
+          captureId:
+            typeof body.captureId === "string" ? body.captureId : undefined,
+          studioUrl: body.studioUrl as string,
+          section:
+            body.section === "overview" ||
+            body.section === "viewers" ||
+            body.section === "engagement"
+              ? body.section
+              : undefined,
+          reason:
+            typeof body.reason === "string" ? body.reason : "Capture failed",
+        })
+      )
+      return json({
+        accepted: true,
+        importId: failure.id,
+        status: failure.status,
+        failure: failure.failure,
+      })
+    }
+    if (body.payload === undefined) {
+      return json({ error: "studioUrl and payload are required" }, 400)
+    }
     const result = await withSystemOwner(ownerId, () =>
       ingestTikTokStudioAnalyticsCapture({
         token,
@@ -86,8 +117,7 @@ export async function POST(request: Request) {
       autoLinked:
         ("autoLinked" in result ? result.autoLinked : undefined) ??
         result.import.status === "linked",
-      snapshotId:
-        "snapshot" in result ? result.snapshot?.id : undefined,
+      snapshotId: "snapshot" in result ? result.snapshot?.id : undefined,
       cloudSynced: cloudSync.synced,
     })
   } catch (error) {

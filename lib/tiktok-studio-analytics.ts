@@ -72,7 +72,7 @@ export type TikTokStudioParsedCapture = {
 
 export type TikTokStudioImportRecord = {
   id: string
-  status: "waiting" | "capturing" | "ready" | "linked" | "expired"
+  status: "waiting" | "capturing" | "ready" | "linked" | "failed" | "expired"
   targetPostId: string
   externalPostId: string
   integrationId: string
@@ -83,13 +83,18 @@ export type TikTokStudioImportRecord = {
   capturedSections: TikTokStudioSection[]
   capture?: TikTokStudioParsedCapture
   linkedSnapshotId?: string
+  failure?: {
+    section?: TikTokStudioSection
+    reason: string
+    failedAt: string
+  }
 }
 
 export type TikTokStudioBatchMode = "new" | "recent" | "all"
 
 export type TikTokStudioBatchRecord = {
   id: string
-  status: "waiting" | "capturing" | "ready" | "complete" | "expired"
+  status: "waiting" | "capturing" | "ready" | "complete" | "partial" | "expired"
   integrationIds: string[]
   mode: TikTokStudioBatchMode
   recentDays?: number
@@ -108,6 +113,7 @@ export type TikTokStudioBatchItem = Pick<
   | "studioUrl"
   | "capturedSections"
   | "linkedSnapshotId"
+  | "failure"
 >
 
 export type TikTokStudioBatchView = TikTokStudioBatchRecord & {
@@ -116,6 +122,7 @@ export type TikTokStudioBatchView = TikTokStudioBatchRecord & {
     total: number
     captured: number
     linked: number
+    failed: number
   }
 }
 
@@ -346,6 +353,7 @@ export async function inspectTikTokStudioAnalyticsImport(importId: string) {
   if (!record) throw new Error("TikTok Studio analytics import was not found")
   if (
     record.status !== "linked" &&
+    record.status !== "failed" &&
     Date.parse(record.expiresAt) <= Date.now()
   ) {
     const expired = {
@@ -392,6 +400,43 @@ export async function ingestTikTokStudioAnalyticsCapture(input: {
     throw new Error("TikTok Studio analytics import does not match this post")
   }
   return ingestCaptureForRecord(record, input)
+}
+
+export async function reportTikTokStudioAnalyticsFailure(input: {
+  token: string
+  captureId?: string
+  studioUrl: string
+  section?: TikTokStudioSection
+  reason: string
+}) {
+  const token = verifyCaptureToken(input.token)
+  const captureId =
+    token.version === 3 ? clean(input.captureId) : clean(token.captureId)
+  if (!captureId) throw new Error("A pending capture ID is required")
+  const batch = await readBatch(captureId)
+  const imports = batch ? await readBatchImports(batch) : []
+  const externalPostId = studioPostId(input.studioUrl)
+  const record = batch
+    ? imports.find((candidate) => candidate.externalPostId === externalPostId)
+    : await readImport(captureId)
+  if (!record || record.externalPostId !== externalPostId) {
+    throw new Error("This TikTok post is not authorized by the capture")
+  }
+  assertStudioUrl(input.studioUrl, record.externalPostId)
+  const failedAt = new Date().toISOString()
+  const updated: TikTokStudioImportRecord = {
+    ...record,
+    status: record.status === "linked" ? "linked" : "failed",
+    failure: {
+      section: input.section,
+      reason: clean(input.reason).slice(0, 500) || "Studio capture failed",
+      failedAt,
+    },
+    updatedAt: failedAt,
+  }
+  await saveImport(updated)
+  if (batch) await refreshBatch(batch)
+  return updated
 }
 
 async function ingestBatchCapture(
@@ -609,7 +654,12 @@ async function getPendingDeviceCaptureManifest() {
   const batchImportIds = new Set(batches.flatMap((batch) => batch.importIds))
   for (const batch of byNewest(batches)) {
     const view = await refreshBatch(batch)
-    if (view.status === "complete" || view.status === "expired") continue
+    if (
+      view.status === "complete" ||
+      view.status === "partial" ||
+      view.status === "expired"
+    )
+      continue
     return {
       version: 3 as const,
       captureId: view.id,
@@ -633,6 +683,7 @@ async function getPendingDeviceCaptureManifest() {
     (item) =>
       !batchImportIds.has(item.id) &&
       item.status !== "linked" &&
+      item.status !== "failed" &&
       item.status !== "expired" &&
       Date.parse(item.expiresAt) > Date.now()
   )
@@ -1300,16 +1351,20 @@ async function readBatchImports(batch: TikTokStudioBatchRecord) {
 async function refreshBatch(batch: TikTokStudioBatchRecord) {
   const imports = await readBatchImports(batch)
   const view = batchView(batch, imports)
-  const status =
-    view.counts.linked === view.counts.total
-      ? "complete"
-      : Date.parse(batch.expiresAt) <= Date.now()
-        ? "expired"
-        : view.counts.captured === view.counts.total
-          ? "ready"
-          : imports.some((record) => record.capturedSections.length > 0)
-            ? "capturing"
-            : "waiting"
+  const terminal = imports.every(
+    (record) => record.status === "linked" || record.status === "failed"
+  )
+  const status = terminal
+    ? view.counts.failed > 0
+      ? "partial"
+      : "complete"
+    : Date.parse(batch.expiresAt) <= Date.now()
+      ? "expired"
+      : view.counts.captured === view.counts.total
+        ? "ready"
+        : imports.some((record) => record.capturedSections.length > 0)
+          ? "capturing"
+          : "waiting"
   if (status === batch.status) return { ...view, status }
   const updated: TikTokStudioBatchRecord = {
     ...batch,
@@ -1332,6 +1387,7 @@ function batchView(
     studioUrl: record.studioUrl,
     capturedSections: record.capturedSections,
     linkedSnapshotId: record.linkedSnapshotId,
+    failure: record.failure,
   }))
   return {
     ...batch,
@@ -1342,6 +1398,7 @@ function batchView(
         item.capturedSections.includes("overview")
       ).length,
       linked: items.filter((item) => item.status === "linked").length,
+      failed: items.filter((item) => item.status === "failed").length,
     },
   }
 }

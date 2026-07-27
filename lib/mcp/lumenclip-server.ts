@@ -1442,17 +1442,18 @@ function registerAutomationReadAndRunTools(
   server.registerTool(
     "lumenclip_automation_schema_update",
     {
-      title: "Replace an automation schema",
+      title: "Patch or replace an automation schema",
       description:
-        "Replaces the complete normalized editor schema for a slideshow, video, or AI UGC automation. Read automation_get first and send the complete desired schema with its updatedAt timestamp.",
+        "Patches the normalized editor schema by default: nested objects merge and supplied arrays replace only their array field, while omitted fields remain unchanged. Use mode=replace only when intentionally replacing the complete schema. Always send the current updatedAt timestamp.",
       inputSchema: {
         automationId: z.string().trim().min(1),
         expectedUpdatedAt: z.string().datetime({ offset: true }),
+        mode: z.enum(["patch", "replace"]).default("patch"),
         schema: z.record(z.string(), z.unknown()),
       },
       annotations: {
         readOnlyHint: false,
-        destructiveHint: true,
+        destructiveHint: false,
         idempotentHint: true,
         openWorldHint: false,
       },
@@ -1463,8 +1464,12 @@ function registerAutomationReadAndRunTools(
           const record = await services.getAutomationRecord(input.automationId)
           if (!record) throw new Error("Automation not found")
           assertExpectedVersion(record.updatedAt, input.expectedUpdatedAt)
+          const candidate =
+            input.mode === "replace"
+              ? input.schema
+              : mergeAutomationSchemaPatch(record.schema, input.schema)
           const schema = normalizeAutomationSchema(
-            input.schema as unknown as AutomationRecord["schema"],
+            candidate as unknown as AutomationRecord["schema"],
             automationRecordToSummary(record)
           )
           const updated = await services.patchAutomationRecord({
@@ -6220,6 +6225,21 @@ async function patchAutomationHooks(
   return updated
 }
 
+export function mergeAutomationSchemaPatch(
+  current: Record<string, unknown>,
+  patch: Record<string, unknown>
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...current }
+  for (const [key, value] of Object.entries(patch)) {
+    const existing = merged[key]
+    merged[key] =
+      isRecord(existing) && isRecord(value)
+        ? mergeAutomationSchemaPatch(existing, value)
+        : value
+  }
+  return merged
+}
+
 function upsertAutomationHooks(input: {
   current: AutomationHookItem[]
   updates: Array<{
@@ -6426,15 +6446,33 @@ export function buildAnalyticsReport(input: {
   const requested = new Set(
     (input.integrationIds ?? []).map(clean).filter(Boolean)
   )
-  const publicationById = new Map(
-    (input.publications ?? []).map((publication) => [
-      publication.id,
-      publication,
-    ])
+  const suppliedPublications = input.publications !== undefined
+  const publications = canonicalAnalyticsPublications(
+    (input.publications ?? []).filter((publication) => {
+      const activityAt =
+        publication.publishedAt ||
+        publication.createdAt ||
+        publication.updatedAt
+      return (
+        (publication.status === "published" ||
+          Boolean(publication.publishedAt)) &&
+        Date.parse(activityAt) >= Date.parse(since) &&
+        (requested.size === 0 || requested.has(publication.integrationId))
+      )
+    })
   )
-  const visible = input.snapshots
+  const publicationById = new Map(
+    publications.map((publication) => [publication.id, publication])
+  )
+  const visibleSnapshots = input.snapshots
     .map((snapshot) => {
-      const publication = publicationById.get(snapshot.postId)
+      const publication =
+        publicationById.get(snapshot.postId) ??
+        publications.find(
+          (item) =>
+            clean(item.externalPostId) &&
+            clean(item.externalPostId) === clean(snapshot.platformPostId)
+        )
       return publication
         ? {
             ...snapshot,
@@ -6455,7 +6493,7 @@ export function buildAnalyticsReport(input: {
         (requested.size === 0 || requested.has(snapshot.integrationId))
     )
   const latestByPost = new Map<string, PostFastMetricSnapshot>()
-  for (const snapshot of visible) {
+  for (const snapshot of visibleSnapshots) {
     const key = `${snapshot.integrationId}:${snapshot.postId}`
     const existing = latestByPost.get(key)
     if (
@@ -6466,8 +6504,26 @@ export function buildAnalyticsReport(input: {
     }
   }
   const latest = [...latestByPost.values()]
+  const snapshotForPublication = (publication: PostFastPostRecord) =>
+    latest.find(
+      (snapshot) =>
+        snapshot.postId === publication.id ||
+        (clean(publication.externalPostId) &&
+          clean(publication.externalPostId) === clean(snapshot.platformPostId))
+    )
+  const posts: Array<{
+    publication?: PostFastPostRecord
+    snapshot?: PostFastMetricSnapshot
+  }> = suppliedPublications
+    ? publications.map((publication) => ({
+        publication,
+        snapshot: snapshotForPublication(publication),
+      }))
+    : latest.map((snapshot) => ({ snapshot }))
   const integrationIds = new Set([
-    ...latest.map((snapshot) => snapshot.integrationId),
+    ...posts.map(
+      (post) => post.publication?.integrationId ?? post.snapshot!.integrationId
+    ),
     ...input.followerSnapshots
       .filter(
         (snapshot) =>
@@ -6480,8 +6536,13 @@ export function buildAnalyticsReport(input: {
 
   const accounts = [...integrationIds]
     .map((integrationId) => {
-      const posts = latest.filter(
-        (snapshot) => snapshot.integrationId === integrationId
+      const accountPosts = posts.filter(
+        (post) =>
+          (post.publication?.integrationId ?? post.snapshot?.integrationId) ===
+          integrationId
+      )
+      const metricPosts = accountPosts.flatMap((post) =>
+        post.snapshot ? [post.snapshot] : []
       )
       const followers = input.followerSnapshots
         .filter(
@@ -6495,12 +6556,15 @@ export function buildAnalyticsReport(input: {
       return {
         integrationId,
         provider:
-          posts[0]?.provider ||
+          accountPosts[0]?.publication?.provider ||
+          metricPosts[0]?.provider ||
           lastFollower?.provider ||
           firstFollower?.provider,
-        postCount: posts.length,
-        metrics: aggregateMetrics(posts.map((post) => post.metrics)),
-        newFollowers: posts.reduce(
+        postCount: accountPosts.length,
+        withMetrics: metricPosts.length,
+        awaitingCapture: accountPosts.length - metricPosts.length,
+        metrics: aggregateMetrics(metricPosts.map((post) => post.metrics)),
+        newFollowers: metricPosts.reduce(
           (total, post) =>
             total + (numberValue(post.rawMetrics.newFollowers) ?? 0),
           0
@@ -6520,31 +6584,74 @@ export function buildAnalyticsReport(input: {
     generatedAt,
     since,
     days: input.days,
+    postCount: posts.length,
+    withMetrics: posts.filter((post) => post.snapshot).length,
+    awaitingCapture: posts.filter((post) => !post.snapshot).length,
     totals: aggregateMetrics(accounts.map((account) => account.metrics)),
     accounts,
-    posts: latest
-      .sort((left, right) => right.capturedAt.localeCompare(left.capturedAt))
+    posts: posts
+      .sort((left, right) =>
+        analyticsPostSortAt(right).localeCompare(analyticsPostSortAt(left))
+      )
       .slice(0, input.postLimit)
-      .map((snapshot) => ({
-        postId: snapshot.postId,
-        integrationId: snapshot.integrationId,
-        provider: snapshot.provider,
-        capturedAt: snapshot.capturedAt,
-        publishedAt: snapshot.publishedAt,
-        content: snapshot.content,
-        contentType: snapshot.contentType,
-        sourceType: snapshot.sourceType,
-        sourceId: snapshot.sourceId,
-        releaseUrl: snapshot.releaseUrl,
-        metrics: snapshot.metrics,
-        newFollowers: numberValue(snapshot.rawMetrics.newFollowers),
-        analyticsSource: snapshot.source ?? "postfast",
+      .map(({ publication, snapshot }) => ({
+        postId: publication?.id ?? snapshot!.postId,
+        externalPostId: publication?.externalPostId ?? snapshot?.platformPostId,
+        integrationId: publication?.integrationId ?? snapshot!.integrationId,
+        provider: publication?.provider ?? snapshot!.provider,
+        status: publication?.status,
+        linkState: publication?.linkState,
+        hasMetrics: Boolean(snapshot),
+        metricsStatus: snapshot ? "captured" : "awaiting_capture",
+        capturedAt: snapshot?.capturedAt,
+        publishedAt: publication?.publishedAt ?? snapshot?.publishedAt,
+        content: publication?.content ?? snapshot?.content,
+        contentType: snapshot?.contentType,
+        sourceType: publication?.sourceType ?? snapshot?.sourceType,
+        sourceId: publication?.sourceId ?? snapshot?.sourceId,
+        releaseUrl: publication?.releaseUrl ?? snapshot?.releaseUrl,
+        metrics: snapshot?.metrics ?? {},
+        newFollowers: snapshot
+          ? numberValue(snapshot.rawMetrics.newFollowers)
+          : undefined,
+        analyticsSource: snapshot?.source ?? undefined,
         studioReportTool:
-          snapshot.source === "tiktok_studio"
+          snapshot?.source === "tiktok_studio"
             ? "lumenclip_tiktok_studio_analytics_report"
             : undefined,
       })),
   }
+}
+
+function canonicalAnalyticsPublications(publications: PostFastPostRecord[]) {
+  const byIdentity = new Map<string, PostFastPostRecord>()
+  for (const publication of publications) {
+    const externalId = clean(publication.externalPostId)
+    const key = externalId
+      ? `${publication.provider.toLowerCase()}:${externalId}`
+      : publication.id
+    const existing = byIdentity.get(key)
+    if (
+      !existing ||
+      Date.parse(publication.updatedAt) > Date.parse(existing.updatedAt)
+    ) {
+      byIdentity.set(key, publication)
+    }
+  }
+  return [...byIdentity.values()]
+}
+
+function analyticsPostSortAt(post: {
+  publication?: PostFastPostRecord
+  snapshot?: PostFastMetricSnapshot
+}) {
+  return (
+    post.publication?.publishedAt ||
+    post.snapshot?.publishedAt ||
+    post.snapshot?.capturedAt ||
+    post.publication?.createdAt ||
+    ""
+  )
 }
 
 function aggregateMetrics(values: MetricTotals[]): MetricTotals {

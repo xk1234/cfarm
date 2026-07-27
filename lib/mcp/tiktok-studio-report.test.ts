@@ -321,6 +321,33 @@ describe("TikTok Studio MCP report", () => {
       "Studio returned slide indexes but no retention or like-distribution values; slide-level performance is unavailable for this capture."
     )
   })
+
+  it("returns linked TikTok publications even before Studio metrics exist", async () => {
+    const publications = [
+      slideshowPublication(),
+      ...[2, 3, 4].map((index) => ({
+        ...slideshowPublication(),
+        id: `publication-${index}`,
+        sourceId: `slideshow-${index}`,
+        externalPostId: `766236032431351733${index}`,
+        releaseUrl: `https://www.tiktok.com/@horoiq/photo/766236032431351733${index}`,
+      })),
+    ]
+    const report = await buildTikTokStudioMcpReport(
+      reportInput(),
+      services({ publications, snapshots: [studioSnapshot()] })
+    )
+
+    expect(report.pagination.total).toBe(4)
+    expect(report.counts).toEqual({
+      publications: 4,
+      withMetrics: 1,
+      awaitingCapture: 3,
+    })
+    expect(
+      report.posts.filter((post) => post.analytics.state === "awaiting_capture")
+    ).toHaveLength(3)
+  })
 })
 
 function reportInput() {

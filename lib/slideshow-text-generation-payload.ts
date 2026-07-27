@@ -15,6 +15,7 @@ export function slideshowTextGenerationPayload(input: {
   systemPrompt?: string
   promptInstructions?: string
   avoidSimilarOutputs?: string[]
+  avoidSimilarHeadings?: string[]
   performanceMemory?: {
     provenPatterns: string[]
     avoidPatterns: string[]
@@ -34,6 +35,7 @@ export function slideshowTextGenerationPayload(input: {
     promptInstructions: input.promptInstructions,
     placeholders,
     avoidSimilarOutputs: input.avoidSimilarOutputs,
+    avoidSimilarHeadings: input.avoidSimilarHeadings,
     performanceMemory: input.performanceMemory,
   })
 

@@ -381,11 +381,12 @@ async function recoverTikTokPost(input: {
     input.post.caption.match(/#[\p{L}\p{N}_-]+/gu)?.join(" ") ?? ""
   const title = titleFromHook(hook)
   const createdAt = input.post.publishedAt
+  const inferredHookTemplate = inferHistoricalHookTemplate(hook)
   const matchedHook = uniqueHookTemplateMatch(
     automationHookItems(input.automation.schema),
-    { renderedHook: hook }
+    { hookTemplate: inferredHookTemplate, renderedHook: hook }
   )
-  const hookTemplate = matchedHook?.text ?? hook
+  const hookTemplate = matchedHook?.text ?? inferredHookTemplate
   const hookId = matchedHook?.id ?? automationHookId(hookTemplate)
   const { slideshow } = await createSlideshowResultRecord({
     automationId: input.automation.id,
@@ -412,12 +413,11 @@ async function recoverTikTokPost(input: {
   })
   const slides = slideshow.output_images.map((imageUrl, index) => ({
     id: `slide-${index + 1}`,
-    role:
-      index === 0
-        ? ("hook" as const)
-        : index === slideshow.output_images.length - 1
-          ? ("cta" as const)
-          : ("content" as const),
+    role: recoveredTikTokSlideRole({
+      text: clean(slideTexts[index]),
+      index,
+      count: slideshow.output_images.length,
+    }),
     imageUrl,
     imageKey: `tiktok:${input.post.id}:${index + 1}`,
     imageCaption: `Published TikTok slide ${index + 1}`,
@@ -473,10 +473,11 @@ async function recoverTikTokPost(input: {
 async function ensureHistoricalHook(run: AutomationRunRecord) {
   const automation = await requireAutomation(run.automationId)
   const items = automationHookItems(automation.schema)
-  const sourceText = clean(run.plan.hookTemplate) || clean(run.plan.hook)
+  const sourceText =
+    clean(run.plan.hookTemplate) || inferHistoricalHookTemplate(run.plan.hook)
   if (!sourceText) return run
   const existing = uniqueHookTemplateMatch(items, {
-    hookTemplate: run.plan.hookTemplate,
+    hookTemplate: sourceText,
     renderedHook: run.plan.hook,
   })
   const hookId = existing?.id ?? automationHookId(sourceText)
@@ -495,10 +496,7 @@ async function ensureHistoricalHook(run: AutomationRunRecord) {
       ]),
     })
   }
-  if (
-    run.plan.hookId === hookId &&
-    run.plan.hookTemplate === hookTemplate
-  ) {
+  if (run.plan.hookId === hookId && run.plan.hookTemplate === hookTemplate) {
     return run
   }
   const updated = {
@@ -507,6 +505,45 @@ async function ensureHistoricalHook(run: AutomationRunRecord) {
   }
   await upsertRecoveredAutomationRun(updated)
   return updated
+}
+
+const zodiacNames = [
+  "capricorn",
+  "aquarius",
+  "sagittarius",
+  "scorpio",
+  "pisces",
+  "aries",
+  "taurus",
+  "gemini",
+  "cancer",
+  "leo",
+  "virgo",
+  "libra",
+]
+
+export function inferHistoricalHookTemplate(value: string) {
+  let template = clean(value)
+  template = template.replace(
+    new RegExp(`\\b(${zodiacNames.join("|")})\\b`, "gi"),
+    "[[ZODIAC]]"
+  )
+  template = template.replace(/^\d{1,2}(?=\s+\D)/, "[[SLIDE_COUNT]]")
+  return template
+}
+
+export function recoveredTikTokSlideRole(input: {
+  text: string
+  index: number
+  count: number
+}): "hook" | "content" | "cta" {
+  if (input.index === 0) return "hook"
+  const isLast = input.index === input.count - 1
+  const explicitCallToAction =
+    /\b(follow|save|share|comment|subscribe|tag|link in (?:my )?bio|check (?:my )?bio|let me know|part 2)\b/i.test(
+      input.text
+    )
+  return isLast && explicitCallToAction ? "cta" : "content"
 }
 
 async function selectedRun(input: { automationId: string; runId: string }) {

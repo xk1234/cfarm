@@ -490,6 +490,27 @@ async function createPlan({
     schema.prompt_formatting
   )
   const specs = slideSpecs(schema, hook, bodySlideCount)
+  const publishedUsage = usageForPublishedRuns(usage, automation.id)
+  const headingCutoff =
+    Date.parse(scheduledFor) -
+    Math.max(0, Number(schema.reuse_policy?.text_exclusion_days) || 45) *
+      24 *
+      60 *
+      60 *
+      1000
+  const recentHeadings = publishedUsage
+    .filter(
+      (record) =>
+        record.kind === "heading" && Date.parse(record.used_at) >= headingCutoff
+    )
+    .sort((left, right) =>
+      String(right.used_at).localeCompare(String(left.used_at))
+    )
+    .slice(
+      0,
+      Math.max(Number(schema.reuse_policy?.text_exclusion_limit) || 20, 50)
+    )
+    .map((record) => record.key)
   const textGeneration = await generateSlideshowText({
     automation: {
       id: automation.id,
@@ -513,6 +534,7 @@ async function createPlan({
     model: defaultTextModel,
     selectedHook: hook,
     promptInstructions: slideshowMetadataPromptInstructions(schema),
+    avoidSimilarHeadings: recentHeadings,
     webSearchEnabled: schema.web_search_enabled,
     apiKey: clean(process.env.OPENROUTER_API_KEY),
     fetchImpl: fetch,
@@ -523,7 +545,6 @@ async function createPlan({
     violations: textGeneration.violations,
     webSearchSources: textGeneration.webSearchSources,
   }
-  const publishedUsage = usageForPublishedRuns(usage, automation.id)
   const recentImageUsage = new Map(
     publishedUsage
       .filter(
@@ -1195,6 +1216,15 @@ async function recordUsage({
       ].join(" ")
     ),
   })
+  for (const slide of plan.slides) {
+    if (slide.role !== "content") continue
+    const heading =
+      slide.textItems?.find((item) => /heading/i.test(item.id))?.text ||
+      slide.textItems?.[0]?.text ||
+      slide.text
+    const key = normalizeSignature(heading)
+    if (key) records.push({ kind: "heading", key })
+  }
   for (const record of records) {
     const id =
       "usage-" +

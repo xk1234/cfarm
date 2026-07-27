@@ -138,6 +138,15 @@ export async function buildTikTokStudioMcpReport(
           ? input.offset + page.length
           : undefined,
     },
+    counts: {
+      publications: total,
+      withMetrics: candidates.filter(
+        (candidate) => candidate.snapshots.length > 0
+      ).length,
+      awaitingCapture: candidates.filter(
+        (candidate) => candidate.snapshots.length === 0
+      ).length,
+    },
     posts: page.map((candidate) =>
       reportPost({
         candidate,
@@ -192,7 +201,16 @@ function reportCandidates(input: {
     )
   )
   const postIds = new Set(
-    input.imports.length > 0 ? importsByPost.keys() : snapshotsByPost.keys()
+    input.imports.length > 0
+      ? importsByPost.keys()
+      : [
+          ...snapshotsByPost.keys(),
+          ...input.publications
+            .filter((publication) =>
+              publication.provider.toLowerCase().startsWith("tiktok")
+            )
+            .map((publication) => publication.id),
+        ]
   )
   const requestedPosts = new Set(
     (input.input.postIds ?? []).map(clean).filter(Boolean)
@@ -239,9 +257,11 @@ function reportCandidates(input: {
       ) ||
         undefined)
     const sortAt =
+      publication?.publishedAt ??
       importRecord?.updatedAt ??
       latestSnapshot?.capturedAt ??
       publication?.updatedAt ??
+      publication?.createdAt ??
       ""
     const requested =
       requestedPosts.size === 0 ||
@@ -253,8 +273,7 @@ function reportCandidates(input: {
       (requestedIntegrations.size > 0 &&
         !requestedIntegrations.has(integrationId)) ||
       (input.input.automationId && automationId !== input.input.automationId) ||
-      (!importRecord &&
-        (!latestSnapshot || Date.parse(latestSnapshot.capturedAt) < since))
+      (!importRecord && Date.parse(sortAt) < since)
     ) {
       continue
     }
@@ -287,8 +306,7 @@ function reportPost(input: {
   const { candidate } = input
   const publication = candidate.publication
   const composition = composeStudioSnapshots(candidate.snapshots)
-  const snapshot =
-    composition.effectiveSnapshot ?? composition.currentSnapshot
+  const snapshot = composition.effectiveSnapshot ?? composition.currentSnapshot
   const currentSnapshot = composition.currentSnapshot
   const importRecord = candidate.importRecord
   const studio = analyticsDetail(importRecord, snapshot, composition)
@@ -371,6 +389,11 @@ function reportPost(input: {
               `Retention is missing for Studio slide indexes: ${studio.slideMetricsAvailability.missingRetentionSlideIndexes.join(", ")}`,
             ]
           : []),
+        ...(!currentSnapshot && !importRecord
+          ? [
+              "TikTok Studio analytics have not been captured for this publication yet.",
+            ]
+          : []),
       ],
     },
   }
@@ -383,14 +406,17 @@ function analyticsDetail(
 ) {
   const persisted = snapshot?.tiktokStudio
   const capture = importRecord?.capture
-  const slides = mergeStudioSlides(persisted?.slides ?? [], capture?.slides ?? [])
+  const slides = mergeStudioSlides(
+    persisted?.slides ?? [],
+    capture?.slides ?? []
+  )
   const capturedSections = uniqueStudioSections([
     ...(persisted?.capturedSections ?? []),
     ...(importRecord?.capturedSections ?? []),
   ])
   const slideMetricsAvailability = describeSlideMetrics(slides)
   return {
-    state: importRecord?.status ?? "linked",
+    state: importRecord?.status ?? (snapshot ? "linked" : "awaiting_capture"),
     importId: importRecord?.id,
     snapshotId:
       composition.currentSnapshot?.id ??
@@ -620,8 +646,7 @@ function composeStudioSnapshots(
   const effectiveSections = sectionEntries.flatMap(([section, item]) =>
     item ? [section] : []
   )
-  const currentSections =
-    currentSnapshot.tiktokStudio?.capturedSections ?? []
+  const currentSections = currentSnapshot.tiktokStudio?.capturedSections ?? []
   const missingCurrentSections = effectiveSections.filter(
     (section) => !currentSections.includes(section)
   )
@@ -638,9 +663,8 @@ function composeStudioSnapshots(
       .find((item) => Object.keys(item.trafficSources).length > 0)
       ?.trafficSources ?? {}
   const searchTerms =
-    [...studioSnapshots]
-      .reverse()
-      .find((item) => item.searchTerms.length > 0)?.searchTerms ?? []
+    [...studioSnapshots].reverse().find((item) => item.searchTerms.length > 0)
+      ?.searchTerms ?? []
   const audience = [...studioSnapshots]
     .reverse()
     .find((item) => item.audience)?.audience
@@ -664,8 +688,7 @@ function composeStudioSnapshots(
             schemaVersion: 1,
             studioUrl,
             capturedSections: effectiveSections,
-            overview:
-              Object.keys(overview).length > 0 ? overview : undefined,
+            overview: Object.keys(overview).length > 0 ? overview : undefined,
             slides,
             trafficSources,
             searchTerms,

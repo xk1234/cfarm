@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -27,7 +27,10 @@ import {
   MediaPendingState,
 } from "@/components/realfarm/shared-media"
 import { ExampleSlideshowModal } from "@/components/realfarm/example-slideshow-modal"
-import { GeneratedSlideshowViewerModal } from "@/components/realfarm/automation-settings/generated-slideshow-viewer"
+import {
+  GeneratedSlideshowViewerModal,
+  automationRunViewerImageUrls,
+} from "@/components/realfarm/automation-settings/generated-slideshow-viewer"
 import type { AutomationRunApiRecord } from "@/components/realfarm/automation-settings/types"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -84,8 +87,9 @@ export function HomeView({
     runId: string
   } | null>(null)
   const quickStartTemplates = templates
-  const generatedSlideshowCards = generatedHomeSlideshowCards(
-    generatedRunsByAutomationId
+  const generatedSlideshowCards = useMemo(
+    () => generatedHomeSlideshowCards(generatedRunsByAutomationId),
+    [generatedRunsByAutomationId]
   )
   const selectedGeneratedRun = selectedGeneratedSlideshow?.runs.find(
     (run) => run.id === selectedGeneratedSlideshow.runId
@@ -95,9 +99,13 @@ export function HomeView({
     activeTab === "slideshows" ? generatedSlideshowCards.length : videos.length
   const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE))
   const safePage = Math.min(page, totalPages)
-  const pagedGeneratedSlideshows = generatedSlideshowCards.slice(
-    (safePage - 1) * ITEMS_PER_PAGE,
-    safePage * ITEMS_PER_PAGE
+  const pagedGeneratedSlideshows = useMemo(
+    () =>
+      generatedSlideshowCards.slice(
+        (safePage - 1) * ITEMS_PER_PAGE,
+        safePage * ITEMS_PER_PAGE
+      ),
+    [generatedSlideshowCards, safePage]
   )
   const pagedVideos = videos.slice(
     (safePage - 1) * ITEMS_PER_PAGE,
@@ -113,6 +121,24 @@ export function HomeView({
     quickStartOffset,
     quickStartOffset + QUICK_START_ITEMS_PER_PAGE
   )
+
+  useEffect(() => {
+    if (activeTab !== "slideshows") return
+    const preloaded: HTMLImageElement[] = []
+    for (const src of automationRunViewerImageUrls(
+      pagedGeneratedSlideshows.flatMap((item) =>
+        item.runs.filter((run) => run.id === item.slideshow.id)
+      ) as AutomationRunApiRecord[]
+    )) {
+      const image = new window.Image()
+      image.decoding = "async"
+      image.src = src
+      preloaded.push(image)
+    }
+    return () => {
+      for (const image of preloaded) image.src = ""
+    }
+  }, [activeTab, pagedGeneratedSlideshows])
 
   useEffect(() => {
     if (activeTab !== "videos" || videosLoaded) return
