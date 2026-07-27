@@ -127,6 +127,7 @@ import {
   createTikTokStudioAnalyticsImport,
   inspectTikTokStudioAnalyticsBatch,
   inspectTikTokStudioAnalyticsImport,
+  listTikTokStudioAnalyticsImports,
 } from "@/lib/tiktok-studio-analytics"
 import { buildTikTokStudioMcpReport } from "@/lib/mcp/tiktok-studio-report"
 import {
@@ -355,6 +356,7 @@ export type LumenClipMcpServices = {
   slideshowToneToAutomationFields: typeof slideshowToneToAutomationFields
   createTikTokStudioAnalyticsImport: typeof createTikTokStudioAnalyticsImport
   inspectTikTokStudioAnalyticsImport: typeof inspectTikTokStudioAnalyticsImport
+  listTikTokStudioAnalyticsImports: typeof listTikTokStudioAnalyticsImports
   createTikTokStudioAnalyticsBatch: typeof createTikTokStudioAnalyticsBatch
   inspectTikTokStudioAnalyticsBatch: typeof inspectTikTokStudioAnalyticsBatch
   createTikTokCommentCollection: typeof createTikTokCommentCollection
@@ -427,6 +429,7 @@ const defaultServices: LumenClipMcpServices = {
   slideshowToneToAutomationFields,
   createTikTokStudioAnalyticsImport,
   inspectTikTokStudioAnalyticsImport,
+  listTikTokStudioAnalyticsImports,
   createTikTokStudioAnalyticsBatch,
   inspectTikTokStudioAnalyticsBatch,
   createTikTokCommentCollection,
@@ -1330,6 +1333,45 @@ function registerAutomationReadAndRunTools(
               lastRun: lastRun ? socialRunSummary(lastRun) : null,
               resourceUri: `lumenclip://automations/${encodeURIComponent(social.id)}`,
             },
+          }
+        })
+      )
+  )
+
+  server.registerTool(
+    "lumenclip_automation_variable_bindings_get",
+    {
+      title: "Inspect automation variable bindings",
+      description:
+        "Returns the enabled hook tokens, their effective collection bindings or runtime source, every registered runtime variable, explicit override precedence, and stale-override diagnostics. Runtime variables never require a collection.",
+      inputSchema: {
+        automationId: z
+          .string()
+          .trim()
+          .min(1)
+          .describe(
+            'Saved slideshow automation ID to inspect, e.g. "automation_123".'
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ automationId }) =>
+      mcpResult(
+        await owned(async () => {
+          const automation = await services.getAutomationRecord(automationId)
+          if (!automation) throw new Error("Automation not found")
+          return {
+            automationId,
+            updatedAt: automation.updatedAt,
+            ...deriveAutomationVariableBindings({
+              schema: automation.schema,
+              collections: await services.listWordCollections(),
+            }),
           }
         })
       )

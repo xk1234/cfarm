@@ -1,6 +1,7 @@
 import {
   hookVariableNameFromLabel,
   isRuntimeHookVariable,
+  runtimeHookVariables,
   wordCollectionVariableName,
 } from "@/lib/hook-variables"
 import {
@@ -79,6 +80,13 @@ export function deriveAutomationVariableBindings(input: {
     hookSlots,
     explicitOverrides,
     bindings,
+    runtimeVariables: runtimeHookVariables.map((variable) => ({
+      token: `[[${variable.name.toUpperCase()}]]`,
+      variableName: variable.name,
+      source: "runtime" as const,
+      label: variable.label,
+      description: variable.description,
+    })),
     missingTokens: bindings
       .filter((binding) => binding.source === "missing")
       .map((binding) => binding.token),

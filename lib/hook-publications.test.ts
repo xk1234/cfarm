@@ -471,7 +471,7 @@ describe("published hook attribution", () => {
         ...run,
         plan: {
           ...run.plan,
-          hookId: "ghost-id",
+          hookId: undefined,
           hook: "3 things a Cancer will never tell you",
           hookTemplate: undefined,
         },
@@ -498,6 +498,67 @@ describe("published hook attribution", () => {
     expect(report?.performance.some((item) => item.hookId === "ghost-id")).toBe(
       false
     )
+  })
+
+  it("keeps a deleted stable hook visible as historical performance", async () => {
+    const schema = defaultAutomationSchema({
+      id: "1",
+      name: "Deleted hook history",
+      status: "live",
+      account: "",
+      handle: "",
+      times: [],
+      theme: "",
+      socialIntegrations: [],
+      favorite: false,
+      automationKind: "slideshow",
+    })
+    schema.hooks = []
+    mocks.getAutomationRecord.mockResolvedValue({ id: "automation-1", schema })
+    mocks.listAutomationRuns.mockResolvedValue([
+      {
+        ...run,
+        plan: {
+          ...run.plan,
+          hookId: "deleted-hook",
+          hook: "A hook that shipped before deletion",
+          hookTemplate: "A hook that shipped before deletion",
+        },
+      },
+    ])
+    mocks.listPostFastPostRecords.mockResolvedValue([publication])
+
+    const report = await hookAnalyticsReport("automation-1")
+
+    expect(report).toMatchObject({
+      rows: [
+        {
+          hookId: "deleted-hook",
+          text: "A hook that shipped before deletion",
+          enabled: false,
+          historicalOnly: true,
+          publishedPosts: 1,
+        },
+      ],
+      hooks: [
+        {
+          hookId: "deleted-hook",
+          used: true,
+          publishedPosts: 1,
+        },
+      ],
+      attribution: {
+        attributedPosts: 1,
+        unattributedPublishedPosts: 0,
+      },
+      dataWarnings: [],
+    })
+    expect(report?.performance).toEqual([
+      expect.objectContaining({
+        hookId: "deleted-hook",
+        historicalOnly: true,
+      }),
+    ])
   })
 
   it("propagates storage quota failures instead of returning zero performance", async () => {

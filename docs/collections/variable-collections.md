@@ -132,6 +132,9 @@ automation timezone:
 | -------------------------- | ------------------------- |
 | `[[slide_count]]`          | Rendered body-slide count |
 | `[[current_year]]`         | Four-digit year           |
+| `[[next_year]]`            | Following four-digit year |
+| `[[current_sign]]`         | Active zodiac season      |
+| `[[current_sign_cusp]]`    | Month-specific sign pair  |
 | `[[current_month]]`        | Full month name           |
 | `[[current_month_number]]` | Two-digit month           |
 | `[[current_day]]`          | Day of month              |
@@ -139,6 +142,12 @@ automation timezone:
 | `[[current_date]]`         | Readable local date       |
 | `[[current_iso_date]]`     | `YYYY-MM-DD`              |
 | `[[current_time]]`         | Local hours and minutes   |
+
+`[[current_month]]` uses title-case English month names (`January` through
+`December`), matching the built-in `month` collection. Use
+`lumenclip_automation_variable_bindings_get` to inspect enabled-token bindings
+and the complete runtime registry; registered runtime tokens always report
+`source: "runtime"` and never require a collection.
 
 The legacy `[[year]]` token is migrated to `[[current_year]]`. Creating a
 variable collection whose ID is `year` is rejected so a stored random value
