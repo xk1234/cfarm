@@ -74,6 +74,9 @@ export function AutomationFormatPanel({
   onSave: () => void
 }) {
   const [activeTab, setActiveTab] = useState<"Hook" | "Content" | "CTA">("Hook")
+  // Below md the controls and the canvas cannot share the screen: stacking them
+  // left the slides as an unreadable sliver under a full-height form.
+  const [mobileView, setMobileView] = useState<"design" | "preview">("design")
   const [activePreview, setActivePreview] = useState(0)
   const [previewZoom, setPreviewZoom] = useState(1)
   const [selectedTextIndex, setSelectedTextIndex] = useState<number | null>(
@@ -478,7 +481,7 @@ export function AutomationFormatPanel({
 
   return (
     <div
-      className="grid h-full min-h-0 min-w-0 bg-[#b9b9b6] md:grid-cols-[340px_minmax(0,1fr)]"
+      className="flex h-full min-h-0 min-w-0 flex-col bg-[#b9b9b6] md:grid md:grid-cols-[340px_minmax(0,1fr)]"
       onPointerDown={(event) => {
         if (selectedTextIndex === null) return
         const target = event.target
@@ -493,7 +496,12 @@ export function AutomationFormatPanel({
         setSelectedTextIndex(null)
       }}
     >
-      <aside className="flex min-h-0 w-full min-w-0 flex-col bg-app-surface-subtle md:w-[340px] md:min-w-[340px]">
+      <aside
+        className={cn(
+          "flex min-h-0 w-full min-w-0 flex-1 flex-col bg-app-surface-subtle md:flex md:w-[340px] md:min-w-[340px] md:flex-none",
+          mobileView === "preview" && "hidden"
+        )}
+      >
         <div className="flex h-12 items-center justify-between border-b border-app-panel-border px-3">
           <button
             className="flex items-center gap-2 text-[13px] font-semibold text-[#5d5c56]"
@@ -503,6 +511,13 @@ export function AutomationFormatPanel({
             Back
           </button>
           <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className="mr-1 h-8 rounded-lg bg-[#efefeb] px-3 text-[12px] font-semibold text-[#5d5c56] md:hidden"
+              onClick={() => setMobileView("preview")}
+            >
+              Preview
+            </button>
             <div className="flex items-center rounded-lg bg-[#efefeb] p-0.5">
               <button
                 type="button"
@@ -743,6 +758,11 @@ export function AutomationFormatPanel({
       </aside>
 
       <SlideshowFormatPreviewStage
+        className={cn(
+          "min-h-0 flex-1 md:flex-none",
+          mobileView === "design" && "hidden md:block"
+        )}
+        onExitPreview={() => setMobileView("design")}
         previewItems={previewItems}
         activeTab={activeTab}
         activeTextItem={activeTextItem}

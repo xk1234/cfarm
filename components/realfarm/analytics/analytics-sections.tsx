@@ -239,7 +239,6 @@ export function AnalyticsOverview({
 
       <RecentPosts
         title="Recent posts across platforms"
-        description="The newest posts from the selected accounts, mixed into one timeline."
         posts={recent}
         integrations={integrations}
         onSelect={onSelectPost}
@@ -417,14 +416,12 @@ export function PortfolioMetricCard({
 
 export function RecentPosts({
   title,
-  description,
   posts,
   integrations,
   metric,
   onSelect,
 }: {
   title: string
-  description: string
   posts: LatestPost[]
   integrations: SocialIntegration[]
   metric?: CanonicalMetric
@@ -444,7 +441,7 @@ export function RecentPosts({
   return (
     <section>
       <div className="flex items-end justify-between gap-4">
-        <SectionHeading title={title} description={description} />
+        <SectionHeading title={title} />
         <PaginationControls
           page={safePage}
           pageCount={pageCount}
@@ -608,10 +605,7 @@ export function AccountPerformanceTable({
   return (
     <section className="overflow-hidden rounded-[16px] border border-app-panel-border bg-app-surface">
       <div className="flex items-end justify-between gap-4 p-5 pb-4">
-        <SectionHeading
-          title="Accounts"
-          description="Followers, measured impressions, and weighted engagement by connected account."
-        />
+        <SectionHeading title="Accounts" />
         <PaginationControls
           page={safePage}
           pageCount={pageCount}
@@ -885,7 +879,6 @@ export function PlatformAnalytics({
 
           <RecentPosts
             title={`Recent ${providerName(platform)} posts`}
-            description="Newest posts from the selected accounts, with the active metric shown first."
             posts={recent}
             integrations={accounts}
             metric={metric}
@@ -915,10 +908,7 @@ export function ComparisonChart({
   return (
     <section className="rounded-[16px] border border-app-panel-border bg-app-surface p-5 shadow-[0_14px_40px_rgba(35,24,67,0.045)]">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <SectionHeading
-          title="Account comparison over time"
-          description={`${metricLabel(metric, platform)} by stored capture date. Missing account values remain gaps.`}
-        />
+        <SectionHeading title="Account comparison over time" />
         <div className="flex rounded-[9px] bg-app-surface-subtle p-1">
           {(["absolute", "indexed"] as const).map((item) => (
             <button
@@ -1043,10 +1033,7 @@ export function PlatformBreakdown({
   return (
     <section className="overflow-hidden rounded-[16px] border border-app-panel-border bg-app-surface">
       <div className="flex items-end justify-between gap-4 p-5 pb-4">
-        <SectionHeading
-          title="Account breakdown"
-          description={`Current ${metricLabel(metric, platform).toLowerCase()}, movement, and contribution.`}
-        />
+        <SectionHeading title="Account breakdown" />
         <PaginationControls
           page={safePage}
           pageCount={pageCount}
@@ -1253,18 +1240,11 @@ export function ComparisonTooltip({
   )
 }
 
-export function SectionHeading({
-  title,
-}: {
-  title: string
-  description: string
-}) {
+export function SectionHeading({ title }: { title: string }) {
   return (
-    <div>
-      <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-app-text">
-        {title}
-      </h2>
-    </div>
+    <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-app-text">
+      {title}
+    </h2>
   )
 }
 

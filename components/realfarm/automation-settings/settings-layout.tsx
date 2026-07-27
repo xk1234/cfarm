@@ -5,31 +5,24 @@ import { cn } from "@/lib/utils"
 
 export function SettingsPage({
   title,
-  description,
   action,
   children,
 }: {
   title: string
-  description?: string
   action?: ReactNode
   children: ReactNode
 }) {
   return (
-    <div className="min-h-full px-9 py-8 pr-12">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-[28px] leading-tight font-bold text-app-text">
-            {title}
-          </h2>
-          {description && (
-            <p className="mt-2 text-[15px] leading-6 font-medium text-app-muted-text">
-              {description}
-            </p>
-          )}
-        </div>
+    <div className="min-h-full px-4 py-6 sm:px-6 md:px-9 md:py-8 md:pr-12">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h2 className="text-[22px] leading-tight font-bold text-app-text md:text-[28px]">
+          {title}
+        </h2>
         {action}
       </div>
-      <div className="mt-8 border-t border-app-panel-border">{children}</div>
+      <div className="mt-6 border-t border-app-panel-border md:mt-8">
+        {children}
+      </div>
     </div>
   )
 }
@@ -44,11 +37,21 @@ export function SettingsFooter({
   onSave: () => void
 }) {
   return (
-    <div className="mt-8 flex justify-end gap-3 border-t border-app-panel-border pt-5">
-      <Button type="button" variant="softControl" onClick={onCancel}>
+    <div className="mt-8 flex gap-3 border-t border-app-panel-border pt-5 sm:justify-end">
+      <Button
+        type="button"
+        variant="softControl"
+        className="flex-1 sm:flex-none"
+        onClick={onCancel}
+      >
         Cancel
       </Button>
-      <Button type="button" variant="action" onClick={onSave}>
+      <Button
+        type="button"
+        variant="action"
+        className="flex-1 sm:flex-none"
+        onClick={onSave}
+      >
         {saveLabel}
       </Button>
     </div>
@@ -69,22 +72,21 @@ export function SettingsRow({
   return (
     <div
       className={cn(
-        "flex min-h-[88px] items-center justify-between gap-5 border-b border-app-panel-border py-5",
+        "flex flex-col gap-3 border-b border-app-panel-border py-4 sm:min-h-[88px] sm:flex-row sm:items-center sm:justify-between sm:gap-5 sm:py-5",
         muted && "opacity-45"
       )}
     >
       <div className="min-w-0">
-        <div className="text-[18px] leading-6 font-semibold text-app-text">
+        <div className="text-[16px] leading-6 font-semibold text-app-text sm:text-[18px]">
           {title}
         </div>
         {description && (
-          <div className="mt-1 text-[15px] leading-5 font-medium text-app-muted-text">
+          <div className="mt-1 text-[14px] leading-5 font-medium text-app-muted-text sm:text-[15px]">
             {description}
           </div>
         )}
       </div>
-      <div className="shrink-0">{control}</div>
+      <div className="sm:shrink-0">{control}</div>
     </div>
   )
 }
-

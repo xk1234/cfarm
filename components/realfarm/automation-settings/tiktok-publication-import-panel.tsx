@@ -176,10 +176,7 @@ export function TikTokPublicationImportPanel({
     preview && ["FAILED", "ABORTED", "TIMED-OUT"].includes(preview.status)
 
   return (
-    <SettingsPage
-      title="Published TikTok posts"
-      description="Inspect a photo post, match it to a generated slideshow, and restore missing history before recording it as published. Nothing is linked until you confirm below."
-    >
+    <SettingsPage title="Published TikTok posts">
       <section className="py-6">
         <label className="block text-sm font-semibold text-app-text">
           TikTok photo URLs

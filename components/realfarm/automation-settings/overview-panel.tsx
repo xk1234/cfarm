@@ -126,7 +126,7 @@ export function AutomationOverviewPanel({
   return (
     <div className="min-h-full bg-app-surface">
       <div className="h-[106px] bg-gradient-to-r from-[#90464b] via-[#9a707d] to-[#94a1b0]" />
-      <div className="px-6 pb-8">
+      <div className="px-4 pb-8 sm:px-6">
         <div className="-mt-8 flex justify-center">
           <AvatarDot
             name={automation.name}
@@ -177,7 +177,8 @@ export function AutomationOverviewPanel({
           </span>
         </div>
 
-        <div className="mx-auto mt-4 grid max-w-[494px] grid-cols-4 overflow-hidden rounded-[10px] border border-[#e2e1da]">
+        {/* Four across on a phone squeezed "Engagement" wider than its cell. */}
+        <div className="mx-auto mt-4 grid max-w-[494px] grid-cols-2 overflow-hidden rounded-[10px] border border-[#e2e1da] sm:grid-cols-4">
           {[
             [totalViews.toLocaleString(), "Views"],
             ["0", "Likes"],
@@ -186,7 +187,7 @@ export function AutomationOverviewPanel({
           ].map(([value, label]) => (
             <div
               key={label}
-              className="border-r border-[#e2e1da] px-4 py-3 text-center last:border-r-0"
+              className="border-r border-b border-[#e2e1da] px-3 py-3 text-center last:border-r-0 sm:border-b-0 sm:px-4 sm:last:border-b-0 [&:nth-child(2)]:border-r-0 sm:[&:nth-child(2)]:border-r [&:nth-child(n+3)]:border-b-0"
             >
               {resultsLoading ? (
                 <SkeletonBlock className="mx-auto h-[22px] w-12 rounded" />
@@ -204,9 +205,7 @@ export function AutomationOverviewPanel({
 
         {isUgcAutomation ? (
           <div className="mx-auto mt-5 max-w-[494px]">
-            <h3 className="mb-3 text-sm font-bold text-app-text">
-              UGC runs
-            </h3>
+            <h3 className="mb-3 text-sm font-bold text-app-text">UGC runs</h3>
             {recentRunsLoading ? (
               <SkeletonBlock className="h-20 w-full rounded-lg" />
             ) : recentRuns.length ? (
@@ -218,9 +217,11 @@ export function AutomationOverviewPanel({
                     className="flex items-center justify-between gap-4 rounded-lg border border-app-panel-border p-3 text-sm font-semibold text-app-text transition hover:bg-app-surface-subtle"
                   >
                     <span className="min-w-0 truncate">
-                      {run.plan?.title || run.automationTitle || "UGC generation"}
+                      {run.plan?.title ||
+                        run.automationTitle ||
+                        "UGC generation"}
                     </span>
-                    <span className="shrink-0 capitalize text-app-muted-text">
+                    <span className="shrink-0 text-app-muted-text capitalize">
                       {run.status} · View progress
                     </span>
                   </Link>

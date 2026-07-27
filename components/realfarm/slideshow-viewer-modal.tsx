@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react"
 import { toast } from "sonner"
 import {
   IconBug,
+  IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
   IconCopy,
@@ -113,10 +114,10 @@ export function SlideshowViewerModal({
 
   return (
     <>
-      <AppModal onClose={requestClose}>
+      <AppModal className="p-0 sm:p-4" onClose={requestClose}>
         <AppModalPanel
           accessibleTitle={title}
-          className="h-[min(880px,94vh)] max-w-[1180px] rounded-[10px] bg-[#b9b9b6]"
+          className="h-dvh max-w-none rounded-none bg-[#b9b9b6] sm:h-[min(880px,94vh)] sm:max-w-[1180px] sm:rounded-[10px]"
         >
           <SlideshowViewerContent
             key={selectedSlideshow?.id ?? "empty"}
@@ -205,6 +206,9 @@ function SlideshowViewerContent({
   onClose: () => void
 }) {
   const [activeSlide, setActiveSlide] = useState(0)
+  // Below sm the publishing form is a sheet over the slides, so opening it is
+  // an explicit choice and closing it returns you to the slideshow.
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteSlideOpen, setDeleteSlideOpen] = useState(false)
@@ -339,6 +343,7 @@ function SlideshowViewerContent({
       await onUpdateMetadata(normalized)
       setMetadata(normalized)
       setSavedMetadata(normalized)
+      setDetailsOpen(false)
       toast.success("Slideshow details saved")
     } catch (error) {
       toast.error("The slideshow details could not be saved", {
@@ -352,20 +357,20 @@ function SlideshowViewerContent({
 
   return (
     <>
-      <header className="flex h-[60px] items-center justify-between border-b border-[#d7d6d0] bg-app-surface px-2">
-        <div className="flex min-w-0 items-center gap-3">
+      <header className="flex h-[60px] items-center justify-between gap-2 border-b border-[#d7d6d0] bg-app-surface px-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <button
-            className="grid size-8 place-items-center rounded-[5px] text-app-muted-text hover:bg-app-surface-subtle"
+            className="grid size-9 shrink-0 place-items-center rounded-[5px] text-app-muted-text hover:bg-app-surface-subtle"
             onClick={onClose}
             aria-label="Close slideshow"
           >
             <IconX className="size-5" />
           </button>
-          <h2 className="min-w-0 truncate text-[18px] font-semibold text-app-text">
+          <h2 className="min-w-0 truncate text-[15px] font-semibold text-app-text sm:text-[18px]">
             {title}
           </h2>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           {publicationStatusControl}
           <button
             type="button"
@@ -407,7 +412,7 @@ function SlideshowViewerContent({
       </header>
       <main className="relative flex h-[calc(100%-60px)] min-h-0 flex-col overflow-hidden bg-[#efefec]">
         <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="relative flex min-h-0 flex-1 items-center justify-center px-8 py-7 sm:px-10">
+          <div className="relative flex min-h-0 flex-1 items-center justify-center px-3 py-4 sm:px-10 sm:py-7">
             {slides.length === 0 ? (
               <TemplateGeneratedPreview
                 exampleSlides={fallbackSlides}
@@ -415,10 +420,12 @@ function SlideshowViewerContent({
                 className="h-[356px] w-[620px] max-w-full rounded-[9px] shadow-xl"
               />
             ) : (
-              <div className="flex max-w-full items-center justify-center gap-3">
+              // The arrows overlay the slide below sm: side-by-side they left
+              // a phone barely 200px for the slide itself.
+              <div className="flex h-full max-w-full items-center justify-center gap-3">
                 <button
                   type="button"
-                  className="grid size-10 shrink-0 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30"
+                  className="absolute left-2 z-10 grid size-10 shrink-0 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30 sm:static"
                   onClick={() => setActiveSlide(boundedActiveSlide - 1)}
                   disabled={boundedActiveSlide === 0}
                   aria-label="Previous slide"
@@ -426,7 +433,7 @@ function SlideshowViewerContent({
                   <IconChevronLeft className="size-5" />
                 </button>
                 <div
-                  className="relative shrink-0 overflow-hidden rounded-[9px] bg-black text-left shadow-xl ring-2 ring-white"
+                  className="relative flex min-h-0 shrink overflow-hidden rounded-[9px] bg-black text-left shadow-xl ring-2 ring-white sm:shrink-0"
                   role="group"
                   aria-label={`Slide ${boundedActiveSlide + 1} of ${slides.length}`}
                 >
@@ -437,7 +444,7 @@ function SlideshowViewerContent({
                       visibleSlide.text ||
                       `${title} slide ${boundedActiveSlide + 1}`
                     }
-                    className="block h-auto max-h-[clamp(300px,52vh,460px)] w-auto max-w-[min(72vw,760px)] object-contain"
+                    className="block h-auto max-h-full w-auto max-w-full object-contain sm:max-h-[clamp(300px,52vh,460px)] sm:max-w-[min(72vw,760px)]"
                     draggable={false}
                   />
                   {onReplaceSlideImage ||
@@ -470,7 +477,7 @@ function SlideshowViewerContent({
                 </div>
                 <button
                   type="button"
-                  className="grid size-10 shrink-0 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30"
+                  className="absolute right-2 z-10 grid size-10 shrink-0 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30 sm:static"
                   onClick={() => setActiveSlide(boundedActiveSlide + 1)}
                   disabled={boundedActiveSlide === slides.length - 1}
                   aria-label="Next slide"
@@ -499,13 +506,26 @@ function SlideshowViewerContent({
             ) : null}
           </div>
         </section>
+        <button
+          type="button"
+          className="flex h-12 shrink-0 items-center justify-between border-t border-[#cfcec8] bg-[#f8f8f5] px-4 text-[13px] font-semibold text-app-text sm:hidden"
+          aria-expanded={detailsOpen}
+          onClick={() => setDetailsOpen((open) => !open)}
+        >
+          Publishing details
+          <IconChevronDown
+            className={cn("size-4 transition", detailsOpen && "rotate-180")}
+          />
+        </button>
         <SlideshowInformationPanel
+          className={cn(!detailsOpen && "hidden sm:block")}
           metadata={metadata}
           metadataChanged={metadataChanged}
           saving={savingMetadata}
           editable={Boolean(onUpdateMetadata)}
           details={details}
           onMetadataChange={setMetadata}
+          onClose={() => setDetailsOpen(false)}
           onSave={() => void saveMetadata()}
           onCopyTitle={() => void copyMetadata("Title", metadata.title)}
           onCopyDescription={() =>
@@ -569,21 +589,15 @@ function SlideImagePickerModal({
     image.usedInSlideIndexes.some((index) => index !== slideIndex)
 
   return (
-    <AppModal className="z-[90]" onClose={onClose}>
+    <AppModal className="z-[90] p-0 sm:p-4" onClose={onClose}>
       <AppModalPanel
         accessibleTitle="Choose a replacement image"
-        className="flex h-[min(680px,90vh)] max-w-[900px] flex-col rounded-[10px] bg-app-surface-subtle"
+        className="flex h-dvh max-w-none flex-col rounded-none bg-app-surface-subtle sm:h-[min(680px,90vh)] sm:max-w-[900px] sm:rounded-[10px]"
       >
-        <header className="flex items-start justify-between gap-4 border-b border-app-panel-border bg-app-surface px-5 py-4">
-          <div>
-            <h3 className="text-[18px] font-semibold tracking-[-0.01em] text-app-text">
-              Choose a replacement image
-            </h3>
-            <p className="mt-1 text-[12px] font-medium text-app-muted-text">
-              From this automation’s photo collections. Text and layout stay
-              unchanged.
-            </p>
-          </div>
+        <header className="flex items-start justify-between gap-4 border-b border-app-panel-border bg-app-surface px-4 py-4 sm:px-5">
+          <h3 className="text-[16px] font-semibold tracking-[-0.01em] text-app-text sm:text-[18px]">
+            Choose a replacement image
+          </h3>
           <button
             type="button"
             className="grid size-8 shrink-0 place-items-center rounded-[6px] text-app-muted-text transition hover:bg-app-surface-subtle"
@@ -678,22 +692,26 @@ function SlideImagePickerModal({
 }
 
 function SlideshowInformationPanel({
+  className,
   metadata,
   metadataChanged,
   saving,
   editable,
   details,
   onMetadataChange,
+  onClose,
   onSave,
   onCopyTitle,
   onCopyDescription,
 }: {
+  className?: string
   metadata: SlideshowViewerMetadata
   metadataChanged: boolean
   saving: boolean
   editable: boolean
   details?: SlideshowViewerDetails
   onMetadataChange: (metadata: SlideshowViewerMetadata) => void
+  onClose: () => void
   onSave: () => void
   onCopyTitle: () => void
   onCopyDescription: () => void
@@ -708,36 +726,47 @@ function SlideshowInformationPanel({
   }
 
   return (
-    <section className="max-h-[270px] w-full min-w-0 shrink-0 overflow-x-hidden overflow-y-auto border-t border-[#cfcec8] bg-[#f8f8f5] px-5 py-4">
+    <section
+      className={cn(
+        "max-h-[70dvh] w-full min-w-0 shrink-0 overflow-x-hidden overflow-y-auto border-t border-[#cfcec8] bg-[#f8f8f5] px-4 py-4 sm:max-h-[270px] sm:px-5",
+        className
+      )}
+    >
       <div className="mx-auto w-full max-w-[1040px] min-w-0">
         <div className="min-w-0">
           <div className="mb-3 flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-[14px] font-semibold tracking-[-0.01em] text-app-text">
-                Publishing details
-              </h3>
-              <p className="mt-0.5 text-[11px] text-[#85837c]">
-                Edit what appears with this slideshow when it is posted.
-              </p>
-            </div>
+            <h3 className="hidden text-[14px] font-semibold tracking-[-0.01em] text-app-text sm:block">
+              Publishing details
+            </h3>
             {editable ? (
-              <button
-                type="button"
-                className={cn(
-                  "h-8 shrink-0 rounded-[6px] px-3.5 text-[12px] font-semibold transition active:translate-y-px disabled:cursor-not-allowed",
-                  metadataChanged
-                    ? "bg-app-action text-white hover:brightness-95 disabled:opacity-45"
-                    : "bg-[#e8e7e1] text-app-muted-text"
-                )}
-                disabled={!metadataChanged || saving || !metadata.title.trim()}
-                onClick={onSave}
-              >
-                {saving
-                  ? "Saving…"
-                  : metadataChanged
-                    ? "Save changes"
-                    : "Saved"}
-              </button>
+              <div className="flex w-full items-center gap-2 sm:w-auto">
+                <button
+                  type="button"
+                  className="h-9 flex-1 rounded-[6px] bg-[#e8e7e1] px-3.5 text-[12px] font-semibold text-app-muted-text transition active:translate-y-px sm:hidden"
+                  onClick={onClose}
+                >
+                  Back to slides
+                </button>
+                <button
+                  type="button"
+                  className={cn(
+                    "h-9 flex-1 rounded-[6px] px-3.5 text-[12px] font-semibold transition active:translate-y-px disabled:cursor-not-allowed sm:h-8 sm:flex-none",
+                    metadataChanged
+                      ? "bg-app-action text-white hover:brightness-95 disabled:opacity-45"
+                      : "bg-[#e8e7e1] text-app-muted-text"
+                  )}
+                  disabled={
+                    !metadataChanged || saving || !metadata.title.trim()
+                  }
+                  onClick={onSave}
+                >
+                  {saving
+                    ? "Saving…"
+                    : metadataChanged
+                      ? "Save changes"
+                      : "Saved"}
+                </button>
+              </div>
             ) : null}
           </div>
 

@@ -222,10 +222,7 @@ export function SocialMediaSettingsPanel({
   )
 
   return (
-    <SettingsPage
-      title="Social Media Settings"
-      description="Configure platform-specific PostFast options for this automation."
-    >
+    <SettingsPage title="Social Media Settings">
       <div className="space-y-5">
         <div className="rounded-[8px] border border-app-panel-border bg-app-surface px-4 py-3">
           <div className="flex items-center justify-between gap-4">

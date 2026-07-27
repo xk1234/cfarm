@@ -202,7 +202,7 @@ export function HomeView({
           LumenClip
         </span>
       </div>
-      <section className="py-10 text-center lg:py-14">
+      <section className="py-6 text-center sm:py-10 lg:py-14">
         <div className="mx-auto max-w-[980px]">
           <div className="lc-spectrum mx-auto mb-5 h-1 w-14 rounded-full" />
           {/* Cadence, not a tagline: the gaps are the useful signal here. */}
@@ -224,12 +224,13 @@ export function HomeView({
         </div>
       </section>
 
-      <section className="mx-auto mt-12 max-w-[1210px]">
-        <div className="mb-5 flex items-center justify-between">
-          <div className="flex items-center gap-1">
+      <section className="mx-auto mt-8 max-w-[1210px] sm:mt-12">
+        {/* The tabs and the pager together overflow a phone on one row. */}
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-y-2">
+          <div className="flex min-w-0 items-center gap-1">
             <button
               className={cn(
-                "rounded-[7px] px-4 py-2 text-[14px] font-semibold transition",
+                "shrink-0 rounded-[7px] px-3 py-2 text-[13px] font-semibold transition sm:px-4 sm:text-[14px]",
                 activeTab === "slideshows"
                   ? "bg-app-strong text-white"
                   : "text-app-muted-text hover:bg-app-control-hover"
@@ -240,7 +241,7 @@ export function HomeView({
             </button>
             <button
               className={cn(
-                "rounded-[7px] px-4 py-2 text-[14px] font-semibold transition",
+                "shrink-0 rounded-[7px] px-3 py-2 text-[13px] font-semibold transition sm:px-4 sm:text-[14px]",
                 activeTab === "videos"
                   ? "bg-app-strong text-white"
                   : "text-app-muted-text hover:bg-app-control-hover"
@@ -250,7 +251,7 @@ export function HomeView({
               Videos ({videos.length})
             </button>
           </div>
-          <div className="flex items-center gap-3 text-[14px] font-semibold text-[#6f7888]">
+          <div className="flex items-center gap-2 text-[13px] font-semibold text-[#6f7888] sm:gap-3 sm:text-[14px]">
             <Button
               variant="iconControl"
               size="icon-control"
@@ -334,12 +335,12 @@ export function HomeView({
         )}
       </section>
 
-      <section className="mx-auto mt-24 max-w-[1210px]">
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-[20px] font-semibold tracking-[-0.025em] text-app-text">
+      <section className="mx-auto mt-14 max-w-[1210px] sm:mt-24">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-y-2">
+          <h2 className="text-[18px] font-semibold tracking-[-0.025em] text-app-text sm:text-[20px]">
             Start from a proven workflow
           </h2>
-          <div className="flex items-center gap-3 text-[14px] font-semibold text-[#6f7888]">
+          <div className="flex items-center gap-2 text-[13px] font-semibold text-[#6f7888] sm:gap-3 sm:text-[14px]">
             <Button
               variant="iconControl"
               size="icon-control"
