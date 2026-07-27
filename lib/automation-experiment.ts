@@ -14,11 +14,17 @@ import {
 } from "@/lib/hook-variables"
 import {
   automationHookItems,
+  automationTonePresetOptions,
   schemaWithAutomationCollectionId,
   schemaWithAutomationHookItems,
+  schemaWithAutomationContentDirection,
   schemaWithAutomationTone,
   type AutomationSchema,
 } from "@/lib/realfarm-automation"
+import {
+  defaultSlideshowTextModel,
+  featuredOpenRouterModelIds,
+} from "@/lib/realfarm-generation-model-registry"
 import {
   listWordCollections,
   type WordCollectionRecord,
@@ -27,12 +33,20 @@ import {
 export const AUTOMATION_EXPERIMENT_CELL_CAP = 200
 
 export type AutomationExperimentDimension =
-  "hook" | "variable" | "tone" | "model" | "collection"
+  "hook" | "variable" | "tone" | "model" | "collection" | "contentDirection"
 
 export type AutomationExperimentVariation = {
   dimension: AutomationExperimentDimension
   name?: string
   values: string[]
+}
+
+export type AutomationExperimentAvailableDimension = {
+  dimension: "contentDirection" | "tone" | "model"
+  name?: string
+  label: string
+  currentValue: string
+  sampleValues: string[]
 }
 
 export type AutomationExperimentInput = {
@@ -75,6 +89,36 @@ export async function getAutomationExperimentDimensions(automationId: string) {
 
   return {
     automationId,
+    automationDimensions: [
+      ...automation.schema.formatting.map(
+        (block): AutomationExperimentAvailableDimension => ({
+          dimension: "contentDirection",
+          name: block.id,
+          label: `${formattingBlockLabel(block.id)} content direction`,
+          currentValue:
+            block.textItems.find((item) => item.contentDirection.trim())
+              ?.contentDirection ?? "",
+          sampleValues: [],
+        })
+      ),
+      {
+        dimension: "tone",
+        label: "Tone",
+        currentValue: automation.schema.tone.value,
+        sampleValues: [...automationTonePresetOptions],
+      },
+      {
+        dimension: "model",
+        label: "Model",
+        currentValue: defaultSlideshowTextModel,
+        sampleValues: [
+          ...new Set([
+            defaultSlideshowTextModel,
+            ...featuredOpenRouterModelIds,
+          ]),
+        ],
+      },
+    ],
     variables: bindings.bindings
       .filter((binding) => binding.source !== "runtime")
       .map((binding) => ({
@@ -101,6 +145,11 @@ export async function getAutomationExperimentDimensions(automationId: string) {
       (hook) => hook.enabled
     ).length,
   }
+}
+
+function formattingBlockLabel(blockId: string) {
+  if (blockId === "cta") return "CTA"
+  return `${blockId.charAt(0).toUpperCase()}${blockId.slice(1)}`
 }
 
 export async function runAutomationExperiment(
@@ -297,9 +346,20 @@ function cartesianVariants(variations: AutomationExperimentVariation[]) {
 }
 
 function variantKey(variation: AutomationExperimentVariation) {
-  return variation.dimension === "variable"
-    ? `variable:${hookVariableNameFromLabel(variation.name)}`
-    : variation.dimension
+  if (variation.dimension === "variable") {
+    return `variable:${hookVariableNameFromLabel(variation.name)}`
+  }
+  // Keyed by block so a sweep can vary the body and CTA directions at once
+  // without the two collapsing into one column.
+  if (variation.dimension === "contentDirection") {
+    return `contentDirection:${blockIdForVariation(variation)}`
+  }
+  return variation.dimension
+}
+
+/** Which formatting block a contentDirection variation targets. */
+function blockIdForVariation(variation: AutomationExperimentVariation) {
+  return (variation.name ?? "").trim() || "body"
 }
 
 function applyVariant(
@@ -341,6 +401,14 @@ function applyVariant(
       schema = schemaWithAutomationTone(schema, value)
     } else if (variation.dimension === "model") {
       textModel = value
+    } else if (variation.dimension === "contentDirection") {
+      // `name` selects the block (hook / body / cta). Only that block's
+      // direction changes, so the cell isolates the instruction being tested.
+      schema = schemaWithAutomationContentDirection(
+        schema,
+        blockIdForVariation(variation),
+        value
+      )
     } else if (variation.dimension === "collection") {
       schema = schemaWithAutomationCollectionId(schema, "hook", value)
       schema = schemaWithAutomationCollectionId(schema, "content", value)

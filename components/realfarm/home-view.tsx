@@ -37,6 +37,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import type { GeneratedVideoExport } from "@/lib/generated-video-types"
 import type { Automation } from "@/lib/realfarm-data"
+import { PostFrequencyGraph } from "@/components/realfarm/post-frequency-graph"
 import { cn } from "@/lib/utils"
 
 import { useVideoThumbnailFrame } from "./use-video-thumbnail-frame"
@@ -46,6 +47,7 @@ const QUICK_START_ITEMS_PER_PAGE = 6
 
 export function HomeView({
   currentUserId,
+  publishedPostDates,
   templates,
   recentRunsByAutomationId,
   generatedRunsByAutomationId,
@@ -58,6 +60,8 @@ export function HomeView({
   onGenerationRunRemove,
 }: {
   currentUserId: string
+  /** When each LINKED post went out. Generated drafts are not posts. */
+  publishedPostDates: string[]
   templates: Automation[]
   recentRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
   generatedRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
@@ -201,13 +205,8 @@ export function HomeView({
       <section className="py-10 text-center lg:py-14">
         <div className="mx-auto max-w-[980px]">
           <div className="lc-spectrum mx-auto mb-5 h-1 w-14 rounded-full" />
-          <h1 className="mx-auto max-w-[17ch] text-[42px] leading-[0.98] font-semibold tracking-[-0.05em] text-app-text sm:text-[56px]">
-            Turn creative sources into content that ships.
-          </h1>
-          <p className="mx-auto mt-5 max-w-[52ch] text-[16px] leading-6 font-medium text-app-muted-text">
-            Save what works, build repeatable workflows, and keep every output
-            ready for review.
-          </p>
+          {/* Cadence, not a tagline: the gaps are the useful signal here. */}
+          <PostFrequencyGraph dates={publishedPostDates} />
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             <Button variant="action" size="appDefault" onClick={onCreate}>
               <IconPlus className="size-5" />

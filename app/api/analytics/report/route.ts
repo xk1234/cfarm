@@ -47,10 +47,10 @@ export async function GET(request: Request) {
         listFollowerSnapshots().catch(() => []),
         listPostFastPostRecords().catch(() => []),
       ])
-    const integrations =
-      integrationResult.integrations.length > 0
-        ? integrationResult.integrations
-        : inferredIntegrations(snapshots, followerSnapshots)
+    const integrations = mergeAnalyticsIntegrations(
+      integrationResult.integrations,
+      inferredIntegrations(snapshots, followerSnapshots, publications)
+    )
     const selected =
       requestedIds.size > 0
         ? integrations.filter((item) => requestedIds.has(item.integration_id))
@@ -111,10 +111,11 @@ export async function GET(request: Request) {
 
 function inferredIntegrations(
   snapshots: Awaited<ReturnType<typeof listMetricSnapshots>>,
-  followers: Awaited<ReturnType<typeof listFollowerSnapshots>>
+  followers: Awaited<ReturnType<typeof listFollowerSnapshots>>,
+  publications: Awaited<ReturnType<typeof listPostFastPostRecords>>
 ) {
   const byId = new Map<string, PostFastSocialIntegration>()
-  for (const item of [...snapshots, ...followers]) {
+  for (const item of [...snapshots, ...followers, ...publications]) {
     const provider = normalizePostFastProvider(item.provider)
     if (!provider || byId.has(item.integrationId)) continue
     byId.set(item.integrationId, {
@@ -122,6 +123,21 @@ function inferredIntegrations(
       provider,
       name: `${providerLabel(provider)} account`,
     })
+  }
+  return [...byId.values()]
+}
+
+function mergeAnalyticsIntegrations(
+  connected: PostFastSocialIntegration[],
+  inferred: PostFastSocialIntegration[]
+) {
+  const byId = new Map(
+    connected.map((integration) => [integration.integration_id, integration])
+  )
+  for (const integration of inferred) {
+    if (!byId.has(integration.integration_id)) {
+      byId.set(integration.integration_id, integration)
+    }
   }
   return [...byId.values()]
 }

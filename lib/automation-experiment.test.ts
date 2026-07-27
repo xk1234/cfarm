@@ -25,7 +25,10 @@ vi.mock("@/lib/automation-runner", async (importOriginal) => ({
   previewAutomationRunPlan: mocks.previewAutomationRunPlan,
 }))
 
-import { runAutomationExperiment } from "@/lib/automation-experiment"
+import {
+  getAutomationExperimentDimensions,
+  runAutomationExperiment,
+} from "@/lib/automation-experiment"
 
 describe("runAutomationExperiment", () => {
   beforeEach(() => {
@@ -92,6 +95,51 @@ describe("runAutomationExperiment", () => {
 
     expect(draws(first)).toEqual(draws(same))
     expect(draws(first)).not.toEqual(draws(different))
+  })
+
+  it("describes automation-level dimensions with their current values", async () => {
+    const record = createLocalAutomationRecord({ name: "Dimensions test" })
+    record.schema.tone.value = "Calm & Reflective"
+    const body = record.schema.formatting.find((block) => block.id === "body")
+    if (!body) throw new Error("Expected a body formatting block")
+    body.textItems = body.textItems.map((item) => ({
+      ...item,
+      contentDirection: "One grounded recommendation",
+    }))
+    mocks.getAutomationRecord.mockResolvedValue(record)
+
+    const dimensions = await getAutomationExperimentDimensions("automation-id")
+
+    expect(dimensions.automationDimensions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dimension: "contentDirection",
+          name: "hook",
+          label: "Hook content direction",
+          currentValue: expect.any(String),
+        }),
+        expect.objectContaining({
+          dimension: "contentDirection",
+          name: "body",
+          label: "Body content direction",
+          currentValue: "One grounded recommendation",
+        }),
+        expect.objectContaining({
+          dimension: "contentDirection",
+          name: "cta",
+          label: "CTA content direction",
+          currentValue: expect.any(String),
+        }),
+        expect.objectContaining({
+          dimension: "tone",
+          currentValue: "Calm & Reflective",
+        }),
+        expect.objectContaining({
+          dimension: "model",
+          currentValue: expect.stringContaining("/"),
+        }),
+      ])
+    )
   })
 
   it("rejects experiments above the cell cap", async () => {
@@ -180,12 +228,22 @@ describe("holding everything but the varied input constant", () => {
       options: { random?: () => number }
     ) => {
       streams.push([options.random!(), options.random!(), options.random!()])
-      return { status: "succeeded", plan: { hook: "Try [[ZODIAC]] this week", hookTemplate: "Try [[ZODIAC]] this week", slides: [], hookSubstitutions: {} } }
+      return {
+        status: "succeeded",
+        plan: {
+          hook: "Try [[ZODIAC]] this week",
+          hookTemplate: "Try [[ZODIAC]] this week",
+          slides: [],
+          hookSubstitutions: {},
+        },
+      }
     }) as never)
 
     await runAutomationExperiment({
       automationId: "a1",
-      vary: [{ dimension: "variable", name: "zodiac", values: ["leo", "virgo"] }],
+      vary: [
+        { dimension: "variable", name: "zodiac", values: ["leo", "virgo"] },
+      ],
       seed: 7,
     })
 
@@ -201,7 +259,15 @@ describe("holding everything but the varied input constant", () => {
       options: { random?: () => number }
     ) => {
       streams.push([options.random!(), options.random!()])
-      return { status: "succeeded", plan: { hook: "Try [[ZODIAC]] this week", hookTemplate: "Try [[ZODIAC]] this week", slides: [], hookSubstitutions: {} } }
+      return {
+        status: "succeeded",
+        plan: {
+          hook: "Try [[ZODIAC]] this week",
+          hookTemplate: "Try [[ZODIAC]] this week",
+          slides: [],
+          hookSubstitutions: {},
+        },
+      }
     }) as never)
 
     await runAutomationExperiment({
@@ -215,3 +281,121 @@ describe("holding everything but the varied input constant", () => {
     expect(streams[0]).not.toEqual(streams[1])
   })
 })
+
+describe("content direction sweeps", () => {
+  it("varies only the targeted block's direction, holding the rest constant", async () => {
+    const seen: {
+      schema: Parameters<typeof stableSchemaWithoutBodyDirection>[0]
+      textModel?: string
+    }[] = []
+    mocks.previewAutomationRunPlan.mockImplementation(
+      async (
+        schema: {
+          formatting: {
+            id: string
+            textItems: { contentDirection: string; [key: string]: unknown }[]
+            [key: string]: unknown
+          }[]
+          tone?: { value?: string }
+          hooks?: unknown[]
+          [key: string]: unknown
+        },
+        options: { textModel?: string }
+      ) => {
+        seen.push({
+          schema: structuredClone(schema),
+          textModel: options.textModel,
+        })
+        return {
+          status: "succeeded",
+          plan: {
+            title: "",
+            caption: "",
+            hashtags: "",
+            hook: "h",
+            imageCollectionIds: [],
+            slides: [],
+            slideCount: { mode: "static", count: 0 },
+            publishType: "slideshow",
+            autoMusic: false,
+            autoPost: false,
+            language: "en",
+          },
+        }
+      }
+    )
+
+    const uiRequest = {
+      automationId: "a1",
+      vary: [
+        {
+          dimension: "contentDirection" as const,
+          name: "body",
+          values: ["one concrete tip", "one surprising stat"],
+        },
+      ],
+      allHooks: false,
+      repeats: 1,
+      seed: 4242,
+    }
+    await runAutomationExperiment(uiRequest)
+
+    // Both directions were actually applied...
+    expect(
+      seen
+        .map(
+          (cell) =>
+            cell.schema.formatting.find((block) => block.id === "body")
+              ?.textItems[0]?.contentDirection
+        )
+        .sort()
+    ).toEqual(["one concrete tip", "one surprising stat"])
+    // ...and nothing else moved between cells, which is what makes the
+    // comparison meaningful rather than confounded.
+    expect(stableSchemaWithoutBodyDirection(seen[0].schema)).toEqual(
+      stableSchemaWithoutBodyDirection(seen[1].schema)
+    )
+    expect(seen[0].textModel).toBe(seen[1].textModel)
+  })
+
+  it("keeps body and cta directions in separate columns", async () => {
+    const { cells } = await runAutomationExperiment({
+      automationId: "a1",
+      vary: [
+        { dimension: "contentDirection", name: "body", values: ["b1", "b2"] },
+        { dimension: "contentDirection", name: "cta", values: ["c1", "c2"] },
+      ],
+    })
+    // Without per-block keying both variations collapse onto one key and the
+    // sweep silently produces 2 cells instead of 4.
+    expect(cells).toHaveLength(4)
+    expect(Object.keys(cells[0].variant).sort()).toEqual([
+      "contentDirection:body",
+      "contentDirection:cta",
+    ])
+  })
+})
+
+function stableSchemaWithoutBodyDirection(schema: {
+  formatting: {
+    id: string
+    textItems: { contentDirection: string; [key: string]: unknown }[]
+    [key: string]: unknown
+  }[]
+  [key: string]: unknown
+}) {
+  return {
+    ...schema,
+    formatting: schema.formatting.map((block) =>
+      block.id === "body"
+        ? {
+            ...block,
+            textItems: block.textItems.map((item) => ({
+              ...item,
+              contentDirection: "<varied>",
+            })),
+          }
+        : block
+    ),
+  }
+}

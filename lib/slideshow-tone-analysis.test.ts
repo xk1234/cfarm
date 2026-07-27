@@ -68,6 +68,54 @@ describe("slideshow tone analysis", () => {
       enabled: true,
     })
   })
+
+  it("carries the source's slide counts instead of the template default", () => {
+    const fields = slideshowToneToAutomationFields({
+      tone: { value: "Bold & Provocative", preset: "bold" },
+      language: "English",
+      wordRange: { min: 5, max: 17 },
+      wordRangeByRole: {
+        hook: { min: 17, max: 17 },
+        body: { min: 5, max: 5 },
+        cta: { min: 5, max: 17 },
+      },
+      // A real two-slide source: @gracieshoppin/photo/7614974655257971999.
+      structure: { hookSlides: 1, bodySlides: 1, ctaSlides: 0 },
+      observations: ["First person.", "Informal caps for emphasis."],
+      seedHook: "who knew drinking a cute pink drink",
+    })
+
+    // Without this the matched automation kept the 1/3/0 template default and
+    // wrote a four-slide post from a two-slide source.
+    expect(
+      fields.formatting?.map((section) => [section.id, section.slideCount])
+    ).toEqual([
+      ["hook", 1],
+      ["body", 1],
+      ["cta", 0],
+    ])
+    expect(fields.prompt_formatting?.num_of_slides).toBe(2)
+  })
+
+  it("puts the voice observations where generation actually reads them", () => {
+    const fields = slideshowToneToAutomationFields({
+      tone: { value: "Bold & Provocative", preset: "bold" },
+      language: "English",
+      wordRange: { min: 4, max: 40 },
+      wordRangeByRole: {
+        hook: { min: 4, max: 6 },
+        body: { min: 30, max: 40 },
+        cta: { min: 8, max: 8 },
+      },
+      structure: { hookSlides: 1, bodySlides: 4, ctaSlides: 1 },
+      observations: ["Uses first-person perspective.", "Punchy fragments."],
+      seedHook: "You are arranging this room wrong",
+    })
+
+    const style = fields.prompt_formatting?.style ?? ""
+    expect(style).toContain("Uses first-person perspective.")
+    expect(style).toContain("Punchy fragments.")
+  })
 })
 
 describe("computeWordRangesByRole", () => {
@@ -81,8 +129,33 @@ describe("computeWordRangesByRole", () => {
 
   it("keeps the hook range separate from the body range", () => {
     const ranges = computeWordRangesByRole(cancerSlides)
-    expect(ranges.hook).toEqual({ min: 8, max: 8 })
+    // 8 words, widened by half its own value: a matched hook may run 4-12.
+    expect(ranges.hook).toEqual({ min: 4, max: 12 })
     expect(ranges.body.min).toBeGreaterThan(ranges.hook.max)
+  })
+
+  it("gives a single-sample role room to move instead of one exact length", () => {
+    // One body slide measured at 5 words used to produce min === max === 5, so
+    // every body line the automation ever wrote had to be exactly five words.
+    const ranges = computeWordRangesByRole([
+      { text: "a seventeen word hook that runs on a while longer than the body ever does here" },
+      { text: "it started as habit" },
+    ])
+    expect(ranges.body.min).toBeLessThan(ranges.body.max)
+    expect(ranges.body).toEqual({ min: 2, max: 6 })
+  })
+
+  it("only treats a closing slide as the CTA when it reads like one", () => {
+    // computeSlideStructure requires CTA wording, so the ranges must too —
+    // otherwise a plain closing line is counted as body and measured as CTA.
+    const plainEnding = computeWordRangesByRole(cancerSlides)
+    const ctaEnding = computeWordRangesByRole([
+      ...cancerSlides,
+      { text: "follow for more" },
+    ])
+    expect(plainEnding.cta).toEqual(plainEnding.body)
+    expect(ctaEnding.cta).not.toEqual(ctaEnding.body)
+    expect(ctaEnding.cta.max).toBeLessThan(ctaEnding.body.min)
   })
 
   it("falls back to the overall range when there is too little to split", () => {
@@ -97,6 +170,6 @@ describe("computeWordRangesByRole", () => {
       { text: "" },
       { text: "body copy" },
     ])
-    expect(ranges.hook).toEqual({ min: 6, max: 6 })
+    expect(ranges.hook).toEqual({ min: 3, max: 9 })
   })
 })

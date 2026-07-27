@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
 
+import { StandaloneMobileNav } from "@/components/realfarm/standalone-mobile-nav"
 import { XAutomationStudio } from "@/components/x-automation-studio"
 import { getCurrentUser } from "@/lib/auth"
 import { listXAutomations, listXAutomationRuns } from "@/lib/x-automation-store"
@@ -14,6 +15,12 @@ export default async function XAutomationsPage() {
     listXAutomationRuns(),
   ])
   return (
-    <XAutomationStudio initialAutomations={automations} initialRuns={runs} />
+    <>
+      {/* Padding clears the fixed bottom bar on mobile. */}
+      <div className="pt-14 md:pt-0">
+        <XAutomationStudio initialAutomations={automations} initialRuns={runs} />
+      </div>
+      <StandaloneMobileNav />
+    </>
   )
 }

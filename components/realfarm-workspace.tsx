@@ -164,6 +164,7 @@ export function RealFarmWorkspace({
   initialTemplateData = emptyInitialTemplateData,
   initialNavigation,
   composeAccounts = [],
+  publishedPostDates = [],
   user,
 }: {
   data: RealFarmData
@@ -175,6 +176,8 @@ export function RealFarmWorkspace({
     collectionId?: string
   }
   composeAccounts?: ConnectedComposerAccount[]
+  /** When each linked post went out, for the dashboard activity graph. */
+  publishedPostDates?: string[]
   user: { id: string; email: string; emailVerified: boolean }
 }) {
   const [view, setView] = useState<ViewKey>(initialNavigation?.view ?? "home")
@@ -824,11 +827,16 @@ export function RealFarmWorkspace({
           onSettings={() => setSettingsOpen(true)}
         />
         {!fillsWorkspace ? (
-          <MobileNavigation view={view} onViewChange={changeView} />
+          <MobileNavigation
+            view={view}
+            onViewChange={changeView}
+            onNewAutomation={() => setTemplateFolderOpen(true)}
+            onSettings={() => setSettingsOpen(true)}
+          />
         ) : null}
         <section
           className={cn(
-            "min-w-0 flex-1 overflow-y-auto pb-20 md:pb-0",
+            "min-w-0 flex-1 overflow-y-auto pt-14 md:pt-0",
             fillsWorkspace ? "p-0" : "px-4 py-4 sm:px-5 sm:py-5 lg:px-7"
           )}
         >
@@ -837,6 +845,7 @@ export function RealFarmWorkspace({
               currentUserId={user.id}
               templates={templateAutomations}
               recentRunsByAutomationId={showcaseRunsByAutomationId}
+              publishedPostDates={publishedPostDates}
               generatedRunsByAutomationId={recentRunsByAutomationId}
               generatedRunsLoading={!recentRunsLoaded}
               generatedRunsError={recentRunsError}

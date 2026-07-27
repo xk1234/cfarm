@@ -2,19 +2,43 @@
 
 import { useEffect, useRef, useState } from "react"
 import type * as React from "react"
-import { IconChevronLeft, IconLayoutDashboard, IconList, IconPhotoPlus, IconPlus, IconTrash, IconUpload, IconX } from "@tabler/icons-react"
+import {
+  IconChevronLeft,
+  IconLayoutDashboard,
+  IconList,
+  IconPhotoPlus,
+  IconPlus,
+  IconTrash,
+  IconUpload,
+  IconX,
+} from "@tabler/icons-react"
 import { toast } from "sonner"
 import { Popover } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { LabelledSelect, SelectControl, SwitchPillButton, ToggleRow } from "@/components/ui/form-controls"
+import {
+  LabelledSelect,
+  SelectControl,
+  SwitchPillButton,
+  ToggleRow,
+} from "@/components/ui/form-controls"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import { UploadDropzone } from "@/components/ui/upload-dropzone"
 import { ImageViewerModal } from "@/components/realfarm/image-viewer-modal"
-import { ControlRow, ControlToggle, MediaCardShell, PinterestPreviewTile, SlideThumb } from "@/components/realfarm/shared-media"
+import {
+  ControlRow,
+  ControlToggle,
+  MediaCardShell,
+  PinterestPreviewTile,
+  SlideThumb,
+} from "@/components/realfarm/shared-media"
 import { PinterestCollectionSearch } from "@/components/realfarm/pinterest-collection-search"
-import { collectionToStored, type CreatedImageCollection, type StoredImageCollection } from "@/lib/realfarm-collections"
+import {
+  collectionToStored,
+  type CreatedImageCollection,
+  type StoredImageCollection,
+} from "@/lib/realfarm-collections"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import type { AssetRecord } from "@/lib/assets"
 import type { PinterestSearchResult } from "@/lib/pinterest-search"
@@ -354,11 +378,12 @@ export function CollectionDetailView({
   return (
     <div className="mx-auto max-w-[1120px]">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-1">
           <Button
             type="button"
             variant="iconControl"
             size="icon-control"
+            className="size-10 sm:size-8"
             onClick={onBack}
             aria-label="Back to collections"
           >
@@ -366,7 +391,7 @@ export function CollectionDetailView({
           </Button>
           {editingTitle ? (
             <input
-              className="h-8 min-w-[280px] rounded-[6px] border border-[#d9d8d0] bg-app-surface px-2 text-[22px] font-semibold outline-none"
+              className="h-10 min-w-0 flex-1 rounded-[6px] border border-[#d9d8d0] bg-app-surface px-2 text-[18px] font-semibold outline-none sm:h-8 sm:min-w-[280px] sm:flex-none sm:text-[22px]"
               value={titleDraft}
               autoFocus
               onChange={(event) => setTitleDraft(event.target.value)}
@@ -381,7 +406,7 @@ export function CollectionDetailView({
               }}
             />
           ) : (
-            <h1 className="truncate text-[22px] font-semibold">
+            <h1 className="min-w-0 flex-1 truncate text-[22px] font-semibold">
               {collection.title}
             </h1>
           )}
@@ -391,6 +416,7 @@ export function CollectionDetailView({
                 type="button"
                 variant="ghost"
                 size="xs"
+                className="h-10 sm:h-6"
                 onClick={saveTitle}
               >
                 Save
@@ -399,6 +425,7 @@ export function CollectionDetailView({
                 type="button"
                 variant="ghost"
                 size="xs"
+                className="h-10 sm:h-6"
                 onClick={() => {
                   setTitleDraft(collection.title)
                   setEditingTitle(false)
@@ -413,6 +440,7 @@ export function CollectionDetailView({
               type="button"
               variant="ghost"
               size="xs"
+              className="h-10 sm:h-6"
               onClick={() => {
                 setTitleDraft(collection.title)
                 setEditingTitle(true)
@@ -422,10 +450,11 @@ export function CollectionDetailView({
             </Button>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full items-center gap-2 overflow-x-auto pb-1 sm:w-auto">
           <Button
             variant="softControl"
             size="compact"
+            className="h-10 sm:h-8"
             disabled={readonly || captioning || collection.images.length === 0}
             onClick={() => void captionImages()}
           >
@@ -434,7 +463,11 @@ export function CollectionDetailView({
           </Button>
           <Popover.Root>
             <Popover.Trigger asChild>
-              <Button variant="softControl" size="compact">
+              <Button
+                variant="softControl"
+                size="compact"
+                className="h-10 sm:h-8"
+              >
                 <IconList className="size-4" />
                 View
               </Button>
@@ -470,6 +503,7 @@ export function CollectionDetailView({
             <Button
               variant="action"
               size="compact"
+              className="h-10 sm:h-8"
               onClick={() => setSearchOpen(true)}
             >
               <IconPlus className="size-4" />
@@ -510,11 +544,12 @@ export function CollectionDetailView({
         </div>
       ) : (
         <>
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="mb-5 flex flex-nowrap items-center justify-between gap-3 overflow-x-auto pb-1">
+            <div className="flex shrink-0 items-center gap-2">
               <Button
                 variant="softControl"
                 size="compact"
+                className="h-10 sm:h-8"
                 onClick={() =>
                   setSelectedImageKeys((current) =>
                     Array.from(new Set([...current, ...visibleImageKeys]))
@@ -526,6 +561,7 @@ export function CollectionDetailView({
               <Button
                 variant="softControl"
                 size="compact"
+                className="h-10 sm:h-8"
                 onClick={() =>
                   setSelectedImageKeys(collection.images.map(imageKey))
                 }
@@ -536,6 +572,7 @@ export function CollectionDetailView({
                 <Button
                   variant="softControl"
                   size="compact"
+                  className="h-10 sm:h-8"
                   onClick={() => setSelectedImageKeys([])}
                 >
                   Clear
@@ -543,7 +580,7 @@ export function CollectionDetailView({
               )}
             </div>
             {selectedCount > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <span className="rounded-[8px] bg-app-surface px-3 py-2 text-[13px] font-semibold text-app-text-soft shadow-sm">
                   {selectedCount} selected
                   {selectedVisibleCount > 0 ? ` loaded` : ""}
@@ -552,6 +589,7 @@ export function CollectionDetailView({
                   <Button
                     variant="destructive"
                     size="compact"
+                    className="h-10 sm:h-8"
                     onClick={() => setDeleteImagesOpen(true)}
                   >
                     <IconTrash className="size-4" />
@@ -563,10 +601,12 @@ export function CollectionDetailView({
           </div>
 
           <div
-            className="grid gap-x-4 gap-y-6"
-            style={{
-              gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-            }}
+            className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 sm:gap-x-4 sm:gap-y-6 md:[grid-template-columns:repeat(var(--collection-columns),minmax(0,1fr))]"
+            style={
+              {
+                "--collection-columns": columns,
+              } as React.CSSProperties
+            }
           >
             {visibleImages.map((image, index) => {
               const key = imageKey(image)
@@ -581,14 +621,18 @@ export function CollectionDetailView({
                       : "border-app-panel-border"
                   )}
                 >
-                  <input
-                    className="absolute top-3 left-3 z-10 size-4 accent-app-action"
-                    type="checkbox"
-                    checked={selected}
-                    onChange={() => toggleImageSelection(key)}
+                  <label
+                    className="absolute top-1 left-1 z-10 grid size-10 place-items-center"
                     onClick={(event) => event.stopPropagation()}
-                    aria-label={`Select ${image.title}`}
-                  />
+                  >
+                    <input
+                      className="size-5 accent-app-action"
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => toggleImageSelection(key)}
+                      aria-label={`Select ${image.title}`}
+                    />
+                  </label>
                   <button
                     className="block w-full text-left"
                     onClick={() => setViewerIndex(index)}

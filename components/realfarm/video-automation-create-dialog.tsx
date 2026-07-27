@@ -287,10 +287,6 @@ function MediaSetup({
       <h2 className="text-[28px] leading-tight font-bold text-app-text">
         Automation setup
       </h2>
-      <p className="mt-2 text-[15px] leading-6 font-medium text-app-muted-text">
-        Name the automation and choose the permanent asset pools it can draw
-        from.
-      </p>
       <div className="mt-8 border-t border-app-panel-border pt-6">
         <label className="block">
           <span className="text-[15px] font-semibold text-app-text">
@@ -348,7 +344,10 @@ function MediaSetup({
   )
 }
 
-function automationSummary(name: string, templateId: AutomationVideoTemplateId = "ugc_ad"): Automation {
+function automationSummary(
+  name: string,
+  templateId: AutomationVideoTemplateId = "ugc_ad"
+): Automation {
   const isUgc = templateId === "ugc_ad"
   return {
     id: "new-video-template",
@@ -373,7 +372,11 @@ export function initialVideoSchema(
   const format = preset.buildFormat()
   if (templateId === "ugc_ad") {
     return {
-      ...defaultAutomationSchema({ ...automation, automationKind: "ugc", status: "paused" }),
+      ...defaultAutomationSchema({
+        ...automation,
+        automationKind: "ugc",
+        status: "paused",
+      }),
       automationKind: "ugc" as const,
       status: "paused" as const,
       ugc: {
@@ -385,7 +388,11 @@ export function initialVideoSchema(
         lipSyncTier: "standard" as const,
         targetDurationSeconds: 40,
         brollCount: 3,
-        captions: { enabled: true, style: "karaoke", fallback: "drawtext" as const },
+        captions: {
+          enabled: true,
+          style: "karaoke",
+          fallback: "drawtext" as const,
+        },
         hookOverlay: { enabled: true, durationMs: 3000, style: "bold" },
       },
     }

@@ -22,10 +22,7 @@ import type { ColDef, ICellRendererParams } from "ag-grid-community"
 import { AgDataTable } from "@/components/ui/ag-data-table"
 import { Button } from "@/components/ui/button"
 import { SkeletonBlock } from "@/components/ui/loading-skeleton"
-import {
-  SearchControl,
-  SelectControl,
-} from "@/components/ui/form-controls"
+import { SearchControl, SelectControl } from "@/components/ui/form-controls"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import { ViewModeToggle, type ViewMode } from "@/components/ui/view-mode-toggle"
 import {
@@ -346,14 +343,14 @@ export function CollectionsView({
 
   return (
     <div className="mx-auto max-w-[1540px]">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
         <h1 className="flex items-center gap-2 text-[24px] font-semibold tracking-normal">
           Collections
           <button
             type="button"
             aria-label="About collections"
             aria-describedby="collections-help"
-            className="group relative grid size-6 place-items-center rounded-full border border-[#aeb5c0] text-[14px] font-semibold text-[#7b8492]"
+            className="group relative grid size-10 place-items-center rounded-full border border-[#aeb5c0] text-[14px] font-semibold text-[#7b8492] md:size-6"
           >
             ?
             <span
@@ -367,10 +364,11 @@ export function CollectionsView({
           </button>
         </h1>
         {activeTab !== "variables" && selectedIds.length > 0 ? (
-          <div className="flex items-center gap-2">
+          <div className="flex w-full items-center gap-2 overflow-x-auto pb-1 md:w-auto">
             <Button
               variant="softControl"
               size="appDefault"
+              className="h-10 md:h-9"
               onClick={() => setSelectedCollectionIds(new Set())}
             >
               Clear
@@ -378,6 +376,7 @@ export function CollectionsView({
             <Button
               variant="destructive"
               size="appDefault"
+              className="h-10 md:h-9"
               onClick={() => void requestCollectionDelete(selectedIds)}
             >
               <IconTrash className="size-4" />
@@ -386,10 +385,11 @@ export function CollectionsView({
             </Button>
           </div>
         ) : activeTab === "images" ? (
-          <div className="flex items-center gap-2">
+          <div className="flex w-full items-center gap-2 overflow-x-auto pb-1 md:w-auto">
             <Button
               variant="softControl"
               size="appDefault"
+              className="h-10 md:h-9"
               onClick={() =>
                 onCreateCollection({
                   id: `collection-empty-${Date.now()}`,
@@ -406,6 +406,7 @@ export function CollectionsView({
             <Button
               variant="action"
               size="appDefault"
+              className="h-10 md:h-9"
               onClick={() => setSearchOpen(true)}
             >
               <IconPlus className="size-4" />
@@ -418,38 +419,40 @@ export function CollectionsView({
         value={activeTab}
         onValueChange={(value) => selectTab(value as typeof activeTab)}
       >
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <Tabs.List
-            className="flex w-fit rounded-[7px] border border-app-panel-border bg-app-surface-subtle p-1"
-            aria-label="Collection types"
-          >
-            {(
-              [
-                ["images", "Images", IconPhoto],
-                ["videos", "Videos", IconVideo],
-                ["products", "Products", IconShoppingBag],
-                ["variables", "Variables", IconBrackets],
-              ] as const
-            ).map(([tab, label, Icon]) => (
-              <Tabs.Trigger
-                key={tab}
-                value={tab}
-                className={cn(
-                  "flex h-9 items-center gap-2 rounded-[5px] px-4 text-[13px] font-semibold transition",
-                  activeTab === tab
-                    ? "bg-app-surface text-app-text shadow-sm"
-                    : "text-app-muted-text hover:text-app-text"
-                )}
-              >
-                <Icon className="size-4" />
-                {label}
-              </Tabs.Trigger>
-            ))}
-          </Tabs.List>
+        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="max-w-full overflow-x-auto pb-1">
+            <Tabs.List
+              className="flex w-max rounded-[7px] border border-app-panel-border bg-app-surface-subtle p-1"
+              aria-label="Collection types"
+            >
+              {(
+                [
+                  ["images", "Images", IconPhoto],
+                  ["videos", "Videos", IconVideo],
+                  ["products", "Products", IconShoppingBag],
+                  ["variables", "Variables", IconBrackets],
+                ] as const
+              ).map(([tab, label, Icon]) => (
+                <Tabs.Trigger
+                  key={tab}
+                  value={tab}
+                  className={cn(
+                    "flex h-10 items-center gap-2 rounded-[5px] px-3 text-[13px] font-semibold transition md:h-9 md:px-4",
+                    activeTab === tab
+                      ? "bg-app-surface text-app-text shadow-sm"
+                      : "text-app-muted-text hover:text-app-text"
+                  )}
+                >
+                  <Icon className="size-4" />
+                  {label}
+                </Tabs.Trigger>
+              ))}
+            </Tabs.List>
+          </div>
           {(activeTab === "images" || activeTab === "videos") && (
-            <div className="ml-auto flex min-w-0 items-center gap-2">
+            <div className="flex w-full min-w-0 items-center gap-2 md:ml-auto md:w-auto">
               <SearchControl
-                className="w-[min(320px,45vw)]"
+                className="h-10 min-w-0 flex-1 md:h-9 md:w-[min(320px,45vw)] md:flex-none"
                 value={collectionSearch}
                 onChange={(event) => updateCollectionSearch(event.target.value)}
                 placeholder={`Search ${activeTab}`}
@@ -462,7 +465,7 @@ export function CollectionsView({
                   setVisibleCollectionCount(COLLECTION_PAGE_SIZE)
                 }}
                 aria-label="Sort collections"
-                className="max-w-[180px]"
+                className="h-10 w-[118px] px-2 text-xs md:h-9 md:w-auto md:max-w-[180px] md:px-4 md:text-sm"
               >
                 <option value="newest">Newest first</option>
                 <option value="oldest">Oldest first</option>
@@ -471,7 +474,11 @@ export function CollectionsView({
                 <option value="images-desc">Most images</option>
                 <option value="images-asc">Fewest images</option>
               </SelectControl>
-              <ViewModeToggle value={viewMode} onChange={setViewMode} />
+              <ViewModeToggle
+                value={viewMode}
+                onChange={setViewMode}
+                className="[&_button]:size-10 md:[&_button]:size-8"
+              />
             </div>
           )}
         </div>
@@ -530,7 +537,7 @@ export function CollectionsView({
                   />
                 ) : (
                   <>
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-5">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 md:gap-5">
                       {visibleCollections.map((collection, index) => (
                         <MediaCardShell
                           key={collection.id}
@@ -543,7 +550,7 @@ export function CollectionsView({
                                 variant="iconControl"
                                 size="icon-control-sm"
                                 className={cn(
-                                  "absolute top-2 left-2 z-10 opacity-100 shadow-sm md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100",
+                                  "absolute top-2 left-2 z-10 size-10 opacity-100 shadow-sm md:size-7 md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100",
                                   selectedCollectionIds.has(collection.id) &&
                                     "opacity-100"
                                 )}
@@ -562,7 +569,7 @@ export function CollectionsView({
                                 variant="iconControl"
                                 size="icon-control-sm"
                                 className={cn(
-                                  "absolute top-2 right-2 z-10 opacity-100 shadow-sm md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100",
+                                  "absolute top-2 right-2 z-10 size-10 opacity-100 shadow-sm md:size-7 md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100",
                                   collection.pinned &&
                                     "bg-app-accent hover:bg-app-accent text-white opacity-100"
                                 )}
@@ -583,7 +590,7 @@ export function CollectionsView({
                                 type="button"
                                 variant="iconControl"
                                 size="icon-control-sm"
-                                className="absolute top-11 right-2 z-10 text-app-danger opacity-100 shadow-sm md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
+                                className="absolute top-14 right-2 z-10 size-10 text-app-danger opacity-100 shadow-sm md:top-11 md:size-7 md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
                                 onClick={(event) => {
                                   event.stopPropagation()
                                   void requestCollectionDelete([collection.id])

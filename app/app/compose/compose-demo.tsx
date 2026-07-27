@@ -154,9 +154,6 @@ export function ComposeDemo({
           <h1 className="mt-1 text-metric font-semibold tracking-tight text-app-text">
             Create a post
           </h1>
-          <p className="mt-1 max-w-2xl text-label text-app-muted-text">
-            Write once, customize each network, and publish when you are ready.
-          </p>
         </div>
         {accounts.length > 0 ? (
           <div aria-label="Connected accounts" className="flex flex-wrap gap-2">

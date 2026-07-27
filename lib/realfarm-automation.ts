@@ -1304,6 +1304,33 @@ export function automationCollectionIds(
   )
 }
 
+/**
+ * Replace the content direction on every text item of one formatting block,
+ * leaving the rest of the automation untouched.
+ *
+ * Used by the experiment sweep so a run can vary what a slide is told to say
+ * while holding hook, tone, model, images and word limits constant -- otherwise
+ * a comparison confounds the direction with everything else.
+ */
+export function schemaWithAutomationContentDirection(
+  schema: AutomationSchema,
+  blockId: string,
+  contentDirection: string
+): AutomationSchema {
+  const formatting = (schema.formatting ?? []).map((block) =>
+    block.id === blockId
+      ? {
+          ...block,
+          textItems: (block.textItems ?? []).map((item) => ({
+            ...item,
+            contentDirection,
+          })),
+        }
+      : block
+  )
+  return { ...schema, formatting }
+}
+
 export function schemaWithAutomationCollectionId(
   schema: AutomationSchema,
   role: "hook" | "content" | "cta",

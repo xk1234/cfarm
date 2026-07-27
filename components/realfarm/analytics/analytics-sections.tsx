@@ -123,11 +123,6 @@ export function AnalyticsHeader({
         <h1 className="text-[30px] leading-none font-semibold tracking-[-0.04em] text-app-text">
           {platform ? `${providerName(platform)} analytics` : "Analytics"}
         </h1>
-        <p className="mt-3 max-w-[650px] text-[14px] leading-6 font-medium text-app-muted-text">
-          {platform
-            ? `Compare connected ${providerName(platform)} accounts using the metrics PostFast actually reports.`
-            : "See audience, distribution, engagement, recent posts, and account health in one view."}
-        </p>
       </div>
       <div className="flex items-center gap-2">
         {onTikTokStudioSync ? (
@@ -285,11 +280,11 @@ export function AccountSelectorRail({
           <h2 className="text-[15px] font-semibold tracking-[-0.015em] text-app-text">
             {multi ? "Accounts" : "Connected accounts"}
           </h2>
-          <p className="mt-0.5 text-[11px] font-medium text-app-muted-text">
-            {multi
-              ? `${selectedIds.length} of ${integrations.length} selected`
-              : "Choose an account or keep the combined portfolio view."}
-          </p>
+          {multi ? (
+            <p className="mt-0.5 text-[11px] font-medium text-app-muted-text">
+              {selectedIds.length} of {integrations.length} selected
+            </p>
+          ) : null}
         </div>
         {multi ? (
           <button
@@ -479,6 +474,8 @@ export function RecentPosts({
               : link.state === "manually_linked"
                 ? IconUserCheck
                 : IconLinkOff
+          const awaitingStudioImport =
+            link.state === "manually_linked" && !link.hasStudioStats
           return (
             <button
               key={`${post.integrationId}:${post.postId}`}
@@ -530,27 +527,36 @@ export function RecentPosts({
                 <span className="mt-3 line-clamp-2 min-h-9 text-[12px] leading-[18px] font-semibold text-app-text">
                   {post.content || "Untitled post"}
                 </span>
-                <span className="mt-3 flex items-end justify-between gap-3 border-t border-[#eeedf3] pt-2.5">
-                  <span>
-                    <span className="block text-[9px] font-medium text-app-text-faint">
-                      {metricLabel(primaryMetric, post.provider)}
+                {awaitingStudioImport ? (
+                  <span className="mt-3 block border-t border-[#eeedf3] pt-2.5 text-[10px] leading-4 font-semibold text-app-warning">
+                    No imported data yet
+                  </span>
+                ) : (
+                  <span className="mt-3 flex items-end justify-between gap-3 border-t border-[#eeedf3] pt-2.5">
+                    <span>
+                      <span className="block text-[9px] font-medium text-app-text-faint">
+                        {metricLabel(primaryMetric, post.provider)}
+                      </span>
+                      <span className="mt-0.5 block text-[13px] font-semibold text-app-text tabular-nums">
+                        {formatMetric(
+                          primaryMetric,
+                          post.metrics[primaryMetric]
+                        )}
+                      </span>
                     </span>
-                    <span className="mt-0.5 block text-[13px] font-semibold text-app-text tabular-nums">
-                      {formatMetric(primaryMetric, post.metrics[primaryMetric])}
+                    <span className="text-right">
+                      <span className="block text-[9px] font-medium text-app-text-faint">
+                        Engagement
+                      </span>
+                      <span className="mt-0.5 block text-[13px] font-semibold text-app-text tabular-nums">
+                        {formatMetric(
+                          "engagementRate",
+                          post.metrics.engagementRate
+                        )}
+                      </span>
                     </span>
                   </span>
-                  <span className="text-right">
-                    <span className="block text-[9px] font-medium text-app-text-faint">
-                      Engagement
-                    </span>
-                    <span className="mt-0.5 block text-[13px] font-semibold text-app-text tabular-nums">
-                      {formatMetric(
-                        "engagementRate",
-                        post.metrics.engagementRate
-                      )}
-                    </span>
-                  </span>
-                </span>
+                )}
               </span>
             </button>
           )
@@ -793,10 +799,6 @@ export function PlatformAnalytics({
             <h2 className="text-[15px] font-semibold tracking-[-0.015em] text-app-text">
               Metric
             </h2>
-            <p className="mt-0.5 text-[11px] font-medium text-app-muted-text">
-              Choose one comparable measure. Availability reflects selected
-              accounts.
-            </p>
           </div>
         </div>
         <div
@@ -1253,7 +1255,6 @@ export function ComparisonTooltip({
 
 export function SectionHeading({
   title,
-  description,
 }: {
   title: string
   description: string
@@ -1263,9 +1264,6 @@ export function SectionHeading({
       <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-app-text">
         {title}
       </h2>
-      <p className="mt-1 text-[12px] font-medium text-app-muted-text">
-        {description}
-      </p>
     </div>
   )
 }

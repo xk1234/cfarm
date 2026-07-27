@@ -47,6 +47,10 @@ import {
   TIKTOK_PLATFORM_POST_ID_REQUIRED,
 } from "@/lib/tiktok-comment-collection-client"
 import { cn } from "@/lib/utils"
+import {
+  PostSlidesStrip,
+  type AnalyticsSlide,
+} from "./post-slides-strip"
 import { TikTokStudioImportDialog } from "./tiktok-studio-import-dialog"
 
 export function PostAnalyticsPage({
@@ -54,11 +58,13 @@ export function PostAnalyticsPage({
   integration,
   contentType,
   publicationPlatformPostId,
+  slides = [],
 }: {
   snapshots: PostFastMetricSnapshot[]
   integration: SocialIntegration
   contentType: PostContentType
   publicationPlatformPostId?: string
+  slides?: AnalyticsSlide[]
 }) {
   const router = useRouter()
   const ordered = useMemo(
@@ -224,6 +230,8 @@ export function PostAnalyticsPage({
           <PostPreview post={latest} type={contentType} />
         </section>
 
+        <PostSlidesStrip slides={slides} />
+
         <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {stats.map((stat) => (
             <article
@@ -249,10 +257,6 @@ export function PostAnalyticsPage({
               <h2 className="text-[18px] font-semibold tracking-[-0.025em] text-app-text">
                 Performance over time
               </h2>
-              <p className="mt-1 text-[11px] font-medium text-app-muted-text">
-                {series.length} stored capture{series.length === 1 ? "" : "s"}.
-                Values are cumulative totals reported by the platform.
-              </p>
             </div>
             <div className="flex max-w-full gap-1.5 overflow-x-auto pb-1">
               {metrics.map((item) => (
@@ -342,10 +346,6 @@ export function PostAnalyticsPage({
             <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-app-text">
               Platform-specific metrics
             </h2>
-            <p className="mt-1 text-[11px] font-medium text-app-muted-text">
-              Raw fields returned by PostFast that do not fit the shared
-              cross-platform KPI set.
-            </p>
             {rawMetrics.length ? (
               <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                 {rawMetrics.map((item) => (
