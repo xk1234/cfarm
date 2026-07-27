@@ -3,7 +3,7 @@ import { getTempSlidePromptPlaceholders, normalizeTempSlideStructuredOutput, pla
 import { slideshowTextGenerationPayload } from "./slideshow-text-generation-payload.js";
 export { slideshowTextGenerationPayload };
 import { defaultSlideshowTextModel, openRouterModelForUseCase, } from "./realfarm-generation-model-registry.js";
-import { clean } from "./guards.js";
+import { clean, isRecord } from "./guards.js";
 import { fetchJson, providerErrorMessage } from "./http.js";
 import { llmSlopMatches } from "./llm-slop.js";
 import { parseOpenRouterContent } from "./openrouter.js";
@@ -299,17 +299,39 @@ export async function generateSlideshowText(input) {
             selectedHook !== "Create a high-performing TikTok slideshow.",
     });
     const lowercase = toneRequestsLowercase(input.automation.tone);
+    const normalizedResult = normalizeTempSlideStructuredOutput(completion.output, placeholders, { lowercase });
     return {
         model: completion.model,
         selectedHook,
-        result: normalizeTempSlideStructuredOutput(completion.output, placeholders, {
-            lowercase,
-        }),
+        result: normalizedResult,
         skippedOpenRouter: false,
         promptPayload,
         webSearchSources: research?.sources ?? [],
         violations: completion.violations ?? [],
+        transformations: [
+            ...(completion.transformations ?? []),
+            ...(lowercase
+                ? lowercaseTextTransformations(completion.output, normalizedResult)
+                : []),
+        ],
     };
+}
+function lowercaseTextTransformations(output, normalized) {
+    if (!isRecord(output))
+        return [];
+    const rawText = isRecord(output.text) ? output.text : {};
+    const values = [
+        ["title", clean(output.title), normalized.title],
+        ["caption", clean(output.caption), normalized.caption],
+        ...Object.entries(normalized.text).map(([field, after]) => [
+            field,
+            clean(rawText[field]),
+            after,
+        ]),
+    ];
+    return values.flatMap(([field, before, after]) => before && before !== after
+        ? [{ pass: "tone_lowercase", field, before, after }]
+        : []);
 }
 async function requestStructuredOutput(input) {
     let lastError;
@@ -367,17 +389,35 @@ async function requestStructuredOutput(input) {
         const choice = payload.choices?.[0];
         try {
             assertCompleteStructuredChoice(choice);
-            const output = JSON.parse(parseOpenRouterContent(choice?.message?.content));
-            const { errors: validationErrors, violations } = structuredOutputFindings(output, input.placeholders, input.selectedHook);
+            let output = JSON.parse(parseOpenRouterContent(choice?.message?.content));
+            let { errors: validationErrors, violations } = structuredOutputFindings(output, input.placeholders, input.selectedHook);
             if (validationErrors.length > 0) {
                 throw new Error(validationErrors.join("; "));
+            }
+            if (violations.length > 0 && attempt < 2) {
+                throw new Error(violations.join("; "));
+            }
+            const truncated = truncateStructuredOutputOverruns(output, input.placeholders);
+            output = truncated.output;
+            if (truncated.transformations.length > 0) {
+                ;
+                ({ errors: validationErrors, violations } = structuredOutputFindings(output, input.placeholders, input.selectedHook));
+                if (validationErrors.length > 0) {
+                    throw new Error(validationErrors.join("; "));
+                }
             }
             const webSearchSources = parseWebSearchSources(choice?.message?.annotations);
             if (input.requireHookSubjectCoverage &&
                 !outputDevelopsHookSubject(output, input.selectedHook)) {
                 throw new Error(`Generated body text does not develop the selected hook subject: ${input.selectedHook}`);
             }
-            return { output, webSearchSources, model: attemptModel, violations };
+            return {
+                output,
+                webSearchSources,
+                model: attemptModel,
+                violations,
+                transformations: truncated.transformations,
+            };
         }
         catch (error) {
             lastError = error;
@@ -394,6 +434,40 @@ async function requestStructuredOutput(input) {
         }
     }
     throw new Error(`OpenRouter did not return complete structured slideshow text after 2 attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+}
+function truncateStructuredOutputOverruns(output, placeholders) {
+    if (!output || typeof output !== "object" || Array.isArray(output)) {
+        return { output, transformations: [] };
+    }
+    const record = output;
+    const sourceText = isRecord(record.text)
+        ? record.text
+        : {};
+    const text = { ...sourceText };
+    const transformations = [];
+    for (const placeholder of placeholders) {
+        const maximum = placeholder.wordLengthMax;
+        const before = typeof text[placeholder.id] === "string"
+            ? clean(text[placeholder.id])
+            : "";
+        if (!maximum || !before)
+            continue;
+        const words = before.split(/\s+/).filter(Boolean);
+        if (words.length <= maximum)
+            continue;
+        const after = words.slice(0, maximum).join(" ");
+        text[placeholder.id] = after;
+        transformations.push({
+            pass: "word_cap_fallback",
+            field: placeholder.id,
+            before,
+            after,
+        });
+    }
+    return {
+        output: { ...record, text },
+        transformations,
+    };
 }
 function promptPayloadWithRepairFeedback(payload, error) {
     const feedback = error instanceof Error ? error.message : String(error);

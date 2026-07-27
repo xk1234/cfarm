@@ -6,7 +6,10 @@ import {
   selectSlideshowHook,
   selectSlideshowImages,
 } from "./slideshow-generation-engine.js"
-import { reminderChannel } from "./slideshow-automation.js"
+import {
+  reminderChannel,
+  shouldBlockAutomaticPublication,
+} from "./slideshow-automation.js"
 
 function schema() {
   return {
@@ -59,6 +62,16 @@ describe("scheduled worker Telegram reminder policy", () => {
         "generated"
       )
     ).toBe("none")
+  })
+})
+
+describe("scheduled worker QA publication gate", () => {
+  it("blocks only automatic publication when deterministic QA fails", () => {
+    expect(shouldBlockAutomaticPublication("auto", { valid: false })).toBe(true)
+    expect(shouldBlockAutomaticPublication("auto", { valid: true })).toBe(false)
+    expect(shouldBlockAutomaticPublication("review", { valid: false })).toBe(
+      false
+    )
   })
 })
 

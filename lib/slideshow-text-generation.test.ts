@@ -350,7 +350,7 @@ describe("slideshow text structured output", () => {
     )
   })
 
-  it("reports a word-range miss without retrying or rejecting the output", async () => {
+  it("retries a word-range miss, then truncates the overrun as a fallback", async () => {
     const outsideWordRange = JSON.stringify({
       ...JSON.parse(validContent),
       title: "gemini",
@@ -362,6 +362,7 @@ describe("slideshow text structured output", () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(response(outsideWordRange))
+      .mockResolvedValueOnce(response(outsideWordRange))
 
     const generated = await generateSlideshowText({
       automation,
@@ -370,15 +371,28 @@ describe("slideshow text structured output", () => {
     })
 
     expect(generated.result.text["content-2__heading"]).toBe(
-      "geminis stay curious because change gives them room to keep growing"
+      "geminis stay curious because change gives them room"
     )
-    expect(generated.violations).toEqual([
-      "content-2__heading has 11 words, but its configured maximum is 8.",
+    expect(generated.violations).toEqual([])
+    expect(generated.transformations).toEqual([
+      {
+        pass: "word_cap_fallback",
+        field: "content-2__heading",
+        before:
+          "geminis stay curious because change gives them room to keep growing",
+        after: "geminis stay curious because change gives them room",
+      },
     ])
-    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    const retryBody = JSON.parse(
+      String(fetchImpl.mock.calls[1]?.[1]?.body)
+    ) as { messages: { content: string }[] }
+    expect(retryBody.messages.at(-1)?.content).toContain(
+      "content-2__heading has 11 words"
+    )
   })
 
-  it("still retries structural failures while word ranges stay non-fatal", async () => {
+  it("still retries structural failures", async () => {
     const missingHeading = JSON.stringify({
       ...JSON.parse(validContent),
       text: { "content-2__heading": "" },

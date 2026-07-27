@@ -10,6 +10,7 @@ import {
   buildAnalyticsReport,
   buildScheduleReport,
   createLumenClipMcpServer,
+  diffAutomationSchemas,
   mergeAutomationSchemaPatch,
   type LumenClipMcpServices,
 } from "@/lib/mcp/lumenclip-server"
@@ -45,6 +46,19 @@ describe("automation schema patches", () => {
       tone: "direct",
       formatting: [{ id: "body", slideCount: 7 }],
       schedule: { timezone: "Asia/Singapore", paused: true },
+    })
+  })
+
+  it("reports added, changed, and removed schema paths", () => {
+    expect(
+      diffAutomationSchemas(
+        { tone: "direct", nested: { keep: true, remove: 1 } },
+        { tone: "warm", nested: { keep: true, add: 2 } }
+      )
+    ).toEqual({
+      added: [{ path: "nested.add", after: 2 }],
+      changed: [{ path: "tone", before: "direct", after: "warm" }],
+      removed: [{ path: "nested.remove", before: 1 }],
     })
   })
 })
@@ -455,6 +469,7 @@ describe("LumenClip MCP server", () => {
     })
     expect(upserted.structuredContent).toMatchObject({
       total: 2,
+      hookWarnings: [],
       hooks: expect.arrayContaining([
         expect.objectContaining({
           id: "hook-new",
@@ -463,6 +478,27 @@ describe("LumenClip MCP server", () => {
           tone: "Shadow voice",
         }),
       ]),
+    })
+
+    const malformed = await client.callTool({
+      name: "lumenclip_automation_hook_upsert",
+      arguments: {
+        automationId: current.id,
+        hooks: [
+          {
+            id: "hook-malformed",
+            text: "[[SLIDE_COUNT]] destined for wealth in [[CURRENT_YEAR]]",
+          },
+        ],
+      },
+    })
+    expect(malformed.structuredContent).toMatchObject({
+      hookWarnings: [
+        expect.objectContaining({
+          hookId: "hook-malformed",
+          code: "NUMERIC_TOKEN_MISSING_NOUN",
+        }),
+      ],
     })
 
     const disabled = await client.callTool({
@@ -490,7 +526,7 @@ describe("LumenClip MCP server", () => {
     })
     expect(deleted.structuredContent).toMatchObject({
       deletedHookIds: ["hook-new"],
-      total: 1,
+      total: 2,
     })
   })
 
@@ -677,7 +713,7 @@ describe("LumenClip MCP server", () => {
         createdAt: "2026-07-01T00:00:00.000Z",
       },
     ]
-    current.schema.hook_slots = { SIGN: "zodiac" }
+    current.schema.hook_slots = { SIGN: "zodiac", ZODIAC_CUSP: "cusp" }
     const client = await connectClient({
       getAutomationRecord: vi.fn(async () => current),
       listAutomationRuns: vi.fn(async () => []),
@@ -713,8 +749,19 @@ describe("LumenClip MCP server", () => {
             }),
           ]),
           missingTokens: [],
+          unusedExplicitOverrides: ["ZODIAC_CUSP"],
         },
       },
+      nextSteps: [
+        expect.objectContaining({
+          id: "remove-unused-hook-slot-overrides",
+          tool: "lumenclip_automation_schema_update",
+          args: expect.objectContaining({
+            automationId: current.id,
+            schema: { hook_slots: { ZODIAC_CUSP: null } },
+          }),
+        }),
+      ],
     })
 
     const bindings = await client.callTool({
@@ -749,6 +796,7 @@ describe("LumenClip MCP server", () => {
         }),
       ]),
       missingTokens: [],
+      unusedExplicitOverrides: ["ZODIAC_CUSP"],
     })
   })
 
@@ -783,7 +831,9 @@ describe("LumenClip MCP server", () => {
   })
 
   it("creates automations idempotently and exposes hook performance and run plans", async () => {
-    let records: ReturnType<typeof automationRecord>[] = []
+    let records: ReturnType<typeof automationRecord>[] = [
+      { ...automationRecord(), id: "automation-seed" },
+    ]
     const upsert = vi.fn(async ({ records: incoming }) => {
       records = [...incoming] as typeof records
       return records
@@ -857,6 +907,15 @@ describe("LumenClip MCP server", () => {
     expect(first.structuredContent).toMatchObject({
       created: true,
       reused: false,
+      nextSteps: [
+        expect.objectContaining({
+          severity: "recommended",
+          tool: "lumenclip_automation_clone",
+          args: expect.objectContaining({
+            sourceAutomationId: "automation-seed",
+          }),
+        }),
+      ],
     })
     expect(second.structuredContent).toMatchObject({
       created: false,
@@ -1066,11 +1125,19 @@ describe("LumenClip MCP server", () => {
       source: "tiktok_studio" as const,
       rawMetrics: { newFollowers: 29 },
     }
+    const awaitingPublication = {
+      ...publication,
+      id: "publication-output-2",
+      integrationId: "tiktok-2",
+    }
     const client = await connectClient({
       listAutomationRuns: vi.fn(async () => [run]),
       listGeneratedVideoExports: vi.fn(async () => []),
       listXAutomationRuns: vi.fn(async () => []),
-      listPostFastPostRecords: vi.fn(async () => [publication]),
+      listPostFastPostRecords: vi.fn(async () => [
+        publication,
+        awaitingPublication,
+      ]),
       listMetricSnapshots: vi.fn(async () => [snapshot]),
     })
 
@@ -1087,6 +1154,7 @@ describe("LumenClip MCP server", () => {
           analytics: expect.objectContaining({
             available: true,
             postCount: 1,
+            awaitingCapture: 1,
             metrics: expect.objectContaining({
               views: 1200,
               interactions: 120,
@@ -1096,6 +1164,15 @@ describe("LumenClip MCP server", () => {
               "lumenclip_analytics_report",
               "lumenclip_tiktok_studio_analytics_report",
             ],
+          }),
+        }),
+      ],
+      nextSteps: [
+        expect.objectContaining({
+          severity: "recommended",
+          tool: "lumenclip_tiktok_studio_analytics_batch_start",
+          args: expect.objectContaining({
+            integrationIds: ["tiktok-2"],
           }),
         }),
       ],
@@ -1179,6 +1256,12 @@ describe("LumenClip MCP server", () => {
         valid: false,
         actualSlideCount: 1,
       },
+      nextSteps: expect.arrayContaining([
+        expect.objectContaining({
+          tool: "lumenclip_output_publish",
+          blocks: ["lumenclip_analytics_report"],
+        }),
+      ]),
     })
     expect(inspected.structuredContent).not.toHaveProperty("shareUrl")
 
@@ -1393,6 +1476,13 @@ describe("LumenClip MCP server", () => {
             expect.objectContaining({ code: "WORD_LENGTH_VIOLATION" }),
           ],
         },
+      ],
+      nextSteps: [
+        expect.objectContaining({
+          severity: "required",
+          tool: "lumenclip_automation_run",
+          blocks: ["lumenclip_output_publish"],
+        }),
       ],
     })
   })
@@ -1902,6 +1992,71 @@ describe("LumenClip MCP server", () => {
     expect(deleteRuns).not.toHaveBeenCalled()
   })
 
+  it("blocks a new publication on QA errors unless a reasoned override is supplied", async () => {
+    const current = automationRecord()
+    const run = generatedRun(current.id)
+    run.plan.slides[0].text = Array.from({ length: 20 }, () => "word").join(" ")
+    const publication = {
+      id: "publication-qa-override",
+      sourceType: "slideshow" as const,
+      sourceId: run.slideshowId!,
+      integrationId: "account-1",
+      provider: "tiktok",
+      linkState: "postfast_published" as const,
+      statsSources: [],
+      status: "published" as const,
+      content: "Generated caption",
+      media: [],
+      createdAt: "2026-07-18T01:00:00.000Z",
+      updatedAt: "2026-07-18T01:01:00.000Z",
+    }
+    const publish = vi.fn(async () => ({ ok: true, record: publication }))
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      listAutomationRuns: vi.fn(async () => [run]),
+      listAccounts: vi.fn(async () => [
+        {
+          integration_id: "account-1",
+          provider: "tiktok" as const,
+          name: "TikTok account",
+        },
+      ]),
+      listPostFastPostRecords: vi.fn(async () => []),
+      uploadPostFastMediaSources: vi.fn(async () => []),
+      publishPost: publish,
+    })
+
+    const blocked = await client.callTool({
+      name: "lumenclip_output_publish",
+      arguments: {
+        outputId: run.slideshowId,
+        targets: [{ accountId: "account-1", mode: "now" }],
+        requestId: "publish-qa-blocked",
+        confirmPublish: true,
+      },
+    })
+    expect(blocked.isError).toBe(true)
+    expect(publish).not.toHaveBeenCalled()
+
+    const accepted = await client.callTool({
+      name: "lumenclip_output_publish",
+      arguments: {
+        outputId: run.slideshowId,
+        targets: [{ accountId: "account-1", mode: "now" }],
+        requestId: "publish-qa-accepted",
+        overrideQaFailure: true,
+        qaOverrideReason: "Reviewed the intentional long-form slide.",
+        confirmPublish: true,
+      },
+    })
+    expect(accepted.isError).not.toBe(true)
+    expect(publish).toHaveBeenCalledTimes(1)
+    expect(accepted.structuredContent).toMatchObject({
+      published: 1,
+      warnings: [expect.stringContaining("QA override accepted")],
+    })
+  })
+
   it("suppresses a duplicate external publication for the same output and account", async () => {
     const current = automationRecord()
     const run = generatedRun(current.id)
@@ -2157,7 +2312,12 @@ describe("MCP analytics report", () => {
 })
 
 async function connectClient(overrides: Partial<LumenClipMcpServices> = {}) {
-  const server = createLumenClipMcpServer("owner-1", overrides)
+  const server = createLumenClipMcpServer("owner-1", {
+    getAutomationRecord: vi.fn(async () => null),
+    listAutomationRecords: vi.fn(async () => []),
+    listAutomationRuns: vi.fn(async () => []),
+    ...overrides,
+  })
   const client = new Client({ name: "lumenclip-test", version: "1.0.0" })
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair()

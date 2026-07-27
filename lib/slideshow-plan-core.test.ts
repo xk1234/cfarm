@@ -7,7 +7,7 @@ import {
 } from "@/lib/slideshow-plan-core"
 
 describe("slideshow plan metadata and hook overrides", () => {
-  it("passes saved caption and hashtag prompts into text generation", () => {
+  it("makes the deterministic hook-caption owner explicit in the prompt", () => {
     const instructions = slideshowMetadataPromptInstructions({
       tiktok_post_settings: {
         caption: {
@@ -23,7 +23,7 @@ describe("slideshow plan metadata and hook overrides", () => {
     })
 
     expect(instructions).toContain(
-      'Caption requirement: this should be in "lowercase," same exact text as the first text item.'
+      "Caption requirement: return exactly the selected Hook text above; this policy is also enforced deterministically after generation."
     )
     expect(instructions).toContain(
       "Hashtags requirement: give me 3-5 broad hashtags related to astrology"

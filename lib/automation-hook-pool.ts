@@ -230,6 +230,10 @@ function exactHookKey(value: string) {
 
 function semanticTokens(value: string) {
   const normalized = exactHookKey(value)
+    .replace(/\b(?:true|real)\b/g, "genuine")
+    .replace(/\byou havent experienced\b/g, "experience")
+    .replace(/\buntil you are loved by\b/g, "loved by")
+    .replace(/\bif you havent been loved by\b/g, "loved by")
     .replace(/\{\{[^}]+\}\}|\{[^}]+\}/g, " variable ")
     .replace(new RegExp(`\\b(?:${zodiacTerms.join("|")})\\b`, "g"), " zodiac ")
   return new Set(

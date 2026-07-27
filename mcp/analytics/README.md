@@ -40,6 +40,12 @@ owner-scoped snapshot store. Missing metrics remain absent rather than being
 invented as zero. Engagement rate is recalculated from aggregate interactions
 and the best available views/impressions/reach denominator.
 
+When `awaitingCapture` is non-zero, the response includes a recommended
+`nextSteps` entry for `lumenclip_tiktok_studio_analytics_batch_start` with the
+affected `integrationIds`, `mode: "new"`, and lookback already resolved.
+`lumenclip_outputs_list` emits the same step for published outputs on the
+returned page that are still missing a capture.
+
 Advanced filters and the saved-report/resource envelope below the original
 roadmap remain proposed.
 

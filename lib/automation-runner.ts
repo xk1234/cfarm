@@ -15,6 +15,7 @@ import {
   type AutomationRecord,
 } from "@/lib/automations"
 import { automationGenerationBlockers } from "@/lib/automation-readiness"
+import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
 import {
   clearAutomationRunProgress,
   setAutomationRunProgress,
@@ -183,6 +184,8 @@ export type AutomationRunPlan = {
     textSimilarityRetry?: boolean
     textModelPrompt?: SlideshowTextGenerationResult["promptPayload"]
     textGenerationResult?: TempSlideStructuredOutput
+    generatedCaption?: string
+    textTransformations?: SlideshowTextGenerationResult["transformations"]
     webSearchSources?: SlideshowTextGenerationResult["webSearchSources"]
     imageTextCoherenceRepair?: boolean
   }
@@ -706,7 +709,7 @@ async function createAutomationRun(input: {
     title: requiredGeneratedValue("title", plan.title),
     caption: plan.caption,
     hashtags: plan.hashtags,
-    prompt: automationSlideshowPrompt(input.record.schema, plan.hook),
+    prompt: automationSlideshowPrompt(plan.hook),
     image_collection: plan.imageCollectionIds[0] ?? "",
     slideshow_type: "automation",
     status: "exported",
@@ -735,9 +738,33 @@ async function createAutomationRun(input: {
   const activeIntegrations = input.record.schema.social_integrations.filter(
     (integration) => integration.integration_id && !integration.disabled
   )
+  const outputQa = validateAutomationRunOutput({
+    run: runWithSlideshowId,
+    schema: input.record.schema,
+  })
   if (
     activeIntegrations.length > 0 &&
-    input.claimedRun.generationSource !== "manual"
+    input.claimedRun.generationSource !== "manual" &&
+    !outputQa.valid
+  ) {
+    await enqueueReminder({
+      event: "ready_to_post",
+      sourceType: "slideshow",
+      sourceId: slideshow.id,
+      scheduledFor: run.scheduledFor,
+      availableAt: reminderAvailability(run.scheduledFor),
+      dedupeSuffix: `${run.scheduledFor}:qa`,
+      requiresPostConfirmation: true,
+      text: `Slideshow blocked by QA\n${plan.title}\n${outputQa.findings
+        .filter((finding) => finding.severity === "error")
+        .map((finding) => finding.message)
+        .join("\n")}`,
+    }).catch(() => undefined)
+  }
+  if (
+    activeIntegrations.length > 0 &&
+    input.claimedRun.generationSource !== "manual" &&
+    outputQa.valid
   ) {
     const postingMode = automationPostingMode(input.record.schema)
     let media
@@ -1299,6 +1326,8 @@ async function createAutomationRunPlan(
       textGenerationResult: options.includeTextGenerationResult
         ? textGeneration.result
         : undefined,
+      generatedCaption: textGeneration.result.caption,
+      textTransformations: textGeneration.transformations,
       imageTextCoherenceRepair: false,
     },
   }
@@ -2042,10 +2071,8 @@ export function automationSlideshowSettings(schema: AutomationSchema) {
   })
 }
 
-function automationSlideshowPrompt(schema: AutomationSchema, hook: string) {
-  return [schema.prompt_formatting.narrative, hook ? `Hook: ${hook}` : ""]
-    .filter(Boolean)
-    .join("\n\n")
+function automationSlideshowPrompt(hook: string) {
+  return hook ? `Hook: ${hook}` : ""
 }
 
 function textItemPosition(

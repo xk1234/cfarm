@@ -60,14 +60,33 @@ Returns the request ID plus concise run summaries:
       "title": "Mercury signs in conflict",
       "hook": "how each mercury sign handles an argument",
       "slideCount": 7,
+      "qaValid": true,
+      "qaFindings": [],
+      "generationPasses": [
+        { "id": "caption_resolution", "ran": true, "changes": [] },
+        { "id": "image_text_coherence_repair", "ran": false, "changes": [] }
+      ],
       "thumbnailUrl": "https://...",
       "outputImages": ["https://..."],
       "createdAt": "2026-07-18T12:00:00.000Z"
     }
   ],
-  "skipped": []
+  "skipped": [],
+  "nextSteps": []
 }
 ```
+
+`generationPasses` makes post-generation mutations observable. Caption
+resolution is deterministic: a saved exact-hook caption policy is enforced
+after model generation and any changed value is included as before/after data.
+The retired image/text coherence repair is reported as `ran: false`. A
+second-attempt word-cap overrun is truncated and reported as
+`word_cap_fallback` with the exact field and before/after text. Tone-requested
+lowercasing is likewise reported as `tone_lowercase` for every changed field.
+
+If `qaValid` is false, `nextSteps` contains a required regeneration action and
+names `lumenclip_output_publish` in `blocks`. Publishing also enforces this
+server-side; merely ignoring the hint cannot bypass the gate.
 
 An empty `runs` array is accompanied by a `skipped` reason such as `no_images`.
 Provider, collection, hook-variable, generation, and rendering errors surface
@@ -132,5 +151,7 @@ unscheduled regardless of the automation's live schedule.
 3. Poll `lumenclip_operation_get`.
 4. Read `lumenclip://outputs/{id}` and inspect every slide.
 5. Resolve account capabilities with `lumenclip_accounts_list`.
-6. Publish only through `lumenclip_output_publish` with explicit targets and
-   `confirmPublish: true`.
+6. Confirm `qaValid: true`, then publish only through
+   `lumenclip_output_publish` with explicit targets and `confirmPublish: true`.
+   A reviewed exception requires `overrideQaFailure: true` plus a recorded
+   `qaOverrideReason`.

@@ -37,13 +37,15 @@ External side effect. Scope `lumenclip:publish`.
 
 ### Input
 
-| Field            | Type           | Required | Description                                                                      |
-| ---------------- | -------------- | -------- | -------------------------------------------------------------------------------- |
-| `outputId`       | string         | yes      | Ready caller-owned output.                                                       |
-| `targets`        | object[]       | yes      | Each has `accountId`, `mode: now \| schedule`, and `scheduledAt` when scheduled. |
-| `caption`        | string         | no       | Explicit approved caption override.                                              |
-| `confirmPublish` | literal `true` | yes      | Mandatory external-side-effect confirmation.                                     |
-| `requestId`      | string         | yes      | Operation/retry identifier.                                                      |
+| Field               | Type           | Required      | Description                                                                      |
+| ------------------- | -------------- | ------------- | -------------------------------------------------------------------------------- |
+| `outputId`          | string         | yes           | Ready caller-owned output.                                                       |
+| `targets`           | object[]       | yes           | Each has `accountId`, `mode: now \| schedule`, and `scheduledAt` when scheduled. |
+| `caption`           | string         | no            | Explicit approved caption override.                                              |
+| `overrideQaFailure` | boolean        | no            | Explicitly accepts deterministic QA errors; default `false`.                     |
+| `qaOverrideReason`  | string         | with override | Required audit reason when accepting QA errors.                                  |
+| `confirmPublish`    | literal `true` | yes           | Mandatory external-side-effect confirmation.                                     |
+| `requestId`         | string         | yes           | Operation/retry identifier.                                                      |
 
 ### Output
 
@@ -52,6 +54,12 @@ and warnings. Before calling PostFast, the tool uploads output media and checks
 for an existing non-failed publication for the same output/account; a retry is
 returned as `reused` instead of publishing twice. Multi-post reply chains are
 rejected because the current PostFast bridge cannot publish them atomically.
+
+For slideshow outputs, deterministic QA is checked before any new external
+publication. QA errors block publishing unless both `overrideQaFailure: true`
+and a non-empty `qaOverrideReason` are supplied; accepted finding codes and the
+reason are returned in `warnings`. Duplicate-only retries remain idempotent and
+do not require a new override because no new publication occurs.
 
 Errors include `OUTPUT_NOT_READY`, `UNSUPPORTED_CAPABILITY`,
 `PUBLISH_CONFIRMATION_REQUIRED`, and `PROVIDER_UNAVAILABLE`.

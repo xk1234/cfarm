@@ -1,8 +1,8 @@
 # Automation MCP tools
 
-> Discovery, templates, creation/deletion, complete schema reads/replacement,
-> granular formatting and hook management, run-plan inspection, safe updates,
-> and manual runs are implemented. Diff preview remains proposed.
+> Discovery, templates, creation/deletion, patch-or-replace schema writes with
+> returned diffs, granular formatting and hook management, run-plan inspection,
+> safe updates, and manual runs are implemented.
 
 These tools correspond to the Automations area in the app. They use one
 normalized automation contract across slideshows, videos, AI UGC, X, Threads, and other
@@ -37,6 +37,12 @@ are not returned. X/Threads records expose their full safe `configuration`
 (brief, excluded topics, proof bank, output/generation/media/discovery policy,
 benchmarks, schedule, usage, and operations).
 
+The result also includes machine-readable `nextSteps` when a legacy hook
+catalog is duplicated in `prompt_formatting.narrative` or the hook text item's
+`contentDirection`, or when explicit variable overrides are no longer used.
+Each step contains resolved tool arguments and can be applied without
+reconstructing the schema.
+
 ### `lumenclip_automation_templates_list`
 
 Read-only template discovery with optional `query`, `kind`, `includeSchema`,
@@ -49,13 +55,18 @@ Creates a paused or live slideshow/video/UGC automation, optionally cloned from
 `templateId`. Required `requestId` is persisted as the retry key, so repeating
 the call returns the same record. `name` is required and an optional `kind`
 must agree with the selected template.
+When the caller already owns automations, the result recommends
+`lumenclip_automation_clone` with a recent source automation and resolved
+arguments so callers do not accidentally rebuild a complete schema by hand.
 
 ### `lumenclip_automation_schema_update`
 
-Complete schema replacement with required `automationId`,
-`expectedUpdatedAt`, and normalized `schema`. Callers must read
-`automation_get` first and preserve desired fields. The backend normalizes the
-replacement before persistence.
+Patch-or-replace schema mutation with required `automationId`,
+`expectedUpdatedAt`, and normalized `schema`. `mode: "patch"` is the default:
+nested objects merge, supplied arrays replace only their array field, and
+omitted fields remain unchanged. `mode: "replace"` is explicit full
+replacement. The result returns `schemaDiff.added`, `schemaDiff.changed`, and
+`schemaDiff.removed` entries with dotted paths and before/after values.
 
 Prefer the two patch tools below for formatting changes. They mutate one
 addressable object and do not normalize or rewrite unrelated schema fields.
@@ -119,6 +130,10 @@ writing. Unknown and legacy single-bracket placeholders are rejected with a
 close-match suggestion when available. A free `[[NUMBER]]` draw is accepted
 with a warning recommending `[[SLIDE_COUNT]]` when the hook's promised count
 must equal the generated body count.
+Both mutations also return non-blocking `hookWarnings`. The narrow syntax lint
+flags numeric runtime tokens followed by an adjective/verb instead of a noun
+phrase (for example `[[SLIDE_COUNT]] destined ...`) while allowing valid forms
+such as `[[SLIDE_COUNT]] signs ...`.
 
 Prefer the granular tools when full replacement is unnecessary:
 
@@ -162,11 +177,13 @@ schema exposes `distinct_variable_draws: true`; for example,
 `[[ZODIAC]] versus [[ZODIAC]]` cannot resolve both positions to the same sign.
 The older `hook_no_duplicate_slots` field remains a compatibility alias.
 
-The canonical hook source is `schema.hooks[]`. `prompt_formatting.narrative` is
-generation guidance only and is never silently promoted into the pool. Hook
-mutations preserve real prose guidance but clear a legacy multi-line narrative
-that merely duplicates the hook catalog. Use the granular hook tools to
-promote a narrative phrase into an enabled hook.
+The canonical hook source is `schema.hooks[]`.
+`prompt_formatting.narrative` is no longer a generation input. A hook text
+item's `contentDirection` may still carry concise casing/length guidance, but
+must not contain a second hook catalog. Hook mutations preserve real prose
+guidance but clear a legacy multi-line narrative that merely duplicates the
+hook catalog. Use the granular hook tools to promote a narrative phrase into
+an enabled hook.
 
 `automation.status` is the lifecycle state. `schema.schedule.paused` is its
 scheduler gate, while `posting_mode` controls what happens after generation
@@ -261,6 +278,16 @@ poll it with `lumenclip_operation_get`.
 
 Returns an operation plus output resource links. Successful outputs are always
 `not_published` and unscheduled, even when the saved automation is live.
+The operation exposes `qaValid`, `qaFindings`, `generationPasses`, and
+machine-readable `nextSteps`. A QA failure produces a required regeneration
+step that blocks `lumenclip_output_publish` unless the caller later supplies an
+explicit reasoned QA override. Scheduled runs never auto-publish a QA-invalid
+deck.
+
+Configured word maxima get one model repair attempt. If the repaired response
+still exceeds a maximum, the text is truncated to the configured cap and the
+exact before/after value is reported as the `word_cap_fallback` generation
+pass. Below-minimum text remains a visible QA finding.
 
 Generation preconditions such as `no_images` are structured non-error tool
 results: the operation has `status: "failed"`, `stage: "precondition"`, no

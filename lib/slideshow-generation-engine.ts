@@ -15,7 +15,7 @@ import {
   defaultSlideshowTextModel,
   openRouterModelForUseCase,
 } from "@/lib/realfarm-generation-model-registry"
-import { clean } from "@/lib/guards"
+import { clean, isRecord } from "@/lib/guards"
 import { fetchJson, providerErrorMessage } from "@/lib/http"
 import { llmSlopMatches } from "@/lib/llm-slop"
 import { parseOpenRouterContent } from "@/lib/openrouter"
@@ -71,6 +71,14 @@ export type SlideshowTextGenerationResult = {
    * copy can be judged, rather than silently dropped or fatally enforced.
    */
   violations?: string[]
+  transformations?: SlideshowTextTransformation[]
+}
+
+export type SlideshowTextTransformation = {
+  pass: "word_cap_fallback" | "tone_lowercase"
+  field: string
+  before: string
+  after: string
 }
 
 export type SlideshowWebSearchSource = {
@@ -523,21 +531,48 @@ export async function generateSlideshowText(input: {
       selectedHook !== "Create a high-performing TikTok slideshow.",
   })
   const lowercase = toneRequestsLowercase(input.automation.tone)
+  const normalizedResult = normalizeTempSlideStructuredOutput(
+    completion.output,
+    placeholders,
+    { lowercase }
+  )
   return {
     model: completion.model,
     selectedHook,
-    result: normalizeTempSlideStructuredOutput(
-      completion.output,
-      placeholders,
-      {
-        lowercase,
-      }
-    ),
+    result: normalizedResult,
     skippedOpenRouter: false,
     promptPayload,
     webSearchSources: research?.sources ?? [],
     violations: completion.violations ?? [],
+    transformations: [
+      ...(completion.transformations ?? []),
+      ...(lowercase
+        ? lowercaseTextTransformations(completion.output, normalizedResult)
+        : []),
+    ],
   }
+}
+
+function lowercaseTextTransformations(
+  output: unknown,
+  normalized: TempSlideStructuredOutput
+): SlideshowTextTransformation[] {
+  if (!isRecord(output)) return []
+  const rawText = isRecord(output.text) ? output.text : {}
+  const values = [
+    ["title", clean(output.title), normalized.title],
+    ["caption", clean(output.caption), normalized.caption],
+    ...Object.entries(normalized.text).map(([field, after]) => [
+      field,
+      clean(rawText[field]),
+      after,
+    ]),
+  ] as Array<[string, string, string]>
+  return values.flatMap(([field, before, after]) =>
+    before && before !== after
+      ? [{ pass: "tone_lowercase" as const, field, before, after }]
+      : []
+  )
 }
 
 async function requestStructuredOutput(input: {
@@ -613,16 +648,32 @@ async function requestStructuredOutput(input: {
     const choice = payload.choices?.[0]
     try {
       assertCompleteStructuredChoice(choice)
-      const output = JSON.parse(
-        parseOpenRouterContent(choice?.message?.content)
-      )
-      const { errors: validationErrors, violations } = structuredOutputFindings(
+      let output = JSON.parse(parseOpenRouterContent(choice?.message?.content))
+      let { errors: validationErrors, violations } = structuredOutputFindings(
         output,
         input.placeholders,
         input.selectedHook
       )
       if (validationErrors.length > 0) {
         throw new Error(validationErrors.join("; "))
+      }
+      if (violations.length > 0 && attempt < 2) {
+        throw new Error(violations.join("; "))
+      }
+      const truncated = truncateStructuredOutputOverruns(
+        output,
+        input.placeholders
+      )
+      output = truncated.output
+      if (truncated.transformations.length > 0) {
+        ;({ errors: validationErrors, violations } = structuredOutputFindings(
+          output,
+          input.placeholders,
+          input.selectedHook
+        ))
+        if (validationErrors.length > 0) {
+          throw new Error(validationErrors.join("; "))
+        }
       }
       const webSearchSources = parseWebSearchSources(
         choice?.message?.annotations
@@ -635,7 +686,13 @@ async function requestStructuredOutput(input: {
           `Generated body text does not develop the selected hook subject: ${input.selectedHook}`
         )
       }
-      return { output, webSearchSources, model: attemptModel, violations }
+      return {
+        output,
+        webSearchSources,
+        model: attemptModel,
+        violations,
+        transformations: truncated.transformations,
+      }
     } catch (error) {
       lastError = error
       repairError = error
@@ -659,6 +716,43 @@ async function requestStructuredOutput(input: {
       lastError instanceof Error ? lastError.message : String(lastError)
     }`
   )
+}
+
+function truncateStructuredOutputOverruns(
+  output: unknown,
+  placeholders: ReturnType<typeof getTempSlidePromptPlaceholders>
+) {
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
+    return { output, transformations: [] as SlideshowTextTransformation[] }
+  }
+  const record = output as Record<string, unknown>
+  const sourceText = isRecord(record.text)
+    ? (record.text as Record<string, unknown>)
+    : {}
+  const text = { ...sourceText }
+  const transformations: SlideshowTextTransformation[] = []
+  for (const placeholder of placeholders) {
+    const maximum = placeholder.wordLengthMax
+    const before =
+      typeof text[placeholder.id] === "string"
+        ? clean(text[placeholder.id] as string)
+        : ""
+    if (!maximum || !before) continue
+    const words = before.split(/\s+/).filter(Boolean)
+    if (words.length <= maximum) continue
+    const after = words.slice(0, maximum).join(" ")
+    text[placeholder.id] = after
+    transformations.push({
+      pass: "word_cap_fallback",
+      field: placeholder.id,
+      before,
+      after,
+    })
+  }
+  return {
+    output: { ...record, text },
+    transformations,
+  }
 }
 
 function promptPayloadWithRepairFeedback(

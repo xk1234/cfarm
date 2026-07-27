@@ -39,6 +39,7 @@ import {
   postFastSchedulePayload,
 } from "./publishing-core.js"
 import { usageForPublishedRuns } from "./usage-core.js"
+import { validateAutomationRunOutput } from "./automation-output-qa.js"
 import {
   runRendiFfmpegAndDownloadBytes,
   uploadBytesToRendi,
@@ -191,6 +192,10 @@ export async function runSlideshowAutomation({
     )
     const content = publishContent(plan)
     const mode = effectivePostingMode(automation.schema)
+    const outputQa = validateAutomationRunOutput({
+      run: { ...run, status: "succeeded", plan },
+      schema: automation.schema,
+    })
     let media = []
     if (activeIntegrations.length) {
       media = await uploadPostFastMedia(
@@ -210,7 +215,31 @@ export async function runSlideshowAutomation({
       )
     }
 
-    if (mode === "auto") {
+    if (shouldBlockAutomaticPublication(mode, outputQa)) {
+      await enqueueNotification({
+        tables,
+        databaseId,
+        ownerId,
+        event: "ready_to_post",
+        sourceType: "slideshow",
+        sourceId: slideshow.id,
+        runId,
+        scheduledFor,
+        availableAt: scheduledFor,
+        requiresPostConfirmation: true,
+        text: `Slideshow blocked by QA\n${plan.title}\n${outputQa.findings
+          .filter((finding) => finding.severity === "error")
+          .map((finding) => finding.message)
+          .join("\n")}`,
+      })
+      run = {
+        ...run,
+        status: "ready-for-review",
+        qa: outputQa,
+        socialStatuses: [],
+        updatedAt: new Date().toISOString(),
+      }
+    } else if (mode === "auto") {
       const publishing = await publishScheduledPosts({
         tables,
         databaseId,
@@ -329,6 +358,10 @@ export async function runSlideshowAutomation({
     }
     throw error
   }
+}
+
+export function shouldBlockAutomaticPublication(mode, qa) {
+  return mode === "auto" && qa?.valid === false
 }
 
 export function isAutomationConfigurationError(error) {

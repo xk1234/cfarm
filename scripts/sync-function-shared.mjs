@@ -200,6 +200,15 @@ const generatedModules = [
     },
   },
   {
+    source: "lib/automation-output-qa.ts",
+    target: "appwrite/functions/job-worker/src/automation-output-qa.js",
+    imports: {
+      "@/lib/realfarm-automation": "./slideshow-plan-core.js",
+      "@/lib/hook-variables": "./hook-variables.js",
+      "@/lib/temp-slide-testing-shared": "./temp-slide-testing-shared.js",
+    },
+  },
+  {
     source: "lib/publishing-core.ts",
     target: "appwrite/functions/job-worker/src/publishing-core.js",
     imports: {

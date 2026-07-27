@@ -27,6 +27,7 @@ import {
   analyzeAutomationHookPool,
   replaceAutomationHookPool,
 } from "@/lib/automation-hook-pool"
+import { lintAutomationHooks } from "@/lib/automation-hook-lint"
 import { assertValidAutomationHookTokens } from "@/lib/automation-hook-token-validation"
 import {
   deleteAutomationRuns,
@@ -610,13 +611,33 @@ export function createLumenClipMcpServer(
             force: true,
             requestId: traceId,
           })
+          const priorRuns = await services.listAutomationRuns({
+            automationId,
+            limit: 500,
+          })
+          const runs = result.created.map((run) => {
+            const qa =
+              run.status === "succeeded"
+                ? validateAutomationRunOutput({
+                    run,
+                    schema: automation.schema,
+                    priorRuns,
+                  })
+                : undefined
+            return generatedRunSummary(run, ownerId, qa)
+          })
           return {
             automationId,
             requestId: traceId,
-            runs: result.created.map((run) =>
-              generatedRunSummary(run, ownerId)
-            ),
+            runs,
             skipped: result.skipped,
+            nextSteps: result.created.flatMap((run, index) =>
+              qaNextSteps({
+                automationId,
+                outputId: run.slideshowId,
+                qa: runs[index]?.qa,
+              })
+            ),
           }
         })
       )
@@ -917,6 +938,12 @@ export function createLumenClipMcpServer(
               input.automationId && runs.length > 0 && publications.length === 0
                 ? "Outputs exist for this automation, but no publication records are linked. Metrics cannot be attributed until a publication is linked to its output."
                 : undefined,
+            nextSteps: analyticsCaptureNextSteps({
+              awaitingCapture: report.awaitingCapture,
+              integrationIds: report.accounts
+                .filter((account) => account.awaitingCapture > 0)
+                .map((account) => account.integrationId),
+            }),
           }
         })
       )
@@ -1106,6 +1133,7 @@ function registerAutomationReadAndRunTools(
               reused: true,
               requestId: input.requestId,
               automation: serializeStandardAutomation(existing),
+              nextSteps: automationCreateNextSteps(current, input),
             }
           }
           const template = input.templateId
@@ -1150,6 +1178,7 @@ function registerAutomationReadAndRunTools(
               ...serializeStandardAutomation(saved),
               schema: serializeAutomationSchema(saved.schema),
             },
+            nextSteps: automationCreateNextSteps(current, input),
           }
         })
       )
@@ -1279,6 +1308,10 @@ function registerAutomationReadAndRunTools(
                 standard.schema,
                 mediaCollections
               )
+            const nextSteps = automationConfigurationNextSteps({
+              automation: standard,
+              variableBindings,
+            })
             return {
               automation: {
                 ...serializeStandardAutomation(standard),
@@ -1291,7 +1324,10 @@ function registerAutomationReadAndRunTools(
                   standard,
                   variableBindings
                 ),
-                variableBindings,
+                variableBindings: {
+                  ...variableBindings,
+                  unusedExplicitOverrides: variableBindings.unusedOverrides,
+                },
                 manualRunSupported:
                   standard.schema.automationKind === "slideshow" ||
                   standard.schema.automationKind === "ugc",
@@ -1311,6 +1347,7 @@ function registerAutomationReadAndRunTools(
                 lastRun: lastRun ? generatedRunSummary(lastRun, ownerId) : null,
                 resourceUri: `lumenclip://automations/${encodeURIComponent(standard.id)}`,
               },
+              nextSteps,
             }
           }
 
@@ -1365,13 +1402,15 @@ function registerAutomationReadAndRunTools(
         await owned(async () => {
           const automation = await services.getAutomationRecord(automationId)
           if (!automation) throw new Error("Automation not found")
+          const bindings = deriveAutomationVariableBindings({
+            schema: automation.schema,
+            collections: await services.listWordCollections(),
+          })
           return {
             automationId,
             updatedAt: automation.updatedAt,
-            ...deriveAutomationVariableBindings({
-              schema: automation.schema,
-              collections: await services.listWordCollections(),
-            }),
+            ...bindings,
+            unusedExplicitOverrides: bindings.unusedOverrides,
           }
         })
       )
@@ -1521,11 +1560,16 @@ function registerAutomationReadAndRunTools(
             now: services.now(),
           })
           if (!updated) throw new Error("Automation not found")
+          const serializedSchema = serializeAutomationSchema(updated.schema)
           return {
             automation: {
               ...serializeStandardAutomation(updated),
-              schema: serializeAutomationSchema(updated.schema),
+              schema: serializedSchema,
             },
+            schemaDiff: diffAutomationSchemas(
+              serializeAutomationSchema(record.schema),
+              serializedSchema
+            ),
           }
         })
       )
@@ -1791,6 +1835,7 @@ function registerAutomationReadAndRunTools(
           return {
             ...serializeAutomationHookPool(updated),
             tokenWarnings: tokenValidation.warnings,
+            hookWarnings: lintAutomationHooks(input.hooks),
           }
         })
       )
@@ -1838,6 +1883,7 @@ function registerAutomationReadAndRunTools(
           return {
             ...serializeAutomationHookPool(updated),
             tokenWarnings: tokenValidation.warnings,
+            hookWarnings: lintAutomationHooks(input.hooks),
           }
         })
       )
@@ -2889,12 +2935,29 @@ function registerOutputAndPublishingTools(
           const offset = input.cursor ? Number(input.cursor) : 0
           const page = filtered.slice(offset, offset + input.limit)
           const nextOffset = offset + page.length
+          const awaitingCapture = page.reduce(
+            (total, item) => total + item.analytics.awaitingCapture,
+            0
+          )
           return {
             items: page,
             nextCursor:
               nextOffset < filtered.length ? String(nextOffset) : undefined,
             hasMore: nextOffset < filtered.length,
             total: filtered.length,
+            nextSteps: [
+              ...page.flatMap((item) => item.nextSteps ?? []),
+              ...analyticsCaptureNextSteps({
+                awaitingCapture,
+                integrationIds: [
+                  ...new Set(
+                    page.flatMap(
+                      (item) => item.analytics.awaitingIntegrationIds
+                    )
+                  ),
+                ],
+              }),
+            ],
           }
         })
       )
@@ -2927,7 +2990,7 @@ function registerOutputAndPublishingTools(
         await owned(async () => {
           const output = await getAutomationOutput(services, outputId, ownerId)
           if (!output) throw new Error("Output not found")
-          return output
+          return { ...output, nextSteps: outputNextSteps(output) }
         })
       )
   )
@@ -3252,7 +3315,7 @@ function registerOutputAndPublishingTools(
     {
       title: "Publish or schedule an output",
       description:
-        "Uploads a ready caller-owned output and creates a PostFast publication for explicitly selected connected accounts. Requires literal confirmation and suppresses duplicate successful publications per output/account.",
+        "Uploads a ready caller-owned output and creates a PostFast publication for explicitly selected connected accounts. Requires literal confirmation, blocks deterministic slideshow QA errors unless a reasoned override is supplied, and suppresses duplicate successful publications per output/account.",
       inputSchema: {
         outputId: z
           .string()
@@ -3305,6 +3368,21 @@ function registerOutputAndPublishingTools(
           .max(200)
           .describe(
             'Caller-generated idempotency key for this publish request, e.g. "publish-slideshow-001".'
+          ),
+        overrideQaFailure: z
+          .boolean()
+          .default(false)
+          .describe(
+            "Explicitly accept deterministic QA errors and allow publication. Defaults to false; warnings do not require an override."
+          ),
+        qaOverrideReason: z
+          .string()
+          .trim()
+          .min(1)
+          .max(500)
+          .optional()
+          .describe(
+            "Required when overrideQaFailure is true; records why the QA findings were accepted."
           ),
         confirmPublish: z
           .literal(true)
@@ -3965,10 +4043,16 @@ type OutputSummary = {
   previewUri?: string
   createdAt: string
   resourceUri: string
+  qaValid?: boolean
+  qaFindings?: ReturnType<typeof validateAutomationRunOutput>["findings"]
+  nextSteps?: LumenClipNextStep[]
   analytics: {
     available: boolean
     postCount: number
+    awaitingCapture: number
     publicationIds: string[]
+    integrationIds: string[]
+    awaitingIntegrationIds: string[]
     latestCapturedAt?: string
     metrics: MetricTotals
     newFollowers: number
@@ -3980,14 +4064,17 @@ type OutputSummary = {
 async function listOutputSummaries(
   services: LumenClipMcpServices
 ): Promise<OutputSummary[]> {
-  const [runs, videos, socialRuns, publications, snapshots] = await Promise.all(
-    [
+  const [runs, videos, socialRuns, publications, snapshots, automations] =
+    await Promise.all([
       services.listAutomationRuns({ limit: 500 }),
       services.listGeneratedVideoExports({ limit: 500 }),
       services.listXAutomationRuns(),
       services.listPostFastPostRecords(),
       services.listMetricSnapshots(),
-    ]
+      services.listAutomationRecords(),
+    ])
+  const automationById = new Map(
+    automations.map((automation) => [automation.id, automation])
   )
   return [
     ...runs.flatMap((run) => {
@@ -4006,17 +4093,45 @@ async function listOutputSummaries(
           (publication.sourceType === "automation" &&
             publication.sourceId === run.id)
       )
+      const qa =
+        run.status === "succeeded"
+          ? validateAutomationRunOutput({
+              run,
+              schema: automationById.get(run.automationId)?.schema,
+              priorRuns: runs.filter(
+                (candidate) => candidate.automationId === run.automationId
+              ),
+            })
+          : undefined
+      const resolvedPublicationState = publicationState(
+        related,
+        run.manuallyPublishedAt
+      )
       return [
         {
           id,
           outputType: "slideshow" as const,
           automationId: run.automationId,
           status: automationRunOutputStatus(run),
-          publicationState: publicationState(related, run.manuallyPublishedAt),
+          publicationState: resolvedPublicationState,
           title: run.plan.title,
           previewUri: run.thumbnailUrl ?? run.outputImages?.[0],
           createdAt: run.createdAt,
           resourceUri: `lumenclip://outputs/${encodeURIComponent(id)}`,
+          qaValid: qa?.valid,
+          qaFindings: qa?.findings,
+          nextSteps: [
+            ...qaNextSteps({
+              automationId: run.automationId,
+              outputId: id,
+              qa,
+            }),
+            ...outputNextSteps({
+              id,
+              publicationState: resolvedPublicationState,
+              qa,
+            }).filter((step) => step.id === "publish-output"),
+          ],
           analytics: outputAnalyticsSummary(related, snapshots),
         },
       ]
@@ -4177,6 +4292,7 @@ async function getAutomationOutput(
       // Non-fatal quality findings recorded at generation time (word ranges).
       // Distinct from `qa`, which is recomputed on read.
       violations: run.plan.violations ?? [],
+      generationPasses: generationPasses(run),
       slides,
       title: run.plan.title,
       caption: run.plan.caption,
@@ -4238,6 +4354,13 @@ function outputAnalyticsSummary(
   snapshots: PostFastMetricSnapshot[]
 ): OutputSummary["analytics"] {
   const publicationIds = publications.map((publication) => publication.id)
+  const integrationIds = [
+    ...new Set(
+      publications
+        .map((publication) => publication.integrationId)
+        .filter(Boolean)
+    ),
+  ]
   const requested = new Set(publicationIds)
   const latestByPost = new Map<string, PostFastMetricSnapshot>()
   for (const snapshot of snapshots) {
@@ -4248,13 +4371,24 @@ function outputAnalyticsSummary(
     }
   }
   const latest = [...latestByPost.values()]
+  const awaitingIntegrationIds = [
+    ...new Set(
+      publications
+        .filter((publication) => !latestByPost.has(publication.id))
+        .map((publication) => publication.integrationId)
+        .filter(Boolean)
+    ),
+  ]
   const hasTikTokStudio = latest.some(
     (snapshot) => snapshot.source === "tiktok_studio"
   )
   return {
     available: latest.length > 0,
     postCount: latest.length,
+    awaitingCapture: Math.max(0, publicationIds.length - latest.length),
     publicationIds,
+    integrationIds,
+    awaitingIntegrationIds,
     latestCapturedAt: latest
       .map((snapshot) => snapshot.capturedAt)
       .sort()
@@ -4373,6 +4507,7 @@ function regularOperation(
             publicationState: "not_published",
             qaFindings: qa?.findings ?? [],
             qaValid: qa?.valid,
+            generationPasses: generationPasses(run),
             outputImages: run.outputImages ?? [],
             slides: buildRunSlides(run),
             ...delivery,
@@ -4380,6 +4515,11 @@ function regularOperation(
           },
         ]
       : [],
+    nextSteps: qaNextSteps({
+      automationId: run.automationId,
+      outputId,
+      qa,
+    }),
     warnings: reused ? ["Returned the prior result for this requestId."] : [],
     errors: run.error ? [{ code: "OPERATION_FAILED", message: run.error }] : [],
   }
@@ -4699,10 +4839,13 @@ async function publishOutput(
     }>
     caption?: string
     requestId: string
+    overrideQaFailure: boolean
+    qaOverrideReason?: string
   }
 ) {
   const output = await getPublishableOutput(services, input.outputId)
   if (!output) throw new Error("Output not found")
+  const warnings: string[] = []
   const [accounts, existingPublications] = await Promise.all([
     services.listAccounts(),
     services.listPostFastPostRecords({
@@ -4752,12 +4895,35 @@ async function publishOutput(
       return existing ? [[account.integration_id, existing] as const] : []
     })
   )
+  if (output.automationRun && existingForTarget.size < resolved.length) {
+    const qa = await qaForAutomationRun(services, output.automationRun)
+    if (!qa.valid && !input.overrideQaFailure) {
+      throw new Error(
+        `Output failed deterministic QA and cannot be published without overrideQaFailure=true: ${qa.findings
+          .filter((finding) => finding.severity === "error")
+          .map((finding) => finding.message)
+          .join("; ")}`
+      )
+    }
+    if (!qa.valid && !clean(input.qaOverrideReason)) {
+      throw new Error(
+        "qaOverrideReason is required when overrideQaFailure accepts QA errors"
+      )
+    }
+    if (!qa.valid) {
+      warnings.push(
+        `QA override accepted: ${clean(input.qaOverrideReason)} (${qa.findings
+          .filter((finding) => finding.severity === "error")
+          .map((finding) => finding.code)
+          .join(", ")}).`
+      )
+    }
+  }
   const media =
     output.mediaUrls.length && existingForTarget.size < resolved.length
       ? await services.uploadPostFastMediaSources({ urls: output.mediaUrls })
       : []
   const records: PostFastPostRecord[] = []
-  const warnings: string[] = []
   let failed = 0
   let reused = 0
   for (const { target, account } of resolved) {
@@ -6285,6 +6451,262 @@ export function mergeAutomationSchemaPatch(
   return merged
 }
 
+export type LumenClipNextStep = {
+  id: string
+  severity: "required" | "recommended"
+  reason: string
+  tool: string
+  args: Record<string, unknown>
+  blocks: string[]
+}
+
+type SchemaDiffEntry = {
+  path: string
+  before?: unknown
+  after?: unknown
+}
+
+export function diffAutomationSchemas(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>
+) {
+  const added: SchemaDiffEntry[] = []
+  const changed: SchemaDiffEntry[] = []
+  const removed: SchemaDiffEntry[] = []
+
+  const visit = (left: unknown, right: unknown, path: string) => {
+    if (isRecord(left) && isRecord(right)) {
+      const keys = new Set([...Object.keys(left), ...Object.keys(right)])
+      for (const key of [...keys].sort()) {
+        const childPath = path ? `${path}.${key}` : key
+        if (!(key in left)) {
+          added.push({ path: childPath, after: right[key] })
+        } else if (!(key in right)) {
+          removed.push({ path: childPath, before: left[key] })
+        } else {
+          visit(left[key], right[key], childPath)
+        }
+      }
+      return
+    }
+    if (JSON.stringify(left) !== JSON.stringify(right)) {
+      changed.push({ path, before: left, after: right })
+    }
+  }
+
+  visit(before, after, "")
+  return { added, changed, removed }
+}
+
+function analyticsCaptureNextSteps(input: {
+  awaitingCapture: number
+  integrationIds: string[]
+}): LumenClipNextStep[] {
+  if (input.awaitingCapture < 1 || input.integrationIds.length < 1) return []
+  return [
+    {
+      id: "capture-missing-tiktok-analytics",
+      severity: "recommended",
+      reason: `${input.awaitingCapture} published ${input.awaitingCapture === 1 ? "post is" : "posts are"} still awaiting an analytics capture.`,
+      tool: "lumenclip_tiktok_studio_analytics_batch_start",
+      args: {
+        integrationIds: [...new Set(input.integrationIds)],
+        mode: "new",
+        recentDays: 90,
+      },
+      blocks: [],
+    },
+  ]
+}
+
+function automationCreateNextSteps(
+  current: AutomationRecord[],
+  input: { name: string; requestId: string }
+): LumenClipNextStep[] {
+  const source = current
+    .filter((automation) => automation.raw?.mcpRequestId !== input.requestId)
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0]
+  if (!source) return []
+  return [
+    {
+      id: "prefer-clone-for-related-automation",
+      severity: "recommended",
+      reason:
+        "This workspace already owns automations. Clone the closest one when you want to preserve its full schema and change only the differences.",
+      tool: "lumenclip_automation_clone",
+      args: {
+        sourceAutomationId: source.id,
+        name: input.name,
+        requestId: `${input.requestId}-clone`,
+      },
+      blocks: [],
+    },
+  ]
+}
+
+function automationConfigurationNextSteps(input: {
+  automation: AutomationRecord
+  variableBindings: ReturnType<typeof deriveAutomationVariableBindings>
+}): LumenClipNextStep[] {
+  const steps: LumenClipNextStep[] = []
+  const narrative = clean(input.automation.schema.prompt_formatting.narrative)
+  const narrativeLines = narrative
+    .split(/\r?\n/)
+    .map((line) => clean(line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "")))
+    .filter(Boolean)
+  const enabledHooks = automationHookItems(input.automation.schema)
+    .filter((hook) => hook.enabled)
+    .map((hook) => hook.text.toLocaleLowerCase())
+  const enabledHookSet = new Set(enabledHooks)
+  const matchingNarrativeLines = narrativeLines.filter((line) =>
+    enabledHookSet.has(line.toLocaleLowerCase())
+  )
+  const narrativeLooksLikeHookCatalog =
+    narrativeLines.length >= 3 &&
+    matchingNarrativeLines.length / narrativeLines.length >= 0.6
+  const narrativeMatchesEnabledPool =
+    narrativeLines.length === enabledHooks.length &&
+    narrativeLines.every((line) => enabledHookSet.has(line.toLocaleLowerCase()))
+
+  if (narrativeLooksLikeHookCatalog) {
+    steps.push({
+      id: "remove-stale-narrative-hook-catalog",
+      severity: "recommended",
+      reason: narrativeMatchesEnabledPool
+        ? "prompt_formatting.narrative duplicates the enabled hook pool. Generation reads hooks[] directly, so clear the redundant catalog."
+        : "prompt_formatting.narrative is a stale copy of the enabled hook pool. Generation reads hooks[] directly, so clear the duplicate catalog.",
+      tool: "lumenclip_automation_schema_update",
+      args: {
+        automationId: input.automation.id,
+        expectedUpdatedAt: input.automation.updatedAt,
+        mode: "patch",
+        schema: { prompt_formatting: { narrative: "" } },
+      },
+      blocks: [],
+    })
+  }
+
+  const hookTextItem = automationFormatSection(input.automation.schema, "hook")
+    .textItems[0]
+  const hookDirectionLines = clean(hookTextItem?.contentDirection)
+    .split(/\r?\n/)
+    .map((line) => clean(line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "")))
+    .filter(Boolean)
+  const matchingDirectionLines = hookDirectionLines.filter((line) =>
+    enabledHookSet.has(line.toLocaleLowerCase())
+  )
+  if (
+    hookTextItem &&
+    hookDirectionLines.length >= 3 &&
+    matchingDirectionLines.length / hookDirectionLines.length >= 0.6
+  ) {
+    steps.push({
+      id: "remove-hook-catalog-from-text-direction",
+      severity: "recommended",
+      reason:
+        "The hook text item's contentDirection contains a duplicate hook catalog. Keep this field as rendering guidance; hooks[] owns hook content.",
+      tool: "lumenclip_automation_text_item_update",
+      args: {
+        automationId: input.automation.id,
+        blockId: "hook",
+        textItemId: hookTextItem.id,
+        expectedUpdatedAt: input.automation.updatedAt,
+        patch: { contentDirection: "Hook text" },
+      },
+      blocks: [],
+    })
+  }
+
+  if (input.variableBindings.unusedOverrides.length > 0) {
+    steps.push({
+      id: "remove-unused-hook-slot-overrides",
+      severity: "recommended",
+      reason: `Unused explicit variable overrides are configured: ${input.variableBindings.unusedOverrides.join(", ")}.`,
+      tool: "lumenclip_automation_schema_update",
+      args: {
+        automationId: input.automation.id,
+        expectedUpdatedAt: input.automation.updatedAt,
+        mode: "patch",
+        schema: {
+          hook_slots: Object.fromEntries(
+            input.variableBindings.unusedOverrides.map((name) => [name, null])
+          ),
+        },
+      },
+      blocks: [],
+    })
+  }
+  return steps
+}
+
+function outputNextSteps(output: {
+  id: string
+  publicationState: OutputSummary["publicationState"]
+  qa?: ReturnType<typeof validateAutomationRunOutput>
+}): LumenClipNextStep[] {
+  const steps: LumenClipNextStep[] = []
+  if (output.qa && !output.qa.valid) {
+    steps.push({
+      id: "resolve-output-qa-failure",
+      severity: "required",
+      reason:
+        "This output failed deterministic QA. Regenerate it, or explicitly accept the findings with overrideQaFailure and qaOverrideReason.",
+      tool: "lumenclip_output_validate",
+      args: { outputId: output.id },
+      blocks: ["lumenclip_output_publish"],
+    })
+  }
+  if (["not_published", "draft", "failed"].includes(output.publicationState)) {
+    steps.push({
+      id: "publish-output",
+      severity: "recommended",
+      reason:
+        "This generated output has no completed publication, so it cannot accumulate post analytics yet.",
+      tool: "lumenclip_output_publish",
+      args: { outputId: output.id },
+      blocks: ["lumenclip_analytics_report"],
+    })
+  }
+  return steps
+}
+
+function qaNextSteps(input: {
+  automationId: string
+  outputId?: string
+  qa?: ReturnType<typeof validateAutomationRunOutput>
+}): LumenClipNextStep[] {
+  if (!input.qa || input.qa.valid) return []
+  return [
+    {
+      id: "resolve-generated-output-qa-failure",
+      severity: "required",
+      reason:
+        "Generation completed with deterministic QA errors. Regenerate before publishing, or use an explicit QA override with a recorded reason.",
+      tool: "lumenclip_automation_run",
+      args: {
+        automationId: input.automationId,
+        requestId: `qa-retry-${input.outputId ?? crypto.randomUUID()}`,
+      },
+      blocks: ["lumenclip_output_publish"],
+    },
+  ]
+}
+
+async function qaForAutomationRun(
+  services: LumenClipMcpServices,
+  run: AutomationRunRecord
+) {
+  const [automation, runs] = await Promise.all([
+    services.getAutomationRecord(run.automationId),
+    services.listAutomationRuns({ automationId: run.automationId, limit: 500 }),
+  ])
+  return validateAutomationRunOutput({
+    run,
+    schema: automation?.schema,
+    priorRuns: runs,
+  })
+}
+
 function upsertAutomationHooks(input: {
   current: AutomationHookItem[]
   updates: Array<{
@@ -6463,7 +6885,55 @@ function slideshowDeliveryFields(ownerId: string, outputId: string) {
     : {}
 }
 
-function generatedRunSummary(run: AutomationRunRecord, ownerId: string) {
+function generationPasses(run: AutomationRunRecord) {
+  const generatedCaption = clean(
+    run.plan.debug?.generatedCaption ??
+      run.plan.debug?.textGenerationResult?.caption
+  )
+  const resolvedCaption = clean(run.plan.caption)
+  const transformationPasses = Object.entries(
+    Object.groupBy(
+      run.plan.debug?.textTransformations ?? [],
+      (transformation) => transformation.pass
+    )
+  ).map(([id, transformations]) => ({
+    id,
+    ran: true,
+    changes: (transformations ?? []).map(({ field, before, after }) => ({
+      field,
+      before,
+      after,
+    })),
+  }))
+  return [
+    ...transformationPasses,
+    {
+      id: "caption_resolution",
+      ran: true,
+      changes:
+        generatedCaption && generatedCaption !== resolvedCaption
+          ? [
+              {
+                field: "caption",
+                before: generatedCaption,
+                after: resolvedCaption,
+              },
+            ]
+          : [],
+    },
+    {
+      id: "image_text_coherence_repair",
+      ran: run.plan.debug?.imageTextCoherenceRepair === true,
+      changes: [],
+    },
+  ]
+}
+
+function generatedRunSummary(
+  run: AutomationRunRecord,
+  ownerId: string,
+  qa?: ReturnType<typeof validateAutomationRunOutput>
+) {
   return {
     runId: run.id,
     slideshowId: run.slideshowId,
@@ -6472,6 +6942,10 @@ function generatedRunSummary(run: AutomationRunRecord, ownerId: string) {
     hook: run.plan.hook,
     slideCount: run.plan.slides.length,
     violations: run.plan.violations ?? [],
+    qa,
+    qaValid: qa?.valid,
+    qaFindings: qa?.findings ?? [],
+    generationPasses: generationPasses(run),
     thumbnailUrl: run.thumbnailUrl,
     outputImages: run.outputImages,
     slides: buildRunSlides(run),

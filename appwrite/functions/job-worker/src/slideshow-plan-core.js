@@ -85,6 +85,11 @@ function postTextPromptLine(label, setting) {
         : clean(setting.prompt_text);
     if (!value)
         return "";
+    if (label === "Caption" &&
+        setting.mode !== "static" &&
+        /same exact text as (?:the )?(?:first text item|hook)/i.test(value)) {
+        return "Caption requirement: return exactly the selected Hook text above; this policy is also enforced deterministically after generation.";
+    }
     return setting.mode === "static"
         ? `${label} requirement: return exactly ${JSON.stringify(value)}.`
         : `${label} requirement: ${value}`;
@@ -238,7 +243,7 @@ export function slideshowTextItem(item, text, schema, role) {
         font: item.font || schema.font,
     };
 }
-function formatSection(schema, role) {
+export function automationFormatSection(schema, role) {
     const id = role === "content" ? "body" : role;
     const section = (schema.formatting ?? []).find((item) => item.id === id);
     if (!section) {
@@ -246,6 +251,7 @@ function formatSection(schema, role) {
     }
     return section;
 }
+const formatSection = automationFormatSection;
 function automationCollectionId(schema, role) {
     if (role === "hook") {
         return clean(schema.image_collection_ids?.first_slide?.collection);

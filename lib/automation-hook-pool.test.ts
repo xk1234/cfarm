@@ -67,6 +67,27 @@ describe("automation hook pool", () => {
       true
     )
   })
+
+  it("clusters true-love and real-love phrasings", () => {
+    const report = analyzeAutomationHookPool([
+      hook(
+        "true-love",
+        "You haven't experienced true love until you are loved by a [[ZODIAC]] woman"
+      ),
+      hook(
+        "real-love",
+        "You haven't experienced real love if you haven't been loved by a [[ZODIAC]]"
+      ),
+      hook("unique", "The habit every [[ZODIAC]] hides at work"),
+    ])
+
+    expect(report.duplicateGroups).toEqual([
+      expect.objectContaining({
+        kind: "near",
+        hookIds: ["true-love", "real-love"],
+      }),
+    ])
+  })
 })
 
 function hook(id: string, text: string): AutomationHookItem {

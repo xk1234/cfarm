@@ -35,6 +35,28 @@ Public objects use `id`, `created_at`, `updated_at`, and `resource_uri`.
 `owner_id`, credentials, internal table names, provider payloads, and storage
 identifiers are omitted.
 
+### Actionable `nextSteps`
+
+Implemented tools return `nextSteps` when a result is usable but incomplete or
+requires another action. An empty array means the tool found no adjacent action
+to recommend.
+
+```json
+{
+  "id": "resolve-generated-output-qa-failure",
+  "severity": "required",
+  "reason": "Generation completed with deterministic QA errors.",
+  "tool": "lumenclip_automation_run",
+  "args": { "automationId": "auto_123", "requestId": "qa-retry-output_123" },
+  "blocks": ["lumenclip_output_publish"]
+}
+```
+
+`required` means the named calls in `blocks` must not run until the step is
+resolved or an explicit tool-level override is accepted. `recommended` is
+advisory. `args` contains resolved camelCase arguments; callers should not
+invent IDs that the result already supplied.
+
 ## Discovery and inspection
 
 ### `lumenclip_workspace_get`
@@ -131,9 +153,11 @@ canonical `hookPool`, `last_run`, and `resource_uri`. Returns `NOT_FOUND` for
 inaccessible IDs. X/Threads automations instead include their safe complete
 policy `configuration`.
 
-Complete standard schemas are replaced with
+Complete standard schemas are patched by default with
 `lumenclip_automation_schema_update` using optimistic `expectedUpdatedAt`;
-granular lifecycle/schedule changes remain on `automation_update`.
+full replacement requires `mode: "replace"`. Every schema write returns an
+added/changed/removed path diff. Granular lifecycle/schedule changes remain on
+`automation_update`.
 
 ### `lumenclip_collections_list`
 
@@ -187,7 +211,8 @@ Input: optional `automation_id`, `output_type`, `status`, `publication_state`,
 
 Output: paginated output summaries containing `id`, `output_type`,
 `automation_id`, `status`, `publication_state`, `platforms`, `preview_uri`,
-`created_at`, `resource_uri`, and `analytics`. The analytics summary states
+`created_at`, `resource_uri`, `qaValid`, `qaFindings`, `nextSteps`, and
+`analytics`. The analytics summary states
 whether metrics exist, aggregates the latest snapshot per publication, reports
 followers gained, and names the appropriate detailed report tool.
 `publication_state=published_unlinked` means the output carries a manual
@@ -366,7 +391,8 @@ Input: required `automation_id` and `idempotency_key`; optional `topic`,
 
 Output: standard operation envelope with kind `automation.run`. The resulting
 draft is always unscheduled and `not_published`, even when the automation is
-live.
+live. Slideshow results include deterministic QA, observable generation passes,
+and required `nextSteps` when publishing is blocked.
 
 ### `lumenclip_output_publish`
 
@@ -374,13 +400,15 @@ External side effect. Scope: `lumenclip:publish`.
 
 Input fields:
 
-| Field             | Type           | Required | Description                                                                               |
-| ----------------- | -------------- | -------- | ----------------------------------------------------------------------------------------- |
-| `output_id`       | string         | yes      | Ready, caller-owned output.                                                               |
-| `targets`         | object[]       | yes      | Each target has `account_id`, `mode: now \| schedule`, and `scheduled_at` when scheduled. |
-| `caption`         | string         | no       | Explicit approved caption override.                                                       |
-| `confirm_publish` | literal `true` | yes      | Mandatory confirmation.                                                                   |
-| `idempotency_key` | string         | yes      | Duplicate-publish protection.                                                             |
+| Field                 | Type           | Required      | Description                                                                               |
+| --------------------- | -------------- | ------------- | ----------------------------------------------------------------------------------------- |
+| `output_id`           | string         | yes           | Ready, caller-owned output.                                                               |
+| `targets`             | object[]       | yes           | Each target has `account_id`, `mode: now \| schedule`, and `scheduled_at` when scheduled. |
+| `caption`             | string         | no            | Explicit approved caption override.                                                       |
+| `override_qa_failure` | boolean        | no            | Explicitly accepts deterministic QA errors; default false.                                |
+| `qa_override_reason`  | string         | with override | Required audit reason when accepting QA errors.                                           |
+| `confirm_publish`     | literal `true` | yes           | Mandatory confirmation.                                                                   |
+| `idempotency_key`     | string         | yes           | Duplicate-publish protection.                                                             |
 
 Output: publish operation envelope, resolved safe target names, and warnings.
 Success produces provider post IDs and public URLs on the operation/output
