@@ -15,7 +15,7 @@ export default async function UgcRunPage({
   const { id } = await params
   return (
     <>
-      <main className="min-h-screen bg-background px-4 py-10 pb-24 md:pb-10">
+      <main className="min-h-screen bg-background px-4 py-10 pt-[4.5rem] md:pt-10">
         <UgcRunStatusPanel runId={id} />
       </main>
       <StandaloneMobileNav />

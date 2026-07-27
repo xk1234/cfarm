@@ -17,7 +17,7 @@ export default async function XAutomationsPage() {
   return (
     <>
       {/* Padding clears the fixed bottom bar on mobile. */}
-      <div className="pb-24 md:pb-0">
+      <div className="pt-14 md:pt-0">
         <XAutomationStudio initialAutomations={automations} initialRuns={runs} />
       </div>
       <StandaloneMobileNav />

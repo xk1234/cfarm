@@ -47,6 +47,7 @@ const QUICK_START_ITEMS_PER_PAGE = 6
 
 export function HomeView({
   currentUserId,
+  publishedPostDates,
   templates,
   recentRunsByAutomationId,
   generatedRunsByAutomationId,
@@ -59,6 +60,8 @@ export function HomeView({
   onGenerationRunRemove,
 }: {
   currentUserId: string
+  /** When each LINKED post went out. Generated drafts are not posts. */
+  publishedPostDates: string[]
   templates: Automation[]
   recentRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
   generatedRunsByAutomationId: Record<string, GeneratedShowcaseRun[]>
@@ -91,16 +94,6 @@ export function HomeView({
   const generatedSlideshowCards = useMemo(
     () => generatedHomeSlideshowCards(generatedRunsByAutomationId),
     [generatedRunsByAutomationId]
-  )
-  // Every generated run, slideshow or video, is one dot on the activity grid.
-  const activityDates = useMemo(
-    () => [
-      ...Object.values(generatedRunsByAutomationId)
-        .flat()
-        .map((run) => run.createdAt),
-      ...videos.map((video) => video.createdAt),
-    ],
-    [generatedRunsByAutomationId, videos]
   )
   const selectedGeneratedRun = selectedGeneratedSlideshow?.runs.find(
     (run) => run.id === selectedGeneratedSlideshow.runId
@@ -213,7 +206,7 @@ export function HomeView({
         <div className="mx-auto max-w-[980px]">
           <div className="lc-spectrum mx-auto mb-5 h-1 w-14 rounded-full" />
           {/* Cadence, not a tagline: the gaps are the useful signal here. */}
-          <PostFrequencyGraph dates={activityDates} />
+          <PostFrequencyGraph dates={publishedPostDates} />
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             <Button variant="action" size="appDefault" onClick={onCreate}>
               <IconPlus className="size-5" />

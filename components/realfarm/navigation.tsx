@@ -1,5 +1,7 @@
 "use client"
 
+import { useEffect, useState } from "react"
+
 import Image from "next/image"
 import Link from "next/link"
 import useSWR from "swr"
@@ -11,11 +13,13 @@ import {
   IconCalendar,
   IconHome,
   IconLogout,
+  IconMenu2,
   IconPhoto,
   IconPlus,
   IconPencilPlus,
   IconSettings,
   IconTestPipe,
+  IconX,
 } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
@@ -155,58 +159,174 @@ export function Sidebar({
   )
 }
 
+/**
+ * Standard mobile pattern: a top bar with a hamburger that opens a full-height
+ * drawer.
+ *
+ * This replaced a fixed bottom tab bar. The bar had to squeeze seven
+ * destinations into one row, so every label truncated to ~10px and adding an
+ * eighth would have broken the layout. A drawer scales with the nav instead of
+ * fighting it, and matches what people expect on a mobile site.
+ */
 export function MobileNavigation({
   view,
   onViewChange,
+  onNewAutomation,
+  onSettings,
 }: {
   view: ViewKey
   /**
-   * Omit on pages that are not inside the workspace shell. Without it each item
-   * is a plain link, which is what those pages need -- they have no in-page
-   * view state to switch.
+   * Omit on pages outside the workspace shell: each item then behaves as a
+   * plain link, which is what those pages need -- they have no view state.
    */
   onViewChange?: (view: ViewKey) => void
+  onNewAutomation?: () => void
+  onSettings?: () => void
 }) {
+  const [open, setOpen] = useState(false)
+  const items = [...topNav, ...slideshowNav]
+  const active = items.find((item) => item.key === view)
+
+  // Close on route change and lock the page behind the drawer.
+  useEffect(() => {
+    if (!open) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = previous
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [open])
+
   return (
-    <nav
-      aria-label="Primary navigation"
-      className="fixed inset-x-0 bottom-0 z-40 grid auto-cols-fr grid-flow-col border-t border-app-panel-border bg-white/95 px-1 pt-1 pb-[max(.5rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(25,18,45,0.08)] backdrop-blur md:hidden"
-    >
-      {[...topNav, ...slideshowNav].map((item) => {
-        const Icon = item.icon
-        const active = view === item.key
-        const href = workspaceViewHref(item.key)
-        const className = cn(
-          "lc-focus-ring flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-[8px] px-1 text-[10px] font-semibold",
-          active
-            ? "bg-app-strong text-white"
-            : "text-app-muted-text active:bg-app-control-hover"
-        )
-        const content = (
-          <>
-            <Icon className="size-4" />
-            <span className="w-full truncate">{item.label}</span>
-          </>
-        )
-        return (
-          <Link
-            key={item.key}
-            href={href}
-            prefetch={false}
-            aria-current={active ? "page" : undefined}
-            className={className}
-            onClick={(event) => {
-              if (!onViewChange) return
-              if (!isPlainNavigationClick(event)) return
-              event.preventDefault()
-              onViewChange(item.key)
-            }}
+    <>
+      <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-app-panel-border bg-white/95 px-4 backdrop-blur md:hidden">
+        <span className="flex items-center gap-2">
+          <span className="flex size-7 items-center justify-center overflow-hidden rounded-lg">
+            <Image
+              src="/brand/lumenclip-mark.png"
+              alt=""
+              width={28}
+              height={28}
+              className="size-7"
+            />
+          </span>
+          <span className="text-[14px] font-semibold tracking-[-0.02em] text-app-text">
+            {active?.label ?? "LumenClip"}
+          </span>
+        </span>
+        <button
+          type="button"
+          aria-label="Open menu"
+          aria-expanded={open}
+          aria-controls="mobile-nav-drawer"
+          onClick={() => setOpen(true)}
+          className="lc-focus-ring flex size-10 items-center justify-center rounded-[10px] text-app-text active:bg-app-control-hover"
+        >
+          <IconMenu2 className="size-5" />
+        </button>
+      </header>
+
+      {open ? (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setOpen(false)}
+            className="absolute inset-0 bg-black/35"
+          />
+          <nav
+            id="mobile-nav-drawer"
+            aria-label="Primary navigation"
+            className="absolute inset-y-0 right-0 flex w-[82%] max-w-[320px] flex-col overflow-y-auto bg-white shadow-[-12px_0_32px_rgba(25,18,45,0.14)]"
           >
-            {content}
-          </Link>
-        )
-      })}
-    </nav>
+            <div className="flex h-14 shrink-0 items-center justify-between border-b border-app-panel-border px-4">
+              <span className="text-[14px] font-semibold text-app-text">
+                Menu
+              </span>
+              <button
+                type="button"
+                aria-label="Close menu"
+                onClick={() => setOpen(false)}
+                className="lc-focus-ring flex size-10 items-center justify-center rounded-[10px] text-app-text active:bg-app-control-hover"
+              >
+                <IconX className="size-5" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-1 p-3">
+              {items.map((item) => {
+                const Icon = item.icon
+                const current = view === item.key
+                return (
+                  <Link
+                    key={item.key}
+                    href={workspaceViewHref(item.key)}
+                    prefetch={false}
+                    aria-current={current ? "page" : undefined}
+                    className={cn(
+                      "lc-focus-ring flex min-h-12 items-center gap-3 rounded-[10px] px-3 text-[14px] font-medium",
+                      current
+                        ? "bg-app-strong text-white"
+                        : "text-app-text active:bg-app-control-hover"
+                    )}
+                    onClick={(event) => {
+                      setOpen(false)
+                      if (!onViewChange) return
+                      if (!isPlainNavigationClick(event)) return
+                      event.preventDefault()
+                      onViewChange(item.key)
+                    }}
+                  >
+                    <Icon className="size-5" />
+                    {item.label}
+                  </Link>
+                )
+              })}
+            </div>
+
+            {onNewAutomation || onSettings ? (
+              <div className="mt-auto flex flex-col gap-2 border-t border-app-panel-border p-3">
+                {onNewAutomation ? (
+                  <Button
+                    variant="action"
+                    size="appDefault"
+                    onClick={() => {
+                      setOpen(false)
+                      onNewAutomation()
+                    }}
+                  >
+                    <IconPlus className="size-5" />
+                    New automation
+                  </Button>
+                ) : null}
+                {onSettings ? (
+                  <Button
+                    variant="softControl"
+                    size="appDefault"
+                    onClick={() => {
+                      setOpen(false)
+                      onSettings()
+                    }}
+                  >
+                    <IconSettings className="size-5" />
+                    Settings
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </nav>
+        </div>
+      ) : null}
+    </>
   )
 }
 

@@ -49,7 +49,7 @@ export default async function PostAnalyticsRoute({
 
   return (
     <>
-      <div className="pb-24 md:pb-0">
+      <div className="pt-14 md:pt-0">
         <PostAnalyticsPage
           snapshots={snapshots}
           integration={integration}
