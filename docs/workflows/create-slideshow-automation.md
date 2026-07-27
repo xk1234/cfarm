@@ -8,7 +8,7 @@ description: "Building a slideshow automation and generating a draft on demand â
 Creating the automation and generating one draft immediately, without waiting for a posting
 slot. Scheduling is a separate journey.
 
-`Last tested: 2026-07-25, live against cfarm-eight.vercel.app`
+`Last tested: 2026-07-26, live against cfarm-eight.vercel.app`
 
 ## Workflow summary
 
@@ -90,6 +90,15 @@ the posting schedule are both bypassed.
 download. The same fields are returned in the slideshow output from
 `lumenclip_automation_run` and by `lumenclip_output_get`.
 
+To start from an existing automation instead of a catalog template, call
+`lumenclip_automation_clone` with `sourceAutomationId`, a new `name`, and a stable
+`requestId`. It deep-copies the schema, hook pool, collection bindings, publishing settings,
+and schedule into a paused automation. Outputs and run history are deliberately not copied.
+
+Individual hook records may set `bodySlideCount` and `tone`. These override the automation
+defaults only when that hook is selected. `[[SLIDE_COUNT]]` resolves to the selected hook's
+body-slide count, excluding hook and CTA slides.
+
 ### 5. Intermediate steps
 
 The runner claims a slot, creates a run, then builds the plan. Progress strings are literal:
@@ -144,10 +153,13 @@ gated on `generationSource !== "manual"`, and `force: true` always marks the run
    when every blocker is collection-related.
 6. **Hook exhaustion is an error, not a skip**:
    `No unused hook combinations remain for this automation.`
-7. **Word-range misses do not fail the run.** They are recorded as QA findings beside the copy
-   so the draft can still be judged. QA codes are `COUNT_MISMATCH`, `UNRESOLVED_TOKEN`,
-   `DUPLICATE_VARIABLE_DRAW`, `NEAR_DUPLICATE_OUTPUT` (the only warning), `EMPTY_SLIDE_TEXT`,
-   `TRUNCATED_SLIDE_TEXT`. A run is invalid only if some finding has `severity: "error"`.
+7. **Word ranges are enforced during generation.** An over- or under-length text item sends
+   the model through the existing repair retry with the exact range violation. If every retry
+   still misses the configured range, generation fails instead of shipping the invalid copy.
+   QA still reports persisted legacy or externally-created violations as
+   `WORD_LENGTH_VIOLATION`. Other QA codes are `COUNT_MISMATCH`, `UNRESOLVED_TOKEN`,
+   `DUPLICATE_VARIABLE_DRAW`, `NEAR_DUPLICATE_OUTPUT` (the only warning), and
+   `EMPTY_SLIDE_TEXT`.
 8. **Interrupted runs self-heal after 10 minutes** to
    `Run was interrupted before it completed.`
 9. **Video automations have no runner.** `lumenclip_automation_run` on one throws

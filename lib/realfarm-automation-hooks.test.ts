@@ -88,4 +88,45 @@ describe("automation hook catalog", () => {
       "Keep this narrative direction"
     )
   })
+
+  it("drops a legacy narrative hook dump when the canonical pool changes", () => {
+    const value = schema()
+    value.hooks = [
+      {
+        id: "one",
+        text: "First canonical hook",
+        enabled: true,
+        createdAt: "2026-07-18T00:00:00.000Z",
+      },
+      {
+        id: "two",
+        text: "Second canonical hook",
+        enabled: true,
+        createdAt: "2026-07-18T00:00:00.000Z",
+      },
+      {
+        id: "three",
+        text: "Third canonical hook",
+        enabled: true,
+        createdAt: "2026-07-18T00:00:00.000Z",
+      },
+    ]
+    value.prompt_formatting.narrative = value.hooks
+      .map((hook) => hook.text)
+      .join("\n")
+
+    const updated = schemaWithAutomationHookItems(value, [
+      ...value.hooks,
+      {
+        id: "four",
+        text: "Fourth canonical hook",
+        enabled: false,
+        createdAt: "2026-07-18T00:00:00.000Z",
+      },
+    ])
+
+    expect(updated.prompt_formatting.narrative).toBe("")
+    expect(updated.hooks).toHaveLength(4)
+    expect(updated.hooks.at(-1)?.enabled).toBe(false)
+  })
 })

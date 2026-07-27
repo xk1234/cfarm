@@ -241,6 +241,22 @@ function viewerDetailsForRun(
   }
 }
 
+export function automationRunViewerImageUrls(runs: AutomationRunApiRecord[]) {
+  return [
+    ...new Set(
+      runs.flatMap((run) =>
+        automationRunSlides(run).flatMap((slide) => {
+          const rawImageUrl =
+            slide.imageUrl?.trim() || slide.sourceImageUrl?.trim()
+          return rawImageUrl
+            ? [cacheBustedImageUrl(rawImageUrl, run.updatedAt)]
+            : []
+        })
+      )
+    ),
+  ]
+}
+
 function automationRunsToViewerSlideshows(runs: AutomationRunApiRecord[]) {
   return runs
     .map<SlideshowViewerItem | null>((run, runIndex) => {

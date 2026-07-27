@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest"
 
+import { automationHookItems } from "./slideshow-plan-core.js"
+import { usageForPublishedRuns } from "./usage-core.js"
 import {
-  automationHookItems,
-  selectImagesForSlides,
-  selectHook,
-  usageForPublishedRuns,
-} from "./slideshow-automation.js"
+  selectSlideshowHook,
+  selectSlideshowImages,
+} from "./slideshow-generation-engine.js"
+import { reminderChannel } from "./slideshow-automation.js"
 
 function schema() {
   return {
@@ -21,6 +22,45 @@ function schema() {
     reuse_policy: { hook_exclusion_days: 45 },
   }
 }
+
+describe("scheduled worker Telegram reminder policy", () => {
+  it("uses the nested per-event channel", () => {
+    expect(
+      reminderChannel(
+        {
+          notificationDefaultsApplied: true,
+          events: { generated: { channel: "telegram" } },
+        },
+        "generated"
+      )
+    ).toBe("telegram")
+  })
+
+  it("migrates a linked legacy all-Off workspace to generation delivery", () => {
+    expect(
+      reminderChannel(
+        {
+          telegramChatId: "123456",
+          events: { generated: { channel: "none" } },
+        },
+        "generated"
+      )
+    ).toBe("telegram")
+  })
+
+  it("respects an intentional all-Off policy after migration", () => {
+    expect(
+      reminderChannel(
+        {
+          telegramChatId: "123456",
+          notificationDefaultsApplied: true,
+          events: { generated: { channel: "none" } },
+        },
+        "generated"
+      )
+    ).toBe("none")
+  })
+})
 
 const ctaImages = [
   {
@@ -38,38 +78,34 @@ const ctaImages = [
 ]
 
 function selectWorkerCtaImages({ pinnedImageId, usage = [], seedValue = 0 }) {
-  return selectImagesForSlides({
-    automation: {
-      id: "automation-1",
-      schema: {
-        formatting: [
-          { id: "hook", imageMode: "collection" },
-          { id: "cta", imageMode: "single_image" },
-        ],
-        image_collection_ids: {
-          cta_slide: { image_id: pinnedImageId },
-        },
-      },
-    },
+  const recentImageUsage = new Map(
+    usageForPublishedRuns(usage, "automation-1")
+      .filter((record) => record.kind === "image")
+      .map((record) => [record.key, record.used_at])
+  )
+  return selectSlideshowImages({
     hook: "Choose the CTA",
+    fallbackTitle: "CTA selection",
     specs: [
       {
         id: "cta-1",
+        index: 0,
         section: "cta",
+        title: "CTA",
+        aspectRatio: "9:16",
+        imageGrid: "none",
+        overlay: false,
+        displayText: false,
         collectionId: "cta-collection",
         aiImageSelection: false,
         textItems: [],
       },
     ],
-    generated: { text: {} },
-    collections: [
-      {
-        aliases: ["cta-collection"],
-        images: ctaImages,
-      },
-    ],
-    usage,
-    seed: Buffer.from([0, seedValue]),
+    generatedText: { title: "", caption: "", hashtags: "", text: {} },
+    ctaPinnedImageId: pinnedImageId,
+    candidatesForSpec: () => ctaImages,
+    recentImageUsage,
+    random: () => seedValue / ctaImages.length,
   })
 }
 
@@ -79,39 +115,35 @@ function selectWorkerFirstSlideImages({
   usage = [],
   seedValue = 0,
 }) {
-  return selectImagesForSlides({
-    automation: {
-      id: "automation-1",
-      schema: {
-        formatting: [
-          { id: "hook" },
-          { id: "cta", imageMode: "collection" },
-        ],
-        image_collection_ids: {
-          first_slide: { mode, single_image: pinnedImageId },
-          cta_slide: {},
-        },
-      },
-    },
+  const recentImageUsage = new Map(
+    usageForPublishedRuns(usage, "automation-1")
+      .filter((record) => record.kind === "image")
+      .map((record) => [record.key, record.used_at])
+  )
+  return selectSlideshowImages({
     hook: "Choose the hook image",
+    fallbackTitle: "First slide selection",
     specs: [
       {
         id: "hook-1",
+        index: 0,
         section: "hook",
+        title: "Hook",
+        aspectRatio: "9:16",
+        imageGrid: "none",
+        overlay: false,
+        displayText: true,
         collectionId: "cta-collection",
         aiImageSelection: false,
         textItems: [],
       },
     ],
-    generated: { text: {} },
-    collections: [
-      {
-        aliases: ["cta-collection"],
-        images: ctaImages,
-      },
-    ],
-    usage,
-    seed: Buffer.from([0, seedValue]),
+    generatedText: { title: "", caption: "", hashtags: "", text: {} },
+    firstSlidePinnedImageId:
+      mode === "single_image" ? pinnedImageId : undefined,
+    candidatesForSpec: () => ctaImages,
+    recentImageUsage,
+    random: () => seedValue / ctaImages.length,
   })
 }
 
@@ -226,51 +258,50 @@ describe("scheduled worker pinned first-slide image selection", () => {
 describe("scheduled worker hook selection", () => {
   it("uses enabled catalog items and excludes only recently published hooks", () => {
     const value = schema()
-    expect(automationHookItems(value).map((item) => item.id)).toEqual([
-      "published",
-      "fresh",
-    ])
+    expect(
+      automationHookItems(value)
+        .filter((item) => item.enabled)
+        .map((item) => item.id)
+    ).toEqual(["published", "fresh"])
 
-    const selected = selectHook({
-      schema: value,
+    const selected = selectSlideshowHook({
+      hookItems: automationHookItems(value).filter((item) => item.enabled),
+      hookSlots: value.hook_slots,
       wordCollections: [],
-      usage: [
-        {
-          automation_id: "automation-1",
-          kind: "hook_published",
-          key: "published hook",
-          used_at: "2026-07-17T12:00:00.000Z",
-        },
-      ],
-      automationId: "automation-1",
-      scheduledFor: "2026-07-18T12:00:00.000Z",
-      seed: Buffer.from([0]),
+      usedHookKeys: new Set(["published hook"]),
+      noDuplicateSlots: true,
+      caseMode: "mixed",
+      now: new Date("2026-07-18T12:00:00.000Z"),
+      timeZone: "UTC",
+      selectIndex: () => 0,
     })
 
-    expect(selected).toMatchObject({ hookId: "fresh", text: "Fresh hook" })
+    expect(selected).toMatchObject({
+      hookId: "fresh",
+      expansion: { text: "Fresh hook" },
+    })
   })
 
   it("does not treat draft media usage as publication", () => {
     const value = schema()
     value.hooks = [{ id: "draft", text: "Draft-only hook", enabled: true }]
 
-    const selected = selectHook({
-      schema: value,
+    const selected = selectSlideshowHook({
+      hookItems: automationHookItems(value).filter((item) => item.enabled),
+      hookSlots: value.hook_slots,
       wordCollections: [],
-      usage: [
-        {
-          automation_id: "automation-1",
-          kind: "image",
-          key: "draft-image",
-          used_at: "2026-07-18T11:00:00.000Z",
-        },
-      ],
-      automationId: "automation-1",
-      scheduledFor: "2026-07-18T12:00:00.000Z",
-      seed: Buffer.from([0]),
+      usedHookKeys: new Set(),
+      noDuplicateSlots: true,
+      caseMode: "mixed",
+      now: new Date("2026-07-18T12:00:00.000Z"),
+      timeZone: "UTC",
+      selectIndex: () => 0,
     })
 
-    expect(selected).toMatchObject({ hookId: "draft", text: "Draft-only hook" })
+    expect(selected).toMatchObject({
+      hookId: "draft",
+      expansion: { text: "Draft-only hook" },
+    })
   })
 
   it("skips an invalid hook and resolves SLIDE_COUNT on a usable hook", () => {
@@ -284,20 +315,25 @@ describe("scheduled worker hook selection", () => {
       },
     ]
 
-    const selected = selectHook({
-      schema: value,
+    const selected = selectSlideshowHook({
+      hookItems: automationHookItems(value).filter((item) => item.enabled),
+      hookSlots: value.hook_slots,
       wordCollections: [],
-      usage: [],
-      automationId: "automation-1",
-      scheduledFor: "2026-07-18T12:00:00.000Z",
-      seed: Buffer.from([0]),
-      bodySlideCount: 5,
+      usedHookKeys: new Set(),
+      noDuplicateSlots: true,
+      caseMode: "mixed",
+      now: new Date("2026-07-18T12:00:00.000Z"),
+      timeZone: "UTC",
+      slideCount: 5,
+      selectIndex: () => 0,
     })
 
     expect(selected).toMatchObject({
       hookId: "count-aware",
-      text: "5 things worth knowing",
-      substitutions: { SLIDE_COUNT: "5" },
+      expansion: {
+        text: "5 things worth knowing",
+        substitutions: { SLIDE_COUNT: "5" },
+      },
     })
   })
 })

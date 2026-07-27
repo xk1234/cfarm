@@ -350,7 +350,7 @@ describe("slideshow text structured output", () => {
     )
   })
 
-  it("reports a word-range miss as a violation instead of losing the generation", async () => {
+  it("reports a word-range miss without retrying or rejecting the output", async () => {
     const outsideWordRange = JSON.stringify({
       ...JSON.parse(validContent),
       title: "gemini",
@@ -369,16 +369,42 @@ describe("slideshow text structured output", () => {
       fetchImpl,
     })
 
-    // The copy is kept and the miss is reported beside it. Discarding a whole
-    // generation over a word count throws away everything else that was right.
     expect(generated.result.text["content-2__heading"]).toBe(
       "geminis stay curious because change gives them room to keep growing"
     )
     expect(generated.violations).toEqual([
       "content-2__heading has 11 words, but its configured maximum is 8.",
     ])
-    // No retry: word counts are a quality signal, not a correctness one.
     expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+
+  it("still retries structural failures while word ranges stay non-fatal", async () => {
+    const missingHeading = JSON.stringify({
+      ...JSON.parse(validContent),
+      text: { "content-2__heading": "" },
+    })
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(response(missingHeading))
+      .mockResolvedValueOnce(response(validContent))
+
+    const generated = await generateSlideshowText({
+      automation,
+      apiKey: "test-key",
+      fetchImpl,
+    })
+
+    expect(generated.result.text["content-2__heading"]).toBe(
+      "change keeps geminis curious"
+    )
+    expect(generated.violations).toEqual([])
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    const retryBody = JSON.parse(
+      String(fetchImpl.mock.calls[1]?.[1]?.body)
+    ) as { messages: { content: string }[] }
+    expect(retryBody.messages.at(-1)?.content).toContain(
+      "content-2__heading must not be empty"
+    )
   })
 
   it("still fails on a genuinely invalid output rather than reporting it", async () => {

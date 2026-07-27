@@ -10,6 +10,7 @@ import {
   buildAnalyticsReport,
   buildScheduleReport,
   createLumenClipMcpServer,
+  mergeAutomationSchemaPatch,
   type LumenClipMcpServices,
 } from "@/lib/mcp/lumenclip-server"
 import { LUMENCLIP_MCP_TOOL_NAMES } from "@/lib/mcp/tool-registry"
@@ -25,6 +26,28 @@ import type { WordCollectionRecord } from "@/lib/word-collections"
 
 const clients: Client[] = []
 const servers: ReturnType<typeof createLumenClipMcpServer>[] = []
+
+describe("automation schema patches", () => {
+  it("preserves omitted nested fields and replaces only supplied arrays", () => {
+    expect(
+      mergeAutomationSchemaPatch(
+        {
+          tone: "direct",
+          formatting: [{ id: "hook" }, { id: "body" }],
+          schedule: { timezone: "Asia/Singapore", paused: false },
+        },
+        {
+          formatting: [{ id: "body", slideCount: 7 }],
+          schedule: { paused: true },
+        }
+      )
+    ).toEqual({
+      tone: "direct",
+      formatting: [{ id: "body", slideCount: 7 }],
+      schedule: { timezone: "Asia/Singapore", paused: true },
+    })
+  })
+})
 
 afterEach(async () => {
   vi.unstubAllEnvs()
@@ -398,6 +421,7 @@ describe("LumenClip MCP server", () => {
         patch as unknown as LumenClipMcpServices["patchAutomationRecord"],
       listAutomationRuns: vi.fn(async () => []),
       listWordCollections: vi.fn(async () => []),
+      listImageCollections: vi.fn(async () => []),
       now: () => new Date("2026-07-23T12:00:00.000Z"),
     })
 
@@ -419,13 +443,25 @@ describe("LumenClip MCP server", () => {
       name: "lumenclip_automation_hook_upsert",
       arguments: {
         automationId: current.id,
-        hooks: [{ id: "hook-new", text: "A new hook" }],
+        hooks: [
+          {
+            id: "hook-new",
+            text: "A new hook",
+            bodySlideCount: 12,
+            tone: "Shadow voice",
+          },
+        ],
       },
     })
     expect(upserted.structuredContent).toMatchObject({
       total: 2,
       hooks: expect.arrayContaining([
-        expect.objectContaining({ id: "hook-new", enabled: true }),
+        expect.objectContaining({
+          id: "hook-new",
+          enabled: true,
+          bodySlideCount: 12,
+          tone: "Shadow voice",
+        }),
       ]),
     })
 
@@ -458,8 +494,78 @@ describe("LumenClip MCP server", () => {
     })
   })
 
+  it("deep-clones an automation into a paused copy without run history", async () => {
+    const source = automationRecord()
+    source.schema.hooks = [
+      {
+        id: "all-signs",
+        text: "[[SLIDE_COUNT]] zodiac signs, ranked",
+        enabled: true,
+        bodySlideCount: 12,
+        tone: "Shadow voice",
+        createdAt: "2026-07-01T00:00:00.000Z",
+      },
+    ]
+    source.schema.image_collection_ids.all_slides = "mystical-pictures"
+    let records = [source]
+    const upsert = vi.fn(async ({ records: incoming }) => {
+      records = [...incoming, ...records]
+      return records
+    })
+    const client = await connectClient({
+      listAutomationRecords: vi.fn(async () => records),
+      upsertAutomationRecords:
+        upsert as unknown as LumenClipMcpServices["upsertAutomationRecords"],
+    })
+
+    const first = await client.callTool({
+      name: "lumenclip_automation_clone",
+      arguments: {
+        sourceAutomationId: source.id,
+        name: "Astrology rankings",
+        expectedUpdatedAt: source.updatedAt,
+        requestId: "clone-rankings-1",
+      },
+    })
+    const second = await client.callTool({
+      name: "lumenclip_automation_clone",
+      arguments: {
+        sourceAutomationId: source.id,
+        name: "Astrology rankings",
+        expectedUpdatedAt: source.updatedAt,
+        requestId: "clone-rankings-1",
+      },
+    })
+
+    expect(first.structuredContent).toMatchObject({
+      created: true,
+      sourceAutomationId: source.id,
+      automation: {
+        name: "Astrology rankings",
+        status: "paused",
+        schema: {
+          hooks: [
+            expect.objectContaining({
+              bodySlideCount: 12,
+              tone: "Shadow voice",
+            }),
+          ],
+          image_collection_ids: {
+            all_slides: "mystical-pictures",
+          },
+        },
+      },
+    })
+    expect(second.structuredContent).toMatchObject({
+      created: false,
+      reused: true,
+    })
+    expect(upsert).toHaveBeenCalledTimes(1)
+  })
+
   it("patches formatting blocks and text items without replacing the schema", async () => {
     let current = automationRecord()
+    const initialUpdatedAt = current.updatedAt
     current.schema.hooks = [
       {
         id: "hook-existing",
@@ -477,11 +583,21 @@ describe("LumenClip MCP server", () => {
       wordLengthMax: 25,
     }
     const patch = vi.fn(
-      async ({ schema }: { schema?: typeof current.schema }) => {
+      async ({
+        schema,
+        expectedUpdatedAt,
+        now,
+      }: {
+        schema?: typeof current.schema
+        expectedUpdatedAt?: string
+        now?: Date
+      }) => {
+        expect(expectedUpdatedAt).toBe(current.updatedAt)
+        expect(now?.toISOString()).toBe("2026-07-23T12:00:00.000Z")
         current = {
           ...current,
           schema: schema ?? current.schema,
-          updatedAt: "2026-07-23T12:00:00.000Z",
+          updatedAt: new Date(Date.parse(current.updatedAt) + 1).toISOString(),
         }
         return current
       }
@@ -490,6 +606,7 @@ describe("LumenClip MCP server", () => {
       getAutomationRecord: vi.fn(async () => current),
       patchAutomationRecord:
         patch as unknown as LumenClipMcpServices["patchAutomationRecord"],
+      now: () => new Date("2026-07-23T12:00:00.000Z"),
     })
 
     const blockResult = await client.callTool({
@@ -546,6 +663,7 @@ describe("LumenClip MCP server", () => {
     })
     expect(current.schema.hooks).toHaveLength(1)
     expect(current.schema.social_post_settings).toEqual(originalSocialSettings)
+    expect(current.updatedAt).not.toBe(initialUpdatedAt)
     expect(patch).toHaveBeenCalledTimes(2)
   })
 
@@ -554,7 +672,7 @@ describe("LumenClip MCP server", () => {
     current.schema.hooks = [
       {
         id: "hook-bound",
-        text: "[[SIGN]] needs [[SLIDE_COUNT]] reminders",
+        text: "[[SIGN]] needs [[SLIDE_COUNT]] reminders for [[CURRENT_SIGN_CUSP]]",
         enabled: true,
         createdAt: "2026-07-01T00:00:00.000Z",
       },
@@ -564,6 +682,7 @@ describe("LumenClip MCP server", () => {
       getAutomationRecord: vi.fn(async () => current),
       listAutomationRuns: vi.fn(async () => []),
       listWordCollections: vi.fn(async () => [wordCollection()]),
+      listImageCollections: vi.fn(async () => []),
     })
 
     const result = await client.callTool({
@@ -578,7 +697,7 @@ describe("LumenClip MCP server", () => {
           hook_slot_overrides: { SIGN: "zodiac" },
         },
         variableBindings: {
-          bindings: [
+          bindings: expect.arrayContaining([
             expect.objectContaining({
               token: "[[SIGN]]",
               source: "override",
@@ -588,10 +707,48 @@ describe("LumenClip MCP server", () => {
               token: "[[SLIDE_COUNT]]",
               source: "runtime",
             }),
-          ],
+            expect.objectContaining({
+              token: "[[CURRENT_SIGN_CUSP]]",
+              source: "runtime",
+            }),
+          ]),
           missingTokens: [],
         },
       },
+    })
+
+    const bindings = await client.callTool({
+      name: "lumenclip_automation_variable_bindings_get",
+      arguments: { automationId: current.id },
+    })
+    expect(bindings.structuredContent).toMatchObject({
+      automationId: current.id,
+      bindings: [
+        expect.objectContaining({ token: "[[SIGN]]", source: "override" }),
+        expect.objectContaining({
+          token: "[[SLIDE_COUNT]]",
+          source: "runtime",
+        }),
+        expect.objectContaining({
+          token: "[[CURRENT_SIGN_CUSP]]",
+          source: "runtime",
+        }),
+      ],
+      runtimeVariables: expect.arrayContaining([
+        expect.objectContaining({
+          token: "[[CURRENT_SIGN]]",
+          source: "runtime",
+        }),
+        expect.objectContaining({
+          token: "[[CURRENT_MONTH]]",
+          source: "runtime",
+        }),
+        expect.objectContaining({
+          token: "[[NEXT_YEAR]]",
+          source: "runtime",
+        }),
+      ]),
+      missingTokens: [],
     })
   })
 
@@ -771,6 +928,7 @@ describe("LumenClip MCP server", () => {
       listPostFastPostRecords: vi.fn(async () => [publication]),
       listAutomationRuns: vi.fn(async () => []),
       listXAutomationRuns: vi.fn(async () => []),
+      listImageCollections: vi.fn(async () => []),
       listGeneratedVideoExports: vi.fn(async () => []),
       listAssetRecords: vi.fn(async () => [
         {
@@ -1232,7 +1390,7 @@ describe("LumenClip MCP server", () => {
           publicationState: "not_published",
           qaValid: false,
           qaFindings: [
-            expect.objectContaining({ code: "TRUNCATED_SLIDE_TEXT" }),
+            expect.objectContaining({ code: "WORD_LENGTH_VIOLATION" }),
           ],
         },
       ],
@@ -1243,6 +1401,8 @@ describe("LumenClip MCP server", () => {
     const current = automationRecord()
     const run = generatedRun(current.id)
     const client = await connectClient({
+      getJob: vi.fn(async () => null),
+      getAutomationRecord: vi.fn(async () => current),
       listAutomationRuns: vi.fn(async () => [run]),
       getUgcRunStatus: vi.fn(async (): Promise<UgcRunStatus> => ({
         id: run.id,
@@ -1280,6 +1440,7 @@ describe("LumenClip MCP server", () => {
       listAutomationRuns: vi.fn(async () => []),
       listXAutomations: vi.fn(async () => []),
       listXAutomationRuns: vi.fn(async () => []),
+      listImageCollections: vi.fn(async () => []),
     })
 
     const result = await client.callTool({
@@ -1923,6 +2084,75 @@ describe("MCP analytics report", () => {
       newFollowers: 29,
       studioReportTool: "lumenclip_tiktok_studio_analytics_report",
     })
+  })
+
+  it("counts every publication while separating posts awaiting metrics", () => {
+    const captured = metricSnapshot(
+      "snapshot-captured",
+      "2026-07-18T00:00:00.000Z",
+      250
+    )
+    const publications = [
+      {
+        id: captured.postId,
+        externalPostId: "7000000000000000001",
+        sourceType: "slideshow" as const,
+        sourceId: "slideshow-1",
+        integrationId: "integration-1",
+        provider: "tiktok",
+        linkState: "manually_linked" as const,
+        statsSources: ["tiktok_studio" as const],
+        status: "published" as const,
+        publishedAt: "2026-07-17T00:00:00.000Z",
+        content: "Cancer secrets",
+        media: [],
+        createdAt: "2026-07-17T00:00:00.000Z",
+        updatedAt: "2026-07-18T00:00:00.000Z",
+      },
+      ...[2, 3, 4].map((index) => ({
+        id: `publication-${index}`,
+        externalPostId: `700000000000000000${index}`,
+        sourceType: "slideshow" as const,
+        sourceId: `slideshow-${index}`,
+        integrationId: "integration-1",
+        provider: "tiktok",
+        linkState: "manually_linked" as const,
+        statsSources: [],
+        status: "published" as const,
+        publishedAt: `2026-07-${16 - index}T00:00:00.000Z`,
+        content: `Post ${index}`,
+        media: [],
+        createdAt: `2026-07-${16 - index}T00:00:00.000Z`,
+        updatedAt: `2026-07-${16 - index}T00:00:00.000Z`,
+      })),
+    ]
+
+    const report = buildAnalyticsReport({
+      snapshots: [captured],
+      followerSnapshots: [],
+      publications,
+      now: new Date("2026-07-18T12:00:00.000Z"),
+      days: 30,
+      postLimit: 10,
+    })
+
+    expect(report).toMatchObject({
+      postCount: 4,
+      withMetrics: 1,
+      awaitingCapture: 3,
+      accounts: [
+        {
+          postCount: 4,
+          withMetrics: 1,
+          awaitingCapture: 3,
+        },
+      ],
+    })
+    expect(report.posts).toHaveLength(4)
+    expect(report.posts.filter((post) => post.hasMetrics)).toHaveLength(1)
+    expect(
+      report.posts.filter((post) => post.metricsStatus === "awaiting_capture")
+    ).toHaveLength(3)
   })
 })
 

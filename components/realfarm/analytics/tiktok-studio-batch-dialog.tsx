@@ -40,7 +40,12 @@ export function TikTokStudioBatchDialog({
   const notifiedLinked = useRef(false)
 
   useEffect(() => {
-    if (!batch || batch.status === "complete" || batch.status === "expired") {
+    if (
+      !batch ||
+      batch.status === "complete" ||
+      batch.status === "partial" ||
+      batch.status === "expired"
+    ) {
       return
     }
     const timer = window.setInterval(() => {
@@ -223,9 +228,11 @@ export function TikTokStudioBatchDialog({
                     <span className="shrink-0 text-[10px] font-semibold text-app-text">
                       {item.status === "linked"
                         ? "Linked"
-                        : item.capturedSections.includes("overview")
-                          ? `${item.capturedSections.length}/3 captured`
-                          : "Waiting"}
+                        : item.status === "failed"
+                          ? `Failed${item.failure?.section ? ` · ${item.failure.section}` : ""}`
+                          : item.capturedSections.includes("overview")
+                            ? `${item.capturedSections.length}/3 captured`
+                            : "Waiting"}
                     </span>
                   </div>
                 ))}

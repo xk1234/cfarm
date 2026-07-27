@@ -2,6 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("./slideshow-automation.js", () => ({
   runSlideshowAutomation: vi.fn(),
+  reminderChannel: (settings, event) =>
+    settings?.events?.[event] === true && settings?.channel === "telegram"
+      ? "telegram"
+      : settings?.events?.[event]?.channel === "telegram"
+        ? "telegram"
+        : "none",
 }))
 
 import { findCandidates, sendConfiguredReminder } from "./main.js"

@@ -1,8 +1,6 @@
-// Cloud-native port of the scheduled slideshow path in
-// lib/automation-runner.ts + lib/publishing.ts. This module intentionally lives
-// inside the Function source tree so an Appwrite deployment is self-contained.
-// Keep generation, render, and PostFast payload changes synchronized with the
-// corresponding lib modules.
+// Appwrite adapters for scheduled slideshow storage, rendering, and publishing.
+// Hook expansion, text generation/validation/research, and image selection run
+// through the generated slideshow-generation-engine.js shared with the app.
 import crypto from "node:crypto"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -13,25 +11,39 @@ import { InputFile } from "node-appwrite/file"
 import {
   defaultSlideshowAspectRatio,
   defaultSlideshowFont,
-  renderedSlideSvg,
-  slideshowTextPositionX,
 } from "./slideshow-renderer.js"
+import { renderSlideshowSlideBuffers } from "./slideshow-raster-renderer.js"
 import { configureFontconfig } from "./font-config.js"
-import { sanitizeStructuredSchema } from "./openrouter.js"
 import {
-  deriveSlideVisualConcepts,
-  selectSlideshowImageWithAi,
-} from "./slideshow-image-matching.js"
-import { expandAllHookCombinations } from "./hook-expansion.js"
-import { applyResolvedHookCase } from "./hook-casing.js"
-import { llmSlopMatches, llmSlopViolations } from "./llm-slop.js"
-import { defaultPostFastProviderControls as providerControls } from "./postfast-provider-controls.js"
+  generateSlideshowText,
+  selectSlideshowHook,
+  selectSlideshowImages,
+} from "./slideshow-generation-engine.js"
+import { postfastRequest } from "./postfast-client.js"
+import { translateTextsWithDeepL } from "./deepl-translate.js"
+import { deeplTargetLanguage } from "./slideshow-publishing-config.js"
+import {
+  applyHookCase,
+  automationHookItems,
+  automationHooks,
+  resolveSlideshowCaption,
+  resolveSlideshowHashtags,
+  selectedBodySlideCount,
+  slideSpecs,
+  slideshowMetadataPromptInstructions,
+  slideshowRunId,
+  textItemsForSpec,
+} from "./slideshow-plan-core.js"
+import {
+  effectivePostingMode,
+  postFastSchedulePayload,
+} from "./publishing-core.js"
+import { usageForPublishedRuns } from "./usage-core.js"
+import {
+  runRendiFfmpegAndDownloadBytes,
+  uploadBytesToRendi,
+} from "./rendi-client.js"
 import { openRouterModelForUseCase } from "./realfarm-generation-model-registry.js"
-import {
-  buildScheduledSlideshowPrompt,
-  placeholderWordRangeError,
-  toneRequestsLowercase,
-} from "./temp-slide-testing-shared.js"
 
 // Point fontconfig at the bundled TTF before the first sharp() SVG raster.
 // The Appwrite node-22 (Alpine) runtime ships no fonts and no default
@@ -59,56 +71,6 @@ const SLIDESHOW_BUCKET = "slideshows"
 const defaultTextModel =
   process.env.SLIDESHOW_TEXT_MODEL || openRouterModelForUseCase("slideshowText")
 const PAGE = 100
-
-export function slideshowRunId(automationId, scheduledFor) {
-  return (
-    "arun" +
-    crypto
-      .createHash("sha256")
-      .update(`${automationId}:${scheduledFor}`)
-      .digest("hex")
-      .slice(0, 32)
-  )
-}
-
-export function effectivePostingMode(schema) {
-  if (
-    schema?.posting_mode === "auto" ||
-    schema?.posting_mode === "review" ||
-    schema?.posting_mode === "manual"
-  ) {
-    return schema.posting_mode
-  }
-  return "auto"
-}
-
-export function postFastSchedulePayload({
-  content,
-  integrationId,
-  media,
-  provider,
-  scheduledFor,
-  settings,
-}) {
-  const controls = providerControls(provider, settings)
-  return {
-    status: "SCHEDULED",
-    posts: [
-      {
-        content,
-        mediaItems: media.map((item, index) => ({
-          key: item.key,
-          type: item.type,
-          sortOrder: item.sortOrder ?? index,
-        })),
-        scheduledAt: scheduledFor,
-        socialMediaId: integrationId,
-        status: "SCHEDULED",
-      },
-    ],
-    ...(Object.keys(controls).length ? { controls } : {}),
-  }
-}
 
 export async function runSlideshowAutomation({
   payload,
@@ -475,38 +437,142 @@ async function createPlan({
 }) {
   const schema = automation.schema
   const seed = seededBytes(`${runId}:${scheduledFor}`)
-  const bodySlideCount = selectedBodySlideCount(schema, seed[1])
-  const hookSelection = selectHook({
-    schema,
-    wordCollections,
-    usage,
-    automationId: automation.id,
-    scheduledFor,
-    seed,
-    bodySlideCount,
-  })
-  const hook = applyHookCase(hookSelection.text, schema.prompt_formatting)
-  const specs = slideSpecs(schema, hook, bodySlideCount)
-  const placeholders = specs.flatMap((spec) =>
-    spec.section !== "hook" && spec.displayText
-      ? spec.textItems.filter((item) => item.textMode !== "static")
-      : []
+  const defaultBodySlideCount = selectedBodySlideCount(schema, seed[1])
+  const hookCutoff =
+    Date.parse(scheduledFor) -
+    Math.max(0, Number(schema.reuse_policy?.hook_exclusion_days) || 45) *
+      24 *
+      60 *
+      60 *
+      1000
+  const usedHookKeys = new Set(
+    usage
+      .filter(
+        (record) =>
+          record.automation_id === automation.id &&
+          record.kind === "hook_published" &&
+          Date.parse(record.used_at) >= hookCutoff
+      )
+      .map((record) => clean(record.key).toLowerCase().replace(/\s+/g, " "))
   )
-  const generated = await generateText({
-    schema,
-    automation,
-    hook,
-    placeholders,
+  const usedHookCombinationKeys = new Set(
+    usage
+      .filter(
+        (record) =>
+          record.automation_id === automation.id &&
+          record.kind === "hook_combination_published" &&
+          Date.parse(record.used_at) >= hookCutoff
+      )
+      .map((record) => record.key)
+  )
+  const enabledHookItems = automationHookItems(schema).filter(
+    (item) => item.enabled
+  )
+  if (!enabledHookItems.length) {
+    throw new Error("The automation database record has no enabled hooks")
+  }
+  const hookSelection = selectSlideshowHook({
+    hookItems: enabledHookItems,
+    hookSlots: schema.hook_slots,
+    wordCollections,
+    usedHookKeys,
+    usedHookCombinationKeys,
+    noDuplicateSlots: schema.distinct_variable_draws !== false,
+    caseMode: schema.prompt_formatting?.hook_case || "mixed",
+    now: new Date(scheduledFor),
+    timeZone: schema.schedule?.timezone,
+    slideCount: defaultBodySlideCount,
+    selectIndex: (candidateCount) => seed[0] % candidateCount,
   })
-  const selectedImages = await selectImagesForSlides({
-    schema,
-    automation,
+  const bodySlideCount = hookSelection.bodySlideCount || defaultBodySlideCount
+  const hook = applyHookCase(
+    hookSelection.expansion.text,
+    schema.prompt_formatting
+  )
+  const specs = slideSpecs(schema, hook, bodySlideCount)
+  const publishedUsage = usageForPublishedRuns(usage, automation.id)
+  const headingCutoff =
+    Date.parse(scheduledFor) -
+    Math.max(0, Number(schema.reuse_policy?.text_exclusion_days) || 45) *
+      24 *
+      60 *
+      60 *
+      1000
+  const recentHeadings = publishedUsage
+    .filter(
+      (record) =>
+        record.kind === "heading" && Date.parse(record.used_at) >= headingCutoff
+    )
+    .sort((left, right) =>
+      String(right.used_at).localeCompare(String(left.used_at))
+    )
+    .slice(
+      0,
+      Math.max(Number(schema.reuse_policy?.text_exclusion_limit) || 20, 50)
+    )
+    .map((record) => record.key)
+  const textGeneration = await generateSlideshowText({
+    automation: {
+      id: automation.id,
+      name: automation.name,
+      theme: "automation",
+      hooks: [hook],
+      tone:
+        clean(hookSelection.tone) ||
+        clean(schema.tone?.value) ||
+        "Conversational & Relatable",
+      imageCollectionIds: {
+        hook: automationCollectionId(schema, "hook"),
+        content: automationCollectionId(schema, "content"),
+        cta: automationCollectionId(schema, "cta"),
+      },
+      slides: specs,
+    },
+    model: defaultTextModel,
+    selectedHook: hook,
+    promptInstructions: slideshowMetadataPromptInstructions(schema),
+    avoidSimilarHeadings: recentHeadings,
+    webSearchEnabled: schema.web_search_enabled,
+    apiKey: clean(process.env.OPENROUTER_API_KEY),
+    fetchImpl: fetch,
+  })
+  const generated = {
+    ...textGeneration.result,
+    model: textGeneration.model,
+    violations: textGeneration.violations,
+    webSearchSources: textGeneration.webSearchSources,
+  }
+  const recentImageUsage = new Map(
+    publishedUsage
+      .filter(
+        (record) =>
+          record.automation_id === automation.id && record.kind === "image"
+      )
+      .map((record) => [record.key, record.used_at])
+  )
+  const firstSlidePinnedImageId =
+    schema.image_collection_ids?.first_slide?.mode === "single_image"
+      ? clean(schema.image_collection_ids?.first_slide?.single_image)
+      : ""
+  const cta = formatSection(schema, "cta")
+  const ctaPinnedImageId =
+    cta.imageMode === "single_image"
+      ? clean(schema.image_collection_ids?.cta_slide?.image_id)
+      : ""
+  const selectedImages = await selectSlideshowImages({
     hook,
+    fallbackTitle: automation.name,
     specs,
-    generated,
-    collections,
-    usage,
-    seed,
+    generatedText: textGeneration.result,
+    firstSlidePinnedImageId,
+    ctaPinnedImageId,
+    candidatesForSpec: (spec) =>
+      imagesForCollectionIds(collections, [spec.collectionId]),
+    recentImageUsage,
+    random: seededRandom(`${runId}:${scheduledFor}:images`),
+    apiKey: clean(process.env.OPENROUTER_API_KEY),
+    model: defaultTextModel,
+    fetchImpl: fetch,
   })
   if (selectedImages.length < specs.length) {
     throw new Error(
@@ -555,15 +621,27 @@ async function createPlan({
 
   return {
     title: requiredGeneratedValue("title", generated.title),
-    caption: requiredGeneratedValue("caption", generated.caption),
+    caption: requiredGeneratedValue(
+      "caption",
+      resolveSlideshowCaption({
+        setting: schema.tiktok_post_settings?.caption,
+        generated: generated.caption,
+        hook,
+      })
+    ),
     hashtags: requiredGeneratedValue(
       "hashtags",
-      normalizeHashtags(generated.hashtags)
+      normalizeHashtags(
+        resolveSlideshowHashtags({
+          setting: schema.tiktok_post_settings?.description,
+          generated: generated.hashtags,
+        })
+      )
     ),
     hook,
     hookId: hookSelection.hookId,
-    hookTemplate: hookSelection.template,
-    hookSubstitutions: hookSelection.substitutions,
+    hookTemplate: hookSelection.expansion.template,
+    hookSubstitutions: hookSelection.expansion.substitutions,
     imageCollectionIds: automationCollectionIds(schema),
     slides,
     slideCount: {
@@ -577,590 +655,34 @@ async function createPlan({
     autoPost: effectivePostingMode(schema) === "auto",
     hookCandidates: automationHooks(schema),
     textModel: generated.model,
-    // Non-fatal quality findings recorded at generation time (word ranges).
     violations: generated.violations ?? [],
     language: clean(schema.language) || "English",
     debug: { webSearchSources: generated.webSearchSources || [] },
   }
 }
 
-export function selectHook({
-  schema,
-  wordCollections,
-  usage,
-  automationId,
-  scheduledFor,
-  seed,
-  bodySlideCount,
-}) {
-  const candidates = automationHookItems(schema)
-  const cutoff =
-    Date.parse(scheduledFor) -
-    Math.max(0, Number(schema.reuse_policy?.hook_exclusion_days) || 45) *
-      24 *
-      60 *
-      60 *
-      1000
-  const usedHooks = new Set(
-    usage
-      .filter(
-        (record) =>
-          record.automation_id === automationId &&
-          record.kind === "hook_published" &&
-          Date.parse(record.used_at) >= cutoff
-      )
-      .map((record) => normalizeSignature(record.key))
-  )
-  const usedCombinations = new Set(
-    usage
-      .filter(
-        (record) =>
-          record.automation_id === automationId &&
-          record.kind === "hook_combination_published" &&
-          Date.parse(record.used_at) >= cutoff
-      )
-      .map((record) => record.key)
-  )
-  const expanded = []
-  const invalidHookErrors = []
-  for (const hookItem of candidates) {
-    try {
-      expanded.push(
-        ...expandAllHookCombinations(
-          hookItem.text,
-          schema.hook_slots,
-          wordCollections,
-          {
-            noDuplicates: schema.distinct_variable_draws !== false,
-            caseMode: schema.prompt_formatting?.hook_case || "mixed",
-            now: new Date(scheduledFor),
-            timeZone: schema.schedule?.timezone,
-            slideCount: bodySlideCount,
-          }
-        ).map((expansion) => ({ ...expansion, hookId: hookItem.id }))
-      )
-    } catch (error) {
-      invalidHookErrors.push(
-        error instanceof Error
-          ? error
-          : new Error("A hook variable cannot be expanded.")
-      )
-    }
-  }
-  if (!expanded.length && invalidHookErrors.length) {
-    throw invalidHookErrors[0]
-  }
-  const available = expanded.filter((item) => {
-    const combinationKey = hookCombinationKey(item.template, item.substitutions)
-    return (
-      !usedHooks.has(normalizeSignature(item.text)) &&
-      (!Object.keys(item.substitutions).length ||
-        !usedCombinations.has(combinationKey))
-    )
-  })
-  if (!available.length) {
-    throw new Error("No unused hook combinations remain for this automation.")
-  }
-  return available[seed[0] % available.length]
-}
-
-function automationHooks(schema) {
-  return automationHookItems(schema).map((item) => item.text)
-}
-
-export function automationHookItems(schema) {
-  const catalog = Array.isArray(schema.hooks)
-    ? schema.hooks
-        .map((item) => ({
-          id: clean(item?.id),
-          text: clean(item?.text),
-          enabled: item?.enabled !== false,
-        }))
-        .filter((item) => item.id && item.text && !isHookInstruction(item.text))
-    : []
-  const enabled = catalog.filter((item) => item.enabled)
-  if (enabled.length) return enabled
-  throw new Error("The automation database record has no enabled hooks")
-}
-
-function isHookInstruction(value) {
-  const normalized = value.toLowerCase()
-  return (
-    normalized.startsWith("hook text") ||
-    normalized.startsWith("create ") ||
-    normalized.includes("using narratives") ||
-    normalized.includes("content varies based on narrative")
-  )
-}
-
-function applyHookCase(text, promptFormatting) {
-  const value = clean(text)
-  return applyResolvedHookCase(value, promptFormatting?.hook_case || "mixed")
-}
-
-function slideSpecs(schema, hook, bodySlideCount) {
-  const hookSection = formatSection(schema, "hook")
-  const content = formatSection(schema, "content")
-  const cta = formatSection(schema, "cta")
-  const implied = Number(clean(hook).match(/^(\d{1,2})\s+[a-z]/i)?.[1])
-  const contentCount =
-    implied >= 1 && implied <= 10
-      ? implied
-      : Math.max(1, bodySlideCount || content.slideCount || 1)
-  const ctaCount =
-    cta.slideCount > 0 || schema.image_collection_ids?.cta_slide?.check
-      ? Math.max(1, cta.slideCount || 1)
-      : 0
-  return [
-    specForSection(schema, hookSection, "hook", 0),
-    ...Array.from({ length: contentCount }, (_, index) => {
-      const override = content.slideOverrides?.find(
-        (item) => Number(item.slideIndex) === index + 1
-      )
-      const imageOverride = content.imageOverrides?.find(
-        (item) => Number(item.slideIndex) === index + 1
-      )
-      return specForSection(
-        schema,
-        {
-          ...content,
-          ...(override
-            ? {
-                textItems: content.textItems.map((item, itemIndex) =>
-                  itemIndex === 0
-                    ? { ...item, contentDirection: override.contentDirection }
-                    : item
-                ),
-              }
-            : {}),
-        },
-        "content",
-        index + 1,
-        imageOverride?.collectionId
-      )
-    }),
-    ...Array.from({ length: ctaCount }, (_, index) =>
-      specForSection(schema, cta, "cta", contentCount + index + 1)
-    ),
-  ]
-}
-
-function selectedBodySlideCount(schema, seedValue) {
-  const content = formatSection(schema, "content")
-  if (content.slideCountMode !== "varying") {
-    return Math.max(1, Number(content.slideCount) || 1)
-  }
-  const min = Math.max(
-    1,
-    Math.round(Number(content.slideCountMin) || Number(content.slideCount) || 1)
-  )
-  const max = Math.max(
-    min,
-    Math.round(
-      Number(content.slideCountMax) || Number(content.slideCount) || min
-    )
-  )
-  return min + (Number(seedValue) % (max - min + 1))
-}
-
-function specForSection(schema, section, role, index, collectionOverride) {
-  const slideId = `${role}-${index + 1}`
-  return {
-    id: slideId,
-    section: role,
-    index,
-    collectionId: collectionOverride || automationCollectionId(schema, role),
-    aspectRatio: section.aspect_ratio || schema.aspect_ratio || "9:16",
-    imageGrid: section.imageGrid || "none",
-    overlay: section.overlay === true,
-    aiImageSelection: section.aiImageSelection === true,
-    displayText: !section.noText,
-    overlayImage: section.overlayImage?.enabled
-      ? {
-          collectionId: clean(section.overlayImage.collectionId),
-          padding: Math.max(0, Number(section.overlayImage.padding) || 0),
-        }
-      : undefined,
-    textItems: (section.textItems || []).map((item, itemIndex) => ({
-      ...item,
-      id: `${slideId}__${item.id || `text-${itemIndex}`}`,
-      itemId: item.id || `text-${itemIndex}`,
-      slideId,
-      section: role,
-    })),
-  }
-}
-
-async function generateText({ schema, automation, hook, placeholders }) {
-  const apiKey = clean(process.env.OPENROUTER_API_KEY)
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-  const tone = clean(schema.tone?.value) || "Conversational & Relatable"
-  // The prompt bundle is the SAME shared builder used by the Next app
-  // (lib/slideshow-text-generation-payload.ts → buildScheduledSlideshowPrompt),
-  // synced here via scripts/sync-function-shared.mjs. The raw
-  // `prompt_formatting.narrative` template dump is deliberately NOT passed —
-  // it contains unexpanded [[slot]] tokens and is the largest source of prompt
-  // noise drowning out the Tone line (see lib/automation-runner.ts).
-  const bundle = buildScheduledSlideshowPrompt({
-    automationName: automation.name,
-    hook,
-    tone,
-    placeholders,
-  })
-  const responseFormat = {
-    type: "json_schema",
-    json_schema: {
-      name: "scheduled_slideshow_text",
-      strict: true,
-      schema: bundle.schema,
-    },
-  }
-  let lastError
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const model = defaultTextModel
-    try {
-      const payload = await openRouterRequest({
-        apiKey,
-        timeoutMs: 120_000,
-        body: {
-          model,
-          stream: false,
-          max_tokens: Math.min(
-            8192,
-            Math.max(2048, 512 + placeholders.length * 256)
-          ),
-          provider: { require_parameters: true },
-          plugins: [
-            { id: "response-healing" },
-            ...(schema.web_search_enabled
-              ? [{ id: "web", engine: "exa", max_results: 5 }]
-              : []),
-          ],
-          messages: [
-            { role: "system", content: bundle.system },
-            {
-              role: "user",
-              content:
-                attempt === 0
-                  ? bundle.user
-                  : `${bundle.user}\nThe previous JSON was invalid. Correct only the reported problems and return the complete JSON object again.\nValidation errors:\n- ${errorMessage(lastError).replaceAll("; ", "\n- ")}`,
-            },
-          ],
-          response_format: responseFormat,
-        },
-      })
-      const parsed = parseJsonContent(payload.choices?.[0]?.message?.content)
-      const { errors: validationErrors, violations } =
-        validateScheduledSlideshowText(parsed, placeholders, hook)
-      if (validationErrors.length) {
-        throw new Error(validationErrors.join("; "))
-      }
-      const lowercase = toneRequestsLowercase(tone)
-      const maybeLower = (value) =>
-        lowercase ? clean(value).toLowerCase() : clean(value)
-      const hashtags = Array.isArray(parsed?.hashtags)
-        ? parsed.hashtags.map(clean).filter(Boolean)
-        : []
-      return {
-        title: maybeLower(parsed.title),
-        caption: maybeLower(parsed.caption),
-        hashtags: hashtags.map(maybeLower),
-        text: Object.fromEntries(
-          placeholders.map((placeholder) => [
-            placeholder.id,
-            maybeLower(parsed.text[placeholder.id]),
-          ])
-        ),
-        model,
-        violations,
-        webSearchSources: parseWebSources(
-          payload.choices?.[0]?.message?.annotations
-        ),
-      }
-    } catch (error) {
-      lastError = error
-    }
-  }
-  throw new Error(
-    `OpenRouter did not return complete slideshow text: ${errorMessage(lastError)}`
-  )
-}
-
-function validateScheduledSlideshowText(parsed, placeholders, hook) {
-  const errors = []
-  const violations = []
-  if (!clean(parsed?.title) || !clean(parsed?.caption)) {
-    errors.push("OpenRouter returned empty slideshow metadata")
-  }
-  const hashtags = Array.isArray(parsed?.hashtags)
-    ? parsed.hashtags.map(clean).filter(Boolean)
-    : []
-  if (hashtags.length < 3 || hashtags.length > 5) {
-    errors.push("OpenRouter must return 3-5 slideshow hashtags")
-  }
-  const generatedText = [
-    clean(parsed?.title),
-    clean(parsed?.caption),
-    ...placeholders.map((placeholder) => clean(parsed?.text?.[placeholder.id])),
-  ].join("\n")
-  for (const placeholder of placeholders) {
-    const value = clean(parsed?.text?.[placeholder.id])
-    if (!value) {
-      errors.push(`OpenRouter omitted ${placeholder.id}`)
-      continue
-    }
-    // Word counts are a quality signal, not a correctness one. Failing here
-    // discards a whole generation over one long line, so the miss is reported
-    // with the output instead. Mirrors lib/slideshow-text-generation.ts.
-    const wordError = placeholderWordRangeError(placeholder, value)
-    if (wordError) violations.push(wordError)
-  }
-  const hookLower = hook.toLowerCase()
-  const slopMatches = llmSlopMatches(generatedText)
-  const slopViolations = llmSlopViolations(generatedText)
-  for (const [index, match] of slopMatches.entries()) {
-    if (hookLower && hookLower.includes(match.toLowerCase())) continue
-    errors.push(slopViolations[index])
-  }
-  return { errors, violations }
-}
-
-export async function selectImagesForSlides({
-  automation,
-  hook,
-  specs,
-  generated,
-  collections,
-  usage,
-  seed,
-}) {
-  const publishedUsage = usageForPublishedRuns(usage, automation.id)
-  const recent = new Map(
-    publishedUsage
-      .filter(
-        (record) =>
-          record.automation_id === automation.id && record.kind === "image"
-      )
-      .map((record) => [record.key, record.used_at])
-  )
-  const usedKeys = new Set()
-  const usedUrls = new Set()
-  const selected = []
-  const firstSlidePinnedImageId =
-    automation.schema.image_collection_ids?.first_slide?.mode === "single_image"
-      ? clean(automation.schema.image_collection_ids?.first_slide?.single_image)
-      : ""
-  const cta = formatSection(automation.schema, "cta")
-  const ctaPinnedImageId =
-    cta.imageMode === "single_image"
-      ? clean(automation.schema.image_collection_ids?.cta_slide?.image_id)
-      : ""
-  // One call for the whole slideshow: slide copy describes behaviour while
-  // captions describe what is depicted, so the two rarely share vocabulary.
-  // Rank candidates against the imagery each slide implies instead.
-  const conceptsApiKey = clean(process.env.OPENROUTER_API_KEY)
-  const visualConcepts =
-    conceptsApiKey && specs.some((spec) => spec.aiImageSelection)
-      ? await deriveSlideVisualConcepts({
-          slideTexts: specs.map((spec) =>
-            imageTextForSpec(spec, hook, generated)
-          ),
-          apiKey: conceptsApiKey,
-          model: defaultTextModel,
-        })
-      : []
-  for (const [index, spec] of specs.entries()) {
-    if (!clean(spec.collectionId)) {
-      throw new Error(`No image collection is configured for ${spec.id}`)
-    }
-    const collectionPool = imagesForCollectionIds(collections, [
-      spec.collectionId,
-    ])
-    if (!collectionPool.length) {
-      throw new Error(
-        `No images exist in database collection ${spec.collectionId} for ${spec.id}`
-      )
-    }
-    const pinnedFirstSlideImage =
-      spec.section === "hook" && firstSlidePinnedImageId
-        ? collectionPool.find(
-            (image) =>
-              image.id === firstSlidePinnedImageId ||
-              image.imageUrl === firstSlidePinnedImageId
-          )
-        : undefined
-    const pinnedCtaImage =
-      spec.section === "cta" && ctaPinnedImageId
-        ? collectionPool.find(
-            (image) =>
-              image.id === ctaPinnedImageId ||
-              image.imageUrl === ctaPinnedImageId
-          )
-        : undefined
-    const pool = pinnedFirstSlideImage
-      ? [pinnedFirstSlideImage]
-      : pinnedCtaImage
-        ? [pinnedCtaImage]
-        : collectionPool
-    const fresh = pool.filter(
-      (image) =>
-        !usedKeys.has(image.key) &&
-        !usedUrls.has(image.imageUrl) &&
-        !recent.has(image.key)
-    )
-    const unused = pool.filter(
-      (image) => !usedKeys.has(image.key) && !usedUrls.has(image.imageUrl)
-    )
-    const candidates = fresh.length ? fresh : unused.length ? unused : pool
-    if (!candidates.length) continue
-    let image = candidates[seed[(index + 1) % seed.length] % candidates.length]
-    if (spec.aiImageSelection && candidates.length > 1) {
-      image = await aiSelectImage({
-        candidates,
-        text: imageTextForSpec(spec, hook, generated),
-        concepts: visualConcepts[index] ?? [],
-      })
-    }
-    usedKeys.add(image.key)
-    usedUrls.add(image.imageUrl)
-    selected.push(image)
-  }
-  return selected
-}
-
-export function usageForPublishedRuns(usage, automationId) {
-  const publishedRunIds = new Set(
-    usage
-      .filter(
-        (record) =>
-          record.automation_id === automationId &&
-          (record.kind === "hook_published" ||
-            record.kind === "hook_combination_published")
-      )
-      .map((record) => record.run_id)
-  )
-  return usage.filter(
-    (record) =>
-      record.automation_id === automationId &&
-      publishedRunIds.has(record.run_id)
-  )
-}
-
-// Thin wrapper over the shared matcher (lib/slideshow-image-matching.ts) so the
-// worker and the app rank and choose images identically. The previous private
-// copy sent every candidate and compiled an enum of all their ids, which
-// Anthropic rejects outright once a collection is large.
-async function aiSelectImage({ candidates, text, concepts }) {
-  const selectedId = await selectSlideshowImageWithAi({
-    slideText: text,
-    concepts: concepts ?? [],
-    candidates: candidates.map((candidate) => ({
-      id: candidate.id,
-      imageUrl: candidate.imageUrl,
-      caption: candidate.imageCaption,
-    })),
-    apiKey: clean(process.env.OPENROUTER_API_KEY),
-    model: defaultTextModel,
-  })
-  return (
-    candidates.find((candidate) => candidate.id === selectedId) ?? candidates[0]
-  )
-}
-
-function imageTextForSpec(spec, hook, generated) {
-  return (
-    spec.textItems
-      .map((item) =>
-        item.textMode === "static"
-          ? clean(item.staticText)
-          : clean(generated.text?.[item.id])
-      )
-      .filter(Boolean)
-      .join("\n") || hook
-  )
-}
-
-function textItemsForSpec({ spec, hook, generated, schema }) {
-  if (!spec.displayText) return []
-  if (spec.section === "hook") {
-    const item = spec.textItems[0] || {}
-    return [slideshowTextItem(item, hook, schema, spec.section)]
-  }
-  if (!spec.textItems.length) {
-    throw new Error(`${spec.id} displays text but has no configured text items`)
-  }
-  return spec.textItems.map((item) => {
-    const text =
-      item.textMode === "static"
-        ? clean(item.staticText)
-        : clean(generated.text?.[item.id])
-    if (!text) {
-      throw new Error(
-        `${item.textMode === "static" ? "Static" : "Generated"} text is missing for ${item.id}`
-      )
-    }
-    return slideshowTextItem(item, text, schema, spec.section)
-  })
-}
-
-function slideshowTextItem(item, text, schema, role) {
-  const placement = ["top", "center", "bottom"].includes(item.textPosition)
-    ? item.textPosition
-    : "top"
-  const textAlign = item.textAlign || "center"
-  const textAnchor = item.textAnchor || "padded"
-  const y = placement === "bottom" ? 82 : placement === "center" ? 45 : 16
-  return {
-    id: item.itemId || item.id || crypto.randomUUID(),
-    text,
-    fontSize: item.fontSize || "10px",
-    textSize: {
-      width: textWidth(item.textItemWidth, text),
-      height: 18,
-    },
-    textStyle: item.textStyle || "outline",
-    textAlign,
-    textAnchor,
-    textVerticalAnchor: item.textVerticalAnchor || "padded",
-    textPlacement: placement,
-    textPosition: {
-      x: slideshowTextPositionX(textAlign, textAnchor),
-      y: role === "hook" && placement === "center" ? 45 : y,
-    },
-    font: item.font || schema.font,
-  }
-}
-
 async function translatePlan(schema, slides) {
-  const target = deepLTarget(schema.language)
-  if (!target) return
+  if (!deeplTargetLanguage(schema.language)) return
   const apiKey = clean(process.env.DEEPL_KEY)
   if (!apiKey) throw new Error("DEEPL_KEY is not configured")
   const targets = slides.flatMap((slide) =>
     slide.textItems.map((item) => ({ object: item, key: "text" }))
   )
-  const response = await fetch("https://api.deepl.com/v2/translate", {
-    method: "POST",
-    headers: {
-      Authorization: `DeepL-Auth-Key ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      text: targets.map(({ object, key }) => object[key]),
-      target_lang: target,
-    }),
-    signal: AbortSignal.timeout(30_000),
+  if (!targets.length) return
+  const translated = await translateTextsWithDeepL({
+    apiKey,
+    targetLanguage: schema.language,
+    texts: targets.map(({ object, key }) => object[key]),
   })
-  const payload = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    throw new Error(payload.message || `DeepL failed (${response.status})`)
+  if (
+    translated.some(
+      (text, index) => !clean(text) && clean(targets[index]?.object.text)
+    )
+  ) {
+    throw new Error("DeepL omitted a translation")
   }
   targets.forEach(({ object, key }, index) => {
-    const translated = clean(payload.translations?.[index]?.text)
-    if (!translated) {
-      throw new Error(`DeepL omitted translation ${index + 1}`)
-    }
-    object[key] = translated
+    object[key] = translated[index]
   })
   for (const slide of slides)
     slide.text = slide.textItems[0]?.text || slide.text
@@ -1227,12 +749,14 @@ async function renderAndStoreSlideshow({
         : undefined,
       textItems: planSlide.textItems,
     }
-    const svg = renderedSlideSvg(storedSlide, sourceUrl, overlayUrl, {
+    const { png } = await renderSlideshowSlideBuffers({
+      slide: storedSlide,
+      sourceUrl,
+      overlayUrl,
       aspectRatio: settings.aspect_ratio,
       font: settings.font,
       iconUrls,
     })
-    const png = await sharp(Buffer.from(svg)).png().toBuffer()
     const fileName = `slide-${String(index + 1).padStart(3, "0")}.png`
     const relPath = `slideshows/outputs/${slideshowId}/${fileName}`
     await replaceStorageFile(
@@ -1296,7 +820,7 @@ export async function renderSlideshowVideo({
   const inputFiles = {}
   const command = []
   for (const [index, bytes] of renderedBuffers.entries()) {
-    const stored = await uploadBufferToRendi({
+    const stored = await uploadBytesToRendi({
       apiKey,
       bytes,
       fileName: `slide-${index + 1}.png`,
@@ -1319,46 +843,17 @@ export async function renderSlideshowVideo({
   }
   command.push("-movflags", "+faststart", "{{out_video}}")
 
-  const submitted = await rendiJson(apiKey, "/v1/run-ffmpeg-command", {
-    method: "POST",
-    body: JSON.stringify({
-      ffmpeg_command: command.join(" "),
-      input_files: inputFiles,
-      output_files: { out_video: "slideshow-export.mp4" },
-      max_command_run_seconds: 300,
-      vcpu_count: 4,
-      metadata: { workflow: "slideshow_export" },
-    }),
+  const rendered = await runRendiFfmpegAndDownloadBytes({
+    apiKey,
+    ffmpegCommand: command.join(" "),
+    inputFiles,
+    outputFiles: { out_video: "slideshow-export.mp4" },
+    outputAlias: "out_video",
+    maxCommandRunSeconds: 300,
+    vcpuCount: 4,
+    metadata: { workflow: "slideshow_export" },
   })
-  if (!clean(submitted?.command_id)) {
-    throw new Error("Rendi did not return a command id")
-  }
-  const completed = await pollRendi(
-    () => rendiJson(apiKey, `/v1/commands/${submitted.command_id}`),
-    (commandStatus) => {
-      if (commandStatus?.status === "FAILED") {
-        throw new Error(
-          clean(commandStatus.error_message) ||
-            clean(commandStatus.error_status) ||
-            "Rendi FFmpeg command failed"
-        )
-      }
-      return commandStatus?.status === "SUCCESS" ? commandStatus : null
-    },
-    240,
-    "Rendi FFmpeg command timed out"
-  )
-  const downloadUrl = clean(completed.output_files?.out_video?.storage_url)
-  if (!downloadUrl) {
-    throw new Error("Rendi command finished without a video download URL")
-  }
-  const download = await fetch(downloadUrl, {
-    signal: AbortSignal.timeout(120_000),
-  })
-  if (!download.ok) {
-    throw new Error(`Rendi video download failed (${download.status})`)
-  }
-  const buffer = Buffer.from(await download.arrayBuffer())
+  const buffer = rendered.bytes
   const videoName = "slideshow-export.mp4"
   const thumbnailName = "slideshow-thumbnail.png"
   const outputPrefix = `slideshows/outputs/${slideshowId}`
@@ -1383,89 +878,6 @@ export async function renderSlideshowVideo({
     videoUrl: `/api/local-assets/${outputPrefix}/${videoName}`,
     thumbnailUrl: `/api/local-assets/${outputPrefix}/${thumbnailName}`,
   }
-}
-
-async function uploadBufferToRendi({ apiKey, bytes, fileName }) {
-  if (!bytes?.length) throw new Error("Rendi upload requires non-empty bytes")
-  const initialized = await rendiJson(apiKey, "/v1/files/init-upload", {
-    method: "POST",
-    body: JSON.stringify({ filename: fileName, size_bytes: bytes.length }),
-  })
-  if (
-    !clean(initialized?.file_id) ||
-    !Number.isFinite(initialized?.part_size) ||
-    !Array.isArray(initialized?.upload_urls) ||
-    initialized.upload_urls.length === 0
-  ) {
-    throw new Error("Rendi did not return valid upload URLs")
-  }
-  const parts = []
-  for (const [index, uploadUrl] of initialized.upload_urls.entries()) {
-    const start = index * initialized.part_size
-    const part = bytes.subarray(start, start + initialized.part_size)
-    const response = await fetch(uploadUrl, {
-      method: "PUT",
-      body: part,
-      signal: AbortSignal.timeout(120_000),
-    })
-    if (!response.ok) {
-      throw new Error(`Rendi file part upload failed (${response.status})`)
-    }
-    const etag = response.headers.get("etag")
-    if (!etag) throw new Error("Rendi file part upload did not return an ETag")
-    parts.push({ part_number: index + 1, etag })
-  }
-  const completed = await rendiJson(
-    apiKey,
-    `/v1/files/${initialized.file_id}/complete-upload`,
-    { method: "POST", body: JSON.stringify({ parts }) }
-  )
-  if (completed?.status === "STORED" && clean(completed.storage_url)) {
-    return completed
-  }
-  return pollRendi(
-    () => rendiJson(apiKey, `/v1/files/${initialized.file_id}`),
-    (file) => {
-      if (file?.status === "FAILED") {
-        throw new Error(
-          clean(file.external_error_message) ||
-            clean(file.error_status) ||
-            "Rendi file upload failed"
-        )
-      }
-      return file?.status === "STORED" && clean(file.storage_url) ? file : null
-    },
-    120,
-    "Rendi file upload timed out"
-  )
-}
-
-async function rendiJson(apiKey, path, init = {}) {
-  const response = await fetch(`https://api.rendi.dev${path}`, {
-    ...init,
-    headers: {
-      "X-API-KEY": apiKey,
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-      ...init.headers,
-    },
-    signal: AbortSignal.timeout(30_000),
-  })
-  const payload = await response.json().catch(() => null)
-  if (!response.ok) {
-    throw new Error(
-      clean(payload?.detail) || `Rendi request failed (${response.status})`
-    )
-  }
-  return payload
-}
-
-async function pollRendi(request, select, maxAttempts, timeoutMessage) {
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const selected = select(await request())
-    if (selected) return selected
-    await delay(5_000)
-  }
-  throw new Error(timeoutMessage)
 }
 
 function resultRecord({ automation, ownerId, runId, plan, slideshow }) {
@@ -1519,9 +931,11 @@ async function uploadPostFastMedia(sources) {
     throw new Error("PostFast upload cannot mix media content types")
   }
   const contentType = sources[0].contentType
-  const signed = await postFastRequest("/file/get-signed-upload-urls", {
-    contentType,
-    count: sources.length,
+  const signed = await postfastRequest("/file/get-signed-upload-urls", {
+    body: {
+      contentType,
+      count: sources.length,
+    },
   })
   if (!Array.isArray(signed) || signed.length !== sources.length) {
     throw new Error(
@@ -1577,17 +991,16 @@ async function publishScheduledPosts({
       continue
     }
     try {
-      const response = await postFastRequest(
-        "/social-posts",
-        postFastSchedulePayload({
+      const response = await postfastRequest("/social-posts", {
+        body: postFastSchedulePayload({
           content,
           integrationId: integration.integration_id,
           media,
           provider: integration.provider,
           scheduledFor,
           settings: schema.social_post_settings?.[integration.provider],
-        })
-      )
+        }),
+      })
       const record = await upsertPostRecord({
         tables,
         databaseId,
@@ -1699,7 +1112,7 @@ async function enqueueNotification({
   text,
 }) {
   const settings = await reminderSettings(tables, databaseId, ownerId)
-  if (!settings || settings.events?.[event] !== true) return
+  if (!settings || reminderChannel(settings, event) !== "telegram") return
   const now = new Date().toISOString()
   const dedupe = [
     "reminder",
@@ -1744,7 +1157,37 @@ async function reminderSettings(tables, databaseId, ownerId) {
     Query.limit(1),
   ])
   const value = safeJson(response.rows[0]?.data)
-  return value?.channel === "telegram" ? value : null
+  return value || null
+}
+
+export function reminderChannel(settings, event) {
+  const eventSettings = settings?.events?.[event]
+  const channel =
+    typeof eventSettings === "boolean"
+      ? eventSettings && settings?.channel === "telegram"
+        ? "telegram"
+        : "none"
+      : eventSettings?.channel === "telegram"
+        ? "telegram"
+        : "none"
+  if (channel === "telegram") return channel
+
+  const hasDestination =
+    Boolean(clean(settings?.telegramChatId)) ||
+    Boolean(clean(process.env.TELEGRAM_CHAT_ID))
+  const anyEventEnabled = Object.values(settings?.events || {}).some(
+    (configured) =>
+      configured === true ||
+      (configured &&
+        typeof configured === "object" &&
+        configured.channel === "telegram")
+  )
+  return event === "generated" &&
+    hasDestination &&
+    settings?.notificationDefaultsApplied !== true &&
+    !anyEventEnabled
+    ? "telegram"
+    : "none"
 }
 
 async function recordUsage({
@@ -1770,6 +1213,15 @@ async function recordUsage({
       ].join(" ")
     ),
   })
+  for (const slide of plan.slides) {
+    if (slide.role !== "content") continue
+    const heading =
+      slide.textItems?.find((item) => /heading/i.test(item.id))?.text ||
+      slide.textItems?.[0]?.text ||
+      slide.text
+    const key = normalizeSignature(heading)
+    if (key) records.push({ kind: "heading", key })
+  }
   for (const record of records) {
     const id =
       "usage-" +
@@ -1853,83 +1305,6 @@ async function replaceStorageFile(storage, bucket, id, bytes, name) {
     }
     await storage.createFile(bucket, id, input, [])
   }
-}
-
-async function postFastRequest(path, body) {
-  const apiKey = clean(process.env.POSTFAST_API_KEY)
-  if (!apiKey) throw new Error("POSTFAST_API_KEY is not configured")
-  let lastError
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const response = await fetch(`https://api.postfa.st${path}`, {
-        method: "POST",
-        headers: { "pf-api-key": apiKey, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(30_000),
-      })
-      const payload = await response.json().catch(() => ({}))
-      if (response.ok) return payload
-      const retryable = response.status === 429 || response.status >= 500
-      if (!retryable || attempt === 3) {
-        throw new Error(
-          payload?.message ||
-            payload?.error?.message ||
-            `PostFast failed (${response.status})`
-        )
-      }
-    } catch (error) {
-      lastError = error
-      if (attempt === 3) break
-    }
-    await delay(500 * 2 ** (attempt - 1))
-  }
-  throw lastError || new Error("PostFast request failed")
-}
-
-async function openRouterRequest({ apiKey, body, timeoutMs }) {
-  const response = await fetch(
-    "https://openrouter.ai/api/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(sanitizeStructuredSchema(body)),
-      signal: AbortSignal.timeout(timeoutMs),
-    }
-  )
-  // `.json().catch(() => ({}))` used to swallow the body whenever it was not
-  // JSON, turning every non-JSON response into an indistinguishable empty
-  // object. Keep the raw text so failures are diagnosable.
-  const rawBody = await response.text()
-  let payload
-  try {
-    payload = JSON.parse(rawBody)
-  } catch {
-    payload = {}
-  }
-  // OpenRouter can answer 200 with an error body and no choices; treating that
-  // as success surfaces later as a bogus "unknown image id"-style failure far
-  // from the real cause. Fail here, with the upstream detail from
-  // error.metadata, which is where the provider's reason actually lives.
-  if (!response.ok || payload?.error || !Array.isArray(payload?.choices)) {
-    throw new Error(
-      [
-        payload?.error?.message || `OpenRouter failed (${response.status})`,
-        `status=${response.status}`,
-        !Array.isArray(payload?.choices)
-          ? `no choices in response; rawBody=${JSON.stringify(rawBody).slice(0, 600)} (len=${rawBody.length})`
-          : "",
-        payload?.error?.metadata
-          ? `metadata=${JSON.stringify(payload.error.metadata).slice(0, 600)}`
-          : "",
-      ]
-        .filter(Boolean)
-        .join(" | ")
-    )
-  }
-  return payload
 }
 
 async function listStoredRecords(
@@ -2409,45 +1784,6 @@ function requiredGeneratedValue(field, value) {
   return generated
 }
 
-function textWidth(value, text) {
-  const parsed = Number(clean(value).replace("%", ""))
-  return Number.isFinite(parsed) && parsed > 0
-    ? parsed
-    : Math.max(20, Math.min(100, text.length * 4))
-}
-
-function deepLTarget(language) {
-  switch (clean(language).toLowerCase()) {
-    case "chinese":
-      return "ZH-HANS"
-    case "malay":
-      return "MS"
-    case "indian":
-    case "hindi":
-      return "HI"
-    case "spanish":
-      return "ES"
-    default:
-      return null
-  }
-}
-
-function parseWebSources(value) {
-  if (!Array.isArray(value)) return []
-  return value.flatMap((annotation) => {
-    const nested = annotation?.url_citation || annotation
-    return clean(nested?.url)
-      ? [
-          {
-            url: clean(nested.url),
-            title: clean(nested.title) || undefined,
-            content: clean(nested.content) || undefined,
-          },
-        ]
-      : []
-  })
-}
-
 function localAssetPath(value) {
   try {
     const pathname = new URL(value, "http://local").pathname
@@ -2504,13 +1840,6 @@ function jobId(key) {
   return (
     "j" + crypto.createHash("sha256").update(key).digest("hex").slice(0, 35)
   )
-}
-
-function hookCombinationKey(template, substitutions) {
-  return `${template}::${Object.entries(substitutions)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `${key}=${value}`)
-    .join("|")}`
 }
 
 function normalizeSignature(value) {
@@ -2643,15 +1972,6 @@ function slugify(value) {
     .replace(/^-|-$/g, "")
 }
 
-function parseJsonContent(value) {
-  if (value && typeof value === "object") return value
-  return safeJson(
-    clean(value)
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/, "")
-  )
-}
-
 function safeJson(value) {
   try {
     return JSON.parse(value || "null")
@@ -2671,8 +1991,4 @@ function clean(value) {
 
 function errorMessage(error) {
   return (error instanceof Error ? error.message : String(error)).slice(0, 4000)
-}
-
-function delay(milliseconds) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds))
 }

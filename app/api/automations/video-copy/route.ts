@@ -17,7 +17,7 @@ import {
   socialPostMetadataPromptLines,
   socialPostMetadataSchemaProperties,
 } from "@/lib/social-post-metadata"
-import { styleRequestsLowercase } from "@/lib/temp-slide-testing"
+import { toneRequestsLowercase } from "@/lib/temp-slide-testing"
 import {
   buildVideoCopySystemPrompt,
   buildVideoCopyUserPrompt,
@@ -72,9 +72,7 @@ export const POST = withHandler(async (request: Request) => {
   const hook = expanded.text
   const substitutions = expanded.substitutions
   const fallback = fallbackVideoSocialCopy(record, hook)
-  const lowercase = styleRequestsLowercase(
-    record.schema.prompt_formatting.style
-  )
+  const lowercase = toneRequestsLowercase(automationTone(record.schema))
   const videoFormat =
     template || record.schema.video_format?.template || "video"
   const requiresCommentGate = commentGateTemplates.has(videoFormat)

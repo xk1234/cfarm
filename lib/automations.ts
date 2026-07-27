@@ -154,10 +154,20 @@ export async function patchAutomationRecord(input: {
   status?: AutomationStatus
   favorite?: boolean
   schema?: AutomationSchema
+  expectedUpdatedAt?: string
+  now?: Date
 }) {
-  const updatedAt = new Date().toISOString()
   const record = await getAutomationRecord(input.id, input.rootDir)
   if (!record) return null
+  if (input.expectedUpdatedAt && record.updatedAt !== input.expectedUpdatedAt) {
+    throw new Error(
+      `Automation changed since ${input.expectedUpdatedAt}; current updatedAt is ${record.updatedAt}`
+    )
+  }
+  const updatedAt = nextAutomationUpdatedAt(
+    record.updatedAt,
+    input.now ?? new Date()
+  )
   const nextSchema = input.schema ?? record.schema
   const nextName = clean(input.name) || record.name
   const nextStatus = input.status ?? record.status
@@ -177,6 +187,16 @@ export async function patchAutomationRecord(input: {
   }
   await upsertAutomationRecord(input.rootDir, updated)
   return updated
+}
+
+export function nextAutomationUpdatedAt(current: string, now: Date) {
+  const currentTime = Date.parse(current)
+  const requestedTime = now.getTime()
+  const nextTime =
+    Number.isFinite(currentTime) && requestedTime <= currentTime
+      ? currentTime + 1
+      : requestedTime
+  return new Date(nextTime).toISOString()
 }
 
 export async function deleteAutomationRecord(input: {

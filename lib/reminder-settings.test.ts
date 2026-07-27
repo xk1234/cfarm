@@ -39,6 +39,7 @@ describe("reminder settings", () => {
       })
     ).toEqual({
       id: "reminders",
+      notificationDefaultsApplied: false,
       events: {
         generated: { channel: "none" },
         ready_to_post: { channel: "telegram" },
@@ -52,6 +53,48 @@ describe("reminder settings", () => {
       },
       updatedAt: new Date(0).toISOString(),
     })
+  })
+
+  it("enables generation delivery once for an already-linked legacy workspace", () => {
+    expect(
+      normalizeReminderSettings({
+        telegramChatId: "123456",
+        events: Object.fromEntries(
+          [
+            "generated",
+            "ready_to_post",
+            "scheduled_to_post",
+            "respond_to_comments",
+            "publish_failed",
+            "generation_failed",
+          ].map((event) => [event, { channel: "none" }])
+        ),
+      })
+    ).toMatchObject({
+      notificationDefaultsApplied: true,
+      events: {
+        generated: { channel: "telegram" },
+      },
+    })
+  })
+
+  it("preserves an intentional all-Off policy after defaults were applied", () => {
+    expect(
+      normalizeReminderSettings({
+        telegramChatId: "123456",
+        notificationDefaultsApplied: true,
+        events: Object.fromEntries(
+          [
+            "generated",
+            "ready_to_post",
+            "scheduled_to_post",
+            "respond_to_comments",
+            "publish_failed",
+            "generation_failed",
+          ].map((event) => [event, { channel: "none" }])
+        ),
+      })?.events.generated
+    ).toEqual({ channel: "none" })
   })
 
   it("ignores offsets for events that do not support delays", () => {

@@ -28,6 +28,12 @@ import {
   defaultSlideshowTransition,
   slideshowDurationValue,
 } from "@/lib/slideshow-publishing-config"
+export { slideshowRunId } from "@/lib/slideshow-plan-core"
+import {
+  resolveSlideshowCaption,
+  resolveSlideshowHashtags,
+  slideshowMetadataPromptInstructions,
+} from "@/lib/slideshow-plan-core"
 import {
   automationCollectionIds,
   automationFormatSection,
@@ -46,10 +52,15 @@ import {
 } from "@/lib/realfarm-collections"
 import { dueAutomationSlots } from "@/lib/automation-slots"
 import {
+  chooseSlideshowImages,
   defaultSlideshowTextModel,
   generateSlideshowText,
+  imagesForSlideshowSection,
+  selectSlideshowHook,
+  selectSlideshowImages,
+  SlideshowHookCombinationsExhaustedError as HookCombinationsExhaustedError,
   type SlideshowTextGenerationResult,
-} from "@/lib/slideshow-text-generation"
+} from "@/lib/slideshow-generation-engine"
 import {
   listPostFastPostRecords,
   type PostFastPostRecord,
@@ -91,10 +102,6 @@ import {
   normalizedTextSignature,
 } from "@/lib/text-similarity"
 import {
-  expandAllHookCombinations,
-  type HookExpansionResult,
-} from "@/lib/hook-expansion"
-import {
   appendUsageRecords,
   deleteUsageRecords,
   listUsageRecords,
@@ -106,10 +113,6 @@ import {
   type UsageRecord,
 } from "@/lib/usage-ledger"
 import { listWordCollections } from "@/lib/word-collections"
-import {
-  deriveSlideVisualConcepts,
-  selectSlideshowImageWithAi,
-} from "@/lib/slideshow-image-matching"
 import {
   deleteJsonArrayRecord,
   readJsonArrayRecord,
@@ -266,15 +269,6 @@ export type AutomationRunResult = {
     scheduledFor?: string
     blockers?: Array<{ code: string; message: string }>
   }[]
-}
-
-class HookCombinationsExhaustedError extends Error {
-  readonly reason = "hooks_exhausted" as const
-
-  constructor() {
-    super("No unused hook combinations remain for this automation.")
-    this.name = "HookCombinationsExhaustedError"
-  }
 }
 
 class InsufficientUniqueImagesError extends Error {
@@ -660,6 +654,7 @@ async function createAutomationRun(input: {
   try {
     plan = await createAutomationRunPlan(input.record.schema, {
       automationId: input.record.id,
+      automationTitle: input.record.name,
       imageCollectionDbPath: input.imageCollectionDbPath,
       wordCollectionRootDir: input.wordCollectionRootDir,
       usageLedgerRootDir: input.usageLedgerRootDir,
@@ -1045,17 +1040,16 @@ async function createAutomationRunPlan(
     : []
   const configuredContent = automationFormatSection(schema, "content")
   const slideCountMode = configuredContent.slideCountMode ?? "static"
-  const {
-    count: selectedContentSlideCount,
-    min: slideCountMin,
-    max: slideCountMax,
-  } = selectContentSlideCount({
+  const selectedSlideCount = selectContentSlideCount({
     mode: slideCountMode,
     count: configuredContent.slideCount,
     min: configuredContent.slideCountMin,
     max: configuredContent.slideCountMax,
     random: options.random,
   })
+  let selectedContentSlideCount = selectedSlideCount.count
+  const slideCountMin = selectedSlideCount.min
+  const slideCountMax = selectedSlideCount.max
   if (selectedContentSlideCount !== configuredContent.slideCount) {
     const hookCount = automationFormatSection(schema, "hook").slideCount
     const ctaCount = automationFormatSection(schema, "cta").slideCount
@@ -1087,6 +1081,27 @@ async function createAutomationRunPlan(
     now: options.now,
     random: options.random,
   })
+  if (
+    hookSelection.bodySlideCount &&
+    hookSelection.bodySlideCount !== selectedContentSlideCount
+  ) {
+    selectedContentSlideCount = hookSelection.bodySlideCount
+    const hookCount = automationFormatSection(schema, "hook").slideCount
+    const ctaCount = automationFormatSection(schema, "cta").slideCount
+    schema = {
+      ...updateAutomationFormatSection(schema, "content", {
+        slideCount: selectedContentSlideCount,
+        slideCountMode: "static",
+      }),
+      prompt_formatting: {
+        ...schema.prompt_formatting,
+        num_of_slides: Math.max(
+          1,
+          hookCount + selectedContentSlideCount + ctaCount
+        ),
+      },
+    }
+  }
   const selectedHook = clean(hookSelection.expansion.text)
   if (!selectedHook) {
     throw new Error("The automation database record has no usable hook")
@@ -1100,8 +1115,14 @@ async function createAutomationRunPlan(
   const contentRoute = selectAutomationContentRoute(schema, hook)
   const collectionIds =
     contentRoute?.collection_ids ?? automationCollectionIds(schema)
-  const baseTextAutomation =
-    automationSchemaToTempSlideTestingAutomation(schema)
+  const baseTextAutomationFromSchema =
+    automationSchemaToTempSlideTestingAutomation(schema, {
+      id: options.automationId ?? "main-app-automation",
+      name: clean(options.automationTitle) || "Automation",
+    })
+  const baseTextAutomation = clean(hookSelection.tone)
+    ? { ...baseTextAutomationFromSchema, tone: clean(hookSelection.tone) }
+    : baseTextAutomationFromSchema
   const textAutomation = contentRoute
     ? {
         ...baseTextAutomation,
@@ -1114,6 +1135,7 @@ async function createAutomationRunPlan(
   const promptInstructions = [
     options.promptInstructions,
     contentRoutePrompt(contentRoute),
+    slideshowMetadataPromptInstructions(schema),
   ]
     .filter(Boolean)
     .join("\n\n")
@@ -1126,12 +1148,22 @@ async function createAutomationRunPlan(
         records: publishedUsageRecords,
       })
     : []
+  const recentHeadingRecords = options.automationId
+    ? await recentUsageRecords("heading", options.automationId, {
+        rootDir: options.usageLedgerRootDir,
+        withinDays: schema.reuse_policy?.text_exclusion_days ?? 45,
+        limit: Math.max(schema.reuse_policy?.text_exclusion_limit ?? 20, 50),
+        now: options.now,
+        records: publishedUsageRecords,
+      })
+    : []
   let textGeneration = await generateAutomationText({
     automation: textAutomation,
     hook,
     model: options.textModel,
     systemPrompt: options.systemPrompt,
     promptInstructions,
+    avoidSimilarHeadings: recentHeadingRecords.map((record) => record.key),
     webSearchEnabled: schema.web_search_enabled,
     fetchImpl: options.fetchImpl,
   })
@@ -1149,6 +1181,7 @@ async function createAutomationRunPlan(
       automation: textAutomation,
       hook,
       avoidSimilarOutputs: recentTextRecords.map((record) => record.key),
+      avoidSimilarHeadings: recentHeadingRecords.map((record) => record.key),
       model: options.textModel,
       systemPrompt: options.systemPrompt,
       promptInstructions,
@@ -1187,7 +1220,7 @@ async function createAutomationRunPlan(
     cta.imageMode === "single_image"
       ? schema.image_collection_ids.cta_slide.image_id
       : null
-  let slideResult = await createSlides({
+  const slideResult = await createSlides({
     title: options.automationTitle ?? "Automation",
     hook,
     images,
@@ -1201,42 +1234,6 @@ async function createAutomationRunPlan(
     firstSlidePinnedImageId,
     ctaPinnedImageId,
   })
-  let imageTextCoherenceRepair = false
-  const coherenceInstructions = imageTextCoherenceRepairInstructions({
-    automation: textAutomation,
-    selectedImages: slideResult.selectedImages,
-    generatedText: textGeneration.result,
-  })
-  if (coherenceInstructions) {
-    progress("Aligning slide text with selected images", hook)
-    textGeneration = await generateAutomationText({
-      automation: textAutomation,
-      hook,
-      model: options.textModel,
-      systemPrompt: options.systemPrompt,
-      promptInstructions: [promptInstructions, coherenceInstructions]
-        .filter(Boolean)
-        .join("\n\n"),
-      webSearchEnabled: schema.web_search_enabled,
-    })
-    imageTextCoherenceRepair = true
-    slideResult = await createSlides({
-      title: options.automationTitle ?? "Automation",
-      hook,
-      images,
-      recentImageUsage: recentImages,
-      imageCollections,
-      slideCount,
-      textAutomation,
-      generatedText: textGeneration.result,
-      random: options.random,
-      fetchImpl: options.fetchImpl,
-      selectedImages: slideResult.selectedImages,
-      iconLayouts: slideResult.iconLayouts,
-      firstSlidePinnedImageId,
-      ctaPinnedImageId,
-    })
-  }
   const slides = await translateAutomationSlides({
     language: schema.language || defaultAutomationLanguage,
     slides: slideResult.slides,
@@ -1244,11 +1241,18 @@ async function createAutomationRunPlan(
   const title = requiredGeneratedValue("title", textGeneration.result.title)
   const caption = requiredGeneratedValue(
     "caption",
-    textGeneration.result.caption
+    resolveSlideshowCaption({
+      setting: schema.tiktok_post_settings.caption,
+      generated: textGeneration.result.caption,
+      hook,
+    })
   )
   const hashtags = requiredGeneratedValue(
     "hashtags",
-    textGeneration.result.hashtags
+    resolveSlideshowHashtags({
+      setting: schema.tiktok_post_settings.description,
+      generated: textGeneration.result.hashtags,
+    })
   )
 
   return {
@@ -1271,9 +1275,6 @@ async function createAutomationRunPlan(
     autoMusic: schema.tiktok_post_settings.auto_music,
     autoPost: schema.tiktok_post_settings.auto_post,
     reuseWarnings: slideResult.reuseWarnings,
-    // Quality findings that did not justify discarding the generation (text
-    // outside its configured word range). Kept beside the copy so the draft can
-    // be judged, rather than fatally enforced or silently dropped.
     violations: textGeneration.violations ?? [],
     hookCandidates,
     textModel: textGeneration.model,
@@ -1298,7 +1299,7 @@ async function createAutomationRunPlan(
       textGenerationResult: options.includeTextGenerationResult
         ? textGeneration.result
         : undefined,
-      imageTextCoherenceRepair,
+      imageTextCoherenceRepair: false,
     },
   }
 }
@@ -1401,11 +1402,7 @@ async function selectAutomationHook(input: {
   usageRecords?: UsageRecord[]
   now?: Date
   random?: () => number
-}): Promise<{ expansion: HookExpansionResult; index: number; hookId: string }> {
-  const random = input.random ?? Math.random
-  if (input.hookItems.length === 0) {
-    throw new Error("The automation database record has no usable hooks")
-  }
+}) {
   const wordCollections = await listWordCollections({
     rootDir: input.wordCollectionRootDir,
   })
@@ -1431,58 +1428,19 @@ async function selectAutomationHook(input: {
     ...recentCombinations,
     ...(input.usedHookCombinationKeys ?? []),
   ])
-  const expanded: Array<{
-    expansion: HookExpansionResult
-    index: number
-    hookId: string
-  }> = []
-  const invalidHookErrors: Error[] = []
-  for (const [index, hookItem] of input.hookItems.entries()) {
-    try {
-      expanded.push(
-        ...expandAllHookCombinations(
-          hookItem.text,
-          input.schema.hook_slots,
-          wordCollections,
-          {
-            noDuplicates: input.schema.distinct_variable_draws !== false,
-            caseMode: input.schema.prompt_formatting.hook_case,
-            now: input.now,
-            timeZone: input.schema.schedule.timezone,
-            slideCount: automationFormatSection(input.schema, "content")
-              .slideCount,
-          }
-        ).map((expansion) => ({ expansion, index, hookId: hookItem.id }))
-      )
-    } catch (error) {
-      invalidHookErrors.push(
-        error instanceof Error
-          ? error
-          : new Error("A hook variable cannot be expanded.")
-      )
-    }
-  }
-  if (expanded.length === 0 && invalidHookErrors.length > 0) {
-    throw invalidHookErrors[0]
-  }
-  const available = expanded.filter(({ expansion }) => {
-    const hookKey = usageKeyForHook(expansion.text)
-    const combinationKey = usageKeyForHookCombination(
-      expansion.template,
-      expansion.substitutions
-    )
-    return (
-      !usedHooks.has(hookKey) &&
-      (!Object.keys(expansion.substitutions).length ||
-        !usedCombinations.has(combinationKey))
-    )
+  return selectSlideshowHook({
+    hookItems: input.hookItems,
+    hookSlots: input.schema.hook_slots,
+    wordCollections,
+    usedHookKeys: usedHooks,
+    usedHookCombinationKeys: usedCombinations,
+    noDuplicateSlots: input.schema.distinct_variable_draws !== false,
+    caseMode: input.schema.prompt_formatting.hook_case,
+    now: input.now ?? new Date(),
+    timeZone: input.schema.schedule.timezone,
+    slideCount: automationFormatSection(input.schema, "content").slideCount,
+    random: input.random,
   })
-
-  if (available.length === 0) {
-    throw new HookCombinationsExhaustedError()
-  }
-
-  return available[selectRandomIndex(available.length, random)]
 }
 
 async function recordRunUsage(input: {
@@ -1513,6 +1471,15 @@ async function recordRunUsage(input: {
       automation_id: input.automationId,
       kind: "text",
       key: textKey,
+      run_id: input.runId,
+      used_at: usedAt,
+    })
+  }
+  for (const headingKey of headingUsageKeysFromPlan(input.plan)) {
+    records.push({
+      automation_id: input.automationId,
+      kind: "heading",
+      key: headingKey,
       run_id: input.runId,
       used_at: usedAt,
     })
@@ -1584,6 +1551,7 @@ async function generateAutomationText(input: {
   automation: ReturnType<typeof automationSchemaToTempSlideTestingAutomation>
   hook: string
   avoidSimilarOutputs?: string[]
+  avoidSimilarHeadings?: string[]
   model?: string
   systemPrompt?: string
   promptInstructions?: string
@@ -1602,6 +1570,7 @@ async function generateAutomationText(input: {
     promptInstructions: input.promptInstructions,
     selectedHook: input.hook,
     avoidSimilarOutputs: input.avoidSimilarOutputs,
+    avoidSimilarHeadings: input.avoidSimilarHeadings,
     webSearchEnabled: input.webSearchEnabled,
     apiKey,
     fetchImpl: input.fetchImpl,
@@ -1622,6 +1591,23 @@ function textUsageKeyFromPlan(plan: AutomationRunPlan) {
     plan.caption,
     ...plan.slides.map((slide) => slide.text),
   ])
+}
+
+export function headingUsageKeysFromPlan(plan: AutomationRunPlan) {
+  return [
+    ...new Set(
+      plan.slides
+        .filter((slide) => slide.role === "content")
+        .flatMap((slide) => {
+          const heading =
+            slide.textItems?.find((item) => /heading/i.test(item.id))?.text ??
+            slide.textItems?.[0]?.text ??
+            slide.text
+          const key = normalizedTextSignature([heading])
+          return key ? [key] : []
+        })
+    ),
+  ]
 }
 
 function imagesForCollectionIds(input: {
@@ -1840,41 +1826,6 @@ async function createSlides(input: {
   return { slides, reuseWarnings, selectedImages, iconLayouts }
 }
 
-function imageTextCoherenceRepairInstructions(input: {
-  automation: ReturnType<typeof automationSchemaToTempSlideTestingAutomation>
-  selectedImages: SelectedAutomationRunnerImage[]
-  generatedText: TempSlideStructuredOutput
-}) {
-  const slideContexts = input.automation.slides.flatMap((slide, index) => {
-    if (!slide.aiImageSelection) return []
-    const imageCaption = clean(input.selectedImages[index]?.imageCaption)
-    const promptItems = slide.textItems.filter(
-      (textItem) => textItem.textMode === "prompt"
-    )
-    if (!imageCaption || promptItems.length === 0) return []
-    const draftLines = promptItems.map((textItem) => {
-      const draft = clean(input.generatedText.text[textItem.id])
-      return `  - ${textItem.id}: ${JSON.stringify(draft)}`
-    })
-    return [
-      [
-        `- ${slide.id} selected image caption: ${JSON.stringify(imageCaption)}`,
-        "  Current draft text:",
-        ...draftLines,
-      ].join("\n"),
-    ]
-  })
-  if (slideContexts.length === 0) return ""
-
-  return [
-    "Selected-image coherence repair (mandatory):",
-    "Rewrite the generated text fields listed below so each one directly and truthfully matches its slide's locked selected image caption.",
-    "Treat each caption as the source of truth for visible objects, people, settings, and actions. Do not mention an object or action absent from that caption.",
-    "Keep the selected hook and all static text unchanged. Preserve every placeholder's word limits, content direction, and the slideshow's overall narrative. Return the complete required JSON object, including unlisted fields.",
-    ...slideContexts,
-  ].join("\n")
-}
-
 export async function selectImagesForSlides(input: {
   title: string
   hook: string
@@ -1891,197 +1842,36 @@ export async function selectImagesForSlides(input: {
   firstSlidePinnedImageId?: string | null
   ctaPinnedImageId?: string | null
 }) {
-  const usedKeys = new Set<string>()
-  const usedUrls = new Set<string>()
-  const usedSlideImagePairs = new Set<string>()
   const apiKey = clean(process.env.OPENROUTER_API_KEY)
-  const selected: SelectedAutomationRunnerImage[] = []
-
-  // Slide copy describes behaviour ("she goes quiet for three days") while
-  // captions describe what is depicted, so the two rarely share vocabulary.
-  // Derive the imagery each slide implies once, up front, and use it to rank
-  // candidates before asking the model to choose.
-  const slideTexts = input.specs.map((spec, index) =>
-    imageSelectionText({
-      title: input.title,
-      hook: input.hook,
-      spec,
-      slide: input.textAutomation?.slides[index],
-      generatedText: input.generatedText,
-    })
-  )
-  const visualConcepts =
-    apiKey && input.specs.some((spec) => spec.aiImageSelection)
-      ? await deriveSlideVisualConcepts({
-          slideTexts,
-          apiKey,
-          fetchImpl: input.fetchImpl,
-        })
-      : []
-
-  for (const [index, spec] of input.specs.entries()) {
-    const configuredSectionImages = spec.collectionId
-      ? imagesForCollectionIds({
-          collections: input.imageCollections,
-          collectionIds: [spec.collectionId],
-        })
-      : input.images
-    const defaultSectionImages = imagesForSlideSection(
-      spec.collectionId ? configuredSectionImages : input.images,
-      spec.section
-    )
-    const pinnedFirstSlideImage =
-      spec.section === "hook" && input.firstSlidePinnedImageId
-        ? configuredSectionImages.find(
-            (image) =>
-              image.id === input.firstSlidePinnedImageId ||
-              image.imageUrl === input.firstSlidePinnedImageId
-          )
-        : undefined
-    const pinnedCtaImage =
-      spec.section === "cta" && input.ctaPinnedImageId
-        ? configuredSectionImages.find(
-            (image) =>
-              image.id === input.ctaPinnedImageId ||
-              image.imageUrl === input.ctaPinnedImageId
-          )
-        : undefined
-    const sectionImages =
-      spec.section === "hook" && input.firstSlidePinnedImageId
-        ? pinnedFirstSlideImage
-          ? [pinnedFirstSlideImage]
-          : configuredSectionImages
-        : spec.section === "cta" && input.ctaPinnedImageId
-          ? pinnedCtaImage
-            ? [pinnedCtaImage]
-            : configuredSectionImages
-          : defaultSectionImages
-    if (sectionImages.length === 0) {
-      throw new Error(
-        `No images exist in the configured collection for ${spec.title}`
-      )
-    }
-    const slideText = imageSelectionText({
-      title: input.title,
-      hook: input.hook,
-      spec,
-      slide: input.textAutomation?.slides[index],
-      generatedText: input.generatedText,
-    })
-    const unusedCandidates = sectionImages.filter(
-      (image) => !usedKeys.has(image.key) && !usedUrls.has(image.imageUrl)
-    )
-    // Prefer a new image, but allow reuse once that pool is exhausted. The
-    // actual duplicate to prevent is the same hook/slide text paired with the
-    // same image, not the image appearing more than once in a slideshow.
-    const reusableCandidates = sectionImages.filter(
-      (image) =>
-        !usedSlideImagePairs.has(
-          slideImagePairKey(input.hook, slideText, image)
-        )
-    )
-    const candidates = unusedCandidates.length
-      ? unusedCandidates
-      : reusableCandidates
-    const preselected = chooseImages(candidates, 1, input.random, {
-      recentUsage: input.recentImageUsage,
-    })[0]
-    if (!preselected) continue
-
-    let image = preselected
-    if (spec.aiImageSelection) {
-      if (!apiKey) {
-        throw new Error(
-          `OPENROUTER_API_KEY is required for AI image selection on ${spec.title}`
-        )
-      }
-      const selectedId = await selectSlideshowImageWithAi({
-        slideText,
-        concepts: visualConcepts[index] ?? [],
-        candidates: candidates.map((candidate) => ({
-          id: candidate.id,
-          imageUrl: candidate.imageUrl,
-          caption: candidate.imageCaption,
-        })),
-        apiKey,
-        fetchImpl: input.fetchImpl,
-      })
-      const matched = candidates.find(
-        (candidate) => candidate.id === selectedId
-      )
-      if (!matched) {
-        throw new Error("AI image selection returned an unknown image id")
-      }
-      image = {
-        ...matched,
-        reusedRecently: input.recentImageUsage?.has(matched.key),
-        lastUsedAt: input.recentImageUsage?.get(matched.key),
-      }
-    }
-
-    usedKeys.add(image.key)
-    usedUrls.add(image.imageUrl)
-    usedSlideImagePairs.add(slideImagePairKey(input.hook, slideText, image))
-    selected.push(image)
-  }
-
-  return selected
-}
-
-export function imagesForSlideSection<T extends { imageCaption: string }>(
-  images: T[],
-  section: TempSlideSpec["section"]
-) {
-  const taggedForSection = images.filter(
-    (image) => imageCaptionSection(image.imageCaption) === section
-  )
-  if (taggedForSection.length > 0 && section !== "content") {
-    return taggedForSection
-  }
-  if (section === "content") {
-    const contentImages = images.filter((image) => {
-      const taggedSection = imageCaptionSection(image.imageCaption)
-      return !taggedSection || taggedSection === "content"
-    })
-    if (contentImages.length > 0) return contentImages
-  }
-  return images
-}
-
-function imageCaptionSection(caption: string) {
-  const value = clean(caption).toLowerCase()
-  if (value.startsWith("hook asset:")) return "hook" as const
-  if (value.startsWith("content asset:")) return "content" as const
-  if (value.startsWith("cta asset:")) return "cta" as const
-  return undefined
-}
-
-function imageSelectionText(input: {
-  title: string
-  hook: string
-  spec: TempSlideSpec
-  slide?: TempSlideSpec
-  generatedText?: TempSlideStructuredOutput
-}) {
-  const text = automationSlideTextItems({
-    title: input.title,
+  return selectSlideshowImages({
     hook: input.hook,
-    slide: input.slide,
-    generatedText: input.generatedText,
+    fallbackTitle: input.title,
+    specs: input.specs,
+    generatedText: input.generatedText ?? {
+      title: "",
+      caption: "",
+      hashtags: "",
+      text: {},
+    },
+    firstSlidePinnedImageId: input.firstSlidePinnedImageId,
+    ctaPinnedImageId: input.ctaPinnedImageId,
+    candidatesForSpec: (spec) => {
+      const configuredSectionImages = spec.collectionId
+        ? imagesForCollectionIds({
+            collections: input.imageCollections,
+            collectionIds: [spec.collectionId],
+          })
+        : input.images
+      return spec.collectionId ? configuredSectionImages : input.images
+    },
+    recentImageUsage: input.recentImageUsage,
+    random: input.random,
+    apiKey,
+    fetchImpl: input.fetchImpl,
   })
-    .map((item) => item.text)
-    .filter(Boolean)
-    .join("\n")
-  return text || (input.spec.section === "hook" ? input.hook : input.title)
 }
 
-function slideImagePairKey(
-  hook: string,
-  slideText: string,
-  image: AutomationRunnerImage
-) {
-  return normalizedTextSignature([hook, slideText, image.key || image.imageUrl])
-}
+export const imagesForSlideSection = imagesForSlideshowSection
 
 function automationSlideTextItems(input: {
   title: string
@@ -2293,65 +2083,7 @@ function textItemWidth(value: string | undefined, text: string) {
   return Math.max(20, Math.min(100, text.length * 4))
 }
 
-export function chooseImages<T extends { key?: string; imageUrl?: string }>(
-  items: T[],
-  count: number,
-  random = Math.random,
-  options: { recentUsage?: Map<string, string> } = {}
-) {
-  if (items.length === 0 || count <= 0) {
-    return []
-  }
-
-  const recentUsage = options.recentUsage ?? new Map<string, string>()
-  const keys = new Set<string>()
-  const urls = new Set<string>()
-  const uniqueItems = items.filter((item) => {
-    if (
-      (item.key && keys.has(item.key)) ||
-      (item.imageUrl && urls.has(item.imageUrl))
-    ) {
-      return false
-    }
-    if (item.key) keys.add(item.key)
-    if (item.imageUrl) urls.add(item.imageUrl)
-    return true
-  })
-  const fresh = recentUsage.size
-    ? uniqueItems.filter((item) => !item.key || !recentUsage.has(item.key))
-    : uniqueItems
-  const fallback = uniqueItems
-    .filter((item) => item.key && recentUsage.has(item.key))
-    .sort(
-      (left, right) =>
-        Date.parse(recentUsage.get(left.key!) ?? "") -
-        Date.parse(recentUsage.get(right.key!) ?? "")
-    )
-  const freshPool = [...fresh]
-  const fallbackPool = [...fallback]
-  const selected: (T & { reusedRecently?: boolean; lastUsedAt?: string })[] = []
-  while (selected.length < count) {
-    if (freshPool.length > 0) {
-      const index = Math.min(
-        freshPool.length - 1,
-        Math.floor(random() * freshPool.length)
-      )
-      selected.push(freshPool.splice(index, 1)[0])
-      continue
-    }
-    if (fallbackPool.length > 0) {
-      const item = fallbackPool.shift()!
-      selected.push({
-        ...item,
-        reusedRecently: true,
-        lastUsedAt: item.key ? recentUsage.get(item.key) : undefined,
-      })
-      continue
-    }
-    break
-  }
-  return selected
-}
+export const chooseImages = chooseSlideshowImages
 
 function requiredGeneratedValue(field: string, value: unknown) {
   const generated = clean(value)
@@ -2413,14 +2145,6 @@ async function readImageCollections(
         })),
       }),
     }))
-}
-
-function selectRandomIndex(length: number, random = Math.random) {
-  if (length <= 1) {
-    return 0
-  }
-  const value = random()
-  return Math.min(length - 1, Math.max(0, Math.floor(value * length)))
 }
 
 async function readAutomationRuns(

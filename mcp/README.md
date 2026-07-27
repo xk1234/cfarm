@@ -31,7 +31,9 @@ may link to a shared tool but do not invent a second incompatible schema.
 - `lumenclip_automations_list`
 - `lumenclip_automation_templates_list`
 - `lumenclip_automation_create`
+- `lumenclip_automation_clone`
 - `lumenclip_automation_get`
+- `lumenclip_automation_variable_bindings_get`
 - `lumenclip_automation_experiment_dimensions`
 - `lumenclip_automation_experiment_run`
 - `lumenclip_automation_schema_update`

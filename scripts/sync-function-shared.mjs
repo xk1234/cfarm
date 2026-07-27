@@ -48,11 +48,41 @@ const generatedModules = [
     imports: { "@/lib/guards": "./guards.js" },
   },
   {
+    source: "lib/slideshow-text-generation-payload.ts",
+    target:
+      "appwrite/functions/job-worker/src/slideshow-text-generation-payload.js",
+    imports: {
+      "@/lib/guards": "./guards.js",
+      "@/lib/realfarm-generation-model-registry":
+        "./realfarm-generation-model-registry.js",
+      "@/lib/openrouter": "./openrouter.js",
+      "@/lib/temp-slide-testing-shared": "./temp-slide-testing-shared.js",
+    },
+  },
+  {
+    source: "lib/slideshow-generation-engine.ts",
+    target: "appwrite/functions/job-worker/src/slideshow-generation-engine.js",
+    imports: {
+      "@/lib/temp-slide-testing-shared": "./temp-slide-testing-shared.js",
+      "@/lib/slideshow-text-generation-payload":
+        "./slideshow-text-generation-payload.js",
+      "@/lib/realfarm-generation-model-registry":
+        "./realfarm-generation-model-registry.js",
+      "@/lib/guards": "./guards.js",
+      "@/lib/http": "./http.js",
+      "@/lib/llm-slop": "./llm-slop.js",
+      "@/lib/openrouter": "./openrouter.js",
+      "@/lib/hook-expansion": "./hook-expansion.js",
+      "@/lib/slideshow-image-matching": "./slideshow-image-matching.js",
+    },
+  },
+  {
     source: "lib/ugc-video-generation.ts",
     target: "appwrite/functions/job-worker/src/ugc-video-generation.js",
     imports: {
       "@/lib/openrouter": "./openrouter.js",
-      "@/lib/realfarm-generation-model-registry": "./realfarm-generation-model-registry.js",
+      "@/lib/realfarm-generation-model-registry":
+        "./realfarm-generation-model-registry.js",
     },
   },
   {
@@ -132,6 +162,69 @@ const generatedModules = [
   {
     source: "lib/postfast-provider-controls.ts",
     target: "appwrite/functions/job-worker/src/postfast-provider-controls.js",
+  },
+  {
+    source: "lib/slideshow-publishing-config.ts",
+    target: "appwrite/functions/job-worker/src/slideshow-publishing-config.js",
+  },
+  {
+    source: "lib/poll.ts",
+    target: "appwrite/functions/job-worker/src/poll.js",
+    imports: {
+      "@/lib/guards": "./guards.js",
+    },
+  },
+  {
+    source: "lib/postfast-client.ts",
+    target: "appwrite/functions/job-worker/src/postfast-client.js",
+    imports: {
+      "@/lib/guards": "./guards.js",
+      "@/lib/http": "./http.js",
+    },
+  },
+  {
+    source: "lib/deepl-translate.ts",
+    target: "appwrite/functions/job-worker/src/deepl-translate.js",
+    imports: {
+      "@/lib/http": "./http.js",
+      "@/lib/slideshow-publishing-config": "./slideshow-publishing-config.js",
+    },
+  },
+  {
+    source: "lib/slideshow-plan-core.ts",
+    target: "appwrite/functions/job-worker/src/slideshow-plan-core.js",
+    imports: {
+      "@/lib/guards": "./guards.js",
+      "@/lib/hook-casing": "./hook-casing.js",
+      "@/lib/temp-slide-testing-shared": "./temp-slide-testing-shared.js",
+    },
+  },
+  {
+    source: "lib/publishing-core.ts",
+    target: "appwrite/functions/job-worker/src/publishing-core.js",
+    imports: {
+      "@/lib/postfast-provider-controls": "./postfast-provider-controls.js",
+    },
+  },
+  {
+    source: "lib/usage-core.ts",
+    target: "appwrite/functions/job-worker/src/usage-core.js",
+  },
+  {
+    source: "lib/slideshow-raster-renderer.ts",
+    target: "appwrite/functions/job-worker/src/slideshow-raster-renderer.js",
+    imports: {
+      "@/lib/slideshow-renderer": "./slideshow-renderer.js",
+    },
+  },
+  {
+    source: "lib/rendi-client.ts",
+    target: "appwrite/functions/job-worker/src/rendi-client.js",
+    imports: {
+      "@/lib/guards": "./guards.js",
+      "@/lib/http": "./http.js",
+      "@/lib/poll": "./poll.js",
+    },
   },
 ]
 

@@ -1,6 +1,10 @@
+import path from "node:path"
+
 import JSZip from "jszip"
 
-import { absoluteAssetUrl } from "@/lib/asset-urls"
+import { readAssetBytes } from "@/lib/asset-storage"
+import { dataRoot } from "@/lib/appwrite-stores"
+import { slideshowOutputAssetPath } from "@/lib/public-slideshow-assets"
 import { loadSharedSlideshow } from "@/lib/slideshow-share"
 import { slideshowExportSlug } from "@/lib/slideshow-export"
 
@@ -25,15 +29,12 @@ export async function GET(
   const digits = Math.max(2, String(slideshow.output_images.length).length)
   const images = await Promise.all(
     slideshow.output_images.map(async (url, index) => {
-      const response = await fetch(absoluteAssetUrl(url), {
-        signal: AbortSignal.timeout(20_000),
-      })
-      if (!response.ok) {
-        throw new Error(`Slide ${index + 1} could not be downloaded.`)
-      }
+      const relativePath = slideshowOutputAssetPath(url)
+      if (!relativePath)
+        throw new Error(`Slide ${index + 1} has an invalid asset path.`)
       return {
         index,
-        bytes: await response.arrayBuffer(),
+        bytes: await readAssetBytes(path.join(dataRoot(), relativePath)),
       }
     })
   )
@@ -52,7 +53,9 @@ export async function GET(
     headers: {
       "content-type": "application/zip",
       "content-disposition": `attachment; filename="${slideshowExportSlug(slideshow.title)}.zip"`,
+      "content-length": String(archive.byteLength),
       "cache-control": "private, max-age=0, no-store",
+      "x-content-type-options": "nosniff",
     },
   })
 }

@@ -35,7 +35,7 @@ export function PublicSlideshowShare({
   }
 
   return (
-    <main className="min-h-screen bg-app-page-bg px-4 py-10 text-app-text sm:px-6">
+    <main className="bg-app-page-bg min-h-screen px-4 py-10 text-app-text sm:px-6">
       <div className="mx-auto max-w-5xl">
         <div className="mb-8 flex items-center gap-3">
           <span className="grid size-11 place-items-center rounded-xl bg-app-action text-white shadow-sm">
@@ -56,10 +56,7 @@ export function PublicSlideshowShare({
             </p>
             <p className="mt-2 text-base font-semibold">{title}</p>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => void copy("title", title)}
-          >
+          <Button variant="outline" onClick={() => void copy("title", title)}>
             {copied === "title" ? (
               <IconCheck className="size-4" />
             ) : (
@@ -72,7 +69,7 @@ export function PublicSlideshowShare({
             <p className="text-xs font-semibold text-app-text-faint uppercase">
               Description + hashtags
             </p>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
+            <p className="mt-2 text-sm leading-6 whitespace-pre-wrap">
               {combinedCaption || "No description or hashtags were generated."}
             </p>
             <Button
@@ -94,6 +91,7 @@ export function PublicSlideshowShare({
             <Button asChild variant="action">
               <a
                 href={`/api/public/slideshows/${encodeURIComponent(outputId)}/download?token=${encodeURIComponent(token)}`}
+                download
               >
                 <IconDownload className="size-4" />
                 Download all slides (.zip)

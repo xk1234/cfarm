@@ -508,6 +508,12 @@ async function advanceBatch(timedOut, expectedStep) {
   }
   if (timedOut) {
     const post = studioCaptureConfig.posts[sync.itemIndex]
+    await reportStudioCaptureFailure(
+      studioCaptureConfig,
+      post,
+      section,
+      `${section} did not load after retry`
+    )
     sync.errors = [
       ...sync.errors,
       { postId: post?.postId, section, message: `${section} did not load` },
@@ -540,6 +546,30 @@ async function advanceBatch(timedOut, expectedStep) {
   sync.updatedAt = new Date().toISOString()
   await chrome.storage.local.set({ studioBatchSync: sync })
   await navigateCurrentStep(studioCaptureConfig, sync)
+}
+
+async function reportStudioCaptureFailure(config, post, section, reason) {
+  if (!post?.postId || !config?.endpoint || !config?.token) return
+  const studioUrl = `https://www.tiktok.com/tiktokstudio/analytics/${post.postId}/${section}`
+  try {
+    await fetch(config.endpoint, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${config.token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        action: "failure",
+        captureId: config.captureId,
+        studioUrl,
+        section,
+        reason,
+      }),
+    })
+  } catch {
+    // The local companion still records the error; the server failure marker
+    // is best-effort when the network itself is unavailable.
+  }
 }
 
 async function navigateCurrentStep(config, sync) {

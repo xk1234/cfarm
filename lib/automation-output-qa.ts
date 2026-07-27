@@ -7,6 +7,7 @@ import {
   type AutomationSchema,
   type AutomationTextItem,
 } from "@/lib/realfarm-automation"
+import { isRuntimeHookVariable } from "@/lib/hook-variables"
 import { wordRangeViolation } from "@/lib/temp-slide-testing-shared"
 
 export type AutomationOutputQaFindingCode =
@@ -15,7 +16,7 @@ export type AutomationOutputQaFindingCode =
   | "DUPLICATE_VARIABLE_DRAW"
   | "NEAR_DUPLICATE_OUTPUT"
   | "EMPTY_SLIDE_TEXT"
-  | "TRUNCATED_SLIDE_TEXT"
+  | "WORD_LENGTH_VIOLATION"
 
 export type AutomationOutputQaFinding = {
   code: AutomationOutputQaFindingCode
@@ -37,8 +38,6 @@ export type AutomationOutputQaReport = {
 
 const unresolvedTokenPattern = /\[\[[A-Z][A-Z0-9_-]*\]\]/gi
 const countTokenPattern = /(COUNT|NUMBER|TOTAL|ITEMS?|THINGS?|WAYS?|SIGNS?)/i
-const runtimeCountTokens = new Set(["SLIDE_COUNT"])
-
 export function validateAutomationRunOutput(input: {
   run: AutomationRunRecord
   schema?: AutomationSchema
@@ -135,7 +134,7 @@ function duplicateVariableDrawFindings(
   for (const [name, rawValue] of Object.entries(
     run.plan.hookSubstitutions ?? {}
   )) {
-    if (runtimeCountTokens.has(name.toUpperCase())) continue
+    if (isRuntimeHookVariable(name)) continue
     const value = rawValue.trim()
     if (!value) continue
     const key = value.toLocaleLowerCase()
@@ -186,10 +185,7 @@ function nearDuplicateFindings(
 function primaryVariableValue(run: AutomationRunRecord) {
   const entries = Object.entries(run.plan.hookSubstitutions ?? {})
   const preferred = entries.find(
-    ([name, value]) =>
-      value.trim() &&
-      !runtimeCountTokens.has(name.toUpperCase()) &&
-      !/^(CURRENT_YEAR|MONTH)$/i.test(name)
+    ([name, value]) => value.trim() && !isRuntimeHookVariable(name)
   )
   return preferred?.[1].trim()
 }
@@ -268,7 +264,7 @@ function wordLengthFindings(
     direction === "below" ? configured.wordLengthMin : configured.wordLengthMax
   return [
     {
-      code: "TRUNCATED_SLIDE_TEXT",
+      code: "WORD_LENGTH_VIOLATION",
       severity: "error",
       slideIndex: slideIndex + 1,
       textItemId,

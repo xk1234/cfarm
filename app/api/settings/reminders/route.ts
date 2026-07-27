@@ -25,6 +25,7 @@ const eventSettingsSchema = z.object({
 const settingsSchema = z.object({
   telegramChatId: z.string().trim().max(255).optional(),
   telegramBotToken: z.string().trim().max(255).optional(),
+  notificationDefaultsApplied: z.boolean().optional(),
   events: z.object(
     Object.fromEntries(
       reminderEvents.map((event) => [event, eventSettingsSchema])
@@ -76,21 +77,32 @@ export async function PUT(request: Request) {
     ...parsed.data,
     ...(telegramBotToken ? { telegramBotToken } : {}),
   }
+  if (
+    candidate.telegramChatId &&
+    candidate.notificationDefaultsApplied !== true &&
+    !usesTelegram(candidate.events)
+  ) {
+    candidate.events = {
+      ...candidate.events,
+      generated: { channel: "telegram" },
+    }
+    candidate.notificationDefaultsApplied = true
+  }
   const configuration = telegramReminderConfiguration({
     ...current,
     ...candidate,
     id: "reminders",
     updatedAt: current.updatedAt,
   })
-  if (usesTelegram(parsed.data.events) && !configuration.botConfigured) {
+  if (usesTelegram(candidate.events) && !configuration.botConfigured) {
     return NextResponse.json(
       { error: "Telegram reminders are not configured on the server." },
       { status: 400 }
     )
   }
   if (
-    usesTelegram(parsed.data.events) &&
-    !parsed.data.telegramChatId &&
+    usesTelegram(candidate.events) &&
+    !candidate.telegramChatId &&
     !configuration.defaultChatConfigured
   ) {
     return NextResponse.json(

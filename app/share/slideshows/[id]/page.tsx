@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 
 import { PublicSlideshowShare } from "@/components/realfarm/public-slideshow-share"
+import { publicSlideshowImageUrl } from "@/lib/public-slideshow-assets"
 import { loadSharedSlideshow } from "@/lib/slideshow-share"
 
 export const dynamic = "force-dynamic"
@@ -24,7 +25,13 @@ export default async function SharedSlideshowPage({
       title={slideshow.title}
       caption={slideshow.caption}
       hashtags={slideshow.hashtags}
-      imageUrls={slideshow.output_images}
+      imageUrls={slideshow.output_images.map((_, index) =>
+        publicSlideshowImageUrl({
+          outputId: slideshow.id,
+          token,
+          index,
+        })
+      )}
     />
   )
 }

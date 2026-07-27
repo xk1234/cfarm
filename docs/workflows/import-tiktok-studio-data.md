@@ -77,9 +77,17 @@ Every input is optional: `importId`, `batchId`, `postIds` (≤100, accepts local
 ids), `integrationIds` (≤50), `automationId`, `days` (1–3650, default 365), `offset`,
 `limit` (1–50, default 20), `historyLimit` (1–10, default 3).
 
-**Out** — `{ generatedAt, scope, pagination, posts[] }`, each post carrying `publication`,
+**Out** — `{ generatedAt, scope, pagination, counts, posts[] }`, each post carrying `publication`,
 `analytics`, `history[]`, `output`, and a `mapping` block that reports slide-count alignment
 between the analytics and the stored slideshow.
+
+The report is publication-first: every linked TikTok is returned even when it
+has not been captured. `counts.withMetrics` and `counts.awaitingCapture` make
+that gap explicit. A publication with no import uses
+`analytics.state: "not_requested"` plus a `statusReason`; a timed-out companion
+attempt uses `analytics.state: "failed"` and includes the persisted section,
+reason, and failure timestamp. Waiting/capturing/ready imports retain their
+normal import states.
 
 ### 5. Result
 
@@ -98,14 +106,19 @@ gender, and country percentages.
 
 ## UI workflow
 
-| Step | Action                                                            | What happens                                                                                                                                        |
-| ---- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | Press **Download Chrome companion**                               | Gets `lumenclip-companion.zip`                                                                                                                      |
-| 2    | Remove any older LumenClip extension, then load this one unpacked | _Use version 2.1.0 for the in-extension comment review surface. Leaving an older copy loaded can run two capture workers against `www.tiktok.com`._ |
-| 3    | Open `/app/analytics` with TikTok selected                        | Header shows **Sync TikTok Studio**                                                                                                                 |
-| 4    | Choose **Sync scope**                                             | **New posts only**, **Posts from the last 90 days**, **All linked posts**                                                                           |
-| 5    | Press **Create account sync**                                     | Progress cards **Linked posts**, **Captured**, **Saved to LumenClip**                                                                               |
-| 6    | Watch per-item state                                              | **Linked** / `N/3 captured` / **Waiting**                                                                                                           |
+| Step | Action                                                            | What happens                                                                                                                                                             |
+| ---- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1    | Press **Download Chrome companion**                               | Gets `lumenclip-companion.zip`                                                                                                                                           |
+| 2    | Remove any older LumenClip extension, then load this one unpacked | _Use version 2.1.0 for the in-extension comment review surface. Leaving an older copy loaded can run two capture workers against `www.tiktok.com`._                    |
+| 3    | Open `/app/analytics` with TikTok selected                        | Header shows **Sync TikTok Studio**                                                                                                                                      |
+| 4    | Choose **Sync scope**                                             | **New posts only**, **Posts from the last 90 days**, **All linked posts**                                                                                                |
+| 5    | Press **Create account sync**                                     | Progress cards **Linked posts**, **Captured**, **Saved to LumenClip**                                                                                                    |
+| 6    | Watch per-item state                                              | **Linked** / `N/3 captured` / **Waiting** / **Failed · section**                                                                                                         |
+
+After one retry, a section timeout is persisted on the import with its section,
+reason, and timestamp. A batch whose remaining items failed finishes as
+`partial` instead of staying indistinguishably `waiting`; starting a later
+`new` sync retries posts that still have no snapshot.
 
 For one post, `/app/analytics/posts/[id]` offers **Import from TikTok Studio** →
 **Start automatic capture**, with captured sections labelled **Overview + slide retention**,

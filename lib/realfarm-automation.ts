@@ -19,6 +19,13 @@ import {
   defaultSlideshowTransition,
   slideshowDurationValue,
 } from "@/lib/slideshow-publishing-config"
+import {
+  automationHookItems as coreAutomationHookItems,
+  automationHooks as coreAutomationHooks,
+  isHookInstruction,
+} from "@/lib/slideshow-plan-core"
+
+export { applyHookCase } from "@/lib/slideshow-plan-core"
 
 export type AutomationStatus = "paused" | "live"
 // Canonical persisted/lifecycle status. `unknown` covers records that predate
@@ -205,6 +212,8 @@ export type AutomationHookItem = {
   id: string
   text: string
   enabled: boolean
+  bodySlideCount?: number
+  tone?: string
   createdAt: string
   updatedAt?: string
 }
@@ -963,43 +972,17 @@ export function updateAutomationFormatSection<
 }
 
 export function automationHooks(schema: Partial<AutomationSchema>) {
-  return automationHookItems(schema)
-    .filter((item) => item.enabled)
-    .map((item) => item.text)
+  return coreAutomationHooks(schema)
 }
 
 export function automationHookItems(
   schema: Partial<AutomationSchema>
 ): AutomationHookItem[] {
-  return normalizeAutomationHookItems(schema.hooks, [])
+  return coreAutomationHookItems(schema) as AutomationHookItem[]
 }
 
 export function isAutomationHookInstruction(value: string) {
-  const normalized = value.trim().toLowerCase()
-  if (!normalized) {
-    return true
-  }
-  if (
-    [
-      "hook text",
-      "hook text, all lowercase",
-      "fixed hook text from the automation",
-      "create a concise slideshow narrative for the selected topic.",
-    ].includes(normalized)
-  ) {
-    return true
-  }
-  return (
-    normalized.startsWith("hook text") ||
-    [
-      "lowercase numbered list introduction",
-      "numbered list concept introduction",
-      "numbered heading",
-    ].some((marker) => normalized.startsWith(marker)) ||
-    normalized.includes("using narratives") ||
-    normalized.includes("content varies based on narrative") ||
-    normalized.includes("e.g.")
-  )
+  return isHookInstruction(value)
 }
 
 export function schemaWithAutomationHooks(
@@ -1017,11 +1000,38 @@ export function schemaWithAutomationHookItems(
   hooks: AutomationHookItem[]
 ): AutomationSchema {
   const nextHooks = normalizeAutomationHookItems(hooks, [])
+  const narrative = legacyHookCatalogNarrative(schema, nextHooks)
+    ? ""
+    : schema.prompt_formatting.narrative
 
   return {
     ...schema,
     hooks: nextHooks,
+    prompt_formatting: {
+      ...schema.prompt_formatting,
+      narrative,
+    },
   }
+}
+
+function legacyHookCatalogNarrative(
+  schema: AutomationSchema,
+  nextHooks: AutomationHookItem[]
+) {
+  const lines = schema.prompt_formatting.narrative
+    .split(/\r?\n/)
+    .map((line) => clean(line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "")))
+    .filter(Boolean)
+  if (lines.length < 3) return false
+  const hookTexts = new Set(
+    [...normalizeAutomationHookItems(schema.hooks, []), ...nextHooks].map(
+      (hook) => hook.text.toLocaleLowerCase()
+    )
+  )
+  const matches = lines.filter((line) =>
+    hookTexts.has(line.toLocaleLowerCase())
+  ).length
+  return matches / lines.length >= 0.6
 }
 
 export function automationHookId(text: string) {
@@ -1048,6 +1058,10 @@ function normalizeAutomationHookItems(
         id: clean(raw.id) || automationHookId(text),
         text,
         enabled: raw.enabled !== false,
+        ...(hookBodySlideCount(raw.bodySlideCount) !== undefined
+          ? { bodySlideCount: hookBodySlideCount(raw.bodySlideCount) }
+          : {}),
+        ...(clean(raw.tone) ? { tone: clean(raw.tone) } : {}),
         createdAt: clean(raw.createdAt) || new Date(0).toISOString(),
         ...(clean(raw.updatedAt) ? { updatedAt: clean(raw.updatedAt) } : {}),
       } satisfies AutomationHookItem,
@@ -1066,6 +1080,13 @@ function hookItemsFromTexts(texts: string[]): AutomationHookItem[] {
     enabled: true,
     createdAt,
   }))
+}
+
+function hookBodySlideCount(value: unknown) {
+  const count = Number(value)
+  return Number.isInteger(count) && count >= 1 && count <= 100
+    ? count
+    : undefined
 }
 
 function mergeHookTextsWithCatalog(
@@ -1912,9 +1933,6 @@ function fixedAutomationProviderControls(
       }
     case "youtube":
       return {
-        youtubeTitle: tiktokSettings
-          ? tiktokPostSettingsToPostFastControls(tiktokSettings).tiktokTitle
-          : "",
         youtubeIsShort: true,
         youtubeMadeForKids: false,
       }
@@ -1961,9 +1979,8 @@ function normalizeSocialPostSettings(
   }
 
   return Object.fromEntries(
-    socialPostSettingProviders.map((provider) => [
-      provider,
-      automationPostFastProviderControls(
+    socialPostSettingProviders.map((provider) => {
+      const controls = automationPostFastProviderControls(
         provider,
         tiktokSettings,
         socialPublishAs,
@@ -1971,8 +1988,20 @@ function normalizeSocialPostSettings(
           ...(defaults[provider] ?? {}),
           ...(isRecord(record[provider]) ? record[provider] : {}),
         }
-      ),
-    ])
+      )
+      if (provider === "youtube") {
+        const youtubeControls =
+          controls as PostFastProviderControlsByProvider["youtube"]
+        if (
+          tiktokSettings?.description.mode === "prompt" &&
+          clean(youtubeControls.youtubeTitle) ===
+            clean(tiktokSettings.description.prompt_text)
+        ) {
+          youtubeControls.youtubeTitle = ""
+        }
+      }
+      return [provider, controls]
+    })
   ) as AutomationSocialPostSettings
 }
 

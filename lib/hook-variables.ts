@@ -19,6 +19,22 @@ export const runtimeHookVariables = [
     description: "Four-digit year for the scheduled run date.",
   },
   {
+    name: "next_year",
+    label: "Next year",
+    description: "Four-digit year after the scheduled run date's year.",
+  },
+  {
+    name: "current_sign",
+    label: "Current zodiac sign",
+    description: "Zodiac season active on the scheduled run date.",
+  },
+  {
+    name: "current_sign_cusp",
+    label: "Current sign cusp",
+    description:
+      "The two month-specific versions of the active sign, such as july leo vs august leo.",
+  },
+  {
     name: "current_month",
     label: "Current month",
     description: "Full month name for the scheduled run date.",
@@ -88,6 +104,14 @@ export function runtimeHookVariableValue(
     }
     case "current_year":
       return format({ year: "numeric" })
+    case "next_year":
+      return String(Number(format({ year: "numeric" })) + 1)
+    case "current_sign":
+      return zodiacSeason(now, timeZone).sign
+    case "current_sign_cusp": {
+      const season = zodiacSeason(now, timeZone)
+      return `${season.months[0]} ${season.sign.toLowerCase()} vs ${season.months[1]} ${season.sign.toLowerCase()}`
+    }
     case "current_month":
       return format({ month: "long" })
     case "current_month_number":
@@ -206,4 +230,51 @@ function isoDate(now: Date, timeZone: string | undefined) {
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((item) => item.type === type)?.value ?? ""
   return `${part("year")}-${part("month")}-${part("day")}`
+}
+
+function zodiacSeason(now: Date, timeZone: string | undefined) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    month: "numeric",
+    day: "numeric",
+    timeZone,
+  }).formatToParts(now)
+  const number = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((item) => item.type === type)?.value)
+  const month = number("month")
+  const day = number("day")
+  const key = month * 100 + day
+  if (key >= 1222 || key <= 119) {
+    return { sign: "Capricorn", months: ["december", "january"] as const }
+  }
+  if (key <= 218) {
+    return { sign: "Aquarius", months: ["january", "february"] as const }
+  }
+  if (key <= 320) {
+    return { sign: "Pisces", months: ["february", "march"] as const }
+  }
+  if (key <= 419) {
+    return { sign: "Aries", months: ["march", "april"] as const }
+  }
+  if (key <= 520) {
+    return { sign: "Taurus", months: ["april", "may"] as const }
+  }
+  if (key <= 620) {
+    return { sign: "Gemini", months: ["may", "june"] as const }
+  }
+  if (key <= 722) {
+    return { sign: "Cancer", months: ["june", "july"] as const }
+  }
+  if (key <= 822) {
+    return { sign: "Leo", months: ["july", "august"] as const }
+  }
+  if (key <= 922) {
+    return { sign: "Virgo", months: ["august", "september"] as const }
+  }
+  if (key <= 1022) {
+    return { sign: "Libra", months: ["september", "october"] as const }
+  }
+  if (key <= 1121) {
+    return { sign: "Scorpio", months: ["october", "november"] as const }
+  }
+  return { sign: "Sagittarius", months: ["november", "december"] as const }
 }

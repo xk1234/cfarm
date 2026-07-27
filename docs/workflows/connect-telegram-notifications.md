@@ -8,7 +8,7 @@ description: "Linking a Telegram bot to LumenClip so generation and publishing u
 Connect a Telegram bot to receive generation-complete, ready-to-post, and
 scheduled-to-post updates from LumenClip.
 
-`Last tested: 2026-07-26, against cfarm-eight.vercel.app`
+`Last tested: 2026-07-27, against cfarm-eight.vercel.app`
 
 > Telegram reminders and publishing **to** Telegram are separate integrations.
 > This workflow connects a notification bot. To publish posts into Telegram,
@@ -80,9 +80,9 @@ it, and no BotFather work or token entry is needed.
 | 2    | Select **Notifications**                                         | Every event loads with its own **Channel** select                |
 | 3    | Open the linked bot in Telegram and send it `/start`             | The bot now has an update to read; without this, detection fails |
 | 4    | Select **Detect** beside **Telegram chat or channel ID**         | The field fills from the bot's most recent chat                  |
-| 5    | Set the events you want to **Telegram**                          | Each event routes independently                                  |
+| 5    | Select **Turn all on**, or set individual events to **Telegram** | Every event can be changed together or routed independently      |
 | 6    | For **Respond to comments**, pick **1 day** / **3 days**         | Offsets are only editable once the event is not **Off**          |
-| 7    | Select **Save reminders**                                        | The policy is stored for the signed-in workspace owner           |
+| 7    | Select **Save notifications**                                    | The policy is stored for the signed-in workspace owner           |
 | 8    | Select **Send test**                                             | Telegram receives “LumenClip reminder test”                      |
 
 To use a different bot, expand **Use a different bot** and paste its token; a
@@ -95,8 +95,17 @@ secret required for interactive buttons.
 
 ## Choose notification events
 
+When Telegram is linked for the first time, **Generation complete** is enabled
+automatically. Existing linked workspaces that predate this behavior are
+migrated the same way. You can still turn it Off explicitly; LumenClip records
+that choice and will not turn it back on.
+
 Each event routes to its own channel, so "notify me on failures only" is a
 matter of leaving the rest **Off**.
+
+**Turn all on** routes every event to Telegram while preserving each event's
+timing offsets. **Turn all off** disables every event in one edit. Both still
+require **Save notifications** before the policy takes effect.
 
 | Event                   | Delivery time                                                          | Telegram action                                                     |
 | ----------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------- |

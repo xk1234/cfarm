@@ -321,6 +321,81 @@ describe("TikTok Studio MCP report", () => {
       "Studio returned slide indexes but no retention or like-distribution values; slide-level performance is unavailable for this capture."
     )
   })
+
+  it("returns linked TikTok publications even before Studio metrics exist", async () => {
+    const publications = [
+      slideshowPublication(),
+      ...[2, 3, 4].map((index) => ({
+        ...slideshowPublication(),
+        id: `publication-${index}`,
+        sourceId: `slideshow-${index}`,
+        externalPostId: `766236032431351733${index}`,
+        releaseUrl: `https://www.tiktok.com/@horoiq/photo/766236032431351733${index}`,
+      })),
+    ]
+    const failedImport: TikTokStudioImportRecord = {
+      id: "import-failed",
+      status: "failed",
+      targetPostId: "publication-2",
+      externalPostId: "7662360324313517332",
+      integrationId: "tiktok-1",
+      studioUrl:
+        "https://www.tiktok.com/tiktokstudio/analytics/7662360324313517332/overview",
+      createdAt: "2026-07-23T00:00:00.000Z",
+      updatedAt: "2026-07-23T00:02:00.000Z",
+      expiresAt: "2026-07-23T01:00:00.000Z",
+      capturedSections: [],
+      failure: {
+        section: "overview",
+        reason: "Overview did not load after retry",
+        failedAt: "2026-07-23T00:02:00.000Z",
+      },
+    }
+    const report = await buildTikTokStudioMcpReport(
+      reportInput(),
+      services({
+        publications,
+        snapshots: [studioSnapshot()],
+        imports: [failedImport],
+      })
+    )
+
+    expect(report.pagination.total).toBe(4)
+    expect(report.counts).toEqual({
+      publications: 4,
+      withMetrics: 1,
+      awaitingCapture: 3,
+    })
+    expect(
+      report.posts.filter((post) => post.analytics.state === "not_requested")
+    ).toHaveLength(2)
+    expect(
+      report.posts.find((post) => post.analytics.state === "failed")?.analytics
+    ).toMatchObject({
+      statusReason: "Overview did not load after retry",
+      failure: {
+        section: "overview",
+        reason: "Overview did not load after retry",
+      },
+    })
+    expect(
+      report.posts.filter((post) => post.analytics.state === "not_requested")
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          analytics: expect.objectContaining({
+            statusReason:
+              "No TikTok Studio capture import has been started for this publication.",
+          }),
+          mapping: expect.objectContaining({
+            issues: expect.arrayContaining([
+              "No TikTok Studio capture has been requested for this publication.",
+            ]),
+          }),
+        }),
+      ])
+    )
+  })
 })
 
 function reportInput() {
@@ -354,6 +429,7 @@ function services(input: {
       if (!record) throw new Error("Import not found")
       return record
     },
+    listTikTokStudioAnalyticsImports: async () => input.imports ?? [],
     inspectTikTokStudioAnalyticsBatch: async () => ({
       items: (input.imports ?? []).map((item) => ({ id: item.id })),
     }),

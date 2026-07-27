@@ -15,10 +15,7 @@ import {
   vi,
 } from "vitest"
 
-import {
-  bundledFontDir,
-  configureFontconfig,
-} from "@/lib/font-config"
+import { bundledFontDir, configureFontconfig } from "@/lib/font-config"
 
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import {
@@ -337,6 +334,35 @@ describe("runDueAutomations", () => {
     expect(
       varyingCount.plan.slides.filter((slide) => slide.role === "content")
     ).toHaveLength(5)
+
+    automation.schema.hooks = [
+      {
+        id: "ranking-count",
+        text: "[[SLIDE_COUNT]] zodiac signs, ranked",
+        enabled: true,
+        bodySlideCount: 12,
+        tone: "Shadow voice",
+        createdAt: new Date(0).toISOString(),
+      },
+    ]
+    await writeImageCollections(
+      Array.from({ length: 13 }, (_, index) => ({
+        image_link: `/api/local-assets/image-collections/files/count-${index}.jpg`,
+        caption: `Numbered notebook page ${index + 1}`,
+      }))
+    )
+    const hookOverride = await previewAutomationRunPlan(automation.schema, {
+      wordCollectionRootDir,
+      imageCollectionDbPath,
+      random: () => 0,
+    })
+    expect(hookOverride.plan.hook).toBe("12 zodiac signs, ranked")
+    expect(
+      hookOverride.plan.slides.filter((slide) => slide.role === "content")
+    ).toHaveLength(12)
+    expect(JSON.stringify(hookOverride.plan.debug?.textModelPrompt)).toContain(
+      "Shadow voice"
+    )
   })
 
   it("pauses a broken hook-variable automation before persisting a run", async () => {
@@ -1034,9 +1060,7 @@ describe("runDueAutomations", () => {
     expect(request.messages[1].content).toContain("Metadata requirements:")
     expect(result.created[0].plan.textModel).toBe(defaultSlideshowTextModel)
     expect(result.created[0].plan.title).toBe("Generated Study Tips")
-    expect(result.created[0].plan.caption).toBe(
-      "Try these study habits before your next exam."
-    )
+    expect(result.created[0].plan.caption).toBe("fixed hook")
     expect(result.created[0].plan.hashtags).toBe(
       "#studytips #learning #productivity"
     )
@@ -1044,7 +1068,7 @@ describe("runDueAutomations", () => {
     expect(results.results[0]).toMatchObject({
       title: "Generated Study Tips",
       payload: {
-        caption: "Try these study habits before your next exam.",
+        caption: "fixed hook",
         hashtags: "#studytips #learning #productivity",
       },
     })
@@ -1056,7 +1080,7 @@ describe("runDueAutomations", () => {
     ])
   })
 
-  it("repairs generated copy against locked selected-image captions", async () => {
+  it("preserves specific generated copy after selecting stock images", async () => {
     vi.stubEnv("OPENROUTER_API_KEY", "test-openrouter-key")
     const outputs = [
       {
@@ -1206,22 +1230,11 @@ describe("runDueAutomations", () => {
           "slide_visual_concepts"
         )
     )
-    expect(textGenerationCalls).toHaveLength(2)
-    const [, repairInit] = textGenerationCalls[1] as unknown as [
-      string,
-      RequestInit,
-    ]
-    const repairRequest = JSON.parse(repairInit.body as string)
-    expect(repairRequest.messages[1].content).toContain(
-      "Phone charger being unplugged from a wall outlet"
-    )
-    expect(repairRequest.messages[1].content).toContain(
-      "lower-impact habit: bring reusable bags to the grocery store"
-    )
-    expect(result.plan.debug?.imageTextCoherenceRepair).toBe(true)
+    expect(textGenerationCalls).toHaveLength(1)
+    expect(result.plan.debug?.imageTextCoherenceRepair).toBe(false)
     expect(result.plan.slides[1]).toMatchObject({
       imageCaption: "Phone charger being unplugged from a wall outlet",
-      text: "lower-impact habit: unplug unused chargers to reduce standby power",
+      text: "lower-impact habit: bring reusable bags to the grocery store",
     })
   })
 
@@ -1468,6 +1481,12 @@ describe("runDueAutomations", () => {
       "second hook",
     ])
     expect(result.created[0].plan.debug?.textModelPrompt).toEqual(request)
+    expect(JSON.stringify(request.messages)).toContain(
+      "Automation: Daily hooks"
+    )
+    expect(JSON.stringify(request.messages)).not.toContain(
+      "Automation: Automation"
+    )
     expect(result.created[0].plan.debug?.selectedHookIndex).toBe(1)
     expect(result.created[0].plan.slides[0].text).toBe("second hook")
   })
@@ -2414,92 +2433,107 @@ describe("runDueAutomations", () => {
 
   it("runs the real slideshow pipeline with sanitized schemas, legible glyphs, and idempotent persistence", async () => {
     const requests: Record<string, unknown>[] = []
-    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      expect(String(input)).toContain("openrouter.ai")
-      const request = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>
-      requests.push(request)
-      const name = (
-        request.response_format as {
-          json_schema?: { name?: string; schema?: Record<string, unknown> }
+    const fetchImpl = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        expect(String(input)).toContain("openrouter.ai")
+        const request = JSON.parse(String(init?.body ?? "{}")) as Record<
+          string,
+          unknown
+        >
+        requests.push(request)
+        const name = (
+          request.response_format as {
+            json_schema?: { name?: string; schema?: Record<string, unknown> }
+          }
+        )?.json_schema?.name
+        if (name === "slide_visual_concepts") {
+          return Response.json({
+            choices: [
+              {
+                message: {
+                  content:
+                    '{"slides":[{"concepts":["night sky"]},{"concepts":["wide letters"]},{"concepts":["follow sign"]}]}',
+                },
+              },
+            ],
+          })
         }
-      )?.json_schema?.name
-      if (name === "slide_visual_concepts") {
-        return Response.json({
-          choices: [{ message: { content: '{"slides":[{"concepts":["night sky"]},{"concepts":["wide letters"]},{"concepts":["follow sign"]}]}' } }],
-        })
-      }
-      if (name === "slideshow_image_match") {
-        return Response.json({
-          choices: [{ message: { content: '{"selectedImageIndex":0}' } }],
-        })
-      }
-      const schema = (
-        request.response_format as {
-          json_schema?: {
-            schema?: {
-              properties?: {
-                text?: { required?: string[] }
+        if (name === "slideshow_image_match") {
+          return Response.json({
+            choices: [{ message: { content: '{"selectedImageIndex":0}' } }],
+          })
+        }
+        const schema = (
+          request.response_format as {
+            json_schema?: {
+              schema?: {
+                properties?: {
+                  text?: { required?: string[] }
+                }
               }
             }
           }
-        }
-      )?.json_schema?.schema
-      const keys = schema?.properties?.text?.required ?? []
-      return Response.json({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                title: "Glyph regression",
-                caption: "Real rendering",
-                hashtags: "#regression",
-                text: Object.fromEntries(keys.map((key) => [key, "WWWWWWWW"])),
-              }),
+        )?.json_schema?.schema
+        const keys = schema?.properties?.text?.required ?? []
+        return Response.json({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  title: "Glyph regression",
+                  caption: "Real rendering",
+                  hashtags: "#regression",
+                  text: Object.fromEntries(
+                    keys.map((key) => [key, "WWWWWWWW"])
+                  ),
+                }),
+              },
             },
-          },
-        ],
-      })
-    }) as typeof fetch
+          ],
+        })
+      }
+    ) as typeof fetch
 
     const automation = createLocalAutomationRecord({
       name: "Full pipeline glyph regression",
       overrides: { status: "paused" },
     })
-    automation.schema.formatting = automation.schema.formatting.map((section) =>
-      section.id === "hook"
-        ? {
-            ...section,
-            textItems: [
-              {
-                ...section.textItems[0],
-                contentDirection: "........",
-                fontSize: "48px",
-              },
-            ],
-          }
-        : section.id === "body"
+    automation.schema.formatting = automation.schema.formatting.map(
+      (section) =>
+        section.id === "hook"
           ? {
               ...section,
-              slideCount: 1,
-              aiImageSelection: true,
               textItems: [
                 {
                   ...section.textItems[0],
-                  id: "wide-glyphs",
-                  contentDirection: "wide glyph test",
+                  contentDirection: "........",
                   fontSize: "48px",
                 },
               ],
             }
-          : {
-              ...section,
-              slideCount: 1,
-              textItems: section.textItems.map((item) => ({
-                ...item,
-                textMode: "static" as const,
-                staticText: "follow",
-              })),
-            }
+          : section.id === "body"
+            ? {
+                ...section,
+                slideCount: 1,
+                aiImageSelection: true,
+                textItems: [
+                  {
+                    ...section.textItems[0],
+                    id: "wide-glyphs",
+                    contentDirection: "wide glyph test",
+                    fontSize: "48px",
+                  },
+                ],
+              }
+            : {
+                ...section,
+                slideCount: 1,
+                textItems: section.textItems.map((item) => ({
+                  ...item,
+                  textMode: "static" as const,
+                  staticText: "follow",
+                })),
+              }
     )
     automation.schema.prompt_formatting.num_of_slides = 3
     selectDailyScenesCollection(automation)
@@ -2565,11 +2599,20 @@ describe("runDueAutomations", () => {
 
     const sharp = (await import("sharp")).default
     const ink = async (url: string) => {
-      const assetPath = path.join(dataDir, url.replace(/^\/api\/local-assets\//, ""))
-      const rgba = await sharp(await readAssetBytes(assetPath)).raw().toBuffer()
+      const assetPath = path.join(
+        dataDir,
+        url.replace(/^\/api\/local-assets\//, "")
+      )
+      const rgba = await sharp(await readAssetBytes(assetPath))
+        .raw()
+        .toBuffer()
       let count = 0
       for (let index = 0; index < rgba.length; index += 4) {
-        if (rgba[index] > 128 && rgba[index + 1] > 128 && rgba[index + 2] > 128) {
+        if (
+          rgba[index] > 128 &&
+          rgba[index + 1] > 128 &&
+          rgba[index + 2] > 128
+        ) {
           count++
         }
       }
@@ -2589,9 +2632,9 @@ describe("runDueAutomations", () => {
     const fontDir = bundledFontDir()
     expect(fontDir).not.toBeNull()
     expect(configureFontconfig()).toBe(true)
-    expect(
-      readFileSync(String(process.env.FONTCONFIG_FILE), "utf8")
-    ).toContain(String(fontDir))
+    expect(readFileSync(String(process.env.FONTCONFIG_FILE), "utf8")).toContain(
+      String(fontDir)
+    )
 
     await expect(run()).resolves.toMatchObject({
       created: [expect.objectContaining({ status: "succeeded" })],

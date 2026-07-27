@@ -40,6 +40,8 @@ describe("automation hook pool", () => {
           id: "cusp-a",
           text: "The hidden side of being an Aries cusp",
           enabled: false,
+          bodySlideCount: 12,
+          tone: "Shadow voice",
         },
         {
           id: "cusp-b",
@@ -53,12 +55,14 @@ describe("automation hook pool", () => {
     expect(updated[0]).toMatchObject({
       id: "cusp-a",
       enabled: false,
+      bodySlideCount: 12,
+      tone: "Shadow voice",
       createdAt: "2026-07-01T00:00:00.000Z",
       updatedAt: "2026-07-23T12:00:00.000Z",
     })
-    expect(updated.some((item) => item.text === "A genuinely distinct hook")).toBe(
-      false
-    )
+    expect(
+      updated.some((item) => item.text === "A genuinely distinct hook")
+    ).toBe(false)
     expect(updated.some((item) => item.text === "A new distinct hook")).toBe(
       true
     )

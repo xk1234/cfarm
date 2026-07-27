@@ -88,9 +88,13 @@ It contains:
 - **Slide Settings** — one shared aspect ratio, font, cover
   image fitting, and dark-overlay setting across Hook, Content, and CTA.
 
-Runtime variables such as `[[CURRENT_DATE]]`, `[[CURRENT_TIME]]`, and
-`[[CURRENT_YEAR]]` resolve when a run is generated. Variable collections appear
-in the same badge list and draw from their stored values.
+Runtime variables such as `[[CURRENT_DATE]]`, `[[CURRENT_TIME]]`,
+`[[CURRENT_YEAR]]`, `[[NEXT_YEAR]]`, `[[CURRENT_SIGN]]`, and
+`[[CURRENT_SIGN_CUSP]]` resolve in the automation timezone when a run is
+generated. Variable collections appear in the same badge list and draw from
+their stored values. Repeating the same collection token twice produces two
+different values when **Prevent repeated variables** is enabled, so
+`[[ZODIAC]] versus [[ZODIAC]]` never compares a sign with itself.
 
 Generated drafts do not lock hooks. A hook is marked **Used** only after
 PostFast confirms publication or a user links the output to an already

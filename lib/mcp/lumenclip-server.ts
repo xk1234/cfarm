@@ -127,6 +127,7 @@ import {
   createTikTokStudioAnalyticsImport,
   inspectTikTokStudioAnalyticsBatch,
   inspectTikTokStudioAnalyticsImport,
+  listTikTokStudioAnalyticsImports,
 } from "@/lib/tiktok-studio-analytics"
 import { buildTikTokStudioMcpReport } from "@/lib/mcp/tiktok-studio-report"
 import {
@@ -292,6 +293,14 @@ const textItemPatchSchema = z
     message: "Provide at least one text-item field to update.",
   })
 
+const automationHookMutationSchema = z.object({
+  id: z.string().trim().min(1).optional(),
+  text: z.string().trim().min(1).max(2_000),
+  enabled: z.boolean().optional(),
+  bodySlideCount: z.number().int().min(1).max(100).nullable().optional(),
+  tone: z.string().trim().min(1).max(1_000).nullable().optional(),
+})
+
 export type LumenClipMcpServices = {
   now: () => Date
   listAutomationRecords: typeof listAutomationRecords
@@ -347,6 +356,7 @@ export type LumenClipMcpServices = {
   slideshowToneToAutomationFields: typeof slideshowToneToAutomationFields
   createTikTokStudioAnalyticsImport: typeof createTikTokStudioAnalyticsImport
   inspectTikTokStudioAnalyticsImport: typeof inspectTikTokStudioAnalyticsImport
+  listTikTokStudioAnalyticsImports: typeof listTikTokStudioAnalyticsImports
   createTikTokStudioAnalyticsBatch: typeof createTikTokStudioAnalyticsBatch
   inspectTikTokStudioAnalyticsBatch: typeof inspectTikTokStudioAnalyticsBatch
   createTikTokCommentCollection: typeof createTikTokCommentCollection
@@ -419,6 +429,7 @@ const defaultServices: LumenClipMcpServices = {
   slideshowToneToAutomationFields,
   createTikTokStudioAnalyticsImport,
   inspectTikTokStudioAnalyticsImport,
+  listTikTokStudioAnalyticsImports,
   createTikTokStudioAnalyticsBatch,
   inspectTikTokStudioAnalyticsBatch,
   createTikTokCommentCollection,
@@ -1145,6 +1156,83 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
+    "lumenclip_automation_clone",
+    {
+      title: "Clone an automation",
+      description:
+        "Deep-copies one caller-owned automation's normalized schema, hook pool, collection bindings, publishing configuration, and schedule into a new paused automation. Run history and outputs are not copied.",
+      inputSchema: {
+        sourceAutomationId: z.string().trim().min(1),
+        name: z.string().trim().min(1).max(200),
+        expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
+        requestId: z.string().trim().min(1).max(200),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (input) =>
+      mcpResult(
+        await owned(async () => {
+          const current = await services.listAutomationRecords()
+          const existing = current.find(
+            (record) =>
+              record.raw?.mcpRequestId === input.requestId &&
+              record.raw?.mcpOperation === "automation_clone"
+          )
+          if (existing) {
+            return {
+              created: false,
+              reused: true,
+              requestId: input.requestId,
+              sourceAutomationId: existing.raw?.sourceAutomationId,
+              automation: {
+                ...serializeStandardAutomation(existing),
+                schema: serializeAutomationSchema(existing.schema),
+              },
+            }
+          }
+          const source = current.find(
+            (record) => record.id === input.sourceAutomationId
+          )
+          if (!source) throw new Error("Source automation not found")
+          assertExpectedVersion(source.updatedAt, input.expectedUpdatedAt)
+          const clone = createLocalAutomationRecord({
+            name: input.name,
+            automationKind: source.schema.automationKind,
+            schema: structuredClone(source.schema),
+            overrides: { status: "paused" },
+          })
+          const saved: AutomationRecord = {
+            ...clone,
+            status: "paused",
+            favorite: false,
+            theme: source.theme,
+            raw: {
+              mcpOperation: "automation_clone",
+              mcpRequestId: input.requestId,
+              sourceAutomationId: source.id,
+            },
+          }
+          await services.upsertAutomationRecords({ records: [saved] })
+          return {
+            created: true,
+            reused: false,
+            requestId: input.requestId,
+            sourceAutomationId: source.id,
+            automation: {
+              ...serializeStandardAutomation(saved),
+              schema: serializeAutomationSchema(saved.schema),
+            },
+          }
+        })
+      )
+  )
+
+  server.registerTool(
     "lumenclip_automation_get",
     {
       title: "Get automation",
@@ -1245,6 +1333,45 @@ function registerAutomationReadAndRunTools(
               lastRun: lastRun ? socialRunSummary(lastRun) : null,
               resourceUri: `lumenclip://automations/${encodeURIComponent(social.id)}`,
             },
+          }
+        })
+      )
+  )
+
+  server.registerTool(
+    "lumenclip_automation_variable_bindings_get",
+    {
+      title: "Inspect automation variable bindings",
+      description:
+        "Returns the enabled hook tokens, their effective collection bindings or runtime source, every registered runtime variable, explicit override precedence, and stale-override diagnostics. Runtime variables never require a collection.",
+      inputSchema: {
+        automationId: z
+          .string()
+          .trim()
+          .min(1)
+          .describe(
+            'Saved slideshow automation ID to inspect, e.g. "automation_123".'
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ automationId }) =>
+      mcpResult(
+        await owned(async () => {
+          const automation = await services.getAutomationRecord(automationId)
+          if (!automation) throw new Error("Automation not found")
+          return {
+            automationId,
+            updatedAt: automation.updatedAt,
+            ...deriveAutomationVariableBindings({
+              schema: automation.schema,
+              collections: await services.listWordCollections(),
+            }),
           }
         })
       )
@@ -1357,17 +1484,18 @@ function registerAutomationReadAndRunTools(
   server.registerTool(
     "lumenclip_automation_schema_update",
     {
-      title: "Replace an automation schema",
+      title: "Patch or replace an automation schema",
       description:
-        "Replaces the complete normalized editor schema for a slideshow, video, or AI UGC automation. Read automation_get first and send the complete desired schema with its updatedAt timestamp.",
+        "Patches the normalized editor schema by default: nested objects merge and supplied arrays replace only their array field, while omitted fields remain unchanged. Use mode=replace only when intentionally replacing the complete schema. Always send the current updatedAt timestamp.",
       inputSchema: {
         automationId: z.string().trim().min(1),
         expectedUpdatedAt: z.string().datetime({ offset: true }),
+        mode: z.enum(["patch", "replace"]).default("patch"),
         schema: z.record(z.string(), z.unknown()),
       },
       annotations: {
         readOnlyHint: false,
-        destructiveHint: true,
+        destructiveHint: false,
         idempotentHint: true,
         openWorldHint: false,
       },
@@ -1378,13 +1506,19 @@ function registerAutomationReadAndRunTools(
           const record = await services.getAutomationRecord(input.automationId)
           if (!record) throw new Error("Automation not found")
           assertExpectedVersion(record.updatedAt, input.expectedUpdatedAt)
+          const candidate =
+            input.mode === "replace"
+              ? input.schema
+              : mergeAutomationSchemaPatch(record.schema, input.schema)
           const schema = normalizeAutomationSchema(
-            input.schema as unknown as AutomationRecord["schema"],
+            candidate as unknown as AutomationRecord["schema"],
             automationRecordToSummary(record)
           )
           const updated = await services.patchAutomationRecord({
             id: record.id,
             schema,
+            expectedUpdatedAt: input.expectedUpdatedAt,
+            now: services.now(),
           })
           if (!updated) throw new Error("Automation not found")
           return {
@@ -1430,6 +1564,8 @@ function registerAutomationReadAndRunTools(
           const updated = await services.patchAutomationRecord({
             id: record.id,
             schema: { ...record.schema, formatting },
+            expectedUpdatedAt: input.expectedUpdatedAt,
+            now: services.now(),
           })
           if (!updated) throw new Error("Automation not found")
           return {
@@ -1478,6 +1614,8 @@ function registerAutomationReadAndRunTools(
           const updated = await services.patchAutomationRecord({
             id: record.id,
             schema: { ...record.schema, formatting },
+            expectedUpdatedAt: input.expectedUpdatedAt,
+            now: services.now(),
           })
           if (!updated) throw new Error("Automation not found")
           const block = updated.schema.formatting.find(
@@ -1608,13 +1746,7 @@ function registerAutomationReadAndRunTools(
             "Optimistic-lock timestamp returned by automation_hooks_get."
           ),
         hooks: z
-          .array(
-            z.object({
-              id: z.string().trim().min(1).optional(),
-              text: z.string().trim().min(1).max(2_000),
-              enabled: z.boolean().optional(),
-            })
-          )
+          .array(automationHookMutationSchema)
           .max(500)
           .describe(
             "Complete desired hook pool. Omitted existing hooks are pruned."
@@ -1652,6 +1784,8 @@ function registerAutomationReadAndRunTools(
           const updated = await services.patchAutomationRecord({
             id: record.id,
             schema: schemaWithAutomationHookItems(record.schema, hooks),
+            expectedUpdatedAt: input.expectedUpdatedAt,
+            now: services.now(),
           })
           if (!updated) throw new Error("Automation not found")
           return {
@@ -1671,16 +1805,7 @@ function registerAutomationReadAndRunTools(
       inputSchema: {
         automationId: z.string().trim().min(1),
         expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
-        hooks: z
-          .array(
-            z.object({
-              id: z.string().trim().min(1).optional(),
-              text: z.string().trim().min(1).max(2_000),
-              enabled: z.boolean().optional(),
-            })
-          )
-          .min(1)
-          .max(100),
+        hooks: z.array(automationHookMutationSchema).min(1).max(100),
       },
       annotations: {
         readOnlyHint: false,
@@ -1704,7 +1829,12 @@ function registerAutomationReadAndRunTools(
             updates: input.hooks,
             now: services.now().toISOString(),
           })
-          const updated = await patchAutomationHooks(services, record, hooks)
+          const updated = await patchAutomationHooks(
+            services,
+            record,
+            hooks,
+            input.expectedUpdatedAt
+          )
           return {
             ...serializeAutomationHookPool(updated),
             tokenWarnings: tokenValidation.warnings,
@@ -1747,7 +1877,12 @@ function registerAutomationReadAndRunTools(
               ? { ...hook, enabled: input.enabled, updatedAt: now }
               : hook
           )
-          const updated = await patchAutomationHooks(services, record, hooks)
+          const updated = await patchAutomationHooks(
+            services,
+            record,
+            hooks,
+            input.expectedUpdatedAt
+          )
           return serializeAutomationHookPool(updated)
         })
       )
@@ -1785,7 +1920,12 @@ function registerAutomationReadAndRunTools(
           const updated =
             hooks.length === current.length
               ? record
-              : await patchAutomationHooks(services, record, hooks)
+              : await patchAutomationHooks(
+                  services,
+                  record,
+                  hooks,
+                  input.expectedUpdatedAt
+                )
           return {
             deletedHookIds: current
               .filter((hook) => ids.has(hook.id))
@@ -5537,6 +5677,8 @@ async function updateAutomation(
       favorite: input.favorite,
       status,
       schema,
+      expectedUpdatedAt: input.expectedUpdatedAt,
+      now: services.now(),
     })
     if (!updated) throw new Error("Automation not found")
     return serializeStandardAutomation(updated)
@@ -6115,19 +6257,43 @@ function serializeAutomationHookPool(
 async function patchAutomationHooks(
   services: LumenClipMcpServices,
   record: AutomationRecord,
-  hooks: AutomationHookItem[]
+  hooks: AutomationHookItem[],
+  expectedUpdatedAt?: string
 ) {
   const updated = await services.patchAutomationRecord({
     id: record.id,
     schema: schemaWithAutomationHookItems(record.schema, hooks),
+    expectedUpdatedAt,
+    now: services.now(),
   })
   if (!updated) throw new Error("Automation not found")
   return updated
 }
 
+export function mergeAutomationSchemaPatch(
+  current: Record<string, unknown>,
+  patch: Record<string, unknown>
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...current }
+  for (const [key, value] of Object.entries(patch)) {
+    const existing = merged[key]
+    merged[key] =
+      isRecord(existing) && isRecord(value)
+        ? mergeAutomationSchemaPatch(existing, value)
+        : value
+  }
+  return merged
+}
+
 function upsertAutomationHooks(input: {
   current: AutomationHookItem[]
-  updates: Array<{ id?: string; text: string; enabled?: boolean }>
+  updates: Array<{
+    id?: string
+    text: string
+    enabled?: boolean
+    bodySlideCount?: number | null
+    tone?: string | null
+  }>
   now: string
 }) {
   const updatesById = new Map(
@@ -6142,9 +6308,25 @@ function upsertAutomationHooks(input: {
     consumed.add(hook.id)
     const text = clean(update.text)
     const enabled = update.enabled ?? hook.enabled
-    return text === hook.text && enabled === hook.enabled
+    const bodySlideCount =
+      update.bodySlideCount === undefined
+        ? hook.bodySlideCount
+        : (update.bodySlideCount ?? undefined)
+    const tone =
+      update.tone === undefined ? hook.tone : clean(update.tone) || undefined
+    return text === hook.text &&
+      enabled === hook.enabled &&
+      bodySlideCount === hook.bodySlideCount &&
+      tone === hook.tone
       ? hook
-      : { ...hook, text, enabled, updatedAt: input.now }
+      : {
+          ...hook,
+          text,
+          enabled,
+          bodySlideCount,
+          tone,
+          updatedAt: input.now,
+        }
   })
   for (const update of input.updates) {
     const requestedId = clean(update.id)
@@ -6154,8 +6336,23 @@ function upsertAutomationHooks(input: {
       (hook) => hook.text.toLowerCase() === text.toLowerCase()
     )
     if (existing) {
-      if (update.enabled !== undefined && update.enabled !== existing.enabled) {
-        existing.enabled = update.enabled
+      const nextEnabled = update.enabled ?? existing.enabled
+      const nextBodySlideCount =
+        update.bodySlideCount === undefined
+          ? existing.bodySlideCount
+          : (update.bodySlideCount ?? undefined)
+      const nextTone =
+        update.tone === undefined
+          ? existing.tone
+          : clean(update.tone) || undefined
+      if (
+        nextEnabled !== existing.enabled ||
+        nextBodySlideCount !== existing.bodySlideCount ||
+        nextTone !== existing.tone
+      ) {
+        existing.enabled = nextEnabled
+        existing.bodySlideCount = nextBodySlideCount
+        existing.tone = nextTone
         existing.updatedAt = input.now
       }
       continue
@@ -6164,6 +6361,10 @@ function upsertAutomationHooks(input: {
       id: requestedId || automationHookId(text),
       text,
       enabled: update.enabled ?? true,
+      ...(update.bodySlideCount
+        ? { bodySlideCount: update.bodySlideCount }
+        : {}),
+      ...(clean(update.tone) ? { tone: clean(update.tone) } : {}),
       createdAt: input.now,
     })
   }
@@ -6300,15 +6501,33 @@ export function buildAnalyticsReport(input: {
   const requested = new Set(
     (input.integrationIds ?? []).map(clean).filter(Boolean)
   )
-  const publicationById = new Map(
-    (input.publications ?? []).map((publication) => [
-      publication.id,
-      publication,
-    ])
+  const suppliedPublications = input.publications !== undefined
+  const publications = canonicalAnalyticsPublications(
+    (input.publications ?? []).filter((publication) => {
+      const activityAt =
+        publication.publishedAt ||
+        publication.createdAt ||
+        publication.updatedAt
+      return (
+        (publication.status === "published" ||
+          Boolean(publication.publishedAt)) &&
+        Date.parse(activityAt) >= Date.parse(since) &&
+        (requested.size === 0 || requested.has(publication.integrationId))
+      )
+    })
   )
-  const visible = input.snapshots
+  const publicationById = new Map(
+    publications.map((publication) => [publication.id, publication])
+  )
+  const visibleSnapshots = input.snapshots
     .map((snapshot) => {
-      const publication = publicationById.get(snapshot.postId)
+      const publication =
+        publicationById.get(snapshot.postId) ??
+        publications.find(
+          (item) =>
+            clean(item.externalPostId) &&
+            clean(item.externalPostId) === clean(snapshot.platformPostId)
+        )
       return publication
         ? {
             ...snapshot,
@@ -6329,7 +6548,7 @@ export function buildAnalyticsReport(input: {
         (requested.size === 0 || requested.has(snapshot.integrationId))
     )
   const latestByPost = new Map<string, PostFastMetricSnapshot>()
-  for (const snapshot of visible) {
+  for (const snapshot of visibleSnapshots) {
     const key = `${snapshot.integrationId}:${snapshot.postId}`
     const existing = latestByPost.get(key)
     if (
@@ -6340,8 +6559,26 @@ export function buildAnalyticsReport(input: {
     }
   }
   const latest = [...latestByPost.values()]
+  const snapshotForPublication = (publication: PostFastPostRecord) =>
+    latest.find(
+      (snapshot) =>
+        snapshot.postId === publication.id ||
+        (clean(publication.externalPostId) &&
+          clean(publication.externalPostId) === clean(snapshot.platformPostId))
+    )
+  const posts: Array<{
+    publication?: PostFastPostRecord
+    snapshot?: PostFastMetricSnapshot
+  }> = suppliedPublications
+    ? publications.map((publication) => ({
+        publication,
+        snapshot: snapshotForPublication(publication),
+      }))
+    : latest.map((snapshot) => ({ snapshot }))
   const integrationIds = new Set([
-    ...latest.map((snapshot) => snapshot.integrationId),
+    ...posts.map(
+      (post) => post.publication?.integrationId ?? post.snapshot!.integrationId
+    ),
     ...input.followerSnapshots
       .filter(
         (snapshot) =>
@@ -6354,8 +6591,13 @@ export function buildAnalyticsReport(input: {
 
   const accounts = [...integrationIds]
     .map((integrationId) => {
-      const posts = latest.filter(
-        (snapshot) => snapshot.integrationId === integrationId
+      const accountPosts = posts.filter(
+        (post) =>
+          (post.publication?.integrationId ?? post.snapshot?.integrationId) ===
+          integrationId
+      )
+      const metricPosts = accountPosts.flatMap((post) =>
+        post.snapshot ? [post.snapshot] : []
       )
       const followers = input.followerSnapshots
         .filter(
@@ -6369,12 +6611,15 @@ export function buildAnalyticsReport(input: {
       return {
         integrationId,
         provider:
-          posts[0]?.provider ||
+          accountPosts[0]?.publication?.provider ||
+          metricPosts[0]?.provider ||
           lastFollower?.provider ||
           firstFollower?.provider,
-        postCount: posts.length,
-        metrics: aggregateMetrics(posts.map((post) => post.metrics)),
-        newFollowers: posts.reduce(
+        postCount: accountPosts.length,
+        withMetrics: metricPosts.length,
+        awaitingCapture: accountPosts.length - metricPosts.length,
+        metrics: aggregateMetrics(metricPosts.map((post) => post.metrics)),
+        newFollowers: metricPosts.reduce(
           (total, post) =>
             total + (numberValue(post.rawMetrics.newFollowers) ?? 0),
           0
@@ -6394,31 +6639,74 @@ export function buildAnalyticsReport(input: {
     generatedAt,
     since,
     days: input.days,
+    postCount: posts.length,
+    withMetrics: posts.filter((post) => post.snapshot).length,
+    awaitingCapture: posts.filter((post) => !post.snapshot).length,
     totals: aggregateMetrics(accounts.map((account) => account.metrics)),
     accounts,
-    posts: latest
-      .sort((left, right) => right.capturedAt.localeCompare(left.capturedAt))
+    posts: posts
+      .sort((left, right) =>
+        analyticsPostSortAt(right).localeCompare(analyticsPostSortAt(left))
+      )
       .slice(0, input.postLimit)
-      .map((snapshot) => ({
-        postId: snapshot.postId,
-        integrationId: snapshot.integrationId,
-        provider: snapshot.provider,
-        capturedAt: snapshot.capturedAt,
-        publishedAt: snapshot.publishedAt,
-        content: snapshot.content,
-        contentType: snapshot.contentType,
-        sourceType: snapshot.sourceType,
-        sourceId: snapshot.sourceId,
-        releaseUrl: snapshot.releaseUrl,
-        metrics: snapshot.metrics,
-        newFollowers: numberValue(snapshot.rawMetrics.newFollowers),
-        analyticsSource: snapshot.source ?? "postfast",
+      .map(({ publication, snapshot }) => ({
+        postId: publication?.id ?? snapshot!.postId,
+        externalPostId: publication?.externalPostId ?? snapshot?.platformPostId,
+        integrationId: publication?.integrationId ?? snapshot!.integrationId,
+        provider: publication?.provider ?? snapshot!.provider,
+        status: publication?.status,
+        linkState: publication?.linkState,
+        hasMetrics: Boolean(snapshot),
+        metricsStatus: snapshot ? "captured" : "awaiting_capture",
+        capturedAt: snapshot?.capturedAt,
+        publishedAt: publication?.publishedAt ?? snapshot?.publishedAt,
+        content: publication?.content ?? snapshot?.content,
+        contentType: snapshot?.contentType,
+        sourceType: publication?.sourceType ?? snapshot?.sourceType,
+        sourceId: publication?.sourceId ?? snapshot?.sourceId,
+        releaseUrl: publication?.releaseUrl ?? snapshot?.releaseUrl,
+        metrics: snapshot?.metrics ?? {},
+        newFollowers: snapshot
+          ? numberValue(snapshot.rawMetrics.newFollowers)
+          : undefined,
+        analyticsSource: snapshot?.source ?? undefined,
         studioReportTool:
-          snapshot.source === "tiktok_studio"
+          snapshot?.source === "tiktok_studio"
             ? "lumenclip_tiktok_studio_analytics_report"
             : undefined,
       })),
   }
+}
+
+function canonicalAnalyticsPublications(publications: PostFastPostRecord[]) {
+  const byIdentity = new Map<string, PostFastPostRecord>()
+  for (const publication of publications) {
+    const externalId = clean(publication.externalPostId)
+    const key = externalId
+      ? `${publication.provider.toLowerCase()}:${externalId}`
+      : publication.id
+    const existing = byIdentity.get(key)
+    if (
+      !existing ||
+      Date.parse(publication.updatedAt) > Date.parse(existing.updatedAt)
+    ) {
+      byIdentity.set(key, publication)
+    }
+  }
+  return [...byIdentity.values()]
+}
+
+function analyticsPostSortAt(post: {
+  publication?: PostFastPostRecord
+  snapshot?: PostFastMetricSnapshot
+}) {
+  return (
+    post.publication?.publishedAt ||
+    post.snapshot?.publishedAt ||
+    post.snapshot?.capturedAt ||
+    post.publication?.createdAt ||
+    ""
+  )
 }
 
 function aggregateMetrics(values: MetricTotals[]): MetricTotals {

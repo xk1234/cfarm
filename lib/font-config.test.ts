@@ -3,44 +3,43 @@ import { describe, expect, it } from "vitest"
 import {
   BUNDLED_FONT_FAMILY,
   __resetFontconfigForTests,
+  bundledFontDir,
   configureFontconfig,
   fontconfigConfigured,
   resolveSlideshowFont,
 } from "@/lib/font-config"
-import { renderedSlideSvg } from "@/lib/slideshow-renderer"
-
-const fontDir = "assets/fonts"
+import { renderSlideshowSlideBuffers } from "@/lib/slideshow-raster-renderer"
 
 // 1x1 transparent PNG data URI — keeps the slide SVG well-formed without
 // pulling any external image bytes into the raster.
 const placeholderImage =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
 
-function slideSvg(text: string) {
-  return renderedSlideSvg(
-    {
-      id: `slide-${text.length}`,
-      image_url: placeholderImage,
-      textItems: [
-        {
-          id: "text-1",
-          text,
-          fontSize: "48px",
-          textSize: { width: 90, height: 20 },
-          textStyle: "whiteText",
-          textAlign: "center",
-          textPosition: { x: 50, y: 50 },
-        },
-      ],
-    },
-    placeholderImage
-  )
+function slide(text: string) {
+  return {
+    id: `slide-${text.length}`,
+    image_url: placeholderImage,
+    textItems: [
+      {
+        id: "text-1",
+        text,
+        fontSize: "48px",
+        textSize: { width: 90, height: 20 },
+        textStyle: "whiteText" as const,
+        textAlign: "center" as const,
+        textPosition: { x: 50, y: 50 },
+      },
+    ],
+  }
 }
 
 async function rasterize(text: string): Promise<Buffer> {
-  configureFontconfig(fontDir)
-  const sharp = (await import("sharp")).default
-  return sharp(Buffer.from(slideSvg(text))).png().toBuffer()
+  configureFontconfig()
+  const rendered = await renderSlideshowSlideBuffers({
+    slide: slide(text),
+    sourceUrl: placeholderImage,
+  })
+  return rendered.png
 }
 
 // Count pixels whose luminance is bright (rendered white text). The slide
@@ -76,7 +75,8 @@ describe("bundled font fallback", () => {
   it("configures FONTCONFIG_FILE to a config pointing only at the bundled dir", () => {
     __resetFontconfigForTests()
     expect(fontconfigConfigured()).toBe(false)
-    configureFontconfig(fontDir)
+    expect(bundledFontDir()).not.toBeNull()
+    expect(configureFontconfig()).toBe(true)
     expect(fontconfigConfigured()).toBe(true)
     expect(process.env.FONTCONFIG_FILE).toBeTruthy()
   })
