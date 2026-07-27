@@ -7,6 +7,7 @@ import useSWR from "swr"
 import {
   IconBolt,
   IconBook,
+  IconChartHistogram,
   IconCalendar,
   IconHome,
   IconLogout,
@@ -38,7 +39,7 @@ const topNav: NavItem[] = [
   { key: "home", label: "Home", icon: IconHome },
   { key: "compose", label: "Compose", icon: IconPencilPlus },
   { key: "schedule", label: "Schedule", icon: IconCalendar },
-  { key: "analytics", label: "Analytics", icon: IconBolt },
+  { key: "analytics", label: "Analytics", icon: IconChartHistogram },
 ]
 
 const slideshowNav: NavItem[] = [
@@ -159,12 +160,17 @@ export function MobileNavigation({
   onViewChange,
 }: {
   view: ViewKey
-  onViewChange: (view: ViewKey) => void
+  /**
+   * Omit on pages that are not inside the workspace shell. Without it each item
+   * is a plain link, which is what those pages need -- they have no in-page
+   * view state to switch.
+   */
+  onViewChange?: (view: ViewKey) => void
 }) {
   return (
     <nav
       aria-label="Primary navigation"
-      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-8 border-t border-app-panel-border bg-white/95 px-1 pt-1 pb-[max(.5rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(25,18,45,0.08)] backdrop-blur md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 grid auto-cols-fr grid-flow-col border-t border-app-panel-border bg-white/95 px-1 pt-1 pb-[max(.5rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(25,18,45,0.08)] backdrop-blur md:hidden"
     >
       {[...topNav, ...slideshowNav].map((item) => {
         const Icon = item.icon
@@ -190,6 +196,7 @@ export function MobileNavigation({
             aria-current={active ? "page" : undefined}
             className={className}
             onClick={(event) => {
+              if (!onViewChange) return
               if (!isPlainNavigationClick(event)) return
               event.preventDefault()
               onViewChange(item.key)

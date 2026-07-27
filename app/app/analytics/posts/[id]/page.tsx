@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation"
 
+import { StandaloneMobileNav } from "@/components/realfarm/standalone-mobile-nav"
 import { PostAnalyticsPage } from "@/components/realfarm/analytics/post-analytics-page"
 import { getCurrentUser } from "@/lib/auth"
 import { inferPostContentType } from "@/lib/post-content-type"
@@ -47,12 +48,17 @@ export default async function PostAnalyticsRoute({
   })
 
   return (
-    <PostAnalyticsPage
-      snapshots={snapshots}
-      integration={integration}
-      contentType={latest.contentType || contentType}
-      publicationPlatformPostId={publication?.externalPostId}
-    />
+    <>
+      <div className="pb-24 md:pb-0">
+        <PostAnalyticsPage
+          snapshots={snapshots}
+          integration={integration}
+          contentType={latest.contentType || contentType}
+          publicationPlatformPostId={publication?.externalPostId}
+        />
+      </div>
+      <StandaloneMobileNav />
+    </>
   )
 }
 

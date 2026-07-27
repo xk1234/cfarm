@@ -215,3 +215,71 @@ describe("holding everything but the varied input constant", () => {
     expect(streams[0]).not.toEqual(streams[1])
   })
 })
+
+describe("content direction sweeps", () => {
+  it("varies only the targeted block's direction, holding the rest constant", async () => {
+    const seen: { direction?: string; tone?: string; hooks: number }[] = []
+    mocks.previewAutomationRunPlan.mockImplementation(
+      async (schema: {
+        formatting?: { id: string; textItems?: { contentDirection?: string }[] }[]
+        tone?: { value?: string }
+        hooks?: unknown[]
+      }) => {
+        const body = schema.formatting?.find((block) => block.id === "body")
+        seen.push({
+          direction: body?.textItems?.[0]?.contentDirection,
+          tone: schema.tone?.value,
+          hooks: schema.hooks?.length ?? 0,
+        })
+        return {
+          status: "succeeded",
+          plan: {
+            title: "", caption: "", hashtags: "", hook: "h",
+            imageCollectionIds: [], slides: [],
+            slideCount: { mode: "static", count: 0 },
+            publishType: "slideshow", autoMusic: false, autoPost: false,
+            language: "en",
+          },
+        }
+      }
+    )
+
+    await runAutomationExperiment({
+      automationId: "a1",
+      vary: [
+        {
+          dimension: "contentDirection",
+          name: "body",
+          values: ["one concrete tip", "one surprising stat"],
+        },
+      ],
+    })
+
+    // Both directions were actually applied...
+    expect(seen.map((cell) => cell.direction).sort()).toEqual([
+      "one concrete tip",
+      "one surprising stat",
+    ])
+    // ...and nothing else moved between cells, which is what makes the
+    // comparison meaningful rather than confounded.
+    expect(new Set(seen.map((cell) => cell.tone)).size).toBe(1)
+    expect(new Set(seen.map((cell) => cell.hooks)).size).toBe(1)
+  })
+
+  it("keeps body and cta directions in separate columns", async () => {
+    const { cells } = await runAutomationExperiment({
+      automationId: "a1",
+      vary: [
+        { dimension: "contentDirection", name: "body", values: ["b1", "b2"] },
+        { dimension: "contentDirection", name: "cta", values: ["c1", "c2"] },
+      ],
+    })
+    // Without per-block keying both variations collapse onto one key and the
+    // sweep silently produces 2 cells instead of 4.
+    expect(cells).toHaveLength(4)
+    expect(Object.keys(cells[0].variant).sort()).toEqual([
+      "contentDirection:body",
+      "contentDirection:cta",
+    ])
+  })
+})
