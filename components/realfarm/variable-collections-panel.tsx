@@ -337,14 +337,9 @@ function VariableCollectionModal({
         className="max-w-[560px] p-5"
       >
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-[20px] font-semibold text-app-text">
-              {draft.originalId ? "Edit variable" : "New variable"}
-            </h2>
-            <p className="mt-1 text-[13px] leading-5 text-app-muted-text">
-              The tag name is used in hooks as [[tag-name]].
-            </p>
-          </div>
+          <h2 className="text-[20px] font-semibold text-app-text">
+            {draft.originalId ? "Edit variable" : "New variable"}
+          </h2>
           <Button
             variant="iconControl"
             size="icon-control-sm"

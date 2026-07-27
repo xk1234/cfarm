@@ -1,9 +1,5 @@
 import { useRef, useState } from "react"
-import {
-  IconFocusCentered,
-  IconMinus,
-  IconPlus,
-} from "@tabler/icons-react"
+import { IconFocusCentered, IconMinus, IconPlus } from "@tabler/icons-react"
 
 import type { AutomationTextItem } from "@/lib/realfarm-automation"
 import { cn } from "@/lib/utils"
@@ -20,6 +16,8 @@ const ZOOM_STEP = 0.15
 const CANVAS_ORIGIN_Y = 168
 
 export function SlideshowFormatPreviewStage({
+  className,
+  onExitPreview,
   previewItems,
   activeTab,
   activeTextItem,
@@ -36,6 +34,8 @@ export function SlideshowFormatPreviewStage({
   onDeleteTextItem,
   onAddTextItem,
 }: {
+  className?: string
+  onExitPreview: () => void
   previewItems: AutomationFormatPreviewItem[]
   activeTab: SlideshowFormatTab
   activeTextItem: AutomationTextItem
@@ -76,14 +76,8 @@ export function SlideshowFormatPreviewStage({
     const originY = rect.top + CANVAS_ORIGIN_Y
     const ratio = clampedZoom / zoom
     setPan((current) => ({
-      x:
-        clientX -
-        originX -
-        (clientX - originX - current.x) * ratio,
-      y:
-        clientY -
-        originY -
-        (clientY - originY - current.y) * ratio,
+      x: clientX - originX - (clientX - originX - current.x) * ratio,
+      y: clientY - originY - (clientY - originY - current.y) * ratio,
     }))
     onZoomChange(clampedZoom)
   }
@@ -103,8 +97,9 @@ export function SlideshowFormatPreviewStage({
     <main
       ref={stageRef}
       className={cn(
-        "relative isolate min-h-0 min-w-0 touch-none overflow-hidden bg-[#b9b9b6] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#6a6a72]",
-        isPanning ? "cursor-grabbing" : "cursor-grab"
+        "relative isolate min-h-0 min-w-0 touch-none overflow-hidden bg-[#b9b9b6] outline-none focus-visible:ring-2 focus-visible:ring-[#6a6a72] focus-visible:ring-inset",
+        isPanning ? "cursor-grabbing" : "cursor-grab",
+        className
       )}
       tabIndex={0}
       aria-label="Slideshow canvas. Drag the background to pan, pinch to zoom, or use the zoom controls."
@@ -180,6 +175,14 @@ export function SlideshowFormatPreviewStage({
         }
       }}
     >
+      <button
+        type="button"
+        className="absolute top-4 left-4 z-20 h-9 rounded-[9px] border border-black/10 bg-white/92 px-3 text-[12px] font-semibold text-[#30303a] shadow-sm backdrop-blur md:hidden"
+        onClick={onExitPreview}
+      >
+        Edit
+      </button>
+
       <div className="absolute top-4 right-4 z-20 flex items-center rounded-[9px] border border-black/10 bg-white/92 p-1 shadow-sm backdrop-blur">
         <button
           type="button"
@@ -271,7 +274,7 @@ export function SlideshowFormatPreviewStage({
           />
         ))}
       </div>
-      <div className="pointer-events-none absolute bottom-5 left-5 rounded-md bg-black/18 px-2.5 py-1.5 text-[10px] font-medium text-white/80 backdrop-blur-sm">
+      <div className="pointer-events-none absolute bottom-5 left-5 hidden rounded-md bg-black/18 px-2.5 py-1.5 text-[10px] font-medium text-white/80 backdrop-blur-sm md:block">
         drag to pan · pinch to zoom · double-click to reset
       </div>
 

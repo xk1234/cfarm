@@ -8,7 +8,10 @@ export function AutomationGenerationGrid({
   ...props
 }: HTMLAttributes<HTMLDivElement> & { children: ReactNode }) {
   return (
-    <div className={cn("grid grid-cols-3 gap-3", className)} {...props}>
+    <div
+      className={cn("grid grid-cols-2 gap-3 sm:grid-cols-3", className)}
+      {...props}
+    >
       {children}
     </div>
   )

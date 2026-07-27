@@ -47,10 +47,7 @@ import {
   TIKTOK_PLATFORM_POST_ID_REQUIRED,
 } from "@/lib/tiktok-comment-collection-client"
 import { cn } from "@/lib/utils"
-import {
-  PostSlidesStrip,
-  type AnalyticsSlide,
-} from "./post-slides-strip"
+import { PostSlidesStrip, type AnalyticsSlide } from "./post-slides-strip"
 import { TikTokStudioImportDialog } from "./tiktok-studio-import-dialog"
 
 export function PostAnalyticsPage({
@@ -433,10 +430,6 @@ function TikTokStudioBreakdown({
               Slideshow journey
             </h2>
           </div>
-          <p className="mt-1 text-[11px] font-medium text-app-muted-text">
-            Per-slide retention and like distribution captured from TikTok
-            Studio.
-          </p>
         </div>
         <span className="rounded-full bg-app-surface-subtle px-2.5 py-1 text-[9px] font-semibold text-app-muted-text">
           {studio.capturedSections.join(" · ")}

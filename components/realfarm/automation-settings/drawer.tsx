@@ -9,12 +9,14 @@ import {
   IconCalendar,
   IconChevronLeft,
   IconHome,
+  IconMenu2,
   IconMessage,
   IconLink,
   IconPlus,
   IconSettings,
   IconTrash,
   IconWand,
+  IconX,
 } from "@tabler/icons-react"
 import { LuCopy } from "react-icons/lu"
 
@@ -89,6 +91,7 @@ export function AutomationSettingsDrawer({
   onClose: () => void
 }) {
   const [activeTab, setActiveTab] = useState<AutomationDrawerTab>("overview")
+  const [navOpen, setNavOpen] = useState(false)
   const [editingName, setEditingName] = useState(false)
   const [draftName, setDraftName] = useState(automation.name)
   const [draftConfig, setDraftConfig] = useState(() =>
@@ -188,6 +191,20 @@ export function AutomationSettingsDrawer({
       }
     }
   }, [automation.id, generating, runLoadRevision])
+
+  useEffect(() => {
+    if (!navOpen) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setNavOpen(false)
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => {
+      document.body.style.overflow = previous
+      window.removeEventListener("keydown", onKeyDown)
+    }
+  }, [navOpen])
 
   function saveName() {
     const nextName = draftName.trim()
@@ -413,6 +430,129 @@ export function AutomationSettingsDrawer({
     deletedRunIds.forEach(onGenerationRunRemove)
   }
 
+  function navigate(tab: AutomationDrawerTab) {
+    setActiveTab(tab)
+    setNavOpen(false)
+  }
+
+  const formatTabLabel =
+    automationKind === "ugc"
+      ? "AI actor format"
+      : automationKind === "video"
+        ? "Video Format"
+        : "Slideshow Format"
+  const hooksTabLabel = `Hooks (${hookCount}) & ${
+    automationKind === "video" || automationKind === "ugc" ? "Voice" : "Style"
+  }`
+  const activeTabLabel =
+    activeTab === "overview"
+      ? "Overview"
+      : activeTab === "hooks"
+        ? hooksTabLabel
+        : activeTab === "analytics"
+          ? "Analytics"
+          : activeTab === "schedule"
+            ? "Schedule"
+            : activeTab === "tiktok"
+              ? "Social Media"
+              : activeTab === "published-posts"
+                ? "Published Posts"
+                : activeTab === "settings"
+                  ? "Settings"
+                  : formatTabLabel
+
+  const navigation = (
+    <>
+      <div className="space-y-1">
+        <AutomationSettingsNavButton
+          label="Overview"
+          icon={IconHome}
+          active={activeTab === "overview"}
+          onClick={() => navigate("overview")}
+        />
+        <div className="my-2 h-px bg-[#e1e0d8]" />
+        <AutomationSettingsNavButton
+          label={formatTabLabel}
+          icon={IconWand}
+          onClick={() => navigate("format")}
+        />
+        <AutomationSettingsNavButton
+          label={hooksTabLabel}
+          icon={IconMessage}
+          active={activeTab === "hooks"}
+          onClick={() => navigate("hooks")}
+        />
+        <AutomationSettingsNavButton
+          label="Analytics"
+          icon={IconChartBar}
+          active={activeTab === "analytics"}
+          onClick={() => navigate("analytics")}
+        />
+        <div className="my-2 h-px bg-[#e1e0d8]" />
+        <AutomationSettingsNavButton
+          label="Schedule"
+          icon={IconCalendar}
+          active={activeTab === "schedule"}
+          onClick={() => navigate("schedule")}
+        />
+        <AutomationSettingsNavButton
+          label="Social Media Settings"
+          icon={IconBrandTiktok}
+          active={activeTab === "tiktok"}
+          onClick={() => navigate("tiktok")}
+        />
+        {automationKind === "slideshow" && (
+          <AutomationSettingsNavButton
+            label="Published Posts"
+            icon={IconLink}
+            active={activeTab === "published-posts"}
+            onClick={() => navigate("published-posts")}
+          />
+        )}
+        <AutomationSettingsNavButton
+          label="Settings"
+          icon={IconSettings}
+          active={activeTab === "settings"}
+          onClick={() => navigate("settings")}
+        />
+      </div>
+      <div className="mt-auto space-y-4 pt-6 pb-4 pl-3 text-[15px] font-semibold md:pt-0">
+        <button
+          type="button"
+          className="flex items-center gap-2 text-app-text-faint disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={duplicating}
+          onClick={() => {
+            if (duplicating) return
+            setDuplicating(true)
+            void onDuplicate().finally(() => setDuplicating(false))
+          }}
+        >
+          <LuCopy className="size-4" />
+          {duplicating ? "Duplicating..." : "Duplicate"}
+        </button>
+        <button
+          className="flex items-center gap-2 text-[#c54b4b]"
+          onClick={onDelete}
+        >
+          <IconTrash className="size-4" />
+          Delete automation
+        </button>
+      </div>
+    </>
+  )
+
+  const generateButton = (
+    <button
+      className="flex h-10 items-center justify-center gap-2 rounded-[8px] border border-app-panel-border bg-app-surface px-3 text-[14px] font-semibold text-app-text shadow-sm disabled:cursor-not-allowed disabled:opacity-55"
+      disabled={generating || savingConfig}
+      onClick={generateAutomation}
+      aria-busy={generating}
+    >
+      <IconPlus className="size-4" />
+      {generating ? "Generating…" : "Generate"}
+    </button>
+  )
+
   return (
     <div
       className={cn(
@@ -421,109 +561,48 @@ export function AutomationSettingsDrawer({
       )}
     >
       {activeTab !== "format" && (
-        <aside className="flex min-h-0 flex-col border-r border-app-panel-border bg-app-surface-subtle p-2">
-          <button
-            className="mb-2 flex h-10 items-center justify-center gap-2 rounded-[8px] border border-app-panel-border bg-app-surface px-3 text-[14px] font-semibold text-app-text shadow-sm disabled:cursor-not-allowed disabled:opacity-55"
-            disabled={generating || savingConfig}
-            onClick={generateAutomation}
-            aria-busy={generating}
-          >
-            <IconPlus className="size-4" />
-            {generating ? "Generating…" : "Generate"}
-          </button>
-          <div className="space-y-1">
-            <AutomationSettingsNavButton
-              label="Overview"
-              icon={IconHome}
-              active={activeTab === "overview"}
-              onClick={() => setActiveTab("overview")}
-            />
-            <div className="my-2 h-px bg-[#e1e0d8]" />
-            <AutomationSettingsNavButton
-              label={
-                automationKind === "ugc"
-                  ? "AI actor format"
-                  : automationKind === "video"
-                    ? "Video Format"
-                    : "Slideshow Format"
-              }
-              icon={IconWand}
-              onClick={() => setActiveTab("format")}
-            />
-            <AutomationSettingsNavButton
-              label={`Hooks (${hookCount}) & ${automationKind === "video" || automationKind === "ugc" ? "Voice" : "Style"}`}
-              icon={IconMessage}
-              active={activeTab === "hooks"}
-              onClick={() => setActiveTab("hooks")}
-            />
-            <AutomationSettingsNavButton
-              label="Analytics"
-              icon={IconChartBar}
-              active={activeTab === "analytics"}
-              onClick={() => setActiveTab("analytics")}
-            />
-            <div className="my-2 h-px bg-[#e1e0d8]" />
-            <AutomationSettingsNavButton
-              label="Schedule"
-              icon={IconCalendar}
-              active={activeTab === "schedule"}
-              onClick={() => setActiveTab("schedule")}
-            />
-            <AutomationSettingsNavButton
-              label="Social Media Settings"
-              icon={IconBrandTiktok}
-              active={activeTab === "tiktok"}
-              onClick={() => setActiveTab("tiktok")}
-            />
-            {automationKind === "slideshow" && (
-              <AutomationSettingsNavButton
-                label="Published Posts"
-                icon={IconLink}
-                active={activeTab === "published-posts"}
-                onClick={() => setActiveTab("published-posts")}
-              />
-            )}
-            <AutomationSettingsNavButton
-              label="Settings"
-              icon={IconSettings}
-              active={activeTab === "settings"}
-              onClick={() => setActiveTab("settings")}
-            />
-          </div>
-          <div className="mt-auto space-y-4 pb-4 pl-3 text-[15px] font-semibold">
-            <button
-              type="button"
-              className="flex items-center gap-2 text-app-text-faint disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={duplicating}
-              onClick={() => {
-                if (duplicating) return
-                setDuplicating(true)
-                void onDuplicate().finally(() => setDuplicating(false))
-              }}
-            >
-              <LuCopy className="size-4" />
-              {duplicating ? "Duplicating..." : "Duplicate"}
-            </button>
-            <button
-              className="flex items-center gap-2 text-[#c54b4b]"
-              onClick={onDelete}
-            >
-              <IconTrash className="size-4" />
-              Delete automation
-            </button>
-          </div>
+        <aside className="hidden min-h-0 flex-col border-r border-app-panel-border bg-app-surface-subtle p-2 md:flex">
+          <div className="mb-2 grid">{generateButton}</div>
+          {navigation}
         </aside>
       )}
       <div className="relative min-h-0 overflow-y-auto bg-app-surface">
         {activeTab !== "format" && (
-          <button
-            className="absolute top-4 right-4 z-10 inline-flex h-8 items-center gap-1 rounded-[6px] px-2 text-[12px] font-semibold text-app-text-soft hover:bg-app-surface-subtle hover:text-app-text"
-            onClick={() => dirtyGuard.run(onClose)}
-            aria-label="Back to automations"
-          >
-            <IconChevronLeft className="size-4" />
-            Back
-          </button>
+          <>
+            {/* Below md the sidebar became a full-width block of links above
+                every panel, so it moves into a sheet behind this bar. */}
+            <div className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-app-panel-border bg-app-surface px-3 md:hidden">
+              <button
+                type="button"
+                className="lc-focus-ring flex h-10 min-w-0 items-center gap-2 rounded-[8px] border border-app-panel-border px-3 text-[13px] font-semibold text-app-text"
+                aria-expanded={navOpen}
+                aria-controls="automation-settings-nav"
+                onClick={() => setNavOpen(true)}
+              >
+                <IconMenu2 className="size-4 shrink-0" />
+                <span className="truncate">{activeTabLabel}</span>
+              </button>
+              <div className="ml-auto flex shrink-0 items-center gap-2">
+                {generateButton}
+                <button
+                  type="button"
+                  className="grid size-10 place-items-center rounded-[8px] text-app-text-soft"
+                  onClick={() => dirtyGuard.run(onClose)}
+                  aria-label="Back to automations"
+                >
+                  <IconChevronLeft className="size-5" />
+                </button>
+              </div>
+            </div>
+            <button
+              className="absolute top-4 right-4 z-10 hidden h-8 items-center gap-1 rounded-[6px] px-2 text-[12px] font-semibold text-app-text-soft hover:bg-app-surface-subtle hover:text-app-text md:inline-flex"
+              onClick={() => dirtyGuard.run(onClose)}
+              aria-label="Back to automations"
+            >
+              <IconChevronLeft className="size-4" />
+              Back
+            </button>
+          </>
         )}
         {activeTab === "overview" && (
           <AutomationOverviewPanel
@@ -626,6 +705,38 @@ export function AutomationSettingsDrawer({
           />
         )}
       </div>
+      {navOpen && activeTab !== "format" ? (
+        <div className="fixed inset-0 z-[70] md:hidden">
+          <button
+            type="button"
+            aria-label="Close automation menu"
+            className="absolute inset-0 bg-black/35"
+            onClick={() => setNavOpen(false)}
+          />
+          <section
+            id="automation-settings-nav"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Automation sections"
+            className="absolute inset-x-0 bottom-0 flex max-h-[85dvh] flex-col overflow-y-auto rounded-t-[18px] bg-app-surface-subtle p-3 shadow-[0_-16px_40px_rgba(25,18,45,0.18)]"
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <span className="pl-1 text-[15px] font-semibold text-app-text">
+                {automation.name}
+              </span>
+              <button
+                type="button"
+                aria-label="Close automation menu"
+                className="lc-focus-ring flex size-10 items-center justify-center rounded-[10px] text-app-text active:bg-app-control-hover"
+                onClick={() => setNavOpen(false)}
+              >
+                <IconX className="size-5" />
+              </button>
+            </div>
+            {navigation}
+          </section>
+        </div>
+      ) : null}
       {dirtyGuard.confirmation}
     </div>
   )

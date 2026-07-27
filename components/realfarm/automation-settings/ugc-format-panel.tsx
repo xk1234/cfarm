@@ -100,10 +100,7 @@ export function UgcAutomationFormatPanel({
         Gated — needs FAL_KEY, ELEVENLABS_API_KEY, and ENABLE_UGC_AUTOMATION.
       </p>
 
-      <Section
-        title="Product input"
-        description="Provide either a product URL or a self-contained brief."
-      >
+      <Section title="Product input">
         <Field
           label="Product URL"
           error={
@@ -133,10 +130,7 @@ export function UgcAutomationFormatPanel({
         </Field>
       </Section>
 
-      <Section
-        title="Actor"
-        description="Generate a new actor or use an existing portrait asset."
-      >
+      <Section title="Actor">
         <Segmented
           label="Actor source"
           value={ugc.actorSource}
@@ -177,10 +171,7 @@ export function UgcAutomationFormatPanel({
         )}
       </Section>
 
-      <Section
-        title="Voice and lip sync"
-        description="Premium uses Kling and costs more than Standard."
-      >
+      <Section title="Voice and lip sync">
         <Field
           label="ElevenLabs voice ID"
           error={voiceMissing ? "Choose a voice before going live." : ""}
@@ -217,10 +208,7 @@ export function UgcAutomationFormatPanel({
         ) : null}
       </Section>
 
-      <Section
-        title="Length and supporting footage"
-        description="Duration affects voice usage; b-roll adds one image generation per item."
-      >
+      <Section title="Length and supporting footage">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Target duration (seconds)">
             <input
@@ -249,10 +237,7 @@ export function UgcAutomationFormatPanel({
         </div>
       </Section>
 
-      <Section
-        title="On-screen text"
-        description="Configure captions and the opening hook overlay."
-      >
+      <Section title="On-screen text">
         <Toggle
           label="Captions"
           enabled={ugc.captions.enabled}
@@ -345,10 +330,7 @@ export function UgcAutomationFormatPanel({
         </div>
       </Section>
 
-      <Section
-        title="Estimated provider cost"
-        description="Updates after changes to tier, duration, actor source, or b-roll."
-      >
+      <Section title="Estimated provider cost">
         {estimate ? (
           <CostEstimate estimate={estimate} />
         ) : (
@@ -400,19 +382,14 @@ export async function requestUgcEstimate(
 
 function Section({
   title,
-  description,
   children,
 }: {
   title: string
-  description: string
   children: React.ReactNode
 }) {
   return (
     <section className="mt-8 border-t border-app-panel-border pt-6">
       <h3 className="text-lg font-bold text-app-text">{title}</h3>
-      <p className="mt-1 text-sm font-medium text-app-muted-text">
-        {description}
-      </p>
       <div className="mt-5 space-y-4">{children}</div>
     </section>
   )

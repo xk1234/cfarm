@@ -784,10 +784,6 @@ function AccountsPanel({
       {disconnectedAccounts.length > 0 ? (
         <div className="mt-8">
           <h3 className="text-sm font-semibold">Disconnected from LumenClip</h3>
-          <p className="mt-1 text-xs leading-5 text-app-text-faint">
-            These accounts remain authorized in PostFast until you revoke them
-            there.
-          </p>
           <div className="mt-3 divide-y divide-[#ececf1] border-y border-app-panel-border">
             {disconnectedAccounts.map((account) => (
               <div

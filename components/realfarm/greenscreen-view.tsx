@@ -268,7 +268,8 @@ export function GreenscreenMemesView({
               </>
             }
           >
-            <div className="grid w-full max-w-[430px] grid-cols-8 gap-2">
+            {/* Eight fixed-height tiles are wider than a phone; wrap to six. */}
+            <div className="grid w-full max-w-[430px] grid-cols-6 gap-2 sm:grid-cols-8">
               {visibleMemes.map((meme, index) => {
                 const absoluteIndex = memePage * memePageSize + index
                 return (

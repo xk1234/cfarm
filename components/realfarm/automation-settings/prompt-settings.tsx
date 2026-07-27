@@ -248,14 +248,7 @@ export function PromptConfigPanel({
   const sharedSlideStyle = automationSharedSlideStyle(config)
 
   return (
-    <SettingsPage
-      title={isVideoAutomation ? "Hooks & Voice" : "Hooks & Style"}
-      description={
-        isVideoAutomation
-          ? `Edit the hooks and writing voice used to generate ${automation.name} videos.`
-          : `Edit hooks, voice, and shared slideshow styling for ${automation.name}.`
-      }
-    >
+    <SettingsPage title={isVideoAutomation ? "Hooks & Voice" : "Hooks & Style"}>
       <div
         className={cn(
           "mb-6 grid h-11 overflow-hidden rounded-[9px] border border-app-panel-border bg-[#f6f5f0] text-[13px] font-semibold",
