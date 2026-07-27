@@ -474,6 +474,8 @@ export function RecentPosts({
               : link.state === "manually_linked"
                 ? IconUserCheck
                 : IconLinkOff
+          const awaitingStudioImport =
+            link.state === "manually_linked" && !link.hasStudioStats
           return (
             <button
               key={`${post.integrationId}:${post.postId}`}
@@ -525,27 +527,36 @@ export function RecentPosts({
                 <span className="mt-3 line-clamp-2 min-h-9 text-[12px] leading-[18px] font-semibold text-app-text">
                   {post.content || "Untitled post"}
                 </span>
-                <span className="mt-3 flex items-end justify-between gap-3 border-t border-[#eeedf3] pt-2.5">
-                  <span>
-                    <span className="block text-[9px] font-medium text-app-text-faint">
-                      {metricLabel(primaryMetric, post.provider)}
+                {awaitingStudioImport ? (
+                  <span className="mt-3 block border-t border-[#eeedf3] pt-2.5 text-[10px] leading-4 font-semibold text-app-warning">
+                    No imported data yet
+                  </span>
+                ) : (
+                  <span className="mt-3 flex items-end justify-between gap-3 border-t border-[#eeedf3] pt-2.5">
+                    <span>
+                      <span className="block text-[9px] font-medium text-app-text-faint">
+                        {metricLabel(primaryMetric, post.provider)}
+                      </span>
+                      <span className="mt-0.5 block text-[13px] font-semibold text-app-text tabular-nums">
+                        {formatMetric(
+                          primaryMetric,
+                          post.metrics[primaryMetric]
+                        )}
+                      </span>
                     </span>
-                    <span className="mt-0.5 block text-[13px] font-semibold text-app-text tabular-nums">
-                      {formatMetric(primaryMetric, post.metrics[primaryMetric])}
+                    <span className="text-right">
+                      <span className="block text-[9px] font-medium text-app-text-faint">
+                        Engagement
+                      </span>
+                      <span className="mt-0.5 block text-[13px] font-semibold text-app-text tabular-nums">
+                        {formatMetric(
+                          "engagementRate",
+                          post.metrics.engagementRate
+                        )}
+                      </span>
                     </span>
                   </span>
-                  <span className="text-right">
-                    <span className="block text-[9px] font-medium text-app-text-faint">
-                      Engagement
-                    </span>
-                    <span className="mt-0.5 block text-[13px] font-semibold text-app-text tabular-nums">
-                      {formatMetric(
-                        "engagementRate",
-                        post.metrics.engagementRate
-                      )}
-                    </span>
-                  </span>
-                </span>
+                )}
               </span>
             </button>
           )

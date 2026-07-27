@@ -2,6 +2,8 @@ import { notFound, redirect } from "next/navigation"
 
 import { StandaloneMobileNav } from "@/components/realfarm/standalone-mobile-nav"
 import { PostAnalyticsPage } from "@/components/realfarm/analytics/post-analytics-page"
+import { getAutomationRunForSlideshow } from "@/lib/automation-runner"
+import { absoluteAssetUrl } from "@/lib/asset-urls"
 import { getCurrentUser } from "@/lib/auth"
 import { inferPostContentType } from "@/lib/post-content-type"
 import { listAnalyticsIntegrations } from "@/lib/postfast-analytics"
@@ -39,6 +41,22 @@ export default async function PostAnalyticsRoute({
   const latest = snapshots.at(-1)
   if (!latest) notFound()
 
+  const run =
+    publication &&
+    (publication.sourceType === "slideshow" ||
+      publication.sourceType === "automation")
+    ? await getAutomationRunForSlideshow({
+        slideshowId: publication.sourceId,
+        runId:
+          publication.sourceType === "automation"
+            ? publication.sourceId
+            : undefined,
+      }).catch(() => null)
+    : null
+  const slides = (run?.outputImages ?? []).flatMap((path, index) => {
+    const imageUrl = absoluteAssetUrl(path)
+    return imageUrl ? [{ index: index + 1, imageUrl }] : []
+  })
   const integration =
     integrations.find((item) => item.integration_id === latest.integrationId) ??
     fallbackIntegration(latest)
@@ -55,6 +73,7 @@ export default async function PostAnalyticsRoute({
           integration={integration}
           contentType={latest.contentType || contentType}
           publicationPlatformPostId={publication?.externalPostId}
+          slides={slides}
         />
       </div>
       <StandaloneMobileNav />

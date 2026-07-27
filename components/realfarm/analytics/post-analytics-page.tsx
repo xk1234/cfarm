@@ -47,6 +47,10 @@ import {
   TIKTOK_PLATFORM_POST_ID_REQUIRED,
 } from "@/lib/tiktok-comment-collection-client"
 import { cn } from "@/lib/utils"
+import {
+  PostSlidesStrip,
+  type AnalyticsSlide,
+} from "./post-slides-strip"
 import { TikTokStudioImportDialog } from "./tiktok-studio-import-dialog"
 
 export function PostAnalyticsPage({
@@ -54,11 +58,13 @@ export function PostAnalyticsPage({
   integration,
   contentType,
   publicationPlatformPostId,
+  slides = [],
 }: {
   snapshots: PostFastMetricSnapshot[]
   integration: SocialIntegration
   contentType: PostContentType
   publicationPlatformPostId?: string
+  slides?: AnalyticsSlide[]
 }) {
   const router = useRouter()
   const ordered = useMemo(
@@ -223,6 +229,8 @@ export function PostAnalyticsPage({
           </div>
           <PostPreview post={latest} type={contentType} />
         </section>
+
+        <PostSlidesStrip slides={slides} />
 
         <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {stats.map((stat) => (
