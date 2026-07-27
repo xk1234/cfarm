@@ -83,8 +83,11 @@ between the analytics and the stored slideshow.
 
 The report is publication-first: every linked TikTok is returned even when it
 has not been captured. `counts.withMetrics` and `counts.awaitingCapture` make
-that gap explicit, and uncaptured rows use
-`analytics.state: "awaiting_capture"`.
+that gap explicit. A publication with no import uses
+`analytics.state: "not_requested"` plus a `statusReason`; a timed-out companion
+attempt uses `analytics.state: "failed"` and includes the persisted section,
+reason, and failure timestamp. Waiting/capturing/ready imports retain their
+normal import states.
 
 ### 5. Result
 

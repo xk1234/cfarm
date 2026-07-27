@@ -132,7 +132,8 @@ Prefer the granular tools when full replacement is unnecessary:
 `lumenclip_hook_performance(automationId, days)` joins confirmed publications
 to stable hook IDs. Every canonical hook receives publish count, views, shares,
 saves, share rate, and mean slide-1-to-2 retention when Studio captured it;
-historically published deleted hooks remain visible.
+historically published deleted hooks remain visible with
+`historicalOnly: true` instead of becoming unattributed.
 
 Automation reads also return `variableBindings`. Enabled hook tokens are
 resolved automatically against collection `variableName`; explicit persisted
@@ -140,7 +141,9 @@ resolved automatically against collection `variableName`; explicit persisted
 `schema.hook_slots` is the generated read-only map and
 `schema.hook_slot_overrides` preserves the explicit stored values for
 debugging. Runtime tokens such as `[[SLIDE_COUNT]]` appear as runtime bindings
-and never require a collection.
+and never require a collection. The dedicated
+`lumenclip_automation_variable_bindings_get` read tool returns both bindings for
+enabled hook tokens and the full registered runtime-variable catalog.
 
 `lumenclip_run_plan_get(runId)` returns the persisted generation decision:
 hook ID/template/substitutions, media selections, complete slides, strategy,
@@ -160,8 +163,10 @@ schema exposes `distinct_variable_draws: true`; for example,
 The older `hook_no_duplicate_slots` field remains a compatibility alias.
 
 The canonical hook source is `schema.hooks[]`. `prompt_formatting.narrative` is
-generation guidance only and is never silently promoted into the pool. Use the
-granular hook tools to promote a narrative phrase into an enabled hook.
+generation guidance only and is never silently promoted into the pool. Hook
+mutations preserve real prose guidance but clear a legacy multi-line narrative
+that merely duplicates the hook catalog. Use the granular hook tools to
+promote a narrative phrase into an enabled hook.
 
 `automation.status` is the lifecycle state. `schema.schedule.paused` is its
 scheduler gate, while `posting_mode` controls what happens after generation

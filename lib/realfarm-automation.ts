@@ -1000,11 +1000,38 @@ export function schemaWithAutomationHookItems(
   hooks: AutomationHookItem[]
 ): AutomationSchema {
   const nextHooks = normalizeAutomationHookItems(hooks, [])
+  const narrative = legacyHookCatalogNarrative(schema, nextHooks)
+    ? ""
+    : schema.prompt_formatting.narrative
 
   return {
     ...schema,
     hooks: nextHooks,
+    prompt_formatting: {
+      ...schema.prompt_formatting,
+      narrative,
+    },
   }
+}
+
+function legacyHookCatalogNarrative(
+  schema: AutomationSchema,
+  nextHooks: AutomationHookItem[]
+) {
+  const lines = schema.prompt_formatting.narrative
+    .split(/\r?\n/)
+    .map((line) => clean(line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "")))
+    .filter(Boolean)
+  if (lines.length < 3) return false
+  const hookTexts = new Set(
+    [...normalizeAutomationHookItems(schema.hooks, []), ...nextHooks].map(
+      (hook) => hook.text.toLocaleLowerCase()
+    )
+  )
+  const matches = lines.filter((line) =>
+    hookTexts.has(line.toLocaleLowerCase())
+  ).length
+  return matches / lines.length >= 0.6
 }
 
 export function automationHookId(text: string) {

@@ -44,6 +44,9 @@ export type TikTokStudioReportServices = {
   inspectTikTokStudioAnalyticsImport: (
     importId: string
   ) => Promise<TikTokStudioImportRecord>
+  listTikTokStudioAnalyticsImports: (input: {
+    limit: number
+  }) => Promise<TikTokStudioImportRecord[]>
   inspectTikTokStudioAnalyticsBatch: (
     batchId: string
   ) => Promise<{ items: Array<{ id: string }> }>
@@ -165,7 +168,9 @@ async function reportImports(
   if (input.importId) {
     return [await services.inspectTikTokStudioAnalyticsImport(input.importId)]
   }
-  if (!input.batchId) return []
+  if (!input.batchId) {
+    return services.listTikTokStudioAnalyticsImports({ limit: 500 })
+  }
   const batch = await services.inspectTikTokStudioAnalyticsBatch(input.batchId)
   return Promise.all(
     batch.items.map((item) =>
@@ -184,9 +189,14 @@ function reportCandidates(input: {
   const publicationById = new Map(
     input.publications.map((item) => [item.id, item])
   )
-  const importsByPost = new Map(
-    input.imports.map((item) => [item.targetPostId, item])
-  )
+  const importsByPost = new Map<string, TikTokStudioImportRecord>()
+  for (const item of [...input.imports].sort((left, right) =>
+    right.updatedAt.localeCompare(left.updatedAt)
+  )) {
+    if (!importsByPost.has(item.targetPostId)) {
+      importsByPost.set(item.targetPostId, item)
+    }
+  }
   const snapshotsByPost = new Map<string, PostFastMetricSnapshot[]>()
   for (const snapshot of input.snapshots) {
     if (snapshot.source !== "tiktok_studio") continue
@@ -200,11 +210,13 @@ function reportCandidates(input: {
       item.slideshowId ? [[item.slideshowId, item] as const] : []
     )
   )
+  const scopedToImports = Boolean(input.input.importId || input.input.batchId)
   const postIds = new Set(
-    input.imports.length > 0
+    scopedToImports
       ? importsByPost.keys()
       : [
           ...snapshotsByPost.keys(),
+          ...importsByPost.keys(),
           ...input.publications
             .filter((publication) =>
               publication.provider.toLowerCase().startsWith("tiktok")
@@ -391,7 +403,7 @@ function reportPost(input: {
           : []),
         ...(!currentSnapshot && !importRecord
           ? [
-              "TikTok Studio analytics have not been captured for this publication yet.",
+              "No TikTok Studio capture has been requested for this publication.",
             ]
           : []),
       ],
@@ -415,8 +427,15 @@ function analyticsDetail(
     ...(importRecord?.capturedSections ?? []),
   ])
   const slideMetricsAvailability = describeSlideMetrics(slides)
+  const state = importRecord?.status ?? (snapshot ? "linked" : "not_requested")
   return {
-    state: importRecord?.status ?? (snapshot ? "linked" : "awaiting_capture"),
+    state,
+    statusReason: importRecord?.failure?.reason
+      ? importRecord.failure.reason
+      : state === "not_requested"
+        ? "No TikTok Studio capture import has been started for this publication."
+        : undefined,
+    failure: importRecord?.failure,
     importId: importRecord?.id,
     snapshotId:
       composition.currentSnapshot?.id ??

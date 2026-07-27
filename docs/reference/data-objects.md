@@ -175,8 +175,10 @@ type AutomationSchema = {
 
 Important nested contracts:
 
-- `hooks[]` contains stable automation-owned `{ id, text, enabled, createdAt,
-updatedAt? }` items. Disabled items remain stored but are not selected.
+- `hooks[]` contains stable automation-owned `{ id, text, enabled,
+bodySlideCount?, tone?, createdAt, updatedAt? }` items. Disabled items remain
+  stored but are not selected. The optional count and tone apply only when that
+  hook is selected.
 
 - Enabled hook tokens define the automation's variable set. At runtime tokens
   resolve by the collection's canonical `variableName`; persisted `hook_slots`
@@ -202,6 +204,11 @@ updatedAt? }` items. Disabled items remain stored but are not selected.
   `CURRENT_DATE`, and `CURRENT_TIME`; astrology seasonality can use
   `CURRENT_SIGN` and `CURRENT_SIGN_CUSP`. `SLIDE_COUNT` resolves to the selected
   body-slide count. `YEAR` is retired and filtered from word collections.
+
+- `prompt_formatting.narrative` is writing direction, not a second hook pool.
+  Hook mutations preserve genuine prose direction but clear legacy multi-line
+  hook dumps, because `hooks[]` is the only canonical catalog used for
+  selection.
 
 ### `AutomationTemplateRecord`
 

@@ -38,6 +38,41 @@ describe("automation variable bindings", () => {
     expect(report.missingTokens).toEqual([])
   })
 
+  it("registers every seasonal runtime token without a collection", () => {
+    const automation = createLocalAutomationRecord()
+    automation.schema.hooks = [
+      hook(
+        "seasonal",
+        "[[CURRENT_SIGN_CUSP]] [[CURRENT_SIGN]] [[CURRENT_MONTH]] [[NEXT_YEAR]]",
+        true
+      ),
+    ]
+    const report = deriveAutomationVariableBindings({
+      schema: automation.schema,
+      collections: [],
+    })
+
+    const seasonalTokens = [
+      "[[CURRENT_SIGN_CUSP]]",
+      "[[CURRENT_SIGN]]",
+      "[[CURRENT_MONTH]]",
+      "[[NEXT_YEAR]]",
+    ]
+    expect(report.bindings).toEqual(
+      seasonalTokens.map((token) =>
+        expect.objectContaining({ token, source: "runtime" })
+      )
+    )
+    expect(report.runtimeVariables).toEqual(
+      expect.arrayContaining(
+        seasonalTokens.map((token) =>
+          expect.objectContaining({ token, source: "runtime" })
+        )
+      )
+    )
+    expect(report.missingTokens).toEqual([])
+  })
+
   it("uses explicit hook slots only as overrides and reports stale entries", () => {
     const automation = createLocalAutomationRecord()
     automation.schema.hooks = [hook("one", "[[SIGN]] compatibility", true)]

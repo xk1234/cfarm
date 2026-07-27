@@ -367,6 +367,20 @@ export async function inspectTikTokStudioAnalyticsImport(importId: string) {
   return record
 }
 
+export async function listTikTokStudioAnalyticsImports(
+  input: { limit?: number } = {}
+) {
+  return byNewest(
+    await readJsonArrayStore<TikTokStudioImportRecord>({
+      rootDir,
+      fileName: storeFile,
+      key: storeKey,
+      normalize: normalizeImport,
+      limit: Math.max(1, Math.min(1_000, input.limit ?? 500)),
+    })
+  )
+}
+
 export async function ingestTikTokStudioAnalyticsCapture(input: {
   token: string
   captureId?: string

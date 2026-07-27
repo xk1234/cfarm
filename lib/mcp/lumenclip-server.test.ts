@@ -672,7 +672,7 @@ describe("LumenClip MCP server", () => {
     current.schema.hooks = [
       {
         id: "hook-bound",
-        text: "[[SIGN]] needs [[SLIDE_COUNT]] reminders",
+        text: "[[SIGN]] needs [[SLIDE_COUNT]] reminders for [[CURRENT_SIGN_CUSP]]",
         enabled: true,
         createdAt: "2026-07-01T00:00:00.000Z",
       },
@@ -697,7 +697,7 @@ describe("LumenClip MCP server", () => {
           hook_slot_overrides: { SIGN: "zodiac" },
         },
         variableBindings: {
-          bindings: [
+          bindings: expect.arrayContaining([
             expect.objectContaining({
               token: "[[SIGN]]",
               source: "override",
@@ -707,10 +707,48 @@ describe("LumenClip MCP server", () => {
               token: "[[SLIDE_COUNT]]",
               source: "runtime",
             }),
-          ],
+            expect.objectContaining({
+              token: "[[CURRENT_SIGN_CUSP]]",
+              source: "runtime",
+            }),
+          ]),
           missingTokens: [],
         },
       },
+    })
+
+    const bindings = await client.callTool({
+      name: "lumenclip_automation_variable_bindings_get",
+      arguments: { automationId: current.id },
+    })
+    expect(bindings.structuredContent).toMatchObject({
+      automationId: current.id,
+      bindings: [
+        expect.objectContaining({ token: "[[SIGN]]", source: "override" }),
+        expect.objectContaining({
+          token: "[[SLIDE_COUNT]]",
+          source: "runtime",
+        }),
+        expect.objectContaining({
+          token: "[[CURRENT_SIGN_CUSP]]",
+          source: "runtime",
+        }),
+      ],
+      runtimeVariables: expect.arrayContaining([
+        expect.objectContaining({
+          token: "[[CURRENT_SIGN]]",
+          source: "runtime",
+        }),
+        expect.objectContaining({
+          token: "[[CURRENT_MONTH]]",
+          source: "runtime",
+        }),
+        expect.objectContaining({
+          token: "[[NEXT_YEAR]]",
+          source: "runtime",
+        }),
+      ]),
+      missingTokens: [],
     })
   })
 

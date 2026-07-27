@@ -7,6 +7,7 @@ import {
   automationHookItems,
   type AutomationHookItem,
 } from "@/lib/realfarm-automation"
+import { clean } from "@/lib/guards"
 import {
   listPostFastPostRecords,
   type PostFastPostRecord,
@@ -23,10 +24,7 @@ import {
   usageKeyForHookCombination,
 } from "@/lib/usage-ledger"
 import type { CanonicalMetric } from "@/lib/metric-registry"
-import {
-  hookTextHasSlots,
-  uniqueHookTemplateMatch,
-} from "@/lib/hook-expansion"
+import { hookTextHasSlots, uniqueHookTemplateMatch } from "@/lib/hook-expansion"
 
 export type HookAnalyticsRow = {
   hookId: string
@@ -42,6 +40,7 @@ export type HookAnalyticsRow = {
   saves: number
   shareRate: number | null
   meanSlide1To2RetentionPercent: number | null
+  historicalOnly?: boolean
 }
 
 export type HookUsageState = {
@@ -102,6 +101,7 @@ export async function hookAnalyticsReport(
     now.getTime() - days * 24 * 60 * 60 * 1000
   ).toISOString()
   const hookItems = automationHookItems(automation.schema)
+  const currentHookIds = new Set(hookItems.map((item) => item.id))
   const runs = await listAutomationRuns({
     automationId,
     limit: Number.MAX_SAFE_INTEGER,
@@ -153,7 +153,7 @@ export async function hookAnalyticsReport(
       unattributedPublishedPosts += 1
       continue
     }
-    const item = hookItemForRun(run, hookItems)
+    const item = hookItemForRun(run, hookItems) ?? historicalHookItemForRun(run)
     if (!item) {
       unattributedPublishedPosts += 1
       continue
@@ -183,7 +183,7 @@ export async function hookAnalyticsReport(
       runBySlideshow
     )
     if (!run) continue
-    const item = hookItemForRun(run, hookItems)
+    const item = hookItemForRun(run, hookItems) ?? historicalHookItemForRun(run)
     if (!item) {
       unattributedPublishedPosts += 1
       continue
@@ -221,6 +221,9 @@ export async function hookAnalyticsReport(
           ? aggregate.retentionRatios.reduce((sum, value) => sum + value, 0) /
             aggregate.retentionRatios.length
           : null,
+      ...(!currentHookIds.has(aggregate.item.id)
+        ? { historicalOnly: true }
+        : {}),
     }))
     .sort(
       (left, right) =>
@@ -241,15 +244,27 @@ export async function hookAnalyticsReport(
       return item ? [item.id] : []
     })
   )
-  const hooks: HookUsageState[] = hookItems.map((item) => {
-    const row = rowsByHook.get(item.id)
-    return {
-      hookId: item.id,
-      used: Boolean(row) || historicallyUsedIds.has(item.id),
-      publishedPosts: row?.publishedPosts ?? 0,
-      ...(row?.lastPublishedAt ? { lastPublishedAt: row.lastPublishedAt } : {}),
-    }
-  })
+  const hooks: HookUsageState[] = [
+    ...hookItems.map((item) => {
+      const row = rowsByHook.get(item.id)
+      return {
+        hookId: item.id,
+        used: Boolean(row) || historicallyUsedIds.has(item.id),
+        publishedPosts: row?.publishedPosts ?? 0,
+        ...(row?.lastPublishedAt
+          ? { lastPublishedAt: row.lastPublishedAt }
+          : {}),
+      }
+    }),
+    ...rows
+      .filter((row) => row.historicalOnly)
+      .map((row) => ({
+        hookId: row.hookId,
+        used: true,
+        publishedPosts: row.publishedPosts,
+        lastPublishedAt: row.lastPublishedAt,
+      })),
+  ]
   const rowsById = new Map(rows.map((row) => [row.hookId, row]))
   const performance = [
     ...hookItems.map(
@@ -270,6 +285,7 @@ export async function hookAnalyticsReport(
           meanSlide1To2RetentionPercent: null,
         }
     ),
+    ...rows.filter((row) => row.historicalOnly),
   ]
   const publishedOutputsWithoutPublication = runs.filter(
     (run) =>
@@ -374,6 +390,21 @@ export function hookItemForRun(
   }
 
   return templateMatch
+}
+
+function historicalHookItemForRun(
+  run: AutomationRunRecord
+): AutomationHookItem | undefined {
+  const text = clean(run.plan.hookTemplate) || clean(run.plan.hook)
+  const id = clean(run.plan.hookId)
+  if (!text || !id) return undefined
+  return {
+    id,
+    text,
+    enabled: false,
+    createdAt: run.createdAt,
+    ...(run.updatedAt ? { updatedAt: run.updatedAt } : {}),
+  }
 }
 
 function runForSource(
