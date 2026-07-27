@@ -682,9 +682,16 @@ async function requestStructuredOutput(input: {
         input.requireHookSubjectCoverage &&
         !outputDevelopsHookSubject(output, input.selectedHook)
       ) {
-        throw new Error(
-          `Generated body text does not develop the selected hook subject: ${input.selectedHook}`
-        )
+        const coverageViolation = `Generated body text does not develop the selected hook subject: ${input.selectedHook}`
+        // Retry once for copy that echoes the subject, but never throw the
+        // generation away for this. The check is lexical: it demands a hook
+        // word appear in the body, while good slideshow copy develops a hook
+        // instead of repeating its nouns. "clear counters after every use"
+        // plainly develops "keep a small kitchen tidy" and still fails it.
+        // Word-count violations above already degrade to a warning on the
+        // final attempt; this now behaves the same way.
+        if (attempt < 2) throw new Error(coverageViolation)
+        violations = [...violations, coverageViolation]
       }
       return {
         output,

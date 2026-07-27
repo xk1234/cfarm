@@ -272,7 +272,7 @@ describe("scheduled slideshow prompt unification", () => {
     )
   })
 
-  it("rejects copy that misses the hook subject on both app and worker paths", async () => {
+  it("flags copy that misses the hook subject on both app and worker paths", async () => {
     const workerMod = (await import(workerEngineUrl)) as {
       generateSlideshowText: typeof appGenerateSlideshowText
     }
@@ -296,10 +296,16 @@ describe("scheduled slideshow prompt unification", () => {
       fetchImpl: workerFetch,
     })
 
-    await expect(appGeneration).rejects.toThrow(
+    // Both paths retry once for copy that echoes the hook, then keep the
+    // generation and report the concern. Throwing it away punished good copy
+    // that develops a hook without repeating its nouns, which the lexical
+    // check cannot tell apart from real drift — and left the automation with
+    // nothing to post at all.
+    const [app, worker] = await Promise.all([appGeneration, workerGeneration])
+    expect((app.violations ?? []).join(" ")).toContain(
       "does not develop the selected hook subject"
     )
-    await expect(workerGeneration).rejects.toThrow(
+    expect((worker.violations ?? []).join(" ")).toContain(
       "does not develop the selected hook subject"
     )
     expect(appFetch).toHaveBeenCalledTimes(2)

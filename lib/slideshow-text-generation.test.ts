@@ -245,6 +245,41 @@ describe("slideshow text structured output", () => {
     )
   })
 
+  it("keeps on-topic copy that never repeats a hook word, as a violation", async () => {
+    // Real output from the live suite for "3 ways to keep a small kitchen
+    // tidy". It develops the hook without echoing any of its nouns, so the
+    // lexical coverage check fails it — and used to throw away two paid
+    // attempts and return nothing at all.
+    const developsWithoutEcho = JSON.stringify({
+      title: "small kitchen reset",
+      caption: "three habits that keep it clear.",
+      hashtags: ["#kitchen", "#organising", "#home"],
+      text: { "content-2__heading": "clear counters after every single use" },
+    })
+    // A Response body reads once, so each attempt needs its own.
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () => response(developsWithoutEcho))
+
+    const result = await generateSlideshowText({
+      automation,
+      apiKey: "test-key",
+      selectedHook: "3 ways to keep a small kitchen tidy",
+      fetchImpl,
+    })
+
+    // The generation survives...
+    expect(result.result.text["content-2__heading"]).toBe(
+      "clear counters after every single use"
+    )
+    // ...and the concern is surfaced rather than silently dropped.
+    expect((result.violations ?? []).join(" ")).toContain(
+      "does not develop the selected hook subject"
+    )
+    // One retry for copy that does echo the subject, then accept it.
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
   it("accepts the generated hashtag count without enforcing 3-5", async () => {
     const oneHashtag = JSON.stringify({
       ...JSON.parse(validContent),
