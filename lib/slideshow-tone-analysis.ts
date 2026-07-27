@@ -130,12 +130,21 @@ export function slideshowToneToAutomationFields(
   analysis: SlideshowToneAnalysis
 ): Partial<AutomationSchema> {
   const hook = clean(analysis.seedHook)
+  const { hookSlides, bodySlides, ctaSlides } = analysis.structure
   return {
     tone: analysis.tone,
     language: analysis.language,
+    // The analyzer already counts the source's slides and describes its voice.
+    // Dropping either produced a "matched" automation that wrote four slides
+    // from a two-slide source, in a voice nothing had been told to copy.
+    prompt_formatting: {
+      style: observationsToStyle(analysis.observations),
+      num_of_slides: Math.max(1, hookSlides + bodySlides + ctaSlides),
+    },
     formatting: [
       {
         id: "hook",
+        slideCount: hookSlides,
         textItems: [
           {
             wordLengthMin: analysis.wordRangeByRole.hook.min,
@@ -145,6 +154,7 @@ export function slideshowToneToAutomationFields(
       },
       {
         id: "body",
+        slideCount: bodySlides,
         textItems: [
           {
             wordLengthMin: analysis.wordRangeByRole.body.min,
@@ -154,6 +164,7 @@ export function slideshowToneToAutomationFields(
       },
       {
         id: "cta",
+        slideCount: ctaSlides,
         textItems: [
           {
             wordLengthMin: analysis.wordRangeByRole.cta.min,
@@ -175,6 +186,18 @@ export function slideshowToneToAutomationFields(
         }
       : {}),
   } as Partial<AutomationSchema>
+}
+
+/**
+ * The observations are the only description of the source's voice the match
+ * ever produces, and generation reads `prompt_formatting.style`. Joining them
+ * into that field is what makes a matched automation write like its source
+ * rather than like the default template.
+ */
+function observationsToStyle(observations: string[]) {
+  const lines = observations.map(clean).filter(Boolean)
+  if (lines.length === 0) return ""
+  return ["Write in the voice of the matched slideshow:", ...lines].join("\n")
 }
 
 export function extractHashtags(caption: string) {

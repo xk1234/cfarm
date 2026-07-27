@@ -68,6 +68,54 @@ describe("slideshow tone analysis", () => {
       enabled: true,
     })
   })
+
+  it("carries the source's slide counts instead of the template default", () => {
+    const fields = slideshowToneToAutomationFields({
+      tone: { value: "Bold & Provocative", preset: "bold" },
+      language: "English",
+      wordRange: { min: 5, max: 17 },
+      wordRangeByRole: {
+        hook: { min: 17, max: 17 },
+        body: { min: 5, max: 5 },
+        cta: { min: 5, max: 17 },
+      },
+      // A real two-slide source: @gracieshoppin/photo/7614974655257971999.
+      structure: { hookSlides: 1, bodySlides: 1, ctaSlides: 0 },
+      observations: ["First person.", "Informal caps for emphasis."],
+      seedHook: "who knew drinking a cute pink drink",
+    })
+
+    // Without this the matched automation kept the 1/3/0 template default and
+    // wrote a four-slide post from a two-slide source.
+    expect(
+      fields.formatting?.map((section) => [section.id, section.slideCount])
+    ).toEqual([
+      ["hook", 1],
+      ["body", 1],
+      ["cta", 0],
+    ])
+    expect(fields.prompt_formatting?.num_of_slides).toBe(2)
+  })
+
+  it("puts the voice observations where generation actually reads them", () => {
+    const fields = slideshowToneToAutomationFields({
+      tone: { value: "Bold & Provocative", preset: "bold" },
+      language: "English",
+      wordRange: { min: 4, max: 40 },
+      wordRangeByRole: {
+        hook: { min: 4, max: 6 },
+        body: { min: 30, max: 40 },
+        cta: { min: 8, max: 8 },
+      },
+      structure: { hookSlides: 1, bodySlides: 4, ctaSlides: 1 },
+      observations: ["Uses first-person perspective.", "Punchy fragments."],
+      seedHook: "You are arranging this room wrong",
+    })
+
+    const style = fields.prompt_formatting?.style ?? ""
+    expect(style).toContain("Uses first-person perspective.")
+    expect(style).toContain("Punchy fragments.")
+  })
 })
 
 describe("computeWordRangesByRole", () => {
