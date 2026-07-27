@@ -42,21 +42,21 @@ that command intentionally starts the shared local Appwrite workflow.
 
 Set these on the **Next.js deployment**:
 
-| Variable                         | Requirement                   | Purpose                                                           |
-| -------------------------------- | ----------------------------- | ----------------------------------------------------------------- |
+| Variable                         | Requirement                   | Purpose                                                                |
+| -------------------------------- | ----------------------------- | ---------------------------------------------------------------------- |
 | `APPWRITE_ENDPOINT`              | Required                      | Self-hosted Appwrite API endpoint; never a localhost URL in production |
-| `APPWRITE_PROJECT_ID`            | Required                      | Production Appwrite project                                       |
-| `APPWRITE_API_KEY`               | Required, secret              | Server-side TablesDB, Storage, Teams, and Users access            |
-| `APPWRITE_DATABASE_ID`           | Required                      | Defaults to `cfarm`                                               |
-| `OPENROUTER_API_KEY`             | Required for generation       | Slideshow and social-copy generation                              |
-| `POSTFAST_API_KEY`               | Required for publishing       | Connected accounts, scheduling, publishing, and analytics         |
-| `RENDI_API_KEY`                  | Required for video export     | FFmpeg rendering service                                          |
-| `KIE_KEY`                        | Required for image generation | KIE image generation                                              |
-| `DEEPL_KEY`                      | Optional                      | Translation                                                       |
-| `APIFY_KEY`                      | Optional                      | Trend and source discovery                                        |
-| `PEXELS_KEY`                     | Optional                      | Pexels collection import                                          |
-| `ENABLE_LOCAL_AUTOMATION_WORKER` | Keep `false`                  | Local-only analytics polling loop                                 |
-| `ENABLE_INTERNAL_TOOLS`          | Keep `false`                  | `/debug` and testing-center APIs are 404 in production by default |
+| `APPWRITE_PROJECT_ID`            | Required                      | Production Appwrite project                                            |
+| `APPWRITE_API_KEY`               | Required, secret              | Server-side TablesDB, Storage, Teams, and Users access                 |
+| `APPWRITE_DATABASE_ID`           | Required                      | Defaults to `cfarm`                                                    |
+| `OPENROUTER_API_KEY`             | Required for generation       | Slideshow and social-copy generation                                   |
+| `POSTFAST_API_KEY`               | Required for publishing       | Connected accounts, scheduling, publishing, and analytics              |
+| `RENDI_API_KEY`                  | Required for video export     | FFmpeg rendering service                                               |
+| `KIE_KEY`                        | Required for image generation | KIE image generation                                                   |
+| `DEEPL_KEY`                      | Optional                      | Translation                                                            |
+| `APIFY_KEY`                      | Optional                      | Trend and source discovery                                             |
+| `PEXELS_KEY`                     | Optional                      | Pexels collection import                                               |
+| `ENABLE_LOCAL_AUTOMATION_WORKER` | Keep `false`                  | Local-only analytics polling loop                                      |
+| `ENABLE_INTERNAL_TOOLS`          | Keep `false`                  | `/debug` and testing-center APIs are 404 in production by default      |
 
 Only variables explicitly prefixed with `NEXT_PUBLIC_` may reach browser
 bundles. This application currently requires no public provider credential.
@@ -80,9 +80,14 @@ variables available in its invoking environment.
    node appwrite/functions/deploy.mjs
    ```
 
-5. Create a preview web deployment with the production-equivalent environment.
-6. Run the smoke checks below against the preview URL.
-7. Promote the verified artifact to production.
+   The script reads required credentials from the invoking environment first.
+   When they are absent, it loads the repository-root production `.env`.
+   It never loads `.env.local`, which belongs to the shared local Appwrite
+   stack.
+
+4. Create a preview web deployment with the production-equivalent environment.
+5. Run the smoke checks below against the preview URL.
+6. Promote the verified artifact to production.
 
 ## Appwrite console configuration
 

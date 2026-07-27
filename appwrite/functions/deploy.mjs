@@ -14,16 +14,29 @@ import { execFileSync, execSync } from "node:child_process"
 import { Client, Functions } from "node-appwrite"
 import { InputFile } from "node-appwrite/file"
 
+const here = path.dirname(fileURLToPath(import.meta.url))
+const repoRoot = path.resolve(here, "..", "..")
+const productionEnvPath = path.join(repoRoot, ".env")
+if (
+  (!process.env.APPWRITE_ENDPOINT ||
+    !process.env.APPWRITE_PROJECT_ID ||
+    !process.env.APPWRITE_API_KEY) &&
+  fs.existsSync(productionEnvPath)
+) {
+  process.loadEnvFile(productionEnvPath)
+}
+
 const ENDPOINT = process.env.APPWRITE_ENDPOINT
 const PROJECT_ID = process.env.APPWRITE_PROJECT_ID
 const API_KEY = process.env.APPWRITE_API_KEY
 const DATABASE_ID = process.env.APPWRITE_DATABASE_ID || "cfarm"
-const PUBLIC_BASE_URL =
-  process.env.BASE_URL || "https://cfarm-eight.vercel.app"
-if (!ENDPOINT || !PROJECT_ID || !API_KEY)
-  throw new Error("APPWRITE_ENDPOINT/PROJECT_ID/API_KEY required")
+const PUBLIC_BASE_URL = process.env.BASE_URL || "https://cfarm-eight.vercel.app"
+if (!ENDPOINT || !PROJECT_ID || !API_KEY) {
+  throw new Error(
+    "APPWRITE_ENDPOINT/PROJECT_ID/API_KEY required in the process environment or repo-root .env"
+  )
+}
 
-const here = path.dirname(fileURLToPath(import.meta.url))
 const RUNTIME = "node-22",
   ENTRY = "src/main.js",
   COMMANDS = "npm install"
