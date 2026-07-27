@@ -222,15 +222,45 @@ export function computeWordRange(
 export function computeWordRangesByRole(slides: Array<{ text: string }>) {
   const written = slides.filter((slide) => wordCount(slide.text) > 0)
   const overall = computeWordRange(written)
-  if (written.length < 2) return { hook: overall, body: overall, cta: overall }
-  const [hook, ...rest] = written
-  const cta = rest.length > 1 ? rest[rest.length - 1] : undefined
-  const body = cta ? rest.slice(0, -1) : rest
-  return {
-    hook: computeWordRange([hook]),
-    body: computeWordRange(body.length ? body : rest),
-    cta: cta ? computeWordRange([cta]) : overall,
+  if (written.length < 2) {
+    const only = widen(overall)
+    return { hook: only, body: only, cta: only }
   }
+  const [hook, ...rest] = written
+  // The last slide is only the CTA when it reads like one — the same test
+  // computeSlideStructure applies. Assuming every final slide is a CTA filed a
+  // plain closing line's length under CTA and dropped it from the body range,
+  // so the two halves of one analysis disagreed about the same slide.
+  const last = rest[rest.length - 1]
+  const cta =
+    rest.length > 1 && isCallToAction(last?.text ?? "") ? last : undefined
+  const body = cta ? rest.slice(0, -1) : rest
+  const bodyRange = widen(computeWordRange(body.length ? body : rest))
+  return {
+    hook: widen(computeWordRange([hook])),
+    body: bodyRange,
+    // With no CTA slide there is nothing to measure. The body range is the
+    // nearest real evidence; `overall` spans the hook too, which would licence
+    // a CTA as long as the longest body slide.
+    cta: cta ? widen(computeWordRange([cta])) : bodyRange,
+  }
+}
+
+/**
+ * How far a matched range may drift from the lengths actually measured.
+ *
+ * One source slide per role is the normal case, and it yields min === max — a
+ * body line forced to be exactly five words forever. Half the observed spread
+ * (or half the value itself, when a single slide gives no spread) leaves room
+ * for a sentence to breathe without losing the source's shape.
+ */
+export const WORD_RANGE_VARIANCE = 0.5
+
+export function widen({ min, max }: { min: number; max: number }) {
+  if (min <= 0 && max <= 0) return { min, max }
+  const spread = max - min
+  const pad = Math.max(1, Math.round(WORD_RANGE_VARIANCE * (spread || min)))
+  return { min: Math.max(1, min - pad), max: max + pad }
 }
 
 export function normalizeTone(value: unknown): {

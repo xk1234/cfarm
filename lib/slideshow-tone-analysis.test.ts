@@ -129,8 +129,33 @@ describe("computeWordRangesByRole", () => {
 
   it("keeps the hook range separate from the body range", () => {
     const ranges = computeWordRangesByRole(cancerSlides)
-    expect(ranges.hook).toEqual({ min: 8, max: 8 })
+    // 8 words, widened by half its own value: a matched hook may run 4-12.
+    expect(ranges.hook).toEqual({ min: 4, max: 12 })
     expect(ranges.body.min).toBeGreaterThan(ranges.hook.max)
+  })
+
+  it("gives a single-sample role room to move instead of one exact length", () => {
+    // One body slide measured at 5 words used to produce min === max === 5, so
+    // every body line the automation ever wrote had to be exactly five words.
+    const ranges = computeWordRangesByRole([
+      { text: "a seventeen word hook that runs on a while longer than the body ever does here" },
+      { text: "it started as habit" },
+    ])
+    expect(ranges.body.min).toBeLessThan(ranges.body.max)
+    expect(ranges.body).toEqual({ min: 2, max: 6 })
+  })
+
+  it("only treats a closing slide as the CTA when it reads like one", () => {
+    // computeSlideStructure requires CTA wording, so the ranges must too —
+    // otherwise a plain closing line is counted as body and measured as CTA.
+    const plainEnding = computeWordRangesByRole(cancerSlides)
+    const ctaEnding = computeWordRangesByRole([
+      ...cancerSlides,
+      { text: "follow for more" },
+    ])
+    expect(plainEnding.cta).toEqual(plainEnding.body)
+    expect(ctaEnding.cta).not.toEqual(ctaEnding.body)
+    expect(ctaEnding.cta.max).toBeLessThan(ctaEnding.body.min)
   })
 
   it("falls back to the overall range when there is too little to split", () => {
@@ -145,6 +170,6 @@ describe("computeWordRangesByRole", () => {
       { text: "" },
       { text: "body copy" },
     ])
-    expect(ranges.hook).toEqual({ min: 6, max: 6 })
+    expect(ranges.hook).toEqual({ min: 3, max: 9 })
   })
 })
