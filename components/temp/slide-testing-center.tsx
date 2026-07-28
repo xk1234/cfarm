@@ -890,7 +890,6 @@ function AutomationPickerModal({
       <AppModalPanel className="flex h-[min(820px,92vh)] max-w-6xl flex-col rounded-lg border border-[#dfded7] shadow-xl">
         <AppModalHeader
           title="Choose automation"
-          description="Browse example slideshows, then click a preview to switch."
           onClose={onClose}
           closeLabel="Close automation picker"
         />
@@ -1020,7 +1019,6 @@ function PromptModal({
       <AppModalPanel className="flex h-[min(820px,92vh)] max-w-5xl flex-col rounded-lg border border-[#dfded7] shadow-xl">
         <AppModalHeader
           title="Generation prompt"
-          description="Edit the system prompt and instruction block. The full request payload updates on the right."
           onClose={onClose}
           closeLabel="Close prompt editor"
         />
@@ -1057,10 +1055,6 @@ function PromptModal({
               <div className="text-xs font-semibold text-[#8a887f] uppercase">
                 Final OpenRouter payload
               </div>
-              <p className="mt-1 text-xs text-[#6f6d64]">
-                This includes model, messages, response_format, and the full
-                structured output schema.
-              </p>
             </div>
             <div className="min-h-0 flex-1 overflow-auto rounded-md border border-[#d8d6cc] bg-[#22221f] p-3 font-mono text-xs leading-relaxed text-white">
               <pre className="whitespace-pre-wrap">{finalPayload}</pre>

@@ -572,6 +572,16 @@ export function AutomationSettingsDrawer({
             {/* Below md the sidebar became a full-width block of links above
                 every panel, so it moves into a sheet behind this bar. */}
             <div className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-app-panel-border bg-app-surface px-3 md:hidden">
+              {/* Back leads, matching the format editor's own header bar. */}
+              <button
+                type="button"
+                className="flex shrink-0 items-center gap-2 text-[13px] font-semibold text-[#5d5c56]"
+                onClick={() => dirtyGuard.run(onClose)}
+                aria-label="Back to automations"
+              >
+                <IconChevronLeft className="size-4" />
+                Back
+              </button>
               <button
                 type="button"
                 className="lc-focus-ring flex h-10 min-w-0 items-center gap-2 rounded-[8px] border border-app-panel-border px-3 text-[13px] font-semibold text-app-text"
@@ -582,17 +592,7 @@ export function AutomationSettingsDrawer({
                 <IconMenu2 className="size-4 shrink-0" />
                 <span className="truncate">{activeTabLabel}</span>
               </button>
-              <div className="ml-auto flex shrink-0 items-center gap-2">
-                {generateButton}
-                <button
-                  type="button"
-                  className="grid size-10 place-items-center rounded-[8px] text-app-text-soft"
-                  onClick={() => dirtyGuard.run(onClose)}
-                  aria-label="Back to automations"
-                >
-                  <IconChevronLeft className="size-5" />
-                </button>
-              </div>
+              <div className="ml-auto shrink-0">{generateButton}</div>
             </div>
             <button
               className="absolute top-4 right-4 z-10 hidden h-8 items-center gap-1 rounded-[6px] px-2 text-[12px] font-semibold text-app-text-soft hover:bg-app-surface-subtle hover:text-app-text md:inline-flex"

@@ -476,9 +476,6 @@ export function XAutomationStudio({
               <div className="mt-1 text-sm font-bold">
                 {selected.niche.label || "Set a niche"}
               </div>
-              <div className="mt-1 text-xs text-app-muted-text">
-                Platform-specific presets, voice, validation, and publishing.
-              </div>
             </div>
           )}
         </aside>
@@ -673,10 +670,7 @@ function ComposePanel({
   )
   return (
     <div className="space-y-4">
-      <Panel
-        title="Content strategy"
-        description="Add one niche. The audience, promise, and weighted pillars are derived once and reused."
-      >
+      <Panel title="Content strategy">
         <div className="flex items-end gap-3">
           <div className="min-w-0 flex-1">
             <Field label="Niche">
@@ -760,10 +754,7 @@ function ComposePanel({
         )}
       </Panel>
 
-      <Panel
-        title="Draft controls"
-        description="Topic is optional. About 20% of planned drafts use it instead of a recurring pillar."
-      >
+      <Panel title="Draft controls">
         <Field label="Topic">
           <textarea
             rows={2}
@@ -778,10 +769,7 @@ function ComposePanel({
         </div>
       </Panel>
 
-      <Panel
-        title="Hooks and voice"
-        description="The generator samples from enabled platform-compatible formulas and avoids immediate repeats."
-      >
+      <Panel title="Hooks and voice">
         <div className="flex flex-wrap gap-2">
           {availableHookStyles.map((style) => {
             const active = automation.generation.hookStyles.includes(style.id)
@@ -857,10 +845,7 @@ function DiscoveryPanel({
 }) {
   return (
     <div className="space-y-4">
-      <Panel
-        title="Trend radar"
-        description="Search public X, TikTok, and Instagram content through Apify, then rank it by niche relevance and engagement."
-      >
+      <Panel title="Trend radar">
         <div className="grid grid-cols-[1fr_180px] gap-2">
           <input
             className="min-w-0"
@@ -1038,7 +1023,6 @@ function AccountSettingsPanel({
       <div className="space-y-4">
         <Panel
           title={`${automation.platform === "threads" ? "Threads" : "X"} accounts`}
-          description={`Only ${automation.platform === "threads" ? "Threads" : "X"} accounts can be selected for this automation.`}
         >
           <div className="flex flex-wrap gap-2">
             <Button
@@ -1121,10 +1105,7 @@ function AccountSettingsPanel({
           )}
         </Panel>
 
-        <Panel
-          title="Auto-publish"
-          description="Scheduled automation runs publish automatically. Clicking Generate always creates an unpublished draft."
-        >
+        <Panel title="Auto-publish">
           <label className="flex items-start gap-3 rounded-xl border border-app-panel-border p-3">
             <input
               type="checkbox"
@@ -1568,20 +1549,15 @@ function BenchmarkCard({ run }: { run: XAutomationRun }) {
 
 function Panel({
   title,
-  description,
   children,
 }: {
   title: string
-  description: string
   children: React.ReactNode
 }) {
   return (
     <div className="rounded-xl border border-app-panel-border bg-app-surface p-4">
       <h3 className="font-semibold">{title}</h3>
-      <p className="mt-1 mb-4 text-xs leading-5 text-app-muted-text">
-        {description}
-      </p>
-      <div className="space-y-3">{children}</div>
+      <div className="mt-4 space-y-3">{children}</div>
     </div>
   )
 }

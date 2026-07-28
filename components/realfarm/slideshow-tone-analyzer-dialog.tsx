@@ -78,7 +78,6 @@ export function SlideshowToneAnalyzerDialog({
       >
         <AppModalHeader
           title="Match a TikTok slideshow"
-          description="Transcribe a public photo post and reuse its writing pattern."
           onClose={onClose}
         />
         <div className="max-h-[calc(90vh-5rem)] overflow-y-auto p-5">

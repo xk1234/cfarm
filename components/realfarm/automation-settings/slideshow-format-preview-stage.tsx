@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { IconFocusCentered, IconMinus, IconPlus } from "@tabler/icons-react"
 
 import type { AutomationTextItem } from "@/lib/realfarm-automation"
@@ -14,6 +14,9 @@ const MIN_ZOOM = 0.5
 const MAX_ZOOM = 3
 const ZOOM_STEP = 0.15
 const CANVAS_ORIGIN_Y = 168
+const COMPACT_CANVAS_ORIGIN_Y = 64
+const COMPACT_STAGE_WIDTH = 768
+const STAGE_PADDING = 16
 
 export function SlideshowFormatPreviewStage({
   className,
@@ -24,6 +27,7 @@ export function SlideshowFormatPreviewStage({
   selectedTextIndex,
   activePreviewIndex,
   previewSlotWidths,
+  previewSlotHeights,
   previewGap,
   previewTrackOffset,
   zoom,
@@ -42,6 +46,7 @@ export function SlideshowFormatPreviewStage({
   selectedTextIndex: number | null
   activePreviewIndex: number
   previewSlotWidths: number[]
+  previewSlotHeights: number[]
   previewGap: number
   previewTrackOffset: number
   zoom: number
@@ -66,6 +71,53 @@ export function SlideshowFormatPreviewStage({
   } | null>(null)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
+  const [stageSize, setStageSize] = useState({ width: 0, height: 0 })
+
+  useEffect(() => {
+    const stage = stageRef.current
+    if (!stage) return
+    const observer = new ResizeObserver(([entry]) => {
+      setStageSize({
+        width: entry.contentRect.width,
+        height: entry.contentRect.height,
+      })
+    })
+    observer.observe(stage)
+    return () => observer.disconnect()
+  }, [])
+
+  // A slide is drawn at 2.5x, which overflows a phone in both axes. Start
+  // narrow stages at whatever scale actually fits instead of at 100%.
+  const compact = stageSize.width > 0 && stageSize.width < COMPACT_STAGE_WIDTH
+  const canvasOriginY = compact ? COMPACT_CANVAS_ORIGIN_Y : CANVAS_ORIGIN_Y
+  const fitZoom = useMemo(() => {
+    const slotWidth = previewSlotWidths[activePreviewIndex]
+    const slotHeight = previewSlotHeights[activePreviewIndex]
+    if (!stageSize.width || !stageSize.height || !slotWidth || !slotHeight) {
+      return 1
+    }
+    const scale = Math.min(
+      (stageSize.width - STAGE_PADDING * 2) / slotWidth,
+      (stageSize.height - canvasOriginY - STAGE_PADDING) / slotHeight,
+      1
+    )
+    return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, scale))
+  }, [
+    activePreviewIndex,
+    canvasOriginY,
+    previewSlotHeights,
+    previewSlotWidths,
+    stageSize.height,
+    stageSize.width,
+  ])
+
+  const autoFittedRef = useRef(false)
+  useEffect(() => {
+    if (!compact || autoFittedRef.current || fitZoom >= 1) return
+    autoFittedRef.current = true
+    setPan({ x: 0, y: 0 })
+    onZoomChange(fitZoom)
+  }, [compact, fitZoom, onZoomChange])
 
   function zoomAt(nextZoom: number, clientX: number, clientY: number) {
     const clampedZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom))
@@ -73,7 +125,7 @@ export function SlideshowFormatPreviewStage({
     if (!rect || clampedZoom === zoom) return
 
     const originX = rect.left + rect.width / 2
-    const originY = rect.top + CANVAS_ORIGIN_Y
+    const originY = rect.top + canvasOriginY
     const ratio = clampedZoom / zoom
     setPan((current) => ({
       x: clientX - originX - (clientX - originX - current.x) * ratio,
@@ -90,7 +142,8 @@ export function SlideshowFormatPreviewStage({
 
   function resetView() {
     setPan({ x: 0, y: 0 })
-    onZoomChange(1)
+    // "Fit" has to mean fit: on a narrow stage 100% is off-screen.
+    onZoomChange(fitZoom)
   }
 
   return (
@@ -224,8 +277,9 @@ export function SlideshowFormatPreviewStage({
       </div>
 
       <div
-        className="pointer-events-none absolute top-[168px] left-1/2 will-change-transform"
+        className="pointer-events-none absolute left-1/2 will-change-transform"
         style={{
+          top: `${canvasOriginY}px`,
           transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
           transformOrigin: "0 0",
         }}

@@ -113,10 +113,6 @@ export function AutomationContentFormatEditor({
         title="Slide overrides"
         onAdd={onSlideOverrideAdd}
       />
-      <p className="text-[11px] leading-4 font-medium text-app-muted-text">
-        Override content direction for a specific slide (e.g. soft-sell a
-        product on slide 3).
-      </p>
       {slideOverrides.map((override, index) => (
         <div
           key={`slide-override-${index}`}
@@ -163,10 +159,6 @@ export function AutomationContentFormatEditor({
         title="Image overrides"
         onAdd={onImageOverrideAdd}
       />
-      <p className="text-[11px] leading-4 font-medium text-app-muted-text">
-        Override the image collection for a specific slide (e.g. always use a
-        specific image on slide 3).
-      </p>
       {imageOverrides.map((override, index) => (
         <div
           key={`image-override-${index}`}

@@ -245,11 +245,6 @@ function SlideshowPublicationModal({
           title={
             mode === "post" ? "Post slideshow to social" : "Link published post"
           }
-          description={
-            mode === "post"
-              ? "Upload the slides and create a PostFast draft, scheduled post, or immediate post."
-              : "Attach an already-published post so its analytics are attributed to this output."
-          }
           onClose={onClose}
         />
         <div className="space-y-5 p-5">
@@ -262,11 +257,6 @@ function SlideshowPublicationModal({
             <div className="mb-2 flex justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold">Social account</h3>
-                <p className="text-xs text-app-muted-text">
-                  {mode === "link"
-                    ? "Choose the account that published the post."
-                    : "Choose every destination account."}
-                </p>
               </div>
               <span className="text-xs font-semibold text-app-muted-text">
                 {selectedKeys.length} selected

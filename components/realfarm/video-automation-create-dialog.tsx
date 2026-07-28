@@ -130,7 +130,6 @@ export function VideoAutomationCreateDialog({
         <AppModalPanel className="flex h-[min(850px,92vh)] max-w-[1100px] flex-col overflow-hidden rounded-[12px]">
           <AppModalHeader
             title={`Create ${preset.name} automation`}
-            description="Set the reusable inputs now. You can fine-tune the format after creation."
             onClose={requestBack}
             closeLabel="Back to automation templates"
           />
@@ -333,10 +332,6 @@ function MediaSetup({
             <div className="text-[14px] font-bold text-app-text">
               Media comes next
             </div>
-            <p className="mt-1 text-[13px] leading-5 font-medium text-app-muted-text">
-              This format has configurable media segments. Choose their
-              collections in the format editor after creating the automation.
-            </p>
           </div>
         )}
       </div>

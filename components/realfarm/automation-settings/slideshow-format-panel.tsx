@@ -102,10 +102,15 @@ export function AutomationFormatPanel({
   )
   const previewItems = buildFormatPreviewItems(config, collections)
   const previewBaseScale = 2.5
-  const previewSlotWidths = previewItems.map((item) => {
+  const previewSlotSizes = previewItems.map((item) => {
     const size = formatPreviewCardSize(item.section.aspect_ratio, item.image)
-    return size.width * previewBaseScale
+    return {
+      width: size.width * previewBaseScale,
+      height: size.height * previewBaseScale,
+    }
   })
+  const previewSlotWidths = previewSlotSizes.map((size) => size.width)
+  const previewSlotHeights = previewSlotSizes.map((size) => size.height)
   const previewGap = 50
   const activePreviewIndex = Math.min(
     activePreview,
@@ -769,6 +774,7 @@ export function AutomationFormatPanel({
         selectedTextIndex={selectedTextIndex}
         activePreviewIndex={activePreviewIndex}
         previewSlotWidths={previewSlotWidths}
+        previewSlotHeights={previewSlotHeights}
         previewGap={previewGap}
         previewTrackOffset={previewTrackOffset}
         zoom={previewZoom}
