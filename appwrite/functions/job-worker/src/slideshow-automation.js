@@ -31,6 +31,7 @@ import {
   selectedBodySlideCount,
   slideSpecs,
   slideshowMetadataPromptInstructions,
+  slideshowStructurePromptInstructions,
   slideshowRunId,
   textItemsForSpec,
 } from "./slideshow-plan-core.js"
@@ -563,7 +564,12 @@ async function createPlan({
     },
     model: defaultTextModel,
     selectedHook: hook,
-    promptInstructions: slideshowMetadataPromptInstructions(schema),
+    promptInstructions: [
+      slideshowStructurePromptInstructions(schema),
+      slideshowMetadataPromptInstructions(schema),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
     avoidSimilarHeadings: recentHeadings,
     webSearchEnabled: schema.web_search_enabled,
     apiKey: clean(process.env.OPENROUTER_API_KEY),

@@ -34,6 +34,7 @@ import {
   runDueAutomations,
   listAutomationRuns,
   markAutomationRunPublished,
+  updateAutomationRunSlideText,
   type AutomationRunRecord,
 } from "@/lib/automation-runner"
 import { automationRunProgress } from "@/lib/automation-run-progress"
@@ -110,7 +111,11 @@ import {
 import { listProductCollections } from "@/lib/product-collections"
 import { generatedVideoDeletionBlockReason } from "@/lib/generated-video-deletion"
 import { slideshowDeletionBlockReason } from "@/lib/slideshow-lifecycle"
-import { deleteSlideshowRecord, listSlideshowRecords } from "@/lib/slideshows"
+import {
+  deleteSlideshowRecord,
+  listSlideshowRecords,
+  updateSlideshowSlideText,
+} from "@/lib/slideshows"
 import { withSystemOwner } from "@/lib/system-owner-context"
 import { assertPublicHttpUrl } from "@/lib/url-guard"
 import {
@@ -129,6 +134,7 @@ import {
   inspectTikTokStudioAnalyticsBatch,
   inspectTikTokStudioAnalyticsImport,
   listTikTokStudioAnalyticsImports,
+  type TikTokStudioImportRecord,
 } from "@/lib/tiktok-studio-analytics"
 import { buildTikTokStudioMcpReport } from "@/lib/mcp/tiktok-studio-report"
 import {
@@ -320,6 +326,7 @@ export type LumenClipMcpServices = {
   deleteAutomationRuns: typeof deleteAutomationRuns
   listAutomationRuns: typeof listAutomationRuns
   markAutomationRunPublished: typeof markAutomationRunPublished
+  updateAutomationRunSlideText: typeof updateAutomationRunSlideText
   generateStoredXAutomationRun: typeof generateStoredXAutomationRun
   listXAutomationRuns: typeof listXAutomationRuns
   getXAutomationRun: typeof getXAutomationRun
@@ -344,6 +351,7 @@ export type LumenClipMcpServices = {
   deletePostFastPostRecords: typeof deletePostFastPostRecords
   listSlideshowRecords: typeof listSlideshowRecords
   deleteSlideshowRecord: typeof deleteSlideshowRecord
+  updateSlideshowSlideText: typeof updateSlideshowSlideText
   uploadPostFastMediaSources: typeof uploadPostFastMediaSources
   publishPost: typeof publishPost
   linkPublishedOutput: typeof linkPublishedOutput
@@ -393,6 +401,7 @@ const defaultServices: LumenClipMcpServices = {
   deleteAutomationRuns,
   listAutomationRuns,
   markAutomationRunPublished,
+  updateAutomationRunSlideText,
   generateStoredXAutomationRun,
   listXAutomationRuns,
   getXAutomationRun,
@@ -417,6 +426,7 @@ const defaultServices: LumenClipMcpServices = {
   deletePostFastPostRecords,
   listSlideshowRecords,
   deleteSlideshowRecord,
+  updateSlideshowSlideText,
   uploadPostFastMediaSources,
   publishPost,
   linkPublishedOutput,
@@ -884,18 +894,24 @@ export function createLumenClipMcpServer(
     async (input) =>
       mcpResult(
         await owned(async () => {
-          const [allSnapshots, allFollowers, allPublications, runs] =
-            await Promise.all([
-              services.listMetricSnapshots(),
-              services.listFollowerSnapshots(),
-              services.listPostFastPostRecords(),
-              input.automationId
-                ? services.listAutomationRuns({
-                    automationId: input.automationId,
-                    limit: 500,
-                  })
-                : Promise.resolve([]),
-            ])
+          const [
+            allSnapshots,
+            allFollowers,
+            allPublications,
+            runs,
+            studioImports,
+          ] = await Promise.all([
+            services.listMetricSnapshots(),
+            services.listFollowerSnapshots(),
+            services.listPostFastPostRecords(),
+            input.automationId
+              ? services.listAutomationRuns({
+                  automationId: input.automationId,
+                  limit: 500,
+                })
+              : Promise.resolve([]),
+            services.listTikTokStudioAnalyticsImports({ limit: 1_000 }),
+          ])
           const sourceIds = new Set(
             runs.flatMap((run) => [
               run.id,
@@ -926,6 +942,7 @@ export function createLumenClipMcpServer(
             snapshots,
             followerSnapshots: allFollowers,
             publications,
+            captureImports: studioImports,
             now: services.now(),
             days: input.days,
             integrationIds: input.integrationIds ?? inferredIntegrationIds,
@@ -1311,6 +1328,7 @@ function registerAutomationReadAndRunTools(
             const nextSteps = automationConfigurationNextSteps({
               automation: standard,
               variableBindings,
+              unresolvedCollectionReferences: collectionReferences.unresolved,
             })
             return {
               automation: {
@@ -1421,7 +1439,7 @@ function registerAutomationReadAndRunTools(
     {
       title: "Inspect automation experiment dimensions",
       description:
-        "Returns automation-level content-direction, tone, and model dimensions with their current values; sweepable hook variables with their bound collections and sample values; fixed runtime variables; and the enabled hook count. Call this before running an automation experiment.",
+        "Returns whole-block and per-body-slide content-direction dimensions, tone and model dimensions with their current values; sweepable hook variables with their bound collections and sample values; fixed runtime variables; and the enabled hook count. Call this before running an automation experiment.",
       inputSchema: {
         automationId: z
           .string()
@@ -1467,6 +1485,15 @@ function registerAutomationReadAndRunTools(
       .optional()
       .describe(
         'Variable token name for "variable", e.g. "zodiac", or formatting block ID for "contentDirection", e.g. "body"; omit for other dimensions.'
+      ),
+    slideIndex: z
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .optional()
+      .describe(
+        'One-based body slide to target for a "contentDirection" sweep, e.g. 2. Omit to vary the whole formatting block.'
       ),
     values: z
       .array(z.string().trim().min(1).max(1_000))
@@ -1516,6 +1543,12 @@ function registerAutomationReadAndRunTools(
           .optional()
           .describe(
             "Base integer seed for reproducible variable draws, e.g. 4242."
+          ),
+        textOnly: z
+          .boolean()
+          .optional()
+          .describe(
+            "When true, generates and validates slide copy without requiring image collections or selecting visual media. Defaults to false."
           ),
       },
       annotations: {
@@ -3043,6 +3076,66 @@ function registerOutputAndPublishingTools(
   )
 
   server.registerTool(
+    "lumenclip_output_slide_text_update",
+    {
+      title: "Edit one generated slide",
+      description:
+        "Updates selected text items on one unpublished slideshow slide and rerenders only that slide. Use output_get first to obtain the one-based slide index, text-item IDs, and optimistic-lock timestamp.",
+      inputSchema: {
+        outputId: z
+          .string()
+          .trim()
+          .min(1)
+          .describe(
+            'Slideshow output ID returned by output_get or outputs_list, e.g. "slideshow_123".'
+          ),
+        slideIndex: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .describe("One-based slide index returned by output_get, e.g. 1."),
+        edits: z
+          .array(
+            z.object({
+              textItemId: z
+                .string()
+                .trim()
+                .min(1)
+                .describe(
+                  'Stable text-item ID returned for the slide, e.g. "hook__heading".'
+                ),
+              text: z
+                .string()
+                .max(5_000)
+                .describe(
+                  "Complete replacement text. An empty string deliberately clears the item and will be reported by QA."
+                ),
+            })
+          )
+          .min(1)
+          .max(20),
+        expectedUpdatedAt: z
+          .string()
+          .datetime({ offset: true })
+          .describe(
+            'Optimistic-lock timestamp from output_get.updatedAt, e.g. "2026-07-28T12:00:00.000Z".'
+          ),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (input) =>
+      mcpResult(
+        await owned(() => editOutputSlideText(services, ownerId, input))
+      )
+  )
+
+  server.registerTool(
     "lumenclip_output_delete",
     {
       title: "Delete an unpublished output",
@@ -3841,6 +3934,9 @@ function automationListItem(
     updatedAt: record.updatedAt,
     collectionIds: collectionReferences.ids,
     unresolvedCollectionReferences: collectionReferences.unresolved,
+    nextSteps: missingCollectionReferenceNextSteps(
+      collectionReferences.unresolved
+    ),
     platforms: record.schema.social_integrations.map(
       (integration) => integration.provider
     ),
@@ -3875,7 +3971,7 @@ function normalizeAutomationCollectionReferences(
   schema: AutomationRecord["schema"],
   mediaCollections: StoredImageCollection[]
 ) {
-  const references = automationCollectionIds(schema)
+  const references = automationMediaCollectionReferences(schema)
   const ids: string[] = []
   const unresolved: string[] = []
   for (const reference of references) {
@@ -3888,6 +3984,25 @@ function normalizeAutomationCollectionReferences(
     if (!ids.includes(id)) ids.push(id)
   }
   return { ids, unresolved }
+}
+
+function automationMediaCollectionReferences(
+  schema: AutomationRecord["schema"]
+) {
+  return [
+    ...automationCollectionIds(schema),
+    ...schema.formatting.flatMap((block) => [
+      ...(block.imageOverrides ?? []).map((override) => override.collectionId),
+      block.overlayImage?.collectionId,
+    ]),
+    ...(schema.video_format?.segments.map((segment) => segment.collectionId) ??
+      []),
+  ]
+    .map(clean)
+    .filter(
+      (reference, index, references): reference is string =>
+        Boolean(reference) && references.indexOf(reference) === index
+    )
 }
 
 function socialRunSummary(run: XAutomationRun) {
@@ -3989,12 +4104,7 @@ function automationReferencesCollection(
   collection: StoredImageCollection
 ) {
   const aliases = new Set(collectionAliases(storedToCollection(collection)))
-  const references = [
-    ...automationCollectionIds(automation.schema),
-    ...(automation.schema.video_format?.segments.flatMap((segment) =>
-      segment.collectionId ? [segment.collectionId] : []
-    ) ?? []),
-  ]
+  const references = automationMediaCollectionReferences(automation.schema)
   return references.some((reference) => aliases.has(reference))
 }
 
@@ -4063,6 +4173,7 @@ type OutputSummary = {
     integrationIds: string[]
     awaitingIntegrationIds: string[]
     latestCapturedAt?: string
+    captureAttempts: AnalyticsCaptureAttempt[]
     metrics: MetricTotals
     newFollowers: number
     reportTools: string[]
@@ -4070,18 +4181,43 @@ type OutputSummary = {
   }
 }
 
+type AnalyticsCaptureAttempt = {
+  publicationId: string
+  importId?: string
+  status:
+    | "not_started"
+    | "pending"
+    | "capturing"
+    | "ready"
+    | "captured"
+    | "failed"
+    | "expired"
+  reason?: string
+  section?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
 async function listOutputSummaries(
   services: LumenClipMcpServices
 ): Promise<OutputSummary[]> {
-  const [runs, videos, socialRuns, publications, snapshots, automations] =
-    await Promise.all([
-      services.listAutomationRuns({ limit: 500 }),
-      services.listGeneratedVideoExports({ limit: 500 }),
-      services.listXAutomationRuns(),
-      services.listPostFastPostRecords(),
-      services.listMetricSnapshots(),
-      services.listAutomationRecords(),
-    ])
+  const [
+    runs,
+    videos,
+    socialRuns,
+    publications,
+    snapshots,
+    automations,
+    studioImports,
+  ] = await Promise.all([
+    services.listAutomationRuns({ limit: 500 }),
+    services.listGeneratedVideoExports({ limit: 500 }),
+    services.listXAutomationRuns(),
+    services.listPostFastPostRecords(),
+    services.listMetricSnapshots(),
+    services.listAutomationRecords(),
+    services.listTikTokStudioAnalyticsImports({ limit: 1_000 }),
+  ])
   const automationById = new Map(
     automations.map((automation) => [automation.id, automation])
   )
@@ -4141,7 +4277,12 @@ async function listOutputSummaries(
               qa,
             }).filter((step) => step.id === "publish-output"),
           ],
-          analytics: outputAnalyticsSummary(related, snapshots),
+          analytics: outputAnalyticsSummary(
+            related,
+            snapshots,
+            studioImports,
+            services.now()
+          ),
         },
       ]
     }),
@@ -4170,7 +4311,9 @@ async function listOutputSummaries(
               publication.sourceType === sourceType &&
               publication.sourceId === video.id
           ),
-          snapshots
+          snapshots,
+          studioImports,
+          services.now()
         ),
       }
     }),
@@ -4197,7 +4340,12 @@ async function listOutputSummaries(
         previewUri: run.imageUrls[0],
         createdAt: run.createdAt,
         resourceUri: `lumenclip://outputs/${encodeURIComponent(run.id)}`,
-        analytics: outputAnalyticsSummary(related, snapshots),
+        analytics: outputAnalyticsSummary(
+          related,
+          snapshots,
+          studioImports,
+          services.now()
+        ),
       }
     }),
   ]
@@ -4360,7 +4508,9 @@ async function getAutomationOutput(
 
 function outputAnalyticsSummary(
   publications: PostFastPostRecord[],
-  snapshots: PostFastMetricSnapshot[]
+  snapshots: PostFastMetricSnapshot[],
+  studioImports: TikTokStudioImportRecord[],
+  now: Date
 ): OutputSummary["analytics"] {
   const publicationIds = publications.map((publication) => publication.id)
   const integrationIds = [
@@ -4391,6 +4541,17 @@ function outputAnalyticsSummary(
   const hasTikTokStudio = latest.some(
     (snapshot) => snapshot.source === "tiktok_studio"
   )
+  const captureAttempts = publications.map((publication) =>
+    analyticsCaptureAttempt({
+      publication,
+      snapshot: latestByPost.get(publication.id),
+      imports: studioImports,
+      now,
+    })
+  )
+  const failedCaptureCount = captureAttempts.filter((attempt) =>
+    ["failed", "expired"].includes(attempt.status)
+  ).length
   return {
     available: latest.length > 0,
     postCount: latest.length,
@@ -4398,6 +4559,7 @@ function outputAnalyticsSummary(
     publicationIds,
     integrationIds,
     awaitingIntegrationIds,
+    captureAttempts,
     latestCapturedAt: latest
       .map((snapshot) => snapshot.capturedAt)
       .sort()
@@ -4417,9 +4579,77 @@ function outputAnalyticsSummary(
         ? hasTikTokStudio
           ? "Use lumenclip_tiktok_studio_analytics_report for section and slide-level detail."
           : "Use lumenclip_analytics_report for account and post-level detail."
-        : publications.length > 0
-          ? "This output is published but has no stored metrics yet; capture analytics, then call lumenclip_analytics_report."
-          : "This output has no publication record yet; publish or mark it published before requesting analytics.",
+        : failedCaptureCount > 0
+          ? `${failedCaptureCount} Studio capture ${failedCaptureCount === 1 ? "attempt has" : "attempts have"} failed or expired. Inspect captureAttempts for the recorded reason, then start a new capture.`
+          : publications.length > 0
+            ? "This output is published but has no stored metrics yet; capture analytics, then call lumenclip_analytics_report."
+            : "This output has no publication record yet; publish or mark it published before requesting analytics.",
+  }
+}
+
+function analyticsCaptureAttempt(input: {
+  publication: PostFastPostRecord
+  snapshot?: PostFastMetricSnapshot
+  imports: TikTokStudioImportRecord[]
+  now: Date
+}): AnalyticsCaptureAttempt {
+  if (input.snapshot) {
+    return {
+      publicationId: input.publication.id,
+      status: "captured",
+      updatedAt: input.snapshot.capturedAt,
+    }
+  }
+  const importRecord = input.imports
+    .filter(
+      (candidate) =>
+        candidate.targetPostId === input.publication.id ||
+        (clean(input.publication.externalPostId) &&
+          candidate.externalPostId === clean(input.publication.externalPostId))
+    )
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0]
+  if (!importRecord) {
+    return {
+      publicationId: input.publication.id,
+      status: "not_started",
+      reason: "No TikTok Studio capture attempt has been recorded.",
+    }
+  }
+  const base = {
+    publicationId: input.publication.id,
+    importId: importRecord.id,
+    createdAt: importRecord.createdAt,
+    updatedAt: importRecord.updatedAt,
+  }
+  if (importRecord.status === "failed") {
+    return {
+      ...base,
+      status: "failed" as const,
+      reason: importRecord.failure?.reason || "TikTok Studio capture failed.",
+      section: importRecord.failure?.section,
+    }
+  }
+  if (
+    importRecord.status === "expired" ||
+    (importRecord.status !== "linked" &&
+      Date.parse(importRecord.expiresAt) <= input.now.getTime())
+  ) {
+    return {
+      ...base,
+      status: "expired" as const,
+      reason: "TikTok Studio capture expired before analytics were received.",
+    }
+  }
+  return {
+    ...base,
+    status:
+      importRecord.status === "linked"
+        ? ("captured" as const)
+        : importRecord.status === "ready"
+          ? ("ready" as const)
+          : importRecord.status === "capturing"
+            ? ("capturing" as const)
+            : ("pending" as const),
   }
 }
 
@@ -4615,6 +4845,73 @@ type PublishableOutput = {
   video?: GeneratedVideoExport
 }
 
+async function editOutputSlideText(
+  services: LumenClipMcpServices,
+  ownerId: string,
+  input: {
+    outputId: string
+    slideIndex: number
+    edits: Array<{ textItemId: string; text: string }>
+    expectedUpdatedAt: string
+  }
+) {
+  const [runs, publications] = await Promise.all([
+    services.listAutomationRuns({ limit: 500 }),
+    services.listPostFastPostRecords(),
+  ])
+  const run = runs.find(
+    (candidate) =>
+      candidate.id === input.outputId ||
+      candidate.slideshowId === input.outputId
+  )
+  if (!run?.slideshowId) throw new Error("Slideshow output not found")
+  if (run.status !== "succeeded") {
+    throw new Error("Only ready slideshow outputs can be edited")
+  }
+  if (run.updatedAt !== input.expectedUpdatedAt) {
+    throw new Error(
+      `Output changed after it was read; expected ${input.expectedUpdatedAt}, current ${run.updatedAt}`
+    )
+  }
+  const related = publications.filter(
+    (publication) =>
+      (publication.sourceType === "automation" &&
+        publication.sourceId === run.id) ||
+      (publication.sourceType === "slideshow" &&
+        publication.sourceId === run.slideshowId)
+  )
+  assertOutputCanBeMutated(related, run.manuallyPublishedAt, "edited")
+
+  const [slideshow] = await services.listSlideshowRecords({
+    id: run.slideshowId,
+    limit: 1,
+  })
+  if (!slideshow) throw new Error("Rendered slideshow not found")
+  const zeroBasedIndex = input.slideIndex - 1
+  const updatedSlideshow = await services.updateSlideshowSlideText({
+    id: slideshow.id,
+    slideIndex: zeroBasedIndex,
+    edits: input.edits,
+  })
+  if (!updatedSlideshow) throw new Error("Rendered slideshow not found")
+  const updatedRun = await services.updateAutomationRunSlideText({
+    slideshowId: slideshow.id,
+    runId: run.id,
+    slideIndex: zeroBasedIndex,
+    slideshow: updatedSlideshow,
+  })
+  if (!updatedRun) throw new Error("Automation run not found")
+
+  const output = await getAutomationOutput(services, slideshow.id, ownerId)
+  if (!output) throw new Error("Edited output could not be read")
+  return {
+    output,
+    editedSlide:
+      "slides" in output ? output.slides?.[zeroBasedIndex] : undefined,
+    nextSteps: outputNextSteps(output),
+  }
+}
+
 async function deleteOutput(
   services: LumenClipMcpServices,
   input: { outputId: string; requestId: string }
@@ -4747,14 +5044,22 @@ function assertOutputCanBeDeleted(
   publications: PostFastPostRecord[],
   manuallyPublishedAt?: string
 ) {
+  assertOutputCanBeMutated(publications, manuallyPublishedAt, "deleted")
+}
+
+function assertOutputCanBeMutated(
+  publications: PostFastPostRecord[],
+  manuallyPublishedAt: string | undefined,
+  action: "deleted" | "edited"
+) {
   if (
     manuallyPublishedAt ||
     publications.some((publication) => publication.status === "published")
   ) {
-    throw new Error("Published outputs cannot be deleted")
+    throw new Error(`Published outputs cannot be ${action}`)
   }
   if (publications.some((publication) => publication.status === "scheduled")) {
-    throw new Error("Scheduled outputs cannot be deleted")
+    throw new Error(`Scheduled outputs cannot be ${action}`)
   }
 }
 
@@ -6556,8 +6861,23 @@ function automationCreateNextSteps(
 function automationConfigurationNextSteps(input: {
   automation: AutomationRecord
   variableBindings: ReturnType<typeof deriveAutomationVariableBindings>
+  unresolvedCollectionReferences: string[]
 }): LumenClipNextStep[] {
-  const steps: LumenClipNextStep[] = []
+  const steps: LumenClipNextStep[] = [
+    ...missingCollectionReferenceNextSteps(
+      input.unresolvedCollectionReferences
+    ),
+  ]
+  if (input.variableBindings.missingTokens.length > 0) {
+    steps.push({
+      id: "resolve-missing-variable-collections",
+      severity: "required",
+      reason: `These hook variables do not resolve to an existing word collection: ${input.variableBindings.missingTokens.join(", ")}. Create or select matching variable collections before running this automation.`,
+      tool: "lumenclip_collections_list",
+      args: { mediaType: "word", minimumItemCount: 1, limit: 100 },
+      blocks: ["lumenclip_automation_run"],
+    })
+  }
   const narrative = clean(input.automation.schema.prompt_formatting.narrative)
   const narrativeLines = narrative
     .split(/\r?\n/)
@@ -6646,6 +6966,23 @@ function automationConfigurationNextSteps(input: {
     })
   }
   return steps
+}
+
+function missingCollectionReferenceNextSteps(
+  unresolvedCollectionReferences: string[]
+): LumenClipNextStep[] {
+  const references = [...new Set(unresolvedCollectionReferences)]
+  if (references.length === 0) return []
+  return [
+    {
+      id: "replace-missing-collection-references",
+      severity: "required",
+      reason: `This automation references missing media ${references.length === 1 ? "collection" : "collections"}: ${references.join(", ")}. Select replacement collection IDs and patch every dangling reference before running it.`,
+      tool: "lumenclip_collections_list",
+      args: { minimumItemCount: 1, limit: 100 },
+      blocks: ["lumenclip_automation_run"],
+    },
+  ]
 }
 
 function outputNextSteps(output: {
@@ -6972,6 +7309,7 @@ export function buildAnalyticsReport(input: {
   snapshots: PostFastMetricSnapshot[]
   followerSnapshots: AccountFollowerSnapshot[]
   publications?: PostFastPostRecord[]
+  captureImports?: TikTokStudioImportRecord[]
   now: Date
   days: number
   integrationIds?: string[]
@@ -7141,6 +7479,18 @@ export function buildAnalyticsReport(input: {
         linkState: publication?.linkState,
         hasMetrics: Boolean(snapshot),
         metricsStatus: snapshot ? "captured" : "awaiting_capture",
+        capture: publication
+          ? analyticsCaptureAttempt({
+              publication,
+              snapshot,
+              imports: input.captureImports ?? [],
+              now: input.now,
+            })
+          : {
+              publicationId: snapshot!.postId,
+              status: "captured" as const,
+              updatedAt: snapshot!.capturedAt,
+            },
         capturedAt: snapshot?.capturedAt,
         publishedAt: publication?.publishedAt ?? snapshot?.publishedAt,
         content: publication?.content ?? snapshot?.content,

@@ -106,6 +106,10 @@ describe("runAutomationExperiment", () => {
       ...item,
       contentDirection: "One grounded recommendation",
     }))
+    body.slideCount = 3
+    body.slideOverrides = [
+      { slideIndex: 2, contentDirection: "A contrasting example" },
+    ]
     mocks.getAutomationRecord.mockResolvedValue(record)
 
     const dimensions = await getAutomationExperimentDimensions("automation-id")
@@ -122,6 +126,27 @@ describe("runAutomationExperiment", () => {
           dimension: "contentDirection",
           name: "body",
           label: "Body content direction",
+          currentValue: "One grounded recommendation",
+        }),
+        expect.objectContaining({
+          dimension: "contentDirection",
+          name: "body",
+          slideIndex: 1,
+          label: "Body slide 1 content direction",
+          currentValue: "One grounded recommendation",
+        }),
+        expect.objectContaining({
+          dimension: "contentDirection",
+          name: "body",
+          slideIndex: 2,
+          label: "Body slide 2 content direction",
+          currentValue: "A contrasting example",
+        }),
+        expect.objectContaining({
+          dimension: "contentDirection",
+          name: "body",
+          slideIndex: 3,
+          label: "Body slide 3 content direction",
           currentValue: "One grounded recommendation",
         }),
         expect.objectContaining({
@@ -374,6 +399,98 @@ describe("content direction sweeps", () => {
       "contentDirection:cta",
     ])
   })
+
+  it("varies only one targeted body slide", async () => {
+    const seen: Array<{
+      formatting: Array<{
+        id: string
+        textItems: Array<{ contentDirection: string }>
+        slideOverrides?: Array<{
+          slideIndex: number
+          contentDirection: string
+        }>
+      }>
+    }> = []
+    mocks.previewAutomationRunPlan.mockImplementation(async (schema) => {
+      seen.push(structuredClone(schema) as (typeof seen)[number])
+      return {
+        status: "succeeded",
+        plan: {
+          hook: "h",
+          slides: [],
+        },
+      } as never
+    })
+
+    await runAutomationExperiment({
+      automationId: "a1",
+      vary: [
+        {
+          dimension: "contentDirection",
+          name: "body",
+          slideIndex: 2,
+          values: ["a concrete example", "a counterexample"],
+        },
+      ],
+      seed: 8,
+    })
+
+    expect(seen).toHaveLength(2)
+    expect(
+      seen.map(
+        (schema) =>
+          schema.formatting
+            .find((block) => block.id === "body")
+            ?.slideOverrides?.find((override) => override.slideIndex === 2)
+            ?.contentDirection
+      )
+    ).toEqual(["a concrete example", "a counterexample"])
+    const blockDirections = seen.map(
+      (schema) =>
+        schema.formatting.find((block) => block.id === "body")?.textItems[0]
+          ?.contentDirection
+    )
+    expect(blockDirections[0]).toBe(blockDirections[1])
+    expect(stableSchemaWithoutSlideDirection(seen[0], 2)).toEqual(
+      stableSchemaWithoutSlideDirection(seen[1], 2)
+    )
+  })
+
+  it("keeps whole-body and per-slide directions in separate columns", async () => {
+    const { cells } = await runAutomationExperiment({
+      automationId: "a1",
+      vary: [
+        { dimension: "contentDirection", name: "body", values: ["all"] },
+        {
+          dimension: "contentDirection",
+          name: "body",
+          slideIndex: 2,
+          values: ["only slide 2"],
+        },
+      ],
+    })
+
+    expect(Object.keys(cells[0].variant).sort()).toEqual([
+      "contentDirection:body",
+      "contentDirection:body:slide:2",
+    ])
+  })
+
+  it("rejects slide targets outside body content-direction sweeps", async () => {
+    await expect(
+      runAutomationExperiment({
+        automationId: "a1",
+        vary: [
+          {
+            dimension: "contentDirection",
+            name: "cta",
+            slideIndex: 1,
+            values: ["invalid target"],
+          },
+        ],
+      })
+    ).rejects.toThrow("only target a body content-direction variation")
+  })
 })
 
 function stableSchemaWithoutBodyDirection(schema: {
@@ -394,6 +511,36 @@ function stableSchemaWithoutBodyDirection(schema: {
               ...item,
               contentDirection: "<varied>",
             })),
+          }
+        : block
+    ),
+  }
+}
+
+function stableSchemaWithoutSlideDirection(
+  schema: {
+    formatting: Array<{
+      id: string
+      slideOverrides?: Array<{
+        slideIndex: number
+        contentDirection: string
+      }>
+      [key: string]: unknown
+    }>
+  },
+  slideIndex: number
+) {
+  return {
+    ...schema,
+    formatting: schema.formatting.map((block) =>
+      block.id === "body"
+        ? {
+            ...block,
+            slideOverrides: block.slideOverrides?.map((override) =>
+              override.slideIndex === slideIndex
+                ? { ...override, contentDirection: "<varied>" }
+                : override
+            ),
           }
         : block
     ),

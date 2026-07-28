@@ -22,6 +22,7 @@ import type {
 } from "@/lib/postfast-metric-snapshots"
 import { schemaWithAutomationCollectionId } from "@/lib/realfarm-automation"
 import { verifySlideshowShareToken } from "@/lib/slideshow-share"
+import type { SlideshowRecord } from "@/lib/slideshows"
 import { defaultXAutomation } from "@/lib/x-automation"
 import type { WordCollectionRecord } from "@/lib/word-collections"
 
@@ -140,12 +141,14 @@ describe("LumenClip MCP server", () => {
           {
             dimension: "contentDirection",
             name: "body",
+            slideIndex: 2,
             values: ["One concrete tip", "One surprising stat"],
           },
         ],
         allHooks: true,
         repeats: 2,
         seed: 42,
+        textOnly: true,
       },
     })
 
@@ -157,12 +160,14 @@ describe("LumenClip MCP server", () => {
         {
           dimension: "contentDirection",
           name: "body",
+          slideIndex: 2,
           values: ["One concrete tip", "One surprising stat"],
         },
       ],
       allHooks: true,
       repeats: 2,
       seed: 42,
+      textOnly: true,
     })
   })
 
@@ -548,6 +553,44 @@ describe("LumenClip MCP server", () => {
     expect(deleted.structuredContent).toMatchObject({
       deletedHookIds: ["hook-new"],
       total: 2,
+    })
+  })
+
+  it("surfaces dangling media references and a run-blocking next step on read", async () => {
+    const current = automationRecord()
+    current.schema.image_collection_ids.all_slides =
+      "collection-mystical-pictures-deleted"
+    const body = current.schema.formatting.find((block) => block.id === "body")!
+    body.imageOverrides = [
+      { slideIndex: 2, collectionId: "collection-deleted-override" },
+    ]
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      listAutomationRuns: vi.fn(async () => []),
+      listWordCollections: vi.fn(async () => []),
+      listImageCollections: vi.fn(async () => []),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_automation_get",
+      arguments: { automationId: current.id },
+    })
+
+    expect(result.structuredContent).toMatchObject({
+      automation: {
+        unresolvedCollectionReferences: [
+          "collection-mystical-pictures-deleted",
+          "collection-deleted-override",
+        ],
+      },
+      nextSteps: [
+        expect.objectContaining({
+          id: "replace-missing-collection-references",
+          severity: "required",
+          tool: "lumenclip_collections_list",
+          blocks: ["lumenclip_automation_run"],
+        }),
+      ],
     })
   })
 
@@ -1160,6 +1203,26 @@ describe("LumenClip MCP server", () => {
         awaitingPublication,
       ]),
       listMetricSnapshots: vi.fn(async () => [snapshot]),
+      listTikTokStudioAnalyticsImports: vi.fn(async () => [
+        {
+          id: "studio-import-failed",
+          status: "failed" as const,
+          targetPostId: awaitingPublication.id,
+          externalPostId: "7355555555555555555",
+          integrationId: awaitingPublication.integrationId,
+          studioUrl:
+            "https://www.tiktok.com/tiktokstudio/analytics/7355555555555555555/overview",
+          createdAt: "2026-07-21T00:00:00.000Z",
+          expiresAt: "2026-07-21T01:00:00.000Z",
+          updatedAt: "2026-07-21T00:05:00.000Z",
+          capturedSections: [],
+          failure: {
+            section: "overview" as const,
+            reason: "Overview did not load after retry",
+            failedAt: "2026-07-21T00:05:00.000Z",
+          },
+        },
+      ]),
     })
 
     const result = await client.callTool({
@@ -1185,6 +1248,14 @@ describe("LumenClip MCP server", () => {
               "lumenclip_analytics_report",
               "lumenclip_tiktok_studio_analytics_report",
             ],
+            captureAttempts: expect.arrayContaining([
+              expect.objectContaining({
+                publicationId: awaitingPublication.id,
+                status: "failed",
+                reason: "Overview did not load after retry",
+                section: "overview",
+              }),
+            ]),
           }),
         }),
       ],
@@ -1294,6 +1365,133 @@ describe("LumenClip MCP server", () => {
       outputId: run.slideshowId,
       qa: { valid: false },
     })
+  })
+
+  it("edits addressed slide text with an optimistic lock and returns fresh QA", async () => {
+    const automation = automationRecord()
+    let run = generatedRun(automation.id)
+    run.plan.slides[0].textItems = [
+      {
+        id: "hook-heading",
+        text: "facts about capricorn",
+        fontSize: "12px",
+        textSize: { width: 80, height: 18 },
+        textStyle: "outline",
+        textAlign: "center",
+        textAnchor: "padded",
+        textPosition: { x: 50, y: 45 },
+      },
+    ]
+    run.plan.slides[0].text = "facts about capricorn"
+    run.plan.hook = "facts about capricorn"
+    let slideshow = generatedSlideshow(run, "facts about capricorn")
+    const updateSlide = vi.fn(
+      async ({
+        edits,
+      }: {
+        edits: Array<{ textItemId: string; text: string }>
+      }) => {
+        slideshow = {
+          ...slideshow,
+          updated_at: "2026-07-28T12:00:00.000Z",
+          images: slideshow.images.map((slide) => ({
+            ...slide,
+            textItems: slide.textItems.map((item) => ({
+              ...item,
+              text:
+                edits.find(
+                  (edit: { textItemId: string }) => edit.textItemId === item.id
+                )?.text ?? item.text,
+            })),
+          })),
+        }
+        return slideshow
+      }
+    )
+    const updateRun = vi.fn(async () => {
+      const text = slideshow.images[0].textItems[0].text
+      run = {
+        ...run,
+        updatedAt: "2026-07-28T12:00:01.000Z",
+        plan: {
+          ...run.plan,
+          hook: text,
+          slides: run.plan.slides.map((slide) => ({
+            ...slide,
+            text,
+            textItems: slideshow.images[0].textItems,
+          })),
+        },
+      }
+      return run
+    })
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => automation),
+      listAutomationRecords: vi.fn(async () => [automation]),
+      listAutomationRuns: vi.fn(async () => [run]),
+      listGeneratedVideoExports: vi.fn(async () => []),
+      listXAutomationRuns: vi.fn(async () => []),
+      listPostFastPostRecords: vi.fn(async () => []),
+      listMetricSnapshots: vi.fn(async () => []),
+      listSlideshowRecords: vi.fn(async () => [slideshow]),
+      updateSlideshowSlideText:
+        updateSlide as LumenClipMcpServices["updateSlideshowSlideText"],
+      updateAutomationRunSlideText:
+        updateRun as LumenClipMcpServices["updateAutomationRunSlideText"],
+    })
+
+    const edited = await client.callTool({
+      name: "lumenclip_output_slide_text_update",
+      arguments: {
+        outputId: run.slideshowId,
+        slideIndex: 1,
+        edits: [
+          {
+            textItemId: "hook-heading",
+            text: "capricorn behavior nobody warns you about",
+          },
+        ],
+        expectedUpdatedAt: run.updatedAt,
+      },
+    })
+
+    expect(updateSlide).toHaveBeenCalledWith({
+      id: run.slideshowId,
+      slideIndex: 0,
+      edits: [
+        {
+          textItemId: "hook-heading",
+          text: "capricorn behavior nobody warns you about",
+        },
+      ],
+    })
+    expect(edited.structuredContent).toMatchObject({
+      output: {
+        updatedAt: "2026-07-28T12:00:01.000Z",
+        resolvedHookText: "capricorn behavior nobody warns you about",
+        slides: [
+          expect.objectContaining({
+            index: 1,
+            heading: "capricorn behavior nobody warns you about",
+          }),
+        ],
+      },
+      editedSlide: expect.objectContaining({
+        heading: "capricorn behavior nobody warns you about",
+      }),
+    })
+
+    const stale = await client.callTool({
+      name: "lumenclip_output_slide_text_update",
+      arguments: {
+        outputId: run.slideshowId,
+        slideIndex: 1,
+        edits: [{ textItemId: "hook-heading", text: "another hook" }],
+        expectedUpdatedAt: "2026-07-18T01:01:00.000Z",
+      },
+    })
+    expect(stale.isError).toBe(true)
+    expect(updateSlide).toHaveBeenCalledTimes(1)
   })
 
   it("absolutises per-slide and delivery URLs in slideshow_generate against BASE_URL", async () => {
@@ -2307,6 +2505,26 @@ describe("MCP analytics report", () => {
       snapshots: [captured],
       followerSnapshots: [],
       publications,
+      captureImports: [
+        {
+          id: "capture-publication-2",
+          status: "failed",
+          targetPostId: "publication-2",
+          externalPostId: "7000000000000000002",
+          integrationId: "integration-1",
+          studioUrl:
+            "https://www.tiktok.com/tiktokstudio/analytics/7000000000000000002/overview",
+          createdAt: "2026-07-15T00:00:00.000Z",
+          expiresAt: "2026-07-15T01:00:00.000Z",
+          updatedAt: "2026-07-15T00:05:00.000Z",
+          capturedSections: [],
+          failure: {
+            section: "overview",
+            reason: "Studio returned an empty overview",
+            failedAt: "2026-07-15T00:05:00.000Z",
+          },
+        },
+      ],
       now: new Date("2026-07-18T12:00:00.000Z"),
       days: 30,
       postLimit: 10,
@@ -2329,6 +2547,19 @@ describe("MCP analytics report", () => {
     expect(
       report.posts.filter((post) => post.metricsStatus === "awaiting_capture")
     ).toHaveLength(3)
+    expect(
+      report.posts.find((post) => post.postId === "publication-2")?.capture
+    ).toMatchObject({
+      status: "failed",
+      reason: "Studio returned an empty overview",
+      section: "overview",
+    })
+    expect(
+      report.posts.find((post) => post.postId === "publication-3")?.capture
+    ).toMatchObject({
+      status: "not_started",
+      reason: "No TikTok Studio capture attempt has been recorded.",
+    })
   })
 })
 
@@ -2337,6 +2568,7 @@ async function connectClient(overrides: Partial<LumenClipMcpServices> = {}) {
     getAutomationRecord: vi.fn(async () => null),
     listAutomationRecords: vi.fn(async () => []),
     listAutomationRuns: vi.fn(async () => []),
+    listTikTokStudioAnalyticsImports: vi.fn(async () => []),
     ...overrides,
   })
   const client = new Client({ name: "lumenclip-test", version: "1.0.0" })
@@ -2453,6 +2685,60 @@ function generatedRun(automationId: string): AutomationRunRecord {
     outputImages: ["https://example.com/output.jpg"],
     createdAt: "2026-07-18T01:00:00.000Z",
     updatedAt: "2026-07-18T01:01:00.000Z",
+  }
+}
+
+function generatedSlideshow(
+  run: AutomationRunRecord,
+  text = "Generated hook"
+): SlideshowRecord {
+  return {
+    id: run.slideshowId!,
+    runId: run.id,
+    automationId: run.automationId,
+    title: run.plan.title,
+    caption: run.plan.caption,
+    hashtags: run.plan.hashtags,
+    prompt: "",
+    image_collection: "collection-1",
+    slideshow_type: "automation",
+    created_at: run.createdAt,
+    updated_at: run.updatedAt,
+    status: "exported",
+    output_dir: `/api/local-assets/slideshows/outputs/${run.slideshowId}`,
+    output_images: [
+      `/api/local-assets/slideshows/outputs/${run.slideshowId}/slide-001.png`,
+    ],
+    settings: {
+      duration: 4,
+      aspect_ratio: "9:16",
+      font: "Inter",
+      background_color: "#000000",
+      transition_style: "cut",
+      export_as_video: false,
+      sound_id: "",
+      sound_name: "",
+      sound_url: "",
+    },
+    images: [
+      {
+        id: "slide-1",
+        image_url: `/api/local-assets/slideshows/outputs/${run.slideshowId}/slide-001.png`,
+        source_image_url: "https://example.com/image.jpg",
+        textItems: [
+          {
+            id: "hook-heading",
+            text,
+            fontSize: "12px",
+            textSize: { width: 80, height: 18 },
+            textStyle: "outline",
+            textAlign: "center",
+            textAnchor: "padded",
+            textPosition: { x: 50, y: 45 },
+          },
+        ],
+      },
+    ],
   }
 }
 

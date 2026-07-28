@@ -66,6 +66,7 @@ may link to a shared tool but do not invent a second incompatible schema.
 - `lumenclip_outputs_list`
 - `lumenclip_output_get`
 - `lumenclip_output_validate`
+- `lumenclip_output_slide_text_update`
 - `lumenclip_output_delete`
 - `lumenclip_operations_list`
 - `lumenclip_operation_get`

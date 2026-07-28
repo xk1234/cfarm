@@ -58,6 +58,12 @@ export function slideshowMetadataPromptInstructions(schema) {
         .filter(Boolean)
         .join("\n");
 }
+export function slideshowStructurePromptInstructions(schema) {
+    const style = clean(schema.prompt_formatting?.style);
+    return style
+        ? `Structural style rules (govern organization and format only; Tone still controls register, diction, rhythm, and casing):\n${style}`
+        : "";
+}
 export function resolveSlideshowCaption(input) {
     const setting = input.setting;
     if (setting?.mode === "static") {

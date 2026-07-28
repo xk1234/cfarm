@@ -42,6 +42,10 @@ catalog is duplicated in `prompt_formatting.narrative` or the hook text item's
 `contentDirection`, or when explicit variable overrides are no longer used.
 Each step contains resolved tool arguments and can be applied without
 reconstructing the schema.
+Media collection references are resolved on read, including per-slide image
+overrides, overlay collections, and video-segment collections. Missing IDs are
+returned in `unresolvedCollectionReferences` with a required `nextSteps` entry
+that blocks `lumenclip_automation_run` until replacements are selected.
 
 ### `lumenclip_automation_templates_list`
 
@@ -70,6 +74,11 @@ replacement. The result returns `schemaDiff.added`, `schemaDiff.changed`, and
 
 Prefer the two patch tools below for formatting changes. They mutate one
 addressable object and do not normalize or rewrite unrelated schema fields.
+
+`tone.value` owns voice: register, diction, sentence rhythm, and casing.
+`prompt_formatting.style` owns structure and format: heading shape, paragraph
+organization, ordering, and other content-layout rules. Generation labels the
+style block as structural and explicitly prevents it from overriding tone.
 
 ### `lumenclip_automation_formatting_update`
 

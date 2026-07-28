@@ -4,6 +4,7 @@ import { selectSlideshowHook } from "@/lib/slideshow-generation-engine"
 import {
   resolveSlideshowCaption,
   slideshowMetadataPromptInstructions,
+  slideshowStructurePromptInstructions,
 } from "@/lib/slideshow-plan-core"
 
 describe("slideshow plan metadata and hook overrides", () => {
@@ -42,6 +43,18 @@ describe("slideshow plan metadata and hook overrides", () => {
         hook: "May Gemini vs. June Gemini",
       })
     ).toBe("may gemini vs. june gemini")
+  })
+
+  it("keeps structural style rules separate from tone", () => {
+    expect(
+      slideshowStructurePromptInstructions({
+        prompt_formatting: {
+          style: "Use a two-word heading followed by one supporting paragraph.",
+        },
+      })
+    ).toBe(
+      "Structural style rules (govern organization and format only; Tone still controls register, diction, rhythm, and casing):\nUse a two-word heading followed by one supporting paragraph."
+    )
   })
 
   it("uses a hook body-slide override for SLIDE_COUNT and returns its tone", () => {

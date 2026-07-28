@@ -57,6 +57,7 @@ type PlanSchema = {
   formatting?: FormatSection[]
   aspect_ratio?: string
   font?: string
+  prompt_formatting?: { style?: string }
   image_collection_ids?: {
     all_slides?: string
     first_slide?: { collection?: string }
@@ -132,6 +133,13 @@ export function slideshowMetadataPromptInstructions(schema: PlanSchema) {
   ]
     .filter(Boolean)
     .join("\n")
+}
+
+export function slideshowStructurePromptInstructions(schema: PlanSchema) {
+  const style = clean(schema.prompt_formatting?.style)
+  return style
+    ? `Structural style rules (govern organization and format only; Tone still controls register, diction, rhythm, and casing):\n${style}`
+    : ""
 }
 
 export function resolveSlideshowCaption(input: {

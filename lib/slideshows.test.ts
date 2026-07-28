@@ -24,6 +24,7 @@ let deleteSlideshowRecord: typeof SlideshowsModule.deleteSlideshowRecord
 let deleteSlideshowRecordsForAutomation: typeof SlideshowsModule.deleteSlideshowRecordsForAutomation
 let listSlideshowRecords: typeof SlideshowsModule.listSlideshowRecords
 let replaceSlideshowSlideImage: typeof SlideshowsModule.replaceSlideshowSlideImage
+let updateSlideshowSlideText: typeof SlideshowsModule.updateSlideshowSlideText
 let updateSlideshowMetadata: typeof SlideshowsModule.updateSlideshowMetadata
 
 // Appwrite-only, run against cfarm (forced by vitest.setup.ts):
@@ -82,6 +83,7 @@ beforeEach(async () => {
     deleteSlideshowRecordsForAutomation,
     listSlideshowRecords,
     replaceSlideshowSlideImage,
+    updateSlideshowSlideText,
     updateSlideshowMetadata,
   } = await import("@/lib/slideshows"))
   await writeLocalAsset("first.jpg", "first image")
@@ -321,6 +323,66 @@ describe("slideshow persistence", () => {
       hashtags: "#new #edited",
       output_images: record.output_images,
     })
+  })
+
+  it("updates addressed text items and rerenders only that slide", async () => {
+    const record = await createSlideshowRecord({
+      automationId: "automation-1",
+      runId: "automation-run-replace-text",
+      title: "Replace text",
+      images: [
+        {
+          image_url: "/api/local-assets/image-collections/files/scene.svg",
+          textItems: [
+            {
+              id: "hook-heading",
+              text: "facts about capricorn",
+              fontSize: "12px",
+              textSize: { width: 80, height: 18 },
+              textStyle: "outline",
+              textAlign: "center",
+              textAnchor: "padded",
+              textPosition: { x: 50, y: 42 },
+            },
+          ],
+        },
+        {
+          image_url: "/api/local-assets/image-collections/files/scene.svg",
+          textItems: [
+            {
+              id: "body-heading",
+              text: "the reception",
+              fontSize: "12px",
+              textSize: { width: 80, height: 18 },
+              textStyle: "outline",
+              textAlign: "center",
+              textAnchor: "padded",
+              textPosition: { x: 50, y: 42 },
+            },
+          ],
+        },
+      ],
+    })
+    const untouchedBefore = await readOutputText(record, "slide-002.svg")
+
+    const updated = await updateSlideshowSlideText({
+      id: record.id,
+      slideIndex: 0,
+      edits: [
+        {
+          textItemId: "hook-heading",
+          text: "capricorn behavior nobody warns you about",
+        },
+      ],
+    })
+
+    expect(updated?.images[0].textItems[0].text).toBe(
+      "capricorn behavior nobody warns you about"
+    )
+    expect(await readOutputText(record, "slide-001.svg")).toContain(
+      "capricorn behavior nobody warns you about"
+    )
+    expect(await readOutputText(record, "slide-002.svg")).toBe(untouchedBefore)
   })
 
   it("renders output slides with configured aspect ratio and bounded text lines", async () => {

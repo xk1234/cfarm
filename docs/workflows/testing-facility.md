@@ -15,14 +15,14 @@ while everything else stays fixed.
 
 ## What shipped
 
-| Piece | Name |
-| --- | --- |
-| Sweep engine | `runAutomationExperiment(input)` in `lib/automation-experiment.ts` |
-| Dimension discovery | `getAutomationExperimentDimensions(automationId)` |
-| MCP tools | `lumenclip_automation_experiment_dimensions`, `lumenclip_automation_experiment_run` |
-| Route | `GET`/`POST /api/automations/[id]/experiment`, `maxDuration = 300` |
-| UI | `/app/testing`, in normal workspace navigation — **not** behind `internalToolsEnabled()` |
-| Cap | `AUTOMATION_EXPERIMENT_CELL_CAP` = 200 cells; repeats 1–20 |
+| Piece               | Name                                                                                     |
+| ------------------- | ---------------------------------------------------------------------------------------- |
+| Sweep engine        | `runAutomationExperiment(input)` in `lib/automation-experiment.ts`                       |
+| Dimension discovery | `getAutomationExperimentDimensions(automationId)`                                        |
+| MCP tools           | `lumenclip_automation_experiment_dimensions`, `lumenclip_automation_experiment_run`      |
+| Route               | `GET`/`POST /api/automations/[id]/experiment`, `maxDuration = 300`                       |
+| UI                  | `/app/testing`, in normal workspace navigation — **not** behind `internalToolsEnabled()` |
+| Cap                 | `AUTOMATION_EXPERIMENT_CELL_CAP` = 200 cells; repeats 1–20                               |
 
 It reads **saved automations**, not templates. Each cell clones the schema in memory, applies one
 variation to the clone, and calls `previewAutomationRunPlan` — no saved record is ever written, and
@@ -45,10 +45,10 @@ draws. Repeats are separate cells with their own per-cell seed.
 
 An automation's inputs live in its saved schema. The two run tools take almost nothing:
 
-| Tool | Inputs |
-| --- | --- |
-| `lumenclip_slideshow_generate` | `automationId`, optional `requestId` |
-| `lumenclip_automation_run` | `automationId`, optional `topic`, `requestId` |
+| Tool                           | Inputs                                        |
+| ------------------------------ | --------------------------------------------- |
+| `lumenclip_slideshow_generate` | `automationId`, optional `requestId`          |
+| `lumenclip_automation_run`     | `automationId`, optional `topic`, `requestId` |
 
 Neither accepts a per-run override. So varying one input means mutating the automation with
 `lumenclip_automation_schema_update`, running, then mutating it back. That is destructive, racy
@@ -65,14 +65,14 @@ Otherwise the route calls `notFound()`.
 
 Its real labels:
 
-| Control | Label |
-| --- | --- |
-| Automation picker | **Choose automation** |
-| Model picker | **Choose models**, **Search OpenRouter models**, **Custom OpenRouter model ID** |
-| Schema inspector | **Automation details** — sections **Tone**, **Style**, **Hooks**, **Template slides** |
-| Per-slide inspector | **Grid**, **Overlay**, **Collection**, and **No text** for empty text items |
-| Result stepper | **Previous hook** / **Next hook**, **Previous generated slide** / **Next generated slide** |
-| Empty state | **No test runs yet** |
+| Control             | Label                                                                                      |
+| ------------------- | ------------------------------------------------------------------------------------------ |
+| Automation picker   | **Choose automation**                                                                      |
+| Model picker        | **Choose models**, **Search OpenRouter models**, **Custom OpenRouter model ID**            |
+| Schema inspector    | **Automation details** — sections **Tone**, **Style**, **Hooks**, **Template slides**      |
+| Per-slide inspector | **Grid**, **Overlay**, **Collection**, and **No text** for empty text items                |
+| Result stepper      | **Previous hook** / **Next hook**, **Previous generated slide** / **Next generated slide** |
+| Empty state         | **No test runs yet**                                                                       |
 
 Each run posts:
 
@@ -111,12 +111,12 @@ Two more things are already in place:
 
 ### 2. Person opens **Testing facility** and fills four fields
 
-| Step | Control | What it does |
-| --- | --- | --- |
-| 1 | **Choose automation** | One saved automation. Loads its hook pool, variable bindings, tone, and slides. |
-| 2 | **Choose variables** | Multi-select over the `[[TOKEN]]`s the automation actually uses. |
-| 3 | **Choose variations** | Per selected variable, the values to sweep — drawn from its bound word collection, or typed. |
-| 4 | **Test all hooks** | Enumerates the enabled hook pool instead of drawing one hook. |
+| Step | Control               | What it does                                                                                 |
+| ---- | --------------------- | -------------------------------------------------------------------------------------------- |
+| 1    | **Choose automation** | One saved automation. Loads its hook pool, variable bindings, tone, and slides.              |
+| 2    | **Choose variables**  | Multi-select over the `[[TOKEN]]`s the automation actually uses.                             |
+| 3    | **Choose variations** | Per selected variable, the values to sweep — drawn from its bound word collection, or typed. |
+| 4    | **Test all hooks**    | Enumerates the enabled hook pool instead of drawing one hook.                                |
 
 Steps 2 and 3 need no invention. `deriveAutomationVariableBindings({ schema, collections })`
 already returns, for each token, a `source` of `"runtime" | "derived" | "override" | "missing"`
@@ -131,15 +131,16 @@ Runtime variables cannot be swept and should be shown as fixed: `slide_count`, `
 
 Each maps to something that already exists in the schema:
 
-| Dimension | What varies | Exists today as |
-| --- | --- | --- |
-| `hook` | Which hook seeds the generation | The enabled hook pool |
-| `variable` | Which value a `[[TOKEN]]` draws | Word collections + variable bindings |
-| `tone` / `style` | Voice instructions | Format panel fields |
-| `model` | The OpenRouter text model | Already comparable in the Slide Testing Center |
-| `collection` | Which image pool slides draw from | `image_collection_ids` |
+| Dimension    | What varies                                        | Exists today as                                |
+| ------------ | -------------------------------------------------- | ---------------------------------------------- |
+| `hook`       | Which hook seeds the generation                    | The enabled hook pool                          |
+| `variable`   | Which value a `[[TOKEN]]` draws                    | Word collections + variable bindings           |
+| `tone`       | Voice: register, diction, rhythm, and casing       | Tone field                                     |
+| `style`      | Structure: heading shape, organization, and format | `prompt_formatting.style`                      |
+| `model`      | The OpenRouter text model                          | Already comparable in the Slide Testing Center |
+| `collection` | Which image pool slides draw from                  | `image_collection_ids`                         |
 
-Behind the screen this is one call — `lumenclip_automation_experiment_run` *(proposed)*:
+Behind the screen this is one call — `lumenclip_automation_experiment_run` _(proposed)_:
 
 ```json
 {
@@ -202,7 +203,7 @@ findings and, where it exists, its historical performance.
    saved state.
 2. **The Slide Testing Center reads templates, not automations.** `/debug` calls
    `listAutomationTemplateRecords()` and its 404 is **`Automation template was not found`**. A
-   facility for testing *your* automations has to read saved automation records instead. This is
+   facility for testing _your_ automations has to read saved automation records instead. This is
    the single largest difference between the shipped screen and the asked-for one.
 3. **It is internal-only.** Both the page and the route call `internalToolsEnabled()`; the route
    returns `{ "error": "Not found" }` with status 404 when it is off. Nothing about the screen is
@@ -211,7 +212,7 @@ findings and, where it exists, its historical performance.
    variable or hook axis in the request body.
 5. **Determinism is available but unplumbed.** `random` reaches `createAutomationRunPlan` and stops
    there. No route, tool, or UI passes it. Until one does, repeating a variant re-rolls the model
-   *and* the variable draws, so a difference between two runs cannot be attributed to the changed
+   _and_ the variable draws, so a difference between two runs cannot be attributed to the changed
    input alone — only `repeats` and honest reporting of variance make the comparison meaningful.
 6. **Recent-output dedup fights repetition.** Generation compares against recent outputs and
    rewrites when similarity is at or above **0.85**, over a **45-day** window and the last **20**
@@ -246,7 +247,7 @@ findings and, where it exists, its historical performance.
 4. **`already_ran` will skip a repeat** within the same slot unless each run is forced.
 5. **A `"missing"` binding is not an error until run time.** `deriveAutomationVariableBindings`
    reports `source: "missing"` when a token matches zero or more than one collection — note that
-   *ambiguous* and *absent* collapse into the same status, so "two collections claim this variable"
+   _ambiguous_ and _absent_ collapse into the same status, so "two collections claim this variable"
    looks identical to "no collection does".
 6. **`hook_slots` overrides win over name matching.** A token bound explicitly through the
    automation's `hook_slots` resolves to that collection regardless of collection naming. A

@@ -1331,6 +1331,38 @@ export function schemaWithAutomationContentDirection(
   return { ...schema, formatting }
 }
 
+/**
+ * Replace the content direction for one generated body slide.
+ *
+ * Body slide overrides are one-based and affect the first text item on that
+ * slide, matching the editor and slideshow planner's existing behavior.
+ */
+export function schemaWithAutomationSlideContentDirection(
+  schema: AutomationSchema,
+  slideIndex: number,
+  contentDirection: string
+): AutomationSchema {
+  const formatting = (schema.formatting ?? []).map((block) => {
+    if (block.id !== "body") return block
+
+    const overrides = block.slideOverrides ?? []
+    const hasOverride = overrides.some(
+      (override) => override.slideIndex === slideIndex
+    )
+    return {
+      ...block,
+      slideOverrides: hasOverride
+        ? overrides.map((override) =>
+            override.slideIndex === slideIndex
+              ? { ...override, contentDirection }
+              : override
+          )
+        : [...overrides, { slideIndex, contentDirection }],
+    }
+  })
+  return { ...schema, formatting }
+}
+
 export function schemaWithAutomationCollectionId(
   schema: AutomationSchema,
   role: "hook" | "content" | "cta",

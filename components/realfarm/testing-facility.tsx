@@ -27,6 +27,7 @@ type FixedDimension = {
 type AutomationLevelDimension = {
   dimension: "contentDirection" | "tone" | "model"
   name?: string
+  slideIndex?: number
   label: string
   currentValue: string
   sampleValues: string[]
@@ -36,13 +37,13 @@ type DimensionsResponse = {
   automationDimensions: AutomationLevelDimension[]
   variables: VariableDimension[]
   fixed: FixedDimension[]
-  enabledHookCount: number
 }
 
 type ExperimentDimensionChoice = {
   key: string
   dimension: "contentDirection" | "tone" | "model" | "variable"
   name?: string
+  slideIndex?: number
   label: string
   detail?: string
   currentValue?: string
@@ -83,9 +84,7 @@ export function TestingFacility() {
   const [variationValues, setVariationValues] = useState<
     Record<string, string>
   >({})
-  const [allHooks, setAllHooks] = useState(true)
   const [repeats, setRepeats] = useState(1)
-  const [seed, setSeed] = useState(4242)
   const [result, setResult] = useState<ExperimentResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -149,7 +148,11 @@ export function TestingFacility() {
         return {
           dimension: choice.dimension,
           name: choice.name,
-          values: parseValues(variationValues[key]),
+          slideIndex: choice.slideIndex,
+          values: parseValues(
+            variationValues[key],
+            choice.dimension === "contentDirection"
+          ),
         }
       })
       if (vary.some((variation) => variation.values.length === 0)) {
@@ -160,7 +163,7 @@ export function TestingFacility() {
         {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ vary, allHooks, repeats, seed }),
+          body: JSON.stringify({ vary, repeats, textOnly: true }),
         }
       )
       const payload = await response.json()
@@ -284,8 +287,7 @@ export function TestingFacility() {
             <div className="space-y-3">
               {selectedDimensions.length === 0 ? (
                 <p className="rounded-control border border-dashed border-app-panel-border p-3 text-xs text-app-muted-text">
-                  Select an input, then enter one variation per line or separate
-                  them with commas.
+                  Select an input, then enter the variations to compare.
                 </p>
               ) : (
                 selectedDimensions.map((key) => {
@@ -295,7 +297,7 @@ export function TestingFacility() {
                   if (!choice) return null
                   const placeholder =
                     choice.dimension === "contentDirection"
-                      ? "One variation per line or comma-separated"
+                      ? "One variation per line"
                       : choice.sampleValues.join(", ")
                   return (
                     <div key={key} className="space-y-1.5">
@@ -345,42 +347,16 @@ export function TestingFacility() {
             </div>
           </Field>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Repeats">
-              <input
-                type="number"
-                min={1}
-                max={20}
-                value={repeats}
-                onChange={(event) => setRepeats(Number(event.target.value))}
-                className="lc-focus-ring h-10 w-full rounded-control border border-app-panel-border bg-app-control-bg px-3 text-sm text-app-text"
-              />
-            </Field>
-            <Field label="Seed">
-              <input
-                type="number"
-                value={seed}
-                onChange={(event) => setSeed(Number(event.target.value))}
-                className="lc-focus-ring h-10 w-full rounded-control border border-app-panel-border bg-app-control-bg px-3 text-sm text-app-text"
-              />
-            </Field>
-            <label className="col-span-2 flex min-h-10 items-center gap-3 rounded-control border border-app-panel-border px-3 text-sm font-medium text-app-text">
-              <input
-                type="checkbox"
-                className="accent-app-action"
-                checked={allHooks}
-                onChange={(event) => setAllHooks(event.target.checked)}
-              />
-              <span>
-                Test all hooks
-                <span className="ml-2 text-xs font-normal text-app-muted-text">
-                  {dimensions
-                    ? `${dimensions.enabledHookCount} enabled`
-                    : "Uses the enabled hook pool"}
-                </span>
-              </span>
-            </label>
-          </div>
+          <Field label="Repeats">
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={repeats}
+              onChange={(event) => setRepeats(Number(event.target.value))}
+              className="lc-focus-ring h-10 w-full rounded-control border border-app-panel-border bg-app-control-bg px-3 text-sm text-app-text"
+            />
+          </Field>
         </div>
 
         {dimensions?.fixed.length ? (
@@ -617,8 +593,9 @@ function ResultCell({ cell }: { cell: ExperimentCell }) {
   )
 }
 
-function parseValues(value = "") {
-  return [...new Set(value.split(/[\n,]/).map((item) => item.trim()))].filter(
+function parseValues(value = "", preserveCommas = false) {
+  const separator = preserveCommas ? /\n/ : /[\n,]/
+  return [...new Set(value.split(separator).map((item) => item.trim()))].filter(
     Boolean
   )
 }
@@ -630,7 +607,7 @@ function dimensionChoices(
   return [
     ...dimensions.automationDimensions.map((dimension) => ({
       ...dimension,
-      key: `${dimension.dimension}:${dimension.name ?? ""}`,
+      key: `${dimension.dimension}:${dimension.name ?? ""}:${dimension.slideIndex ?? ""}`,
       sweepable: true,
     })),
     ...dimensions.variables.map((variable) => ({

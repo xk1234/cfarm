@@ -8,6 +8,7 @@ import {
   removeAutomationRunSlide,
   replaceAutomationRunSlideImage,
   updateAutomationRunMetadata,
+  updateAutomationRunSlideText,
   type AutomationRunRecord,
 } from "@/lib/automation-runner"
 import { listImageCollections } from "@/lib/image-collections"
@@ -22,6 +23,7 @@ import {
   removeSlideshowSlide,
   replaceSlideshowSlideImage,
   updateSlideshowMetadata,
+  updateSlideshowSlideText,
 } from "@/lib/slideshows"
 import {
   collectionAliases,
@@ -70,14 +72,28 @@ export const PATCH = withHandler<{ params: Promise<{ id: string }> }>(
       title?: string
       caption?: string
       hashtags?: string
+      textEdits?: Array<{ textItemId?: string; text?: string }>
     } | null
     const slideAction =
-      payload?.action === "removeSlide" || payload?.action === "replaceImage"
+      payload?.action === "removeSlide" ||
+      payload?.action === "replaceImage" ||
+      payload?.action === "replaceText"
     const metadataAction = payload?.action === "updateMetadata"
     const publicationAction = payload?.action === "markPublished"
+    const validTextEdits =
+      payload?.action !== "replaceText" ||
+      (Array.isArray(payload.textEdits) &&
+        payload.textEdits.length > 0 &&
+        payload.textEdits.every(
+          (edit) =>
+            typeof edit.textItemId === "string" &&
+            Boolean(edit.textItemId.trim()) &&
+            typeof edit.text === "string"
+        ))
     if (
       (!slideAction && !metadataAction && !publicationAction) ||
       (slideAction && !Number.isInteger(payload?.slideIndex)) ||
+      !validTextEdits ||
       (metadataAction &&
         (typeof payload?.title !== "string" ||
           typeof payload?.caption !== "string" ||
@@ -208,6 +224,35 @@ export const PATCH = withHandler<{ params: Promise<{ id: string }> }>(
         })
         return NextResponse.json({ slideshow, run: updatedRun })
       }
+      if (payload.action === "replaceText") {
+        if (!run) {
+          return NextResponse.json(
+            { error: "Automation run not found" },
+            { status: 404 }
+          )
+        }
+        slideshow = await updateSlideshowSlideText({
+          id,
+          slideIndex: payload.slideIndex!,
+          edits: payload.textEdits!.map((edit) => ({
+            textItemId: edit.textItemId!,
+            text: edit.text!,
+          })),
+        })
+        if (!slideshow) {
+          return NextResponse.json(
+            { error: "Slideshow not found" },
+            { status: 404 }
+          )
+        }
+        const updatedRun = await updateAutomationRunSlideText({
+          slideshowId: id,
+          runId: run.id,
+          slideIndex: payload.slideIndex!,
+          slideshow,
+        })
+        return NextResponse.json({ slideshow, run: updatedRun })
+      }
       slideshow = await removeSlideshowSlide({
         id,
         slideIndex: payload.slideIndex!,
@@ -222,7 +267,9 @@ export const PATCH = withHandler<{ params: Promise<{ id: string }> }>(
                 ? "The slide image could not be changed."
                 : payload.action === "updateMetadata"
                   ? "The slideshow details could not be saved."
-                  : "The slide could not be removed.",
+                  : payload.action === "replaceText"
+                    ? "The slide text could not be changed."
+                    : "The slide could not be removed.",
         },
         { status: 400 }
       )

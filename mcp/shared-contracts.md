@@ -218,6 +218,20 @@ followers gained, and names the appropriate detailed report tool.
 `publication_state=published_unlinked` means the output carries a manual
 published timestamp without a canonical publication record.
 
+`analytics.captureAttempts` contains one row per publication with a status of
+`not_started`, `pending`, `capturing`, `ready`, `captured`, `failed`, or
+`expired`. Failure and expiry rows include a human-readable reason; reported
+companion failures also retain their Studio section.
+
+### `lumenclip_output_slide_text_update`
+
+Non-destructive write for unpublished slideshow stills. Input requires
+`outputId`, one-based `slideIndex`, complete text replacements addressed by
+`textItemId`, and optimistic-lock `expectedUpdatedAt` from `output_get`. It
+rerenders only the changed still, synchronizes the stored generation plan, and
+returns fresh QA and `nextSteps`. Published, scheduled, non-slideshow, and
+video-export outputs are rejected.
+
 ### `lumenclip_operations_list`
 
 Read-only and idempotent. Input accepts optional `status`, exact `type`, and
