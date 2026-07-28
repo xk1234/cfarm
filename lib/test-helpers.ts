@@ -5,11 +5,33 @@ import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 export const VITEST_OWNER_ID = "vitest-user"
 
 /**
+ * Refuse to run destructive test helpers against anything but a local Appwrite.
+ *
+ * On 2026-07-28 the suite ran with a repo-root .env and no .env.local, so it
+ * silently inherited the production endpoint and deleted live rows. The owner
+ * filter below is not sufficient protection on its own: several code paths
+ * adopt an owner id from the data they read, so "test-owned" is only true when
+ * the database itself is disposable.
+ */
+function assertLocalAppwrite() {
+  const endpoint = process.env.APPWRITE_ENDPOINT?.trim()
+  if (
+    endpoint &&
+    !/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(endpoint)
+  ) {
+    throw new Error(
+      `Refusing to clear tables on a remote Appwrite (${endpoint}). Run 'pnpm appwrite:local:setup' to create .env.local for the shared local stack.`
+    )
+  }
+}
+
+/**
  * Delete test-owned rows from the given tables in the active cfarm database.
  * Shared by store/route tests for setup/teardown so each suite doesn't
  * re-implement the same list-rows/delete-rows drain loop.
  */
 export async function clearTestTables(...tables: string[]): Promise<void> {
+  assertLocalAppwrite()
   const aw = getAppwrite()
   if (!aw) {
     throw new Error("Appwrite is not configured for tests.")
