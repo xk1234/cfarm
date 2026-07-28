@@ -427,6 +427,56 @@ describe("slideshow text structured output", () => {
     )
   })
 
+  it("deterministically replaces em and en dashes in generated copy", async () => {
+    const dashContent = JSON.stringify({
+      title: "gemini — growth guide",
+      caption: "geminis adapt – then grow.",
+      hashtags: ["#gemini", "#astrology", "#growth"],
+      text: {
+        "content-2__heading": "change — keeps geminis curious",
+      },
+    })
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(response(dashContent))
+
+    const generated = await generateSlideshowText({
+      automation,
+      apiKey: "test-key",
+      fetchImpl,
+    })
+
+    expect(generated.result).toMatchObject({
+      title: "gemini, growth guide",
+      caption: "geminis adapt - then grow.",
+      text: {
+        "content-2__heading": "change, keeps geminis curious",
+      },
+    })
+    expect(JSON.stringify(generated.result)).not.toMatch(/[—–]/u)
+    expect(generated.transformations).toEqual([
+      {
+        pass: "punctuation_fallback",
+        field: "title",
+        before: "gemini — growth guide",
+        after: "gemini, growth guide",
+      },
+      {
+        pass: "punctuation_fallback",
+        field: "caption",
+        before: "geminis adapt – then grow.",
+        after: "geminis adapt - then grow.",
+      },
+      {
+        pass: "punctuation_fallback",
+        field: "content-2__heading",
+        before: "change — keeps geminis curious",
+        after: "change, keeps geminis curious",
+      },
+    ])
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+
   it("still retries structural failures", async () => {
     const missingHeading = JSON.stringify({
       ...JSON.parse(validContent),

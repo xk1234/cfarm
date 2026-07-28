@@ -17,7 +17,7 @@ import {
 } from "@/lib/realfarm-generation-model-registry"
 import { clean, isRecord } from "@/lib/guards"
 import { fetchJson, providerErrorMessage } from "@/lib/http"
-import { llmSlopMatches } from "@/lib/llm-slop"
+import { llmSlopMatches, normalizeLlmPunctuation } from "@/lib/llm-slop"
 import { parseOpenRouterContent } from "@/lib/openrouter"
 import {
   expandAllHookCombinations,
@@ -75,7 +75,7 @@ export type SlideshowTextGenerationResult = {
 }
 
 export type SlideshowTextTransformation = {
-  pass: "word_cap_fallback" | "tone_lowercase"
+  pass: "word_cap_fallback" | "tone_lowercase" | "punctuation_fallback"
   field: string
   before: string
   after: string
@@ -649,6 +649,8 @@ async function requestStructuredOutput(input: {
     try {
       assertCompleteStructuredChoice(choice)
       let output = JSON.parse(parseOpenRouterContent(choice?.message?.content))
+      const punctuation = normalizeStructuredOutputPunctuation(output)
+      output = punctuation.output
       let { errors: validationErrors, violations } = structuredOutputFindings(
         output,
         input.placeholders,
@@ -698,7 +700,10 @@ async function requestStructuredOutput(input: {
         webSearchSources,
         model: attemptModel,
         violations,
-        transformations: truncated.transformations,
+        transformations: [
+          ...punctuation.transformations,
+          ...truncated.transformations,
+        ],
       }
     } catch (error) {
       lastError = error
@@ -723,6 +728,42 @@ async function requestStructuredOutput(input: {
       lastError instanceof Error ? lastError.message : String(lastError)
     }`
   )
+}
+
+function normalizeStructuredOutputPunctuation(output: unknown) {
+  if (!isRecord(output)) {
+    return { output, transformations: [] as SlideshowTextTransformation[] }
+  }
+  const record = { ...output }
+  const sourceText = isRecord(record.text) ? record.text : {}
+  const text = { ...sourceText }
+  const transformations: SlideshowTextTransformation[] = []
+
+  const normalizeField = (
+    container: Record<string, unknown>,
+    field: string,
+    transformationField = field
+  ) => {
+    const before =
+      typeof container[field] === "string" ? clean(container[field]) : ""
+    if (!before || !/[\u2013\u2014]/u.test(before)) return
+    const after = normalizeLlmPunctuation(before)
+    container[field] = after
+    transformations.push({
+      pass: "punctuation_fallback",
+      field: transformationField,
+      before,
+      after,
+    })
+  }
+
+  normalizeField(record, "title")
+  normalizeField(record, "caption")
+  for (const field of Object.keys(text)) {
+    normalizeField(text, field, field)
+  }
+  record.text = text
+  return { output: record, transformations }
 }
 
 function truncateStructuredOutputOverruns(
@@ -842,7 +883,7 @@ function structuredOutputFindings(
   for (const match of llmSlopMatches(generatedValues.join("\n"))) {
     if (hookLower && hookLower.includes(match.toLowerCase())) continue
     errors.push(
-      `banned AI-tell wording: "${match}" — rewrite that line in plain human language`
+      `banned AI-tell wording: "${match}"; rewrite that line in plain human language`
     )
   }
   return { errors, violations }

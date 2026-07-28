@@ -85,6 +85,10 @@
     {
       "label": "whether-you're-A-or-B",
       "regex": "whether you'?re a [^.\\n]{2,50} or (?:a |an )?"
+    },
+    {
+      "label": "em/en dash punctuation",
+      "regex": "[\\u2013\\u2014]"
     }
   ]
 }

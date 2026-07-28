@@ -1,4 +1,5 @@
 import { clean, isRecord } from "@/lib/guards"
+import { normalizeLlmPunctuation } from "@/lib/llm-slop"
 import type {
   AutomationRunSlideRole,
   AutomationRunSlideView,
@@ -1133,9 +1134,11 @@ async function createAutomationRunPlan(
   if (!selectedHook) {
     throw new Error("The automation database record has no usable hook")
   }
-  const hook = applyHookTextDirection(
-    selectedHook,
-    automationFormatSection(schema, "hook").textItems[0]?.contentDirection
+  const hook = normalizeLlmPunctuation(
+    applyHookTextDirection(
+      selectedHook,
+      automationFormatSection(schema, "hook").textItems[0]?.contentDirection
+    )
   )
   progress("Writing slide text", hook)
   const slideCount = automationTotalSlideCount(schema)

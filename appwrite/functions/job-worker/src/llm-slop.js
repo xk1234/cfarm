@@ -86,6 +86,10 @@ const lexicon = {
     {
       "label": "whether-you're-A-or-B",
       "regex": "whether you'?re a [^.\\n]{2,50} or (?:a |an )?"
+    },
+    {
+      "label": "em/en dash punctuation",
+      "regex": "[\\u2013\\u2014]"
     }
   ]
 };
@@ -123,12 +127,20 @@ export function llmSlopMatches(text) {
 }
 /** Validation-error strings ready to feed a structured-output repair loop. */
 export function llmSlopViolations(text) {
-    return llmSlopMatches(text).map((match) => `banned AI-tell wording: "${match}" — rewrite that line in plain human language`);
+    return llmSlopMatches(text).map((match) => `banned AI-tell wording: "${match}"; rewrite that line in plain human language`);
+}
+/** Replace Unicode dash punctuation with plain-copy equivalents. */
+export function normalizeLlmPunctuation(text) {
+    return text
+        .replace(/\s*\u2014\s*/gu, ", ")
+        .replace(/\s*\u2013\s*/gu, " - ")
+        .replace(/\s+/gu, " ")
+        .trim();
 }
 /** One compact system-prompt line that bans the lexicon up front (prevention beats repair). */
 export function llmSlopPromptLine() {
     return `Banned words and phrases (AI tells — never use any of them): ${[
         ...lexicon.words,
         ...lexicon.phrases,
-    ].join(", ")}.`;
+    ].join(", ")}. Never use em dashes or en dashes; use commas, periods, colons, or parentheses instead.`;
 }

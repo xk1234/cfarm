@@ -5,7 +5,7 @@ export { slideshowTextGenerationPayload };
 import { defaultSlideshowTextModel, openRouterModelForUseCase, } from "./realfarm-generation-model-registry.js";
 import { clean, isRecord } from "./guards.js";
 import { fetchJson, providerErrorMessage } from "./http.js";
-import { llmSlopMatches } from "./llm-slop.js";
+import { llmSlopMatches, normalizeLlmPunctuation } from "./llm-slop.js";
 import { parseOpenRouterContent } from "./openrouter.js";
 import { expandAllHookCombinations, } from "./hook-expansion.js";
 import { deriveSlideVisualConcepts, selectSlideshowImageWithAi, } from "./slideshow-image-matching.js";
@@ -390,6 +390,8 @@ async function requestStructuredOutput(input) {
         try {
             assertCompleteStructuredChoice(choice);
             let output = JSON.parse(parseOpenRouterContent(choice?.message?.content));
+            const punctuation = normalizeStructuredOutputPunctuation(output);
+            output = punctuation.output;
             let { errors: validationErrors, violations } = structuredOutputFindings(output, input.placeholders, input.selectedHook);
             if (validationErrors.length > 0) {
                 throw new Error(validationErrors.join("; "));
@@ -426,7 +428,10 @@ async function requestStructuredOutput(input) {
                 webSearchSources,
                 model: attemptModel,
                 violations,
-                transformations: truncated.transformations,
+                transformations: [
+                    ...punctuation.transformations,
+                    ...truncated.transformations,
+                ],
             };
         }
         catch (error) {
@@ -444,6 +449,35 @@ async function requestStructuredOutput(input) {
         }
     }
     throw new Error(`OpenRouter did not return complete structured slideshow text after 2 attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+}
+function normalizeStructuredOutputPunctuation(output) {
+    if (!isRecord(output)) {
+        return { output, transformations: [] };
+    }
+    const record = { ...output };
+    const sourceText = isRecord(record.text) ? record.text : {};
+    const text = { ...sourceText };
+    const transformations = [];
+    const normalizeField = (container, field, transformationField = field) => {
+        const before = typeof container[field] === "string" ? clean(container[field]) : "";
+        if (!before || !/[\u2013\u2014]/u.test(before))
+            return;
+        const after = normalizeLlmPunctuation(before);
+        container[field] = after;
+        transformations.push({
+            pass: "punctuation_fallback",
+            field: transformationField,
+            before,
+            after,
+        });
+    };
+    normalizeField(record, "title");
+    normalizeField(record, "caption");
+    for (const field of Object.keys(text)) {
+        normalizeField(text, field, field);
+    }
+    record.text = text;
+    return { output: record, transformations };
 }
 function truncateStructuredOutputOverruns(output, placeholders) {
     if (!output || typeof output !== "object" || Array.isArray(output)) {
@@ -545,7 +579,7 @@ function structuredOutputFindings(output, placeholders, selectedHook) {
     for (const match of llmSlopMatches(generatedValues.join("\n"))) {
         if (hookLower && hookLower.includes(match.toLowerCase()))
             continue;
-        errors.push(`banned AI-tell wording: "${match}" — rewrite that line in plain human language`);
+        errors.push(`banned AI-tell wording: "${match}"; rewrite that line in plain human language`);
     }
     return { errors, violations };
 }

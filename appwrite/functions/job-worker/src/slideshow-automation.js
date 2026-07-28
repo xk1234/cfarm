@@ -45,6 +45,7 @@ import {
   uploadBytesToRendi,
 } from "./rendi-client.js"
 import { openRouterModelForUseCase } from "./realfarm-generation-model-registry.js"
+import { normalizeLlmPunctuation } from "./llm-slop.js"
 
 // Point fontconfig at the bundled TTF before the first sharp() SVG raster.
 // The Appwrite node-22 (Alpine) runtime ships no fonts and no default
@@ -518,9 +519,8 @@ async function createPlan({
     selectIndex: (candidateCount) => seed[0] % candidateCount,
   })
   const bodySlideCount = hookSelection.bodySlideCount || defaultBodySlideCount
-  const hook = applyHookCase(
-    hookSelection.expansion.text,
-    schema.prompt_formatting
+  const hook = normalizeLlmPunctuation(
+    applyHookCase(hookSelection.expansion.text, schema.prompt_formatting)
   )
   const specs = slideSpecs(schema, hook, bodySlideCount)
   const publishedUsage = usageForPublishedRuns(usage, automation.id)

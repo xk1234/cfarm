@@ -7,7 +7,8 @@ import lexicon from "@/lib/llm-slop-lexicon.json"
  * remove and retries.
  */
 
-const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+const escapeRegex = (value: string) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
 const wordMatchers = lexicon.words.map(
   (word) => new RegExp(`\\b${escapeRegex(word)}\\b`, "iu")
@@ -37,8 +38,18 @@ export function llmSlopMatches(text: string): string[] {
 /** Validation-error strings ready to feed a structured-output repair loop. */
 export function llmSlopViolations(text: string): string[] {
   return llmSlopMatches(text).map(
-    (match) => `banned AI-tell wording: "${match}" — rewrite that line in plain human language`
+    (match) =>
+      `banned AI-tell wording: "${match}"; rewrite that line in plain human language`
   )
+}
+
+/** Replace Unicode dash punctuation with plain-copy equivalents. */
+export function normalizeLlmPunctuation(text: string): string {
+  return text
+    .replace(/\s*\u2014\s*/gu, ", ")
+    .replace(/\s*\u2013\s*/gu, " - ")
+    .replace(/\s+/gu, " ")
+    .trim()
 }
 
 /** One compact system-prompt line that bans the lexicon up front (prevention beats repair). */
@@ -46,5 +57,7 @@ export function llmSlopPromptLine(): string {
   return `Banned words and phrases (AI tells — never use any of them): ${[
     ...lexicon.words,
     ...lexicon.phrases,
-  ].join(", ")}.`
+  ].join(
+    ", "
+  )}. Never use em dashes or en dashes; use commas, periods, colons, or parentheses instead.`
 }
