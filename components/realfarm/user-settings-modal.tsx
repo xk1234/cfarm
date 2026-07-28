@@ -324,9 +324,6 @@ function RemindersPanel({
                 </span>
                 <div>
                   <h3 className="text-sm font-semibold">Telegram delivery</h3>
-                  <p className="text-xs leading-5 text-app-text-faint">
-                    Used by every event routed to Telegram.
-                  </p>
                 </div>
               </div>
               {data?.telegram.botConfigured &&

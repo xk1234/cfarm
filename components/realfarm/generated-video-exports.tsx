@@ -504,7 +504,6 @@ function ScheduleGeneratedVideoModal({
       <AppModalPanel className="max-w-[760px]">
         <AppModalHeader
           title="Post to social"
-          description="Choose connected accounts and send this output through PostFast."
           closeLabel="Close post modal"
           onClose={onClose}
         />
@@ -520,9 +519,6 @@ function ScheduleGeneratedVideoModal({
                 <h3 className="text-[14px] font-semibold text-app-text">
                   Social accounts
                 </h3>
-                <p className="text-[12px] font-medium text-app-muted-text">
-                  Click accounts to select where this video will be sent.
-                </p>
               </div>
               <span className="text-[12px] font-semibold text-app-muted-text">
                 {selectedIntegrationIds.length} selected

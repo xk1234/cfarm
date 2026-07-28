@@ -865,9 +865,6 @@ function CollectionAutomationEditor({
                     Image overrides{" "}
                     <span className="float-right text-app-action">+ Add</span>
                   </div>
-                  <p className="leading-4 text-app-text-faint">
-                    Override the image collection for a specific slide.
-                  </p>
                 </div>
               )}
             </>
@@ -1030,7 +1027,6 @@ function CreateAutomationDialog({
       <AppModalPanel className="max-w-[430px] rounded-[8px] shadow-2xl">
         <AppModalHeader
           title="Create Automation"
-          description="Name your automation, add hooks, and set the tone & style."
           onClose={onCancel}
         />
         <div className="p-5">

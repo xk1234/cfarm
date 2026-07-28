@@ -352,13 +352,7 @@ async function runForPublication(publication: PostFastPostRecord) {
     limit: Number.MAX_SAFE_INTEGER,
     postRecords: [],
   })
-  return runs.find(
-    (run) =>
-      (publication.sourceType === "automation" &&
-        run.id === publication.sourceId) ||
-      (publication.sourceType === "slideshow" &&
-        run.slideshowId === publication.sourceId)
-  )
+  return runs.find((run) => publicationMatchesRun(publication, run))
 }
 
 export function hookItemForRun(
@@ -419,7 +413,7 @@ function runForSource(
   return runById.get(sourceId) ?? runBySlideshow.get(sourceId)
 }
 
-function publicationMatchesRun(
+export function publicationMatchesRun(
   publication: PostFastPostRecord,
   run: AutomationRunRecord
 ) {

@@ -285,10 +285,6 @@ export function PromptConfigPanel({
                   <div className="text-[16px] font-semibold text-app-text">
                     Hooks
                   </div>
-                  <div className="mt-1 text-[14px] font-medium text-app-muted-text">
-                    Add hooks one at a time or paste a multiline list. Published
-                    hooks stay locked but can be disabled.
-                  </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <Button
@@ -357,9 +353,6 @@ export function PromptConfigPanel({
                 <h3 className="text-[14px] font-semibold text-app-text">
                   Variables
                 </h3>
-                <p className="text-[12px] font-medium text-app-muted-text">
-                  Hover a badge to preview its current or collection value.
-                </p>
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {runtimeHookVariables.map((variable) => (

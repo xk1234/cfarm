@@ -139,11 +139,6 @@ export function DebugAutomationEditor({
             <h1 className="text-[24px] leading-8 font-bold tracking-normal">
               Automation JSON Debugger
             </h1>
-            <p className="mt-1 text-[13px] leading-5 font-semibold text-[#77766f]">
-              Edit an automation record locally, generate slides from that JSON,
-              and inspect the plan without writing changes back to the DB.
-              Hidden DB-only sections are preserved for generation.
-            </p>
           </div>
           <div className="flex items-center gap-2 text-[12px] font-bold text-[#77766f]">
             <span
@@ -236,9 +231,6 @@ export function DebugAutomationEditor({
                 <h2 className="text-[16px] leading-6 font-bold">
                   Generated Result
                 </h2>
-                <p className="mt-0.5 text-[12px] leading-5 font-semibold text-[#77766f]">
-                  Preview plan returned from the edited automation JSON.
-                </p>
               </div>
               {preview && (
                 <button
@@ -441,9 +433,6 @@ function PreviewResult({ preview }: { preview: DebugAutomationPreview }) {
               <h3 className="text-[14px] font-bold text-[#242421]">
                 Slide Records
               </h3>
-              <p className="mt-0.5 text-[12px] leading-5 font-semibold text-[#77766f]">
-                Inspect the generated slide objects without leaving this result.
-              </p>
             </div>
           </div>
           <div className="grid gap-3 lg:grid-cols-2">

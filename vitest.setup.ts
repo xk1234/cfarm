@@ -21,6 +21,19 @@ if (existsSync(".env.local")) {
   loadEnvFile(".env.local")
 }
 
+// That swap only protects cloud data when .env.local exists. Without it the
+// suite silently inherits the production Appwrite from .env and store tests --
+// which clear whole tables -- run against live data. Refuse instead.
+const endpoint = process.env.APPWRITE_ENDPOINT?.trim()
+if (
+  endpoint &&
+  !/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(endpoint)
+) {
+  throw new Error(
+    `Tests clear Appwrite tables and must never point at a remote instance. APPWRITE_ENDPOINT is ${endpoint}. Run 'pnpm appwrite:local:setup' to create .env.local for the shared local stack.`
+  )
+}
+
 vi.mock("@/lib/auth", () => ({
   getCurrentUser: async () => ({
     $id: "vitest-user",

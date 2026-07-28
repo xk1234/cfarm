@@ -223,10 +223,10 @@ export function PinterestCollectionSearch({
   }
 
   return (
-    <AppModal className="bg-[#24251f]/50" onClose={cancel}>
+    <AppModal className="bg-[#24251f]/50 p-0 sm:p-4" onClose={cancel}>
       <AppModalPanel
         accessibleTitle="Search for collection images"
-        className="relative flex max-h-[78vh] max-w-[640px] flex-col rounded-[10px]"
+        className="relative flex h-dvh max-w-none flex-col rounded-none sm:h-auto sm:max-h-[78vh] sm:max-w-[640px] sm:rounded-[10px]"
       >
         <AppModalCloseButton
           className="absolute top-3 right-3 z-10"
@@ -234,23 +234,27 @@ export function PinterestCollectionSearch({
           ariaLabel="Close Pinterest search"
         />
         <div className="border-b border-app-panel-border p-4 pb-3">
+          {/* The source select and submit button crowd the field off a phone
+              on one row, so below sm they drop to their own row. */}
           <form
-            className="flex items-center gap-2 rounded-[9px] bg-app-surface pr-9"
+            className="flex flex-wrap items-center gap-2 rounded-[9px] bg-app-surface pr-9 sm:flex-nowrap"
             onSubmit={submitSearch}
           >
-            <IconSearch className="size-5 shrink-0 text-app-text-faint" />
-            <input
-              className="h-10 min-w-0 flex-1 bg-transparent text-[18px] font-medium outline-none placeholder:text-app-muted-text"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              name="query"
-              placeholder={
-                searchSource === "pexels"
-                  ? "Search Pexels..."
-                  : "Search Pinterest or paste a board URL..."
-              }
-              autoFocus
-            />
+            <div className="flex min-w-0 flex-1 basis-full items-center gap-2 sm:basis-auto">
+              <IconSearch className="size-5 shrink-0 text-app-text-faint" />
+              <input
+                className="h-10 min-w-0 flex-1 bg-transparent text-[16px] font-medium outline-none placeholder:text-app-muted-text sm:text-[18px]"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                name="query"
+                placeholder={
+                  searchSource === "pexels"
+                    ? "Search Pexels..."
+                    : "Search Pinterest or paste a board URL..."
+                }
+                autoFocus
+              />
+            </div>
             <SelectControl
               value={searchSource}
               onChange={(event) => {
@@ -329,7 +333,7 @@ export function PinterestCollectionSearch({
           </div>
         ) : (
           <div className="min-h-0 overflow-y-auto px-3 py-3">
-            <div className="columns-3 gap-2 sm:columns-4">
+            <div className="columns-2 gap-2 sm:columns-3 md:columns-4">
               {results.map((result, index) => (
                 <PinterestResultCard
                   key={result.id}
@@ -369,8 +373,8 @@ export function PinterestCollectionSearch({
             )}
           </div>
         )}
-        <div className="mt-auto flex items-center justify-between border-t border-app-panel-border px-5 py-4 text-[12px] font-medium">
-          <div className="flex items-center gap-2">
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-app-panel-border px-4 py-4 text-[12px] font-medium sm:px-5">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
               variant="ghost"
@@ -409,11 +413,11 @@ export function PinterestCollectionSearch({
             </label>
           </div>
           {results.length > 0 ? (
-            <div className="flex items-center gap-3">
+            <div className="flex w-full items-center gap-3 sm:w-auto">
               <Button
                 variant="action"
                 size="appDefault"
-
+                className="w-full sm:w-auto"
                 disabled={!canCreate || creatingCollection}
                 onClick={() => void createCollection()}
               >
@@ -429,7 +433,7 @@ export function PinterestCollectionSearch({
               type="button"
               variant="action"
               size="appDefault"
-
+              className="w-full sm:w-auto"
               onClick={() => void search(20)}
               disabled={!query.trim() || searchBusy || creatingCollection}
             >

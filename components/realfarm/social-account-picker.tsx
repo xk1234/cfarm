@@ -81,7 +81,6 @@ export function SocialAccountPickerModal({
       <AppModalPanel className="max-w-[760px] p-0">
         <AppModalHeader
           title="Social accounts"
-          description="Choose which connected accounts this automation will publish to."
           closeLabel="Close social account picker"
           onClose={onClose}
         />
@@ -97,9 +96,6 @@ export function SocialAccountPickerModal({
                 <h3 className="text-[14px] font-semibold text-app-text">
                   Available accounts
                 </h3>
-                <p className="text-[12px] font-medium text-app-muted-text">
-                  Click an account to add or remove it.
-                </p>
               </div>
               <span className="text-[12px] font-semibold text-app-muted-text">
                 {integrations.length} compatible connected
@@ -120,9 +116,6 @@ export function SocialAccountPickerModal({
                 <h3 className="text-[14px] font-semibold text-app-text">
                   Selected to run
                 </h3>
-                <p className="text-[12px] font-medium text-app-muted-text">
-                  These accounts will publish when the automation runs.
-                </p>
               </div>
               <span className="text-[12px] font-semibold text-app-muted-text">
                 {selectedIntegrationGrid.length} selected

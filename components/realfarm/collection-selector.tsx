@@ -111,9 +111,6 @@ export function CollectionSelector({
                 <h2 className="text-[18px] font-bold text-app-text">
                   Select collection
                 </h2>
-                <p className="text-[12px] font-medium text-app-muted-text">
-                  Choose a collection for this slideshow section.
-                </p>
               </div>
               <Button
                 type="button"

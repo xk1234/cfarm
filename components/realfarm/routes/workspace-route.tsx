@@ -13,7 +13,7 @@ import {
   listAutomationTemplateRecords,
 } from "@/lib/automation-templates"
 import { getCurrentUser } from "@/lib/auth"
-import { listPostFastPostRecords } from "@/lib/postfast-posts"
+import { loadPublishedPostDates } from "@/lib/published-post-dates"
 import { loadRealFarmData } from "@/lib/realfarm-data"
 import { listConnectedPostFastIntegrations } from "@/lib/postfast-integrations"
 import type { ConnectedComposerAccount } from "@/components/realfarm/composer/composer-types"
@@ -94,26 +94,5 @@ async function loadInitialTemplateData(): Promise<InitialTemplateData> {
         automationTemplateSchemaToRuntime(record),
       ])
     ),
-  }
-}
-
-/**
- * When each LINKED post actually went out, for the dashboard activity graph.
- *
- * Only linked publications count: an `unlinked` record is a draft or an
- * unmatched import, not something that reached an audience. Generated runs are
- * deliberately excluded too -- generating ten drafts on one day is not the same
- * as posting ten times, and counting them would flatter the graph.
- */
-async function loadPublishedPostDates() {
-  try {
-    const posts = await listPostFastPostRecords()
-    return posts
-      .filter((post) => post.linkState !== "unlinked")
-      .map((post) => post.publishedAt || post.createdAt)
-      .filter((value): value is string => Boolean(value))
-  } catch {
-    // The graph is not worth failing the whole dashboard over.
-    return []
   }
 }
