@@ -1325,6 +1325,8 @@ function registerAutomationReadAndRunTools(
                 standard.schema,
                 mediaCollections
               )
+            const configurationWarnings =
+              automationConfigurationWarnings(standard)
             const nextSteps = automationConfigurationNextSteps({
               automation: standard,
               variableBindings,
@@ -1346,6 +1348,7 @@ function registerAutomationReadAndRunTools(
                   ...variableBindings,
                   unusedExplicitOverrides: variableBindings.unusedOverrides,
                 },
+                configurationWarnings,
                 manualRunSupported:
                   standard.schema.automationKind === "slideshow" ||
                   standard.schema.automationKind === "ugc",
@@ -6867,6 +6870,8 @@ function automationConfigurationNextSteps(input: {
     ...missingCollectionReferenceNextSteps(
       input.unresolvedCollectionReferences
     ),
+    ...bodyTextLayerRepairNextSteps(input.automation),
+    ...toneStyleBoundaryNextSteps(input.automation),
   ]
   if (input.variableBindings.missingTokens.length > 0) {
     steps.push({
@@ -6966,6 +6971,169 @@ function automationConfigurationNextSteps(input: {
     })
   }
   return steps
+}
+
+type AutomationConfigurationWarning = {
+  code: "BODY_TEXT_LAYERS_COLLAPSED" | "STYLE_CONTAINS_VOICE_RULES"
+  severity: "warning"
+  path: string
+  message: string
+}
+
+function automationConfigurationWarnings(
+  automation: AutomationRecord
+): AutomationConfigurationWarning[] {
+  const warnings: AutomationConfigurationWarning[] = []
+  const bodyIssue = bodyTextLayerIssue(automation)
+  if (bodyIssue) {
+    warnings.push({
+      code: "BODY_TEXT_LAYERS_COLLAPSED",
+      severity: "warning",
+      path: "formatting.body.textItems",
+      message:
+        "The body heading is configured for paragraph-length copy while the paragraph layer has no usable prompt or static text. Generated body copy will collapse into the heading layer.",
+    })
+  }
+  const voiceRules = styleVoiceRules(automation.schema.prompt_formatting.style)
+  if (voiceRules.length > 0) {
+    warnings.push({
+      code: "STYLE_CONTAINS_VOICE_RULES",
+      severity: "warning",
+      path: "prompt_formatting.style",
+      message: `Structural style contains voice rules owned by tone: ${voiceRules.join(" ")}`,
+    })
+  }
+  return warnings
+}
+
+function bodyTextLayerRepairNextSteps(
+  automation: AutomationRecord
+): LumenClipNextStep[] {
+  const issue = bodyTextLayerIssue(automation)
+  if (!issue) return []
+  const formatting = structuredClone(automation.schema.formatting)
+  const body = formatting.find((section) => section.id === "body")
+  const heading = body?.textItems.find((item) => item.id === issue.heading.id)
+  const paragraph = body?.textItems.find(
+    (item) => item.id === issue.paragraph.id
+  )
+  if (!body || !heading || !paragraph) return []
+
+  const paragraphDirection =
+    clean(heading.contentDirection) &&
+    !/\b(?:heading|headline|title)\b/i.test(heading.contentDirection)
+      ? clean(heading.contentDirection)
+      : "Write one concise supporting paragraph that develops this slide's heading and the selected hook."
+  const paragraphMin = Math.max(
+    10,
+    Math.min(30, Number(heading.wordLengthMin) || 10)
+  )
+  const paragraphMax = Math.max(
+    paragraphMin,
+    Math.min(60, Number(heading.wordLengthMax) || 30)
+  )
+  Object.assign(heading, {
+    contentDirection:
+      "Write a specific 2-3 word heading that captures this slide's main idea.",
+    wordLengthMin: 2,
+    wordLengthMax: 3,
+    textMode: "prompt",
+    staticText: "",
+  })
+  Object.assign(paragraph, {
+    contentDirection: paragraphDirection,
+    wordLengthMin: paragraphMin,
+    wordLengthMax: paragraphMax,
+    textMode: "prompt",
+    staticText: "",
+  })
+
+  return [
+    {
+      id: "restore-body-heading-and-paragraph-layers",
+      severity: "recommended",
+      reason:
+        "The body heading currently owns paragraph-length copy and the paragraph layer is inert. Split the scan heading from its supporting paragraph before the next run.",
+      tool: "lumenclip_automation_schema_update",
+      args: {
+        automationId: automation.id,
+        expectedUpdatedAt: automation.updatedAt,
+        mode: "patch",
+        schema: { formatting },
+      },
+      blocks: [],
+    },
+  ]
+}
+
+function bodyTextLayerIssue(automation: AutomationRecord) {
+  const body = automationFormatSection(automation.schema, "content")
+  const heading = body.textItems.find((item) =>
+    /\b(?:heading|headline|title)\b/i.test(item.id)
+  )
+  const paragraph = body.textItems.find((item) =>
+    /\b(?:paragraph|description|supporting-copy|body-copy)\b/i.test(item.id)
+  )
+  if (!heading || !paragraph) return null
+  const headingDirectionWords = clean(heading.contentDirection)
+    .split(/\s+/)
+    .filter(Boolean).length
+  const paragraphHasContent =
+    clean(paragraph.contentDirection) ||
+    clean(paragraph.staticText) ||
+    clean(paragraph.text)
+  const paragraphLengthHeading =
+    Number(heading.wordLengthMax) >= 15 || headingDirectionWords >= 15
+  if (!paragraphLengthHeading || paragraphHasContent) return null
+  return { heading, paragraph }
+}
+
+function toneStyleBoundaryNextSteps(
+  automation: AutomationRecord
+): LumenClipNextStep[] {
+  const style = clean(automation.schema.prompt_formatting.style)
+  const voiceRules = styleVoiceRules(style)
+  if (voiceRules.length === 0) return []
+  const structuralRules = splitPromptRules(style).filter(
+    (rule) => !isVoiceRule(rule)
+  )
+  return [
+    {
+      id: "move-voice-rules-out-of-structural-style",
+      severity: "recommended",
+      reason:
+        "tone.value owns register, diction, rhythm, person, and casing. Remove those voice rules from prompt_formatting.style so structural instructions cannot contradict tone.",
+      tool: "lumenclip_automation_schema_update",
+      args: {
+        automationId: automation.id,
+        expectedUpdatedAt: automation.updatedAt,
+        mode: "patch",
+        schema: {
+          prompt_formatting: {
+            style: structuralRules.join("\n"),
+          },
+        },
+      },
+      blocks: [],
+    },
+  ]
+}
+
+function styleVoiceRules(style: string) {
+  return splitPromptRules(style).filter(isVoiceRule)
+}
+
+function splitPromptRules(value: string) {
+  return clean(value)
+    .split(/\r?\n+|(?<=[.!?])\s+/)
+    .map(clean)
+    .filter(Boolean)
+}
+
+function isVoiceRule(value: string) {
+  return /\b(?:voice|register|diction|sentence rhythm|word choice|slang|all lowercase|lowercase|uppercase|sentence case|title case|first person|second person|conversational|informal|formal|witty|humorous|calm|reflective|motivational|empowering|authoritative|reassuring|provocative|relatable)\b/i.test(
+    value
+  )
 }
 
 function missingCollectionReferenceNextSteps(

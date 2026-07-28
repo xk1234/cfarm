@@ -106,6 +106,9 @@ export function buildTempSlideUserPrompt(input: TempSlidePromptInput) {
   const placeholderLines = input.placeholders.map((placeholder) => {
     return `- ${placeholder.id}: ${placeholder.slideId}, ${placeholder.section}, ${placeholderRequirement(placeholder)}`
   })
+  const captionPolicy = promptUsesExactHookCaption(input.promptInstructions)
+    ? "exact_hook"
+    : "generated"
 
   return [
     `Automation: ${input.automationName}`,
@@ -113,7 +116,7 @@ export function buildTempSlideUserPrompt(input: TempSlidePromptInput) {
     "Tone (governs register, diction, rhythm, and casing — apply to every field; do not substitute a literary default):",
     `Tone: ${input.tone}`,
     "Metadata requirements:",
-    ...socialPostMetadataPromptLines("slideshow"),
+    ...socialPostMetadataPromptLines("slideshow", { captionPolicy }),
     "Prompt instructions:",
     input.promptInstructions,
     ...performanceMemoryLines(input.performanceMemory),
@@ -202,7 +205,8 @@ export function hookImpliedSlideCount(hook: string): number | null {
 }
 
 export function buildTempSlideStructuredOutputSchema(
-  placeholders: TempSlideTextPlaceholder[]
+  placeholders: TempSlideTextPlaceholder[],
+  options: { exactHookCaption?: boolean } = {}
 ) {
   const promptPlaceholders = placeholders.filter(
     (placeholder) => placeholder.textMode === "prompt"
@@ -222,7 +226,9 @@ export function buildTempSlideStructuredOutputSchema(
     type: "object",
     additionalProperties: false,
     properties: {
-      ...socialPostMetadataSchemaProperties("slideshow"),
+      ...socialPostMetadataSchemaProperties("slideshow", {
+        captionPolicy: options.exactHookCaption ? "exact_hook" : "generated",
+      }),
       text: {
         type: "object",
         additionalProperties: false,
@@ -282,6 +288,7 @@ export function buildScheduledSlideshowPrompt(input: {
   const promptInstructions =
     clean(input.promptInstructions) || defaultTempSlideUserInstructions
   const systemPrompt = clean(input.systemPrompt) || defaultTempSlideSystemPrompt
+  const exactHookCaption = promptUsesExactHookCaption(promptInstructions)
   return {
     system: `${systemPrompt}\n${llmSlopPromptLine()}`,
     user: buildTempSlideUserPrompt({
@@ -294,8 +301,16 @@ export function buildScheduledSlideshowPrompt(input: {
       avoidSimilarHeadings: input.avoidSimilarHeadings,
       performanceMemory: input.performanceMemory,
     }),
-    schema: buildTempSlideStructuredOutputSchema(input.placeholders),
+    schema: buildTempSlideStructuredOutputSchema(input.placeholders, {
+      exactHookCaption,
+    }),
   }
+}
+
+function promptUsesExactHookCaption(value: string) {
+  return /Caption requirement:\s*return exactly the selected Hook text/i.test(
+    value
+  )
 }
 
 /** Shared word-count rule for both the generation repair loop and output QA. */

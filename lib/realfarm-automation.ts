@@ -73,6 +73,7 @@ export type PostTextSetting = {
   mode: "prompt" | "static"
   static_text: string
   prompt_text: string
+  resolution?: "generated" | "hook"
 }
 
 export type TextItem = {
@@ -2186,17 +2187,33 @@ function normalizePostTextSetting(
 ): PostTextSetting {
   const record = isRecord(value) ? value : {}
   if ("value" in record) {
+    const promptText = record.mode === "static" ? "" : clean(record.value)
     return {
       mode: record.mode === "static" ? "static" : "prompt",
       static_text: record.mode === "static" ? clean(record.value) : "",
-      prompt_text: record.mode === "static" ? "" : clean(record.value),
+      prompt_text: promptText,
+      ...(legacyHookCaptionPrompt(promptText)
+        ? { prompt_text: "", resolution: "hook" as const }
+        : {}),
     }
   }
+  const promptText = clean(record.prompt_text) || fallback.prompt_text
+  const resolution =
+    record.resolution === "hook" || legacyHookCaptionPrompt(promptText)
+      ? ("hook" as const)
+      : record.resolution === "generated"
+        ? ("generated" as const)
+        : fallback.resolution
   return {
     mode: record.mode === "static" ? "static" : "prompt",
     static_text: clean(record.static_text) || fallback.static_text,
-    prompt_text: clean(record.prompt_text) || fallback.prompt_text,
+    prompt_text: resolution === "hook" ? "" : promptText,
+    ...(resolution ? { resolution } : {}),
   }
+}
+
+function legacyHookCaptionPrompt(value: string) {
+  return /same exact text as (?:the )?(?:first text item|hook)/i.test(value)
 }
 
 function toDate(value: unknown) {

@@ -594,6 +594,100 @@ describe("LumenClip MCP server", () => {
     })
   })
 
+  it("surfaces repair actions for collapsed body layers and voice rules in style", async () => {
+    const current = automationRecord()
+    current.schema.tone = {
+      value: "Educational & Informative",
+      preset: "educational",
+    }
+    current.schema.prompt_formatting.style =
+      "Use 2-3 word headings followed by one paragraph. Write in a witty, conversational voice with all lowercase text."
+    const body = current.schema.formatting.find((block) => block.id === "body")!
+    const base = body.textItems[0]!
+    body.textItems = [
+      {
+        ...base,
+        id: "body-heading",
+        contentDirection:
+          "Write the complete personal explanation for this slide.",
+        wordLengthMin: 20,
+        wordLengthMax: 30,
+      },
+      {
+        ...base,
+        id: "body-paragraph",
+        contentDirection: "",
+        textMode: "static",
+        staticText: "",
+      },
+    ]
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      listAutomationRuns: vi.fn(async () => []),
+      listWordCollections: vi.fn(async () => []),
+      listImageCollections: vi.fn(async () => []),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_automation_get",
+      arguments: { automationId: current.id },
+    })
+
+    expect(result.structuredContent).toMatchObject({
+      automation: {
+        configurationWarnings: expect.arrayContaining([
+          expect.objectContaining({
+            code: "BODY_TEXT_LAYERS_COLLAPSED",
+            path: "formatting.body.textItems",
+          }),
+          expect.objectContaining({
+            code: "STYLE_CONTAINS_VOICE_RULES",
+            path: "prompt_formatting.style",
+          }),
+        ]),
+      },
+      nextSteps: expect.arrayContaining([
+        expect.objectContaining({
+          id: "restore-body-heading-and-paragraph-layers",
+          tool: "lumenclip_automation_schema_update",
+          args: expect.objectContaining({
+            mode: "patch",
+            schema: {
+              formatting: expect.arrayContaining([
+                expect.objectContaining({
+                  id: "body",
+                  textItems: expect.arrayContaining([
+                    expect.objectContaining({
+                      id: "body-heading",
+                      wordLengthMin: 2,
+                      wordLengthMax: 3,
+                    }),
+                    expect.objectContaining({
+                      id: "body-paragraph",
+                      textMode: "prompt",
+                      contentDirection:
+                        "Write the complete personal explanation for this slide.",
+                    }),
+                  ]),
+                }),
+              ]),
+            },
+          }),
+        }),
+        expect.objectContaining({
+          id: "move-voice-rules-out-of-structural-style",
+          args: expect.objectContaining({
+            schema: {
+              prompt_formatting: {
+                style: "Use 2-3 word headings followed by one paragraph.",
+              },
+            },
+          }),
+        }),
+      ]),
+    })
+  })
+
   it("deep-clones an automation into a paused copy without run history", async () => {
     const source = automationRecord()
     source.schema.hooks = [

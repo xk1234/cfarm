@@ -45,6 +45,29 @@ describe("slideshow plan metadata and hook overrides", () => {
     ).toBe("may gemini vs. june gemini")
   })
 
+  it("uses the canonical hook-caption policy without a free-text prompt", () => {
+    const setting = {
+      mode: "prompt" as const,
+      static_text: "",
+      prompt_text: "",
+      resolution: "hook" as const,
+    }
+    expect(
+      slideshowMetadataPromptInstructions({
+        tiktok_post_settings: { caption: setting },
+      })
+    ).toContain(
+      "Caption requirement: return exactly the selected Hook text above"
+    )
+    expect(
+      resolveSlideshowCaption({
+        setting,
+        generated: "A different model-written caption",
+        hook: "May Gemini vs. June Gemini",
+      })
+    ).toBe("May Gemini vs. June Gemini")
+  })
+
   it("keeps structural style rules separate from tone", () => {
     expect(
       slideshowStructurePromptInstructions({

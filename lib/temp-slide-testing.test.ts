@@ -257,6 +257,32 @@ describe("temp slide testing helpers", () => {
     expect(prompt).toContain("content-2__body-title")
   })
 
+  it("does not give the model a conflicting generic caption rule", () => {
+    const automation =
+      automationTemplateToTempSlideTestingAutomation(templateRecord)
+    const placeholders = getTempSlidePromptPlaceholders(automation)
+    const prompt = buildTempSlideUserPrompt({
+      automationName: automation.name,
+      hook: promptPreviewHook(automation),
+      tone: automation.tone,
+      promptInstructions:
+        "Caption requirement: return exactly the selected Hook text above; this policy is also enforced deterministically after generation.",
+      placeholders,
+    })
+    const schema = buildTempSlideStructuredOutputSchema(placeholders, {
+      exactHookCaption: true,
+    })
+
+    expect(prompt).toContain(
+      "- caption: return exactly the selected Hook text; do not rewrite, extend, or punctuate it."
+    )
+    expect(prompt).not.toContain("one sentence")
+    expect(schema.properties.caption.description).toContain(
+      "Exact selected Hook text"
+    )
+    expect(schema.properties.caption.description).not.toContain("one sentence")
+  })
+
   it("tells the model not to recycle recent body headings", () => {
     const automation =
       automationTemplateToTempSlideTestingAutomation(templateRecord)

@@ -149,9 +149,11 @@ Input: `{ "automation_id": "auto_123" }`.
 
 Output: `automation` containing the complete normalized editor `schema`,
 `schedule`, `publishing_policy`, `linked_collections`, safe `linked_accounts`,
-canonical `hookPool`, `last_run`, and `resource_uri`. Returns `NOT_FOUND` for
-inaccessible IDs. X/Threads automations instead include their safe complete
-policy `configuration`.
+canonical `hookPool`, `configurationWarnings`, `last_run`, and `resource_uri`.
+Returns `NOT_FOUND` for inaccessible IDs. X/Threads automations instead include
+their safe complete policy `configuration`. Standard automation reads flag
+collapsed heading/paragraph layers and voice rules stored in structural style,
+with patch-ready repairs in `nextSteps`.
 
 Complete standard schemas are patched by default with
 `lumenclip_automation_schema_update` using optimistic `expectedUpdatedAt`;

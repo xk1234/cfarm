@@ -8,13 +8,16 @@ export function buildTempSlideUserPrompt(input) {
     const placeholderLines = input.placeholders.map((placeholder) => {
         return `- ${placeholder.id}: ${placeholder.slideId}, ${placeholder.section}, ${placeholderRequirement(placeholder)}`;
     });
+    const captionPolicy = promptUsesExactHookCaption(input.promptInstructions)
+        ? "exact_hook"
+        : "generated";
     return [
         `Automation: ${input.automationName}`,
         `Hook: ${input.hook}`,
         "Tone (governs register, diction, rhythm, and casing — apply to every field; do not substitute a literary default):",
         `Tone: ${input.tone}`,
         "Metadata requirements:",
-        ...socialPostMetadataPromptLines("slideshow"),
+        ...socialPostMetadataPromptLines("slideshow", { captionPolicy }),
         "Prompt instructions:",
         input.promptInstructions,
         ...performanceMemoryLines(input.performanceMemory),
@@ -90,7 +93,7 @@ export function hookImpliedSlideCount(hook) {
     const count = Number(match[1]);
     return count >= 1 && count <= 10 ? count : null;
 }
-export function buildTempSlideStructuredOutputSchema(placeholders) {
+export function buildTempSlideStructuredOutputSchema(placeholders, options = {}) {
     const promptPlaceholders = placeholders.filter((placeholder) => placeholder.textMode === "prompt");
     const properties = Object.fromEntries(promptPlaceholders.map((placeholder) => [
         placeholder.id,
@@ -104,7 +107,9 @@ export function buildTempSlideStructuredOutputSchema(placeholders) {
         type: "object",
         additionalProperties: false,
         properties: {
-            ...socialPostMetadataSchemaProperties("slideshow"),
+            ...socialPostMetadataSchemaProperties("slideshow", {
+                captionPolicy: options.exactHookCaption ? "exact_hook" : "generated",
+            }),
             text: {
                 type: "object",
                 additionalProperties: false,
@@ -135,6 +140,7 @@ export function getTempSlidePromptPlaceholders(automation) {
 export function buildScheduledSlideshowPrompt(input) {
     const promptInstructions = clean(input.promptInstructions) || defaultTempSlideUserInstructions;
     const systemPrompt = clean(input.systemPrompt) || defaultTempSlideSystemPrompt;
+    const exactHookCaption = promptUsesExactHookCaption(promptInstructions);
     return {
         system: `${systemPrompt}\n${llmSlopPromptLine()}`,
         user: buildTempSlideUserPrompt({
@@ -147,8 +153,13 @@ export function buildScheduledSlideshowPrompt(input) {
             avoidSimilarHeadings: input.avoidSimilarHeadings,
             performanceMemory: input.performanceMemory,
         }),
-        schema: buildTempSlideStructuredOutputSchema(input.placeholders),
+        schema: buildTempSlideStructuredOutputSchema(input.placeholders, {
+            exactHookCaption,
+        }),
     };
+}
+function promptUsesExactHookCaption(value) {
+    return /Caption requirement:\s*return exactly the selected Hook text/i.test(value);
 }
 /** Shared word-count rule for both the generation repair loop and output QA. */
 export function wordRangeViolation(words, min, max) {

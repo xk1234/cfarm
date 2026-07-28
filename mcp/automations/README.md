@@ -37,11 +37,13 @@ are not returned. X/Threads records expose their full safe `configuration`
 (brief, excluded topics, proof bank, output/generation/media/discovery policy,
 benchmarks, schedule, usage, and operations).
 
-The result also includes machine-readable `nextSteps` when a legacy hook
-catalog is duplicated in `prompt_formatting.narrative` or the hook text item's
-`contentDirection`, or when explicit variable overrides are no longer used.
-Each step contains resolved tool arguments and can be applied without
-reconstructing the schema.
+The result also includes `configurationWarnings` and machine-readable
+`nextSteps` when a legacy hook catalog is duplicated in
+`prompt_formatting.narrative` or the hook text item's `contentDirection`, when
+explicit variable overrides are no longer used, when paragraph-length body
+copy has collapsed into a heading while its paragraph layer is inert, or when
+structural style contains voice rules owned by tone. Each repair step contains
+resolved tool arguments and can be applied without reconstructing the schema.
 Media collection references are resolved on read, including per-slide image
 overrides, overlay collections, and video-segment collections. Missing IDs are
 returned in `unresolvedCollectionReferences` with a required `nextSteps` entry
@@ -79,6 +81,15 @@ addressable object and do not normalize or rewrite unrelated schema fields.
 `prompt_formatting.style` owns structure and format: heading shape, paragraph
 organization, ordering, and other content-layout rules. Generation labels the
 style block as structural and explicitly prevents it from overriding tone.
+`automation_get` validates that boundary and returns
+`STYLE_CONTAINS_VOICE_RULES` plus a patch-ready repair when voice rules leak
+into `style`.
+
+Prompt-mode captions use `tiktok_post_settings.caption.resolution`. `"hook"`
+means the exact resolved hook is the canonical caption; `"generated"` lets the
+model write one. Legacy prose asking for the first text item is normalized to
+`resolution: "hook"` and removed, so the metadata schema, prompt, and
+deterministic resolution no longer give conflicting instructions.
 
 ### `lumenclip_automation_formatting_update`
 

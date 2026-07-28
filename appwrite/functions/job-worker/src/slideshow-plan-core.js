@@ -70,7 +70,7 @@ export function resolveSlideshowCaption(input) {
         return clean(setting.static_text) || clean(input.generated);
     }
     const prompt = clean(setting?.prompt_text);
-    let caption = /same exact text as (?:the )?(?:first text item|hook)/i.test(prompt)
+    let caption = captionUsesHook(setting)
         ? clean(input.hook)
         : clean(input.generated);
     if (/lower\s*case|all\s*lowercase/i.test(prompt)) {
@@ -89,16 +89,20 @@ function postTextPromptLine(label, setting) {
     const value = setting.mode === "static"
         ? clean(setting.static_text)
         : clean(setting.prompt_text);
-    if (!value)
-        return "";
     if (label === "Caption" &&
         setting.mode !== "static" &&
-        /same exact text as (?:the )?(?:first text item|hook)/i.test(value)) {
+        captionUsesHook(setting)) {
         return "Caption requirement: return exactly the selected Hook text above; this policy is also enforced deterministically after generation.";
     }
+    if (!value)
+        return "";
     return setting.mode === "static"
         ? `${label} requirement: return exactly ${JSON.stringify(value)}.`
         : `${label} requirement: ${value}`;
+}
+export function captionUsesHook(setting) {
+    return (setting?.resolution === "hook" ||
+        /same exact text as (?:the )?(?:first text item|hook)/i.test(clean(setting?.prompt_text)));
 }
 export function isHookInstruction(value) {
     const normalized = value.trim().toLowerCase();
