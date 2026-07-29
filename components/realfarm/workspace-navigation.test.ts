@@ -39,5 +39,8 @@ describe("workspace navigation", () => {
     expect(workspaceLocationFromUrl("/app", "?view=unknown")).toEqual({
       view: "home",
     })
+    expect(workspaceLocationFromUrl("/app", "?view=viral-tracker")).toEqual({
+      view: "home",
+    })
   })
 })

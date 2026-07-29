@@ -71,11 +71,6 @@ const TestingFacility = dynamic(() =>
     (module) => module.TestingFacility
   )
 )
-const ViralTrackerView = dynamic(() =>
-  import("@/components/realfarm/viral-tracker-view").then(
-    (module) => module.ViralTrackerView
-  )
-)
 const AutomationSettingsDrawer = dynamic(() =>
   import("@/components/realfarm/automation-settings").then(
     (module) => module.AutomationSettingsDrawer
@@ -903,7 +898,6 @@ export function RealFarmWorkspace({
           )}
           {view === "analytics" && <AnalyticsView />}
           {view === "testing" && <TestingFacility />}
-          {view === "viral-tracker" && <ViralTrackerView />}
           {view === "collections" &&
             (selectedCollection ? (
               <CollectionDetailView

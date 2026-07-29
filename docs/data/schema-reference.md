@@ -36,8 +36,7 @@ Reusable inputs and reference material. Current `source_key` values are
 `tiktok_comment_collection`, `tiktok_captured_comment`,
 `tiktok_comment_reply_draft`, `tiktok_comment_reply_approval`,
 `tiktok_comment_reply_send_result`, `product_collection`,
-`media_library_asset`, `reminder_settings`, `brand_profile`,
-`viral_tracker_project`, `viral_tracker_account`, and `viral_tracker_post`.
+`media_library_asset`, `reminder_settings`, and `brand_profile`.
 
 | Field              | Storage type  | Required | Allowed values / format                      | Meaning                                 |
 | ------------------ | ------------- | -------- | -------------------------------------------- | --------------------------------------- |
