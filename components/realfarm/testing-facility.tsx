@@ -1,9 +1,17 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { IconAlertTriangle, IconCheck, IconFlask } from "@tabler/icons-react"
+import {
+  IconAlertTriangle,
+  IconCheck,
+  IconChevronDown,
+  IconFlask,
+  IconSearch,
+} from "@tabler/icons-react"
+import { DropdownMenu } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
+import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import type { AutomationRecord } from "@/lib/automations"
 import { cn } from "@/lib/utils"
 
@@ -42,7 +50,7 @@ type DimensionsResponse = {
 
 type ExperimentDimensionChoice = {
   key: string
-  dimension: "contentDirection" | "tone" | "model" | "variable"
+  dimension: "contentDirection" | "tone" | "model"
   name?: string
   slideIndex?: number
   label: string
@@ -50,6 +58,32 @@ type ExperimentDimensionChoice = {
   sampleValues: string[]
   sweepable: boolean
   reason?: string
+}
+
+type TemplateSampleRecord = {
+  id: string
+  name: string
+  automationKind?: "slideshow" | "video" | "ugc"
+  schema: {
+    tone?: { value?: string }
+    formatting?: Array<{
+      id: string
+      textItems?: Array<{
+        contentDirection?: string
+      }>
+      slideOverrides?: Array<{
+        slideIndex: number
+        contentDirection: string
+      }>
+    }>
+  }
+}
+
+type VariationSample = {
+  id: string
+  value: string
+  group: "Current automation" | "Suggested" | "Automation templates"
+  source: string
 }
 
 type ExperimentCell = {
@@ -86,6 +120,12 @@ export function TestingFacility() {
   >({})
   const [repeats, setRepeats] = useState(1)
   const [result, setResult] = useState<ExperimentResponse | null>(null)
+  const [samplePickerKey, setSamplePickerKey] = useState<string | null>(null)
+  const [templateSamples, setTemplateSamples] = useState<
+    TemplateSampleRecord[] | null
+  >(null)
+  const [templateSamplesLoading, setTemplateSamplesLoading] = useState(false)
+  const [templateSamplesError, setTemplateSamplesError] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -134,6 +174,41 @@ export function TestingFacility() {
 
   const grid = useMemo(() => experimentGrid(result?.cells ?? []), [result])
   const choices = useMemo(() => dimensionChoices(dimensions), [dimensions])
+  const samplePickerChoice = choices.find(
+    (choice) => choice.key === samplePickerKey
+  )
+
+  async function openSamplePicker(key: string) {
+    setSamplePickerKey(key)
+    if (templateSamples || templateSamplesLoading) return
+
+    setTemplateSamplesLoading(true)
+    setTemplateSamplesError("")
+    try {
+      const response = await fetch("/api/automation-templates")
+      const payload = (await response.json()) as {
+        error?: string
+        records?: TemplateSampleRecord[]
+      }
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not load template samples")
+      }
+      setTemplateSamples(
+        (payload.records ?? []).filter(
+          (record) =>
+            record.automationKind !== "video" && record.automationKind !== "ugc"
+        )
+      )
+    } catch (loadError) {
+      setTemplateSamplesError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Could not load template samples"
+      )
+    } finally {
+      setTemplateSamplesLoading(false)
+    }
+  }
 
   async function runExperiment() {
     if (!automationId) return
@@ -216,72 +291,13 @@ export function TestingFacility() {
           </Field>
 
           <Field label="Choose inputs">
-            <div className="min-h-10 rounded-control border border-app-panel-border bg-app-surface-subtle p-2">
-              {!automationId ? (
-                <p className="px-1 py-1 text-xs text-app-muted-text">
-                  Choose an automation first.
-                </p>
-              ) : !dimensions ? (
-                <div className="h-6 animate-pulse rounded-control bg-app-control-hover" />
-              ) : (
-                <div className="space-y-3">
-                  <div>
-                    <h3 className="px-2 pb-1 text-xs font-semibold text-app-text">
-                      Automation-level inputs
-                    </h3>
-                    <div className="divide-y divide-app-panel-border overflow-hidden rounded-control border border-app-panel-border bg-app-surface-raised">
-                      {choices
-                        .filter((choice) => choice.dimension !== "variable")
-                        .map((choice) => (
-                          <DimensionOption
-                            key={choice.key}
-                            choice={choice}
-                            selected={selectedDimensions.includes(choice.key)}
-                            onChange={(checked) =>
-                              setSelectedDimensions((current) =>
-                                checked
-                                  ? [...current, choice.key]
-                                  : current.filter((key) => key !== choice.key)
-                              )
-                            }
-                          />
-                        ))}
-                    </div>
-                  </div>
-                  <div className="border-t border-app-panel-border pt-3">
-                    <h3 className="px-2 pb-1 text-xs font-semibold text-app-muted-text">
-                      Reusable variables
-                    </h3>
-                    {dimensions.variables.length === 0 ? (
-                      <p className="px-2 py-1 text-xs text-app-muted-text">
-                        This automation has no reusable variables.
-                      </p>
-                    ) : (
-                      <div className="divide-y divide-app-panel-border overflow-hidden rounded-control border border-app-panel-border bg-app-surface-raised">
-                        {choices
-                          .filter((choice) => choice.dimension === "variable")
-                          .map((choice) => (
-                            <DimensionOption
-                              key={choice.key}
-                              choice={choice}
-                              selected={selectedDimensions.includes(choice.key)}
-                              onChange={(checked) =>
-                                setSelectedDimensions((current) =>
-                                  checked
-                                    ? [...current, choice.key]
-                                    : current.filter(
-                                        (key) => key !== choice.key
-                                      )
-                                )
-                              }
-                            />
-                          ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+            <AutomationInputDropdown
+              disabled={!automationId || !dimensions}
+              loading={Boolean(automationId && !dimensions)}
+              choices={choices}
+              selected={selectedDimensions}
+              onChange={setSelectedDimensions}
+            />
           </Field>
 
           <Field label="Choose variations">
@@ -302,12 +318,22 @@ export function TestingFacility() {
                       : choice.sampleValues.join(", ")
                   return (
                     <div key={key} className="space-y-1.5">
-                      <label
-                        htmlFor={`variations-${key}`}
-                        className="text-xs font-medium text-app-text"
-                      >
-                        {choice.label}
-                      </label>
+                      <div className="flex items-center justify-between gap-3">
+                        <label
+                          htmlFor={`variations-${key}`}
+                          className="text-xs font-medium text-app-text"
+                        >
+                          {choice.label}
+                        </label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => void openSamplePicker(key)}
+                        >
+                          Browse samples
+                        </Button>
+                      </div>
                       {choice.dimension === "contentDirection" ? (
                         <textarea
                           id={`variations-${key}`}
@@ -356,21 +382,32 @@ export function TestingFacility() {
           </Field>
         </div>
 
-        {dimensions?.fixed.length ? (
+        {dimensions &&
+        (dimensions.variables.length > 0 || dimensions.fixed.length > 0) ? (
           <details className="mt-5 border-t border-app-panel-border pt-4">
             <summary className="cursor-pointer text-xs font-medium text-app-muted-text">
-              Runtime variables are fixed
+              Reusable and runtime variables are fixed
             </summary>
             <div className="mt-3 flex flex-wrap gap-2">
-              {dimensions.fixed.map((variable) => (
-                <span
-                  key={variable.name}
-                  title={variable.reason}
-                  className="rounded-full border border-app-panel-border bg-app-surface-subtle px-2.5 py-1 font-mono text-xs text-app-muted-text"
-                >
-                  {variable.token}
-                </span>
-              ))}
+              {[...dimensions.variables, ...dimensions.fixed].map(
+                (variable) => (
+                  <span
+                    key={
+                      "variableName" in variable
+                        ? variable.variableName
+                        : variable.name
+                    }
+                    title={
+                      "variableName" in variable
+                        ? "Reusable variables keep their configured values across comparison previews."
+                        : variable.reason
+                    }
+                    className="rounded-full border border-app-panel-border bg-app-surface-subtle px-2.5 py-1 font-mono text-xs text-app-muted-text"
+                  >
+                    {variable.token}
+                  </span>
+                )
+              )}
             </div>
           </details>
         ) : null}
@@ -400,6 +437,28 @@ export function TestingFacility() {
       </section>
 
       <ResultsGrid grid={grid} hasResult={Boolean(result)} />
+
+      {samplePickerChoice ? (
+        <VariationSamplesModal
+          choice={samplePickerChoice}
+          existingValue={variationValues[samplePickerChoice.key] ?? ""}
+          templateRecords={templateSamples ?? []}
+          loadingTemplates={templateSamplesLoading}
+          templatesError={templateSamplesError}
+          onClose={() => setSamplePickerKey(null)}
+          onAdd={(values) => {
+            setVariationValues((current) => ({
+              ...current,
+              [samplePickerChoice.key]: mergeVariationValues(
+                current[samplePickerChoice.key],
+                values,
+                samplePickerChoice.dimension === "contentDirection"
+              ),
+            }))
+            setSamplePickerKey(null)
+          }}
+        />
+      ) : null}
     </div>
   )
 }
@@ -419,41 +478,239 @@ function Field({
   )
 }
 
-function DimensionOption({
-  choice,
+function AutomationInputDropdown({
+  disabled,
+  loading,
+  choices,
   selected,
   onChange,
 }: {
-  choice: ExperimentDimensionChoice
-  selected: boolean
-  onChange: (checked: boolean) => void
+  disabled: boolean
+  loading: boolean
+  choices: ExperimentDimensionChoice[]
+  selected: string[]
+  onChange: (keys: string[]) => void
 }) {
+  const label = loading
+    ? "Loading inputs..."
+    : selected.length === 0
+      ? "Select inputs to compare"
+      : selected.length === 1
+        ? choices.find((choice) => choice.key === selected[0])?.label
+        : `${selected.length} inputs selected`
+
   return (
-    <label
-      title={choice.reason ?? choice.currentValue}
-      className={cn(
-        "flex h-9 items-center gap-2 px-3 text-xs text-app-text hover:bg-app-control-hover",
-        !choice.sweepable &&
-          "cursor-not-allowed text-app-muted-text hover:bg-transparent"
-      )}
-    >
-      <input
-        type="checkbox"
-        className="shrink-0 accent-app-action"
-        disabled={!choice.sweepable}
-        checked={selected}
-        onChange={(event) => onChange(event.target.checked)}
-      />
-      <span
-        className={
-          choice.dimension === "variable"
-            ? "min-w-0 truncate font-mono"
-            : "min-w-0 truncate font-medium"
-        }
-      >
-        {choice.label}
-      </span>
-    </label>
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild disabled={disabled}>
+        <button
+          type="button"
+          className="lc-focus-ring flex h-10 w-full items-center justify-between gap-3 rounded-control border border-app-panel-border bg-app-control-bg px-3 text-left text-sm text-app-text disabled:cursor-not-allowed disabled:opacity-60"
+          aria-label="Choose automation-level inputs"
+        >
+          <span className="truncate">
+            {disabled && !loading ? "Choose an automation first" : label}
+          </span>
+          <IconChevronDown className="size-4 shrink-0 text-app-muted-text" />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          sideOffset={6}
+          align="start"
+          className="app-popover z-[120] max-h-80 min-w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto p-1"
+        >
+          {choices.map((choice) => {
+            const checked = selected.includes(choice.key)
+            return (
+              <DropdownMenu.CheckboxItem
+                key={choice.key}
+                checked={checked}
+                disabled={!choice.sweepable}
+                title={choice.reason ?? choice.currentValue}
+                onSelect={(event) => event.preventDefault()}
+                onCheckedChange={() =>
+                  onChange(
+                    checked
+                      ? selected.filter((key) => key !== choice.key)
+                      : [...selected, choice.key]
+                  )
+                }
+                className={cn(
+                  "relative flex cursor-default items-center rounded-control py-2 pr-9 pl-3 text-xs text-app-text outline-none data-[disabled]:text-app-muted-text data-[highlighted]:bg-app-control-hover",
+                  !choice.sweepable && "cursor-not-allowed"
+                )}
+              >
+                <span className="min-w-0 truncate">{choice.label}</span>
+                <DropdownMenu.ItemIndicator className="absolute right-3">
+                  <IconCheck className="size-3.5" />
+                </DropdownMenu.ItemIndicator>
+              </DropdownMenu.CheckboxItem>
+            )
+          })}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  )
+}
+
+function VariationSamplesModal({
+  choice,
+  existingValue,
+  templateRecords,
+  loadingTemplates,
+  templatesError,
+  onClose,
+  onAdd,
+}: {
+  choice: ExperimentDimensionChoice
+  existingValue: string
+  templateRecords: TemplateSampleRecord[]
+  loadingTemplates: boolean
+  templatesError: string
+  onClose: () => void
+  onAdd: (values: string[]) => void
+}) {
+  const samples = useMemo(
+    () => variationSamples(choice, templateRecords),
+    [choice, templateRecords]
+  )
+  const existing = useMemo(
+    () =>
+      new Set(
+        parseValues(existingValue, choice.dimension === "contentDirection").map(
+          normalizeSampleValue
+        )
+      ),
+    [choice.dimension, existingValue]
+  )
+  const [selected, setSelected] = useState<string[]>([])
+  const [search, setSearch] = useState("")
+  const query = search.trim().toLowerCase()
+  const visibleSamples = samples.filter(
+    (sample) =>
+      !query ||
+      sample.value.toLowerCase().includes(query) ||
+      sample.source.toLowerCase().includes(query)
+  )
+  const grouped = groupVariationSamples(visibleSamples)
+
+  return (
+    <AppModal onClose={onClose}>
+      <AppModalPanel className="flex max-h-[min(760px,calc(100vh-2rem))] max-w-3xl flex-col overflow-hidden">
+        <AppModalHeader
+          title={`Choose samples for ${choice.label}`}
+          onClose={onClose}
+        />
+        <div className="border-b border-app-panel-border p-4">
+          <label className="relative block">
+            <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-app-muted-text" />
+            <input
+              aria-label="Search variation samples"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search samples"
+              className="lc-focus-ring h-10 w-full rounded-control border border-app-panel-border bg-app-control-bg pr-3 pl-9 text-sm text-app-text placeholder:text-app-text-faint"
+            />
+          </label>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          {variationSampleGroups.map((group) => {
+            const groupSamples = grouped.get(group) ?? []
+            if (groupSamples.length === 0) return null
+            return (
+              <section key={group} className="mb-5 last:mb-0">
+                <h3 className="mb-2 text-xs font-semibold text-app-muted-text">
+                  {group}
+                </h3>
+                <div className="divide-y divide-app-panel-border overflow-hidden rounded-control border border-app-panel-border">
+                  {groupSamples.map((sample) => {
+                    const checked = selected.includes(sample.id)
+                    const alreadyAdded = existing.has(
+                      normalizeSampleValue(sample.value)
+                    )
+                    return (
+                      <label
+                        key={sample.id}
+                        className={cn(
+                          "flex cursor-pointer items-start gap-3 bg-app-surface-raised px-3 py-2.5 hover:bg-app-control-hover",
+                          alreadyAdded && "cursor-default opacity-60"
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 shrink-0 accent-app-action"
+                          checked={checked || alreadyAdded}
+                          disabled={alreadyAdded}
+                          onChange={() =>
+                            setSelected((current) =>
+                              checked
+                                ? current.filter((id) => id !== sample.id)
+                                : [...current, sample.id]
+                            )
+                          }
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm leading-5 text-app-text">
+                            {sample.value}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-app-muted-text">
+                            {alreadyAdded ? "Already added" : sample.source}
+                          </span>
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </section>
+            )
+          })}
+          {loadingTemplates ? (
+            <div className="h-16 animate-pulse rounded-control bg-app-control-hover" />
+          ) : null}
+          {templatesError ? (
+            <p className="rounded-control bg-app-danger-surface p-3 text-sm text-app-danger">
+              {templatesError}
+            </p>
+          ) : null}
+          {!loadingTemplates &&
+          !templatesError &&
+          visibleSamples.length === 0 ? (
+            <p className="rounded-control border border-dashed border-app-panel-border p-4 text-sm text-app-muted-text">
+              No matching samples.
+            </p>
+          ) : null}
+        </div>
+        <div className="flex justify-end gap-2 border-t border-app-panel-border p-4">
+          <Button
+            type="button"
+            variant="softControl"
+            size="appDefault"
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="action"
+            size="appDefault"
+            disabled={selected.length === 0}
+            onClick={() =>
+              onAdd(
+                selected.flatMap((id) => {
+                  const sample = samples.find(
+                    (candidate) => candidate.id === id
+                  )
+                  return sample ? [sample.value] : []
+                })
+              )
+            }
+          >
+            Add {selected.length || ""}{" "}
+            {selected.length === 1 ? "variation" : "variations"}
+          </Button>
+        </div>
+      </AppModalPanel>
+    </AppModal>
   )
 }
 
@@ -595,34 +852,137 @@ function parseValues(value = "", preserveCommas = false) {
   )
 }
 
+function mergeVariationValues(
+  current = "",
+  additions: string[],
+  preserveCommas = false
+) {
+  const values = [
+    ...parseValues(current, preserveCommas),
+    ...additions.map((value) => value.trim()).filter(Boolean),
+  ]
+  const unique = [
+    ...new Map(
+      values.map((value) => [normalizeSampleValue(value), value])
+    ).values(),
+  ]
+  return unique.join(preserveCommas ? "\n" : ", ")
+}
+
+function normalizeSampleValue(value: string) {
+  return value.trim().toLowerCase()
+}
+
+const variationSampleGroups: VariationSample["group"][] = [
+  "Current automation",
+  "Suggested",
+  "Automation templates",
+]
+
+function groupVariationSamples(samples: VariationSample[]) {
+  const groups = new Map<VariationSample["group"], VariationSample[]>()
+  for (const sample of samples) {
+    groups.set(sample.group, [...(groups.get(sample.group) ?? []), sample])
+  }
+  return groups
+}
+
+function variationSamples(
+  choice: ExperimentDimensionChoice,
+  templateRecords: TemplateSampleRecord[]
+) {
+  const samples: VariationSample[] = []
+
+  if (choice.currentValue?.trim()) {
+    samples.push({
+      id: `current:${choice.key}`,
+      value: choice.currentValue.trim(),
+      group: "Current automation",
+      source: "Current automation",
+    })
+  }
+
+  choice.sampleValues.forEach((value, index) => {
+    if (!value.trim()) return
+    samples.push({
+      id: `suggested:${choice.key}:${index}`,
+      value: value.trim(),
+      group: "Suggested",
+      source: choice.dimension === "model" ? "Available model" : "Preset",
+    })
+  })
+
+  templateRecords.forEach((record) => {
+    templateVariationValues(choice, record).forEach((value, index) => {
+      if (!value.trim()) return
+      samples.push({
+        id: `template:${record.id}:${choice.key}:${index}`,
+        value: value.trim(),
+        group: "Automation templates",
+        source: record.name,
+      })
+    })
+  })
+
+  const seen = new Set<string>()
+  return samples.filter((sample) => {
+    const normalized = normalizeSampleValue(sample.value)
+    if (!normalized || seen.has(normalized)) return false
+    seen.add(normalized)
+    return true
+  })
+}
+
+function templateVariationValues(
+  choice: ExperimentDimensionChoice,
+  record: TemplateSampleRecord
+) {
+  if (choice.dimension === "tone") {
+    return record.schema.tone?.value ? [record.schema.tone.value] : []
+  }
+  if (choice.dimension !== "contentDirection" || !choice.name) return []
+
+  const block = record.schema.formatting?.find(
+    (candidate) => candidate.id === choice.name
+  )
+  if (!block) return []
+
+  if (choice.slideIndex) {
+    const override = block.slideOverrides?.find(
+      (candidate) => candidate.slideIndex === choice.slideIndex
+    )?.contentDirection
+    if (override) return [override]
+  }
+
+  return [
+    ...(block.textItems ?? []).flatMap((item) =>
+      item.contentDirection ? [item.contentDirection] : []
+    ),
+    ...(choice.slideIndex
+      ? []
+      : (block.slideOverrides ?? []).map(
+          (override) => override.contentDirection
+        )),
+  ]
+}
+
 function dimensionChoices(
   dimensions: DimensionsResponse | null
 ): ExperimentDimensionChoice[] {
   if (!dimensions) return []
-  return [
-    ...dimensions.automationDimensions
-      .filter(
-        (dimension) =>
-          !(
-            dimension.dimension === "contentDirection" &&
-            dimension.name === "hook"
-          )
-      )
-      .map((dimension) => ({
-        ...dimension,
-        key: `${dimension.dimension}:${dimension.name ?? ""}:${dimension.slideIndex ?? ""}`,
-        sweepable: true,
-      })),
-    ...dimensions.variables.map((variable) => ({
-      key: `variable:${variable.variableName}`,
-      dimension: "variable" as const,
-      name: variable.variableName,
-      label: variable.token,
-      sampleValues: variable.sampleValues,
-      sweepable: variable.sweepable,
-      reason: variable.reason,
-    })),
-  ]
+  return dimensions.automationDimensions
+    .filter(
+      (dimension) =>
+        !(
+          dimension.dimension === "contentDirection" &&
+          dimension.name === "hook"
+        )
+    )
+    .map((dimension) => ({
+      ...dimension,
+      key: `${dimension.dimension}:${dimension.name ?? ""}:${dimension.slideIndex ?? ""}`,
+      sweepable: true,
+    }))
 }
 
 function experimentGrid(cells: ExperimentCell[]) {
