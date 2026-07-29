@@ -7,6 +7,9 @@ Physical tables, store routing, and buckets are documented in
 [backend-architecture.md](backend-architecture.md); HTTP request contracts are
 in [backend-endpoints.md](backend-endpoints.md).
 
+For a field-by-field data dictionary with types, requiredness, defaults, and
+every closed set of allowed values, use the [Schema reference](schema-reference.md).
+
 The TypeScript definitions in `lib/` remain the executable source of truth. This
 document records the stable fields, lifecycle meanings, and persistence
 relationships developers need before changing them.
