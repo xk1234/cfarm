@@ -18,7 +18,6 @@ These files document the production interface by route and nested UI surface. A 
 - [Automations](pages/automations/automations.md)
 - [Automation template browser](pages/automations/template-browser.md)
 - [Testing facility](pages/testing/testing.md)
-- [Viral tracker](pages/viral-tracker/viral-tracker.md)
 - [X and Threads automations](pages/x-automations/x-automations.md)
 
 Screenshot captures live under `screenshots/desktop` and `screenshots/mobile`. Loading skeletons are not used as canonical page screenshots.
@@ -70,10 +69,6 @@ The two creation labels are ambiguous: “Create empty collection” and “Add�
 ## Testing facility
 
 Desktop uses two 549 px columns for automation and inputs, followed by variations and repeats. Mobile stacks to 301 px controls and reads well. “Choose automation first” and “Run experiment” are disabled for clear dependency reasons. The 200 synchronous-cell warning is useful but should be recast as an estimated cost/time summary once variations are known.
-
-## Viral tracker
-
-The page exposes Refresh/New project and immediately displays a technical environment error: “TikHub is not configured. Add TIKHUB_API_KEY…”. A normal user cannot act on a server environment variable. Replace it with “Viral tracking is unavailable” and an admin-only diagnostic link. The New project form is compact on both layouts; avoid showing the duplicate top action while the form is already open.
 
 ## X and Threads Automations
 

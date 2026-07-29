@@ -122,21 +122,6 @@ const RAW_STORE_ROUTES: Record<string, StoreRoute | string> = {
     sourceKey: "brand_profile",
     public: false,
   },
-  "viral-tracker/projects.json": {
-    table: "permanent_assets",
-    sourceKey: "viral_tracker_project",
-    public: false,
-  },
-  "viral-tracker/accounts.json": {
-    table: "permanent_assets",
-    sourceKey: "viral_tracker_account",
-    public: false,
-  },
-  "viral-tracker/posts.json": {
-    table: "permanent_assets",
-    sourceKey: "viral_tracker_post",
-    public: false,
-  },
 }
 
 export const STORE_ROUTES: Record<string, StoreRoute> = Object.fromEntries(
