@@ -44,7 +44,7 @@ export function SlideshowPublicationActions({
         <Button
           variant="softControl"
           size="compact"
-          className="size-10 px-0 sm:h-8 sm:w-auto sm:px-3"
+          className="size-9 px-0"
           aria-label="Open live post"
           title="Open live post"
           onClick={() =>
@@ -52,30 +52,27 @@ export function SlideshowPublicationActions({
           }
         >
           <IconExternalLink className="size-4" />
-          <span className="hidden sm:inline">Open live post</span>
         </Button>
       ) : null}
       <Button
         variant="softControl"
         size="compact"
-        className="size-10 px-0 sm:h-8 sm:w-auto sm:px-3"
+        className="size-9 px-0"
         aria-label="Link published post"
         title="Link published post"
         onClick={() => setModal("link")}
       >
         <IconLink className="size-4" />
-        <span className="hidden sm:inline">Link published post</span>
       </Button>
       <Button
         variant="action"
         size="compact"
-        className="size-10 px-0 sm:h-8 sm:w-auto sm:px-3"
+        className="size-9 px-0"
         aria-label="Post to social"
         title="Post to social"
         onClick={() => setModal("post")}
       >
         <IconSend className="size-4" />
-        <span className="hidden sm:inline">Post to social</span>
       </Button>
       {modal ? (
         <SlideshowPublicationModal
