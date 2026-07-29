@@ -2,7 +2,7 @@ import "server-only"
 
 import { randomUUID } from "node:crypto"
 
-import { sendTelegramReminder } from "@/lib/reminder-settings"
+import { telegramBotRequest } from "@/lib/reminder-settings"
 import {
   fetchTikHubPost,
   fetchTikHubUserPosts,
@@ -27,8 +27,16 @@ type PollDependencies = {
   now?: Date
   fetchUserPosts?: typeof fetchTikHubUserPosts
   fetchPost?: typeof fetchTikHubPost
-  sendAlert?: typeof sendTelegramReminder
+  sendAlert?: ViralAlertSender
 }
+
+type ViralAlertInput = {
+  chatId?: string
+  text: string
+  postUrl: string
+}
+
+type ViralAlertSender = (input: ViralAlertInput) => Promise<unknown>
 
 export type ViralPollResult = {
   account: ViralTrackerAccount
@@ -77,14 +85,20 @@ export async function pollViralAccount(
     )
     const updated: ViralTrackerPost[] = []
     for (const post of [...existing, ...discovered]) {
-      if (!hasDueCheckpoint(post, now)) continue
-      const source =
-        currentSourceById.get(post.externalPostId) ??
-        (await fetchPost(post.externalPostId, account.handle))
-      const next = captureDueCheckpoints(post, source, now)
+      const checkpointDue = hasDueCheckpoint(post, now)
+      if (!checkpointDue && !needsViralAlert(post)) continue
+
+      let next = post
+      if (checkpointDue) {
+        const source =
+          currentSourceById.get(post.externalPostId) ??
+          (await fetchPost(post.externalPostId, account.handle))
+        next = captureDueCheckpoints(post, source, now)
+      }
       const alerted = await alertQualifiedPost(
         next,
-        dependencies.sendAlert ?? sendTelegramReminder
+        dependencies.sendAlert ?? sendTelegramViralAlert,
+        now
       )
       await saveViralPost(alerted)
       updated.push(alerted)
@@ -237,27 +251,65 @@ function hasDueCheckpoint(post: ViralTrackerPost, now: Date) {
   )
 }
 
+export function needsViralAlert(post: ViralTrackerPost) {
+  return Boolean(post.qualifiedAt) && !post.alertSentAt
+}
+
 async function alertQualifiedPost(
   post: ViralTrackerPost,
-  sendAlert: typeof sendTelegramReminder
+  sendAlert: ViralAlertSender,
+  now: Date
 ) {
-  if (post.status !== "qualified" || post.alertSentAt) return post
+  if (!needsViralAlert(post)) return post
   const project = await getViralProject(post.projectId)
   try {
     await sendAlert({
       chatId: project?.telegramChatId,
+      postUrl: post.url,
       text: [
-        `Viral TikTok detected: @${post.handle}`,
+        `Potentially viral TikTok detected: @${post.handle}`,
         post.caption,
         `${formatMetric(latestViews(post))} views at the ${formatViralCheckpoint(post.qualifiedCheckpointHours ?? 0)} checkpoint`,
         post.url,
       ].join("\n\n"),
     })
-    return { ...post, alertSentAt: new Date().toISOString() }
+    return { ...post, alertSentAt: now.toISOString() }
   } catch {
-    // Tracking must continue when Telegram is absent or temporarily down.
+    // Tracking continues and the next account poll retries the Telegram alert.
     return post
   }
+}
+
+export async function sendTelegramViralAlert(
+  input: ViralAlertInput,
+  options: {
+    fetcher?: typeof fetch
+    botToken?: string
+  } = {}
+) {
+  const chatId = input.chatId?.trim() || process.env.TELEGRAM_CHAT_ID?.trim()
+  if (!chatId)
+    throw new Error("Telegram notifications need a destination chat.")
+
+  return telegramBotRequest(
+    "sendMessage",
+    {
+      chat_id: chatId,
+      text: input.text.slice(0, 4_000),
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "View TikTok post",
+              url: input.postUrl,
+            },
+          ],
+        ],
+      },
+    },
+    options.fetcher,
+    options.botToken
+  )
 }
 
 function latestViews(post: ViralTrackerPost) {
