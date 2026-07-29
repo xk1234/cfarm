@@ -40,7 +40,7 @@ import {
 } from "./run-helpers"
 import type { AutomationRunApiRecord } from "./types"
 import type { AutomationRunSort } from "./run-helpers"
-import { RunPublicationStatusSelect } from "./run-publication-status-select"
+import { RunPublicationStatusBadge } from "./run-publication-status-badge"
 
 const automationRunSortOptions: AutomationRunSort[] = ["Recent", "Most viewed"]
 
@@ -290,7 +290,6 @@ export function AutomationOverviewPanel({
                     run={run}
                     mediaKind="slideshow"
                     onOpen={() => setViewerRun(run)}
-                    onRunChanged={onRunChanged}
                   />
                 ))}
               </AutomationGenerationGrid>
@@ -340,12 +339,10 @@ function AutomationRecentRunCard({
   run,
   mediaKind,
   onOpen,
-  onRunChanged,
 }: {
   run: AutomationRunApiRecord
   mediaKind: "slideshow" | "video"
   onOpen: () => void
-  onRunChanged: (run: AutomationRunApiRecord) => void
 }) {
   const slides = automationRunSlides(run)
   const firstSlide = slides[0]
@@ -409,9 +406,8 @@ function AutomationRecentRunCard({
             </span>
           ) : null}
         </button>
-        <RunPublicationStatusSelect
+        <RunPublicationStatusBadge
           run={run}
-          onRunChanged={onRunChanged}
           className="absolute top-2 right-2 z-20 max-w-[calc(100%-1rem)]"
         />
         <SocialAccountIconList

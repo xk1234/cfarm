@@ -7,52 +7,24 @@ export type PublicationDisplayStatus =
 
 export function PublicationStatusControl({
   status,
-  marking = false,
   className,
-  onMarkPublished,
 }: {
   status: PublicationDisplayStatus
-  marking?: boolean
   className?: string
-  onMarkPublished?: () => void | Promise<void>
 }) {
   const label = publicationStatusLabel(status)
   const statusClass = publicationStatusClass(status)
 
-  if (status !== "not_published" || !onMarkPublished) {
-    return (
-      <span
-        className={cn(
-          "inline-flex h-7 items-center rounded-full px-2.5 text-[10px] font-bold shadow-sm",
-          statusClass,
-          className
-        )}
-      >
-        {label}
-      </span>
-    )
-  }
-
   return (
-    <select
-      value=""
-      disabled={marking}
-      aria-label="Publication status"
+    <span
       className={cn(
-        "h-7 cursor-pointer appearance-auto rounded-full border-0 px-2.5 text-[10px] font-bold shadow-sm transition outline-none hover:bg-app-surface focus-visible:ring-2 focus-visible:ring-white/80 disabled:cursor-wait",
+        "inline-flex h-7 items-center rounded-full px-2.5 text-[10px] font-bold shadow-sm",
         statusClass,
         className
       )}
-      onClick={(event) => event.stopPropagation()}
-      onChange={(event) => {
-        if (event.target.value === "mark_published") {
-          void onMarkPublished()
-        }
-      }}
     >
-      <option value="">{marking ? "Marking…" : label}</option>
-      <option value="mark_published">Mark as published</option>
-    </select>
+      {label}
+    </span>
   )
 }
 

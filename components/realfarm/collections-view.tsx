@@ -344,7 +344,7 @@ export function CollectionsView({
   return (
     <div className="mx-auto max-w-[1540px]">
       <div className="mb-6 flex flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
-        <h1 className="flex items-center gap-2 text-[24px] font-semibold tracking-normal">
+        <h1 className="flex h-10 items-center gap-2 text-[24px] leading-none font-semibold tracking-normal md:h-9">
           Collections
           <button
             type="button"
@@ -364,7 +364,7 @@ export function CollectionsView({
           </button>
         </h1>
         {activeTab !== "variables" && selectedIds.length > 0 ? (
-          <div className="flex w-full items-center gap-2 overflow-x-auto pb-1 md:w-auto">
+          <div className="flex w-full items-center gap-2 overflow-x-auto md:w-auto">
             <Button
               variant="softControl"
               size="appDefault"
@@ -385,7 +385,7 @@ export function CollectionsView({
             </Button>
           </div>
         ) : activeTab === "images" ? (
-          <div className="flex w-full items-center gap-2 overflow-x-auto pb-1 md:w-auto">
+          <div className="flex w-full items-center gap-2 overflow-x-auto md:w-auto">
             <Button
               variant="softControl"
               size="appDefault"

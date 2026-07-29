@@ -20,7 +20,7 @@ import {
   slideshowTitle,
 } from "./run-helpers"
 import type { AutomationRunApiRecord, AutomationRunApiSlide } from "./types"
-import { RunPublicationStatusSelect } from "./run-publication-status-select"
+import { RunPublicationStatusBadge } from "./run-publication-status-badge"
 import { SlideshowPublicationActions } from "./slideshow-publication-actions"
 
 export function GeneratedSlideshowViewerModal({
@@ -204,17 +204,12 @@ export function GeneratedSlideshowViewerModal({
       slideshows={slideshows}
       initialSlideshowId={run.id}
       details={resolvedDetails}
-      publicationStatusControl={
-        <div className="flex flex-wrap items-center gap-2">
-          <RunPublicationStatusSelect
-            run={currentRun}
-            onRunChanged={applyRunChanged}
-          />
-          <SlideshowPublicationActions
-            run={currentRun}
-            onRunChanged={applyRunChanged}
-          />
-        </div>
+      publicationStatusControl={<RunPublicationStatusBadge run={currentRun} />}
+      publicationActions={
+        <SlideshowPublicationActions
+          run={currentRun}
+          onRunChanged={applyRunChanged}
+        />
       }
       onDebug={onDebug}
       onDelete={

@@ -5,6 +5,7 @@ import { IconAlertTriangle, IconCheck, IconFlask } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import type { AutomationRecord } from "@/lib/automations"
+import { cn } from "@/lib/utils"
 
 type VariableDimension = {
   token: string
@@ -45,7 +46,6 @@ type ExperimentDimensionChoice = {
   name?: string
   slideIndex?: number
   label: string
-  detail?: string
   currentValue?: string
   sampleValues: string[]
   sweepable: boolean
@@ -194,6 +194,7 @@ export function TestingFacility() {
         <div className="grid gap-5 lg:grid-cols-2">
           <Field label="Choose automation">
             <select
+              aria-label="Choose automation"
               value={automationId}
               onChange={(event) => {
                 setError("")
@@ -214,7 +215,7 @@ export function TestingFacility() {
             </select>
           </Field>
 
-          <Field label="Choose variables">
+          <Field label="Choose inputs">
             <div className="min-h-10 rounded-control border border-app-panel-border bg-app-surface-subtle p-2">
               {!automationId ? (
                 <p className="px-1 py-1 text-xs text-app-muted-text">
@@ -228,7 +229,7 @@ export function TestingFacility() {
                     <h3 className="px-2 pb-1 text-xs font-semibold text-app-text">
                       Automation-level inputs
                     </h3>
-                    <div className="grid gap-1 sm:grid-cols-2">
+                    <div className="divide-y divide-app-panel-border overflow-hidden rounded-control border border-app-panel-border bg-app-surface-raised">
                       {choices
                         .filter((choice) => choice.dimension !== "variable")
                         .map((choice) => (
@@ -249,14 +250,14 @@ export function TestingFacility() {
                   </div>
                   <div className="border-t border-app-panel-border pt-3">
                     <h3 className="px-2 pb-1 text-xs font-semibold text-app-muted-text">
-                      Hook variables
+                      Reusable variables
                     </h3>
                     {dimensions.variables.length === 0 ? (
                       <p className="px-2 py-1 text-xs text-app-muted-text">
-                        This automation has no hook variables.
+                        This automation has no reusable variables.
                       </p>
                     ) : (
-                      <div className="grid gap-1 sm:grid-cols-2">
+                      <div className="divide-y divide-app-panel-border overflow-hidden rounded-control border border-app-panel-border bg-app-surface-raised">
                         {choices
                           .filter((choice) => choice.dimension === "variable")
                           .map((choice) => (
@@ -335,11 +336,6 @@ export function TestingFacility() {
                           className="lc-focus-ring h-10 w-full rounded-control border border-app-panel-border bg-app-control-bg px-3 text-sm text-app-text placeholder:text-app-text-faint"
                         />
                       )}
-                      {choice.currentValue ? (
-                        <p className="text-xs text-app-muted-text">
-                          Current: {choice.currentValue}
-                        </p>
-                      ) : null}
                     </div>
                   )
                 })
@@ -349,6 +345,7 @@ export function TestingFacility() {
 
           <Field label="Repeats">
             <input
+              aria-label="Repeats"
               type="number"
               min={1}
               max={20}
@@ -434,29 +431,27 @@ function DimensionOption({
   return (
     <label
       title={choice.reason ?? choice.currentValue}
-      className="flex min-h-10 items-start gap-2 rounded-control px-2 py-2 text-xs text-app-text hover:bg-app-control-hover"
+      className={cn(
+        "flex h-9 items-center gap-2 px-3 text-xs text-app-text hover:bg-app-control-hover",
+        !choice.sweepable &&
+          "cursor-not-allowed text-app-muted-text hover:bg-transparent"
+      )}
     >
       <input
         type="checkbox"
-        className="mt-0.5 accent-app-action"
+        className="shrink-0 accent-app-action"
         disabled={!choice.sweepable}
         checked={selected}
         onChange={(event) => onChange(event.target.checked)}
       />
-      <span className="min-w-0">
-        <span
-          className={
-            choice.dimension === "variable" ? "font-mono" : "font-medium"
-          }
-        >
-          {choice.label}
-        </span>
-        <span className="block text-app-muted-text">
-          {choice.detail ??
-            (choice.currentValue
-              ? `Current: ${choice.currentValue}`
-              : "No current value")}
-        </span>
+      <span
+        className={
+          choice.dimension === "variable"
+            ? "min-w-0 truncate font-mono"
+            : "min-w-0 truncate font-medium"
+        }
+      >
+        {choice.label}
       </span>
     </label>
   )
@@ -605,17 +600,24 @@ function dimensionChoices(
 ): ExperimentDimensionChoice[] {
   if (!dimensions) return []
   return [
-    ...dimensions.automationDimensions.map((dimension) => ({
-      ...dimension,
-      key: `${dimension.dimension}:${dimension.name ?? ""}:${dimension.slideIndex ?? ""}`,
-      sweepable: true,
-    })),
+    ...dimensions.automationDimensions
+      .filter(
+        (dimension) =>
+          !(
+            dimension.dimension === "contentDirection" &&
+            dimension.name === "hook"
+          )
+      )
+      .map((dimension) => ({
+        ...dimension,
+        key: `${dimension.dimension}:${dimension.name ?? ""}:${dimension.slideIndex ?? ""}`,
+        sweepable: true,
+      })),
     ...dimensions.variables.map((variable) => ({
       key: `variable:${variable.variableName}`,
       dimension: "variable" as const,
       name: variable.variableName,
       label: variable.token,
-      detail: variable.sweepable ? variable.collectionName : variable.reason,
       sampleValues: variable.sampleValues,
       sweepable: variable.sweepable,
       reason: variable.reason,

@@ -19,7 +19,6 @@ import {
   IconArrowLeft,
   IconArrowUpRight,
   IconBrandTiktok,
-  IconChartBar,
   IconLink,
   IconLinkOff,
   IconRefresh,
@@ -105,22 +104,18 @@ export function AnalyticsHeader({
   onTikTokStudioSync?: () => void
 }) {
   return (
-    <header className="mb-7 flex flex-wrap items-end justify-between gap-5">
-      <div>
+    <header className="mb-7 flex flex-wrap items-center justify-between gap-5">
+      <div className="flex items-center gap-2">
         {platform ? (
           <button
             type="button"
             onClick={onBack}
-            className="lc-focus-ring mb-3 inline-flex items-center gap-1.5 rounded-[7px] text-[12px] font-semibold text-app-muted-text transition hover:text-app-text"
+            className="lc-focus-ring inline-flex h-9 items-center gap-1.5 rounded-[7px] px-2 text-[12px] font-semibold text-app-muted-text transition hover:bg-app-surface-subtle hover:text-app-text"
           >
             <IconArrowLeft className="size-4" /> Back to overview
           </button>
-        ) : (
-          <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-app-muted-text">
-            <IconChartBar className="size-4" /> Cross-platform reporting
-          </div>
-        )}
-        <h1 className="text-[30px] leading-none font-semibold tracking-[-0.04em] text-app-text">
+        ) : null}
+        <h1 className="flex h-9 items-center text-[30px] leading-none font-semibold tracking-[-0.04em] text-app-text">
           {platform ? `${providerName(platform)} analytics` : "Analytics"}
         </h1>
       </div>
@@ -129,6 +124,7 @@ export function AnalyticsHeader({
           <Button
             variant="softControl"
             size="compact"
+            className="h-9"
             onClick={onTikTokStudioSync}
           >
             <IconBrandTiktok className="size-4" />
@@ -149,6 +145,7 @@ export function AnalyticsHeader({
         <Button
           variant="softControl"
           size="compact"
+          className="h-9"
           onClick={onRefresh}
           disabled={refreshing || loading}
         >
@@ -862,7 +859,6 @@ export function PlatformAnalytics({
           </section>
 
           <ComparisonChart
-            platform={platform}
             accounts={selectedAccounts}
             data={comparison}
             metric={metric}
@@ -891,14 +887,12 @@ export function PlatformAnalytics({
 }
 
 export function ComparisonChart({
-  platform,
   accounts,
   data,
   metric,
   mode,
   onModeChange,
 }: {
-  platform: string
   accounts: SocialIntegration[]
   data: Array<Record<string, string | number | undefined>>
   metric: CanonicalMetric

@@ -89,9 +89,11 @@ export function AutomationsView({
   const [toneAnalyzerOpen, setToneAnalyzerOpen] = useState(false)
   return (
     <div className="mx-auto max-w-[1160px]">
-      <div className="mb-5">
-        <h1 className="text-[24px] font-semibold">Automations</h1>
-        <div className="mt-4 flex flex-wrap justify-end gap-2 sm:gap-3">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="flex h-10 items-center text-[24px] leading-none font-semibold sm:h-9">
+          Automations
+        </h1>
+        <div className="flex flex-wrap justify-end gap-2 sm:gap-3">
           <Button
             variant="softControl"
             size="appDefault"
@@ -434,10 +436,6 @@ function AutomationGridCard({
         automation.automationKind === "video" ? (
           <GeneratedAutomationVideoViewer
             run={viewerRun as unknown as AutomationRunApiRecord}
-            onRunChanged={(run) => {
-              setViewerRun(run as unknown as AutomationRunPreview)
-              onGenerationRunUpdate?.(run)
-            }}
             onDelete={
               viewerRun.slideshowId
                 ? async () => {

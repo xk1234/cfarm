@@ -67,6 +67,7 @@ export function SlideshowViewerModal({
   fallbackSlides = [],
   details,
   publicationStatusControl,
+  publicationActions,
   onDebug,
   onDelete,
   onDeleteSlide,
@@ -81,6 +82,7 @@ export function SlideshowViewerModal({
   fallbackSlides?: SlideshowViewerSlide[]
   details?: SlideshowViewerDetails
   publicationStatusControl?: ReactNode
+  publicationActions?: ReactNode
   onDebug?: () => void
   onDelete?: () => Promise<void>
   onDeleteSlide?: (slideshowItemId: string, slideIndex: number) => Promise<void>
@@ -117,7 +119,7 @@ export function SlideshowViewerModal({
       <AppModal className="p-0 sm:p-4" onClose={requestClose}>
         <AppModalPanel
           accessibleTitle={title}
-          className="h-dvh max-w-none rounded-none bg-[#b9b9b6] sm:h-[min(880px,94vh)] sm:max-w-[1180px] sm:rounded-[10px]"
+          className="flex h-dvh max-w-none flex-col rounded-none bg-[#b9b9b6] sm:h-[min(880px,94vh)] sm:max-w-[1180px] sm:rounded-[10px]"
         >
           <SlideshowViewerContent
             key={selectedSlideshow?.id ?? "empty"}
@@ -130,6 +132,7 @@ export function SlideshowViewerModal({
             fallbackSlides={fallbackSlides}
             details={details}
             publicationStatusControl={publicationStatusControl}
+            publicationActions={publicationActions}
             onDebug={onDebug}
             onDelete={onDelete}
             onDeleteSlide={
@@ -178,6 +181,7 @@ function SlideshowViewerContent({
   fallbackSlides,
   details,
   publicationStatusControl,
+  publicationActions,
   onDebug,
   onDelete,
   onDeleteSlide,
@@ -196,6 +200,7 @@ function SlideshowViewerContent({
   fallbackSlides: SlideshowViewerSlide[]
   details?: SlideshowViewerDetails
   publicationStatusControl?: ReactNode
+  publicationActions?: ReactNode
   onDebug?: () => void
   onDelete?: () => Promise<void>
   onDeleteSlide?: (slideIndex: number) => Promise<void>
@@ -209,6 +214,7 @@ function SlideshowViewerContent({
   // Below sm the publishing form is a sheet over the slides, so opening it is
   // an explicit choice and closing it returns you to the slideshow.
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const [detailsHidden, setDetailsHidden] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteSlideOpen, setDeleteSlideOpen] = useState(false)
@@ -357,24 +363,25 @@ function SlideshowViewerContent({
 
   return (
     <>
-      <header className="flex h-[60px] items-center justify-between gap-2 border-b border-[#d7d6d0] bg-app-surface px-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+      <header className="flex h-[calc(52px+env(safe-area-inset-top))] shrink-0 items-center justify-between gap-1.5 border-b border-[#d7d6d0] bg-app-surface px-2 pt-[env(safe-area-inset-top)] sm:h-[60px] sm:gap-2 sm:pt-0">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-3">
           <button
-            className="grid size-9 shrink-0 place-items-center rounded-[5px] text-app-muted-text hover:bg-app-surface-subtle"
+            className="grid size-10 shrink-0 place-items-center rounded-[7px] text-app-muted-text transition hover:bg-app-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-app-action sm:size-9 sm:rounded-[5px]"
             onClick={onClose}
             aria-label="Close slideshow"
           >
             <IconX className="size-5" />
           </button>
-          <h2 className="min-w-0 truncate text-[15px] font-semibold text-app-text sm:text-[18px]">
+          <h2 className="min-w-0 truncate text-[14px] font-semibold text-app-text max-[360px]:sr-only sm:text-[18px]">
             {title}
           </h2>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          {publicationStatusControl}
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <div className="hidden sm:block">{publicationStatusControl}</div>
+          {publicationActions}
           <button
             type="button"
-            className="grid size-9 place-items-center rounded-[7px] bg-app-action text-white shadow-sm transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-app-action active:translate-y-px disabled:cursor-not-allowed disabled:opacity-55"
+            className="grid size-10 place-items-center rounded-[7px] bg-app-action text-white shadow-sm transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-app-action active:translate-y-px disabled:cursor-not-allowed disabled:opacity-55 sm:size-9 sm:focus-visible:outline-offset-2"
             aria-label="Export PNGs"
             title={exporting ? "Exporting PNGs" : "Export PNGs"}
             disabled={exporting || slides.length === 0}
@@ -389,7 +396,7 @@ function SlideshowViewerContent({
           {onDebug ? (
             <button
               type="button"
-              className="grid size-9 place-items-center rounded-[7px] border border-app-panel-border bg-app-surface text-[#56554f] shadow-sm transition hover:bg-[#f4f3ee] hover:text-app-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-app-action active:translate-y-px"
+              className="grid size-10 place-items-center rounded-[7px] border border-app-panel-border bg-app-surface text-[#56554f] shadow-sm transition hover:bg-[#f4f3ee] hover:text-app-text focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-app-action active:translate-y-px sm:size-9 sm:focus-visible:outline-offset-2"
               onClick={onDebug}
               aria-label="Generation debug"
               title="Generation debug"
@@ -400,7 +407,7 @@ function SlideshowViewerContent({
           {onDelete ? (
             <button
               type="button"
-              className="grid size-9 place-items-center rounded-[7px] border border-red-200 bg-app-surface text-red-600 shadow-sm transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 active:translate-y-px"
+              className="grid size-10 place-items-center rounded-[7px] border border-red-200 bg-app-surface text-red-600 shadow-sm transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-red-500 active:translate-y-px sm:size-9 sm:focus-visible:outline-offset-2"
               onClick={() => setDeleteOpen(true)}
               aria-label="Delete slideshow"
               title="Delete slideshow"
@@ -410,7 +417,12 @@ function SlideshowViewerContent({
           ) : null}
         </div>
       </header>
-      <main className="relative flex h-[calc(100%-60px)] min-h-0 flex-col overflow-hidden bg-[#efefec]">
+      <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[#efefec]">
+        {publicationStatusControl ? (
+          <div className="absolute top-2 left-3 z-20 sm:hidden">
+            {publicationStatusControl}
+          </div>
+        ) : null}
         <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <div className="relative flex min-h-0 flex-1 items-center justify-center px-3 py-4 sm:px-10 sm:py-7">
             {slides.length === 0 ? (
@@ -422,7 +434,7 @@ function SlideshowViewerContent({
             ) : (
               // The arrows overlay the slide below sm: side-by-side they left
               // a phone barely 200px for the slide itself.
-              <div className="flex h-full max-w-full items-center justify-center gap-3">
+              <div className="flex h-full min-h-0 w-full max-w-full items-center justify-center gap-3">
                 <button
                   type="button"
                   className="absolute left-2 z-10 grid size-10 shrink-0 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30 sm:static"
@@ -433,7 +445,7 @@ function SlideshowViewerContent({
                   <IconChevronLeft className="size-5" />
                 </button>
                 <div
-                  className="relative flex min-h-0 shrink overflow-hidden rounded-[9px] bg-black text-left shadow-xl ring-2 ring-white sm:shrink-0"
+                  className="relative flex h-full min-h-0 w-full max-w-[760px] min-w-0 items-center justify-center overflow-hidden rounded-[9px] bg-black text-left shadow-xl ring-2 ring-white sm:max-h-[min(52vh,460px)] sm:max-w-[min(72vw,760px)] sm:shrink-0"
                   role="group"
                   aria-label={`Slide ${boundedActiveSlide + 1} of ${slides.length}`}
                 >
@@ -444,7 +456,7 @@ function SlideshowViewerContent({
                       visibleSlide.text ||
                       `${title} slide ${boundedActiveSlide + 1}`
                     }
-                    className="block h-auto max-h-full w-auto max-w-full object-contain sm:max-h-[clamp(300px,52vh,460px)] sm:max-w-[min(72vw,760px)]"
+                    className="block h-full w-full object-contain"
                     draggable={false}
                   />
                   {onReplaceSlideImage ||
@@ -510,6 +522,7 @@ function SlideshowViewerContent({
           type="button"
           className="flex h-12 shrink-0 items-center justify-between border-t border-[#cfcec8] bg-[#f8f8f5] px-4 text-[13px] font-semibold text-app-text sm:hidden"
           aria-expanded={detailsOpen}
+          aria-controls="slideshow-publishing-details"
           onClick={() => setDetailsOpen((open) => !open)}
         >
           Publishing details
@@ -517,8 +530,23 @@ function SlideshowViewerContent({
             className={cn("size-4 transition", detailsOpen && "rotate-180")}
           />
         </button>
+        {detailsHidden ? (
+          <button
+            type="button"
+            className="hidden h-10 shrink-0 items-center justify-between border-t border-[#cfcec8] bg-[#f8f8f5] px-5 text-[13px] font-semibold text-app-text sm:flex"
+            aria-expanded="false"
+            aria-controls="slideshow-publishing-details"
+            onClick={() => setDetailsHidden(false)}
+          >
+            Publishing details
+            <IconChevronDown className="size-4 rotate-180" />
+          </button>
+        ) : null}
         <SlideshowInformationPanel
-          className={cn(!detailsOpen && "hidden sm:block")}
+          className={cn(
+            !detailsOpen && "hidden sm:block",
+            detailsHidden && "sm:hidden"
+          )}
           metadata={metadata}
           metadataChanged={metadataChanged}
           saving={savingMetadata}
@@ -526,6 +554,7 @@ function SlideshowViewerContent({
           details={details}
           onMetadataChange={setMetadata}
           onClose={() => setDetailsOpen(false)}
+          onHide={() => setDetailsHidden(true)}
           onSave={() => void saveMetadata()}
           onCopyTitle={() => void copyMetadata("Title", metadata.title)}
           onCopyDescription={() =>
@@ -700,6 +729,7 @@ function SlideshowInformationPanel({
   details,
   onMetadataChange,
   onClose,
+  onHide,
   onSave,
   onCopyTitle,
   onCopyDescription,
@@ -712,6 +742,7 @@ function SlideshowInformationPanel({
   details?: SlideshowViewerDetails
   onMetadataChange: (metadata: SlideshowViewerMetadata) => void
   onClose: () => void
+  onHide: () => void
   onSave: () => void
   onCopyTitle: () => void
   onCopyDescription: () => void
@@ -727,6 +758,7 @@ function SlideshowInformationPanel({
 
   return (
     <section
+      id="slideshow-publishing-details"
       className={cn(
         "max-h-[70dvh] w-full min-w-0 shrink-0 overflow-x-hidden overflow-y-auto border-t border-[#cfcec8] bg-[#f8f8f5] px-4 py-4 sm:max-h-[270px] sm:px-5",
         className
@@ -738,36 +770,49 @@ function SlideshowInformationPanel({
             <h3 className="hidden text-[14px] font-semibold tracking-[-0.01em] text-app-text sm:block">
               Publishing details
             </h3>
-            {editable ? (
-              <div className="flex w-full items-center gap-2 sm:w-auto">
-                <button
-                  type="button"
-                  className="h-9 flex-1 rounded-[6px] bg-[#e8e7e1] px-3.5 text-[12px] font-semibold text-app-muted-text transition active:translate-y-px sm:hidden"
-                  onClick={onClose}
-                >
-                  Back to slides
-                </button>
-                <button
-                  type="button"
-                  className={cn(
-                    "h-9 flex-1 rounded-[6px] px-3.5 text-[12px] font-semibold transition active:translate-y-px disabled:cursor-not-allowed sm:h-8 sm:flex-none",
-                    metadataChanged
-                      ? "bg-app-action text-white hover:brightness-95 disabled:opacity-45"
-                      : "bg-[#e8e7e1] text-app-muted-text"
-                  )}
-                  disabled={
-                    !metadataChanged || saving || !metadata.title.trim()
-                  }
-                  onClick={onSave}
-                >
-                  {saving
-                    ? "Saving…"
-                    : metadataChanged
-                      ? "Save changes"
-                      : "Saved"}
-                </button>
-              </div>
-            ) : null}
+            <div className="flex w-full items-center gap-2 sm:w-auto">
+              {editable ? (
+                <>
+                  <button
+                    type="button"
+                    className="h-9 flex-1 rounded-[6px] bg-[#e8e7e1] px-3.5 text-[12px] font-semibold text-app-muted-text transition active:translate-y-px sm:hidden"
+                    onClick={onClose}
+                  >
+                    Back to slides
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "h-9 flex-1 rounded-[6px] px-3.5 text-[12px] font-semibold transition active:translate-y-px disabled:cursor-not-allowed sm:h-8 sm:flex-none",
+                      metadataChanged
+                        ? "bg-app-action text-white hover:brightness-95 disabled:opacity-45"
+                        : "bg-[#e8e7e1] text-app-muted-text"
+                    )}
+                    disabled={
+                      !metadataChanged || saving || !metadata.title.trim()
+                    }
+                    onClick={onSave}
+                  >
+                    {saving
+                      ? "Saving…"
+                      : metadataChanged
+                        ? "Save changes"
+                        : "Saved"}
+                  </button>
+                </>
+              ) : null}
+              <button
+                type="button"
+                className="hidden size-8 shrink-0 place-items-center rounded-[6px] text-app-muted-text transition hover:bg-[#e8e7e1] hover:text-app-text sm:grid"
+                onClick={onHide}
+                aria-label="Hide publishing details"
+                aria-expanded="true"
+                aria-controls="slideshow-publishing-details"
+                title="Hide publishing details"
+              >
+                <IconChevronDown className="size-4" />
+              </button>
+            </div>
           </div>
 
           {details ? (
