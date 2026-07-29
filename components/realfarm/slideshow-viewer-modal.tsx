@@ -1,6 +1,14 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  type WheelEvent as ReactWheelEvent,
+} from "react"
 import { toast } from "sonner"
 import {
   IconBug,
@@ -9,10 +17,13 @@ import {
   IconChevronRight,
   IconCopy,
   IconDownload,
+  IconFocusCentered,
   IconLoader2,
   IconPhotoEdit,
   IconTrash,
   IconX,
+  IconZoomIn,
+  IconZoomOut,
 } from "@tabler/icons-react"
 
 import { DeleteSlideshowDialog } from "@/components/realfarm/delete-slideshow-dialog"
@@ -21,6 +32,14 @@ import { AppModal, AppModalPanel } from "@/components/ui/modal"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useDirtyGuard } from "@/components/ui/use-dirty-guard"
 import { exportSlideshowAsPngZip } from "@/lib/slideshow-export"
+import {
+  clampSlideTransform,
+  clampSlideZoom,
+  fitSlideToViewport,
+  zoomSlideAroundPoint,
+  type SlideViewportPoint,
+  type SlideViewportTransform,
+} from "@/lib/slideshow-viewport"
 import { cn } from "@/lib/utils"
 
 export type SlideshowViewerSlide = {
@@ -444,49 +463,20 @@ function SlideshowViewerContent({
                 >
                   <IconChevronLeft className="size-5" />
                 </button>
-                <div
-                  className="relative flex h-full min-h-0 w-full max-w-[760px] min-w-0 items-center justify-center overflow-hidden rounded-[9px] bg-black text-left shadow-xl ring-2 ring-white sm:max-h-[min(52vh,460px)] sm:max-w-[min(72vw,760px)] sm:shrink-0"
-                  role="group"
-                  aria-label={`Slide ${boundedActiveSlide + 1} of ${slides.length}`}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element -- Generated slides can be local or remote assets without stable dimensions. */}
-                  <img
-                    src={visibleSlide.imageUrl}
-                    alt={
-                      visibleSlide.text ||
-                      `${title} slide ${boundedActiveSlide + 1}`
-                    }
-                    className="block h-full w-full object-contain"
-                    draggable={false}
-                  />
-                  {onReplaceSlideImage ||
-                  (onDeleteSlide && slides.length > 1) ? (
-                    <div className="absolute top-2 right-2 flex gap-1.5">
-                      {onReplaceSlideImage ? (
-                        <button
-                          type="button"
-                          className="grid size-8 cursor-pointer place-items-center rounded-full bg-black/60 text-white transition hover:bg-app-action disabled:opacity-50"
-                          aria-label={`Edit picture for slide ${boundedActiveSlide + 1}`}
-                          title="Edit picture"
-                          onClick={() => void openImagePicker()}
-                        >
-                          <IconPhotoEdit className="size-4" />
-                        </button>
-                      ) : null}
-                      {onDeleteSlide && slides.length > 1 ? (
-                        <button
-                          type="button"
-                          className="grid size-8 cursor-pointer place-items-center rounded-full bg-black/60 text-white transition hover:bg-red-600 disabled:opacity-50"
-                          aria-label={`Delete slide ${boundedActiveSlide + 1}`}
-                          title="Delete this slide"
-                          onClick={() => setDeleteSlideOpen(true)}
-                        >
-                          <IconTrash className="size-4" />
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
+                <InteractiveSlideStage
+                  key={visibleSlide.id}
+                  slide={visibleSlide}
+                  alt={
+                    visibleSlide.text ||
+                    `${title} slide ${boundedActiveSlide + 1}`
+                  }
+                  label={`Slide ${boundedActiveSlide + 1} of ${slides.length}`}
+                  slideNumber={boundedActiveSlide + 1}
+                  canDelete={Boolean(onDeleteSlide && slides.length > 1)}
+                  canReplace={Boolean(onReplaceSlideImage)}
+                  onDelete={() => setDeleteSlideOpen(true)}
+                  onReplace={() => void openImagePicker()}
+                />
                 <button
                   type="button"
                   className="absolute right-2 z-10 grid size-10 shrink-0 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30 sm:static"
@@ -595,6 +585,422 @@ function SlideshowViewerContent({
       ) : null}
     </>
   )
+}
+
+type SlidePointer = SlideViewportPoint & { id: number }
+
+function InteractiveSlideStage({
+  slide,
+  alt,
+  label,
+  slideNumber,
+  canDelete,
+  canReplace,
+  onDelete,
+  onReplace,
+}: {
+  slide: SlideshowViewerSlide
+  alt: string
+  label: string
+  slideNumber: number
+  canDelete: boolean
+  canReplace: boolean
+  onDelete: () => void
+  onReplace: () => void
+}) {
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
+  const pointersRef = useRef(new Map<number, SlidePointer>())
+  const dragStartRef = useRef<{
+    pointer: SlidePointer
+    transform: SlideViewportTransform
+  } | null>(null)
+  const pinchStartRef = useRef<{
+    distance: number
+    midpoint: SlideViewportPoint
+    transform: SlideViewportTransform
+  } | null>(null)
+  const [viewport, setViewport] = useState({ width: 0, height: 0 })
+  const [imageSize, setImageSize] = useState({ width: 4, height: 5 })
+  const [transform, setTransform] = useState<SlideViewportTransform>({
+    zoom: 1,
+    x: 0,
+    y: 0,
+  })
+  const transformRef = useRef(transform)
+  const [panning, setPanning] = useState(false)
+  const stage = fitSlideToViewport(viewport, imageSize)
+  const stageReady = viewport.width > 0 && viewport.height > 0
+
+  function commitTransform(next: SlideViewportTransform) {
+    transformRef.current = next
+    setTransform(next)
+  }
+
+  function updateTransform(
+    updater: (current: SlideViewportTransform) => SlideViewportTransform
+  ) {
+    setTransform((current) => {
+      const next = updater(current)
+      transformRef.current = next
+      return next
+    })
+  }
+
+  function resetView() {
+    commitTransform({ zoom: 1, x: 0, y: 0 })
+  }
+
+  function zoomTo(
+    nextZoom: number,
+    point: SlideViewportPoint = { x: 0, y: 0 }
+  ) {
+    updateTransform((current) =>
+      zoomSlideAroundPoint(current, nextZoom, point, stage)
+    )
+  }
+
+  useEffect(() => {
+    const viewportElement = viewportRef.current
+    if (!viewportElement) return
+
+    function measure(element: HTMLDivElement) {
+      const next = {
+        width: element.clientWidth,
+        height: element.clientHeight,
+      }
+      setViewport((current) =>
+        current.width === next.width && current.height === next.height
+          ? current
+          : next
+      )
+    }
+
+    measure(viewportElement)
+    const observer = new ResizeObserver(() => measure(viewportElement))
+    observer.observe(viewportElement)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    updateTransform((current) => clampSlideTransform(current, stage))
+    // The separate numeric dependencies keep the effect stable between renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage.width, stage.height])
+
+  function pointFor(clientX: number, clientY: number): SlideViewportPoint {
+    const rect = stageRef.current?.getBoundingClientRect()
+    if (!rect) return { x: 0, y: 0 }
+    return {
+      x: clientX - rect.left - rect.width / 2,
+      y: clientY - rect.top - rect.height / 2,
+    }
+  }
+
+  function startPinch() {
+    const [first, second] = [...pointersRef.current.values()]
+    if (!first || !second) return
+    pinchStartRef.current = {
+      distance: pointerDistance(first, second),
+      midpoint: pointerMidpoint(first, second),
+      transform: transformRef.current,
+    }
+    dragStartRef.current = null
+    setPanning(true)
+  }
+
+  function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if ((event.target as Element).closest("button")) return
+    event.preventDefault()
+    event.currentTarget.focus({ preventScroll: true })
+    event.currentTarget.setPointerCapture(event.pointerId)
+    const pointer = {
+      id: event.pointerId,
+      ...pointFor(event.clientX, event.clientY),
+    }
+    pointersRef.current.set(event.pointerId, pointer)
+
+    if (pointersRef.current.size === 1) {
+      dragStartRef.current = {
+        pointer,
+        transform: transformRef.current,
+      }
+      setPanning(transformRef.current.zoom > 1)
+    } else if (pointersRef.current.size === 2) {
+      startPinch()
+    }
+  }
+
+  function onPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!pointersRef.current.has(event.pointerId)) return
+    event.preventDefault()
+    const pointer = {
+      id: event.pointerId,
+      ...pointFor(event.clientX, event.clientY),
+    }
+    pointersRef.current.set(event.pointerId, pointer)
+
+    if (pointersRef.current.size >= 2 && pinchStartRef.current) {
+      const [first, second] = [...pointersRef.current.values()]
+      if (!first || !second) return
+      const start = pinchStartRef.current
+      const midpoint = pointerMidpoint(first, second)
+      const zoom = clampSlideZoom(
+        start.transform.zoom *
+          (pointerDistance(first, second) / Math.max(1, start.distance))
+      )
+      const ratio = zoom / start.transform.zoom
+      commitTransform(
+        clampSlideTransform(
+          {
+            zoom,
+            x: midpoint.x - (start.midpoint.x - start.transform.x) * ratio,
+            y: midpoint.y - (start.midpoint.y - start.transform.y) * ratio,
+          },
+          stage
+        )
+      )
+      return
+    }
+
+    const start = dragStartRef.current
+    if (!start || start.pointer.id !== event.pointerId) return
+    commitTransform(
+      clampSlideTransform(
+        {
+          zoom: start.transform.zoom,
+          x: start.transform.x + pointer.x - start.pointer.x,
+          y: start.transform.y + pointer.y - start.pointer.y,
+        },
+        stage
+      )
+    )
+  }
+
+  function finishPointer(event: ReactPointerEvent<HTMLDivElement>) {
+    pointersRef.current.delete(event.pointerId)
+    pinchStartRef.current = null
+
+    const remaining = [...pointersRef.current.values()][0]
+    dragStartRef.current = remaining
+      ? { pointer: remaining, transform: transformRef.current }
+      : null
+    setPanning(Boolean(remaining && transformRef.current.zoom > 1))
+  }
+
+  function onWheel(event: ReactWheelEvent<HTMLDivElement>) {
+    event.preventDefault()
+    const point = pointFor(event.clientX, event.clientY)
+    const sensitivity = event.deltaMode === 1 ? 0.04 : 0.002
+    zoomTo(
+      transformRef.current.zoom * Math.exp(-event.deltaY * sensitivity),
+      point
+    )
+  }
+
+  function onDoubleClick(event: ReactPointerEvent<HTMLDivElement>) {
+    if ((event.target as Element).closest("button")) return
+    event.preventDefault()
+    if (transformRef.current.zoom > 1) {
+      resetView()
+    } else {
+      zoomTo(2, pointFor(event.clientX, event.clientY))
+    }
+  }
+
+  function onKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key === "+" || event.key === "=") {
+      event.preventDefault()
+      zoomTo(transformRef.current.zoom + 0.25)
+      return
+    }
+    if (event.key === "-" || event.key === "_") {
+      event.preventDefault()
+      zoomTo(transformRef.current.zoom - 0.25)
+      return
+    }
+    if (event.key === "0" || event.key === "Escape") {
+      event.preventDefault()
+      resetView()
+      return
+    }
+
+    const movement =
+      event.key === "ArrowLeft"
+        ? { x: -48, y: 0 }
+        : event.key === "ArrowRight"
+          ? { x: 48, y: 0 }
+          : event.key === "ArrowUp"
+            ? { x: 0, y: -48 }
+            : event.key === "ArrowDown"
+              ? { x: 0, y: 48 }
+              : null
+    if (!movement) return
+    event.preventDefault()
+    updateTransform((current) =>
+      clampSlideTransform(
+        {
+          ...current,
+          x: current.x + movement.x,
+          y: current.y + movement.y,
+        },
+        stage
+      )
+    )
+  }
+
+  return (
+    <div
+      ref={viewportRef}
+      className="relative flex h-full min-h-0 w-full max-w-[760px] min-w-0 items-center justify-center sm:max-w-[min(72vw,760px)] sm:shrink-0"
+    >
+      <div
+        ref={stageRef}
+        className={cn(
+          "group relative isolate overflow-hidden rounded-[9px] bg-app-surface text-left shadow-xl ring-2 ring-white select-none focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-app-action",
+          transform.zoom > 1
+            ? panning
+              ? "cursor-grabbing"
+              : "cursor-grab"
+            : "cursor-zoom-in"
+        )}
+        style={
+          stageReady
+            ? { width: stage.width, height: stage.height, touchAction: "none" }
+            : {
+                width: "min(100%, 400px)",
+                maxHeight: "100%",
+                aspectRatio: "4 / 5",
+                touchAction: "none",
+              }
+        }
+        role="group"
+        aria-label={`${label}. Use the mouse wheel or plus and minus keys to zoom. Drag or use arrow keys to pan.`}
+        tabIndex={0}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={finishPointer}
+        onPointerCancel={finishPointer}
+        onLostPointerCapture={finishPointer}
+        onWheel={onWheel}
+        onDoubleClick={onDoubleClick}
+        onKeyDown={onKeyDown}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element -- Generated slides may be authenticated local or remote assets and expose their dimensions only after loading. */}
+        <img
+          src={slide.imageUrl}
+          alt={alt}
+          className="absolute inset-0 block size-full origin-center object-contain will-change-transform"
+          style={{
+            transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.zoom})`,
+          }}
+          draggable={false}
+          onLoad={(event) => {
+            const image = event.currentTarget
+            if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+              setImageSize({
+                width: image.naturalWidth,
+                height: image.naturalHeight,
+              })
+            }
+          }}
+        />
+
+        <div className="pointer-events-none absolute top-2 left-2 z-10 hidden rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-semibold text-app-text opacity-0 shadow-sm backdrop-blur transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 sm:block">
+          Scroll to zoom · drag to pan
+        </div>
+
+        {canReplace || canDelete ? (
+          <div className="absolute top-2 right-2 z-20 flex gap-1.5">
+            {canReplace ? (
+              <button
+                type="button"
+                className="grid size-8 cursor-pointer place-items-center rounded-full bg-black/60 text-white transition hover:bg-app-action disabled:opacity-50"
+                aria-label={`Edit picture for slide ${slideNumber}`}
+                title="Edit picture"
+                onClick={onReplace}
+              >
+                <IconPhotoEdit className="size-4" />
+              </button>
+            ) : null}
+            {canDelete ? (
+              <button
+                type="button"
+                className="grid size-8 cursor-pointer place-items-center rounded-full bg-black/60 text-white transition hover:bg-red-600 disabled:opacity-50"
+                aria-label={`Delete slide ${slideNumber}`}
+                title="Delete this slide"
+                onClick={onDelete}
+              >
+                <IconTrash className="size-4" />
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div
+          className="absolute bottom-2 left-2 z-20 flex items-center gap-0.5 rounded-full bg-white/92 p-1 text-app-text shadow-md backdrop-blur"
+          role="toolbar"
+          aria-label="Slide zoom controls"
+        >
+          <button
+            type="button"
+            className="grid size-8 place-items-center rounded-full transition hover:bg-black/7 disabled:cursor-not-allowed disabled:opacity-35"
+            aria-label="Zoom out"
+            title="Zoom out"
+            disabled={transform.zoom <= 1}
+            onClick={() => zoomTo(transformRef.current.zoom - 0.25)}
+          >
+            <IconZoomOut className="size-4" />
+          </button>
+          <output
+            className="min-w-11 text-center text-[11px] font-bold tabular-nums"
+            aria-live="polite"
+          >
+            {Math.round(transform.zoom * 100)}%
+          </output>
+          <button
+            type="button"
+            className="grid size-8 place-items-center rounded-full transition hover:bg-black/7 disabled:cursor-not-allowed disabled:opacity-35"
+            aria-label="Zoom in"
+            title="Zoom in"
+            disabled={transform.zoom >= 5}
+            onClick={() => zoomTo(transformRef.current.zoom + 0.25)}
+          >
+            <IconZoomIn className="size-4" />
+          </button>
+          <button
+            type="button"
+            className="grid size-8 place-items-center rounded-full transition hover:bg-black/7 disabled:cursor-not-allowed disabled:opacity-35"
+            aria-label="Reset zoom and position"
+            title="Reset zoom and position"
+            disabled={
+              transform.zoom === 1 && transform.x === 0 && transform.y === 0
+            }
+            onClick={resetView}
+          >
+            <IconFocusCentered className="size-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function pointerDistance(
+  first: SlideViewportPoint,
+  second: SlideViewportPoint
+) {
+  return Math.hypot(second.x - first.x, second.y - first.y)
+}
+
+function pointerMidpoint(
+  first: SlideViewportPoint,
+  second: SlideViewportPoint
+) {
+  return {
+    x: (first.x + second.x) / 2,
+    y: (first.y + second.y) / 2,
+  }
 }
 
 function SlideImagePickerModal({
