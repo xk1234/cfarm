@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
   buildViralBaseline,
@@ -11,7 +11,9 @@ import {
 import type { ViralBaselinePost } from "@/lib/viral-tracker"
 import {
   captureDueCheckpoints,
+  needsViralAlert,
   nextViralPollAt,
+  sendTelegramViralAlert,
   trackedPostFromSource,
 } from "@/lib/viral-tracker-poller"
 import type { TikHubPost } from "@/lib/tikhub"
@@ -127,6 +129,59 @@ describe("viral tracker metrics", () => {
     expect(
       nextViralPollAt([tracked], new Date("2026-07-29T03:20:00.000Z"))
     ).toBe("2026-07-29T03:30:00.000Z")
+  })
+
+  it("keeps a qualified post eligible until its Telegram alert succeeds", () => {
+    const tracked = trackedPostFromSource(
+      trackerAccount(),
+      tiktokPost(10_000),
+      new Date("2026-07-29T00:05:00.000Z")
+    )
+    const qualified = captureDueCheckpoints(
+      tracked,
+      tiktokPost(30_001),
+      new Date("2026-07-29T03:30:00.000Z")
+    )
+
+    expect(needsViralAlert(qualified)).toBe(true)
+    expect(
+      needsViralAlert({
+        ...qualified,
+        alertSentAt: "2026-07-29T03:31:00.000Z",
+      })
+    ).toBe(false)
+  })
+
+  it("sends a Telegram notification with a button to the viral post", async () => {
+    const fetcher = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        expect(String(input)).toContain("/bottest-token/sendMessage")
+        expect(init?.method).toBe("POST")
+        return Response.json({ ok: true, result: { message_id: 1 } })
+      }
+    )
+    const postUrl = "https://www.tiktok.com/@creator/video/post-id"
+
+    await sendTelegramViralAlert(
+      {
+        chatId: "12345",
+        text: "Potentially viral TikTok detected",
+        postUrl,
+      },
+      {
+        fetcher: fetcher as typeof fetch,
+        botToken: "test-token",
+      }
+    )
+
+    const request = fetcher.mock.calls[0]?.[1] as RequestInit
+    expect(JSON.parse(String(request.body))).toMatchObject({
+      chat_id: "12345",
+      text: "Potentially viral TikTok detected",
+      reply_markup: {
+        inline_keyboard: [[{ text: "View TikTok post", url: postUrl }]],
+      },
+    })
   })
 })
 
