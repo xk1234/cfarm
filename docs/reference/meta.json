@@ -9,6 +9,7 @@
     "auth-and-multitenancy",
     "local-appwrite",
     "automation-templates",
-    "browser-test-workflows"
+    "browser-test-workflows",
+    "agent-github-publishing"
   ]
 }
