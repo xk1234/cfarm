@@ -26,6 +26,7 @@ const requestSchema = z.object({
           "contentDirection",
         ]),
         name: z.string().trim().min(1).max(200).optional(),
+        slideIndex: z.number().int().min(1).max(100).optional(),
         values: z.array(z.string().trim().min(1).max(1_000)).min(1).max(200),
       })
     )
@@ -33,6 +34,7 @@ const requestSchema = z.object({
   allHooks: z.boolean().optional(),
   repeats: z.number().int().min(1).max(20).optional(),
   seed: z.number().int().optional(),
+  textOnly: z.boolean().optional(),
 })
 
 export const GET = withHandler<{ params: Promise<{ id: string }> }>(

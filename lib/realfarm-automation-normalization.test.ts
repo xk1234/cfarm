@@ -58,6 +58,31 @@ describe("automation schema normalization", () => {
     ])
   })
 
+  it("derives the canonical hook-caption policy and drops its legacy prompt", () => {
+    const base = defaultAutomationSchema(automation)
+    const normalized = normalizeAutomationSchema(
+      {
+        ...base,
+        tiktok_post_settings: {
+          ...base.tiktok_post_settings,
+          caption: {
+            mode: "prompt",
+            static_text: "",
+            prompt_text:
+              'this should be in "lowercase," same exact text as the first text item.',
+          },
+        },
+      },
+      automation
+    )
+
+    expect(normalized.tiktok_post_settings.caption).toMatchObject({
+      mode: "prompt",
+      prompt_text: "",
+      resolution: "hook",
+    })
+  })
+
   it("ignores obsolete interval schedules", () => {
     const base = defaultAutomationSchema(automation)
     const normalized = normalizeAutomationSchema(

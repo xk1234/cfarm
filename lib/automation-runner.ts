@@ -35,6 +35,7 @@ import {
   resolveSlideshowCaption,
   resolveSlideshowHashtags,
   slideshowMetadataPromptInstructions,
+  slideshowStructurePromptInstructions,
 } from "@/lib/slideshow-plan-core"
 import {
   automationCollectionIds,
@@ -618,6 +619,7 @@ export async function previewAutomationRunPlan(
     systemPrompt?: string
     promptInstructions?: string
     includeTextGenerationResult?: boolean
+    textOnly?: boolean
   } = {}
 ) {
   // Keep debug previews on the exact planner used by persisted
@@ -1055,6 +1057,7 @@ async function createAutomationRunPlan(
     systemPrompt?: string
     promptInstructions?: string
     includeTextGenerationResult?: boolean
+    textOnly?: boolean
     onProgress?: (stage: string, detail?: string) => void
     fetchImpl?: typeof fetch
   } = {}
@@ -1164,6 +1167,7 @@ async function createAutomationRunPlan(
     : baseTextAutomation
   const promptInstructions = [
     options.promptInstructions,
+    slideshowStructurePromptInstructions(schema),
     contentRoutePrompt(contentRoute),
     slideshowMetadataPromptInstructions(schema),
   ]
@@ -1263,6 +1267,15 @@ async function createAutomationRunPlan(
     fetchImpl: options.fetchImpl,
     firstSlidePinnedImageId,
     ctaPinnedImageId,
+    selectedImages: options.textOnly
+      ? textAutomation.slides.map((slide, index) => ({
+          id: `text-only-${index + 1}`,
+          key: `text-only-${slide.id}`,
+          imageUrl: "about:blank",
+          imageCaption: "",
+        }))
+      : undefined,
+    skipVisuals: options.textOnly,
   })
   const slides = await translateAutomationSlides({
     language: schema.language || defaultAutomationLanguage,
@@ -1750,6 +1763,7 @@ async function createSlides(input: {
   fetchImpl?: typeof fetch
   firstSlidePinnedImageId?: string | null
   ctaPinnedImageId?: string | null
+  skipVisuals?: boolean
 }): Promise<{
   slides: AutomationRunSlide[]
   reuseWarnings: AutomationRunReuseWarning[]
@@ -1782,6 +1796,7 @@ async function createSlides(input: {
   const iconLayouts =
     input.iconLayouts ??
     specs.map((spec, index) => {
+      if (input.skipVisuals) return undefined
       if (spec.imageGrid !== "oval-icons") return undefined
       const configuredImages = spec.collectionId
         ? imagesForCollectionIds({
@@ -1843,12 +1858,14 @@ async function createSlides(input: {
         aspectRatio: slide.aspectRatio,
         imageGrid: slide.imageGrid,
         overlay: slide.overlay,
-        overlayImage: overlayImageForSlide({
-          collections: input.imageCollections,
-          slide,
-          slideIndex: index,
-          matchText: `${input.hook} ${text}`,
-        }),
+        overlayImage: input.skipVisuals
+          ? undefined
+          : overlayImageForSlide({
+              collections: input.imageCollections,
+              slide,
+              slideIndex: index,
+              matchText: `${input.hook} ${text}`,
+            }),
         displayText: slide.displayText,
         textItems,
         iconLayout: iconLayouts[index],
@@ -2394,6 +2411,50 @@ export async function replaceAutomationRunSlideImage(input: {
       },
     ],
   })
+  return updated
+}
+
+export async function updateAutomationRunSlideText(input: {
+  runRootDir?: string
+  slideshowId: string
+  runId?: string
+  slideIndex: number
+  slideshow: SlideshowRecord
+}) {
+  const runRootDir = input.runRootDir ?? defaultRunRootDir
+  const run = await automationRunForSlideshow(runRootDir, input)
+  if (!run) return null
+
+  const slideIndex = Math.floor(input.slideIndex)
+  const previousSlide = run.plan.slides[slideIndex]
+  const renderedSlide = input.slideshow.images[slideIndex]
+  if (!previousSlide || !renderedSlide) {
+    throw new Error("Slide index is out of range")
+  }
+  const textItems = renderedSlide.textItems.map((item) => ({ ...item }))
+  const primaryText = textItems[0]?.text ?? ""
+  const nextPlan: AutomationRunPlan = {
+    ...run.plan,
+    ...(previousSlide.role === "hook" ? { hook: primaryText } : {}),
+    slides: run.plan.slides.map((slide, index) =>
+      index === slideIndex
+        ? {
+            ...slide,
+            text: primaryText,
+            textItems,
+          }
+        : slide
+    ),
+  }
+  const updated = runWithRenderedSlides(
+    {
+      ...run,
+      plan: nextPlan,
+      updatedAt: new Date().toISOString(),
+    },
+    input.slideshow
+  )
+  await updateAutomationRun(runRootDir, updated)
   return updated
 }
 

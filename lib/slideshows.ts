@@ -298,6 +298,88 @@ export async function replaceSlideshowSlideImage(input: {
   return updated ? resultRecordToSlideshowRecord(updated) : null
 }
 
+export async function updateSlideshowSlideText(input: {
+  rootDir?: string
+  resultRootDir?: string
+  id: string
+  slideIndex: number
+  edits: Array<{ textItemId: string; text: string }>
+}) {
+  const slideIndex = Math.floor(input.slideIndex)
+  const result = await resultRecordForSlideshow(input, input.id)
+  if (!result || result.payload?.type !== "slideshow") {
+    return null
+  }
+  const slideshow = resultRecordToSlideshowRecord(result)
+  if (!slideshow) return null
+  const slide = slideshow.images[slideIndex]
+  if (!slide) {
+    throw new Error("Slide index is out of range")
+  }
+  if (slideshow.settings.export_as_video) {
+    throw new Error(
+      "Per-slide text editing is not available for slideshow video exports"
+    )
+  }
+
+  const edits = new Map<string, string>()
+  for (const edit of input.edits) {
+    const textItemId = clean(edit.textItemId)
+    if (!textItemId) throw new Error("A text item ID is required")
+    if (edits.has(textItemId)) {
+      throw new Error(`Text item ${textItemId} was supplied more than once`)
+    }
+    edits.set(textItemId, clean(edit.text))
+  }
+  if (edits.size === 0) throw new Error("At least one text edit is required")
+
+  const knownIds = new Set(slide.textItems.map((item) => item.id))
+  for (const textItemId of edits.keys()) {
+    if (!knownIds.has(textItemId)) {
+      throw new Error(`Text item not found on slide: ${textItemId}`)
+    }
+  }
+
+  const now = new Date().toISOString()
+  const editedSlide: SlideshowSlide = {
+    ...slide,
+    textItems: slide.textItems.map((item) =>
+      edits.has(item.id) ? { ...item, text: edits.get(item.id)! } : item
+    ),
+  }
+  const rerenderedSlide = await writeSlideshowSlideOutput(
+    input.rootDir,
+    slideshow,
+    slideIndex,
+    editedSlide
+  )
+  const rerendered: SlideshowRecord = {
+    ...slideshow,
+    updated_at: now,
+    images: slideshow.images.map((item, index) =>
+      index === slideIndex ? rerenderedSlide : item
+    ),
+    output_images: slideshow.images.map((item, index) =>
+      index === slideIndex
+        ? rerenderedSlide.image_url
+        : slideshow.output_images[index] || item.image_url
+    ),
+  }
+  const updated = await updateResultRecord({
+    rootDir: resultRootDirFor(input),
+    id: result.id,
+    update: (record) => ({
+      ...record,
+      payload: slideshowRecordToResultPayload(rerendered),
+      artifacts: {
+        ...record.artifacts,
+        outputImages: rerendered.output_images,
+      },
+    }),
+  })
+  return updated ? resultRecordToSlideshowRecord(updated) : null
+}
+
 export async function updateSlideshowMetadata(input: {
   rootDir?: string
   resultRootDir?: string
@@ -723,6 +805,58 @@ async function writeSlideshowOutputs(
 
     await mirrorDirToAppwrite(scratchDir, logicalOutputDir)
     return outputRecord
+  } finally {
+    await rm(scratchDir, { recursive: true, force: true })
+  }
+}
+
+async function writeSlideshowSlideOutput(
+  rootDir = defaultRootDir,
+  record: SlideshowRecord,
+  slideIndex: number,
+  slide: SlideshowSlide
+) {
+  const logicalOutputDir = path.join(rootDir, "outputs", record.id)
+  const scratchDir = await mkdtemp(path.join(os.tmpdir(), "cfarm-slide-edit-"))
+  try {
+    const output = await materializeSlideImage({
+      outputDir: scratchDir,
+      slideshowId: record.id,
+      slideIndex,
+      slide,
+      sourceUrl: slide.source_image_url || slide.image_url,
+      aspectRatio: record.settings.aspect_ratio,
+      font: record.settings.font,
+    })
+    await mirrorDirToAppwrite(scratchDir, logicalOutputDir)
+    return {
+      ...slide,
+      image_url: output.publicUrl,
+      source_image_url: output.sourcePublicUrl,
+      overlayImage: slide.overlayImage
+        ? {
+            ...slide.overlayImage,
+            source_image_url:
+              output.overlayPublicUrl ||
+              slide.overlayImage.source_image_url ||
+              slide.overlayImage.image_url,
+          }
+        : undefined,
+      iconLayout: slide.iconLayout
+        ? {
+            ...slide.iconLayout,
+            surrounding: slide.iconLayout.surrounding.map(
+              (icon, iconIndex) => ({
+                ...icon,
+                source_image_url:
+                  output.iconPublicUrls?.[iconIndex] ||
+                  icon.source_image_url ||
+                  icon.image_url,
+              })
+            ),
+          }
+        : undefined,
+    }
   } finally {
     await rm(scratchDir, { recursive: true, force: true })
   }

@@ -73,6 +73,7 @@ export type PostTextSetting = {
   mode: "prompt" | "static"
   static_text: string
   prompt_text: string
+  resolution?: "generated" | "hook"
 }
 
 export type TextItem = {
@@ -1331,6 +1332,38 @@ export function schemaWithAutomationContentDirection(
   return { ...schema, formatting }
 }
 
+/**
+ * Replace the content direction for one generated body slide.
+ *
+ * Body slide overrides are one-based and affect the first text item on that
+ * slide, matching the editor and slideshow planner's existing behavior.
+ */
+export function schemaWithAutomationSlideContentDirection(
+  schema: AutomationSchema,
+  slideIndex: number,
+  contentDirection: string
+): AutomationSchema {
+  const formatting = (schema.formatting ?? []).map((block) => {
+    if (block.id !== "body") return block
+
+    const overrides = block.slideOverrides ?? []
+    const hasOverride = overrides.some(
+      (override) => override.slideIndex === slideIndex
+    )
+    return {
+      ...block,
+      slideOverrides: hasOverride
+        ? overrides.map((override) =>
+            override.slideIndex === slideIndex
+              ? { ...override, contentDirection }
+              : override
+          )
+        : [...overrides, { slideIndex, contentDirection }],
+    }
+  })
+  return { ...schema, formatting }
+}
+
 export function schemaWithAutomationCollectionId(
   schema: AutomationSchema,
   role: "hook" | "content" | "cta",
@@ -2154,17 +2187,33 @@ function normalizePostTextSetting(
 ): PostTextSetting {
   const record = isRecord(value) ? value : {}
   if ("value" in record) {
+    const promptText = record.mode === "static" ? "" : clean(record.value)
     return {
       mode: record.mode === "static" ? "static" : "prompt",
       static_text: record.mode === "static" ? clean(record.value) : "",
-      prompt_text: record.mode === "static" ? "" : clean(record.value),
+      prompt_text: promptText,
+      ...(legacyHookCaptionPrompt(promptText)
+        ? { prompt_text: "", resolution: "hook" as const }
+        : {}),
     }
   }
+  const promptText = clean(record.prompt_text) || fallback.prompt_text
+  const resolution =
+    record.resolution === "hook" || legacyHookCaptionPrompt(promptText)
+      ? ("hook" as const)
+      : record.resolution === "generated"
+        ? ("generated" as const)
+        : fallback.resolution
   return {
     mode: record.mode === "static" ? "static" : "prompt",
     static_text: clean(record.static_text) || fallback.static_text,
-    prompt_text: clean(record.prompt_text) || fallback.prompt_text,
+    prompt_text: resolution === "hook" ? "" : promptText,
+    ...(resolution ? { resolution } : {}),
   }
+}
+
+function legacyHookCaptionPrompt(value: string) {
+  return /same exact text as (?:the )?(?:first text item|hook)/i.test(value)
 }
 
 function toDate(value: unknown) {

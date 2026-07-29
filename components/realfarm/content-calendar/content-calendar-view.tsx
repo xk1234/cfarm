@@ -26,7 +26,6 @@ import {
   IconBrandX,
   IconBrandYoutubeFilled,
   IconActivity,
-  IconCalendar,
   IconCheck,
   IconChevronDown,
   IconDatabase,
@@ -366,19 +365,15 @@ export function ContentCalendarView({
 
   return (
     <div className="mx-auto max-w-[1380px] pb-12">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-5">
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-app-muted-text">
-            <IconCalendar className="size-4" /> Planning workspace
-          </div>
-          <h1 className="text-[30px] leading-none font-semibold tracking-[-0.035em] text-[#20201d]">
-            Content calendar
-          </h1>
-        </div>
+      <header className="mb-6 flex flex-wrap items-center justify-between gap-5">
+        <h1 className="flex h-9 items-center text-[30px] leading-none font-semibold tracking-[-0.035em] text-[#20201d]">
+          Content calendar
+        </h1>
         <div className="flex items-center gap-2">
           <Button
             variant="softControl"
             size="compact"
+            className="h-9"
             onClick={() => void mutate()}
             disabled={isValidating}
           >
@@ -387,7 +382,12 @@ export function ContentCalendarView({
             />
             Refresh
           </Button>
-          <Button variant="action" size="compact" onClick={onGoAutomations}>
+          <Button
+            variant="action"
+            size="compact"
+            className="h-9"
+            onClick={onGoAutomations}
+          >
             <IconSparkles className="size-4" /> Automations
           </Button>
         </div>

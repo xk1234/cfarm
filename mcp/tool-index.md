@@ -45,6 +45,7 @@ several workflows, but its input/output contract has one obvious owner.
 | `lumenclip_ugc_generate`                         | [Videos](videos/README.md)                      | Implemented        |
 | `lumenclip_slideshow_create`                     | [Slideshows](slideshow/README.md)               | Proposed v1        |
 | `lumenclip_outputs_list`                         | [Outputs and operations](outputs/README.md)     | Implemented        |
+| `lumenclip_output_slide_text_update`             | [Outputs and operations](outputs/README.md)     | Implemented        |
 | `lumenclip_output_delete`                        | [Outputs and operations](outputs/README.md)     | Implemented        |
 | `lumenclip_operations_list`                      | [Outputs and operations](outputs/README.md)     | Implemented        |
 | `lumenclip_operation_get`                        | [Outputs and operations](outputs/README.md)     | Implemented        |

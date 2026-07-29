@@ -27,12 +27,25 @@ publication IDs, post count, latest capture time, canonical metric totals,
 followers gained, and the correct report tools/guidance. TikTok Studio-backed
 outputs point callers to `lumenclip_tiktok_studio_analytics_report` for
 section and slide detail. Full post bodies and media bytes are not embedded.
+`analytics.captureAttempts` distinguishes a capture that was never started,
+is pending, failed or expired, or landed successfully. Failed attempts retain
+their recorded section and reason.
 
 Publication state includes `published_unlinked` for a legacy output carrying a
 manual published timestamp but no publication record. This is deliberately
 distinct from `published`: analytics and hook attribution may recover through
 source-linked snapshots, but clients are warned that the canonical publication
 join is incomplete.
+
+## `lumenclip_output_slide_text_update`
+
+Edits selected text items on one unpublished slideshow slide and rerenders only
+that still. Call `lumenclip_output_get` first, then supply the one-based
+`slideIndex`, one or more complete `{ textItemId, text }` replacements, and the
+returned `updatedAt` as `expectedUpdatedAt`. The optimistic lock rejects stale
+writes. Published and scheduled outputs, non-slideshow outputs, and slideshow
+video exports are rejected without mutation. The result returns the refreshed
+output, edited slide, deterministic QA, and current `nextSteps`.
 
 ## `lumenclip_output_delete`
 

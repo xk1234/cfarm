@@ -156,8 +156,8 @@ export const defaultAutomationTemplateDefaults = {
     caption: {
       mode: "prompt",
       static_text: "",
-      prompt_text:
-        'this should be in "lowercase," same exact text as the first text item.',
+      prompt_text: "",
+      resolution: "hook",
     },
     description: {
       mode: "prompt",
