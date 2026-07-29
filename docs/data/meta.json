@@ -1,0 +1,9 @@
+{
+  "title": "Data",
+  "pages": [
+    "index",
+    "backend-architecture",
+    "backend-endpoints",
+    "local-appwrite"
+  ]
+}

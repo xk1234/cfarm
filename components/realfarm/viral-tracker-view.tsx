@@ -97,7 +97,11 @@ export function ViralTrackerView() {
       toast.success(successMessage)
       return true
     } catch (mutationError) {
-      toast.error(getApiErrorMessage(mutationError, "Tracker update failed"))
+      toast.error(
+        viralTrackerUserMessage(
+          getApiErrorMessage(mutationError, "Tracker update failed")
+        )
+      )
       return false
     } finally {
       setBusy("")
@@ -150,7 +154,11 @@ export function ViralTrackerView() {
       await mutate()
       toast.success(kind === "project" ? "Project deleted" : "Account deleted")
     } catch (mutationError) {
-      toast.error(getApiErrorMessage(mutationError, "Delete failed"))
+      toast.error(
+        viralTrackerUserMessage(
+          getApiErrorMessage(mutationError, "Delete failed")
+        )
+      )
     } finally {
       setBusy("")
     }
@@ -174,14 +182,16 @@ export function ViralTrackerView() {
             />
             Refresh
           </Button>
-          <Button
-            variant="action"
-            size="appDefault"
-            onClick={() => setShowCreateProject((current) => !current)}
-          >
-            <IconPlus className="size-4" />
-            New project
-          </Button>
+          {!showCreateProject ? (
+            <Button
+              variant="action"
+              size="appDefault"
+              onClick={() => setShowCreateProject(true)}
+            >
+              <IconPlus className="size-4" />
+              New project
+            </Button>
+          ) : null}
         </div>
       </header>
 
@@ -189,7 +199,7 @@ export function ViralTrackerView() {
         <StateCard
           icon={IconAlertTriangle}
           title="Viral tracker could not be loaded"
-          detail={getApiErrorMessage(error)}
+          detail={viralTrackerUserMessage(getApiErrorMessage(error))}
         />
       ) : isLoading && !data ? (
         <LoadingState />
@@ -198,8 +208,10 @@ export function ViralTrackerView() {
           {!data?.configuration.tikhub ? (
             <div className="mb-5 flex items-start gap-3 rounded-control bg-app-warning-surface p-4 text-sm text-app-warning">
               <IconAlertTriangle className="mt-0.5 size-4 shrink-0" />
-              TikHub is not configured. Add TIKHUB_API_KEY to the server
-              environment before adding an account.
+              <span>
+                Viral tracking is unavailable. Contact your workspace
+                administrator to check the tracking connection.
+              </span>
             </div>
           ) : null}
 
@@ -465,7 +477,7 @@ function AccountCard({
       </div>
       {account.error ? (
         <p className="mt-3 rounded-control bg-app-danger-surface p-2 text-xs text-app-danger">
-          {account.error}
+          {viralTrackerUserMessage(account.error)}
         </p>
       ) : null}
       <div className="mt-4 flex items-center gap-2">
@@ -649,4 +661,13 @@ function formatDate(value: string) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value))
+}
+
+export function viralTrackerUserMessage(message: string) {
+  if (
+    /tikhub|tikhub_api_key|server environment|provider response/i.test(message)
+  ) {
+    return "Viral tracking is temporarily unavailable. Contact your workspace administrator."
+  }
+  return message
 }

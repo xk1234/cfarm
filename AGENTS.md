@@ -28,3 +28,22 @@ stack in `~/appwrite-local` serves all local projects. Cloud creds stay in
   executor. Deploys go to cloud via `appwrite/functions/deploy.mjs`.
 - `appwrite/.local/` is the DEPRECATED old per-repo stack (kept only so its
   data volumes can be recovered). Never `docker compose up` from it.
+
+# GitHub publishing in the shared workspace
+
+Read [docs/reference/agent-github-publishing.md](docs/reference/agent-github-publishing.md)
+before committing, pushing, merging, or deploying.
+
+- The worktree and Git index are shared with other agents. Inspect both
+  `git status --short` and `git diff --cached --name-status` immediately before
+  every commit. If the index contains unrelated files, do not commit, unstage,
+  discard, or overwrite them.
+- Stage explicit paths only. Never chain `git add` and `git commit` into one
+  command in this workspace; the mandatory cached-diff inspection must happen
+  between them.
+- If `git push` returns 403 after `gh auth status` succeeds, never print or
+  embed tokens. Retry once after `gh auth setup-git`; if it still fails, use
+  the connected GitHub app's file/branch/PR tools.
+- Merge only the checked PR head SHA, then verify the `main` production
+  deployment reaches `READY`. A successful preview is not a production
+  deployment.

@@ -213,6 +213,6 @@ request.
 
 ## Related reference
 
-- [Reminder behavior and backend contract](/docs/scheduling/reminders)
+- [Reminder behavior and backend contract](/docs/jobs/reminders)
 - [Scheduling posts](/docs/workflows/schedule-posts)
-- [Manual publication and linking](/docs/scheduling/manual-linking)
+- [Manual publication and linking](/docs/jobs/manual-linking)
