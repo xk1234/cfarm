@@ -1,0 +1,10 @@
+{
+  "title": "Data",
+  "pages": [
+    "index",
+    "schema-reference",
+    "backend-architecture",
+    "backend-endpoints",
+    "local-appwrite"
+  ]
+}

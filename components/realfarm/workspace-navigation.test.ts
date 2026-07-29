@@ -24,6 +24,9 @@ describe("workspace navigation", () => {
     expect(workspaceLocationFromUrl("/app/analytics")).toEqual({
       view: "analytics",
     })
+    expect(workspaceLocationFromUrl("/app/x-automations")).toEqual({
+      view: "automations",
+    })
     expect(
       workspaceLocationFromUrl("/app/collections/mystical%20pictures")
     ).toEqual({

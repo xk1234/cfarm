@@ -54,6 +54,17 @@ describe("PostComposer", () => {
     expect(markup).toContain(provider.limits.maxTextLength.toString())
   })
 
+  it("offers a compact network switcher for narrow screens", () => {
+    const markup = renderToStaticMarkup(
+      <PostComposer accounts={accounts} onChange={vi.fn()} value={value} />
+    )
+
+    expect(markup).toContain('aria-label="Network to customize"')
+    expect(markup).toContain("X · @x")
+    expect(markup).toContain("Instagram · @instagram")
+    expect(markup).toContain("LinkedIn · @linkedin")
+  })
+
   it("maps overrides, media, and schedule into PostFast payloads", async () => {
     const request = vi.fn().mockResolvedValue({ postIds: ["post-1"] })
     const uploadMedia = vi
@@ -65,7 +76,11 @@ describe("PostComposer", () => {
       base: {
         text: "Master copy",
         media: [
-          { id: "media-1", kind: "image", url: "https://example.com/image.png" },
+          {
+            id: "media-1",
+            kind: "image",
+            url: "https://example.com/image.png",
+          },
         ],
       },
       perNetwork: {

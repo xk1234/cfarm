@@ -841,8 +841,10 @@ export function RealFarmWorkspace({
         ) : null}
         <section
           className={cn(
-            "min-w-0 flex-1 overflow-y-auto pt-14 md:pt-0",
-            fillsWorkspace ? "p-0" : "px-4 py-4 sm:px-5 sm:py-5 lg:px-7"
+            "min-w-0 flex-1 overflow-y-auto",
+            fillsWorkspace
+              ? "p-0"
+              : "px-4 pt-[4.5rem] pb-4 sm:px-5 sm:pt-[4.75rem] sm:pb-5 md:py-5 lg:px-7"
           )}
         >
           {view === "home" && (
@@ -880,6 +882,7 @@ export function RealFarmWorkspace({
                   },
                 })
                   .then((createdAutomation) => {
+                    toast.success(`Created “${createdAutomation.name}”`)
                     setView("automations")
                     setEditingAutomation(createdAutomation)
                   })
@@ -1312,6 +1315,7 @@ export function RealFarmWorkspace({
               },
             })
               .then((createdAutomation) => {
+                toast.success(`Created “${createdAutomation.name}”`)
                 setTemplateFolderOpen(false)
                 setView("automations")
                 setEditingAutomation(createdAutomation)

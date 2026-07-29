@@ -202,7 +202,10 @@ export function HomeView({
           LumenClip
         </span>
       </div>
-      <section className="py-6 text-center sm:py-10 lg:py-14">
+      <h1 className="pt-5 text-[30px] leading-none font-semibold tracking-[-0.04em] text-app-text sm:pt-7">
+        Home
+      </h1>
+      <section className="py-7 text-center sm:py-10 lg:py-14">
         <div className="mx-auto max-w-[980px]">
           <div className="lc-spectrum mx-auto mb-5 h-1 w-14 rounded-full" />
           {/* Cadence, not a tagline: the gaps are the useful signal here. */}
@@ -251,27 +254,29 @@ export function HomeView({
               Videos ({videos.length})
             </button>
           </div>
-          <div className="flex items-center gap-2 text-[13px] font-semibold text-[#6f7888] sm:gap-3 sm:text-[14px]">
-            <Button
-              variant="iconControl"
-              size="icon-control"
-              aria-label="Previous page"
-              disabled={safePage <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              <IconChevronLeft className="size-4" />
-            </Button>
-            Page {safePage} of {totalPages}
-            <Button
-              variant="iconControl"
-              size="icon-control"
-              aria-label="Next page"
-              disabled={safePage >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
-              <IconChevronRight className="size-4" />
-            </Button>
-          </div>
+          {totalPages > 1 ? (
+            <div className="flex items-center gap-2 text-[13px] font-semibold text-[#6f7888] sm:gap-3 sm:text-[14px]">
+              <Button
+                variant="iconControl"
+                size="icon-control"
+                aria-label="Previous page"
+                disabled={safePage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                <IconChevronLeft className="size-4" />
+              </Button>
+              Page {safePage} of {totalPages}
+              <Button
+                variant="iconControl"
+                size="icon-control"
+                aria-label="Next page"
+                disabled={safePage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                <IconChevronRight className="size-4" />
+              </Button>
+            </div>
+          ) : null}
         </div>
 
         {activeTab === "slideshows" && pagedGeneratedSlideshows.length > 0 ? (
@@ -340,29 +345,33 @@ export function HomeView({
           <h2 className="text-[18px] font-semibold tracking-[-0.025em] text-app-text sm:text-[20px]">
             Start from a proven workflow
           </h2>
-          <div className="flex items-center gap-2 text-[13px] font-semibold text-[#6f7888] sm:gap-3 sm:text-[14px]">
-            <Button
-              variant="iconControl"
-              size="icon-control"
-              aria-label="Previous quick start page"
-              disabled={safeQuickStartPage <= 1}
-              onClick={() => setQuickStartPage((p) => Math.max(1, p - 1))}
-            >
-              <IconChevronLeft className="size-4" />
-            </Button>
-            Page {safeQuickStartPage} of {quickStartTotalPages}
-            <Button
-              variant="iconControl"
-              size="icon-control"
-              aria-label="Next quick start page"
-              disabled={safeQuickStartPage >= quickStartTotalPages}
-              onClick={() =>
-                setQuickStartPage((p) => Math.min(quickStartTotalPages, p + 1))
-              }
-            >
-              <IconChevronRight className="size-4" />
-            </Button>
-          </div>
+          {quickStartTotalPages > 1 ? (
+            <div className="flex items-center gap-2 text-[13px] font-semibold text-[#6f7888] sm:gap-3 sm:text-[14px]">
+              <Button
+                variant="iconControl"
+                size="icon-control"
+                aria-label="Previous quick start page"
+                disabled={safeQuickStartPage <= 1}
+                onClick={() => setQuickStartPage((p) => Math.max(1, p - 1))}
+              >
+                <IconChevronLeft className="size-4" />
+              </Button>
+              Page {safeQuickStartPage} of {quickStartTotalPages}
+              <Button
+                variant="iconControl"
+                size="icon-control"
+                aria-label="Next quick start page"
+                disabled={safeQuickStartPage >= quickStartTotalPages}
+                onClick={() =>
+                  setQuickStartPage((p) =>
+                    Math.min(quickStartTotalPages, p + 1)
+                  )
+                }
+              >
+                <IconChevronRight className="size-4" />
+              </Button>
+            </div>
+          ) : null}
         </div>
         {quickStartTemplates.length > 0 ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

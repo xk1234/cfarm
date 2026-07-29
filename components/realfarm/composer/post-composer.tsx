@@ -79,7 +79,7 @@ export function PostComposer({
       aria-label="Post composer"
       className="overflow-hidden rounded-app-panel border border-app-panel-border bg-app-surface shadow-app-card"
     >
-      <div className="border-b border-app-panel-border p-5">
+      <div className="min-w-0 border-b border-app-panel-border p-4 sm:p-5">
         <p className="text-caption font-semibold tracking-wide text-app-muted-text uppercase">
           Write once
         </p>
@@ -114,18 +114,40 @@ export function PostComposer({
         />
       </div>
 
-      <div className="border-b border-app-panel-border bg-app-surface-subtle px-5 pt-4">
+      <div className="min-w-0 border-b border-app-panel-border bg-app-surface-subtle px-4 pt-4 sm:px-5">
         <p className="text-caption font-semibold text-app-muted-text">
           Customize by network
         </p>
+        <label className="mt-3 block pb-4 sm:hidden">
+          <span className="sr-only">Network to customize</span>
+          <select
+            aria-label="Network to customize"
+            className="lc-focus-ring h-11 w-full rounded-app-control border border-app-panel-border bg-app-surface px-3 text-label font-semibold text-app-text"
+            onChange={(event) => setActiveKey(event.target.value)}
+            value={activeAccount.integrationId}
+          >
+            {availableAccounts.map((account) => {
+              const item = getSocialProvider(account.platformKey)
+              return (
+                <option
+                  key={account.integrationId}
+                  value={account.integrationId}
+                >
+                  {item?.name} · {account.handle}
+                </option>
+              )
+            })}
+          </select>
+        </label>
         <div
           aria-label="Connected networks"
-          className="mt-3 flex gap-1 overflow-x-auto"
+          className="mt-3 hidden gap-1 overflow-x-auto sm:flex"
           role="tablist"
         >
           {availableAccounts.map((account) => {
             const item = getSocialProvider(account.platformKey)
-            const selected = account.integrationId === activeAccount.integrationId
+            const selected =
+              account.integrationId === activeAccount.integrationId
             const accountText = effectiveNetworkText(value, account.platformKey)
             const tabId = safeId(account.integrationId)
             return (
@@ -160,7 +182,7 @@ export function PostComposer({
                   )}
                 </span>
                 <span>{item?.name}</span>
-                <span className="font-mono text-caption font-medium tabular-nums text-app-muted-text">
+                <span className="font-mono text-caption font-medium text-app-muted-text tabular-nums">
                   {accountText.length.toLocaleString()} /{" "}
                   {item?.limits.maxTextLength.toLocaleString()}
                 </span>
@@ -173,11 +195,11 @@ export function PostComposer({
       <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,0.8fr)]">
         <div
           aria-labelledby={`network-tab-${safeId(activeAccount.integrationId)}`}
-          className="space-y-5 p-5 lg:border-r lg:border-app-panel-border"
+          className="min-w-0 space-y-5 p-4 sm:p-5 lg:border-r lg:border-app-panel-border"
           id={`network-panel-${safeId(activeAccount.integrationId)}`}
           role="tabpanel"
         >
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
             <div>
               <h2 className="text-heading font-semibold text-app-text">
                 {provider.name} override
@@ -243,9 +265,9 @@ export function PostComposer({
           />
         </div>
 
-        <aside className="bg-app-surface-subtle p-5">
+        <aside className="min-w-0 bg-app-surface-subtle p-4 sm:p-5">
           <div className="sticky top-5">
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-label font-semibold text-app-text">
                   Live preview
@@ -292,7 +314,7 @@ function MediaUrlEditor({
       >
         {label}
       </label>
-      <div className="mt-2 flex gap-2">
+      <div className="mt-2 flex min-w-0 gap-2">
         <span className="grid size-10 shrink-0 place-items-center rounded-app-control bg-app-control-bg text-app-muted-text">
           <IconLink className="size-4" aria-hidden />
         </span>

@@ -51,6 +51,7 @@ export function workspaceLocationFromUrl(
   if (pathname === "/app/collections") return { view: "collections" }
   if (pathname === "/app/testing") return { view: "testing" }
   if (pathname === "/app/viral-tracker") return { view: "viral-tracker" }
+  if (pathname === "/app/x-automations") return { view: "automations" }
 
   const requestedView = new URLSearchParams(search).get("view")
   return {

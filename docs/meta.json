@@ -1,18 +1,4 @@
 {
   "title": "LumenClip Docs",
-  "pages": [
-    "index",
-    "STATE",
-    "automations",
-    "assets",
-    "workflows",
-    "components",
-    "routes",
-    "analytics",
-    "collections",
-    "scheduling",
-    "reference",
-    "tabs",
-    "roadmap"
-  ]
+  "pages": ["index", "workflows", "libraries", "data", "ui", "jobs"]
 }

@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
 import { normalizeProvider } from "@/components/realfarm/analytics/account-profile-icon"
 import { useAnalyticsData } from "@/components/realfarm/analytics/use-analytics-data"
 import { type CanonicalMetric } from "@/lib/metric-registry"
@@ -181,16 +180,7 @@ export function AnalyticsView({
             (data?.followerSnapshots.length ?? 0) === 0 ? (
             <AnalyticsState
               title="No stored analytics yet"
-              description="Run Sync analytics now. Each sync appends a snapshot, so trends become more useful over time."
-              action={
-                <Button
-                  variant="action"
-                  size="compact"
-                  onClick={() => void refreshReport()}
-                >
-                  Sync analytics
-                </Button>
-              }
+              description="Sync analytics above to save a dated snapshot for your connected accounts. Later snapshots will build trends over time."
             />
           ) : showingPlatform ? (
             <PlatformAnalytics

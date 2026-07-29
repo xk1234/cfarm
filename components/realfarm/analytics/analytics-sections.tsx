@@ -104,8 +104,8 @@ export function AnalyticsHeader({
   onTikTokStudioSync?: () => void
 }) {
   return (
-    <header className="mb-7 flex flex-wrap items-center justify-between gap-5">
-      <div className="flex items-center gap-2">
+    <header className="mb-7 flex min-w-0 flex-wrap items-center justify-between gap-5">
+      <div className="flex min-w-0 items-center gap-2">
         {platform ? (
           <button
             type="button"
@@ -115,11 +115,11 @@ export function AnalyticsHeader({
             <IconArrowLeft className="size-4" /> Back to overview
           </button>
         ) : null}
-        <h1 className="flex h-9 items-center text-[30px] leading-none font-semibold tracking-[-0.04em] text-app-text">
+        <h1 className="flex min-h-9 min-w-0 items-center text-[28px] leading-tight font-semibold tracking-[-0.04em] text-app-text sm:text-[30px]">
           {platform ? `${providerName(platform)} analytics` : "Analytics"}
         </h1>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
         {onTikTokStudioSync ? (
           <Button
             variant="softControl"
@@ -1267,19 +1267,25 @@ export function AnalyticsState({
 
 export function AnalyticsSkeleton() {
   return (
-    <div className="space-y-6">
-      <SkeletonBlock className="h-20 rounded-xl" />
-      <div className="grid gap-3 sm:grid-cols-3">
+    <div className="max-w-full min-w-0 space-y-6 overflow-hidden">
+      <SkeletonBlock className="h-20 max-w-full rounded-xl" />
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
         {Array.from({ length: 3 }, (_, index) => (
-          <SkeletonBlock key={index} className="h-48 rounded-xl" />
+          <SkeletonBlock
+            key={index}
+            className="h-48 max-w-full min-w-0 rounded-xl"
+          />
         ))}
       </div>
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-4">
         {Array.from({ length: 4 }, (_, index) => (
-          <SkeletonBlock key={index} className="h-64 rounded-xl" />
+          <SkeletonBlock
+            key={index}
+            className="h-64 max-w-full min-w-0 rounded-xl"
+          />
         ))}
       </div>
-      <SkeletonBlock className="h-[320px] rounded-xl" />
+      <SkeletonBlock className="h-[320px] max-w-full rounded-xl" />
     </div>
   )
 }

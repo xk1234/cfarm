@@ -1,0 +1,16 @@
+{
+  "title": "UI",
+  "pages": [
+    "index",
+    "workspace",
+    "automation-settings",
+    "media-viewers",
+    "ui-primitives",
+    "pages",
+    "home",
+    "automations",
+    "image-collections",
+    "schedule",
+    "analytics"
+  ]
+}

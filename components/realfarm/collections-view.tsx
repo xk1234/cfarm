@@ -401,7 +401,7 @@ export function CollectionsView({
               }
             >
               <IconPhotoPlus className="size-4" />
-              Create empty collection
+              New collection
             </Button>
             <Button
               variant="action"
@@ -410,7 +410,7 @@ export function CollectionsView({
               onClick={() => setSearchOpen(true)}
             >
               <IconPlus className="size-4" />
-              Add
+              Import images
             </Button>
           </div>
         ) : null}
@@ -420,7 +420,18 @@ export function CollectionsView({
         onValueChange={(value) => selectTab(value as typeof activeTab)}
       >
         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="max-w-full overflow-x-auto pb-1">
+          <SelectControl
+            aria-label="Collection type"
+            value={activeTab}
+            onChange={(event) => selectTab(event.target.value as CollectionTab)}
+            className="h-11 w-full md:hidden"
+          >
+            <option value="images">Images</option>
+            <option value="videos">Videos</option>
+            <option value="products">Products</option>
+            <option value="variables">Variables</option>
+          </SelectControl>
+          <div className="hidden max-w-full overflow-x-auto pb-1 md:block">
             <Tabs.List
               className="flex w-max rounded-[7px] border border-app-panel-border bg-app-surface-subtle p-1"
               aria-label="Collection types"
