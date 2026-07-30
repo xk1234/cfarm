@@ -43,7 +43,6 @@ import {
   type SlideshowSlide,
   type SlideshowTextItem,
 } from "@/lib/slideshow-renderer"
-import { renderSlideshowSlideBuffers } from "@/lib/slideshow-raster-renderer"
 import { fetchWithTimeout } from "@/lib/http"
 export type {
   SlideshowOverlayImage,
@@ -123,7 +122,13 @@ type RawSlideshowRecord = Omit<Partial<SlideshowRecord>, "images"> & {
   images?: Partial<SlideshowSlide>[]
 }
 
-const defaultRootDir = path.join(process.cwd(), "data", "slideshows")
+function defaultRootDir() {
+  return path.join(
+    /* turbopackIgnore: true */ process.cwd(),
+    "data",
+    "slideshows"
+  )
+}
 
 export async function listSlideshowRecords(
   input: {
@@ -717,7 +722,7 @@ function normalizeDate(value: unknown, fallback: string) {
 }
 
 async function writeSlideshowOutputs(
-  rootDir = defaultRootDir,
+  rootDir = defaultRootDir(),
   record: SlideshowRecord
 ) {
   const logicalOutputDir = path.join(rootDir, "outputs", record.id)
@@ -811,7 +816,7 @@ async function writeSlideshowOutputs(
 }
 
 async function writeSlideshowSlideOutput(
-  rootDir = defaultRootDir,
+  rootDir = defaultRootDir(),
   record: SlideshowRecord,
   slideIndex: number,
   slide: SlideshowSlide
@@ -863,7 +868,7 @@ async function writeSlideshowSlideOutput(
 }
 
 async function deleteSlideshowOutput(
-  rootDir = defaultRootDir,
+  rootDir = defaultRootDir(),
   record: SlideshowRecord
 ) {
   const outputPrefix = `${outputDirUrl(record.id)}/`
@@ -926,6 +931,8 @@ async function materializeSlideImage(input: {
   const fileName = `slide-${String(input.slideIndex + 1).padStart(3, "0")}.svg`
   const { configureFontconfig } = await import("@/lib/font-config")
   configureFontconfig()
+  const { renderSlideshowSlideBuffers } =
+    await import("@/lib/slideshow-raster-renderer")
   const { svg, png } = await renderSlideshowSlideBuffers({
     slide: input.slide,
     sourceUrl: await imageDataUri(source.filePath, source.extension),
@@ -1108,7 +1115,7 @@ async function normalizeMaterializedImageSource(input: {
   fallbackExtension: string
   prefix: string
 }) {
-  const bytes = await readFile(input.filePath)
+  const bytes = await readFile(/* turbopackIgnore: true */ input.filePath)
   const extension = imageExtensionFromBuffer(bytes) ?? input.fallbackExtension
   const fileName = `${input.prefix}-${String(input.slideIndex + 1).padStart(3, "0")}${extension}`
   const filePath = path.join(input.outputDir, fileName)
@@ -1126,7 +1133,7 @@ async function normalizeMaterializedImageSource(input: {
 }
 
 async function imageDataUri(filePath: string, extension: string) {
-  const bytes = await readFile(filePath)
+  const bytes = await readFile(/* turbopackIgnore: true */ filePath)
   if ([".avif", ".gif", ".webp"].includes(extension.toLowerCase())) {
     const sharp = (await import("sharp")).default
     const png = await sharp(bytes, { animated: false }).png().toBuffer()
@@ -1187,7 +1194,7 @@ function localAssetPathForUrl(sourceUrl: string) {
     return null
   }
 
-  const dataRoot = path.join(process.cwd(), "data")
+  const dataRoot = path.join(/* turbopackIgnore: true */ process.cwd(), "data")
   const relativeParts = pathname
     .slice(prefix.length)
     .split("/")

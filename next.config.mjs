@@ -7,6 +7,13 @@ const withMDX = createMDX({
 /** @type {import("next").NextConfig} */
 const nextConfig = {
   poweredByHeader: false,
+  experimental: {
+    optimizePackageImports: ["radix-ui"],
+  },
+  outputFileTracingIncludes: {
+    "/*": ["assets/fonts/Inter-Variable.ttf"],
+  },
+  serverExternalPackages: ["node-appwrite"],
   async headers() {
     return [
       {
