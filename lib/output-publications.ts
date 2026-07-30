@@ -10,7 +10,11 @@ import {
 } from "@/lib/post-repository-appwrite"
 import { postRepositoryWriteMode } from "@/lib/post-repository-config"
 import type { PostFastPostRecord } from "@/lib/postfast-posts"
-import { postFromPostFastRecord } from "@/lib/posts"
+import {
+  postFromPostFastRecord,
+  postToPostFastRecord,
+  type Post,
+} from "@/lib/posts"
 import { systemOwnerId } from "@/lib/system-owner-context"
 
 const PAGE = 100
@@ -67,9 +71,7 @@ export async function writeOutputPublications(
   }
 
   const ownerId = await publicationOwnerId()
-  const posts = records.map((record) =>
-    postFromPostFastRecord(record, ownerId)
-  )
+  const posts = records.map((record) => postFromPostFastRecord(record, ownerId))
   if (mode === "canonical") {
     for (const post of posts) {
       await appwritePostRepository.upsertPost(post, {
@@ -80,6 +82,46 @@ export async function writeOutputPublications(
   }
 
   await dualWriteOutputPublications(ownerId, records, posts)
+}
+
+/** Dual-writes an already canonical post without round-tripping its identity
+ * fields through the lossy legacy publication projection. */
+export async function writeCanonicalPostWithLegacyProjection(
+  post: Post,
+  record: PostFastPostRecord
+) {
+  const ownerId = await publicationOwnerId()
+  let resolved: Post
+  try {
+    resolved = await appwritePostRepository.upsertPost(post, {
+      writeState: "pending",
+      reconciledAt: null,
+      repairEvent: null,
+    })
+  } catch (error) {
+    throw new PostDualWriteError(
+      "Canonical post persistence failed before the legacy publication write.",
+      { cause: error }
+    )
+  }
+  const projected = postToPostFastRecord(resolved)
+  const records = await listOutputPublications()
+  await completePendingDualWrite(
+    ownerId,
+    [resolved],
+    [
+      {
+      ...projected,
+      content: record.content,
+      analytics: record.analytics,
+        lastAnalyticsSyncedAt: record.lastAnalyticsSyncedAt,
+      },
+      ...records.filter(
+        (item) => item.id !== record.id && item.id !== resolved.id
+      ),
+    ]
+  )
+  return resolved
 }
 
 export class PostDualWriteError extends Error {
@@ -109,18 +151,21 @@ async function dualWriteOutputPublications(
       )
     }
   } catch (error) {
-    await markRepairs(
-      ownerId,
-      pending,
-      "canonical_posts",
-      errorMessage(error)
-    )
+    await markRepairs(ownerId, pending, "canonical_posts", errorMessage(error))
     throw new PostDualWriteError(
       "Canonical post persistence failed before the legacy publication write.",
       { cause: error }
     )
   }
 
+  await completePendingDualWrite(ownerId, pending, records)
+}
+
+async function completePendingDualWrite(
+  ownerId: string,
+  pending: Post[],
+  records: PostFastPostRecord[]
+) {
   try {
     await writeLegacyOutputPublications(records, ownerId)
   } catch (error) {
@@ -146,12 +191,7 @@ async function dualWriteOutputPublications(
       )
     }
   } catch (error) {
-    await markRepairs(
-      ownerId,
-      pending,
-      "canonical_posts",
-      errorMessage(error)
-    )
+    await markRepairs(ownerId, pending, "canonical_posts", errorMessage(error))
     throw new PostDualWriteError(
       "Post dual-write completed but reconciliation could not be recorded.",
       { cause: error }

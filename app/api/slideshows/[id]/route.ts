@@ -12,10 +12,8 @@ import {
   type AutomationRunRecord,
 } from "@/lib/automation-runner"
 import { listImageCollections } from "@/lib/image-collections"
-import {
-  deletePostFastPostRecords,
-  listPostFastPostRecords,
-} from "@/lib/postfast-posts"
+import { listPostFastPostRecords } from "@/lib/postfast-posts"
+import { deletePosts } from "@/lib/post-repository"
 import { slideshowDeletionBlockReason } from "@/lib/slideshow-lifecycle"
 import {
   deleteSlideshowRecord,
@@ -380,13 +378,13 @@ export const DELETE = withHandler<{ params: Promise<{ id: string }> }>(
         runIds: run?.id ? [run.id] : undefined,
         slideshowIds: run ? undefined : [id],
       }),
-      deletePostFastPostRecords({
+      deletePosts({
         sourceType: "slideshow",
         sourceIds: [id],
       }),
       ...(run
         ? [
-            deletePostFastPostRecords({
+            deletePosts({
               sourceType: "automation" as const,
               sourceIds: [run.id],
             }),

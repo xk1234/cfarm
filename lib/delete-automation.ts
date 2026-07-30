@@ -6,7 +6,7 @@ import {
   deleteAutomationRuns,
   listAutomationRuns,
 } from "@/lib/automation-runner"
-import { deletePostFastPostRecords } from "@/lib/postfast-posts"
+import { deletePosts } from "@/lib/post-repository"
 import { deleteAutomationJobs } from "@/lib/queue"
 import { deleteSlideshowRecordsForAutomation } from "@/lib/slideshows"
 
@@ -36,11 +36,11 @@ export async function deleteAutomationCascade(input: { id: string }) {
   )
   const [deletedPostFastSlideshowPosts, deletedPostFastAutomationPosts] =
     await Promise.all([
-      deletePostFastPostRecords({
+      deletePosts({
         sourceType: "slideshow",
         sourceIds: [...slideshowIds],
       }),
-      deletePostFastPostRecords({
+      deletePosts({
         sourceType: "automation",
         sourceIds: automationRuns.map((run) => run.id),
       }),

@@ -2272,6 +2272,61 @@ describe("LumenClip MCP server", () => {
     })
   })
 
+  it("routes a manual link through the shared writer and advances the same stamp intent", async () => {
+    const run = generatedRun("automation-1")
+    const publication = {
+      id: "publication-manual-1",
+      sourceType: "slideshow" as const,
+      sourceId: run.slideshowId!,
+      integrationId: "manual-tiktok",
+      provider: "tiktok",
+      status: "published" as const,
+      publishedAt: "2026-07-30T12:00:00.000Z",
+      releaseUrl: "https://www.tiktok.com/@creator/photo/7662360324313517330",
+      externalPostId: "7662360324313517330",
+      linkState: "manually_linked" as const,
+      statsSources: [],
+      content: "Generated caption",
+      media: [],
+      createdAt: "2026-07-30T12:00:00.000Z",
+      updatedAt: "2026-07-30T12:00:00.000Z",
+    }
+    const link = vi.fn(async () => publication)
+    const stamp = vi.fn(async () => run)
+    const client = await connectClient({
+      listAutomationRuns: vi.fn(async () => [run]),
+      linkPublishedOutput: link,
+      markAutomationRunPublished: stamp,
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_output_mark_published",
+      arguments: {
+        outputId: run.slideshowId,
+        platform: "tiktok",
+        publishedUrl: publication.releaseUrl,
+        publishedAt: publication.publishedAt,
+        requestId: "manual-link-1",
+        confirmLink: true,
+      },
+    })
+
+    expect(result.isError).not.toBe(true)
+    expect(link).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceType: "slideshow",
+        sourceId: run.slideshowId,
+        integrationId: "manual-tiktok",
+      })
+    )
+    expect(stamp).toHaveBeenCalledWith({
+      slideshowId: run.slideshowId,
+      runId: run.id,
+      publishedAt: new Date(publication.publishedAt),
+      publication,
+    })
+  })
+
   it("refuses to delete published outputs", async () => {
     const run = {
       ...generatedRun("automation-1"),

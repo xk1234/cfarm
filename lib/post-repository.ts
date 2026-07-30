@@ -1,7 +1,10 @@
 import crypto from "node:crypto"
 
 import { clean } from "@/lib/guards"
-import { outputPublicationsOwnerId } from "@/lib/output-publications"
+import {
+  outputPublicationsOwnerId,
+  writeCanonicalPostWithLegacyProjection,
+} from "@/lib/output-publications"
 import {
   appwritePostRepository,
   type PostPatch,
@@ -16,6 +19,7 @@ import type { PostContentType } from "@/lib/post-content-type"
 import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
 import {
   addPostFastPostStatsSources,
+  deletePostFastPostRecordById,
   listPostFastPostRecords,
   putPostFastPostRecord,
   type PostFastSourceType,
@@ -77,6 +81,12 @@ export type ExternalPostSeed = {
   statsSources?: readonly PostFastStatsSource[]
 }
 
+export type DeletePostsInput = {
+  sourceType?: PostFastSourceType
+  sourceIds?: string[]
+  integrationIds?: string[]
+}
+
 export interface PostRepository {
   listPosts(): Promise<Post[]>
   getPost(id: string): Promise<Post | null>
@@ -86,6 +96,8 @@ export interface PostRepository {
     claim: PostIdentityClaim
   ): Promise<PostIdentityRecord>
   patchPost(id: string, patch: PostPatch): Promise<Post | null>
+  deletePost(id: string): Promise<Post | null>
+  deletePosts(input: DeletePostsInput): Promise<Post[]>
   resolveOrCreateExternalPost(seed: ExternalPostSeed): Promise<Post>
   ensurePostForSnapshot(snapshot: SnapshotPostSeed): Promise<Post>
   addStatsSources(
@@ -144,12 +156,36 @@ export class ConfiguredPostRepository implements PostRepository {
         "The supplied post owner does not match the active owner."
       )
     }
-    if (postRepositoryWriteMode() === "canonical") {
+    const mode = postRepositoryWriteMode()
+    if (mode === "canonical") {
       return appwritePostRepository.upsertPost(normalized, {
         writeState: "reconciled",
       })
     }
-    await putPostFastPostRecord(postToPostFastRecord(normalized))
+    if (
+      mode === "dual" &&
+      (!normalized.sourceType ||
+        !normalized.sourceId ||
+        !normalized.integrationId ||
+        !normalized.provider)
+    ) {
+      return appwritePostRepository.upsertPost(normalized, {
+        writeState: "reconciled",
+      })
+    }
+    const projected = postToPostFastRecord(normalized)
+    const existing = (await listPostFastPostRecords()).find(
+      (record) => record.id === projected.id
+    )
+    const legacyRecord = {
+      ...projected,
+      analytics: existing?.analytics,
+      lastAnalyticsSyncedAt: existing?.lastAnalyticsSyncedAt,
+    }
+    if (mode === "dual") {
+      return writeCanonicalPostWithLegacyProjection(normalized, legacyRecord)
+    }
+    await putPostFastPostRecord(legacyRecord)
     return normalized
   }
 
@@ -176,6 +212,72 @@ export class ConfiguredPostRepository implements PostRepository {
       createdAt: current.createdAt,
       updatedAt: patch.updatedAt ?? new Date().toISOString(),
     })
+  }
+
+  async deletePost(id: string): Promise<Post | null> {
+    const mode = postRepositoryWriteMode()
+    const current =
+      (await this.getPost(id)) ??
+      (mode !== "legacy"
+        ? await appwritePostRepository.getPost(
+            await outputPublicationsOwnerId(),
+            id
+          )
+        : null)
+    if (!current) return null
+    if (mode !== "legacy") {
+      await appwritePostRepository.deletePost(current.ownerId, current.id)
+    }
+    if (mode !== "canonical") {
+      await deletePostFastPostRecordById(current.id)
+    }
+    return current
+  }
+
+  async deletePosts(input: DeletePostsInput): Promise<Post[]> {
+    const sourceIds = new Set(
+      (input.sourceIds ?? []).map(clean).filter(Boolean)
+    )
+    const integrationIds = new Set(
+      (input.integrationIds ?? []).map(clean).filter(Boolean)
+    )
+    if (
+      !input.sourceType &&
+      sourceIds.size === 0 &&
+      integrationIds.size === 0
+    ) {
+      return []
+    }
+    const visible = await this.listPosts()
+    const ownerId = await outputPublicationsOwnerId()
+    const canonical =
+      postRepositoryWriteMode() === "legacy"
+        ? []
+        : await appwritePostRepository.listPosts(ownerId)
+    const posts = [
+      ...new Map(
+        [...visible, ...canonical].map((post) => [post.id, post])
+      ).values(),
+    ].filter((post) => {
+      if (input.sourceType && post.sourceType !== input.sourceType) return false
+      if (
+        sourceIds.size > 0 &&
+        !sourceIds.has(post.sourceId ?? "") &&
+        !sourceIds.has(baseSourceId(post.sourceId))
+      ) {
+        return false
+      }
+      return (
+        integrationIds.size === 0 ||
+        integrationIds.has(post.integrationId ?? "")
+      )
+    })
+    const deleted: Post[] = []
+    for (const post of posts) {
+      const result = await this.deletePost(post.id)
+      if (result) deleted.push(result)
+    }
+    return deleted
   }
 
   async resolveOrCreateExternalPost(input: ExternalPostSeed): Promise<Post> {
@@ -342,15 +444,20 @@ export function upsertPost(post: Post) {
   return postRepository.upsertPost(post)
 }
 
-export function claimPostIdentity(
-  postId: string,
-  claim: PostIdentityClaim
-) {
+export function claimPostIdentity(postId: string, claim: PostIdentityClaim) {
   return postRepository.claimPostIdentity(postId, claim)
 }
 
 export function patchPost(id: string, patch: PostPatch) {
   return postRepository.patchPost(id, patch)
+}
+
+export function deletePost(id: string) {
+  return postRepository.deletePost(id)
+}
+
+export function deletePosts(input: DeletePostsInput) {
+  return postRepository.deletePosts(input)
 }
 
 export function resolveOrCreateExternalPost(seed: ExternalPostSeed) {
@@ -470,8 +577,8 @@ function assertCompatibleIdentity(
 ) {
   const samePostfastIdentity = Boolean(
     post.postfastPostId &&
-      seed.postfastPostId &&
-      post.postfastPostId === seed.postfastPostId
+    seed.postfastPostId &&
+    post.postfastPostId === seed.postfastPostId
   )
   if (
     post.integrationId &&
@@ -599,6 +706,10 @@ function normalizeSourceType(
     : undefined
 }
 
+function baseSourceId(value: string | undefined) {
+  return clean(value).split(":")[0] ?? ""
+}
+
 function normalizeContentType(
   value: PostContentType | undefined
 ): Post["contentType"] {
@@ -613,7 +724,7 @@ function normalizeContentType(
 function normalizeRepositoryPost(post: Post): Post {
   const normalized = normalizePost(post)
   if (!normalized) throw new Error("A valid canonical post is required.")
-  return normalized
+  return { ...normalized, content: post.content }
 }
 
 function compatibilityProjection(post: Post): Record<string, unknown> {

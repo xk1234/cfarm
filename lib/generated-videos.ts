@@ -16,6 +16,11 @@ import {
   readJsonArrayStore,
   upsertJsonArrayRecord,
 } from "@/lib/json-store"
+import {
+  markOutputPostPublished,
+  upsertGeneratedPostIntents,
+} from "@/lib/post-writer"
+import type { PostFastPostRecord } from "@/lib/postfast-posts"
 
 export type {
   GeneratedVideoCreatePayload,
@@ -86,6 +91,7 @@ export async function createGeneratedVideoExport(
       ? nextQueuePosition(records)
       : undefined
   await upsertGeneratedVideoExport(rootDir, record)
+  if (record.status === "ready") await upsertGeneratedVideoIntent(record)
   return record
 }
 
@@ -125,6 +131,7 @@ export async function updateGeneratedVideoExport(input: {
     updated.previewUrl
   )
   await upsertGeneratedVideoExport(rootDir, updated)
+  if (updated.status === "ready") await upsertGeneratedVideoIntent(updated)
   return updated
 }
 
@@ -132,6 +139,7 @@ export async function markGeneratedVideoExportPublished(input: {
   rootDir?: string
   id: string
   publishedAt?: Date
+  publication?: PostFastPostRecord
 }): Promise<GeneratedVideoExport | null> {
   const rootDir = input.rootDir ?? defaultGeneratedVideoRoot
   const existing = await getGeneratedVideoExport(input.id, rootDir)
@@ -144,7 +152,71 @@ export async function markGeneratedVideoExportPublished(input: {
     updatedAt: publishedAt,
   }
   await upsertGeneratedVideoExport(rootDir, updated)
+  await markOutputPostPublished({
+    sourceType: generatedVideoPostSourceType(updated),
+    sourceId: updated.id,
+    outputId: updated.id,
+    sourceEntityId: updated.id,
+    automationId:
+      clean(updated.sourceAutomationId) ||
+      clean(updated.sourceConfig.automationId) ||
+      undefined,
+    runId:
+      clean(updated.sourceRunId) ||
+      clean(updated.sourceConfig.runId) ||
+      undefined,
+    content:
+      [updated.description || updated.title, ...updated.hashtags]
+        .filter(Boolean)
+        .join("\n\n") || updated.title,
+    publishedAt,
+    publication: input.publication,
+    media: [
+      ...(updated.videoUrl
+        ? [{ kind: "video" as const, url: updated.videoUrl }]
+        : []),
+      ...(updated.previewUrl
+        ? [{ kind: "thumbnail" as const, url: updated.previewUrl }]
+        : []),
+    ],
+  })
   return updated
+}
+
+async function upsertGeneratedVideoIntent(record: GeneratedVideoExport) {
+  await upsertGeneratedPostIntents({
+    sourceType: generatedVideoPostSourceType(record),
+    sourceId: record.id,
+    outputId: record.id,
+    sourceEntityId: record.id,
+    automationId:
+      clean(record.sourceAutomationId) ||
+      clean(record.sourceConfig.automationId) ||
+      undefined,
+    runId:
+      clean(record.sourceRunId) ||
+      clean(record.sourceConfig.runId) ||
+      undefined,
+    content:
+      [record.description || record.title, ...record.hashtags]
+        .filter(Boolean)
+        .join("\n\n") || record.title,
+    media: [
+      ...(record.videoUrl
+        ? [{ kind: "video" as const, url: record.videoUrl }]
+        : []),
+      ...(record.previewUrl
+        ? [{ kind: "thumbnail" as const, url: record.previewUrl }]
+        : []),
+    ],
+    generatedAt: record.updatedAt,
+  })
+}
+
+function generatedVideoPostSourceType(record: GeneratedVideoExport) {
+  return record.type === "template_video"
+    ? ("generated_video" as const)
+    : record.type
 }
 
 export async function deleteGeneratedVideoExport(input: {

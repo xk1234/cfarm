@@ -12,16 +12,20 @@ const mocks = vi.hoisted(() => ({
   canonicalUpsert: vi.fn(),
   ownerId: vi.fn(),
   putRecord: vi.fn(),
+  writeCanonicalPostWithLegacyProjection: vi.fn(),
 }))
 
 vi.mock("@/lib/output-publications", () => ({
   outputPublicationsOwnerId: mocks.ownerId,
+  writeCanonicalPostWithLegacyProjection:
+    mocks.writeCanonicalPostWithLegacyProjection,
 }))
 
 vi.mock("@/lib/postfast-posts", () => ({
   addPostFastPostStatsSources: mocks.addStatsSources,
   listPostFastPostRecords: vi.fn(async () => mocks.records),
   putPostFastPostRecord: mocks.putRecord,
+  deletePostFastPostRecordById: vi.fn(),
 }))
 
 vi.mock("@/lib/post-repository-appwrite", () => ({
@@ -39,6 +43,7 @@ import {
   listPosts,
   PostIdentityConflictError,
   resolveOrCreateExternalPost,
+  upsertPost,
 } from "@/lib/post-repository"
 import { postFromPostFastRecord } from "@/lib/posts"
 
@@ -251,6 +256,56 @@ describe("legacy-backed post repository", () => {
     expect(mocks.canonicalList).not.toHaveBeenCalled()
   })
 
+  it("preserves legacy analytics fields when a canonical writer updates the row", async () => {
+    mocks.records = [
+      legacyRecord({
+        analytics: [
+          { label: "Views", data: [{ date: "2026-07-30", total: 7 }] },
+        ],
+        lastAnalyticsSyncedAt: "2026-07-30T01:00:00.000Z",
+      }),
+    ]
+    const post = {
+      ...postFromPostFastRecord(mocks.records[0], "owner-1"),
+      lifecycleStatus: "scheduled" as const,
+      scheduledAt: "2099-07-30T12:00:00.000Z",
+    }
+
+    await upsertPost(post)
+
+    expect(mocks.putRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "scheduled",
+        analytics: mocks.records[0].analytics,
+        lastAnalyticsSyncedAt: "2026-07-30T01:00:00.000Z",
+      })
+    )
+  })
+
+  it("keeps canonical identity fields intact at the centralized dual-write seam", async () => {
+    process.env.POST_REPOSITORY_WRITE_MODE = "dual"
+    const canonical = {
+      ...postFromPostFastRecord(legacyRecord(), "owner-1"),
+      intentId: "destination:slideshow-1:account-1",
+      outputId: "slideshow-1",
+      sourceRefs: [
+        { kind: "slideshow" as const, id: "slideshow-1" },
+        { kind: "run" as const, id: "run-1" },
+      ],
+    }
+    mocks.writeCanonicalPostWithLegacyProjection.mockResolvedValue(canonical)
+
+    await expect(upsertPost(canonical)).resolves.toEqual(canonical)
+    expect(mocks.writeCanonicalPostWithLegacyProjection).toHaveBeenCalledWith(
+      canonical,
+      expect.objectContaining({
+        id: canonical.id,
+        sourceType: canonical.sourceType,
+        sourceId: canonical.sourceId,
+      })
+    )
+  })
+
   it("returns the legacy adapter in union-shadow mode when projections match", async () => {
     process.env.POST_REPOSITORY_READ_MODE = "union-shadow"
     mocks.records = [legacyRecord()]
@@ -261,9 +316,7 @@ describe("legacy-backed post repository", () => {
 
     const posts = await listPosts()
 
-    expect(posts).toEqual([
-      postFromPostFastRecord(mocks.records[0], "owner-1"),
-    ])
+    expect(posts).toEqual([postFromPostFastRecord(mocks.records[0], "owner-1")])
     expect(warn).not.toHaveBeenCalled()
     warn.mockRestore()
   })

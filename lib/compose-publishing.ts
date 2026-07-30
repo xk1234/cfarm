@@ -70,6 +70,8 @@ export async function publishComposerValue(input: {
         settings: input.value.perNetwork[account.platformKey]?.fields,
         sourceType: "external",
         sourceId,
+        outputId: sourceId,
+        origin: "composer",
         rootDir: input.rootDir,
         request: input.request,
       })

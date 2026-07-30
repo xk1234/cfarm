@@ -42,10 +42,17 @@ export async function publishXAutomationRun(input: {
       type: "now",
       integrationId: integration.integration_id,
       provider: integration.provider,
-      content: contentFor(input.run, integration.provider, platformPosts[0].text),
+      content: contentFor(
+        input.run,
+        integration.provider,
+        platformPosts[0].text
+      ),
       controls: controlsFor(input.run, integration.provider),
       sourceType: "x_automation",
       sourceId: input.run.id,
+      outputId: input.run.id,
+      automationId: input.automation.id,
+      runId: input.run.id,
       rootDir: input.postfastRootDir,
       request: input.request,
     })

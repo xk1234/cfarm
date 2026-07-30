@@ -80,6 +80,7 @@ export interface AppwritePostStore {
     claim: PostIdentityClaim
   ): Promise<PostIdentityRecord>
   patchPost(ownerId: string, id: string, patch: PostPatch): Promise<Post | null>
+  deletePost(ownerId: string, id: string): Promise<Post | null>
   setPostWriteState(
     ownerId: string,
     id: string,
@@ -173,8 +174,7 @@ export class AppwritePostRepository implements AppwritePostStore {
     const stored = await this.getStoredPost(incoming.ownerId, targetId)
     if (stored) assertCompatiblePostIdentity(stored.post, incoming)
     const post = mergePost(stored?.post ?? null, incoming, targetId)
-    const writeState =
-      options.writeState ?? stored?.writeState ?? "reconciled"
+    const writeState = options.writeState ?? stored?.writeState ?? "reconciled"
     await tables().upsertRow(
       APPWRITE_DATABASE_ID,
       POSTS_TABLE,
@@ -229,6 +229,51 @@ export class AppwritePostRepository implements AppwritePostStore {
       createdAt: current.createdAt,
       updatedAt: patch.updatedAt ?? new Date().toISOString(),
     })
+  }
+
+  async deletePost(
+    ownerIdInput: string,
+    idInput: string
+  ): Promise<Post | null> {
+    const ownerId = required(ownerIdInput, "post owner")
+    const current = await this.getPost(ownerId, idInput)
+    if (!current) return null
+
+    const identities: IdentityRow[] = []
+    let cursor: string | null = null
+    for (;;) {
+      const queries = [
+        Query.equal("owner_id", [ownerId]),
+        Query.equal("post_id", [current.id]),
+        Query.limit(PAGE),
+      ]
+      if (cursor) queries.push(Query.cursorAfter(cursor))
+      const response = await tables().listRows(
+        APPWRITE_DATABASE_ID,
+        POST_IDENTITIES_TABLE,
+        queries
+      )
+      identities.push(...(response.rows as IdentityRow[]))
+      if (response.rows.length < PAGE) break
+      cursor = response.rows.at(-1)?.$id ?? null
+    }
+    for (const identity of identities) {
+      await tables().deleteRow(
+        APPWRITE_DATABASE_ID,
+        POST_IDENTITIES_TABLE,
+        identity.$id
+      )
+    }
+    try {
+      await tables().deleteRow(
+        APPWRITE_DATABASE_ID,
+        POSTS_TABLE,
+        postRowId(ownerId, current.id)
+      )
+    } catch (error) {
+      if (appwriteStatus(error) !== 404) throw error
+    }
+    return current
   }
 
   async setPostWriteState(
@@ -317,12 +362,7 @@ export function postRepairEvent(input: {
     eventId: `repair-${crypto
       .createHash("sha256")
       .update(
-        JSON.stringify([
-          input.ownerId,
-          input.postId,
-          input.target,
-          occurredAt,
-        ])
+        JSON.stringify([input.ownerId, input.postId, input.target, occurredAt])
       )
       .digest("hex")
       .slice(0, 24)}`,
@@ -485,8 +525,8 @@ function mergePost(current: Post | null, incoming: Post, id: string): Post {
 function assertCompatiblePostIdentity(current: Post, incoming: Post) {
   const samePostfastIdentity = Boolean(
     current.postfastPostId &&
-      incoming.postfastPostId &&
-      current.postfastPostId === incoming.postfastPostId
+    incoming.postfastPostId &&
+    current.postfastPostId === incoming.postfastPostId
   )
   if (
     current.integrationId &&
@@ -520,7 +560,15 @@ function assertCompatiblePostIdentity(current: Post, incoming: Post) {
   if (
     current.postfastPostId &&
     incoming.postfastPostId &&
-    current.postfastPostId !== incoming.postfastPostId
+    current.postfastPostId !== incoming.postfastPostId &&
+    !(
+      current.id === incoming.id &&
+      current.lifecycleStatus === "scheduled" &&
+      incoming.lifecycleStatus === "scheduled" &&
+      current.integrationId === incoming.integrationId &&
+      normalizeIdentityProvider(current.provider) ===
+        normalizeIdentityProvider(incoming.provider)
+    )
   ) {
     throw identityConflict(
       `Post "${current.id}" already claims a different PostFast post id.`

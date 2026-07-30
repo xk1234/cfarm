@@ -74,11 +74,11 @@ import {
   type PostFastMetricSnapshot,
 } from "@/lib/postfast-metric-snapshots"
 import {
-  deletePostFastPostRecords,
   listPostFastPostRecords,
   type PostFastPostRecord,
   type PostFastSourceType,
 } from "@/lib/postfast-posts"
+import { deletePosts as deletePostFastPostRecords } from "@/lib/post-repository"
 import { publicationLinkState as resolvedPublicationLinkState } from "@/lib/publication-link-state"
 import { publishPost } from "@/lib/publishing"
 import { enqueueJob, getJob, listJobs, type Job } from "@/lib/queue"
@@ -5376,11 +5376,13 @@ async function markOutputPublished(
       slideshowId: output.automationRun.slideshowId,
       runId: output.automationRun.id,
       publishedAt,
+      publication,
     })
   } else if (output.video) {
     await services.markGeneratedVideoExportPublished({
       id: output.video.id,
       publishedAt,
+      publication,
     })
   } else if (output.socialRun) {
     await services.upsertXAutomationRun({

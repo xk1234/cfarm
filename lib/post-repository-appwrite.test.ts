@@ -16,11 +16,13 @@ const mocks = vi.hoisted(() => {
   const conflict = () => Object.assign(new Error("conflict"), { code: 409 })
   return {
     rows,
-    getRow: vi.fn(async (_databaseId: string, tableId: string, rowId: string) => {
-      const row = table(tableId).get(rowId)
-      if (!row) throw missing()
-      return row
-    }),
+    getRow: vi.fn(
+      async (_databaseId: string, tableId: string, rowId: string) => {
+        const row = table(tableId).get(rowId)
+        if (!row) throw missing()
+        return row
+      }
+    ),
     createRow: vi.fn(
       async (
         _databaseId: string,
@@ -60,6 +62,11 @@ const mocks = vi.hoisted(() => {
         return row
       }
     ),
+    deleteRow: vi.fn(
+      async (_databaseId: string, tableId: string, rowId: string) => {
+        if (!table(tableId).delete(rowId)) throw missing()
+      }
+    ),
     listRows: vi.fn(
       async (_databaseId: string, tableId: string, queries: string[]) => {
         let values = [...table(tableId).values()]
@@ -89,6 +96,7 @@ vi.mock("@/lib/appwrite", () => ({
       createRow: mocks.createRow,
       upsertRow: mocks.upsertRow,
       updateRow: mocks.updateRow,
+      deleteRow: mocks.deleteRow,
       listRows: mocks.listRows,
     },
   }),
@@ -211,13 +219,60 @@ describe("AppwritePostRepository identity claims", () => {
       post({ id: "post-b", intentId: "intent-shared" })
     )
 
-    await expect(repository.getPost("owner-1", "post-b")).resolves.toMatchObject(
-      { id: first.id }
-    )
+    await expect(
+      repository.getPost("owner-1", "post-b")
+    ).resolves.toMatchObject({ id: first.id })
     await expect(
       repository.patchPost("owner-1", aliased.id, { content: "Patched" })
     ).resolves.toMatchObject({ id: first.id, content: "Patched" })
     expect(mocks.rows.get(POSTS_TABLE)?.size).toBe(1)
+  })
+
+  it("keeps one scheduled intent while claiming a replacement PostFast id", async () => {
+    await repository.upsertPost(
+      post({
+        id: "scheduled-1",
+        intentId: "scheduled-intent-1",
+        lifecycleStatus: "scheduled",
+        postfastPostId: "postfast-old",
+        externalPostId: undefined,
+        scheduledAt: "2099-07-30T12:00:00.000Z",
+      })
+    )
+    const rescheduled = await repository.upsertPost(
+      post({
+        id: "scheduled-1",
+        intentId: "scheduled-intent-1",
+        lifecycleStatus: "scheduled",
+        postfastPostId: "postfast-new",
+        externalPostId: undefined,
+        scheduledAt: "2099-07-31T12:00:00.000Z",
+      })
+    )
+
+    expect(rescheduled).toMatchObject({
+      id: "scheduled-1",
+      postfastPostId: "postfast-new",
+      scheduledAt: "2099-07-31T12:00:00.000Z",
+    })
+    expect(mocks.rows.get(POSTS_TABLE)?.size).toBe(1)
+  })
+
+  it("deletes a post and all of its identity claims", async () => {
+    await repository.upsertPost(
+      post({
+        id: "delete-1",
+        intentId: "delete-intent-1",
+        postfastPostId: "delete-postfast-1",
+        externalPostId: "delete-native-1",
+      })
+    )
+
+    await expect(
+      repository.deletePost("owner-1", "delete-1")
+    ).resolves.toMatchObject({ id: "delete-1" })
+    expect(mocks.rows.get(POSTS_TABLE)?.size).toBe(0)
+    expect(mocks.rows.get(POST_IDENTITIES_TABLE)?.size).toBe(0)
   })
 })
 

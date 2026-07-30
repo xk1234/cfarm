@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server"
 
 import { postfastRequest } from "@/lib/postfast-client"
-import {
-  deletePostFastPostRecordById,
-  getPostFastPostRecord,
-} from "@/lib/postfast-posts"
+import { getPostFastPostRecord } from "@/lib/postfast-posts"
+import { deletePost } from "@/lib/post-repository"
 import { postfastRouteError } from "@/lib/postfast-route"
 import { reschedulePost } from "@/lib/publishing"
 
@@ -78,7 +76,7 @@ export async function DELETE(
       `/social-posts/${encodeURIComponent(postfastPostId)}`,
       { method: "DELETE" }
     )
-    if (record) await deletePostFastPostRecordById(record.id)
+    if (record) await deletePost(record.id)
     return NextResponse.json({ deleted: true })
   } catch (error) {
     return postfastRouteError(error)

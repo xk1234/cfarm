@@ -23,6 +23,7 @@ import { listPostFastPostRecords } from "@/lib/postfast-posts"
 import { outputPublicationsOwnerId } from "@/lib/output-publications"
 import { resolveOrCreateTikTokPost } from "@/lib/tiktok-studio-analytics"
 import { enqueuePublishedCommentReminders } from "@/lib/publishing"
+import { postToPostFastRecord } from "@/lib/posts"
 import { getOpenRouterApiKey, openRouterJson } from "@/lib/openrouter"
 import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-registry"
 import {
@@ -294,6 +295,7 @@ export async function linkTikTokPublicationImport(input: {
       slideshowId: historicalRun.slideshowId,
       runId: historicalRun.id,
       publishedAt: new Date(match.post.publishedAt),
+      publication: postToPostFastRecord(publication),
     })
     results.push({
       postId: match.post.id,
