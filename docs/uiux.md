@@ -1,3 +1,7 @@
+---
+title: "UI and UX guidelines"
+---
+
 These are the guidelines for UI and UX.
 
 Toolbars should always have been within the minimum number of rows. Avoid buttons with both icons and text. Use only icon buttons whenever possible. Should be on the left, button and interactive elements should be on the right. Everything in toolbar should be aligned at the same height.
