@@ -2,10 +2,11 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 
 import {
+  metricSnapshotId,
   upsertMetricSnapshot,
   type PostFastMetricSnapshot,
 } from "@/lib/postfast-metric-snapshots"
-import { patchPostFastPostRecord } from "@/lib/postfast-posts"
+import { ensurePostForSnapshot } from "@/lib/post-repository"
 import { withSystemOwner } from "@/lib/system-owner-context"
 import {
   authorizeTikTokStudioCloudSync,
@@ -59,18 +60,20 @@ export async function POST(request: Request) {
     const { snapshot, publicationUpdated } = await withSystemOwner(
       ownerId,
       async () => {
-        const snapshot = await upsertMetricSnapshot(
-          parsed.data.snapshot as unknown as PostFastMetricSnapshot
-        )
-        const publication = snapshot.releaseUrl
-          ? await patchPostFastPostRecord({
-              id: snapshot.postId,
-              releaseUrl: snapshot.releaseUrl,
-            })
-          : null
+        const incoming = parsed.data
+          .snapshot as unknown as PostFastMetricSnapshot
+        const post = await ensurePostForSnapshot(incoming)
+        const snapshot = await upsertMetricSnapshot({
+          ...incoming,
+          id:
+            post.id === incoming.postId
+              ? incoming.id
+              : metricSnapshotId(post.id, incoming.capturedAt),
+          postId: post.id,
+        })
         return {
           snapshot,
-          publicationUpdated: Boolean(publication),
+          publicationUpdated: Boolean(post),
         }
       }
     )

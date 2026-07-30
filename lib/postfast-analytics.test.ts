@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => ({
   appendFollowerSnapshots: vi.fn(),
   appendMetricSnapshots: vi.fn(),
-  listPostFastPostRecords: vi.fn(),
+  ensurePostForSnapshot: vi.fn(),
   postfastRequest: vi.fn(),
 }))
 
@@ -17,8 +17,8 @@ vi.mock("@/lib/postfast-metric-snapshots", () => ({
   appendMetricSnapshots: mocks.appendMetricSnapshots,
 }))
 
-vi.mock("@/lib/postfast-posts", () => ({
-  listPostFastPostRecords: mocks.listPostFastPostRecords,
+vi.mock("@/lib/post-repository", () => ({
+  ensurePostForSnapshot: mocks.ensurePostForSnapshot,
 }))
 
 import { syncPostFastAnalytics } from "@/lib/postfast-analytics"
@@ -33,21 +33,30 @@ describe("syncPostFastAnalytics", () => {
       }))
     )
     mocks.appendFollowerSnapshots.mockResolvedValue([])
-    mocks.listPostFastPostRecords.mockResolvedValue([
-      {
-        id: "local-post-1",
-        sourceType: "automation",
-        sourceId: "run-1",
-        postfastPostId: "postfast-post-1",
-        integrationId: "integration-1",
-        provider: "tiktok",
-        status: "published",
-        content: "Local caption",
+    mocks.ensurePostForSnapshot.mockImplementation(async (snapshot) => {
+      if (snapshot.postfastPostId === "postfast-post-1") {
+        return {
+          id: "local-post-1",
+          sourceType: "automation",
+          sourceId: "run-1",
+          postfastPostId: "postfast-post-1",
+          integrationId: "integration-1",
+          provider: "tiktok",
+          status: "published",
+          content: "Local caption",
+          media: [],
+          createdAt: "2026-07-14T00:00:00.000Z",
+          updatedAt: "2026-07-14T00:00:00.000Z",
+        }
+      }
+      return {
+        id: snapshot.postId,
+        sourceType: "external",
+        sourceId: snapshot.platformPostId,
+        content: snapshot.content || "",
         media: [],
-        createdAt: "2026-07-14T00:00:00.000Z",
-        updatedAt: "2026-07-14T00:00:00.000Z",
-      },
-    ])
+      }
+    })
     mocks.postfastRequest.mockImplementation(async (path: string) => {
       if (path === "/social-posts/analytics") {
         return {
@@ -118,24 +127,35 @@ describe("syncPostFastAnalytics", () => {
       contentType: "video",
       latestMetric: { videoViews: 45, comments: 3 },
     })
+    expect(mocks.ensurePostForSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        postId: "native-post-2",
+        postfastPostId: "postfast-post-2",
+        platformPostId: "native-post-2",
+        integrationId: "integration-1",
+        provider: "tiktok",
+        source: "postfast",
+      })
+    )
+    expect(
+      mocks.ensurePostForSnapshot.mock.invocationCallOrder.at(-1)
+    ).toBeLessThan(mocks.appendMetricSnapshots.mock.invocationCallOrder[0])
   })
 
   it("attributes manually linked analytics through the provider-native id", async () => {
-    mocks.listPostFastPostRecords.mockResolvedValue([
-      {
-        id: "linked-publication-1",
-        sourceType: "slideshow",
-        sourceId: "slideshow-42",
-        externalPostId: "native-linked-42",
-        integrationId: "integration-1",
-        provider: "tiktok",
-        status: "published",
-        content: "Linked slideshow",
-        media: [],
-        createdAt: "2026-07-14T00:00:00.000Z",
-        updatedAt: "2026-07-14T00:00:00.000Z",
-      },
-    ])
+    mocks.ensurePostForSnapshot.mockResolvedValue({
+      id: "linked-publication-1",
+      sourceType: "slideshow",
+      sourceId: "slideshow-42",
+      externalPostId: "native-linked-42",
+      integrationId: "integration-1",
+      provider: "tiktok",
+      status: "published",
+      content: "Linked slideshow",
+      media: [],
+      createdAt: "2026-07-14T00:00:00.000Z",
+      updatedAt: "2026-07-14T00:00:00.000Z",
+    })
     mocks.postfastRequest.mockImplementation(async (path: string) => {
       if (path === "/social-posts/analytics") {
         return {

@@ -23,6 +23,10 @@ export async function listOutputPublications(): Promise<PostFastPostRecord[]> {
   return rows.flatMap((row) => parsePublications(row.publications))
 }
 
+export function outputPublicationsOwnerId(): Promise<string> {
+  return publicationOwnerId()
+}
+
 export async function listOutputPublicationsForSources(input: {
   entityIds?: string[]
   runIds?: string[]

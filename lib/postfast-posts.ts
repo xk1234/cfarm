@@ -161,6 +161,22 @@ export async function upsertPostFastPostRecord(
   return record
 }
 
+export async function putPostFastPostRecord(
+  input: PostFastPostRecord
+): Promise<PostFastPostRecord> {
+  const record = normalizeRecord(input)
+  if (!record) {
+    throw new Error("A valid legacy publication record is required.")
+  }
+  const records = await readPostFastPostRecords()
+  await writePostFastPostRecords(undefined, [
+    record,
+    ...records.filter((item) => item.id !== record.id),
+  ])
+  await recordHookPublication(record)
+  return record
+}
+
 export async function updatePostFastPostAnalytics(input: {
   rootDir?: string
   id: string

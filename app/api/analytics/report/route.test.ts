@@ -104,4 +104,63 @@ describe("analytics report", () => {
       }),
     ])
   })
+
+  it("joins an orphan-safe external publication to its preserved snapshot id", async () => {
+    const capturedAt = new Date().toISOString()
+    const publication: PostFastPostRecord = {
+      id: "preserved-orphan-post-id",
+      sourceType: "external",
+      sourceId: "native-external-1",
+      integrationId: "tiktok-1",
+      provider: "tiktok",
+      status: "published",
+      publishedAt: capturedAt,
+      linkState: "manually_linked",
+      statsSources: ["tiktok_studio"],
+      externalPostId: "native-external-1",
+      content: "Studio-discovered post",
+      media: [],
+      createdAt: capturedAt,
+      updatedAt: capturedAt,
+    }
+    const snapshot: PostFastMetricSnapshot = {
+      id: "snapshot-external-1",
+      postId: publication.id,
+      platformPostId: publication.externalPostId,
+      integrationId: publication.integrationId,
+      provider: publication.provider,
+      capturedAt,
+      content: publication.content,
+      sourceType: "external",
+      sourceId: publication.sourceId,
+      metrics: { views: 77 },
+      latestMetric: { views: 77 },
+      rawMetrics: { views: 77 },
+      observedKeys: ["views"],
+      source: "tiktok_studio",
+    }
+    mocks.listAnalyticsIntegrations.mockResolvedValue([])
+    mocks.listMetricSnapshots.mockResolvedValue([snapshot])
+    mocks.listPostFastPostRecords.mockResolvedValue([publication])
+
+    const response = await GET(
+      new Request("http://localhost/api/analytics/report?days=30")
+    )
+    const payload = await response.json()
+    const posts = latestPublicationsByPost(
+      payload.publications,
+      payload.snapshots
+    )
+
+    expect(posts).toEqual([
+      expect.objectContaining({
+        postId: "preserved-orphan-post-id",
+        metrics: { views: 77 },
+        publication: expect.objectContaining({
+          id: "preserved-orphan-post-id",
+          sourceType: "external",
+        }),
+      }),
+    ])
+  })
 })
