@@ -78,6 +78,45 @@ const schemas = {
     mediumtext("url"),
     string("created_at", 64),
   ],
+  posts: [
+    string("rid", 1024),
+    string("owner_id", 36),
+    string("source_key", 64),
+    integer("schema_version"),
+    string("intent_id", 1024),
+    string("origin", 64),
+    string("source_type", 64),
+    string("source_id", 1024),
+    string("output_id", 255),
+    string("source_automation_id", 255),
+    string("source_run_id", 255),
+    string("source_entity_id", 255),
+    string("integration_id", 255),
+    string("provider", 64),
+    string("lifecycle_status", 64),
+    string("link_state", 64),
+    string("postfast_post_id", 255),
+    string("external_post_id", 1024),
+    string("scheduled_at", 64),
+    string("published_at", 64),
+    string("created_at", 64),
+    string("updated_at", 64),
+    mediumtext("release_url"),
+    string("write_state", 32),
+    string("reconciled_at", 64),
+    longtext("repair_data"),
+    longtext("data"),
+  ],
+  post_identities: [
+    string("rid", 64),
+    string("owner_id", 36),
+    string("source_key", 64),
+    string("identity_kind", 64),
+    string("identity_hash", 64),
+    string("post_id", 1024),
+    string("created_at", 64),
+    longtext("data"),
+  ],
 }
 
 const indexes = {
@@ -150,6 +189,88 @@ const indexes = {
     index("idx_output", ["output_id"]),
     index("idx_owner", ["owner_id"]),
     index("idx_output_position", ["output_id", "position"], ["ASC", "ASC"]),
+  ],
+  posts: [
+    index("idx_rid", ["rid"], undefined, [255]),
+    index("idx_owner", ["owner_id"]),
+    index("idx_source", ["source_key"]),
+    index("idx_owner_rid", ["owner_id", "rid"], ["ASC", "ASC"], [0, 255]),
+    index(
+      "idx_owner_intent",
+      ["owner_id", "intent_id"],
+      ["ASC", "ASC"],
+      [0, 255]
+    ),
+    index(
+      "idx_owner_status_published",
+      ["owner_id", "lifecycle_status", "published_at"],
+      ["ASC", "ASC", "DESC"]
+    ),
+    index(
+      "idx_owner_status_scheduled",
+      ["owner_id", "lifecycle_status", "scheduled_at"],
+      ["ASC", "ASC", "ASC"]
+    ),
+    index(
+      "idx_owner_source",
+      ["owner_id", "source_type", "source_id"],
+      ["ASC", "ASC", "ASC"],
+      [0, 0, 255]
+    ),
+    index("idx_owner_output", ["owner_id", "output_id"], ["ASC", "ASC"]),
+    index(
+      "idx_owner_automation",
+      ["owner_id", "source_automation_id"],
+      ["ASC", "ASC"]
+    ),
+    index(
+      "idx_owner_run",
+      ["owner_id", "source_run_id"],
+      ["ASC", "ASC"]
+    ),
+    index(
+      "idx_owner_entity",
+      ["owner_id", "source_entity_id"],
+      ["ASC", "ASC"]
+    ),
+    index(
+      "idx_owner_integration",
+      ["owner_id", "integration_id"],
+      ["ASC", "ASC"]
+    ),
+    index(
+      "idx_owner_postfast",
+      ["owner_id", "postfast_post_id"],
+      ["ASC", "ASC"]
+    ),
+    index(
+      "idx_owner_external",
+      ["owner_id", "provider", "integration_id", "external_post_id"],
+      ["ASC", "ASC", "ASC", "ASC"],
+      [0, 0, 0, 255]
+    ),
+    index(
+      "idx_owner_write_state",
+      ["owner_id", "write_state"],
+      ["ASC", "ASC"]
+    ),
+  ],
+  post_identities: [
+    index("idx_rid", ["rid"]),
+    index("idx_owner", ["owner_id"]),
+    index("idx_source", ["source_key"]),
+    index("idx_hash", ["identity_hash"]),
+    index(
+      "idx_owner_kind_hash",
+      ["owner_id", "identity_kind", "identity_hash"],
+      ["ASC", "ASC", "ASC"]
+    ),
+    index(
+      "idx_owner_post",
+      ["owner_id", "post_id"],
+      ["ASC", "ASC"],
+      [0, 255]
+    ),
   ],
 }
 

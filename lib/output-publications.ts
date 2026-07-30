@@ -3,7 +3,14 @@ import { Query } from "node-appwrite"
 
 import { APPWRITE_DATABASE_ID, getAppwrite } from "@/lib/appwrite"
 import { getCurrentUser } from "@/lib/auth"
+import {
+  appwritePostRepository,
+  postRepairEvent,
+  type PostRepairEvent,
+} from "@/lib/post-repository-appwrite"
+import { postRepositoryWriteMode } from "@/lib/post-repository-config"
 import type { PostFastPostRecord } from "@/lib/postfast-posts"
+import { postFromPostFastRecord } from "@/lib/posts"
 import { systemOwnerId } from "@/lib/system-owner-context"
 
 const PAGE = 100
@@ -53,9 +60,138 @@ export async function listOutputPublicationsForSources(input: {
 export async function writeOutputPublications(
   records: PostFastPostRecord[]
 ): Promise<void> {
+  const mode = postRepositoryWriteMode()
+  if (mode === "legacy") {
+    await writeLegacyOutputPublications(records)
+    return
+  }
+
+  const ownerId = await publicationOwnerId()
+  const posts = records.map((record) =>
+    postFromPostFastRecord(record, ownerId)
+  )
+  if (mode === "canonical") {
+    for (const post of posts) {
+      await appwritePostRepository.upsertPost(post, {
+        writeState: "reconciled",
+      })
+    }
+    return
+  }
+
+  await dualWriteOutputPublications(ownerId, records, posts)
+}
+
+export class PostDualWriteError extends Error {
+  readonly code = "post_dual_write_incomplete"
+  readonly retryable = true
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options)
+    this.name = "PostDualWriteError"
+  }
+}
+
+async function dualWriteOutputPublications(
+  ownerId: string,
+  records: PostFastPostRecord[],
+  posts: ReturnType<typeof postFromPostFastRecord>[]
+) {
+  const pending: ReturnType<typeof postFromPostFastRecord>[] = []
+  try {
+    for (const post of posts) {
+      pending.push(
+        await appwritePostRepository.upsertPost(post, {
+          writeState: "pending",
+          reconciledAt: null,
+          repairEvent: null,
+        })
+      )
+    }
+  } catch (error) {
+    await markRepairs(
+      ownerId,
+      pending,
+      "canonical_posts",
+      errorMessage(error)
+    )
+    throw new PostDualWriteError(
+      "Canonical post persistence failed before the legacy publication write.",
+      { cause: error }
+    )
+  }
+
+  try {
+    await writeLegacyOutputPublications(records, ownerId)
+  } catch (error) {
+    await markRepairs(
+      ownerId,
+      pending,
+      "legacy_output_publications",
+      errorMessage(error)
+    )
+    throw new PostDualWriteError(
+      "Legacy publication persistence failed after the canonical post write.",
+      { cause: error }
+    )
+  }
+
+  try {
+    for (const post of pending) {
+      await appwritePostRepository.setPostWriteState(
+        ownerId,
+        post.id,
+        "reconciled",
+        { repairEvent: null }
+      )
+    }
+  } catch (error) {
+    await markRepairs(
+      ownerId,
+      pending,
+      "canonical_posts",
+      errorMessage(error)
+    )
+    throw new PostDualWriteError(
+      "Post dual-write completed but reconciliation could not be recorded.",
+      { cause: error }
+    )
+  }
+}
+
+async function markRepairs(
+  ownerId: string,
+  posts: ReturnType<typeof postFromPostFastRecord>[],
+  target: PostRepairEvent["target"],
+  message: string
+) {
+  await Promise.allSettled(
+    posts.map((post) =>
+      appwritePostRepository.setPostWriteState(
+        ownerId,
+        post.id,
+        "repair_required",
+        {
+          reconciledAt: null,
+          repairEvent: postRepairEvent({
+            ownerId,
+            postId: post.id,
+            target,
+            message,
+          }),
+        }
+      )
+    )
+  )
+}
+
+async function writeLegacyOutputPublications(
+  records: PostFastPostRecord[],
+  resolvedOwnerId?: string
+): Promise<void> {
   const aw = getAppwrite()
   if (!aw) throw new Error("Appwrite is not configured.")
-  const ownerId = await publicationOwnerId()
+  const ownerId = resolvedOwnerId ?? (await publicationOwnerId())
   const rows = await listOutputRows(ownerId)
   const desiredById = new Map(records.map((record) => [record.id, record]))
   const assigned = new Set<string>()
@@ -82,6 +218,10 @@ export async function writeOutputPublications(
     await updateOutputPublications(target, next)
     target.publications = JSON.stringify(next)
   }
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
 }
 
 async function listOutputRows(

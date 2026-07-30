@@ -1,10 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { PostFastPostRecord } from "@/lib/postfast-posts"
 
 const mocks = vi.hoisted(() => ({
   records: [] as PostFastPostRecord[],
   addStatsSources: vi.fn(),
+  canonicalClaim: vi.fn(),
+  canonicalGet: vi.fn(),
+  canonicalList: vi.fn(),
+  canonicalPatch: vi.fn(),
+  canonicalUpsert: vi.fn(),
   ownerId: vi.fn(),
   putRecord: vi.fn(),
 }))
@@ -19,17 +24,32 @@ vi.mock("@/lib/postfast-posts", () => ({
   putPostFastPostRecord: mocks.putRecord,
 }))
 
+vi.mock("@/lib/post-repository-appwrite", () => ({
+  appwritePostRepository: {
+    listPosts: mocks.canonicalList,
+    getPost: mocks.canonicalGet,
+    upsertPost: mocks.canonicalUpsert,
+    claimPostIdentity: mocks.canonicalClaim,
+    patchPost: mocks.canonicalPatch,
+  },
+}))
+
 import {
   ensurePostForSnapshot,
+  listPosts,
   PostIdentityConflictError,
   resolveOrCreateExternalPost,
 } from "@/lib/post-repository"
+import { postFromPostFastRecord } from "@/lib/posts"
 
 describe("legacy-backed post repository", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    delete process.env.POST_REPOSITORY_READ_MODE
+    delete process.env.POST_REPOSITORY_WRITE_MODE
     mocks.records = []
     mocks.ownerId.mockResolvedValue("owner-1")
+    mocks.canonicalList.mockResolvedValue([])
     mocks.putRecord.mockImplementation(async (record: PostFastPostRecord) => {
       mocks.records = [
         record,
@@ -37,6 +57,11 @@ describe("legacy-backed post repository", () => {
       ]
       return record
     })
+  })
+
+  afterEach(() => {
+    delete process.env.POST_REPOSITORY_READ_MODE
+    delete process.env.POST_REPOSITORY_WRITE_MODE
   })
 
   it("preserves an orphan snapshot post id and is idempotent", async () => {
@@ -215,6 +240,57 @@ describe("legacy-backed post repository", () => {
       )
     ).rejects.toBeInstanceOf(PostIdentityConflictError)
     expect(mocks.putRecord).not.toHaveBeenCalled()
+  })
+
+  it("keeps legacy reads as the default without touching canonical storage", async () => {
+    mocks.records = [legacyRecord()]
+
+    await expect(listPosts()).resolves.toEqual([
+      postFromPostFastRecord(mocks.records[0], "owner-1"),
+    ])
+    expect(mocks.canonicalList).not.toHaveBeenCalled()
+  })
+
+  it("returns the legacy adapter in union-shadow mode when projections match", async () => {
+    process.env.POST_REPOSITORY_READ_MODE = "union-shadow"
+    mocks.records = [legacyRecord()]
+    mocks.canonicalList.mockResolvedValue([
+      postFromPostFastRecord(mocks.records[0], "owner-1"),
+    ])
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+
+    const posts = await listPosts()
+
+    expect(posts).toEqual([
+      postFromPostFastRecord(mocks.records[0], "owner-1"),
+    ])
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it("logs a structured diff but still returns legacy in union-shadow mode", async () => {
+    process.env.POST_REPOSITORY_READ_MODE = "union-shadow"
+    mocks.records = [legacyRecord()]
+    mocks.canonicalList.mockResolvedValue([
+      {
+        ...postFromPostFastRecord(mocks.records[0], "owner-1"),
+        content: "Canonical drift",
+      },
+    ])
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+
+    const posts = await listPosts()
+
+    expect(posts[0].content).toBe("Existing post")
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(String(warn.mock.calls[0][0]))).toMatchObject({
+      event: "post_repository_shadow_diff",
+      ownerId: "owner-1",
+      diff: {
+        mismatched: [{ id: "canonical-post-1", fields: ["content"] }],
+      },
+    })
+    warn.mockRestore()
   })
 })
 

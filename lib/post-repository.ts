@@ -2,6 +2,16 @@ import crypto from "node:crypto"
 
 import { clean } from "@/lib/guards"
 import { outputPublicationsOwnerId } from "@/lib/output-publications"
+import {
+  appwritePostRepository,
+  type PostPatch,
+  type PostIdentityRecord,
+} from "@/lib/post-repository-appwrite"
+import {
+  postRepositoryReadMode,
+  postRepositoryWriteMode,
+} from "@/lib/post-repository-config"
+import { PostIdentityConflictError } from "@/lib/post-repository-errors"
 import type { PostContentType } from "@/lib/post-content-type"
 import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
 import {
@@ -13,6 +23,7 @@ import {
 } from "@/lib/postfast-posts"
 import {
   normalizeIdentityProvider,
+  normalizePost,
   normalizePostProvider,
   postFromPostFastRecord,
   postIdentityClaims,
@@ -69,6 +80,12 @@ export type ExternalPostSeed = {
 export interface PostRepository {
   listPosts(): Promise<Post[]>
   getPost(id: string): Promise<Post | null>
+  upsertPost(post: Post): Promise<Post>
+  claimPostIdentity(
+    postId: string,
+    claim: PostIdentityClaim
+  ): Promise<PostIdentityRecord>
+  patchPost(id: string, patch: PostPatch): Promise<Post | null>
   resolveOrCreateExternalPost(seed: ExternalPostSeed): Promise<Post>
   ensurePostForSnapshot(snapshot: SnapshotPostSeed): Promise<Post>
   addStatsSources(
@@ -76,30 +93,89 @@ export interface PostRepository {
   ): Promise<number>
 }
 
-export class PostIdentityConflictError extends Error {
-  readonly code = "post_identity_conflict"
+export { PostIdentityConflictError } from "@/lib/post-repository-errors"
 
-  constructor(message: string) {
-    super(message)
-    this.name = "PostIdentityConflictError"
-  }
-}
-
-class LegacyPostRepository implements PostRepository {
+export class ConfiguredPostRepository implements PostRepository {
   async listPosts(): Promise<Post[]> {
-    const [ownerId, records] = await Promise.all([
-      outputPublicationsOwnerId(),
-      listPostFastPostRecords(),
-    ])
-    return records.map((record) => postFromPostFastRecord(record, ownerId))
+    const mode = postRepositoryReadMode()
+    const ownerId = await outputPublicationsOwnerId()
+    if (mode === "canonical") {
+      return appwritePostRepository.listPosts(ownerId)
+    }
+    const legacy = (await listPostFastPostRecords()).map((record) =>
+      postFromPostFastRecord(record, ownerId)
+    )
+    if (mode === "legacy") return legacy
+
+    try {
+      const canonical = await appwritePostRepository.listPosts(ownerId)
+      logPostRepositoryShadowDiff(ownerId, legacy, canonical)
+    } catch (error) {
+      console.warn(
+        JSON.stringify({
+          event: "post_repository_shadow_error",
+          ownerId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      )
+    }
+    return legacy
   }
 
   async getPost(id: string): Promise<Post | null> {
     const normalizedId = clean(id)
     if (!normalizedId) return null
+    if (postRepositoryReadMode() === "canonical") {
+      return appwritePostRepository.getPost(
+        await outputPublicationsOwnerId(),
+        normalizedId
+      )
+    }
     return (
       (await this.listPosts()).find((post) => post.id === normalizedId) ?? null
     )
+  }
+
+  async upsertPost(post: Post): Promise<Post> {
+    const normalized = normalizeRepositoryPost(post)
+    const ownerId = await outputPublicationsOwnerId()
+    if (normalized.ownerId !== ownerId) {
+      throw new PostIdentityConflictError(
+        "The supplied post owner does not match the active owner."
+      )
+    }
+    if (postRepositoryWriteMode() === "canonical") {
+      return appwritePostRepository.upsertPost(normalized, {
+        writeState: "reconciled",
+      })
+    }
+    await putPostFastPostRecord(postToPostFastRecord(normalized))
+    return normalized
+  }
+
+  async claimPostIdentity(
+    postId: string,
+    claim: PostIdentityClaim
+  ): Promise<PostIdentityRecord> {
+    return appwritePostRepository.claimPostIdentity(
+      await outputPublicationsOwnerId(),
+      postId,
+      claim
+    )
+  }
+
+  async patchPost(id: string, patch: PostPatch): Promise<Post | null> {
+    const current = await this.getPost(id)
+    if (!current) return null
+    return this.upsertPost({
+      ...current,
+      ...patch,
+      schemaVersion: 1,
+      id: current.id,
+      ownerId: current.ownerId,
+      createdAt: current.createdAt,
+      updatedAt: patch.updatedAt ?? new Date().toISOString(),
+    })
   }
 
   async resolveOrCreateExternalPost(input: ExternalPostSeed): Promise<Post> {
@@ -110,9 +186,7 @@ class LegacyPostRepository implements PostRepository {
         "The supplied post owner does not match the active owner."
       )
     }
-    const posts = (await listPostFastPostRecords()).map((record) =>
-      postFromPostFastRecord(record, repositoryOwnerId)
-    )
+    const posts = await this.listPosts()
     const suppliedClaims = postIdentityClaims({
       ownerId: seed.ownerId,
       id: seed.postId,
@@ -200,8 +274,7 @@ class LegacyPostRepository implements PostRepository {
       mergedIntoId: current?.mergedIntoId,
     }
 
-    await putPostFastPostRecord(postToPostFastRecord(post))
-    return post
+    return this.upsertPost(post)
   }
 
   async ensurePostForSnapshot(snapshot: SnapshotPostSeed): Promise<Post> {
@@ -232,12 +305,30 @@ class LegacyPostRepository implements PostRepository {
 
   addStatsSources(
     sourcesByPostId: ReadonlyMap<string, readonly PostFastStatsSource[]>
-  ) {
+  ): Promise<number> {
+    if (postRepositoryWriteMode() === "canonical") {
+      return this.addCanonicalStatsSources(sourcesByPostId)
+    }
     return addPostFastPostStatsSources(sourcesByPostId)
+  }
+
+  private async addCanonicalStatsSources(
+    sourcesByPostId: ReadonlyMap<string, readonly PostFastStatsSource[]>
+  ) {
+    let changed = 0
+    for (const [postId, incoming] of sourcesByPostId) {
+      const current = await this.getPost(postId)
+      if (!current) continue
+      const statsSources = [...new Set([...current.statsSources, ...incoming])]
+      if (statsSources.length === current.statsSources.length) continue
+      await this.patchPost(postId, { statsSources })
+      changed += 1
+    }
+    return changed
   }
 }
 
-export const postRepository: PostRepository = new LegacyPostRepository()
+export const postRepository: PostRepository = new ConfiguredPostRepository()
 
 export function listPosts() {
   return postRepository.listPosts()
@@ -245,6 +336,21 @@ export function listPosts() {
 
 export function getPost(id: string) {
   return postRepository.getPost(id)
+}
+
+export function upsertPost(post: Post) {
+  return postRepository.upsertPost(post)
+}
+
+export function claimPostIdentity(
+  postId: string,
+  claim: PostIdentityClaim
+) {
+  return postRepository.claimPostIdentity(postId, claim)
+}
+
+export function patchPost(id: string, patch: PostPatch) {
+  return postRepository.patchPost(id, patch)
 }
 
 export function resolveOrCreateExternalPost(seed: ExternalPostSeed) {
@@ -259,6 +365,73 @@ export function addPostStatsSources(
   sourcesByPostId: ReadonlyMap<string, readonly PostFastStatsSource[]>
 ) {
   return postRepository.addStatsSources(sourcesByPostId)
+}
+
+export type PostRepositoryShadowDiff = {
+  missingCanonicalIds: string[]
+  missingLegacyIds: string[]
+  mismatched: Array<{ id: string; fields: string[] }>
+}
+
+export function postRepositoryShadowDiff(
+  legacy: Post[],
+  canonical: Post[]
+): PostRepositoryShadowDiff {
+  const legacyById = new Map(legacy.map((post) => [post.id, post]))
+  const canonicalById = new Map(canonical.map((post) => [post.id, post]))
+  const missingCanonicalIds = [...legacyById.keys()]
+    .filter((id) => !canonicalById.has(id))
+    .sort()
+  const missingLegacyIds = [...canonicalById.keys()]
+    .filter((id) => !legacyById.has(id))
+    .sort()
+  const mismatched = [...legacyById.keys()]
+    .flatMap((id) => {
+      const legacyPost = legacyById.get(id)
+      const canonicalPost = canonicalById.get(id)
+      if (!legacyPost || !canonicalPost) return []
+      const legacyProjection = compatibilityProjection(legacyPost)
+      const canonicalProjection = compatibilityProjection(canonicalPost)
+      const fields = [
+        ...new Set([
+          ...Object.keys(legacyProjection),
+          ...Object.keys(canonicalProjection),
+        ]),
+      ]
+        .filter(
+          (field) =>
+            JSON.stringify(legacyProjection[field]) !==
+            JSON.stringify(canonicalProjection[field])
+        )
+        .sort()
+      return fields.length ? [{ id, fields }] : []
+    })
+    .sort((left, right) => left.id.localeCompare(right.id))
+  return { missingCanonicalIds, missingLegacyIds, mismatched }
+}
+
+export function logPostRepositoryShadowDiff(
+  ownerId: string,
+  legacy: Post[],
+  canonical: Post[]
+) {
+  const diff = postRepositoryShadowDiff(legacy, canonical)
+  if (
+    diff.missingCanonicalIds.length === 0 &&
+    diff.missingLegacyIds.length === 0 &&
+    diff.mismatched.length === 0
+  ) {
+    return
+  }
+  console.warn(
+    JSON.stringify({
+      event: "post_repository_shadow_diff",
+      ownerId,
+      legacyCount: legacy.length,
+      canonicalCount: canonical.length,
+      diff,
+    })
+  )
 }
 
 function resolveSuppliedClaims(
@@ -295,7 +468,16 @@ function assertCompatibleIdentity(
   post: Post,
   seed: ReturnType<typeof normalizeExternalPostSeed>
 ) {
-  if (post.integrationId && post.integrationId !== seed.integrationId) {
+  const samePostfastIdentity = Boolean(
+    post.postfastPostId &&
+      seed.postfastPostId &&
+      post.postfastPostId === seed.postfastPostId
+  )
+  if (
+    post.integrationId &&
+    post.integrationId !== seed.integrationId &&
+    !samePostfastIdentity
+  ) {
     throw new PostIdentityConflictError(
       `Post "${post.id}" belongs to a different integration.`
     )
@@ -426,4 +608,22 @@ function normalizeContentType(
     value === "text"
     ? value
     : undefined
+}
+
+function normalizeRepositoryPost(post: Post): Post {
+  const normalized = normalizePost(post)
+  if (!normalized) throw new Error("A valid canonical post is required.")
+  return normalized
+}
+
+function compatibilityProjection(post: Post): Record<string, unknown> {
+  try {
+    return postToPostFastRecord(post) as unknown as Record<string, unknown>
+  } catch (error) {
+    return {
+      id: post.id,
+      unprojectable:
+        error instanceof Error ? error.message : "Legacy projection failed.",
+    }
+  }
 }

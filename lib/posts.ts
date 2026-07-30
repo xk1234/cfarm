@@ -274,7 +274,7 @@ export function postIdentityClaims(
   }
 
   add("post_id", [clean(input.id)])
-  add("postfast", [clean(input.integrationId), clean(input.postfastPostId)])
+  add("postfast", [clean(input.postfastPostId)])
   add("provider_external", [
     normalizeIdentityProvider(input.provider),
     clean(input.integrationId),

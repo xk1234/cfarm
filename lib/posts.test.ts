@@ -102,4 +102,25 @@ describe("canonical posts", () => {
     expect(first).toEqual(providerAlias)
     expect(first).not.toEqual(otherIntegration)
   })
+
+  it("scopes PostFast identities by owner rather than integration", () => {
+    const first = postIdentityClaims({
+      ownerId: "owner-1",
+      integrationId: "account-1",
+      postfastPostId: "postfast-42",
+    })
+    const reconnected = postIdentityClaims({
+      ownerId: "owner-1",
+      integrationId: "account-2",
+      postfastPostId: "postfast-42",
+    })
+    const otherOwner = postIdentityClaims({
+      ownerId: "owner-2",
+      integrationId: "account-1",
+      postfastPostId: "postfast-42",
+    })
+
+    expect(first).toEqual(reconnected)
+    expect(first).not.toEqual(otherOwner)
+  })
 })
