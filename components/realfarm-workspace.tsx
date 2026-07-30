@@ -199,6 +199,7 @@ export function RealFarmWorkspace({
   const [xAutomations, setXAutomations] = useState<XAutomationRecord[]>([])
   const [xAutomationsLoaded, setXAutomationsLoaded] = useState(false)
   const [xAutomationRuns, setXAutomationRuns] = useState<XAutomationRun[]>([])
+  const [xAutomationRunsLoaded, setXAutomationRunsLoaded] = useState(false)
   const [automationNameEdits, setAutomationNameEdits] = useState<
     Record<string, string>
   >({})
@@ -361,21 +362,16 @@ export function RealFarmWorkspace({
   ])
 
   useEffect(() => {
-    if (view !== "automations" || xAutomationsLoaded) return
+    if ((view !== "home" && view !== "automations") || xAutomationsLoaded)
+      return
     let active = true
-    void Promise.all([
-      fetchJsonWithTimeout<{ automations?: XAutomationRecord[] }>(
-        "/api/x-automations"
-      ),
-      fetchJsonWithTimeout<{ runs?: XAutomationRun[] }>(
-        "/api/x-automations/generate"
-      ),
-    ])
-      .then(([automationPayload, runPayload]) => {
+    void fetchJsonWithTimeout<{ automations?: XAutomationRecord[] }>(
+      "/api/x-automations"
+    )
+      .then((automationPayload) => {
         if (!active) return
         const loadedAutomations = automationPayload.automations ?? []
         setXAutomations(loadedAutomations)
-        setXAutomationRuns(runPayload.runs ?? [])
         const linked = loadedAutomations
           .map(xAutomationToAutomation)
           .find((automation) => automation.id === linkedAutomationId)
@@ -389,6 +385,24 @@ export function RealFarmWorkspace({
       active = false
     }
   }, [linkedAutomationId, view, xAutomationsLoaded])
+
+  useEffect(() => {
+    if (view !== "automations" || xAutomationRunsLoaded) return
+    let active = true
+    void fetchJsonWithTimeout<{ runs?: XAutomationRun[] }>(
+      "/api/x-automations/generate"
+    )
+      .then((payload) => {
+        if (active) setXAutomationRuns(payload.runs ?? [])
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setXAutomationRunsLoaded(true)
+      })
+    return () => {
+      active = false
+    }
+  }, [view, xAutomationRunsLoaded])
 
   useEffect(() => {
     let active = true
@@ -826,25 +840,27 @@ export function RealFarmWorkspace({
           onNewAutomation={() => setTemplateFolderOpen(true)}
           onSettings={() => setSettingsOpen(true)}
         />
-        {!fillsWorkspace ? (
-          <MobileNavigation
-            view={view}
-            onViewChange={changeView}
-            onNewAutomation={() => setTemplateFolderOpen(true)}
-            onSettings={() => setSettingsOpen(true)}
-          />
-        ) : null}
+        <MobileNavigation
+          view={view}
+          onViewChange={changeView}
+          onNewAutomation={() => setTemplateFolderOpen(true)}
+          onSettings={() => setSettingsOpen(true)}
+        />
         <section
           className={cn(
             "min-w-0 flex-1 overflow-y-auto",
             fillsWorkspace
-              ? "p-0"
+              ? "pt-14 md:p-0"
               : "px-4 pt-[4.5rem] pb-4 sm:px-5 sm:pt-[4.75rem] sm:pb-5 md:py-5 lg:px-7"
           )}
         >
           {view === "home" && (
             <HomeView
               currentUserId={user.id}
+              automations={automations}
+              automationsLoading={
+                !persistedAutomationsLoaded || !xAutomationsLoaded
+              }
               templates={templateAutomations}
               recentRunsByAutomationId={showcaseRunsByAutomationId}
               publishedPostDates={publishedPostDates}

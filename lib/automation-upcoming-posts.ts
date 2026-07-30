@@ -9,6 +9,36 @@ export type UpcomingAutomationPost = {
   scheduledAt: string
 }
 
+export type NextUpcomingAutomationPost = UpcomingAutomationPost & {
+  automationId: string
+  automationName: string
+}
+
+export function nextUpcomingAutomationPost(
+  automations: Automation[],
+  now = new Date()
+): NextUpcomingAutomationPost | null {
+  let next: NextUpcomingAutomationPost | null = null
+
+  for (const automation of automations) {
+    if (automation.status !== "live" || automation.schedule?.paused === true) {
+      continue
+    }
+    const post = upcomingAutomationPosts(automation, now, 1)[0]
+    if (!post) continue
+    if (next && Date.parse(post.scheduledAt) >= Date.parse(next.scheduledAt)) {
+      continue
+    }
+    next = {
+      ...post,
+      automationId: automation.id,
+      automationName: automation.name,
+    }
+  }
+
+  return next
+}
+
 export function upcomingAutomationPosts(
   automation: Automation,
   now = new Date(),

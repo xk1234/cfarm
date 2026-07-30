@@ -1,6 +1,8 @@
 import Image from "next/image"
 import Link from "next/link"
 
+import { MarketingMobileMenu } from "@/components/marketing/marketing-mobile-menu"
+
 const navigation = [
   ["Product", "/product"],
   ["Solutions", "/solutions"],
@@ -15,6 +17,7 @@ export function MarketingNav() {
       <div className="mx-auto flex h-18 max-w-[1280px] items-center justify-between px-5 lg:px-8">
         <Link
           href="/"
+          aria-label="LumenClip home"
           className="flex items-center gap-2.5 font-semibold tracking-[-0.03em]"
         >
           <span className="overflow-hidden rounded-app-control">
@@ -38,7 +41,7 @@ export function MarketingNav() {
             </Link>
           ))}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="hidden items-center gap-2 md:flex">
           <Link
             href="/login"
             className="rounded-app-control px-3 py-2 text-sm font-medium hover:bg-brand-surface sm:px-4"
@@ -52,6 +55,7 @@ export function MarketingNav() {
             Create account
           </Link>
         </div>
+        <MarketingMobileMenu />
       </div>
     </nav>
   )

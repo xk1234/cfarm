@@ -160,13 +160,13 @@ export function Sidebar({
 }
 
 /**
- * Standard mobile pattern: a top bar with a hamburger that opens a full-height
- * drawer.
+ * Standard mobile pattern: a branded top bar with a hamburger that opens a
+ * full-screen menu.
  *
  * This replaced a fixed bottom tab bar. The bar had to squeeze seven
  * destinations into one row, so every label truncated to ~10px and adding an
- * eighth would have broken the layout. A drawer scales with the nav instead of
- * fighting it, and matches what people expect on a mobile site.
+ * eighth would have broken the layout. A full-screen menu scales with the nav
+ * instead of fighting it, and matches what people expect on a mobile site.
  */
 export function MobileNavigation({
   view,
@@ -185,7 +185,6 @@ export function MobileNavigation({
 }) {
   const [open, setOpen] = useState(false)
   const items = [...topNav, ...slideshowNav]
-  const active = items.find((item) => item.key === view)
 
   // Close on route change and lock the page behind the drawer.
   useEffect(() => {
@@ -209,7 +208,11 @@ export function MobileNavigation({
   return (
     <>
       <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-app-panel-border bg-white/95 px-4 backdrop-blur md:hidden">
-        <span className="flex items-center gap-2">
+        <Link
+          href="/app"
+          className="lc-focus-ring flex items-center gap-2 rounded-[10px]"
+          aria-label="LumenClip home"
+        >
           <span className="flex size-7 items-center justify-center overflow-hidden rounded-lg">
             <Image
               src="/brand/lumenclip-mark.png"
@@ -220,14 +223,14 @@ export function MobileNavigation({
             />
           </span>
           <span className="text-[14px] font-semibold tracking-[-0.02em] text-app-text">
-            {active?.label ?? "LumenClip"}
+            LumenClip
           </span>
-        </span>
+        </Link>
         <button
           type="button"
           aria-label="Open menu"
           aria-expanded={open}
-          aria-controls="mobile-nav-drawer"
+          aria-controls="mobile-nav-menu"
           onClick={() => setOpen(true)}
           className="lc-focus-ring flex size-10 items-center justify-center rounded-[10px] text-app-text active:bg-app-control-hover"
         >
@@ -236,25 +239,41 @@ export function MobileNavigation({
       </header>
 
       {open ? (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <button
-            type="button"
-            aria-label="Close menu"
-            onClick={() => setOpen(false)}
-            className="absolute inset-0 bg-black/35"
-          />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Mobile navigation"
+          className="fixed inset-0 z-50 bg-white md:hidden"
+        >
           <nav
-            id="mobile-nav-drawer"
+            id="mobile-nav-menu"
             aria-label="Primary navigation"
-            className="absolute inset-y-0 right-0 flex w-[82%] max-w-[320px] flex-col overflow-y-auto bg-white shadow-[-12px_0_32px_rgba(25,18,45,0.14)]"
+            className="flex h-svh w-full flex-col overflow-y-auto bg-white"
           >
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-app-panel-border px-4">
-              <span className="text-[14px] font-semibold text-app-text">
-                Menu
-              </span>
+              <Link
+                href="/app"
+                onClick={() => setOpen(false)}
+                className="lc-focus-ring flex items-center gap-2 rounded-[10px]"
+                aria-label="LumenClip home"
+              >
+                <span className="flex size-7 items-center justify-center overflow-hidden rounded-lg">
+                  <Image
+                    src="/brand/lumenclip-mark.png"
+                    alt=""
+                    width={28}
+                    height={28}
+                    className="size-7"
+                  />
+                </span>
+                <span className="text-[14px] font-semibold tracking-[-0.02em] text-app-text">
+                  LumenClip
+                </span>
+              </Link>
               <button
                 type="button"
                 aria-label="Close menu"
+                autoFocus
                 onClick={() => setOpen(false)}
                 className="lc-focus-ring flex size-10 items-center justify-center rounded-[10px] text-app-text active:bg-app-control-hover"
               >

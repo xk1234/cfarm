@@ -259,12 +259,21 @@ function localPostCalendarItem(
 ): CalendarItem[] {
   const status = calendarLifecycleForLocalPost(post.status)
   if (!status) return []
+  // Posts that PostFast scheduled/published also come back through the remote
+  // /social-posts feed. Only surface local publications the remote feed omits
+  // (e.g. manually linked posts) so published posts are not double-counted.
+  if (status === "published" && post.postfastPostId) return []
   const context = runContexts.get(post.sourceId)
   const automationId =
     context?.automationId ||
     (automationById.has(post.sourceId) ? post.sourceId : undefined)
   const automation = automationId ? automationById.get(automationId) : undefined
-  const datetime = context?.slot || clean(post.scheduledAt || post.createdAt)
+  const datetime =
+    status === "published"
+      ? clean(post.publishedAt) ||
+        context?.slot ||
+        clean(post.scheduledAt || post.createdAt)
+      : context?.slot || clean(post.scheduledAt || post.createdAt)
   if (!inRange(datetime, from, to)) return []
   const target = postTarget(post, status, automation)
   return [
@@ -289,6 +298,7 @@ function localPostCalendarItem(
         content: automationId
           ? contentLink(automationId, post.sourceId)
           : undefined,
+        live: clean(post.releaseUrl),
       },
       timestamps: {
         createdAt: post.createdAt,
@@ -538,6 +548,7 @@ function localPostTitle(status: PostFastPostRecord["status"]) {
   if (status === "awaiting_manual_post") return "Manual post due"
   if (status === "ready_for_review") return "Post needs review"
   if (status === "failed") return "Publish failed"
+  if (status === "published") return "Published post"
   return "Draft post"
 }
 

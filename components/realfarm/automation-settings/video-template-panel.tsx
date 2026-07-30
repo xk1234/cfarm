@@ -224,7 +224,7 @@ export function VideoTemplateFormatPanel({
   }
 
   return (
-    <div className="grid min-h-svh bg-app-surface md:grid-cols-[380px_1fr]">
+    <div className="grid min-h-[calc(100svh-3.5rem)] bg-app-surface md:min-h-svh md:grid-cols-[380px_1fr]">
       <aside className="flex min-h-0 flex-col border-r border-app-panel-border bg-app-surface-subtle">
         <div className="flex h-12 items-center justify-between border-b border-app-panel-border px-3">
           <button

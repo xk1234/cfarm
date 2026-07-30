@@ -243,6 +243,45 @@ describe("GET /api/calendar", () => {
     ])
   })
 
+  it("surfaces manually published posts and dates them by publishedAt", async () => {
+    mocks.listPostFastPostRecords.mockResolvedValue([
+      localPost({
+        id: "published-manual",
+        status: "published",
+        publishedAt: "2099-07-15T02:30:00.000Z",
+        releaseUrl: "https://tiktok.com/@creator/video/1",
+      }),
+      // Backed by a PostFast id -> comes back via the remote feed, so the
+      // local record must not double-count it.
+      localPost({
+        id: "published-remote",
+        status: "published",
+        postfastPostId: "remote-9",
+        publishedAt: "2099-07-15T03:00:00.000Z",
+      }),
+    ])
+
+    const { GET } = await import("./route")
+    const response = await GET(
+      new Request(
+        "http://localhost/api/calendar?from=2099-07-15T00:00:00.000Z&to=2099-07-15T23:59:59.999Z"
+      )
+    )
+    const payload = await response.json()
+
+    expect(payload.items).toEqual([
+      expect.objectContaining({
+        id: "local:published-manual",
+        status: "published",
+        datetime: "2099-07-15T02:30:00.000Z",
+        title: "Published post",
+        links: expect.objectContaining({
+          live: "https://tiktok.com/@creator/video/1",
+        }),
+      }),
+    ])
+  })
+
   it("rejects invalid or reversed ranges", async () => {
     const { GET } = await import("./route")
     const invalid = await GET(

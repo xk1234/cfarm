@@ -446,7 +446,7 @@ export function RecentPosts({
           label="recent posts"
         />
       </div>
-      <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {visiblePosts.map((post) => {
           const account =
             accounts.get(post.integrationId) ?? fallbackIntegration(post)
@@ -476,7 +476,7 @@ export function RecentPosts({
               type="button"
               onClick={() => onSelect(post)}
               className={cn(
-                "lc-focus-ring group min-w-[220px] flex-1 basis-0 overflow-hidden rounded-card border bg-app-surface text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(35,24,67,0.09)] active:translate-y-0",
+                "lc-focus-ring group overflow-hidden rounded-card border bg-app-surface text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(35,24,67,0.09)] active:translate-y-0",
                 link.state === "unlinked"
                   ? "border-2 border-dashed border-app-danger"
                   : link.state === "manually_linked"

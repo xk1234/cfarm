@@ -147,6 +147,7 @@ export function calendarLifecycleForLocalPost(
   }
   if (status === "draft") return "draft"
   if (status === "failed") return "failed"
+  if (status === "published") return "published"
   return null
 }
 

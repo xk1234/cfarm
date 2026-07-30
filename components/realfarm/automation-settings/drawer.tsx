@@ -556,7 +556,7 @@ export function AutomationSettingsDrawer({
   return (
     <div
       className={cn(
-        "grid min-h-svh overflow-hidden bg-app-surface",
+        "grid min-h-[calc(100svh-3.5rem)] overflow-hidden bg-app-surface md:min-h-svh",
         activeTab !== "format" && "md:grid-cols-[246px_1fr]"
       )}
     >

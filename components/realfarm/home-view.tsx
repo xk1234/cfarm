@@ -1,10 +1,12 @@
 "use client"
 
-import Image from "next/image"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ComponentType } from "react"
 import {
+  IconAlertCircle,
+  IconBolt,
   IconChevronLeft,
   IconChevronRight,
+  IconClock,
   IconPhoto,
   IconPlayerPlay,
   IconPlus,
@@ -13,6 +15,7 @@ import {
   IconVideo,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
+import useSWR from "swr"
 
 import {
   TemplateGeneratedPreview,
@@ -35,6 +38,9 @@ import type { AutomationRunApiRecord } from "@/components/realfarm/automation-se
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
+import { clientSWRFetcher } from "@/lib/client-swr"
+import { nextUpcomingAutomationPost } from "@/lib/automation-upcoming-posts"
+import type { CalendarAlertSummary } from "@/lib/calendar-summary"
 import type { GeneratedVideoExport } from "@/lib/generated-video-types"
 import type { Automation } from "@/lib/realfarm-data"
 import { PostFrequencyGraph } from "@/components/realfarm/post-frequency-graph"
@@ -47,6 +53,8 @@ const QUICK_START_ITEMS_PER_PAGE = 6
 
 export function HomeView({
   currentUserId,
+  automations,
+  automationsLoading,
   publishedPostDates,
   templates,
   recentRunsByAutomationId,
@@ -60,6 +68,8 @@ export function HomeView({
   onGenerationRunRemove,
 }: {
   currentUserId: string
+  automations: Automation[]
+  automationsLoading?: boolean
   /** When each LINKED post went out. Generated drafts are not posts. */
   publishedPostDates: string[]
   templates: Automation[]
@@ -82,6 +92,13 @@ export function HomeView({
   const [videosError, setVideosError] = useState("")
   const [page, setPage] = useState(1)
   const [quickStartPage, setQuickStartPage] = useState(1)
+  const { data: calendarStatus } = useSWR<{
+    summary: CalendarAlertSummary
+  }>("/api/calendar/summary", clientSWRFetcher, {
+    refreshInterval: 10 * 60_000,
+    refreshWhenHidden: false,
+    refreshWhenOffline: false,
+  })
   const [selectedExample, setSelectedExample] = useState<{
     automation: Automation
     slideshowId?: string
@@ -91,6 +108,17 @@ export function HomeView({
     runId: string
   } | null>(null)
   const quickStartTemplates = templates
+  const activeAutomationCount = automations.filter(
+    (automation) =>
+      automation.status === "live" && automation.schedule?.paused !== true
+  ).length
+  const nextPost = useMemo(
+    () => nextUpcomingAutomationPost(automations),
+    [automations]
+  )
+  const outstandingActionCount = calendarStatus
+    ? calendarStatus.summary.needsAction + calendarStatus.summary.failed
+    : null
   const generatedSlideshowCards = useMemo(
     () => generatedHomeSlideshowCards(generatedRunsByAutomationId),
     [generatedRunsByAutomationId]
@@ -188,28 +216,42 @@ export function HomeView({
 
   return (
     <div className="mx-auto max-w-[1280px] pb-16">
-      <div className="flex items-center gap-2.5 py-2 md:hidden">
-        <span className="flex size-8 items-center justify-center overflow-hidden rounded-[9px]">
-          <Image
-            src="/brand/lumenclip-mark.png"
-            alt=""
-            width={32}
-            height={32}
-            className="size-8 object-contain"
-          />
-        </span>
-        <span className="text-[16px] font-semibold tracking-[-0.03em] text-app-text">
-          LumenClip
-        </span>
-      </div>
       <h1 className="pt-5 text-[30px] leading-none font-semibold tracking-[-0.04em] text-app-text sm:pt-7">
         Home
       </h1>
       <section className="py-7 text-center sm:py-10 lg:py-14">
-        <div className="mx-auto max-w-[980px]">
+        <div className="mx-auto max-w-[1100px]">
           <div className="lc-spectrum mx-auto mb-5 h-1 w-14 rounded-full" />
-          {/* Cadence, not a tagline: the gaps are the useful signal here. */}
-          <PostFrequencyGraph dates={publishedPostDates} />
+          <div className="grid items-stretch gap-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-10">
+            {/* Cadence, not a tagline: the gaps are the useful signal here. */}
+            <PostFrequencyGraph
+              dates={publishedPostDates}
+              className="min-w-0 lg:mx-0"
+            />
+            <div className="grid grid-cols-2 gap-2 text-left sm:grid-cols-3 lg:grid-cols-1">
+              <DashboardMetric
+                className="col-span-2 sm:col-span-1"
+                icon={IconClock}
+                label="Next expected post"
+                value={
+                  automationsLoading
+                    ? null
+                    : (nextPost?.label ?? "Nothing scheduled")
+                }
+                title={nextPost?.scheduledAt}
+              />
+              <DashboardMetric
+                icon={IconBolt}
+                label="Active automations"
+                value={automationsLoading ? null : activeAutomationCount}
+              />
+              <DashboardMetric
+                icon={IconAlertCircle}
+                label="Outstanding actions"
+                value={outstandingActionCount}
+              />
+            </div>
+          </div>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             <Button variant="action" size="appDefault" onClick={onCreate}>
               <IconPlus className="size-5" />
@@ -537,6 +579,49 @@ function GeneratedSlideshowCard({
           </button>
         )}
       </MediaCardShell>
+    </div>
+  )
+}
+
+function DashboardMetric({
+  className,
+  icon: Icon,
+  label,
+  value,
+  title,
+}: {
+  className?: string
+  icon: ComponentType<{ className?: string }>
+  label: string
+  value: string | number | null
+  title?: string
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-h-[86px] items-center gap-3 rounded-[12px] border border-app-panel-border bg-app-surface px-4 py-3 shadow-sm",
+        className
+      )}
+      title={title}
+    >
+      <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-app-strong/10 text-app-strong">
+        <Icon className="size-[18px]" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[11px] leading-4 font-semibold tracking-[0.08em] text-app-text-faint uppercase">
+          {label}
+        </span>
+        <span className="mt-0.5 block truncate text-[17px] leading-6 font-semibold tracking-[-0.025em] text-app-text">
+          {value === null ? (
+            <span
+              className="inline-block h-4 w-16 animate-pulse rounded bg-app-control-hover"
+              aria-label={`${label} loading`}
+            />
+          ) : (
+            value
+          )}
+        </span>
+      </span>
     </div>
   )
 }
