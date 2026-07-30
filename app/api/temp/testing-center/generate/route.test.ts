@@ -1,5 +1,21 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+const mocks = vi.hoisted(() => ({
+  getCurrentUser: vi.fn(),
+}))
+
+vi.mock("@/lib/auth", () => ({
+  getCurrentUser: mocks.getCurrentUser,
+}))
+
+beforeEach(() => {
+  mocks.getCurrentUser.mockResolvedValue({
+    $id: "user-1",
+    email: "user@example.com",
+    name: "Test User",
+    emailVerification: true,
+  })
+})
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -9,6 +25,26 @@ afterEach(() => {
 })
 
 describe("POST /api/temp/testing-center/generate", () => {
+  it("requires an authenticated app session", async () => {
+    mocks.getCurrentUser.mockResolvedValue(null)
+
+    const { POST } = await import("./route")
+    const response = await POST(
+      new Request("http://localhost/api/temp/testing-center/generate", {
+        method: "POST",
+        body: JSON.stringify({
+          automationId: "template-hook-only",
+          model: "anthropic/claude-sonnet-4.5",
+        }),
+      })
+    )
+
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.toEqual({
+      error: "Authentication required",
+    })
+  })
+
   it("generates metadata for hook-only templates with no model-fillable slide text", async () => {
     const result = {
       title: "Cute Nail Ideas",
