@@ -12,10 +12,7 @@ import {
   schemaWithAutomationHookItems,
 } from "@/lib/realfarm-automation"
 import { uniqueHookTemplateMatch } from "@/lib/hook-expansion"
-import {
-  linkPublishedOutput,
-  samePublicationProvider,
-} from "@/lib/manual-publication-linking"
+import { samePublicationProvider } from "@/lib/manual-publication-linking"
 import { parseManualPublicationUrl } from "@/lib/manual-publication"
 import {
   normalizePostFastIntegration,
@@ -23,6 +20,9 @@ import {
   type PostFastSocialIntegration,
 } from "@/lib/postfast-client"
 import { listPostFastPostRecords } from "@/lib/postfast-posts"
+import { outputPublicationsOwnerId } from "@/lib/output-publications"
+import { resolveOrCreateTikTokPost } from "@/lib/tiktok-studio-analytics"
+import { enqueuePublishedCommentReminders } from "@/lib/publishing"
 import { getOpenRouterApiKey, openRouterJson } from "@/lib/openrouter"
 import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-registry"
 import {
@@ -132,6 +132,7 @@ export async function startTikTokPublicationImport(urls: string[]) {
 export async function inspectTikTokPublicationImport(input: {
   operationId: string
   automationId: string
+  integrationId?: string
 }): Promise<TikTokImportPreview> {
   const automation = await requireAutomation(input.automationId)
   const runPayload = await apifyJson<{ data?: ApifyRun }>(
@@ -172,6 +173,8 @@ export async function inspectTikTokPublicationImport(input: {
     posts: hydratedPosts.map((post) => {
       const linked = publications.find(
         (publication) =>
+          (!clean(input.integrationId) ||
+            publication.integrationId === clean(input.integrationId)) &&
           samePublicationProvider(publication.provider, "tiktok") &&
           publication.externalPostId === post.id
       )
@@ -216,6 +219,7 @@ export async function linkTikTokPublicationImport(input: {
   const preview = await inspectTikTokPublicationImport({
     operationId: input.operationId,
     automationId: automation.id,
+    integrationId: input.integrationId,
   })
   if (preview.status !== "SUCCEEDED" || !preview.posts) {
     throw new Error("The TikTok import has not finished")
@@ -228,12 +232,19 @@ export async function linkTikTokPublicationImport(input: {
     )
     if (!match)
       throw new Error(`TikTok post ${selection.postId} was not imported`)
-    if (match.alreadyLinked) {
+    const publications = await listPostFastPostRecords()
+    const alreadyLinked = publications.find(
+      (publication) =>
+        publication.integrationId === integration.integration_id &&
+        samePublicationProvider(publication.provider, "tiktok") &&
+        publication.externalPostId === match.post.id
+    )
+    if (alreadyLinked) {
       results.push({
         postId: match.post.id,
-        sourceId: match.alreadyLinked.sourceId,
-        releaseUrl: match.alreadyLinked.releaseUrl ?? match.post.url,
-        publishedAt: match.alreadyLinked.publishedAt ?? match.post.publishedAt,
+        sourceId: alreadyLinked.sourceId,
+        releaseUrl: alreadyLinked.releaseUrl ?? match.post.url,
+        publishedAt: alreadyLinked.publishedAt ?? match.post.publishedAt,
         alreadyLinked: true,
       })
       continue
@@ -249,11 +260,19 @@ export async function linkTikTokPublicationImport(input: {
     if (!historicalRun.slideshowId) {
       throw new Error(`Run ${historicalRun.id} has no slideshow output`)
     }
-    const publication = await linkPublishedOutput({
+    const generatedPost = publications.find(
+      (publication) =>
+        publication.sourceType === "slideshow" &&
+        publication.sourceId === historicalRun.slideshowId &&
+        publication.integrationId === integration.integration_id
+    )
+    const publication = await resolveOrCreateTikTokPost({
+      ownerId: await outputPublicationsOwnerId(),
+      postId: generatedPost?.id,
       sourceType: "slideshow",
       sourceId: historicalRun.slideshowId,
       integrationId: integration.integration_id,
-      provider: integration.provider,
+      externalPostId: match.post.id,
       releaseUrl: match.post.url,
       publishedAt: match.post.publishedAt,
       content:
@@ -261,7 +280,16 @@ export async function linkTikTokPublicationImport(input: {
         [historicalRun.plan.caption, historicalRun.plan.hashtags]
           .filter(Boolean)
           .join("\n\n"),
+      origin: "tiktok_publication_import",
+      linkMethod: "tiktok_publication_import",
     })
+    await enqueuePublishedCommentReminders({
+      sourceType: publication.sourceType!,
+      sourceId: publication.sourceId!,
+      content: publication.content,
+      releaseUrl: publication.releaseUrl,
+      publishedAt: publication.publishedAt,
+    }).catch(() => undefined)
     await markAutomationRunPublished({
       slideshowId: historicalRun.slideshowId,
       runId: historicalRun.id,

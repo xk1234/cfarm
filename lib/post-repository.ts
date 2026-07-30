@@ -1,3 +1,5 @@
+import crypto from "node:crypto"
+
 import { clean } from "@/lib/guards"
 import { outputPublicationsOwnerId } from "@/lib/output-publications"
 import type { PostContentType } from "@/lib/post-content-type"
@@ -39,9 +41,35 @@ export type SnapshotPostSeed = Pick<
   postfastPostId?: string
 }
 
+export type ExternalPostSeed = {
+  ownerId: string
+  provider: string
+  integrationId: string
+  externalPostId: string
+  postId?: string
+  postfastPostId?: string
+  origin: Extract<
+    Post["origin"],
+    "postfast_sync" | "tiktok_publication_import" | "tiktok_studio_import"
+  >
+  linkMethod: Extract<
+    NonNullable<Post["linkMethod"]>,
+    "analytics_sync" | "tiktok_publication_import" | "tiktok_studio"
+  >
+  sourceType?: PostFastSourceType
+  sourceId?: string
+  publishedAt?: string
+  releaseUrl?: string
+  content?: string
+  contentType?: Post["contentType"]
+  thumbnailUrl?: string
+  statsSources?: readonly PostFastStatsSource[]
+}
+
 export interface PostRepository {
   listPosts(): Promise<Post[]>
   getPost(id: string): Promise<Post | null>
+  resolveOrCreateExternalPost(seed: ExternalPostSeed): Promise<Post>
   ensurePostForSnapshot(snapshot: SnapshotPostSeed): Promise<Post>
   addStatsSources(
     sourcesByPostId: ReadonlyMap<string, readonly PostFastStatsSource[]>
@@ -74,27 +102,34 @@ class LegacyPostRepository implements PostRepository {
     )
   }
 
-  async ensurePostForSnapshot(snapshot: SnapshotPostSeed): Promise<Post> {
-    const ownerId = await outputPublicationsOwnerId()
+  async resolveOrCreateExternalPost(input: ExternalPostSeed): Promise<Post> {
+    const repositoryOwnerId = await outputPublicationsOwnerId()
+    const seed = normalizeExternalPostSeed(input)
+    if (repositoryOwnerId !== seed.ownerId) {
+      throw new PostIdentityConflictError(
+        "The supplied post owner does not match the active owner."
+      )
+    }
     const posts = (await listPostFastPostRecords()).map((record) =>
-      postFromPostFastRecord(record, ownerId)
+      postFromPostFastRecord(record, repositoryOwnerId)
     )
-    const seed = normalizeSnapshotSeed(snapshot)
     const suppliedClaims = postIdentityClaims({
-      ownerId,
+      ownerId: seed.ownerId,
       id: seed.postId,
       integrationId: seed.integrationId,
       provider: seed.provider,
       postfastPostId: seed.postfastPostId,
       externalPostId: seed.externalPostId,
     })
-    const existingById = posts.find((post) => post.id === seed.postId) ?? null
+    const existingById = seed.postId
+      ? (posts.find((post) => post.id === seed.postId) ?? null)
+      : null
     const claimed = resolveSuppliedClaims(posts, suppliedClaims)
     const claimedPost = claimed.at(0) ?? null
 
     if (existingById && claimedPost && existingById.id !== claimedPost.id) {
       throw new PostIdentityConflictError(
-        `Snapshot post id "${seed.postId}" conflicts with an existing remote identity claim.`
+        `Post id "${seed.postId}" conflicts with an existing remote identity claim.`
       )
     }
     const current = existingById ?? claimedPost
@@ -107,17 +142,17 @@ class LegacyPostRepository implements PostRepository {
       seed.sourceId ??
       seed.externalPostId ??
       seed.postfastPostId ??
-      seed.postId
+      deterministicExternalPostId(seed)
     const post: Post = {
       schemaVersion: 1,
-      id: current?.id ?? seed.postId,
-      intentId: current?.intentId ?? `legacy:${seed.postId}`,
-      ownerId,
-      origin:
-        current?.origin ??
-        (seed.source === "tiktok_studio"
-          ? "tiktok_studio_import"
-          : "postfast_sync"),
+      id: current?.id ?? seed.postId ?? deterministicExternalPostId(seed),
+      intentId:
+        current?.intentId ??
+        (seed.postId
+          ? `legacy:${seed.postId}`
+          : `external:${seed.provider}:${seed.integrationId}:${seed.externalPostId}`),
+      ownerId: seed.ownerId,
+      origin: current?.origin ?? seed.origin,
       sourceType,
       sourceId,
       sourceRefs: current?.sourceRefs.length
@@ -133,15 +168,18 @@ class LegacyPostRepository implements PostRepository {
         current?.linkState === "postfast_managed"
           ? "postfast_managed"
           : "externally_linked",
-      linkMethod:
-        current?.linkMethod ??
-        (seed.source === "tiktok_studio" ? "tiktok_studio" : "analytics_sync"),
+      linkMethod: current?.linkMethod ?? seed.linkMethod,
       integrationId: seed.integrationId,
       provider: seed.provider,
       postfastPostId: seed.postfastPostId ?? current?.postfastPostId,
       externalPostId: seed.externalPostId ?? current?.externalPostId,
       releaseUrl: seed.releaseUrl ?? current?.releaseUrl,
-      statsSources: current?.statsSources ?? [],
+      statsSources: [
+        ...new Set([
+          ...(current?.statsSources ?? []),
+          ...(seed.statsSources ?? []),
+        ]),
+      ],
       title: current?.title,
       content: seed.content ?? current?.content ?? "",
       hashtags: current?.hashtags ?? [],
@@ -166,6 +204,32 @@ class LegacyPostRepository implements PostRepository {
     return post
   }
 
+  async ensurePostForSnapshot(snapshot: SnapshotPostSeed): Promise<Post> {
+    const ownerId = await outputPublicationsOwnerId()
+    const seed = normalizeSnapshotSeed(snapshot)
+    return this.resolveOrCreateExternalPost({
+      ownerId,
+      provider: seed.provider,
+      integrationId: seed.integrationId,
+      externalPostId: seed.externalPostId ?? seed.postfastPostId ?? seed.postId,
+      postId: seed.postId,
+      postfastPostId: seed.postfastPostId,
+      origin:
+        seed.source === "tiktok_studio"
+          ? "tiktok_studio_import"
+          : "postfast_sync",
+      linkMethod:
+        seed.source === "tiktok_studio" ? "tiktok_studio" : "analytics_sync",
+      sourceType: seed.sourceType,
+      sourceId: seed.sourceId,
+      publishedAt: seed.publishedAt,
+      releaseUrl: seed.releaseUrl,
+      content: seed.content,
+      contentType: seed.contentType,
+      thumbnailUrl: seed.thumbnailUrl,
+    })
+  }
+
   addStatsSources(
     sourcesByPostId: ReadonlyMap<string, readonly PostFastStatsSource[]>
   ) {
@@ -181,6 +245,10 @@ export function listPosts() {
 
 export function getPost(id: string) {
   return postRepository.getPost(id)
+}
+
+export function resolveOrCreateExternalPost(seed: ExternalPostSeed) {
+  return postRepository.resolveOrCreateExternalPost(seed)
 }
 
 export function ensurePostForSnapshot(snapshot: SnapshotPostSeed) {
@@ -225,7 +293,7 @@ function resolveSuppliedClaims(
 
 function assertCompatibleIdentity(
   post: Post,
-  seed: ReturnType<typeof normalizeSnapshotSeed>
+  seed: ReturnType<typeof normalizeExternalPostSeed>
 ) {
   if (post.integrationId && post.integrationId !== seed.integrationId) {
     throw new PostIdentityConflictError(
@@ -250,6 +318,53 @@ function assertCompatibleIdentity(
       `Post "${post.id}" already claims a different external post id.`
     )
   }
+}
+
+function normalizeExternalPostSeed(input: ExternalPostSeed) {
+  const ownerId = clean(input.ownerId)
+  const integrationId = clean(input.integrationId)
+  const provider = normalizePostProvider(input.provider)
+  const externalPostId = clean(input.externalPostId)
+  if (!ownerId || !integrationId || !provider || !externalPostId) {
+    throw new Error(
+      "A post owner, integration, supported provider, and external post id are required."
+    )
+  }
+  return {
+    ownerId,
+    integrationId,
+    provider,
+    externalPostId,
+    postId: clean(input.postId) || undefined,
+    postfastPostId: clean(input.postfastPostId) || undefined,
+    origin: input.origin,
+    linkMethod: input.linkMethod,
+    sourceType: normalizeSourceType(input.sourceType),
+    sourceId: clean(input.sourceId) || undefined,
+    publishedAt: clean(input.publishedAt) || undefined,
+    releaseUrl: clean(input.releaseUrl) || undefined,
+    content: clean(input.content) || undefined,
+    contentType: input.contentType,
+    thumbnailUrl: clean(input.thumbnailUrl) || undefined,
+    statsSources: input.statsSources,
+  }
+}
+
+function deterministicExternalPostId(
+  seed: ReturnType<typeof normalizeExternalPostSeed>
+) {
+  return `external-${crypto
+    .createHash("sha256")
+    .update(
+      JSON.stringify([
+        seed.ownerId,
+        normalizeIdentityProvider(seed.provider),
+        seed.integrationId,
+        seed.externalPostId,
+      ])
+    )
+    .digest("hex")
+    .slice(0, 24)}`
 }
 
 function normalizeSnapshotSeed(snapshot: SnapshotPostSeed) {

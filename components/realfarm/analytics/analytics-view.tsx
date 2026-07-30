@@ -228,7 +228,9 @@ export function AnalyticsView({
       )}
       {showTikTokStudioSync ? (
         <TikTokStudioBatchDialog
-          integrationIds={resolvedPlatformAccountIds}
+          accounts={platformAccounts.filter((account) =>
+            resolvedPlatformAccountIds.includes(account.integration_id)
+          )}
           onClose={() => setShowTikTokStudioSync(false)}
           onLinked={() => void refreshReport()}
         />

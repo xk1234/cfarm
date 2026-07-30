@@ -22,6 +22,7 @@ vi.mock("@/lib/postfast-posts", () => ({
 import {
   ensurePostForSnapshot,
   PostIdentityConflictError,
+  resolveOrCreateExternalPost,
 } from "@/lib/post-repository"
 
 describe("legacy-backed post repository", () => {
@@ -133,7 +134,104 @@ describe("legacy-backed post repository", () => {
       "account-2-post",
     ])
   })
+
+  it("creates one external TikTok post and resolves it on retry", async () => {
+    const seed = externalSeed()
+
+    const first = await resolveOrCreateExternalPost(seed)
+    const second = await resolveOrCreateExternalPost(seed)
+
+    expect(second.id).toBe(first.id)
+    expect(first).toMatchObject({
+      origin: "tiktok_studio_import",
+      integrationId: "integration-1",
+      provider: "tiktok",
+      externalPostId: "native-1",
+      lifecycleStatus: "published",
+      sourceType: "external",
+      sourceId: "native-1",
+    })
+    expect(mocks.records).toHaveLength(1)
+  })
+
+  it("keeps the same TikTok external id distinct across integrations", async () => {
+    const first = await resolveOrCreateExternalPost(externalSeed())
+    const second = await resolveOrCreateExternalPost(
+      externalSeed({ integrationId: "integration-2" })
+    )
+
+    expect(second.id).not.toBe(first.id)
+    expect(mocks.records).toHaveLength(2)
+  })
+
+  it("enriches an existing generated post instead of duplicating it", async () => {
+    mocks.records = [
+      legacyRecord({
+        id: "generated-post",
+        sourceType: "slideshow",
+        sourceId: "slideshow-1",
+        status: "draft",
+        linkState: "unlinked",
+        externalPostId: undefined,
+        releaseUrl: undefined,
+      }),
+    ]
+
+    const post = await resolveOrCreateExternalPost(
+      externalSeed({
+        postId: "generated-post",
+        sourceType: "slideshow",
+        sourceId: "slideshow-1",
+      })
+    )
+
+    expect(post).toMatchObject({
+      id: "generated-post",
+      origin: "automation_generation",
+      lifecycleStatus: "published",
+      externalPostId: "native-1",
+    })
+    expect(mocks.records).toHaveLength(1)
+  })
+
+  it("rejects conflicting explicit and scoped external identities", async () => {
+    mocks.records = [
+      legacyRecord({
+        id: "generated-post",
+        externalPostId: "native-a",
+      }),
+      legacyRecord({
+        id: "claimed-post",
+        externalPostId: "native-b",
+      }),
+    ]
+
+    await expect(
+      resolveOrCreateExternalPost(
+        externalSeed({
+          postId: "generated-post",
+          externalPostId: "native-b",
+        })
+      )
+    ).rejects.toBeInstanceOf(PostIdentityConflictError)
+    expect(mocks.putRecord).not.toHaveBeenCalled()
+  })
 })
+
+function externalSeed(
+  overrides: Partial<Parameters<typeof resolveOrCreateExternalPost>[0]> = {}
+): Parameters<typeof resolveOrCreateExternalPost>[0] {
+  return {
+    ownerId: "owner-1",
+    provider: "tiktok",
+    integrationId: "integration-1",
+    externalPostId: "native-1",
+    origin: "tiktok_studio_import",
+    linkMethod: "tiktok_studio",
+    releaseUrl: "https://www.tiktok.com/@creator/video/native-1",
+    ...overrides,
+  }
+}
 
 function snapshotSeed(
   overrides: Partial<Parameters<typeof ensurePostForSnapshot>[0]> = {}
