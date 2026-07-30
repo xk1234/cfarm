@@ -54,7 +54,9 @@ export function latestSnapshotsByPost(
   return latestPublicationsByPost([], snapshots)
 }
 
-function snapshotlessPublication(publication: PostFastPostRecord): LatestPost {
+export function snapshotlessPublication(
+  publication: PostFastPostRecord
+): LatestPost {
   return {
     id: `publication:${publication.id}`,
     postId: publication.id,

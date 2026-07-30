@@ -40,6 +40,8 @@ vi.mock("@/lib/post-repository-appwrite", () => ({
 
 import {
   ensurePostForSnapshot,
+  getPublicationRecordForRead,
+  listPublicationRecordsForRead,
   listPosts,
   PostIdentityConflictError,
   resolveOrCreateExternalPost,
@@ -344,6 +346,91 @@ describe("legacy-backed post repository", () => {
       },
     })
     warn.mockRestore()
+  })
+
+  it("adapts calendar lifecycle lookups in all modes and shadows drift", async () => {
+    const legacy = legacyRecord({
+      status: "scheduled",
+      scheduledAt: "2099-07-30T12:00:00.000Z",
+      postfastPostId: "remote-1",
+    })
+    const canonical = postFromPostFastRecord(legacy, "owner-1")
+    mocks.records = [legacy]
+    mocks.canonicalList.mockResolvedValue([canonical])
+
+    const records = []
+    for (const mode of ["legacy", "canonical", "union-shadow"] as const) {
+      process.env.POST_REPOSITORY_READ_MODE = mode
+      records.push(
+        await getPublicationRecordForRead({
+          surface: "calendar_cancel_lookup",
+          id: legacy.id,
+          legacy: async () => legacy,
+        })
+      )
+    }
+    expect(records[1]).toEqual(records[0])
+    expect(records[2]).toEqual(records[0])
+
+    mocks.canonicalList.mockResolvedValue([
+      { ...canonical, scheduledAt: "2099-07-31T12:00:00.000Z" },
+    ])
+    process.env.POST_REPOSITORY_READ_MODE = "union-shadow"
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+    await expect(
+      getPublicationRecordForRead({
+        surface: "calendar_cancel_lookup",
+        id: legacy.id,
+        legacy: async () => legacy,
+      })
+    ).resolves.toEqual(legacy)
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('"surface":"calendar_cancel_lookup"')
+    )
+    warn.mockRestore()
+  })
+
+  it("does not project canonical posts without a legacy destination", async () => {
+    process.env.POST_REPOSITORY_READ_MODE = "canonical"
+    mocks.canonicalList.mockResolvedValue([
+      {
+        ...postFromPostFastRecord(legacyRecord(), "owner-1"),
+        integrationId: undefined,
+        provider: undefined,
+      },
+    ])
+
+    await expect(
+      listPublicationRecordsForRead({ surface: "analytics_report" })
+    ).resolves.toEqual([])
+  })
+
+  it("adapts a destination-bound canonical post before metrics arrive", async () => {
+    process.env.POST_REPOSITORY_READ_MODE = "canonical"
+    const canonical = {
+      ...postFromPostFastRecord(legacyRecord(), "owner-1"),
+      sourceType: undefined,
+      sourceId: undefined,
+      outputId: "slideshow-before-metrics",
+      sourceRefs: [
+        { kind: "slideshow" as const, id: "slideshow-before-metrics" },
+      ],
+      contentType: "slideshow" as const,
+    }
+    mocks.canonicalList.mockResolvedValue([canonical])
+
+    await expect(
+      getPublicationRecordForRead({
+        surface: "analytics_post_detail",
+        id: canonical.id,
+        legacy: async () => null,
+      })
+    ).resolves.toMatchObject({
+      id: canonical.id,
+      sourceType: "slideshow",
+      sourceId: "slideshow-before-metrics",
+      integrationId: canonical.integrationId,
+    })
   })
 })
 

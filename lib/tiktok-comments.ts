@@ -8,7 +8,7 @@ import {
   readJsonArrayStore,
   upsertJsonArrayRecord,
 } from "@/lib/json-store"
-import { listPostFastPostRecords } from "@/lib/postfast-posts"
+import { listPublicationRecordsForRead } from "@/lib/post-repository"
 import { parseManualPublicationUrl } from "@/lib/manual-publication"
 import { TIKTOK_PLATFORM_POST_ID_REQUIRED } from "@/lib/tiktok-comment-errors"
 
@@ -113,7 +113,9 @@ export async function createTikTokCommentCollection(input: {
 }) {
   const postIds = [...new Set(input.postIds.map(clean).filter(Boolean))]
   if (!postIds.length) throw new Error("Select at least one TikTok publication")
-  const publications = await listPostFastPostRecords()
+  const publications = await listPublicationRecordsForRead({
+    surface: "tiktok_comments",
+  })
   const posts = postIds.map((postId) => {
     const publication = publications.find((item) => item.id === postId)
     if (!publication) throw new Error(`TikTok publication not found: ${postId}`)

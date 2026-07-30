@@ -30,6 +30,7 @@ vi.mock("@/lib/json-store", () => ({
 }))
 vi.mock("@/lib/post-repository", () => ({
   getPost: mocks.getPost,
+  listPublicationRecordsForRead: () => mocks.listPublications(),
   resolveOrCreateExternalPost: mocks.resolvePost,
 }))
 vi.mock("@/lib/output-publications", () => ({

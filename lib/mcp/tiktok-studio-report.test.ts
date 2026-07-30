@@ -1,4 +1,19 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
+
+const readMocks = vi.hoisted(() => ({
+  canonicalList: vi.fn(),
+}))
+
+vi.mock("@/lib/output-publications", () => ({
+  outputPublicationsOwnerId: vi.fn(async () => "owner-1"),
+  writeCanonicalPostWithLegacyProjection: vi.fn(),
+}))
+
+vi.mock("@/lib/post-repository-appwrite", () => ({
+  appwritePostRepository: {
+    listPosts: readMocks.canonicalList,
+  },
+}))
 
 import type { AutomationRunRecord } from "@/lib/automation-runner"
 import {
@@ -11,6 +26,11 @@ import type { SlideshowRecord } from "@/lib/slideshows"
 import type { TikTokStudioImportRecord } from "@/lib/tiktok-studio-analytics"
 
 describe("TikTok Studio MCP report", () => {
+  afterEach(() => {
+    delete process.env.POST_REPOSITORY_READ_MODE
+    vi.restoreAllMocks()
+  })
+
   it("joins linked Studio metrics to every persisted slideshow field", async () => {
     const report = await buildTikTokStudioMcpReport(
       reportInput(),
@@ -396,6 +416,40 @@ describe("TikTok Studio MCP report", () => {
       ])
     )
   })
+
+  it("keeps the Studio report stable in all read modes and shadows drift", async () => {
+    const publication = slideshowPublication()
+    const canonical = canonicalStudioPost(publication)
+    readMocks.canonicalList.mockResolvedValue([canonical])
+    const reportServices = services({
+      publications: [publication],
+      snapshots: [studioSnapshot()],
+      runs: [slideshowRun()],
+      slideshows: [slideshow()],
+    })
+
+    const reports = []
+    for (const mode of ["legacy", "canonical", "union-shadow"] as const) {
+      process.env.POST_REPOSITORY_READ_MODE = mode
+      reports.push(
+        await buildTikTokStudioMcpReport(reportInput(), reportServices)
+      )
+    }
+    expect(reports[1]).toEqual(reports[0])
+    expect(reports[2]).toEqual(reports[0])
+
+    readMocks.canonicalList.mockResolvedValue([
+      { ...canonical, content: "Canonical drift" },
+    ])
+    process.env.POST_REPOSITORY_READ_MODE = "union-shadow"
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+    await expect(
+      buildTikTokStudioMcpReport(reportInput(), reportServices)
+    ).resolves.toEqual(reports[0])
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('"surface":"mcp_tiktok_studio_report"')
+    )
+  })
 })
 
 function reportInput() {
@@ -453,6 +507,33 @@ function slideshowPublication(): PostFastPostRecord {
     media: [],
     createdAt: "2026-07-20T00:00:00.000Z",
     updatedAt: "2026-07-20T00:00:00.000Z",
+  }
+}
+
+function canonicalStudioPost(publication: PostFastPostRecord) {
+  return {
+    schemaVersion: 1 as const,
+    id: publication.id,
+    intentId: `legacy:${publication.id}`,
+    ownerId: "owner-1",
+    origin: "postfast_publish" as const,
+    sourceType: publication.sourceType,
+    sourceId: publication.sourceId,
+    sourceRefs: [{ kind: "slideshow" as const, id: publication.sourceId }],
+    lifecycleStatus: "published" as const,
+    linkState: "postfast_managed" as const,
+    linkMethod: "postfast" as const,
+    integrationId: publication.integrationId,
+    provider: "tiktok" as const,
+    externalPostId: publication.externalPostId,
+    releaseUrl: publication.releaseUrl,
+    statsSources: publication.statsSources,
+    content: publication.content,
+    hashtags: [],
+    media: [],
+    publishedAt: publication.publishedAt,
+    createdAt: publication.createdAt,
+    updatedAt: publication.updatedAt,
   }
 }
 

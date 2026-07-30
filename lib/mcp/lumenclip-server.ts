@@ -78,7 +78,11 @@ import {
   type PostFastPostRecord,
   type PostFastSourceType,
 } from "@/lib/postfast-posts"
-import { deletePosts as deletePostFastPostRecords } from "@/lib/post-repository"
+import {
+  deletePosts as deletePostFastPostRecords,
+  listPublicationRecordsForRead,
+  type PublicationReadFilters,
+} from "@/lib/post-repository"
 import { publicationLinkState as resolvedPublicationLinkState } from "@/lib/publication-link-state"
 import { publishPost } from "@/lib/publishing"
 import { enqueueJob, getJob, listJobs, type Job } from "@/lib/queue"
@@ -458,6 +462,18 @@ const defaultServices: LumenClipMcpServices = {
   ugcGenerationEnabled: () => process.env.ENABLE_UGC_AUTOMATION === "true",
 }
 
+function readMcpPublications(
+  services: Pick<LumenClipMcpServices, "listPostFastPostRecords">,
+  surface: string,
+  filters?: PublicationReadFilters
+) {
+  return listPublicationRecordsForRead({
+    surface: `mcp_${surface}`,
+    filters,
+    legacy: () => services.listPostFastPostRecords(filters),
+  })
+}
+
 export function createLumenClipMcpServer(
   ownerId: string,
   overrides: Partial<LumenClipMcpServices> = {}
@@ -533,7 +549,7 @@ export function createLumenClipMcpServer(
               services.listAutomationRecords(),
               services.listXAutomations(),
               services.listJobs({ limit: 500 }),
-              services.listPostFastPostRecords(),
+              readMcpPublications(services, "schedule"),
               services
                 .postfastRequest("/social-posts", {
                   query: {
@@ -903,7 +919,7 @@ export function createLumenClipMcpServer(
           ] = await Promise.all([
             services.listMetricSnapshots(),
             services.listFollowerSnapshots(),
-            services.listPostFastPostRecords(),
+            readMcpPublications(services, "analytics"),
             input.automationId
               ? services.listAutomationRuns({
                   automationId: input.automationId,
@@ -4216,7 +4232,7 @@ async function listOutputSummaries(
     services.listAutomationRuns({ limit: 500 }),
     services.listGeneratedVideoExports({ limit: 500 }),
     services.listXAutomationRuns(),
-    services.listPostFastPostRecords(),
+    readMcpPublications(services, "output_summaries"),
     services.listMetricSnapshots(),
     services.listAutomationRecords(),
     services.listTikTokStudioAnalyticsImports({ limit: 1_000 }),
@@ -4860,7 +4876,7 @@ async function editOutputSlideText(
 ) {
   const [runs, publications] = await Promise.all([
     services.listAutomationRuns({ limit: 500 }),
-    services.listPostFastPostRecords(),
+    readMcpPublications(services, "output_edit_guard"),
   ])
   const run = runs.find(
     (candidate) =>
@@ -4921,7 +4937,7 @@ async function deleteOutput(
 ) {
   const [runs, publications] = await Promise.all([
     services.listAutomationRuns({ limit: 500 }),
-    services.listPostFastPostRecords(),
+    readMcpPublications(services, "output_deletion_guard"),
   ])
   const run = runs.find(
     (candidate) =>
@@ -5165,7 +5181,7 @@ async function publishOutput(
   const warnings: string[] = []
   const [accounts, existingPublications] = await Promise.all([
     services.listAccounts(),
-    services.listPostFastPostRecords({
+    readMcpPublications(services, "output_publish_lookup", {
       sourceIds: [
         output.sourceId,
         ...(output.automationRun ? [output.automationRun.id] : []),

@@ -2,7 +2,10 @@ import { NextResponse } from "next/server"
 
 import { postfastRequest } from "@/lib/postfast-client"
 import { getPostFastPostRecord } from "@/lib/postfast-posts"
-import { deletePost } from "@/lib/post-repository"
+import {
+  deletePost,
+  getPublicationRecordForRead,
+} from "@/lib/post-repository"
 import { postfastRouteError } from "@/lib/postfast-route"
 import { reschedulePost } from "@/lib/publishing"
 
@@ -37,7 +40,11 @@ export async function PATCH(
     )
   }
 
-  const record = await getPostFastPostRecord(id)
+  const record = await getPublicationRecordForRead({
+    surface: "calendar_reschedule_lookup",
+    id,
+    legacy: () => getPostFastPostRecord(id),
+  })
   if (!record || record.status !== "scheduled" || !record.postfastPostId) {
     return NextResponse.json(
       { error: "Scheduled PostFast post not found" },
@@ -62,7 +69,13 @@ export async function DELETE(
 ) {
   const { id } = await context.params
   const remoteOnlyId = id.startsWith("postfast:") ? id.slice(9) : ""
-  const record = remoteOnlyId ? null : await getPostFastPostRecord(id)
+  const record = remoteOnlyId
+    ? null
+    : await getPublicationRecordForRead({
+        surface: "calendar_cancel_lookup",
+        id,
+        legacy: () => getPostFastPostRecord(id),
+      })
   const postfastPostId = remoteOnlyId || record?.postfastPostId
   if (!postfastPostId) {
     return NextResponse.json(

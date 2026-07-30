@@ -9,9 +9,9 @@ import {
 } from "@/lib/realfarm-automation"
 import { clean } from "@/lib/guards"
 import {
-  listPostFastPostRecords,
   type PostFastPostRecord,
 } from "@/lib/postfast-posts"
+import { listPublicationRecordsForRead } from "@/lib/post-repository"
 import {
   listMetricSnapshots,
   type PostFastMetricSnapshot,
@@ -111,7 +111,10 @@ export async function hookAnalyticsReport(
     run.slideshowId ? [run.id, run.slideshowId] : [run.id]
   )
   const [publications, snapshots, usageRecords] = await Promise.all([
-    listPostFastPostRecords({ sourceIds }),
+    listPublicationRecordsForRead({
+      surface: "hook_analytics",
+      filters: { sourceIds },
+    }),
     listMetricSnapshots(),
     listUsageRecords(),
   ])

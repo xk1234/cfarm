@@ -436,6 +436,146 @@ export function listPosts() {
   return postRepository.listPosts()
 }
 
+export type PostReadProjectionInput<T> = {
+  surface: string
+  legacy: () => Promise<T>
+  canonical: (posts: Post[]) => T | Promise<T>
+}
+
+/**
+ * Keeps a reader's existing legacy query and response adapter intact while
+ * allowing that surface to shadow or return the same projection from Posts.
+ */
+export async function readPostProjection<T>(
+  input: PostReadProjectionInput<T>
+): Promise<T> {
+  const mode = postRepositoryReadMode()
+  if (mode === "legacy") return input.legacy()
+
+  if (mode === "canonical") {
+    const ownerId = await outputPublicationsOwnerId()
+    return input.canonical(await appwritePostRepository.listPosts(ownerId))
+  }
+
+  const legacy = await input.legacy()
+  try {
+    const ownerId = await outputPublicationsOwnerId()
+    const canonical = await input.canonical(
+      await appwritePostRepository.listPosts(ownerId)
+    )
+    logPostReadProjectionDiff({
+      surface: input.surface,
+      ownerId,
+      legacy,
+      canonical,
+    })
+  } catch (error) {
+    console.warn(
+      JSON.stringify({
+        event: "post_read_projection_shadow_error",
+        surface: input.surface,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    )
+  }
+  return legacy
+}
+
+export type PublicationReadFilters = {
+  sourceType?: PostFastSourceType
+  sourceIds?: string[]
+  integrationId?: string
+}
+
+export function listPublicationRecordsForRead(input: {
+  surface: string
+  filters?: PublicationReadFilters
+  legacy?: () => Promise<ReturnType<typeof postToPostFastRecord>[]>
+}) {
+  const filters = input.filters ?? {}
+  return readPostProjection({
+    surface: input.surface,
+    legacy:
+      input.legacy ??
+      (() =>
+        listPostFastPostRecords({
+          sourceType: filters.sourceType,
+          sourceIds: filters.sourceIds,
+          integrationId: filters.integrationId,
+        })),
+    canonical: (posts) =>
+      posts
+        .filter((post) => postMatchesPublicationFilters(post, filters))
+        .flatMap((post) => {
+          const record = publicationRecordFromCanonicalPost(post, filters)
+          return record ? [record] : []
+        }),
+  })
+}
+
+function publicationRecordFromCanonicalPost(
+  post: Post,
+  filters: PublicationReadFilters
+) {
+  // A Post without a destination was never a legacy publication and must not
+  // leak into legacy-shaped reader APIs.
+  if (!post.integrationId || !post.provider) return null
+  const explicitSource = explicitFilteredSource(post, filters)
+  const sourceReference = post.sourceRefs.find((reference) =>
+    sourceTypeForReference(reference.kind)
+  )
+  const sourceType =
+    explicitSource?.sourceType ??
+    post.sourceType ??
+    (sourceReference
+      ? sourceTypeForReference(sourceReference.kind)
+      : undefined) ??
+    (post.origin === "postfast_sync" ||
+    post.origin === "tiktok_publication_import" ||
+    post.origin === "tiktok_studio_import"
+      ? "external"
+      : post.contentType === "slideshow"
+        ? "slideshow"
+        : post.contentType === "video"
+          ? "generated_video"
+          : "manual")
+  const sourceId =
+    explicitSource?.id ??
+    post.sourceId ??
+    post.outputId ??
+    post.sourceEntityId ??
+    post.runId ??
+    sourceReference?.id ??
+    post.externalPostId ??
+    post.postfastPostId ??
+    post.id
+  try {
+    return postToPostFastRecord({
+      ...post,
+      sourceType,
+      sourceId,
+    })
+  } catch {
+    return null
+  }
+}
+
+export function getPublicationRecordForRead(input: {
+  surface: string
+  id: string
+  legacy: () => Promise<ReturnType<typeof postToPostFastRecord> | null>
+}) {
+  return readPostProjection({
+    surface: input.surface,
+    legacy: input.legacy,
+    canonical: (posts) => {
+      const post = posts.find((candidate) => candidate.id === clean(input.id))
+      if (!post) return null
+      return publicationRecordFromCanonicalPost(post, {})
+    },
+  })
+}
+
 export function getPost(id: string) {
   return postRepository.getPost(id)
 }
@@ -538,6 +678,163 @@ export function logPostRepositoryShadowDiff(
       canonicalCount: canonical.length,
       diff,
     })
+  )
+}
+
+function postMatchesPublicationFilters(
+  post: Post,
+  filters: PublicationReadFilters
+) {
+  if (filters.sourceType && post.sourceType !== filters.sourceType) return false
+  if (filters.integrationId && post.integrationId !== filters.integrationId) {
+    return false
+  }
+  const sourceIds = new Set(
+    (filters.sourceIds ?? []).map(clean).filter(Boolean)
+  )
+  if (sourceIds.size === 0) return true
+  const candidates = [
+    post.sourceId,
+    post.outputId,
+    post.automationId,
+    post.runId,
+    post.sourceEntityId,
+    ...post.sourceRefs.map((ref) => ref.id),
+  ]
+    .map(clean)
+    .filter(Boolean)
+  return candidates.some(
+    (candidate) =>
+      sourceIds.has(candidate) || sourceIds.has(baseSourceId(candidate))
+  )
+}
+
+function explicitFilteredSource(
+  post: Post,
+  filters: PublicationReadFilters
+): { id: string; sourceType?: PostFastSourceType } | null {
+  const requested = new Set(
+    (filters.sourceIds ?? []).map(clean).filter(Boolean)
+  )
+  if (requested.size === 0) return null
+  const references = [
+    ...post.sourceRefs.map((ref) => ({
+      id: clean(ref.id),
+      sourceType: sourceTypeForReference(ref.kind),
+    })),
+    { id: clean(post.outputId), sourceType: post.sourceType },
+    { id: clean(post.runId), sourceType: "automation" as const },
+  ]
+  return (
+    references.find(
+      (reference) =>
+        reference.id &&
+        (requested.has(reference.id) ||
+          requested.has(baseSourceId(reference.id)))
+    ) ?? null
+  )
+}
+
+function sourceTypeForReference(
+  kind: Post["sourceRefs"][number]["kind"]
+): PostFastSourceType | undefined {
+  if (kind === "run" || kind === "automation") return "automation"
+  if (kind === "slideshow") return "slideshow"
+  if (kind === "generated_video") return "generated_video"
+  if (kind === "x_automation") return "x_automation"
+  if (kind === "external") return "external"
+  return undefined
+}
+
+function logPostReadProjectionDiff<T>(input: {
+  surface: string
+  ownerId: string
+  legacy: T
+  canonical: T
+}) {
+  const legacyJson = stableProjectionJson(input.legacy)
+  const canonicalJson = stableProjectionJson(input.canonical)
+  if (legacyJson === canonicalJson) return
+  console.warn(
+    JSON.stringify({
+      event: "post_read_projection_shadow_diff",
+      surface: input.surface,
+      ownerId: input.ownerId,
+      legacy: projectionSummary(input.legacy, legacyJson),
+      canonical: projectionSummary(input.canonical, canonicalJson),
+      diff: projectionValueDiff(input.legacy, input.canonical),
+    })
+  )
+}
+
+function projectionValueDiff(legacy: unknown, canonical: unknown) {
+  if (Array.isArray(legacy) && Array.isArray(canonical)) {
+    const legacyById = projectionItemsById(legacy)
+    const canonicalById = projectionItemsById(canonical)
+    if (legacyById.size > 0 || canonicalById.size > 0) {
+      return {
+        missingCanonicalIds: [...legacyById.keys()]
+          .filter((id) => !canonicalById.has(id))
+          .sort(),
+        missingLegacyIds: [...canonicalById.keys()]
+          .filter((id) => !legacyById.has(id))
+          .sort(),
+        mismatchedIds: [...legacyById.keys()]
+          .filter(
+            (id) =>
+              canonicalById.has(id) &&
+              stableProjectionJson(legacyById.get(id)) !==
+                stableProjectionJson(canonicalById.get(id))
+          )
+          .sort(),
+      }
+    }
+  }
+  return { changed: true }
+}
+
+function projectionItemsById(items: unknown[]) {
+  return new Map(
+    items.flatMap((item) =>
+      item &&
+      typeof item === "object" &&
+      "id" in item &&
+      typeof item.id === "string"
+        ? [[item.id, item] as const]
+        : []
+    )
+  )
+}
+
+function projectionSummary(value: unknown, json: string) {
+  return {
+    kind: Array.isArray(value) ? "array" : typeof value,
+    ...(Array.isArray(value) ? { count: value.length } : {}),
+    ids: Array.isArray(value)
+      ? value.flatMap((item) =>
+          item &&
+          typeof item === "object" &&
+          "id" in item &&
+          typeof item.id === "string"
+            ? [item.id]
+            : []
+        )
+      : [],
+    digest: crypto.createHash("sha256").update(json).digest("hex").slice(0, 16),
+  }
+}
+
+function stableProjectionJson(value: unknown) {
+  return JSON.stringify(sortProjectionValue(value))
+}
+
+function sortProjectionValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortProjectionValue)
+  if (!value || typeof value !== "object") return value
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, sortProjectionValue(entry)])
   )
 }
 

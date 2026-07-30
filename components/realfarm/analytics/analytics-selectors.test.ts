@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { latestPublicationsByPost } from "@/components/realfarm/analytics/analytics-selectors"
+import {
+  accountPostMetricSeries,
+  latestPublicationsByPost,
+  postMetricSeries,
+} from "@/components/realfarm/analytics/analytics-selectors"
 import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
 import type { PostFastPostRecord } from "@/lib/postfast-posts"
 
@@ -67,6 +71,39 @@ describe("latestPublicationsByPost", () => {
         metrics: { views: 42 },
         publication,
       }),
+    ])
+  })
+
+  it("keeps only the latest snapshot per post/day and weights engagement by exposure", () => {
+    const snapshot = (
+      id: string,
+      postId: string,
+      capturedAt: string,
+      views: number,
+      interactions: number
+    ): PostFastMetricSnapshot => ({
+      id,
+      postId,
+      integrationId: "tiktok-1",
+      provider: "tiktok",
+      capturedAt,
+      metrics: { views, interactions },
+      latestMetric: {},
+      rawMetrics: {},
+      observedKeys: ["views", "interactions"],
+      source: "postfast",
+    })
+    const snapshots = [
+      snapshot("early", "post-1", "2026-07-30T01:00:00.000Z", 10, 9),
+      snapshot("latest", "post-1", "2026-07-30T02:00:00.000Z", 20, 2),
+      snapshot("other", "post-2", "2026-07-30T03:00:00.000Z", 30, 6),
+    ]
+
+    expect(postMetricSeries(snapshots, "views")).toEqual([
+      expect.objectContaining({ date: "2026-07-30", value: 50 }),
+    ])
+    expect(accountPostMetricSeries(snapshots, "engagementRate")).toEqual([
+      expect.objectContaining({ date: "2026-07-30", value: 16 }),
     ])
   })
 })

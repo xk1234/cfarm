@@ -15,6 +15,11 @@ vi.mock("@/lib/postfast-posts", () => ({
 }))
 vi.mock("@/lib/post-repository", () => ({
   deletePost: mocks.deletePost,
+  getPublicationRecordForRead: ({
+    legacy,
+  }: {
+    legacy: () => Promise<unknown>
+  }) => legacy(),
 }))
 vi.mock("@/lib/postfast-route", () => ({
   postfastRouteError: (error: unknown) =>

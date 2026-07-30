@@ -19,7 +19,7 @@ import {
   postfastRequest,
   type PostFastSocialIntegration,
 } from "@/lib/postfast-client"
-import { listPostFastPostRecords } from "@/lib/postfast-posts"
+import { listPublicationRecordsForRead } from "@/lib/post-repository"
 import { outputPublicationsOwnerId } from "@/lib/output-publications"
 import { resolveOrCreateTikTokPost } from "@/lib/tiktok-studio-analytics"
 import { enqueuePublishedCommentReminders } from "@/lib/publishing"
@@ -160,7 +160,9 @@ export async function inspectTikTokPublicationImport(input: {
       limit: 100,
       postRecords: [],
     }),
-    listPostFastPostRecords().catch(() => []),
+    listPublicationRecordsForRead({
+      surface: "tiktok_publication_import_preview",
+    }).catch(() => []),
   ])
   const hydratedPosts = await Promise.all(
     posts.map(async (post) => ({
@@ -233,7 +235,9 @@ export async function linkTikTokPublicationImport(input: {
     )
     if (!match)
       throw new Error(`TikTok post ${selection.postId} was not imported`)
-    const publications = await listPostFastPostRecords()
+    const publications = await listPublicationRecordsForRead({
+      surface: "tiktok_publication_import_link",
+    })
     const alreadyLinked = publications.find(
       (publication) =>
         publication.integrationId === integration.integration_id &&

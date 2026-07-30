@@ -12,8 +12,10 @@ import {
   type AutomationRunRecord,
 } from "@/lib/automation-runner"
 import { listImageCollections } from "@/lib/image-collections"
-import { listPostFastPostRecords } from "@/lib/postfast-posts"
-import { deletePosts } from "@/lib/post-repository"
+import {
+  deletePosts,
+  listPublicationRecordsForRead,
+} from "@/lib/post-repository"
 import { slideshowDeletionBlockReason } from "@/lib/slideshow-lifecycle"
 import {
   deleteSlideshowRecord,
@@ -124,8 +126,10 @@ export const PATCH = withHandler<{ params: Promise<{ id: string }> }>(
       slideshowId: id,
       runId: existingSlideshow?.runId,
     })
-    const posts = await listPostFastPostRecords({
-      sourceIds: [id, ...(run?.id ? [run.id] : [])],
+    const sourceIds = [id, ...(run?.id ? [run.id] : [])]
+    const posts = await listPublicationRecordsForRead({
+      surface: "slideshow_edit_guard",
+      filters: { sourceIds },
     }).catch(() => [])
     const blocked = slideshowDeletionBlockReason({
       slideshowStatus: "exported",
@@ -345,8 +349,10 @@ export const DELETE = withHandler<{ params: Promise<{ id: string }> }>(
       slideshowId: id,
       runId: slideshow.runId,
     })
-    const posts = await listPostFastPostRecords({
-      sourceIds: [id, ...(run?.id ? [run.id] : [])],
+    const sourceIds = [id, ...(run?.id ? [run.id] : [])]
+    const posts = await listPublicationRecordsForRead({
+      surface: "slideshow_deletion_guard",
+      filters: { sourceIds },
     }).catch(() => [])
     const blocked = slideshowDeletionBlockReason({
       slideshowStatus: slideshow.status,

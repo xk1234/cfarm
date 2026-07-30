@@ -21,9 +21,9 @@ import {
   type TikTokStudioSlideMetric,
 } from "@/lib/postfast-metric-snapshots"
 import {
-  listPostFastPostRecords,
   type PostFastPostRecord,
 } from "@/lib/postfast-posts"
+import { listPublicationRecordsForRead } from "@/lib/post-repository"
 import {
   getPost,
   resolveOrCreateExternalPost,
@@ -258,7 +258,9 @@ export async function createTikTokStudioAnalyticsBatch(input: {
     throw new Error("Select at least one TikTok account")
   }
   const [storedPublications, snapshots] = await Promise.all([
-    listPostFastPostRecords(),
+    listPublicationRecordsForRead({
+      surface: "tiktok_studio_batch_publication_lookup",
+    }),
     listMetricSnapshots(),
   ])
   const publications: PostFastPostRecord[] = []
