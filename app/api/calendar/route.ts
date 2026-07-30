@@ -144,8 +144,11 @@ function projectionItems(
   to: Date,
   now: Date
 ) {
-  return automations.flatMap((automation) =>
-    automationSlotsInRange(automation, from, to).flatMap<CalendarItem>(
+  return automations.flatMap((automation) => {
+    if (automation.status !== "live" || automation.schedule?.paused === true) {
+      return []
+    }
+    return automationSlotsInRange(automation, from, to).flatMap<CalendarItem>(
       (slot) => {
         if (Date.parse(slot.scheduledFor) < now.getTime()) return []
         const targets = automationTargets(automation, "planned")
@@ -162,10 +165,7 @@ function projectionItems(
             source: "projection",
             sourceType: "automation",
             sourceId: slot.automationId,
-            title: slot.paused
-              ? "Paused automation slot"
-              : "Planned content slot",
-            paused: slot.paused,
+            title: "Planned content slot",
             links: {
               automation: automationLink(slot.automationId),
             },
@@ -181,7 +181,7 @@ function projectionItems(
         ]
       }
     )
-  )
+  })
 }
 
 function jobCalendarItem(

@@ -162,6 +162,59 @@ describe("GET /api/calendar", () => {
     )
   })
 
+  it("projects only live automations while retaining real jobs from paused automations", async () => {
+    const live = automationSummary()
+    mocks.listAutomationRecords.mockResolvedValue([
+      { summary: { ...live, id: "automation-live" } },
+      {
+        summary: {
+          ...live,
+          id: "automation-status-paused",
+          status: "paused",
+        },
+      },
+      {
+        summary: {
+          ...live,
+          id: "automation-schedule-paused",
+          schedule: { ...live.schedule, paused: true },
+        },
+      },
+    ])
+    mocks.listJobs.mockResolvedValue([
+      job({
+        id: "paused-job",
+        payload: {
+          automationId: "automation-status-paused",
+          scheduledFor: "2099-07-15T02:00:00.000Z",
+        },
+      }),
+    ])
+
+    const { GET } = await import("./route")
+    const response = await GET(
+      new Request(
+        "http://localhost/api/calendar?from=2099-07-15T00:00:00.000Z&to=2099-07-15T23:59:59.999Z"
+      )
+    )
+    const payload = await response.json()
+
+    expect(
+      payload.items
+        .filter((item: { source: string }) => item.source === "projection")
+        .map((item: { automationId: string }) => item.automationId)
+    ).toEqual(["automation-live"])
+    expect(payload.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "job:paused-job",
+          automationId: "automation-status-paused",
+          status: "generating",
+        }),
+      ])
+    )
+  })
+
   it("accepts CSV/repeated aggregate filters and returns canonical failure counts", async () => {
     mocks.listAutomationRuns.mockResolvedValue([
       {
