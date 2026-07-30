@@ -15,6 +15,10 @@ import {
   runSlideshowAutomation,
 } from "./slideshow-automation.js"
 import { runUgcAutomationJob } from "./ugc-automation.js"
+import {
+  buildPublicationRecord,
+  publicationRecordSummary,
+} from "./publishing-core.js"
 
 // Self-hosted Appwrite injects APPWRITE_FUNCTION_API_ENDPOINT from _APP_DOMAIN,
 // which is not guaranteed to be routable from inside the function container.
@@ -344,11 +348,7 @@ async function upsertXOutput(t, record, ownerId) {
   const imageUrls = Array.isArray(stored.imageUrls) ? stored.imageUrls : []
   delete stored.imageUrls
   if (stored.publishing?.records) delete stored.publishing.records
-  const primary =
-    publications.find((item) => item.status === "published") ||
-    publications.find((item) => item.status === "scheduled") ||
-    publications.find((item) => item.status === "failed") ||
-    null
+  const summary = publicationRecordSummary(publications)
   await t.upsertRow(DB, "outputs", rowId, {
     rid: record.id,
     owner_id: ownerId,
@@ -378,15 +378,11 @@ async function upsertXOutput(t, record, ownerId) {
     source_automation_id: record.automationId || null,
     source_run_id: record.id,
     source_entity_id: record.id,
-    publication_status: primary?.status || null,
-    scheduled_at:
-      publications.find((item) => item.scheduledAt)?.scheduledAt || null,
-    published_at:
-      publications.find((item) => item.publishedAt)?.publishedAt || null,
-    primary_post_id:
-      publications.find((item) => item.postfastPostId)?.postfastPostId || null,
-    primary_release_url:
-      publications.find((item) => item.releaseUrl)?.releaseUrl || null,
+    publication_status: summary.status,
+    scheduled_at: summary.scheduledAt,
+    published_at: summary.publishedAt,
+    primary_post_id: summary.postId,
+    primary_release_url: summary.releaseUrl,
     publications: JSON.stringify(publications),
     evaluation: "null",
     error:
@@ -645,7 +641,7 @@ async function publishScheduledXDraft(automation, record) {
     const status = response.ok ? "scheduled" : "failed"
     if (response.ok) published += 1
     else failed += 1
-    records.push({
+    records.push(buildPublicationRecord({
       id:
         "pf" +
         crypto
@@ -669,7 +665,7 @@ async function publishScheduledXDraft(automation, record) {
       createdAt: now,
       updatedAt: now,
       lastSyncedAt: now,
-    })
+    }))
   }
   return { attemptedAt: nowIso(), published, failed, records }
 }

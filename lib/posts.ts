@@ -4,6 +4,7 @@ import {
   type PostFastMedia,
   type PostFastSocialProvider,
 } from "@/lib/postfast-client"
+import { buildPublicationRecord } from "@/lib/publication-record"
 import type {
   PostFastPostRecord,
   PostFastPostStatus,
@@ -233,7 +234,7 @@ export function postToPostFastRecord(post: Post): PostFastPostRecord {
       "Legacy post storage requires an integration and social provider."
     )
   }
-  return {
+  return buildPublicationRecord({
     id: post.id,
     sourceType: post.sourceType,
     sourceId: post.sourceId,
@@ -258,7 +259,7 @@ export function postToPostFastRecord(post: Post): PostFastPostRecord {
     updatedAt: post.updatedAt,
     lastSyncedAt: post.lastSyncedAt,
     error: post.error?.message,
-  }
+  })
 }
 
 export function postIdentityClaims(

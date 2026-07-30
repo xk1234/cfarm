@@ -10,6 +10,7 @@ import {
 } from "@/lib/post-repository-appwrite"
 import { postRepositoryWriteMode } from "@/lib/post-repository-config"
 import type { PostFastPostRecord } from "@/lib/postfast-posts"
+import { publicationRecordSummary } from "@/lib/publication-record"
 import {
   postFromPostFastRecord,
   postToPostFastRecord,
@@ -111,9 +112,9 @@ export async function writeCanonicalPostWithLegacyProjection(
     [resolved],
     [
       {
-      ...projected,
-      content: record.content,
-      analytics: record.analytics,
+        ...projected,
+        content: record.content,
+        analytics: record.analytics,
         lastAnalyticsSyncedAt: record.lastAnalyticsSyncedAt,
       },
       ...records.filter(
@@ -303,7 +304,7 @@ async function updateOutputPublications(
 ) {
   const aw = getAppwrite()
   if (!aw) throw new Error("Appwrite is not configured.")
-  const summary = publicationSummary(publications)
+  const summary = publicationRecordSummary(publications)
   await aw.tables.updateRow(APPWRITE_DATABASE_ID, "outputs", row.$id, {
     publications: JSON.stringify(publications),
     publication_status: summary.status,
@@ -411,31 +412,6 @@ function outputMatchesPublication(
     return true
   }
   return false
-}
-
-function publicationSummary(records: PostFastPostRecord[]) {
-  const rank = [
-    "published",
-    "scheduled",
-    "ready_for_review",
-    "awaiting_manual_post",
-    "failed",
-    "draft",
-  ]
-  const primary =
-    rank.flatMap((status) =>
-      records.filter((record) => record.status === status)
-    )[0] ?? null
-  return {
-    status: primary?.status ?? null,
-    scheduledAt:
-      records.find((record) => record.scheduledAt)?.scheduledAt ?? null,
-    publishedAt:
-      records.find((record) => record.publishedAt)?.publishedAt ?? null,
-    postId:
-      records.find((record) => record.postfastPostId)?.postfastPostId ?? null,
-    releaseUrl: records.find((record) => record.releaseUrl)?.releaseUrl ?? null,
-  }
 }
 
 function parsePublications(value: unknown): PostFastPostRecord[] {

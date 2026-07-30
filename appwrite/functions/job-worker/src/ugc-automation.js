@@ -7,6 +7,7 @@ import { generateFalImage, generateFalVideo, lipSyncFalVideo } from "./fal-clien
 import { synthesizeElevenLabsSpeech } from "./elevenlabs-tts.js"
 import { buildUgcFfmpegCommand, compositeUgcVideo } from "./ugc-rendi-compositor.js"
 import { generationModelRegistry } from "./realfarm-generation-model-registry.js"
+import { buildPublicationRecord, publicationRecordSummary } from "./publishing-core.js"
 
 const UGC_BUCKET = "ugc_videos"
 const OUTPUTS = "outputs"
@@ -249,10 +250,14 @@ async function publishOutput({ tables, databaseId, ownerId, runId, exportId, sch
     for (const integration of integrations) {
       const payload = { status: "SCHEDULED", posts: [{ content, mediaItems: media, scheduledAt: new Date(scheduledFor).getTime() > Date.now() ? scheduledFor : nowIso(), socialMediaId: integration.integration_id, status: "SCHEDULED" }] }
       const response = await postFastRequest("/social-posts", payload, fetchImpl)
-      records.push({ integrationId: integration.integration_id, provider: integration.provider, status: "scheduled", scheduledAt: payload.posts[0].scheduledAt, postfastPostId: response?.id || response?.posts?.[0]?.id, updatedAt: nowIso() })
+      const now = nowIso()
+      records.push(buildPublicationRecord({ id: publicationRecordId(exportId, integration.integration_id), sourceType: "ugc_ad", sourceId: exportId, integrationId: integration.integration_id, provider: integration.provider, status: "scheduled", scheduledAt: payload.posts[0].scheduledAt, postfastPostId: response?.id || response?.posts?.[0]?.id, content, media, createdAt: now, updatedAt: now, lastSyncedAt: now }))
     }
   } else {
-    for (const integration of integrations) records.push({ integrationId: integration.integration_id, provider: integration.provider, status: mode === "review" ? "ready_for_review" : "awaiting_manual_post", scheduledAt: scheduledFor, content, media, updatedAt: nowIso() })
+    for (const integration of integrations) {
+      const now = nowIso()
+      records.push(buildPublicationRecord({ id: publicationRecordId(exportId, integration.integration_id), sourceType: "ugc_ad", sourceId: exportId, integrationId: integration.integration_id, provider: integration.provider, status: mode === "review" ? "ready_for_review" : "awaiting_manual_post", scheduledAt: scheduledFor, content, media, createdAt: now, updatedAt: now, lastSyncedAt: now }))
+    }
     await enqueueNotification(tables, databaseId, ownerId, { event: "ready_to_post", sourceId: exportId, runId, scheduledFor, availableAt: scheduledFor, requiresPostConfirmation: true, text: mode === "review" ? `UGC video ready for review\n${content}` : `UGC video ready to post\n${content}` })
   }
   await updateOutputPublications(tables, databaseId, ownerId, exportId, records, mode)
@@ -279,7 +284,8 @@ async function postFastRequest(path, body, fetchImpl) {
 async function updateOutputPublications(tables, databaseId, ownerId, exportId, records, mode) {
   const rowId = consolidatedRowId(OUTPUTS, "generated_video", ownerId, exportId), row = await tables.getRow(databaseId, OUTPUTS, rowId), stored = safeJson(row.data) || {}
   stored.publication = { mode, records, updatedAt: nowIso() }; stored.updatedAt = nowIso()
-  await tables.upsertRow(databaseId, OUTPUTS, rowId, { ...row, publication_status: records[0]?.status || null, scheduled_at: records[0]?.scheduledAt || null, primary_post_id: records[0]?.postfastPostId || null, publications: JSON.stringify(records), updated_at: stored.updatedAt, data: JSON.stringify(stored), $id: undefined, $createdAt: undefined, $updatedAt: undefined, $permissions: undefined, $databaseId: undefined, $tableId: undefined })
+  const summary = publicationRecordSummary(records)
+  await tables.upsertRow(databaseId, OUTPUTS, rowId, { ...row, publication_status: summary.status, scheduled_at: summary.scheduledAt, primary_post_id: summary.postId, publications: JSON.stringify(records), updated_at: stored.updatedAt, data: JSON.stringify(stored), $id: undefined, $createdAt: undefined, $updatedAt: undefined, $permissions: undefined, $databaseId: undefined, $tableId: undefined })
 }
 
 async function enqueueNotification(tables, databaseId, ownerId, input) {
@@ -291,5 +297,6 @@ async function enqueueNotification(tables, databaseId, ownerId, input) {
 
 function normalizeHashtags(values) { return (Array.isArray(values) ? values : []).map((value) => `#${String(value).trim().replace(/^#+/, "").replace(/\s+/g, "")}`).filter((value) => value.length > 1).slice(0, 12) }
 function providerProvenance(checkpoints) { return Object.fromEntries(["actor", "voice", "motion", "lipsync", "broll", "composite"].map((stage) => [stage, { provider: checkpoints[stage]?.provider, model: checkpoints[stage]?.model, requestId: checkpoints[stage]?.requestId }])) }
+function publicationRecordId(sourceId, integrationId) { return `pf${crypto.createHash("sha256").update(`${sourceId}:${integrationId}`).digest("hex").slice(0, 32)}` }
 function ownedRowId(table, ownerId, rid) { return `u${crypto.createHash("sha256").update(`${table}:${ownerId}:${rid}`).digest("hex").slice(0, 35)}` }
 function consolidatedRowId(table, sourceKey, ownerId, rid) { return `u${crypto.createHash("sha256").update(`${table}:${sourceKey}:${ownerId}:${rid}`).digest("hex").slice(0, 35)}` }

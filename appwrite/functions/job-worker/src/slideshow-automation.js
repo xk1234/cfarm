@@ -36,8 +36,10 @@ import {
   textItemsForSpec,
 } from "./slideshow-plan-core.js"
 import {
+  buildPublicationRecord,
   effectivePostingMode,
   postFastSchedulePayload,
+  publicationRecordSummary,
 } from "./publishing-core.js"
 import { usageForPublishedRuns } from "./usage-core.js"
 import { validateAutomationRunOutput } from "./automation-output-qa.js"
@@ -1096,8 +1098,7 @@ async function upsertPostRecord({
     integration.integration_id
   )
   const now = new Date().toISOString()
-  const record = {
-    ...existing,
+  const record = buildPublicationRecord({
     id:
       existing?.id || postRecordId(ownerId, runId, integration.integration_id),
     sourceType: "automation",
@@ -1107,14 +1108,21 @@ async function upsertPostRecord({
     provider: integration.provider,
     status,
     scheduledAt: scheduledFor,
+    publishedAt: existing?.publishedAt,
+    releaseUrl: existing?.releaseUrl,
+    linkState: existing?.linkState,
+    statsSources: existing?.statsSources,
+    externalPostId: existing?.externalPostId,
     content,
     media,
+    analytics: existing?.analytics,
+    lastAnalyticsSyncedAt: existing?.lastAnalyticsSyncedAt,
     error,
     createdAt: existing?.createdAt || now,
     updatedAt: now,
     lastSyncedAt: now,
     ownerId,
-  }
+  })
   await upsertOutputPublication({
     tables,
     databaseId,
@@ -1490,11 +1498,11 @@ async function upsertResultOutput(tables, databaseId, ownerId, record) {
     source_automation_id: clean(record.automationId) || null,
     source_run_id: clean(record.runId) || null,
     source_entity_id: clean(record.artifacts?.slideshowId) || null,
-    publication_status: publicationSummary(publications).status,
-    scheduled_at: publicationSummary(publications).scheduledAt,
-    published_at: publicationSummary(publications).publishedAt,
-    primary_post_id: publicationSummary(publications).postId,
-    primary_release_url: publicationSummary(publications).releaseUrl,
+    publication_status: publicationRecordSummary(publications).status,
+    scheduled_at: publicationRecordSummary(publications).scheduledAt,
+    published_at: publicationRecordSummary(publications).publishedAt,
+    primary_post_id: publicationRecordSummary(publications).postId,
+    primary_release_url: publicationRecordSummary(publications).releaseUrl,
     publications: JSON.stringify(publications),
     evaluation: "null",
     error: clean(record.error).slice(0, 100000) || null,
@@ -1582,7 +1590,7 @@ async function upsertOutputPublication({
         item.id !== record.id && item.integrationId !== record.integrationId
     ),
   ]
-  const summary = publicationSummary(publications)
+  const summary = publicationRecordSummary(publications)
   await tables.updateRow(databaseId, OUTPUTS, output.$id, {
     publications: JSON.stringify(publications),
     publication_status: summary.status,
@@ -1592,34 +1600,6 @@ async function upsertOutputPublication({
     primary_release_url: summary.releaseUrl,
     updated_at: new Date().toISOString(),
   })
-}
-
-function publicationSummary(publications) {
-  const rank = [
-    "published",
-    "scheduled",
-    "ready_for_review",
-    "awaiting_manual_post",
-    "failed",
-    "draft",
-  ]
-  const primary = rank
-    .flatMap((status) =>
-      publications.filter((record) => record.status === status)
-    )
-    .at(0)
-  return {
-    status: primary?.status || null,
-    scheduledAt:
-      publications.find((record) => record.scheduledAt)?.scheduledAt || null,
-    publishedAt:
-      publications.find((record) => record.publishedAt)?.publishedAt || null,
-    postId:
-      publications.find((record) => record.postfastPostId)?.postfastPostId ||
-      null,
-    releaseUrl:
-      publications.find((record) => record.releaseUrl)?.releaseUrl || null,
-  }
 }
 
 function parseArray(value) {

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { runUgcAutomationJob } from "./ugc-automation.js"
+import { validatePublicationRecord } from "./publishing-core.js"
 
 const originalFlag = process.env.ENABLE_UGC_AUTOMATION
 afterEach(() => {
@@ -18,9 +19,58 @@ describe("UGC worker pipeline", () => {
     expect(result.skipped).toBe(false)
     expect(result.checkpoints.publish.status).toBe("awaiting-manual-post")
     expect([...harness.rows.values()].find((row) => row.source_key === "generated_video")).toMatchObject({ kind: "ugc_ad", subtype: "ugc_ad", status: "ready" })
+    const output = [...harness.rows.values()].find((row) => row.source_key === "generated_video")
+    const publications = JSON.parse(output.publications)
+    expect(publications).toHaveLength(0)
     expect([...harness.rows.values()].filter((row) => row.output_id)).toHaveLength(2)
     expect(harness.files.size).toBe(10)
     expect(clients.compositeUgcVideo).toHaveBeenCalledOnce()
+  })
+
+  it("persists contract-valid UGC publications for a destination", async () => {
+    const harness = workerHarness({
+      postingMode: "review",
+      integrations: [{ integration_id: "integration-1", provider: "tiktok" }],
+    })
+    await runUgcAutomationJob({ ...harness.input, clients: mockClients() })
+
+    const output = [...harness.rows.values()].find(
+      (row) => row.source_key === "generated_video"
+    )
+    const [publication] = JSON.parse(output.publications)
+    expect(validatePublicationRecord(publication)).toEqual([])
+    expect(publication).toMatchObject({
+      sourceType: "ugc_ad",
+      integrationId: "integration-1",
+      status: "ready_for_review",
+      linkState: "unlinked",
+      statsSources: [],
+      content: "A useful product\n\n#useful",
+      media: [{ type: "VIDEO", sortOrder: 0 }],
+    })
+    expect(publication.sourceId).toMatch(/^ugc-[0-9a-f]{32}$/)
+  })
+
+  it("persists the full contract in the automatic UGC branch", async () => {
+    const harness = workerHarness({
+      postingMode: "auto",
+      integrations: [{ integration_id: "integration-1", provider: "tiktok" }],
+    })
+    await runUgcAutomationJob({ ...harness.input, clients: mockClients() })
+
+    const output = [...harness.rows.values()].find(
+      (row) => row.source_key === "generated_video"
+    )
+    const [publication] = JSON.parse(output.publications)
+    expect(validatePublicationRecord(publication)).toEqual([])
+    expect(publication).toMatchObject({
+      sourceType: "ugc_ad",
+      integrationId: "integration-1",
+      status: "scheduled",
+      postfastPostId: "postfast-ugc-1",
+      content: "A useful product\n\n#useful",
+      media: [{ key: "ugc/final.mp4", type: "VIDEO", sortOrder: 0 }],
+    })
   })
 
   it("resumes from durable checkpoints without repeating paid providers", async () => {
@@ -47,10 +97,13 @@ describe("UGC worker pipeline", () => {
   })
 })
 
-function workerHarness() {
+function workerHarness({ postingMode = "manual", integrations = [] } = {}) {
   process.env.ENABLE_UGC_AUTOMATION = "true"
   for (const key of ["FAL_KEY", "ELEVENLABS_API_KEY", "OPENROUTER_API_KEY", "RENDI_API_KEY"]) process.env[key] = "test"
-  const automation = { id: "auto-1", status: "live", schema: { status: "live", automationKind: "ugc", posting_mode: "manual", social_integrations: [], ugc: { enabled: true, productBrief: "A useful product", actorSource: "generate", voiceId: "voice-1", targetDurationSeconds: 20, brollCount: 3, captions: { enabled: true }, hookOverlay: { durationMs: 2500 } } } }
+  if (postingMode === "auto" && integrations.length) {
+    process.env.POSTFAST_API_KEY = "test"
+  }
+  const automation = { id: "auto-1", status: "live", schema: { status: "live", automationKind: "ugc", posting_mode: postingMode, social_integrations: integrations, ugc: { enabled: true, productBrief: "A useful product", actorSource: "generate", voiceId: "voice-1", targetDurationSeconds: 20, brollCount: 3, captions: { enabled: true }, hookOverlay: { durationMs: 2500 } } } }
   const rows = new Map(), files = new Map()
   const tables = {
     listRows: vi.fn(async (_database, table) => {
@@ -81,7 +134,32 @@ function mockClients() {
     { phase: "cta", spokenText: "Try it now", durationSeconds: 5, startSeconds: 15, endSeconds: 20 },
   ] }
   let asset = 0
-  const fetchMock = vi.fn(async (url) => new Response(String(url).includes("video") ? Buffer.from("video-bytes") : Buffer.from("image-bytes"), { status: 200, headers: { "content-type": String(url).includes("video") ? "video/mp4" : "image/png" } }))
+  const fetchMock = vi.fn(async (url, init) => {
+    if (String(url).includes("api.postfa.st/file/get-signed-upload-urls")) {
+      return Response.json([
+        { signedUrl: "https://uploads.test/ugc.mp4", key: "ugc/final.mp4" },
+      ])
+    }
+    if (String(url).includes("api.postfa.st/social-posts")) {
+      return Response.json({ id: "postfast-ugc-1" })
+    }
+    if (String(url).includes("uploads.test") && init?.method === "PUT") {
+      return new Response(null, { status: 200 })
+    }
+    return new Response(
+      String(url).includes("video")
+        ? Buffer.from("video-bytes")
+        : Buffer.from("image-bytes"),
+      {
+        status: 200,
+        headers: {
+          "content-type": String(url).includes("video")
+            ? "video/mp4"
+            : "image/png",
+        },
+      }
+    )
+  })
   return {
     analyzeUgcProduct: vi.fn().mockResolvedValue({ product: "Useful Product" }),
     generateUgcScript: vi.fn().mockResolvedValue(plan),
