@@ -1,9 +1,12 @@
 import defaultMdxComponents from "fumadocs-ui/mdx"
 import type { MDXComponents } from "mdx/types"
 
+import { DataSchemaGroup } from "@/components/docs/data-schema-group"
+
 export function getMDXComponents(components?: MDXComponents) {
   return {
     ...defaultMdxComponents,
+    DataSchemaGroup,
     ...components,
   } satisfies MDXComponents
 }
