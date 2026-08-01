@@ -237,53 +237,59 @@ export const PIPELINE_STAGE_CATALOG = [
     compositeStage
   ),
 
-  atomicStage(
+  stage(
     "slideshow-generation",
     101,
     "load-automation-record",
+    "Load automation record",
     "storage",
-    "Appwrite automation read",
-    "Read one owner-scoped automation record."
+    "Load one owner-scoped automation through the registered document-read stage.",
+    { ...compositeStage, workflowStep: false }
   ),
-  atomicStage(
+  stage(
     "slideshow-generation",
     102,
     "list-image-collections",
+    "List image collections",
     "storage",
-    "Appwrite image-collection list",
-    "List owner-scoped image collections once."
+    "Page through owner-scoped image collections using registered page reads.",
+    { ...compositeStage, workflowStep: false }
   ),
-  atomicStage(
+  stage(
     "slideshow-generation",
     103,
     "list-word-collections",
+    "List word collections",
     "storage",
-    "Appwrite word-collection list",
-    "List owner-scoped word collections once."
+    "Page through owner-scoped word collections using registered page reads.",
+    { ...compositeStage, workflowStep: false }
   ),
-  atomicStage(
+  stage(
     "slideshow-generation",
     104,
     "list-usage-history",
+    "List usage history",
     "storage",
-    "Appwrite usage-history list",
-    "List owner-scoped usage history once."
+    "Page through owner-scoped usage history using registered page reads.",
+    { ...compositeStage, workflowStep: false }
   ),
-  atomicStage(
+  stage(
     "slideshow-generation",
     105,
     "list-prior-runs",
+    "List prior runs",
     "storage",
-    "Appwrite automation-run list",
-    "List prior owner-scoped automation runs once."
+    "Page through owner-scoped automation runs using registered page reads.",
+    { ...compositeStage, workflowStep: false }
   ),
-  atomicStage(
+  stage(
     "slideshow-generation",
     106,
     "load-model-settings",
+    "Load model settings",
     "storage",
-    "generation-model settings read",
-    "Read generation model settings once."
+    "Load model settings through the registered fixed-document read.",
+    { ...compositeStage, workflowStep: false }
   ),
   atomicStage(
     "slideshow-generation",
@@ -321,13 +327,14 @@ export const PIPELINE_STAGE_CATALOG = [
     "Append supplied usage records by invoking the singular registered storage stage once per record.",
     { ...compositeStage, workflowStep: false }
   ),
-  atomicStage(
+  stage(
     "slideshow-generation",
     111,
     "upsert-automation-run",
+    "Persist automation run",
     "storage",
-    "Appwrite automation-run upsert",
-    "Upsert one owner-scoped automation run."
+    "Create or update one automation run through registered one-request document stages.",
+    { ...compositeStage, workflowStep: false }
   ),
   atomicStage(
     "slideshow-generation",
@@ -897,13 +904,14 @@ export const PIPELINE_STAGE_CATALOG = [
     "Perform one niche-brief derivation attempt with one requested model.",
     { provider: "OpenRouter", model: "requested model" }
   ),
-  atomicStage(
+  stage(
     "x-threads-generation",
     102,
     "persist-run",
+    "Persist run",
     "storage",
-    "Appwrite X-run upsert",
-    "Persist one owner-scoped X/Threads run."
+    "Create or update one X/Threads run and synchronize media through registered one-request stages.",
+    { ...compositeStage, workflowStep: false }
   ),
   stage(
     "x-threads-generation",
@@ -914,13 +922,14 @@ export const PIPELINE_STAGE_CATALOG = [
     "Read reminder delivery policy and conditionally invoke the registered job-enqueue stage.",
     { ...compositeStage, workflowStep: false }
   ),
-  atomicStage(
+  stage(
     "x-threads-generation",
     104,
     "persist-usage-memory",
+    "Persist usage memory",
     "storage",
-    "Appwrite X-automation upsert",
-    "Persist one bounded usage-memory update."
+    "Create or update bounded usage memory through registered document stages.",
+    { ...compositeStage, workflowStep: false }
   ),
   stage(
     "x-threads-generation",
@@ -958,13 +967,14 @@ export const PIPELINE_STAGE_CATALOG = [
     "Download one completed remote image to local temporary staging.",
     { provider: "remote asset host" }
   ),
-  atomicStage(
+  stage(
     "x-threads-generation",
     109,
     "persist-image-run",
+    "Persist image run",
     "storage",
-    "Appwrite X-run upsert",
-    "Persist one generated image reference on its owner-scoped run."
+    "Attach one generated image by invoking the registered run persistence composite.",
+    { ...compositeStage, workflowStep: false }
   ),
   atomicStage(
     "x-threads-generation",
@@ -1017,7 +1027,688 @@ export const PIPELINE_STAGE_CATALOG = [
     "Remove one local temporary image after durable persistence.",
     { workflowStep: false }
   ),
+  ...pipelineStorageBoundaryStages(),
 ] as const satisfies readonly PipelineStageMetadata[]
+
+function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
+  const atomic = (
+    workflowId: PipelineWorkflowId,
+    order: number,
+    name: string,
+    operation: string,
+    description: string
+  ) => atomicStage(workflowId, order, name, "storage", operation, description)
+  return [
+    atomic(
+      "slideshow-generation",
+      201,
+      "get-automation-document",
+      "Appwrite automations getRow",
+      "Read exactly one owner-scoped slideshow automation row."
+    ),
+    atomic(
+      "slideshow-generation",
+      202,
+      "list-image-collections-page",
+      "Appwrite permanent_assets listRows",
+      "Read exactly one owner-scoped image-collection page."
+    ),
+    atomic(
+      "slideshow-generation",
+      203,
+      "list-word-collections-page",
+      "Appwrite permanent_assets listRows",
+      "Read exactly one owner-scoped word-collection page."
+    ),
+    atomic(
+      "slideshow-generation",
+      204,
+      "list-usage-history-page",
+      "Appwrite usage_ledger listRows",
+      "Read exactly one owner-scoped usage page."
+    ),
+    atomic(
+      "slideshow-generation",
+      205,
+      "list-prior-runs-page",
+      "Appwrite automation_runs listRows",
+      "Read exactly one owner-scoped automation-run page."
+    ),
+    atomic(
+      "slideshow-generation",
+      206,
+      "get-result-document",
+      "Appwrite outputs getRow",
+      "Read exactly one owner-scoped slideshow result row."
+    ),
+    atomic(
+      "slideshow-generation",
+      207,
+      "create-result-document",
+      "Appwrite outputs createRow",
+      "Create exactly one owner-scoped slideshow result row."
+    ),
+    atomic(
+      "slideshow-generation",
+      208,
+      "update-result-document",
+      "Appwrite outputs updateRow",
+      "Update exactly one owner-scoped slideshow result row."
+    ),
+    atomic(
+      "slideshow-generation",
+      209,
+      "list-result-media-page",
+      "Appwrite output_media listRows",
+      "Read exactly one media page for one owner-scoped result."
+    ),
+    atomic(
+      "slideshow-generation",
+      210,
+      "create-one-result-media",
+      "Appwrite output_media createRow",
+      "Create exactly one media row for one slideshow result."
+    ),
+    atomic(
+      "slideshow-generation",
+      211,
+      "delete-one-result-media",
+      "Appwrite output_media deleteRow",
+      "Delete exactly one media row obtained from an owner-scoped result page."
+    ),
+    atomic(
+      "slideshow-generation",
+      212,
+      "read-one-source-asset",
+      "Appwrite Storage getFileView",
+      "Read one permitted slideshow source object into local staging."
+    ),
+    atomic(
+      "slideshow-generation",
+      213,
+      "create-one-output-asset",
+      "Appwrite Storage createFile",
+      "Create one slideshow output object from local staging."
+    ),
+    atomic(
+      "slideshow-generation",
+      214,
+      "delete-one-output-asset",
+      "Appwrite Storage deleteFile",
+      "Delete one slideshow output object before an explicit replacement attempt."
+    ),
+    stage(
+      "slideshow-generation",
+      215,
+      "persist-result-media",
+      "Persist result media",
+      "storage",
+      "Replace result media using registered page, delete, and create stages.",
+      { ...compositeStage, workflowStep: false }
+    ),
+    atomic(
+      "slideshow-generation",
+      216,
+      "get-model-settings-document",
+      "Appwrite permanent_assets getRow",
+      "Read exactly one owner-scoped generation-model settings row."
+    ),
+    atomicStage(
+      "slideshow-generation",
+      217,
+      "download-one-source-asset",
+      "provider",
+      "slideshow source HTTP GET",
+      "Download exactly one remote slideshow source into local staging.",
+      { provider: "remote asset host" }
+    ),
+    atomic(
+      "slideshow-generation",
+      218,
+      "get-one-post-intent",
+      "Appwrite posts getRow",
+      "Read exactly one owner-scoped generated post-intent row."
+    ),
+    atomic(
+      "slideshow-generation",
+      219,
+      "create-one-post-intent",
+      "Appwrite posts createRow",
+      "Create exactly one owner-scoped generated post-intent row."
+    ),
+    atomic(
+      "slideshow-generation",
+      220,
+      "update-one-post-intent",
+      "Appwrite posts updateRow",
+      "Update exactly one owner-scoped generated post-intent row."
+    ),
+    atomic(
+      "slideshow-generation",
+      221,
+      "get-one-post-identity",
+      "Appwrite post_identities getRow",
+      "Read exactly one owner-scoped generated post identity."
+    ),
+    atomic(
+      "slideshow-generation",
+      222,
+      "create-one-post-identity",
+      "Appwrite post_identities createRow",
+      "Create exactly one owner-scoped generated post identity."
+    ),
+    stage(
+      "slideshow-generation",
+      223,
+      "persist-post-intents",
+      "Persist post intents",
+      "storage",
+      "Persist generated post intents through registered identity and post document stages.",
+      { ...compositeStage, workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      224,
+      "prepare-png-render",
+      "Prepare PNG render",
+      "deterministic",
+      "Normalize a slideshow record and initialize resumable local scratch state.",
+      { workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      225,
+      "stage-render-assets",
+      "Stage render assets",
+      "storage",
+      "Stage each source, overlay, and icon through a registered singular read or download stage.",
+      { ...compositeStage, workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      226,
+      "render-one-slide-png",
+      "Render one slide PNG",
+      "deterministic",
+      "Render one slide locally from already staged inputs.",
+      { workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      227,
+      "render-all-slide-pngs",
+      "Render all slide PNGs",
+      "deterministic",
+      "Invoke the singular registered renderer once per slide.",
+      { ...compositeStage, workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      228,
+      "list-render-output-files",
+      "List render output files",
+      "deterministic",
+      "List the bounded local render files that require persistence.",
+      { workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      229,
+      "persist-render-output-files",
+      "Persist render output files",
+      "storage",
+      "Create each output object through the registered singular storage stage, with explicit delete/create replacement.",
+      { ...compositeStage, workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      230,
+      "assemble-rendered-slideshow",
+      "Assemble rendered slideshow",
+      "deterministic",
+      "Assemble durable output URLs and staged source references into the slideshow record.",
+      { workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      231,
+      "persist-slideshow-result",
+      "Persist slideshow result",
+      "storage",
+      "Create or update a result row, synchronize each media row, and persist post intents through registered children.",
+      { ...compositeStage, workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      232,
+      "discard-png-render",
+      "Discard PNG render",
+      "deterministic",
+      "Remove bounded local slideshow scratch state.",
+      { workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      233,
+      "build-result-record",
+      "Build result record",
+      "deterministic",
+      "Build the canonical result payload and media drafts without storage access.",
+      { workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      234,
+      "prepare-post-intents",
+      "Prepare post intents",
+      "deterministic",
+      "Build owner-scoped generated post intents without storage access.",
+      { workflowStep: false }
+    ),
+    atomic(
+      "slideshow-generation",
+      235,
+      "list-results-page",
+      "Appwrite outputs listRows",
+      "Read exactly one owner-scoped slideshow result page."
+    ),
+    stage(
+      "slideshow-generation",
+      236,
+      "find-result-for-slideshow",
+      "Find result for slideshow",
+      "storage",
+      "Page through registered result reads until the requested slideshow result is found.",
+      { ...compositeStage, workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      237,
+      "initialize-video-preparation",
+      "Initialize video preparation",
+      "deterministic",
+      "Build resumable local video input paths from a hydrated slideshow result.",
+      { workflowStep: false }
+    ),
+    atomic(
+      "slideshow-generation",
+      238,
+      "read-one-video-slide",
+      "Appwrite Storage getFileView",
+      "Read exactly one rendered slideshow PNG into local video staging."
+    ),
+    stage(
+      "slideshow-generation",
+      239,
+      "stage-video-slides",
+      "Stage video slides",
+      "storage",
+      "Stage every rendered PNG through the singular registered storage read.",
+      { ...compositeStage, workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      240,
+      "build-finalized-video-result",
+      "Build finalized video result",
+      "deterministic",
+      "Attach persisted video and thumbnail URLs to a supplied result record.",
+      { workflowStep: false }
+    ),
+    atomic(
+      "slideshow-generation",
+      241,
+      "get-automation-run-document",
+      "Appwrite automation_runs getRow",
+      "Read exactly one owner-scoped slideshow automation-run row."
+    ),
+    atomic(
+      "slideshow-generation",
+      242,
+      "create-automation-run-document",
+      "Appwrite automation_runs createRow",
+      "Create exactly one owner-scoped slideshow automation-run row."
+    ),
+    atomic(
+      "slideshow-generation",
+      243,
+      "update-automation-run-document",
+      "Appwrite automation_runs updateRow",
+      "Update exactly one owner-scoped slideshow automation-run row."
+    ),
+    stage(
+      "slideshow-generation",
+      244,
+      "enrich-collection-usage",
+      "Enrich collection usage",
+      "deterministic",
+      "Attach latest supplied image-usage timestamps to supplied collection candidates.",
+      { workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      245,
+      "prepare-one-usage-record",
+      "Prepare one usage record",
+      "deterministic",
+      "Normalize and assign the deterministic ID for one supplied usage record.",
+      { workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      246,
+      "prepare-post-identity-claims",
+      "Prepare post identity claims",
+      "deterministic",
+      "Derive canonical identity claims for one supplied post intent.",
+      { workflowStep: false }
+    ),
+    stage(
+      "slideshow-generation",
+      247,
+      "prepare-video-thumbnail",
+      "Prepare video thumbnail",
+      "deterministic",
+      "Copy the first staged slide into the local thumbnail input without a remote call.",
+      { workflowStep: false }
+    ),
+
+    atomic(
+      "ugc-video-generation",
+      301,
+      "get-saved-run-document",
+      "Appwrite automation_runs getRow",
+      "Read exactly one owner-scoped saved UGC checkpoint row."
+    ),
+    atomic(
+      "ugc-video-generation",
+      302,
+      "create-saved-run-document",
+      "Appwrite automation_runs createRow",
+      "Create exactly one owner-scoped saved UGC checkpoint row."
+    ),
+    atomic(
+      "ugc-video-generation",
+      303,
+      "update-saved-run-document",
+      "Appwrite automation_runs updateRow",
+      "Update exactly one owner-scoped saved UGC checkpoint row."
+    ),
+    atomic(
+      "ugc-video-generation",
+      304,
+      "inspect-one-saved-asset",
+      "Appwrite Storage getFile",
+      "Inspect exactly one owner-scoped durable UGC asset."
+    ),
+    atomic(
+      "ugc-video-generation",
+      305,
+      "read-one-saved-asset",
+      "Appwrite Storage getFileView",
+      "Read exactly one owner-scoped durable UGC asset into local staging."
+    ),
+    atomic(
+      "ugc-video-generation",
+      306,
+      "create-one-saved-asset",
+      "Appwrite Storage createFile",
+      "Create exactly one owner-scoped durable UGC asset."
+    ),
+    atomic(
+      "ugc-video-generation",
+      307,
+      "delete-one-saved-asset",
+      "Appwrite Storage deleteFile",
+      "Delete exactly one owner-scoped durable UGC asset before replacement."
+    ),
+    atomic(
+      "ugc-video-generation",
+      308,
+      "get-final-output-document",
+      "Appwrite outputs getRow",
+      "Read exactly one owner-scoped UGC output row."
+    ),
+    atomic(
+      "ugc-video-generation",
+      309,
+      "create-final-output-document",
+      "Appwrite outputs createRow",
+      "Create exactly one owner-scoped UGC output row."
+    ),
+    atomic(
+      "ugc-video-generation",
+      310,
+      "update-final-output-document",
+      "Appwrite outputs updateRow",
+      "Update exactly one owner-scoped UGC output row."
+    ),
+    atomic(
+      "ugc-video-generation",
+      311,
+      "list-final-output-media-page",
+      "Appwrite output_media listRows",
+      "Read exactly one media page for one owner-scoped UGC output."
+    ),
+    atomic(
+      "ugc-video-generation",
+      312,
+      "create-one-final-output-media",
+      "Appwrite output_media createRow",
+      "Create exactly one UGC output-media row."
+    ),
+    atomic(
+      "ugc-video-generation",
+      313,
+      "delete-one-final-output-media",
+      "Appwrite output_media deleteRow",
+      "Delete exactly one UGC output-media row returned by an owner-scoped page."
+    ),
+    stage(
+      "ugc-video-generation",
+      314,
+      "save-checkpoint",
+      "Save checkpoint",
+      "storage",
+      "Create or update resumable UGC checkpoint state through registered document stages.",
+      { ...compositeStage, workflowStep: false }
+    ),
+    stage(
+      "ugc-video-generation",
+      315,
+      "replace-one-saved-asset",
+      "Replace one saved asset",
+      "storage",
+      "Replace one UGC asset through registered inspect/delete/create stages.",
+      { ...compositeStage, workflowStep: false }
+    ),
+    stage(
+      "ugc-video-generation",
+      316,
+      "persist-final-output-media",
+      "Persist final output media",
+      "storage",
+      "Replace UGC output media through registered page, delete, and create stages.",
+      { ...compositeStage, workflowStep: false }
+    ),
+    atomic(
+      "ugc-video-generation",
+      317,
+      "get-saved-automation-document",
+      "Appwrite automations getRow",
+      "Read exactly one owner-scoped UGC automation row."
+    ),
+    atomic(
+      "ugc-video-generation",
+      318,
+      "get-usage-document",
+      "Appwrite usage_ledger getRow",
+      "Read exactly one owner-scoped UGC usage row."
+    ),
+    atomic(
+      "ugc-video-generation",
+      319,
+      "create-usage-document",
+      "Appwrite usage_ledger createRow",
+      "Create exactly one owner-scoped UGC usage row."
+    ),
+    atomic(
+      "ugc-video-generation",
+      320,
+      "update-usage-document",
+      "Appwrite usage_ledger updateRow",
+      "Update exactly one owner-scoped UGC usage row."
+    ),
+    stage(
+      "ugc-video-generation",
+      321,
+      "persist-usage-record",
+      "Persist usage record",
+      "storage",
+      "Create or update one UGC usage record through registered document stages.",
+      { ...compositeStage, workflowStep: false }
+    ),
+    atomic(
+      "ugc-video-generation",
+      322,
+      "create-generated-notification-job",
+      "Appwrite jobs createRow",
+      "Create exactly one owner-scoped generated-output reminder job."
+    ),
+    atomic(
+      "ugc-video-generation",
+      323,
+      "delete-one-broll-asset",
+      "Appwrite Storage deleteFile",
+      "Delete exactly one fixed-domain b-roll object before an explicit create retry."
+    ),
+    stage(
+      "ugc-video-generation",
+      324,
+      "prepare-final-output-document",
+      "Prepare final output document",
+      "deterministic",
+      "Build the fixed-domain UGC output row and media drafts from supplied final output state.",
+      { workflowStep: false }
+    ),
+    stage(
+      "ugc-video-generation",
+      325,
+      "persist-final-output",
+      "Persist final output",
+      "storage",
+      "Create or update the UGC output, synchronize media, and enqueue its reminder through registered children.",
+      { ...compositeStage, workflowStep: false }
+    ),
+
+    atomic(
+      "x-threads-generation",
+      201,
+      "get-automation-document",
+      "Appwrite x_automations getRow",
+      "Read exactly one owner-scoped X/Threads automation row."
+    ),
+    atomic(
+      "x-threads-generation",
+      202,
+      "create-automation-document",
+      "Appwrite x_automations createRow",
+      "Create exactly one owner-scoped X/Threads automation row."
+    ),
+    atomic(
+      "x-threads-generation",
+      203,
+      "update-automation-document",
+      "Appwrite x_automations updateRow",
+      "Update exactly one owner-scoped X/Threads automation row."
+    ),
+    atomic(
+      "x-threads-generation",
+      204,
+      "get-run-document",
+      "Appwrite outputs getRow",
+      "Read exactly one owner-scoped X/Threads run row."
+    ),
+    atomic(
+      "x-threads-generation",
+      205,
+      "create-run-document",
+      "Appwrite outputs createRow",
+      "Create exactly one owner-scoped X/Threads run row."
+    ),
+    atomic(
+      "x-threads-generation",
+      206,
+      "update-run-document",
+      "Appwrite outputs updateRow",
+      "Update exactly one owner-scoped X/Threads run row."
+    ),
+    atomic(
+      "x-threads-generation",
+      207,
+      "list-run-media-page",
+      "Appwrite output_media listRows",
+      "Read exactly one media page for one owner-scoped X/Threads run."
+    ),
+    atomic(
+      "x-threads-generation",
+      208,
+      "create-one-run-media",
+      "Appwrite output_media createRow",
+      "Create exactly one X/Threads run-media row."
+    ),
+    atomic(
+      "x-threads-generation",
+      209,
+      "delete-one-run-media",
+      "Appwrite output_media deleteRow",
+      "Delete exactly one X/Threads run-media row returned by an owner-scoped page."
+    ),
+    stage(
+      "x-threads-generation",
+      210,
+      "persist-run-media",
+      "Persist run media",
+      "storage",
+      "Replace X/Threads run media through registered page, delete, and create stages.",
+      { ...compositeStage, workflowStep: false }
+    ),
+    stage(
+      "x-threads-generation",
+      211,
+      "prepare-run-document",
+      "Prepare run document",
+      "deterministic",
+      "Build the owner-scoped X/Threads output row and media drafts without storage access.",
+      { workflowStep: false }
+    ),
+    atomic(
+      "x-threads-generation",
+      212,
+      "delete-image-asset",
+      "Appwrite Storage deleteFile",
+      "Delete exactly one fixed-domain generated image before an explicit create retry."
+    ),
+    stage(
+      "x-threads-generation",
+      213,
+      "build-usage-memory-update",
+      "Build usage memory update",
+      "deterministic",
+      "Build the bounded X/Threads automation usage-memory update locally.",
+      { workflowStep: false }
+    ),
+    stage(
+      "x-threads-generation",
+      214,
+      "attach-image-to-run",
+      "Attach image to run",
+      "deterministic",
+      "Attach one durable image URL to a supplied X/Threads run locally.",
+      { workflowStep: false }
+    ),
+  ]
+}
 
 export function pipelineStagesForWorkflow(workflowId: PipelineWorkflowId) {
   return PIPELINE_STAGE_CATALOG.filter(

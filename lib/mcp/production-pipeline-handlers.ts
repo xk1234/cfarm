@@ -15,7 +15,6 @@ import {
 import {
   selectContentSlideCount,
   automationSlideshowSettings,
-  upsertRecoveredAutomationRun,
   type AutomationRunPlan,
   type AutomationRunRecord,
 } from "@/lib/automation-runner"
@@ -34,14 +33,20 @@ import {
 } from "@/lib/slideshow-image-matching"
 import { translateTextsWithDeepL } from "@/lib/deepl-translate"
 import {
-  createSlideshowResultRecord,
-  finalizeStoredSlideshowVideo,
-  prepareStoredSlideshowVideo,
+  assembleSlideshowRenderRecord,
+  discardSlideshowScratch,
+  prepareSlideshowResultRender,
+  renderOneStagedSlideshowSlide,
+  slideshowAssetRequests,
+  slideshowScratchFiles,
+  stageOneRemoteSlideshowAsset,
+  stageOneStoredSlideshowAsset,
+  type SlideshowRecord,
+  type StagedSlideshowAsset,
 } from "@/lib/slideshows"
 import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
 import {
-  appendUsageRecords,
-  listUsageRecords,
+  normalizeUsageRecord,
   usageRecordsForPublishedRuns,
   type UsageRecord,
 } from "@/lib/usage-ledger"
@@ -92,7 +97,10 @@ import { buildXAutomationUsageUpdate } from "@/lib/x-automation-runner"
 import type { BrandProfile } from "@/lib/brand-profile"
 import { humanizeContent, reviewContent } from "@/lib/generation-chain"
 import { generationModelRegistry } from "@/lib/realfarm-generation-model-registry"
-import { getGenerationModelSettings } from "@/lib/generation-model-settings"
+import {
+  defaultGenerationModelSettings,
+  normalizeGenerationModelSettings,
+} from "@/lib/generation-model-settings"
 import { synthesizeElevenLabsSpeechToTemp } from "@/lib/elevenlabs-tts"
 import {
   completeRendiSessionUpload,
@@ -106,6 +114,40 @@ import {
 } from "@/lib/pipeline-rendi"
 import { getRendiApiKey } from "@/lib/rendi-client"
 import { persistPipelineTempFile } from "@/lib/local-asset-download"
+import { deleteAssetFromAppwrite } from "@/lib/asset-storage"
+import {
+  createDomainAssetOnce,
+  createOutputMediaOnce,
+  createPipelineDomainDocumentOnce,
+  deleteDomainAssetOnce,
+  deleteOutputMediaOnce,
+  inspectDomainAssetOnce,
+  pipelineDomainRowId,
+  preparePipelineDomainDocument,
+  readDomainAssetOnce,
+  readOutputMediaPageOnce,
+  readPipelineDomainDocumentOnce,
+  readPipelineDomainPageOnce,
+  updatePipelineDomainDocumentOnce,
+  type PipelineStorageDomain,
+} from "@/lib/pipeline-domain-storage"
+import { mkdtemp, readFile, writeFile } from "node:fs/promises"
+import os from "node:os"
+import {
+  createCanonicalPostOnce,
+  createPostIdentityOnce,
+  getCanonicalPostOnce,
+  getPostIdentityOnce,
+  updateCanonicalPostOnce,
+} from "@/lib/post-repository-appwrite"
+import { buildGeneratedPostIntents } from "@/lib/post-writer"
+import { postRepositoryWriteMode } from "@/lib/post-repository-config"
+import { postIdentityClaimsForPost, type Post } from "@/lib/posts"
+import {
+  hydrateOutputMedia,
+  type OutputMediaDraft,
+} from "@/lib/consolidated-records"
+import type { ResultRecord } from "@/lib/results"
 import { prepareUgcRendiComposite } from "@/lib/pipeline-ugc-rendi"
 import {
   buildNanoBananaProPayload,
@@ -114,7 +156,6 @@ import {
   downloadRemoteImageToTemp,
   getKieMarketTask,
   getKieApiKey,
-  persistDownloadedImage,
 } from "@/lib/kie-image"
 import { createHash } from "node:crypto"
 import path from "node:path"
@@ -134,28 +175,6 @@ import type { ReminderSettings } from "@/lib/reminder-settings"
 
 export type ProductionPipelineServices = {
   now: () => Date
-  getAutomationRecord: (id: string) => Promise<AutomationRecord | null>
-  listImageCollections: () => Promise<StoredImageCollection[]>
-  listWordCollections: () => Promise<WordCollectionRecord[]>
-  listAutomationRuns: (input: {
-    automationId?: string
-    limit?: number
-  }) => Promise<AutomationRunRecord[]>
-  getXAutomation: (id: string) => Promise<XAutomationRecord | null>
-  generateStoredXAutomationRun: (input: {
-    automation: XAutomationRecord
-    topic?: string
-    requestId?: string
-  }) => Promise<Record<string, unknown>>
-  persistGeneratedXAutomationRun: (input: {
-    automation: XAutomationRecord
-    run: XAutomationRun
-    requestId?: string
-  }) => Promise<XAutomationRun>
-  upsertXAutomationRun: (run: XAutomationRun) => Promise<XAutomationRun>
-  upsertXAutomation: (
-    automation: XAutomationRecord
-  ) => Promise<XAutomationRecord>
   getReminderSettings: () => Promise<ReminderSettings>
   enqueueJob: (input: {
     type: string
@@ -178,6 +197,1177 @@ export function createProductionPipelineHandlers(
     id: string,
     handler: NonNullable<ReturnType<typeof handlers.get>>
   ) => handlers.set(id, handler)
+
+  const addPageRead = (
+    id: string,
+    domain: PipelineStorageDomain,
+    outputKey: string
+  ) =>
+    add(id, async (input, context) => {
+      const page = await context.externalCall(
+        `Appwrite ${domain} listRows`,
+        () =>
+          readPipelineDomainPageOnce({
+            domain,
+            ownerId: context.ownerId,
+            cursor: clean(input.cursor) || undefined,
+            limit: numberValue(input.pageSize) || 100,
+          })
+      )
+      return mergePipelineOutput(input, { [outputKey]: page })
+    })
+
+  const addDocumentRead = (
+    id: string,
+    domain: PipelineStorageDomain,
+    inputKey: string,
+    outputKey: string
+  ) =>
+    add(id, async (input, context) => {
+      const document = await context.externalCall(
+        `Appwrite ${domain} getRow`,
+        () =>
+          readPipelineDomainDocumentOnce({
+            domain,
+            ownerId: context.ownerId,
+            id: requiredString(input[inputKey], inputKey),
+          })
+      )
+      return mergePipelineOutput(input, { [outputKey]: document })
+    })
+
+  const addDocumentWrite = (
+    id: string,
+    domain: PipelineStorageDomain,
+    operation: "create" | "update",
+    inputKey: string,
+    outputKey: string
+  ) =>
+    add(id, async (input, context) => {
+      const record = requiredRecord(input[inputKey], inputKey)
+      const persisted = await context.externalCall(
+        `Appwrite ${domain} ${operation}Row`,
+        () =>
+          (operation === "create"
+            ? createPipelineDomainDocumentOnce
+            : updatePipelineDomainDocumentOnce)({
+            domain,
+            ownerId: context.ownerId,
+            record,
+          })
+      )
+      return mergePipelineOutput(input, {
+        [outputKey]: { rowId: persisted.rowId, media: persisted.media },
+      })
+    })
+
+  addPageRead(
+    "slideshow-generation.list-image-collections-page",
+    "image-collections",
+    "storagePage"
+  )
+  addPageRead(
+    "slideshow-generation.list-results-page",
+    "results",
+    "storagePage"
+  )
+  addPageRead(
+    "slideshow-generation.list-word-collections-page",
+    "word-collections",
+    "storagePage"
+  )
+  addPageRead(
+    "slideshow-generation.list-usage-history-page",
+    "usage-history",
+    "storagePage"
+  )
+  addPageRead(
+    "slideshow-generation.list-prior-runs-page",
+    "automation-runs",
+    "storagePage"
+  )
+  addDocumentRead(
+    "slideshow-generation.get-automation-document",
+    "automations",
+    "automationId",
+    "automationDocument"
+  )
+  addDocumentRead(
+    "slideshow-generation.get-model-settings-document",
+    "model-settings",
+    "modelSettingsId",
+    "modelSettingsDocument"
+  )
+  addDocumentRead(
+    "slideshow-generation.get-result-document",
+    "results",
+    "resultId",
+    "resultDocument"
+  )
+  addDocumentWrite(
+    "slideshow-generation.create-result-document",
+    "results",
+    "create",
+    "resultRecord",
+    "persistedResult"
+  )
+  addDocumentWrite(
+    "slideshow-generation.update-result-document",
+    "results",
+    "update",
+    "resultRecord",
+    "persistedResult"
+  )
+  addDocumentRead(
+    "ugc-video-generation.get-saved-run-document",
+    "automation-runs",
+    "runId",
+    "savedRunDocument"
+  )
+  addDocumentRead(
+    "ugc-video-generation.get-saved-automation-document",
+    "automations",
+    "automationId",
+    "savedAutomationDocument"
+  )
+  addDocumentRead(
+    "ugc-video-generation.get-usage-document",
+    "usage-history",
+    "usageId",
+    "usageDocument"
+  )
+  addDocumentWrite(
+    "ugc-video-generation.create-usage-document",
+    "usage-history",
+    "create",
+    "usageRecord",
+    "persistedUsage"
+  )
+  addDocumentWrite(
+    "ugc-video-generation.update-usage-document",
+    "usage-history",
+    "update",
+    "usageRecord",
+    "persistedUsage"
+  )
+  addDocumentRead(
+    "slideshow-generation.get-automation-run-document",
+    "automation-runs",
+    "runId",
+    "automationRunDocument"
+  )
+  addDocumentWrite(
+    "slideshow-generation.create-automation-run-document",
+    "automation-runs",
+    "create",
+    "runToPersist",
+    "persistedAutomationRun"
+  )
+  addDocumentWrite(
+    "slideshow-generation.update-automation-run-document",
+    "automation-runs",
+    "update",
+    "runToPersist",
+    "persistedAutomationRun"
+  )
+  addDocumentWrite(
+    "ugc-video-generation.create-saved-run-document",
+    "automation-runs",
+    "create",
+    "savedRun",
+    "persistedSavedRun"
+  )
+  addDocumentWrite(
+    "ugc-video-generation.update-saved-run-document",
+    "automation-runs",
+    "update",
+    "savedRun",
+    "persistedSavedRun"
+  )
+  addDocumentRead(
+    "ugc-video-generation.get-final-output-document",
+    "ugc-outputs",
+    "outputId",
+    "finalOutputDocument"
+  )
+  addDocumentWrite(
+    "ugc-video-generation.create-final-output-document",
+    "ugc-outputs",
+    "create",
+    "finalOutput",
+    "persistedFinalOutput"
+  )
+  addDocumentWrite(
+    "ugc-video-generation.update-final-output-document",
+    "ugc-outputs",
+    "update",
+    "finalOutput",
+    "persistedFinalOutput"
+  )
+  addDocumentRead(
+    "x-threads-generation.get-automation-document",
+    "x-automations",
+    "automationId",
+    "xAutomationDocument"
+  )
+  addDocumentWrite(
+    "x-threads-generation.create-automation-document",
+    "x-automations",
+    "create",
+    "automation",
+    "persistedAutomation"
+  )
+  addDocumentWrite(
+    "x-threads-generation.update-automation-document",
+    "x-automations",
+    "update",
+    "automation",
+    "persistedAutomation"
+  )
+  addDocumentRead(
+    "x-threads-generation.get-run-document",
+    "x-runs",
+    "runId",
+    "xRunDocument"
+  )
+  addDocumentWrite(
+    "x-threads-generation.create-run-document",
+    "x-runs",
+    "create",
+    "run",
+    "persistedRunDocument"
+  )
+  addDocumentWrite(
+    "x-threads-generation.update-run-document",
+    "x-runs",
+    "update",
+    "run",
+    "persistedRunDocument"
+  )
+
+  const addMediaProtocol = (input: {
+    workflowId:
+      "slideshow-generation" | "ugc-video-generation" | "x-threads-generation"
+    pageId: string
+    createId: string
+    deleteId: string
+    rowKey: string
+    mediaKey: string
+    pageKey: string
+    domain: Extract<PipelineStorageDomain, "results" | "ugc-outputs" | "x-runs">
+    idKey: string
+  }) => {
+    add(`${input.workflowId}.${input.pageId}`, async (state, context) => {
+      const outputRowId = pipelineDomainRowId(
+        input.domain,
+        context.ownerId,
+        requiredString(state[input.idKey], input.idKey)
+      )
+      const page = await context.externalCall(
+        "Appwrite output_media listRows",
+        () =>
+          readOutputMediaPageOnce({
+            ownerId: context.ownerId,
+            outputRowId,
+            cursor: clean(state.cursor) || undefined,
+            limit: numberValue(state.pageSize) || 100,
+          })
+      )
+      return mergePipelineOutput(state, {
+        [input.rowKey]: outputRowId,
+        [input.pageKey]: page,
+      })
+    })
+    add(`${input.workflowId}.${input.createId}`, async (state, context) => {
+      const media = requiredRecord(
+        state[input.mediaKey],
+        input.mediaKey
+      ) as unknown as OutputMediaDraft
+      const outputRowId = pipelineDomainRowId(
+        input.domain,
+        context.ownerId,
+        requiredString(state[input.idKey], input.idKey)
+      )
+      const created = await context.externalCall(
+        "Appwrite output_media createRow",
+        () =>
+          createOutputMediaOnce({
+            ownerId: context.ownerId,
+            outputRowId,
+            media,
+          })
+      )
+      return mergePipelineOutput(state, { createdMediaRowId: created.rowId })
+    })
+    add(`${input.workflowId}.${input.deleteId}`, async (state, context) => {
+      const media = requiredRecord(
+        state[input.mediaKey],
+        input.mediaKey
+      ) as unknown as OutputMediaDraft
+      const outputRowId = pipelineDomainRowId(
+        input.domain,
+        context.ownerId,
+        requiredString(state[input.idKey], input.idKey)
+      )
+      await context.externalCall("Appwrite output_media deleteRow", () =>
+        deleteOutputMediaOnce({
+          ownerId: context.ownerId,
+          outputRowId,
+          media,
+        })
+      )
+      return mergePipelineOutput(state, { deletedMedia: media })
+    })
+  }
+  addMediaProtocol({
+    workflowId: "slideshow-generation",
+    pageId: "list-result-media-page",
+    createId: "create-one-result-media",
+    deleteId: "delete-one-result-media",
+    rowKey: "resultRowId",
+    mediaKey: "resultMedia",
+    pageKey: "resultMediaPage",
+    domain: "results",
+    idKey: "resultId",
+  })
+  addMediaProtocol({
+    workflowId: "ugc-video-generation",
+    pageId: "list-final-output-media-page",
+    createId: "create-one-final-output-media",
+    deleteId: "delete-one-final-output-media",
+    rowKey: "outputRowId",
+    mediaKey: "outputMedia",
+    pageKey: "outputMediaPage",
+    domain: "ugc-outputs",
+    idKey: "outputId",
+  })
+  addMediaProtocol({
+    workflowId: "x-threads-generation",
+    pageId: "list-run-media-page",
+    createId: "create-one-run-media",
+    deleteId: "delete-one-run-media",
+    rowKey: "runRowId",
+    mediaKey: "runMedia",
+    pageKey: "runMediaPage",
+    domain: "x-runs",
+    idKey: "runId",
+  })
+
+  const addMediaComposite = (input: {
+    id: string
+    pageId: string
+    createId: string
+    deleteId: string
+    rowKey: string
+    desiredKey: string
+    childMediaKey: string
+    pageKey: string
+  }) =>
+    add(input.id, async (state, context) => {
+      let cursor: string | undefined
+      do {
+        const pageState = (
+          await context.runStage(input.pageId, { ...state, cursor })
+        ).output
+        const page = requiredRecord(pageState[input.pageKey], input.pageKey)
+        for (const row of requiredArray<Record<string, unknown>>(
+          page.media,
+          `${input.pageKey}.media`,
+          true
+        )) {
+          await context.runStage(input.deleteId, {
+            ...state,
+            [input.rowKey]: state[input.rowKey],
+            [input.childMediaKey]: row,
+          })
+        }
+        cursor = clean(page.nextCursor) || undefined
+      } while (cursor)
+      for (const media of requiredArray<Record<string, unknown>>(
+        state[input.desiredKey],
+        input.desiredKey,
+        true
+      )) {
+        await context.runStage(input.createId, {
+          ...state,
+          [input.childMediaKey]: media,
+        })
+      }
+      return mergePipelineOutput(state, { mediaPersisted: true })
+    })
+  addMediaComposite({
+    id: "slideshow-generation.persist-result-media",
+    pageId: "slideshow-generation.list-result-media-page",
+    createId: "slideshow-generation.create-one-result-media",
+    deleteId: "slideshow-generation.delete-one-result-media",
+    rowKey: "resultRowId",
+    desiredKey: "resultMedia",
+    childMediaKey: "resultMedia",
+    pageKey: "resultMediaPage",
+  })
+  addMediaComposite({
+    id: "ugc-video-generation.persist-final-output-media",
+    pageId: "ugc-video-generation.list-final-output-media-page",
+    createId: "ugc-video-generation.create-one-final-output-media",
+    deleteId: "ugc-video-generation.delete-one-final-output-media",
+    rowKey: "outputRowId",
+    desiredKey: "outputMedia",
+    childMediaKey: "outputMedia",
+    pageKey: "outputMediaPage",
+  })
+  addMediaComposite({
+    id: "x-threads-generation.persist-run-media",
+    pageId: "x-threads-generation.list-run-media-page",
+    createId: "x-threads-generation.create-one-run-media",
+    deleteId: "x-threads-generation.delete-one-run-media",
+    rowKey: "runRowId",
+    desiredKey: "runMedia",
+    childMediaKey: "runMedia",
+    pageKey: "runMediaPage",
+  })
+
+  add("ugc-video-generation.save-checkpoint", async (input, context) => {
+    const read = await context.runStage(
+      "ugc-video-generation.get-saved-run-document",
+      input
+    )
+    return (
+      await context.runStage(
+        read.output.savedRunDocument
+          ? "ugc-video-generation.update-saved-run-document"
+          : "ugc-video-generation.create-saved-run-document",
+        read.output
+      )
+    ).output
+  })
+  add("ugc-video-generation.persist-usage-record", async (input, context) => {
+    const usageRecord = requiredRecord(input.usageRecord, "usageRecord")
+    let state = mergePipelineOutput(input, { usageId: clean(usageRecord.id) })
+    state = (
+      await context.runStage("ugc-video-generation.get-usage-document", state)
+    ).output
+    return (
+      await context.runStage(
+        state.usageDocument
+          ? "ugc-video-generation.update-usage-document"
+          : "ugc-video-generation.create-usage-document",
+        state
+      )
+    ).output
+  })
+  add(
+    "ugc-video-generation.prepare-final-output-document",
+    async (input, context) => {
+      const finalOutput = requiredRecord(input.finalOutput, "finalOutput")
+      const outputId = requiredString(finalOutput.id, "finalOutput.id")
+      const prepared = preparePipelineDomainDocument({
+        domain: "ugc-outputs",
+        ownerId: context.ownerId,
+        record: finalOutput,
+      })
+      return mergePipelineOutput(input, {
+        outputId,
+        runId:
+          clean(input.runId) ||
+          clean(finalOutput.sourceRunId) ||
+          clean(finalOutput.runId),
+        hook:
+          clean(input.hook) ||
+          clean(finalOutput.hook) ||
+          clean(finalOutput.title),
+        outputRowId: prepared.rowId,
+        outputMedia: prepared.media,
+      })
+    }
+  )
+  add("ugc-video-generation.persist-final-output", async (input, context) => {
+    let state = (
+      await context.runStage(
+        "ugc-video-generation.prepare-final-output-document",
+        input
+      )
+    ).output
+    state = (
+      await context.runStage(
+        "ugc-video-generation.get-final-output-document",
+        state
+      )
+    ).output
+    state = (
+      await context.runStage(
+        state.finalOutputDocument
+          ? "ugc-video-generation.update-final-output-document"
+          : "ugc-video-generation.create-final-output-document",
+        state
+      )
+    ).output
+    state = (
+      await context.runStage(
+        "ugc-video-generation.persist-final-output-media",
+        state
+      )
+    ).output
+    return (
+      await context.runStage(
+        "ugc-video-generation.create-generated-notification-job",
+        state
+      )
+    ).output
+  })
+  add(
+    "ugc-video-generation.create-generated-notification-job",
+    async (input, context) => {
+      const sourceId = requiredString(input.outputId, "outputId")
+      const runId = requiredString(input.runId, "runId")
+      const queued = await context.externalCall("Appwrite jobs createRow", () =>
+        services.enqueueJob({
+          type: "send-notification",
+          payload: {
+            event: "generated",
+            sourceType: "generated_video",
+            sourceId,
+            runId,
+            text: `UGC video generated\n${clean(input.hook)}`,
+          },
+          dedupeKey: `reminder:generated:generated_video:${sourceId}`,
+          maxAttempts: 5,
+        })
+      )
+      return mergePipelineOutput(input, {
+        notificationJobId: queued?.id ?? null,
+      })
+    }
+  )
+
+  const tempAssetPath = (prefix: string, relativePath: string) =>
+    path.join(
+      os.tmpdir(),
+      `${prefix}-${createHash("sha256").update(relativePath).digest("hex").slice(0, 16)}-${path.basename(relativePath)}`
+    )
+
+  add(
+    "ugc-video-generation.inspect-one-saved-asset",
+    async (input, context) => {
+      const inspection = await context.externalCall(
+        "Appwrite Storage getFile",
+        () =>
+          inspectDomainAssetOnce({
+            domain: "ugc",
+            ownerId: context.ownerId,
+            relativePath: requiredString(input.storagePath, "storagePath"),
+          })
+      )
+      return mergePipelineOutput(input, inspection)
+    }
+  )
+  add("ugc-video-generation.read-one-saved-asset", async (input, context) => {
+    const relativePath = requiredString(input.storagePath, "storagePath")
+    const bytes = await context.externalCall(
+      "Appwrite Storage getFileView",
+      () =>
+        readDomainAssetOnce({
+          domain: "ugc",
+          ownerId: context.ownerId,
+          relativePath,
+        })
+    )
+    const localPath = tempAssetPath("cfarm-ugc-asset", relativePath)
+    await writeFile(localPath, bytes)
+    return mergePipelineOutput(input, { localPath })
+  })
+  add("ugc-video-generation.create-one-saved-asset", async (input, context) => {
+    const localPath = requiredTempPath(input.localPath, "cfarm-ugc-")
+    const bytes = await readFile(localPath)
+    await context.externalCall("Appwrite Storage createFile", () =>
+      createDomainAssetOnce({
+        domain: "ugc",
+        ownerId: context.ownerId,
+        relativePath: requiredString(input.storagePath, "storagePath"),
+        bytes,
+      })
+    )
+    return mergePipelineOutput(input, { savedAsset: input.storagePath })
+  })
+  add("ugc-video-generation.delete-one-saved-asset", async (input, context) => {
+    await context.externalCall("Appwrite Storage deleteFile", () =>
+      deleteDomainAssetOnce({
+        domain: "ugc",
+        ownerId: context.ownerId,
+        relativePath: requiredString(input.storagePath, "storagePath"),
+      })
+    )
+    return mergePipelineOutput(input, { deletedAsset: input.storagePath })
+  })
+  add(
+    "ugc-video-generation.replace-one-saved-asset",
+    async (input, context) => {
+      const inspected = await context.runStage(
+        "ugc-video-generation.inspect-one-saved-asset",
+        input
+      )
+      if (inspected.output.exists)
+        await context.runStage(
+          "ugc-video-generation.delete-one-saved-asset",
+          inspected.output
+        )
+      return (
+        await context.runStage(
+          "ugc-video-generation.create-one-saved-asset",
+          inspected.output
+        )
+      ).output
+    }
+  )
+
+  add("slideshow-generation.prepare-png-render", async (input, context) => {
+    const plan = requiredRecord(input.localizedPlan ?? input.plan, "plan")
+    const slides = requiredArray<Record<string, unknown>>(
+      plan.slides,
+      "plan.slides"
+    )
+    const prepared = await prepareSlideshowResultRender({
+      ownerId: context.ownerId,
+      runId: clean(input.runId) || contextId(input),
+      automationId: clean(asRecord(input.automation).id) || undefined,
+      title: clean(plan.title),
+      caption: clean(plan.caption),
+      hashtags: clean(plan.hashtags),
+      prompt: `Hook: ${clean(plan.hook)}`,
+      slideshow_type: "automation",
+      settings: {
+        ...(isRecord(input.renderSettings) ? input.renderSettings : {}),
+        export_as_video: false,
+      },
+      images: slides.map((slide) => ({
+        id: clean(slide.id),
+        image_url: clean(slide.imageUrl),
+        textItems: slide.textItems as never,
+      })),
+    })
+    return mergePipelineOutput(input, {
+      slideshowRender: {
+        record: prepared.record,
+        scratchDir: prepared.scratchDir,
+        storageOutputDir: prepared.storageOutputDir,
+        assetRequests: slideshowAssetRequests(prepared.record),
+        stagedAssets: {},
+        slideOutputs: [],
+      },
+    })
+  })
+
+  add("slideshow-generation.read-one-source-asset", async (input, context) => {
+    const request = requiredRecord(input.assetRequest, "assetRequest")
+    const render = requiredRecord(input.slideshowRender, "slideshowRender")
+    const staged = await context.externalCall(
+      "Appwrite Storage getFileView",
+      () =>
+        stageOneStoredSlideshowAsset({
+          scratchDir: requiredString(
+            render.scratchDir,
+            "slideshowRender.scratchDir"
+          ),
+          slideshowId: requiredString(
+            asRecord(render.record).id,
+            "slideshowRender.record.id"
+          ),
+          slideIndex: numberValue(request.slideIndex),
+          role: requiredString(request.role, "assetRequest.role"),
+          sourceUrl: requiredString(
+            request.sourceUrl,
+            "assetRequest.sourceUrl"
+          ),
+        })
+    )
+    return mergePipelineOutput(input, { stagedAsset: staged })
+  })
+
+  add(
+    "slideshow-generation.download-one-source-asset",
+    async (input, context) => {
+      const request = requiredRecord(input.assetRequest, "assetRequest")
+      const render = requiredRecord(input.slideshowRender, "slideshowRender")
+      const staged = await context.externalCall(
+        "slideshow source HTTP GET",
+        () =>
+          stageOneRemoteSlideshowAsset({
+            scratchDir: requiredString(
+              render.scratchDir,
+              "slideshowRender.scratchDir"
+            ),
+            slideshowId: requiredString(
+              asRecord(render.record).id,
+              "slideshowRender.record.id"
+            ),
+            slideIndex: numberValue(request.slideIndex),
+            role: requiredString(request.role, "assetRequest.role"),
+            sourceUrl: requiredString(
+              request.sourceUrl,
+              "assetRequest.sourceUrl"
+            ),
+          })
+      )
+      return mergePipelineOutput(input, { stagedAsset: staged })
+    }
+  )
+
+  add("slideshow-generation.stage-render-assets", async (input, context) => {
+    const render = requiredRecord(input.slideshowRender, "slideshowRender")
+    const stagedAssets = { ...asRecord(render.stagedAssets) }
+    for (const request of requiredArray<Record<string, unknown>>(
+      render.assetRequests,
+      "slideshowRender.assetRequests"
+    )) {
+      const key = requiredString(request.key, "assetRequest.key")
+      if (isRecord(stagedAssets[key])) continue
+      const remote = /^https?:\/\//i.test(clean(request.sourceUrl))
+      const execution = await context.runStage(
+        remote
+          ? "slideshow-generation.download-one-source-asset"
+          : "slideshow-generation.read-one-source-asset",
+        {
+          ...input,
+          slideshowRender: { ...render, stagedAssets },
+          assetRequest: request,
+        }
+      )
+      stagedAssets[key] = requiredRecord(
+        execution.output.stagedAsset,
+        "stagedAsset"
+      )
+    }
+    return mergePipelineOutput(input, {
+      slideshowRender: { ...render, stagedAssets },
+    })
+  })
+
+  add("slideshow-generation.render-one-slide-png", async (input) => {
+    const render = requiredRecord(input.slideshowRender, "slideshowRender")
+    const staged = asRecord(render.stagedAssets)
+    const slideIndex = numberValue(input.slideIndex)
+    const source = requiredRecord(
+      staged[`${slideIndex}:source`],
+      "staged source"
+    ) as unknown as StagedSlideshowAsset
+    const icons = Object.entries(staged)
+      .filter(([key]) => key.startsWith(`${slideIndex}:icon:`))
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([, value]) => value as unknown as StagedSlideshowAsset)
+    const output = await renderOneStagedSlideshowSlide({
+      scratchDir: requiredString(
+        render.scratchDir,
+        "slideshowRender.scratchDir"
+      ),
+      record: requiredRecord(
+        render.record,
+        "slideshowRender.record"
+      ) as unknown as SlideshowRecord,
+      slideIndex,
+      source,
+      overlay: isRecord(staged[`${slideIndex}:overlay`])
+        ? (staged[`${slideIndex}:overlay`] as unknown as StagedSlideshowAsset)
+        : undefined,
+      icons,
+    })
+    return mergePipelineOutput(input, { slideOutput: output })
+  })
+
+  add("slideshow-generation.render-all-slide-pngs", async (input, context) => {
+    const render = requiredRecord(input.slideshowRender, "slideshowRender")
+    const record = requiredRecord(
+      render.record,
+      "slideshowRender.record"
+    ) as unknown as SlideshowRecord
+    const outputs = requiredArray<Record<string, unknown>>(
+      render.slideOutputs,
+      "slideshowRender.slideOutputs",
+      true
+    )
+    for (
+      let slideIndex = outputs.length;
+      slideIndex < record.images.length;
+      slideIndex += 1
+    ) {
+      const execution = await context.runStage(
+        "slideshow-generation.render-one-slide-png",
+        {
+          ...input,
+          slideshowRender: { ...render, slideOutputs: outputs },
+          slideIndex,
+        }
+      )
+      outputs.push(requiredRecord(execution.output.slideOutput, "slideOutput"))
+    }
+    return mergePipelineOutput(input, {
+      slideshowRender: { ...render, slideOutputs: outputs },
+    })
+  })
+
+  add("slideshow-generation.list-render-output-files", async (input) => {
+    const render = requiredRecord(input.slideshowRender, "slideshowRender")
+    return mergePipelineOutput(input, {
+      slideshowRender: {
+        ...render,
+        outputFiles: await slideshowScratchFiles(
+          requiredString(render.scratchDir, "slideshowRender.scratchDir")
+        ),
+      },
+    })
+  })
+
+  add(
+    "slideshow-generation.create-one-output-asset",
+    async (input, context) => {
+      const render = requiredRecord(input.slideshowRender, "slideshowRender")
+      const file = requiredRecord(input.outputFile, "outputFile")
+      const fileName = path.basename(
+        requiredString(file.fileName, "outputFile.fileName")
+      )
+      const localPath = requiredSlideshowScratchFile(file.localPath)
+      const relativePath = `slideshows/outputs/${requiredString(asRecord(render.record).id, "slideshow id")}/${fileName}`
+      const bytes = await readFile(localPath)
+      await context.externalCall("Appwrite Storage createFile", () =>
+        createDomainAssetOnce({
+          domain: "slideshow",
+          ownerId: context.ownerId,
+          relativePath,
+          bytes,
+        })
+      )
+      return mergePipelineOutput(input, { persistedOutputFile: relativePath })
+    }
+  )
+
+  add(
+    "slideshow-generation.delete-one-output-asset",
+    async (input, context) => {
+      const render = requiredRecord(input.slideshowRender, "slideshowRender")
+      const file = requiredRecord(input.outputFile, "outputFile")
+      const relativePath = `slideshows/outputs/${requiredString(asRecord(render.record).id, "slideshow id")}/${path.basename(requiredString(file.fileName, "outputFile.fileName"))}`
+      await context.externalCall("Appwrite Storage deleteFile", () =>
+        deleteDomainAssetOnce({
+          domain: "slideshow",
+          ownerId: context.ownerId,
+          relativePath,
+        })
+      )
+      return mergePipelineOutput(input, { deletedOutputFile: relativePath })
+    }
+  )
+
+  add(
+    "slideshow-generation.persist-render-output-files",
+    async (input, context) => {
+      const render = requiredRecord(input.slideshowRender, "slideshowRender")
+      for (const file of requiredArray<Record<string, unknown>>(
+        render.outputFiles,
+        "slideshowRender.outputFiles"
+      )) {
+        try {
+          await context.runStage(
+            "slideshow-generation.create-one-output-asset",
+            { ...input, outputFile: file }
+          )
+        } catch (error) {
+          if (appwriteErrorCode(error) !== 409) throw error
+          await context.runStage(
+            "slideshow-generation.delete-one-output-asset",
+            { ...input, outputFile: file }
+          )
+          await context.runStage(
+            "slideshow-generation.create-one-output-asset",
+            { ...input, outputFile: file }
+          )
+        }
+      }
+      return mergePipelineOutput(input, {
+        slideshowRender: { ...render, outputsPersisted: true },
+      })
+    }
+  )
+
+  add("slideshow-generation.assemble-rendered-slideshow", async (input) => {
+    const render = requiredRecord(input.slideshowRender, "slideshowRender")
+    const slideshow = assembleSlideshowRenderRecord({
+      record: requiredRecord(
+        render.record,
+        "slideshowRender.record"
+      ) as unknown as SlideshowRecord,
+      outputs: requiredArray(
+        render.slideOutputs,
+        "slideshowRender.slideOutputs"
+      ) as never,
+    })
+    return mergePipelineOutput(input, { renderedSlideshow: slideshow })
+  })
+
+  add("slideshow-generation.build-result-record", async (input, context) => {
+    const slideshow = requiredRecord(
+      input.renderedSlideshow,
+      "renderedSlideshow"
+    ) as unknown as SlideshowRecord
+    const runId = clean(input.runId) || contextId(input)
+    const resultRecord: ResultRecord = {
+      id: `result-${runId}`,
+      automationId:
+        slideshow.automationId ?? `standalone-automation-${slideshow.id}`,
+      runId,
+      workflowType: "slideshow",
+      title: slideshow.title,
+      status: slideshow.status === "failed" ? "failed" : "succeeded",
+      createdAt: slideshow.created_at,
+      updatedAt: slideshow.updated_at,
+      artifacts: {
+        slideshowId: slideshow.id,
+        videoUrl: slideshow.video_url,
+        thumbnailUrl: slideshow.thumbnail_url,
+        outputImages: slideshow.output_images,
+        outputDir: slideshow.output_dir,
+      },
+      payload: {
+        type: "slideshow",
+        caption: slideshow.caption,
+        hashtags: slideshow.hashtags,
+        prompt: slideshow.prompt,
+        imageCollectionId: slideshow.image_collection,
+        slideshowType: slideshow.slideshow_type,
+        settings: slideshow.settings,
+        slides: slideshow.images,
+      },
+      destinationAccountIds: [],
+    }
+    const prepared = preparePipelineDomainDocument({
+      domain: "results",
+      ownerId: context.ownerId,
+      record: resultRecord as unknown as Record<string, unknown>,
+    })
+    return mergePipelineOutput(input, {
+      resultId: resultRecord.id,
+      resultRecord,
+      resultRowId: prepared.rowId,
+      resultMedia: prepared.media,
+    })
+  })
+
+  add("slideshow-generation.prepare-post-intents", async (input, context) => {
+    const slideshow = requiredRecord(
+      input.renderedSlideshow,
+      "renderedSlideshow"
+    ) as unknown as SlideshowRecord
+    const result = requiredRecord(
+      input.resultRecord,
+      "resultRecord"
+    ) as unknown as ResultRecord
+    const postIntents =
+      postRepositoryWriteMode() === "legacy"
+        ? []
+        : buildGeneratedPostIntents(
+            {
+              sourceType: "slideshow",
+              sourceId: slideshow.id,
+              outputId: slideshow.id,
+              automationId: slideshow.automationId,
+              runId: result.runId,
+              sourceEntityId: slideshow.id,
+              publishMode: input.publishMode as never,
+              destinations: Array.isArray(input.postIntentDestinations)
+                ? (input.postIntentDestinations as never)
+                : undefined,
+              content: [slideshow.caption, slideshow.hashtags]
+                .filter(Boolean)
+                .join("\n\n"),
+              media: [
+                ...slideshow.output_images.map((url) => ({
+                  kind: "image" as const,
+                  url,
+                })),
+                ...(slideshow.video_url
+                  ? [{ kind: "video" as const, url: slideshow.video_url }]
+                  : []),
+                ...(slideshow.thumbnail_url
+                  ? [
+                      {
+                        kind: "thumbnail" as const,
+                        url: slideshow.thumbnail_url,
+                      },
+                    ]
+                  : []),
+              ],
+              generatedAt: slideshow.updated_at,
+            },
+            context.ownerId
+          )
+    return mergePipelineOutput(input, { postIntents })
+  })
+
+  add(
+    "slideshow-generation.prepare-post-identity-claims",
+    async (input, context) => {
+      const post = {
+        ...(requiredRecord(input.postIntent, "postIntent") as unknown as Post),
+        ownerId: context.ownerId,
+      }
+      return mergePipelineOutput(input, {
+        postIntent: post,
+        postIdentityClaims: postIdentityClaimsForPost(post),
+      })
+    }
+  )
+
+  add("slideshow-generation.get-one-post-intent", async (input, context) => {
+    const post = requiredRecord(
+      input.postIntent,
+      "postIntent"
+    ) as unknown as Post
+    const existing = await context.externalCall("Appwrite posts getRow", () =>
+      getCanonicalPostOnce(context.ownerId, post.id)
+    )
+    return mergePipelineOutput(input, { existingPostIntent: existing })
+  })
+  add("slideshow-generation.create-one-post-intent", async (input, context) => {
+    const post = {
+      ...(requiredRecord(input.postIntent, "postIntent") as unknown as Post),
+      ownerId: context.ownerId,
+    }
+    await context.externalCall("Appwrite posts createRow", () =>
+      createCanonicalPostOnce(post)
+    )
+    return mergePipelineOutput(input, { persistedPostIntent: post.id })
+  })
+  add("slideshow-generation.update-one-post-intent", async (input, context) => {
+    const post = {
+      ...(requiredRecord(input.postIntent, "postIntent") as unknown as Post),
+      ownerId: context.ownerId,
+    }
+    await context.externalCall("Appwrite posts updateRow", () =>
+      updateCanonicalPostOnce(post)
+    )
+    return mergePipelineOutput(input, { persistedPostIntent: post.id })
+  })
+  add("slideshow-generation.get-one-post-identity", async (input, context) => {
+    const claim = requiredRecord(
+      input.postIdentityClaim,
+      "postIdentityClaim"
+    ) as never
+    const identity = await context.externalCall(
+      "Appwrite post_identities getRow",
+      () => getPostIdentityOnce(claim)
+    )
+    if (identity && identity.ownerId !== context.ownerId)
+      throw new Error("Post identity owner mismatch")
+    return mergePipelineOutput(input, { existingPostIdentity: identity })
+  })
+  add(
+    "slideshow-generation.create-one-post-identity",
+    async (input, context) => {
+      const post = requiredRecord(
+        input.postIntent,
+        "postIntent"
+      ) as unknown as Post
+      const claim = requiredRecord(
+        input.postIdentityClaim,
+        "postIdentityClaim"
+      ) as never
+      const identity = await context.externalCall(
+        "Appwrite post_identities createRow",
+        () => createPostIdentityOnce(context.ownerId, post.id, claim)
+      )
+      return mergePipelineOutput(input, {
+        persistedPostIdentity: identity.identityHash,
+      })
+    }
+  )
+  add("slideshow-generation.persist-post-intents", async (input, context) => {
+    for (const post of requiredArray<Record<string, unknown>>(
+      input.postIntents,
+      "postIntents",
+      true
+    )) {
+      const prepared = (
+        await context.runStage(
+          "slideshow-generation.prepare-post-identity-claims",
+          { ...input, postIntent: post }
+        )
+      ).output
+      for (const claim of requiredArray<Record<string, unknown>>(
+        prepared.postIdentityClaims,
+        "postIdentityClaims"
+      )) {
+        const read = await context.runStage(
+          "slideshow-generation.get-one-post-identity",
+          { ...input, postIntent: post, postIdentityClaim: claim }
+        )
+        if (!read.output.existingPostIdentity)
+          await context.runStage(
+            "slideshow-generation.create-one-post-identity",
+            read.output
+          )
+      }
+      const read = await context.runStage(
+        "slideshow-generation.get-one-post-intent",
+        { ...input, postIntent: post }
+      )
+      await context.runStage(
+        read.output.existingPostIntent
+          ? "slideshow-generation.update-one-post-intent"
+          : "slideshow-generation.create-one-post-intent",
+        read.output
+      )
+    }
+    return mergePipelineOutput(input, { postIntentsPersisted: true })
+  })
+
+  add(
+    "slideshow-generation.persist-slideshow-result",
+    async (input, context) => {
+      const read = await context.runStage(
+        "slideshow-generation.get-result-document",
+        input
+      )
+      let state = (
+        await context.runStage(
+          read.output.resultDocument
+            ? "slideshow-generation.update-result-document"
+            : "slideshow-generation.create-result-document",
+          read.output
+        )
+      ).output
+      state = (
+        await context.runStage(
+          "slideshow-generation.persist-result-media",
+          state
+        )
+      ).output
+      state = (
+        await context.runStage(
+          "slideshow-generation.prepare-post-intents",
+          state
+        )
+      ).output
+      state = (
+        await context.runStage(
+          "slideshow-generation.persist-post-intents",
+          state
+        )
+      ).output
+      return state
+    }
+  )
+
+  add("slideshow-generation.discard-png-render", async (input) => {
+    const render = requiredRecord(input.slideshowRender, "slideshowRender")
+    await discardSlideshowScratch(
+      requiredString(render.scratchDir, "slideshowRender.scratchDir")
+    )
+    return mergePipelineOutput(input, {
+      slideshowRender: {
+        record: render.record,
+        slideOutputs: render.slideOutputs,
+        outputsPersisted: render.outputsPersisted,
+        scratchDir: null,
+      },
+    })
+  })
 
   const registerRendiProtocol = (
     workflowId: "slideshow-generation" | "ugc-video-generation"
@@ -432,59 +1622,126 @@ export function createProductionPipelineHandlers(
   registerRendiProtocol("ugc-video-generation")
 
   add("slideshow-generation.load-automation-record", async (input, context) => {
-    const automationRecord = await context.externalCall(
-      "Appwrite automation read",
-      () =>
-        services.getAutomationRecord(
-          requiredString(input.automationId, "automationId")
-        )
+    const state = await context.runStage(
+      "slideshow-generation.get-automation-document",
+      input
     )
-    return mergePipelineOutput(input, { automationRecord })
+    return mergePipelineOutput(state.output, {
+      automationRecord: isRecord(state.output.automationDocument)
+        ? asRecord(state.output.automationDocument).record
+        : null,
+    })
   })
-  add("slideshow-generation.list-image-collections", async (input, context) =>
-    mergePipelineOutput(input, {
-      collections: await context.externalCall(
-        "Appwrite image-collection list",
-        () => services.listImageCollections()
-      ),
+  const addPagedCollectionComposite = (
+    id: string,
+    pageId: string,
+    outputKey: string,
+    filter: (
+      record: Record<string, unknown>,
+      input: Record<string, unknown>
+    ) => boolean = () => true
+  ) =>
+    add(id, async (input, context) => {
+      const records: Record<string, unknown>[] = []
+      let cursor: string | undefined
+      do {
+        const pageState = (await context.runStage(pageId, { ...input, cursor }))
+          .output
+        const page = requiredRecord(pageState.storagePage, "storagePage")
+        records.push(
+          ...requiredArray<Record<string, unknown>>(
+            page.records,
+            "storagePage.records",
+            true
+          )
+            .map((item) =>
+              requiredRecord(item.record, "storagePage.records.record")
+            )
+            .filter((record) => filter(record, input))
+        )
+        cursor = clean(page.nextCursor) || undefined
+      } while (cursor)
+      return mergePipelineOutput(input, { [outputKey]: records })
     })
+  addPagedCollectionComposite(
+    "slideshow-generation.list-image-collections",
+    "slideshow-generation.list-image-collections-page",
+    "collections",
+    (record) => !clean(record.deletedAt)
   )
-  add("slideshow-generation.list-word-collections", async (input, context) =>
-    mergePipelineOutput(input, {
-      wordCollections: await context.externalCall(
-        "Appwrite word-collection list",
-        () => services.listWordCollections()
-      ),
+  addPagedCollectionComposite(
+    "slideshow-generation.list-word-collections",
+    "slideshow-generation.list-word-collections-page",
+    "wordCollections"
+  )
+  addPagedCollectionComposite(
+    "slideshow-generation.list-usage-history",
+    "slideshow-generation.list-usage-history-page",
+    "usageHistory"
+  )
+  addPagedCollectionComposite(
+    "slideshow-generation.list-prior-runs",
+    "slideshow-generation.list-prior-runs-page",
+    "priorRuns",
+    (record, input) =>
+      clean(record.automationId) === clean(input.automationId) &&
+      record.kind !== "ugc" &&
+      !isRecord(record.checkpoints)
+  )
+  add("slideshow-generation.enrich-collection-usage", async (input) => {
+    const latest = new Map<string, string>()
+    for (const usage of requiredArray<Record<string, unknown>>(
+      input.usageHistory,
+      "usageHistory",
+      true
+    )) {
+      if (usage.kind !== "image") continue
+      const key = clean(usage.key)
+      const usedAt = clean(usage.used_at)
+      const previous = latest.get(key)
+      if (
+        key &&
+        usedAt &&
+        (!previous || Date.parse(usedAt) > Date.parse(previous))
+      )
+        latest.set(key, usedAt)
+    }
+    const collections = requiredArray<Record<string, unknown>>(
+      input.collections,
+      "collections"
+    ).map((collection) => ({
+      ...collection,
+      images: requiredArray<Record<string, unknown>>(
+        collection.images,
+        "collection.images",
+        true
+      ).map((image) => {
+        const lastUsedAt =
+          latest.get(clean(image.hash)) ?? latest.get(clean(image.image_link))
+        return lastUsedAt ? { ...image, last_used_at: lastUsedAt } : image
+      }),
+    }))
+    return mergePipelineOutput(input, {
+      collections,
+      collectionUsageEnriched: true,
     })
-  )
-  add("slideshow-generation.list-usage-history", async (input, context) =>
-    mergePipelineOutput(input, {
-      usageHistory: await context.externalCall(
-        "Appwrite usage-history list",
-        () => listUsageRecords()
-      ),
+  })
+  add("slideshow-generation.load-model-settings", async (input, context) => {
+    const state = (
+      await context.runStage(
+        "slideshow-generation.get-model-settings-document",
+        { ...input, modelSettingsId: "generation-models" }
+      )
+    ).output
+    const stored = isRecord(state.modelSettingsDocument)
+      ? asRecord(state.modelSettingsDocument).record
+      : null
+    return mergePipelineOutput(state, {
+      generationSettings:
+        normalizeGenerationModelSettings(stored) ??
+        defaultGenerationModelSettings(),
     })
-  )
-  add("slideshow-generation.list-prior-runs", async (input, context) =>
-    mergePipelineOutput(input, {
-      priorRuns: await context.externalCall(
-        "Appwrite automation-run list",
-        () =>
-          services.listAutomationRuns({
-            automationId: requiredString(input.automationId, "automationId"),
-            limit: 500,
-          })
-      ),
-    })
-  )
-  add("slideshow-generation.load-model-settings", async (input, context) =>
-    mergePipelineOutput(input, {
-      generationSettings: await context.externalCall(
-        "generation-model settings read",
-        () => getGenerationModelSettings()
-      ),
-    })
-  )
+  })
 
   add("slideshow-generation.validate-input", async (input, context) => {
     let state = input
@@ -531,6 +1788,14 @@ export function createProductionPipelineHandlers(
       ],
     ] as const) {
       if (needed) state = (await context.runStage(stageId, state)).output
+    }
+    if (!state.collectionUsageEnriched) {
+      state = (
+        await context.runStage(
+          "slideshow-generation.enrich-collection-usage",
+          state
+        )
+      ).output
     }
     const collections = requiredArray<StoredImageCollection>(
       state.collections,
@@ -828,6 +2093,14 @@ export function createProductionPipelineHandlers(
       })
     }
   )
+
+  add("slideshow-generation.prepare-one-usage-record", async (input) => {
+    const usageRecord = normalizeUsageRecord(
+      requiredRecord(input.usageRecord, "usageRecord") as unknown as UsageRecord
+    )
+    if (!usageRecord) throw new Error("Invalid usage record")
+    return mergePipelineOutput(input, { usageRecord })
+  })
 
   add("slideshow-generation.generate-slide-text", async (input, context) => {
     let repairFeedback = ""
@@ -1236,60 +2509,276 @@ export function createProductionPipelineHandlers(
     })
   })
 
-  add("slideshow-generation.render-store-pngs", async (input) => {
-    const plan = requiredRecord(input.localizedPlan ?? input.plan, "plan")
+  add("slideshow-generation.render-store-pngs", async (input, context) => {
+    let state = input
+    for (const stageId of [
+      "slideshow-generation.prepare-png-render",
+      "slideshow-generation.stage-render-assets",
+      "slideshow-generation.render-all-slide-pngs",
+      "slideshow-generation.list-render-output-files",
+      "slideshow-generation.persist-render-output-files",
+      "slideshow-generation.assemble-rendered-slideshow",
+      "slideshow-generation.build-result-record",
+      "slideshow-generation.persist-slideshow-result",
+    ]) {
+      state = (await context.runStage(stageId, state)).output
+    }
+    const slideshow = requiredRecord(
+      state.renderedSlideshow,
+      "renderedSlideshow"
+    ) as unknown as SlideshowRecord
     const slides = requiredArray<Record<string, unknown>>(
-      plan.slides,
+      requiredRecord(input.localizedPlan ?? input.plan, "plan").slides,
       "plan.slides"
     )
-    const rendered = await createSlideshowResultRecord({
-      runId: clean(input.runId) || contextId(input),
-      automationId: clean(asRecord(input.automation).id) || undefined,
-      title: clean(plan.title),
-      caption: clean(plan.caption),
-      hashtags: clean(plan.hashtags),
-      prompt: `Hook: ${clean(plan.hook)}`,
-      slideshow_type: "automation",
-      settings: {
-        ...(isRecord(input.renderSettings) ? input.renderSettings : {}),
-        export_as_video: false,
-      },
-      images: slides.map((slide) => ({
-        id: clean(slide.id),
-        image_url: clean(slide.imageUrl),
-        textItems: slide.textItems as never,
-      })),
-    })
-    return mergePipelineOutput(input, {
-      slideshowId: rendered.slideshow.id,
-      resultId: rendered.result.id,
-      outputImages: rendered.slideshow.output_images,
-      thumbnailUrl: rendered.slideshow.thumbnail_url,
+    const completed = mergePipelineOutput(state, {
+      slideshowId: slideshow.id,
+      resultId: requiredString(state.resultId, "resultId"),
+      outputImages: slideshow.output_images,
+      thumbnailUrl: slideshow.thumbnail_url,
       renderedSlides: slides.map((slide, index) => ({
         id: clean(slide.id),
         role: clean(slide.role),
-        imageUrl: rendered.slideshow.output_images[index],
+        imageUrl: slideshow.output_images[index],
         text: clean(slide.text),
       })),
     })
+    return (
+      await context.runStage(
+        "slideshow-generation.discard-png-render",
+        completed
+      )
+    ).output
   })
 
-  add("slideshow-generation.prepare-video-render", async (input) => {
-    const prepared = await prepareStoredSlideshowVideo({
-      id: requiredString(input.slideshowId, "slideshowId"),
-      durationSeconds:
-        numberValue(asRecord(input.renderSettings).duration) || undefined,
-    })
+  add(
+    "slideshow-generation.find-result-for-slideshow",
+    async (input, context) => {
+      const slideshowId = requiredString(input.slideshowId, "slideshowId")
+      let cursor: string | undefined
+      do {
+        const state = (
+          await context.runStage("slideshow-generation.list-results-page", {
+            ...input,
+            cursor,
+          })
+        ).output
+        const page = requiredRecord(state.storagePage, "storagePage")
+        for (const item of requiredArray<Record<string, unknown>>(
+          page.records,
+          "storagePage.records",
+          true
+        )) {
+          const record = requiredRecord(item.record, "result record")
+          if (clean(asRecord(record.artifacts).slideshowId) !== slideshowId)
+            continue
+          const resultRowId = requiredString(item.rowId, "result row id")
+          const media: OutputMediaDraft[] = []
+          let mediaCursor: string | undefined
+          do {
+            const mediaState = (
+              await context.runStage(
+                "slideshow-generation.list-result-media-page",
+                {
+                  ...input,
+                  resultId: clean(record.id),
+                  resultRowId,
+                  cursor: mediaCursor,
+                }
+              )
+            ).output
+            const mediaPage = requiredRecord(
+              mediaState.resultMediaPage,
+              "resultMediaPage"
+            )
+            media.push(
+              ...requiredArray<Record<string, unknown>>(
+                mediaPage.media,
+                "resultMediaPage.media",
+                true
+              ).map((entry) => ({
+                kind: clean(entry.kind) as OutputMediaDraft["kind"],
+                role: clean(entry.role),
+                position: numberValue(entry.position),
+                url: clean(entry.url),
+              }))
+            )
+            mediaCursor = clean(mediaPage.nextCursor) || undefined
+          } while (mediaCursor)
+          return mergePipelineOutput(input, {
+            resultId: clean(record.id),
+            resultRowId,
+            resultRecord: hydrateOutputMedia("result", record, media),
+          })
+        }
+        cursor = clean(page.nextCursor) || undefined
+      } while (cursor)
+      throw new Error("Rendered slideshow not found")
+    }
+  )
+
+  add("slideshow-generation.initialize-video-preparation", async (input) => {
+    const result = requiredRecord(
+      input.resultRecord,
+      "resultRecord"
+    ) as unknown as ResultRecord
+    const slideshowId = requiredString(
+      asRecord(result.artifacts).slideshowId,
+      "slideshowId"
+    )
+    const outputImages = stringArray(asRecord(result.artifacts).outputImages)
+    if (!outputImages.length)
+      throw new Error("Video export requires rendered PNG slides")
+    const scratchDir = await mkdtemp(
+      path.join(os.tmpdir(), "cfarm-slideshow-video-")
+    )
     return mergePipelineOutput(input, {
-      slideshowVideoPreparation: prepared,
-      rendiLocalInputs: prepared.slideImagePaths.map(
-        (localFilePath, index) => ({
-          alias: `in_slide_${index + 1}`,
-          localFilePath,
-          fileName: path.basename(localFilePath),
-        })
-      ),
+      slideshowVideoPreparation: {
+        slideshowId,
+        resultId: result.id,
+        resultRecord: result,
+        resultRowId: input.resultRowId,
+        scratchDir,
+        durationSeconds:
+          numberValue(asRecord(input.renderSettings).duration) ||
+          numberValue(asRecord(asRecord(result.payload).settings).duration) ||
+          5,
+        videoUrl: `/api/local-assets/slideshows/outputs/${encodeURIComponent(slideshowId)}/slideshow-export.mp4`,
+        thumbnailUrl: `/api/local-assets/slideshows/outputs/${encodeURIComponent(slideshowId)}/slideshow-thumbnail.png`,
+        slideInputs: outputImages.map((url, index) => ({ index, url })),
+        slideImagePaths: [],
+      },
     })
+  })
+
+  add("slideshow-generation.read-one-video-slide", async (input, context) => {
+    const preparation = requiredRecord(
+      input.slideshowVideoPreparation,
+      "slideshowVideoPreparation"
+    )
+    const slideInput = requiredRecord(input.videoSlideInput, "videoSlideInput")
+    const url = requiredString(slideInput.url, "videoSlideInput.url")
+    const pathname = new URL(url, "http://local").pathname
+    const prefix = "/api/local-assets/"
+    if (!pathname.startsWith(prefix))
+      throw new Error("Unsupported rendered slide URL")
+    const relativePath = decodeURIComponent(pathname.slice(prefix.length))
+    const bytes = await context.externalCall(
+      "Appwrite Storage getFileView",
+      () =>
+        readDomainAssetOnce({
+          domain: "slideshow",
+          ownerId: context.ownerId,
+          relativePath,
+        })
+    )
+    const localFilePath = path.join(
+      requiredString(preparation.scratchDir, "scratchDir"),
+      path.basename(pathname)
+    )
+    await writeFile(localFilePath, bytes)
+    return mergePipelineOutput(input, {
+      stagedVideoSlide: {
+        index: numberValue(slideInput.index),
+        localFilePath,
+        fileName: path.basename(localFilePath),
+      },
+    })
+  })
+
+  add("slideshow-generation.stage-video-slides", async (input, context) => {
+    const preparation = requiredRecord(
+      input.slideshowVideoPreparation,
+      "slideshowVideoPreparation"
+    )
+    const staged = requiredArray<Record<string, unknown>>(
+      preparation.slideImagePaths,
+      "slideImagePaths",
+      true
+    )
+    for (const slideInput of requiredArray<Record<string, unknown>>(
+      preparation.slideInputs,
+      "slideInputs"
+    )) {
+      if (
+        staged.some(
+          (item) => numberValue(item.index) === numberValue(slideInput.index)
+        )
+      )
+        continue
+      const execution = await context.runStage(
+        "slideshow-generation.read-one-video-slide",
+        {
+          ...input,
+          slideshowVideoPreparation: {
+            ...preparation,
+            slideImagePaths: staged,
+          },
+          videoSlideInput: slideInput,
+        }
+      )
+      staged.push(
+        requiredRecord(execution.output.stagedVideoSlide, "stagedVideoSlide")
+      )
+    }
+    return (
+      await context.runStage("slideshow-generation.prepare-video-thumbnail", {
+        ...input,
+        slideshowVideoPreparation: {
+          ...preparation,
+          slideImagePaths: staged.map((item) =>
+            requiredString(item.localFilePath, "slide path")
+          ),
+        },
+        rendiLocalInputs: staged.map((item, index) => ({
+          alias: `in_slide_${index + 1}`,
+          localFilePath: requiredString(item.localFilePath, "slide path"),
+          fileName:
+            clean(item.fileName) ||
+            path.basename(requiredString(item.localFilePath, "slide path")),
+        })),
+      })
+    ).output
+  })
+
+  add("slideshow-generation.prepare-video-thumbnail", async (input) => {
+    const preparation = requiredRecord(
+      input.slideshowVideoPreparation,
+      "slideshowVideoPreparation"
+    )
+    const slideImagePaths = stringArray(preparation.slideImagePaths)
+    const first = requiredString(slideImagePaths[0], "first slide path")
+    const thumbnailPath = path.join(
+      requiredString(preparation.scratchDir, "scratchDir"),
+      "slideshow-thumbnail.png"
+    )
+    await writeFile(thumbnailPath, await readFile(first))
+    return mergePipelineOutput(input, {
+      slideshowVideoPreparation: {
+        ...preparation,
+        thumbnailPath,
+      },
+    })
+  })
+
+  add("slideshow-generation.prepare-video-render", async (input, context) => {
+    let state = input
+    if (!isRecord(state.resultRecord))
+      state = (
+        await context.runStage(
+          "slideshow-generation.find-result-for-slideshow",
+          state
+        )
+      ).output
+    state = (
+      await context.runStage(
+        "slideshow-generation.initialize-video-preparation",
+        state
+      )
+    ).output
+    return (
+      await context.runStage("slideshow-generation.stage-video-slides", state)
+    ).output
   })
 
   add("slideshow-generation.build-rendi-video-command", async (input) => {
@@ -1337,27 +2826,79 @@ export function createProductionPipelineHandlers(
     })
   })
 
-  add("slideshow-generation.finalize-video-render", async (input) => {
+  add(
+    "slideshow-generation.build-finalized-video-result",
+    async (input, context) => {
+      const preparation = requiredRecord(
+        input.slideshowVideoPreparation,
+        "slideshowVideoPreparation"
+      )
+      const current = requiredRecord(preparation.resultRecord, "resultRecord")
+      const payload = requiredRecord(current.payload, "resultRecord.payload")
+      const resultRecord: Record<string, unknown> = {
+        ...current,
+        updatedAt: services.now().toISOString(),
+        artifacts: {
+          ...requiredRecord(current.artifacts, "resultRecord.artifacts"),
+          videoUrl: requiredString(input.videoUrl, "videoUrl"),
+          thumbnailUrl: requiredString(input.thumbnailUrl, "thumbnailUrl"),
+        },
+        payload:
+          payload.type === "slideshow"
+            ? {
+                ...payload,
+                settings: {
+                  ...requiredRecord(payload.settings, "payload.settings"),
+                  export_as_video: true,
+                },
+              }
+            : payload,
+      }
+      const prepared = preparePipelineDomainDocument({
+        domain: "results",
+        ownerId: context.ownerId,
+        record: resultRecord,
+      })
+      return mergePipelineOutput(input, {
+        resultRecord,
+        resultId: clean(resultRecord.id),
+        resultRowId: prepared.rowId,
+        resultMedia: prepared.media,
+      })
+    }
+  )
+
+  add("slideshow-generation.finalize-video-render", async (input, context) => {
+    let state = (
+      await context.runStage(
+        "slideshow-generation.build-finalized-video-result",
+        input
+      )
+    ).output
+    state = (
+      await context.runStage(
+        "slideshow-generation.update-result-document",
+        state
+      )
+    ).output
+    state = (
+      await context.runStage("slideshow-generation.persist-result-media", state)
+    ).output
     const preparation = requiredRecord(
-      input.slideshowVideoPreparation,
+      state.slideshowVideoPreparation,
       "slideshowVideoPreparation"
     )
-    const rendered = await finalizeStoredSlideshowVideo({
-      resultId: requiredString(preparation.resultId, "resultId"),
-      resultRootDir: clean(preparation.resultRootDir) || undefined,
-      videoUrl: requiredString(input.videoUrl, "videoUrl"),
-      thumbnailUrl: requiredString(input.thumbnailUrl, "thumbnailUrl"),
-    })
     if (clean(preparation.thumbnailPath)) {
       await discardDownloadedImage(clean(preparation.thumbnailPath))
     }
-    return mergePipelineOutput(input, {
-      videoUrl: rendered.video_url,
-      thumbnailUrl: rendered.thumbnail_url,
+    return mergePipelineOutput(state, {
+      videoUrl: requiredString(state.videoUrl, "videoUrl"),
+      thumbnailUrl: requiredString(state.thumbnailUrl, "thumbnailUrl"),
       videoProvider: "rendi",
       videoProcessor: "ffmpeg",
       operation: rendiOperation(
-        clean(input.rendiCommandId) || rendered.id,
+        clean(input.rendiCommandId) ||
+          requiredString(preparation.slideshowId, "slideshowId"),
         "slideshow-generation.rendi.command",
         "succeeded"
       ),
@@ -1524,16 +3065,18 @@ export function createProductionPipelineHandlers(
   add(
     "slideshow-generation.append-one-usage-record",
     async (input, context) => {
-      await context.externalCall("Appwrite usage-record create", () =>
-        appendUsageRecords({
-          records: [
-            requiredRecord(
-              input.usageRecord,
-              "usageRecord"
-            ) as unknown as UsageRecord,
-          ],
-        })
-      )
+      const usageRecord = requiredRecord(input.usageRecord, "usageRecord")
+      try {
+        await context.externalCall("Appwrite usage-record create", () =>
+          createPipelineDomainDocumentOnce({
+            domain: "usage-history",
+            ownerId: context.ownerId,
+            record: usageRecord,
+          })
+        )
+      } catch (error) {
+        if (appwriteErrorCode(error) !== 409) throw error
+      }
       return mergePipelineOutput(input, { usageRecordPersisted: true })
     }
   )
@@ -1544,9 +3087,16 @@ export function createProductionPipelineHandlers(
       "usageRecords"
     )
     for (const usageRecord of records) {
-      await context.runStage("slideshow-generation.append-one-usage-record", {
-        usageRecord,
-      })
+      const prepared = await context.runStage(
+        "slideshow-generation.prepare-one-usage-record",
+        {
+          usageRecord,
+        }
+      )
+      await context.runStage(
+        "slideshow-generation.append-one-usage-record",
+        prepared.output
+      )
     }
     return mergePipelineOutput(input, {
       usageRecordsPersisted: records.length,
@@ -1554,12 +3104,23 @@ export function createProductionPipelineHandlers(
   })
 
   add("slideshow-generation.upsert-automation-run", async (input, context) => {
-    await context.externalCall("Appwrite automation-run upsert", () =>
-      upsertRecoveredAutomationRun(
-        requiredRecord(input.runToPersist, "runToPersist") as never
+    const runToPersist = requiredRecord(input.runToPersist, "runToPersist")
+    let state = mergePipelineOutput(input, { runId: clean(runToPersist.id) })
+    state = (
+      await context.runStage(
+        "slideshow-generation.get-automation-run-document",
+        state
       )
-    )
-    return mergePipelineOutput(input, { automationRunPersisted: true })
+    ).output
+    state = (
+      await context.runStage(
+        state.automationRunDocument
+          ? "slideshow-generation.update-automation-run-document"
+          : "slideshow-generation.create-automation-run-document",
+        state
+      )
+    ).output
+    return mergePipelineOutput(state, { automationRunPersisted: true })
   })
 
   add("slideshow-generation.finalize-output", async (input, context) => {
@@ -1891,27 +3452,43 @@ export function createProductionPipelineHandlers(
   add(
     "ugc-video-generation.persist-one-broll-asset",
     async (input, context) => {
-      const brollUrl = await context.externalCall(
-        "Appwrite b-roll asset-file create",
-        () =>
-          persistDownloadedImage({
-            tempPath: requiredString(input.tempBrollPath, "tempBrollPath"),
-            fileName: requiredString(
-              input.tempBrollFileName,
-              "tempBrollFileName"
-            ),
-            folder: path.join(
-              process.cwd(),
-              "data",
-              "ugc-automations",
-              "broll"
-            ),
-            publicPrefix: "/api/local-assets/ugc-automations/broll",
-          })
+      const fileName = path.basename(
+        requiredString(input.tempBrollFileName, "tempBrollFileName")
       )
+      const outputPath = path.join(
+        process.cwd(),
+        "data",
+        "ugc-automations",
+        "broll",
+        fileName
+      )
+      await context.externalCall("Appwrite b-roll asset-file create", () =>
+        persistPipelineTempFile({
+          tempPath: requiredString(input.tempBrollPath, "tempBrollPath"),
+          outputPath,
+        })
+      )
+      const brollUrl = `/api/local-assets/ugc-automations/broll/${encodeURIComponent(fileName)}`
       return mergePipelineOutput(input, { brollUrl })
     }
   )
+
+  add("ugc-video-generation.delete-one-broll-asset", async (input, context) => {
+    const fileName = path.basename(
+      requiredString(input.tempBrollFileName, "tempBrollFileName")
+    )
+    const outputPath = path.join(
+      process.cwd(),
+      "data",
+      "ugc-automations",
+      "broll",
+      fileName
+    )
+    await context.externalCall("Appwrite b-roll asset-file delete", () =>
+      deleteAssetFromAppwrite(outputPath)
+    )
+    return mergePipelineOutput(input, { deletedBrollAsset: fileName })
+  })
 
   add("ugc-video-generation.discard-broll-temp-file", async (input) => {
     if (clean(input.tempBrollPath)) {
@@ -1976,12 +3553,26 @@ export function createProductionPipelineHandlers(
         ).output
       }
       if (!clean(state.brollUrl)) {
-        state = (
+        try {
+          state = (
+            await context.runStage(
+              "ugc-video-generation.persist-one-broll-asset",
+              state
+            )
+          ).output
+        } catch (error) {
+          if (appwriteErrorCode(error) !== 409) throw error
           await context.runStage(
-            "ugc-video-generation.persist-one-broll-asset",
+            "ugc-video-generation.delete-one-broll-asset",
             state
           )
-        ).output
+          state = (
+            await context.runStage(
+              "ugc-video-generation.persist-one-broll-asset",
+              state
+            )
+          ).output
+        }
       }
       return (
         await context.runStage(
@@ -2324,10 +3915,21 @@ export function createProductionPipelineHandlers(
     ["ugc-video-generation.animate-actor", "motion"],
     ["ugc-video-generation.lip-sync-performance", "lipsync"],
     ["ugc-video-generation.generate-broll", "broll"],
-    ["ugc-video-generation.store-final-output", "store"],
   ] as const) {
     add(id, async (input, context) => queueUgcStage(input, context, stage))
   }
+
+  add("ugc-video-generation.store-final-output", async (input, context) => {
+    if (isRecord(input.finalOutput)) {
+      return (
+        await context.runStage(
+          "ugc-video-generation.persist-final-output",
+          input
+        )
+      ).output
+    }
+    return queueUgcStage(input, context, "store")
+  })
 
   add("linkedin-generation.validate-input", async (input) => {
     const niche = requiredString(input.niche, "niche")
@@ -2566,15 +4168,23 @@ export function createProductionPipelineHandlers(
   })
 
   add("x-threads-generation.validate-input", async (input, context) => {
-    const automation = clean(input.automationId)
-      ? await context.externalCall("Appwrite X-automation read", () =>
-          services.getXAutomation(clean(input.automationId))
+    let state = input
+    if (clean(input.automationId) && !isRecord(input.automation)) {
+      state = (
+        await context.runStage(
+          "x-threads-generation.get-automation-document",
+          input
         )
-      : isRecord(input.automation)
-        ? (input.automation as unknown as XAutomationRecord)
+      ).output
+    }
+    const automation = isRecord(state.automation)
+      ? (state.automation as unknown as XAutomationRecord)
+      : isRecord(state.xAutomationDocument)
+        ? (asRecord(state.xAutomationDocument)
+            .record as unknown as XAutomationRecord)
         : null
     if (!automation) throw new Error("X/Threads automation not found")
-    return mergePipelineOutput(input, {
+    return mergePipelineOutput(state, {
       automation,
       topic: clean(input.topic),
       sourceCandidate: isRecord(input.sourceCandidate)
@@ -2913,11 +4523,40 @@ export function createProductionPipelineHandlers(
     })
   })
   add("x-threads-generation.persist-run", async (input, context) => {
-    const run = requiredRecord(input.run, "run") as unknown as XAutomationRun
-    await context.externalCall("Appwrite X-run upsert", () =>
-      services.upsertXAutomationRun(run)
-    )
-    return mergePipelineOutput(input, { persistedRun: run.id })
+    let state = (
+      await context.runStage("x-threads-generation.prepare-run-document", input)
+    ).output
+    state = (
+      await context.runStage("x-threads-generation.get-run-document", state)
+    ).output
+    state = (
+      await context.runStage(
+        state.xRunDocument
+          ? "x-threads-generation.update-run-document"
+          : "x-threads-generation.create-run-document",
+        state
+      )
+    ).output
+    state = (
+      await context.runStage("x-threads-generation.persist-run-media", state)
+    ).output
+    return mergePipelineOutput(state, {
+      persistedRun: clean(asRecord(state.run).id),
+    })
+  })
+
+  add("x-threads-generation.prepare-run-document", async (input, context) => {
+    const run = requiredRecord(input.run, "run")
+    const prepared = preparePipelineDomainDocument({
+      domain: "x-runs",
+      ownerId: context.ownerId,
+      record: run,
+    })
+    return mergePipelineOutput(input, {
+      runId: clean(run.id),
+      runRowId: prepared.rowId,
+      runMedia: prepared.media,
+    })
   })
 
   add(
@@ -2981,16 +4620,44 @@ export function createProductionPipelineHandlers(
   )
 
   add("x-threads-generation.persist-usage-memory", async (input, context) => {
+    let state = (
+      await context.runStage(
+        "x-threads-generation.build-usage-memory-update",
+        input
+      )
+    ).output
+    const updatedAutomation = requiredRecord(
+      state.automation,
+      "automation"
+    ) as unknown as XAutomationRecord
+    state = (
+      await context.runStage(
+        "x-threads-generation.get-automation-document",
+        state
+      )
+    ).output
+    state = (
+      await context.runStage(
+        state.xAutomationDocument
+          ? "x-threads-generation.update-automation-document"
+          : "x-threads-generation.create-automation-document",
+        state
+      )
+    ).output
+    return mergePipelineOutput(state, { automation: updatedAutomation })
+  })
+
+  add("x-threads-generation.build-usage-memory-update", async (input) => {
     const automation = requiredRecord(
       input.automation,
       "automation"
     ) as unknown as XAutomationRecord
     const run = requiredRecord(input.run, "run") as unknown as XAutomationRun
     const updatedAutomation = buildXAutomationUsageUpdate({ automation, run })
-    await context.externalCall("Appwrite X-automation upsert", () =>
-      services.upsertXAutomation(updatedAutomation)
-    )
-    return mergePipelineOutput(input, { automation: updatedAutomation })
+    return mergePipelineOutput(input, {
+      automation: updatedAutomation,
+      automationId: updatedAutomation.id,
+    })
   })
 
   add("x-threads-generation.persist-run-memory", async (input, context) => {
@@ -3101,20 +4768,41 @@ export function createProductionPipelineHandlers(
   })
 
   add("x-threads-generation.persist-image-asset", async (input, context) => {
-    const imageUrl = await context.externalCall(
-      "Appwrite asset-file create",
-      () =>
-        persistDownloadedImage({
-          tempPath: requiredString(input.tempImagePath, "tempImagePath"),
-          fileName: requiredString(
-            input.tempImageFileName,
-            "tempImageFileName"
-          ),
-          folder: path.join(process.cwd(), "data", "x-automations", "images"),
-          publicPrefix: "/api/local-assets/x-automations/images",
-        })
+    const fileName = path.basename(
+      requiredString(input.tempImageFileName, "tempImageFileName")
     )
+    const outputPath = path.join(
+      process.cwd(),
+      "data",
+      "x-automations",
+      "images",
+      fileName
+    )
+    await context.externalCall("Appwrite asset-file create", () =>
+      persistPipelineTempFile({
+        tempPath: requiredString(input.tempImagePath, "tempImagePath"),
+        outputPath,
+      })
+    )
+    const imageUrl = `/api/local-assets/x-automations/images/${encodeURIComponent(fileName)}`
     return mergePipelineOutput(input, { imageUrl })
+  })
+
+  add("x-threads-generation.delete-image-asset", async (input, context) => {
+    const fileName = path.basename(
+      requiredString(input.tempImageFileName, "tempImageFileName")
+    )
+    const outputPath = path.join(
+      process.cwd(),
+      "data",
+      "x-automations",
+      "images",
+      fileName
+    )
+    await context.externalCall("Appwrite asset-file delete", () =>
+      deleteAssetFromAppwrite(outputPath)
+    )
+    return mergePipelineOutput(input, { deletedImageAsset: fileName })
   })
 
   add("x-threads-generation.discard-image-temp-file", async (input) => {
@@ -3128,6 +4816,20 @@ export function createProductionPipelineHandlers(
   })
 
   add("x-threads-generation.persist-image-run", async (input, context) => {
+    const attached = (
+      await context.runStage("x-threads-generation.attach-image-to-run", input)
+    ).output
+    const state = (
+      await context.runStage("x-threads-generation.persist-run", attached)
+    ).output
+    return mergePipelineOutput(state, {
+      provider: "KIE.ai",
+      model: "nano-banana-pro",
+      providerRequestId: input.providerTaskId,
+    })
+  })
+
+  add("x-threads-generation.attach-image-to-run", async (input) => {
     const run = requiredRecord(input.run, "run") as unknown as XAutomationRun
     const imageUrl = requiredString(input.imageUrl, "imageUrl")
     const updated = {
@@ -3135,15 +4837,9 @@ export function createProductionPipelineHandlers(
       imageUrls: [...run.imageUrls, imageUrl].slice(0, 4),
       updatedAt: services.now().toISOString(),
     }
-    await context.externalCall("Appwrite X-run upsert", () =>
-      services.upsertXAutomationRun(updated)
-    )
     return mergePipelineOutput(input, {
       run: updated,
       imageUrl,
-      provider: "KIE.ai",
-      model: "nano-banana-pro",
-      providerRequestId: input.providerTaskId,
     })
   })
 
@@ -3176,12 +4872,23 @@ export function createProductionPipelineHandlers(
       ).output
     }
     if (!clean(state.imageUrl)) {
-      state = (
-        await context.runStage(
-          "x-threads-generation.persist-image-asset",
-          state
-        )
-      ).output
+      try {
+        state = (
+          await context.runStage(
+            "x-threads-generation.persist-image-asset",
+            state
+          )
+        ).output
+      } catch (error) {
+        if (appwriteErrorCode(error) !== 409) throw error
+        await context.runStage("x-threads-generation.delete-image-asset", state)
+        state = (
+          await context.runStage(
+            "x-threads-generation.persist-image-asset",
+            state
+          )
+        ).output
+      }
     }
     state = (
       await context.runStage("x-threads-generation.persist-image-run", state)
@@ -3346,6 +5053,37 @@ function safePathSegment(value: string) {
     throw new Error("Invalid pipeline storage identifier")
   }
   return value
+}
+
+function requiredTempPath(value: unknown, prefix: string) {
+  const resolved = path.resolve(requiredString(value, "localPath"))
+  const tempRoot = path.resolve(os.tmpdir())
+  if (
+    !resolved.startsWith(`${tempRoot}${path.sep}`) ||
+    !path.basename(resolved).startsWith(prefix)
+  ) {
+    throw new Error("Unsupported pipeline temp path")
+  }
+  return resolved
+}
+
+function requiredSlideshowScratchFile(value: unknown) {
+  const resolved = path.resolve(requiredString(value, "localPath"))
+  const tempRoot = path.resolve(os.tmpdir())
+  if (
+    !resolved.startsWith(`${tempRoot}${path.sep}`) ||
+    !path.basename(path.dirname(resolved)).startsWith("cfarm-slideshow-")
+  ) {
+    throw new Error("Unsupported slideshow scratch file")
+  }
+  return resolved
+}
+
+function appwriteErrorCode(error: unknown): number {
+  if (!isRecord(error)) return 0
+  const direct = Number(error.code)
+  if (Number.isFinite(direct)) return direct
+  return appwriteErrorCode(error.cause)
 }
 
 function isLinkedInBrief(value: unknown): value is LinkedInBrief {

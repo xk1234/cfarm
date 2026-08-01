@@ -42,6 +42,174 @@ describe("production pipeline stage handlers", () => {
     )
   })
 
+  it("paginates collections only through the registered singular page stage", async () => {
+    const production = createProductionPipelineHandlers(services() as never)
+    const page = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      storagePage:
+        typeof input.cursor === "string" && input.cursor.length > 0
+          ? {
+              records: [
+                {
+                  rowId: "collection-2",
+                  record: {
+                    name: "Second",
+                    created_at: "2026-08-01",
+                    images: [],
+                  },
+                },
+              ],
+              nextCursor: null,
+            }
+          : {
+              records: [
+                {
+                  rowId: "collection-1",
+                  record: {
+                    name: "First",
+                    created_at: "2026-08-01",
+                    images: [],
+                  },
+                },
+              ],
+              nextCursor: "collection-1",
+            },
+    }))
+    const handlers = new Map(production)
+    handlers.set("slideshow-generation.list-image-collections-page", page)
+    const result = await executePipelineStage({
+      registry: createPipelineStageRegistry(handlers),
+      ownerId: "owner-1",
+      stageId: "slideshow-generation.list-image-collections",
+      stageInput: {},
+    })
+
+    expect(result.externalCalls).toBe(0)
+    expect(result.output.collections).toHaveLength(2)
+    expect(page).toHaveBeenCalledTimes(2)
+  })
+
+  it("persists an X run by composing registered read, create, and media stages", async () => {
+    const production = createProductionPipelineHandlers(services() as never)
+    const visited: string[] = []
+    const handlers = new Map(production)
+    for (const id of [
+      "x-threads-generation.prepare-run-document",
+      "x-threads-generation.get-run-document",
+      "x-threads-generation.create-run-document",
+      "x-threads-generation.persist-run-media",
+    ]) {
+      handlers.set(
+        id,
+        vi.fn(async (input: Record<string, unknown>) => {
+          visited.push(id)
+          if (id.endsWith("prepare-run-document"))
+            return { ...input, runId: "run-1", runRowId: "row-1", runMedia: [] }
+          if (id.endsWith("get-run-document"))
+            return { ...input, xRunDocument: null }
+          return input
+        })
+      )
+    }
+    const result = await executePipelineStage({
+      registry: createPipelineStageRegistry(handlers),
+      ownerId: "owner-1",
+      stageId: "x-threads-generation.persist-run",
+      stageInput: { run: { id: "run-1" } },
+    })
+
+    expect(result.externalCalls).toBe(0)
+    expect(visited).toEqual([
+      "x-threads-generation.prepare-run-document",
+      "x-threads-generation.get-run-document",
+      "x-threads-generation.create-run-document",
+      "x-threads-generation.persist-run-media",
+    ])
+  })
+
+  it("resumes a saved UGC checkpoint through registered get and update stages", async () => {
+    const production = createProductionPipelineHandlers(services() as never)
+    const get = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      savedRunDocument: { rowId: "run-row", record: input.savedRun },
+    }))
+    const update = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      persistedSavedRun: { rowId: "run-row" },
+    }))
+    const create = vi.fn()
+    const handlers = new Map(production)
+    handlers.set("ugc-video-generation.get-saved-run-document", get)
+    handlers.set("ugc-video-generation.update-saved-run-document", update)
+    handlers.set("ugc-video-generation.create-saved-run-document", create)
+    const result = await executePipelineStage({
+      registry: createPipelineStageRegistry(handlers),
+      ownerId: "owner-1",
+      stageId: "ugc-video-generation.save-checkpoint",
+      stageInput: {
+        runId: "ugc-run-1",
+        savedRun: {
+          id: "ugc-run-1",
+          checkpoints: { voice: { status: "complete" } },
+        },
+      },
+    })
+
+    expect(result.externalCalls).toBe(0)
+    expect(get).toHaveBeenCalledOnce()
+    expect(update).toHaveBeenCalledOnce()
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it("persists supplied UGC final output only through registered storage children", async () => {
+    const production = createProductionPipelineHandlers(services() as never)
+    const visited: string[] = []
+    const handlers = new Map(production)
+    for (const id of [
+      "ugc-video-generation.prepare-final-output-document",
+      "ugc-video-generation.get-final-output-document",
+      "ugc-video-generation.create-final-output-document",
+      "ugc-video-generation.persist-final-output-media",
+      "ugc-video-generation.create-generated-notification-job",
+    ]) {
+      handlers.set(
+        id,
+        vi.fn(async (input: Record<string, unknown>) => {
+          visited.push(id)
+          if (id.endsWith("prepare-final-output-document")) {
+            return {
+              ...input,
+              outputId: "ugc-output-1",
+              outputRowId: "output-row-1",
+              outputMedia: [],
+              runId: "ugc-run-1",
+            }
+          }
+          if (id.endsWith("get-final-output-document")) {
+            return { ...input, finalOutputDocument: null }
+          }
+          return input
+        })
+      )
+    }
+
+    const result = await executePipelineStage({
+      registry: createPipelineStageRegistry(handlers),
+      ownerId: "owner-1",
+      stageId: "ugc-video-generation.persist-final-output",
+      stageInput: { finalOutput: { id: "ugc-output-1" } },
+    })
+
+    expect(result.externalCalls).toBe(0)
+    expect(visited).toEqual([
+      "ugc-video-generation.prepare-final-output-document",
+      "ugc-video-generation.get-final-output-document",
+      "ugc-video-generation.create-final-output-document",
+      "ugc-video-generation.persist-final-output-media",
+      "ugc-video-generation.create-generated-notification-job",
+    ])
+  })
+
   it("normalizes LinkedIn input as a standalone deterministic stage", async () => {
     const handlers = createProductionPipelineHandlers(services() as never)
     const handler = handlers.get("linkedin-generation.validate-input")!
