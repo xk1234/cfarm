@@ -82,6 +82,22 @@ describe("UGC worker pipeline", () => {
     for (const client of Object.values(second)) if (typeof client === "function" && "mock" in client) expect(client).not.toHaveBeenCalled()
   })
 
+  it("stops a stage job at the requested durable checkpoint", async () => {
+    const harness = workerHarness()
+    const clients = mockClients()
+    const result = await runUgcAutomationJob({
+      ...harness.input,
+      payload: { ...harness.input.payload, stopAfter: "voice" },
+      clients,
+    })
+
+    expect(result.checkpoints.voice).toBeDefined()
+    expect(result.checkpoints.motion).toBeUndefined()
+    expect(clients.generateFalVideo).not.toHaveBeenCalled()
+    expect(clients.lipSyncFalVideo).not.toHaveBeenCalled()
+    expect(clients.compositeUgcVideo).not.toHaveBeenCalled()
+  })
+
   it("leaves a transient FAL failure retryable", async () => {
     const harness = workerHarness()
     const clients = mockClients()

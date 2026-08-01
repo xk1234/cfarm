@@ -1,4 +1,7 @@
 export const LUMENCLIP_MCP_TOOLS = [
+  { name: "lumenclip_pipeline_catalog", category: "workflows" },
+  { name: "lumenclip_pipeline_stage_run", category: "workflows" },
+  { name: "lumenclip_pipeline_run", category: "workflows" },
   { name: "lumenclip_automations_list", category: "automations" },
   { name: "lumenclip_automation_templates_list", category: "automations" },
   { name: "lumenclip_automation_create", category: "automations" },

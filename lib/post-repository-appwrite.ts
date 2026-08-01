@@ -455,7 +455,7 @@ function identityFromRow(
   }
 }
 
-function postRowFields(
+export function postRowFields(
   post: Post,
   storage: {
     writeState: PostWriteState
@@ -494,6 +494,93 @@ function postRowFields(
       : null,
     data: JSON.stringify(post),
   }
+}
+
+/** One canonical-post getRow request; unlike repository getPost, no alias read follows. */
+export async function getCanonicalPostOnce(
+  ownerIdInput: string,
+  idInput: string
+) {
+  const ownerId = required(ownerIdInput, "post owner")
+  const id = required(idInput, "canonical post id")
+  try {
+    const row = (await tables().getRow(
+      APPWRITE_DATABASE_ID,
+      POSTS_TABLE,
+      postRowId(ownerId, id)
+    )) as PostRow
+    const post = postFromRow(row)
+    return post?.ownerId === ownerId && post.id === id ? post : null
+  } catch (error) {
+    if (appwriteStatus(error) === 404) return null
+    throw error
+  }
+}
+
+/** Exactly one canonical-post createRow request. */
+export async function createCanonicalPostOnce(postInput: Post) {
+  const post = normalizePost(postInput)
+  if (!post) throw new Error("A valid canonical post is required.")
+  await tables().createRow(
+    APPWRITE_DATABASE_ID,
+    POSTS_TABLE,
+    postRowId(post.ownerId, post.id),
+    postRowFields(post, {
+      writeState: "reconciled",
+      reconciledAt: new Date().toISOString(),
+    })
+  )
+  return post
+}
+
+/** Exactly one canonical-post updateRow request. */
+export async function updateCanonicalPostOnce(postInput: Post) {
+  const post = normalizePost(postInput)
+  if (!post) throw new Error("A valid canonical post is required.")
+  await tables().updateRow(
+    APPWRITE_DATABASE_ID,
+    POSTS_TABLE,
+    postRowId(post.ownerId, post.id),
+    postRowFields(post, {
+      writeState: "reconciled",
+      reconciledAt: new Date().toISOString(),
+    })
+  )
+  return post
+}
+
+/** One identity getRow request with no conflict-resolution follow-up. */
+export async function getPostIdentityOnce(claim: PostIdentityClaim) {
+  return getIdentity(claim)
+}
+
+/** Exactly one identity createRow request; conflicts are surfaced to the composite. */
+export async function createPostIdentityOnce(
+  ownerIdInput: string,
+  postIdInput: string,
+  claim: PostIdentityClaim
+) {
+  const ownerId = required(ownerIdInput, "post owner")
+  const postId = required(postIdInput, "canonical post id")
+  assertClaimOwner(ownerId, claim)
+  const now = new Date().toISOString()
+  const identityHash = postIdentityHash(claim)
+  const row = (await tables().createRow(
+    APPWRITE_DATABASE_ID,
+    POST_IDENTITIES_TABLE,
+    postIdentityRowId(claim),
+    {
+      rid: identityHash,
+      owner_id: ownerId,
+      source_key: "post_identity",
+      identity_kind: claim.kind,
+      identity_hash: identityHash,
+      post_id: postId,
+      created_at: now,
+      data: JSON.stringify({ claim }),
+    }
+  )) as unknown as IdentityRow
+  return identityFromRow(row, claim)
 }
 
 function postFromRow(row: PostRow): Post | null {

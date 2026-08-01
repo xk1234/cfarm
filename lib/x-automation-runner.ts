@@ -1,6 +1,10 @@
 import { clean } from "@/lib/guards"
 import { enqueueReminder } from "@/lib/reminders"
-import type { XAutomationRecord, XTrendCandidate } from "@/lib/x-automation"
+import type {
+  XAutomationRecord,
+  XAutomationRun,
+  XTrendCandidate,
+} from "@/lib/x-automation"
 import { generateXAutomationRun } from "@/lib/x-automation-generation"
 import {
   upsertXAutomation,
@@ -23,8 +27,20 @@ export async function generateStoredXAutomationRun(input: {
     topic: clean(input.topic),
     sourceCandidate: input.sourceCandidate,
   })
+  return persistGeneratedXAutomationRun({
+    automation: input.automation,
+    run: generated,
+    requestId: input.requestId,
+  })
+}
+
+export async function persistGeneratedXAutomationRun(input: {
+  automation: XAutomationRecord
+  run: Awaited<ReturnType<typeof generateXAutomationRun>>
+  requestId?: string
+}) {
   const run = {
-    ...generated,
+    ...input.run,
     requestId: clean(input.requestId) || undefined,
   }
   await upsertXAutomationRun(run)
@@ -35,38 +51,47 @@ export async function generateStoredXAutomationRun(input: {
     text: `Post generated\n${run.hook || input.automation.name}`,
   }).catch(() => undefined)
 
-  const usedAt = run.createdAt
-  await upsertXAutomation({
+  await upsertXAutomation(
+    buildXAutomationUsageUpdate({ automation: input.automation, run })
+  )
+  return run
+}
+
+export function buildXAutomationUsageUpdate(input: {
+  automation: XAutomationRecord
+  run: XAutomationRun
+}) {
+  const usedAt = input.run.createdAt
+  return {
     ...input.automation,
     usage: {
       recentArchetypes: [
         ...input.automation.usage.recentArchetypes,
-        ...(run.plans ?? []).map((plan) => ({
+        ...(input.run.plans ?? []).map((plan) => ({
           id: plan.archetype,
           at: usedAt,
         })),
       ].slice(-100),
       recentHooks: [
         ...input.automation.usage.recentHooks,
-        ...(run.plans ?? []).map((plan) => plan.hookStyle),
+        ...(input.run.plans ?? []).map((plan) => plan.hookStyle),
       ].slice(-30),
       recentBodies: [
         ...input.automation.usage.recentBodies,
-        ...(run.platform === "threads" && run.posts[0]
+        ...(input.run.platform === "threads" && input.run.posts[0]
           ? [
               {
                 body:
-                  run.posts[0].text
+                  input.run.posts[0].text
                     .split(/\n\s*\n/)
                     .slice(1)
-                    .join("\n\n") || run.posts[0].text,
-                hook: run.posts[0].text.split(/\n/)[0] || run.hook,
+                    .join("\n\n") || input.run.posts[0].text,
+                hook: input.run.posts[0].text.split(/\n/)[0] || input.run.hook,
                 at: usedAt,
               },
             ]
           : []),
       ].slice(-100),
     },
-  })
-  return run
+  }
 }
