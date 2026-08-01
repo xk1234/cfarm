@@ -1,0 +1,135 @@
+.comparison {
+  --pipeline-input-width: 50%;
+  display: grid;
+  grid-template-columns: minmax(0, var(--pipeline-input-width)) 12px minmax(
+      0,
+      1fr
+    );
+  align-items: stretch;
+  width: 100%;
+  margin-block: 1rem 1.25rem;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  background: var(--color-card);
+  box-shadow: 0 8px 24px rgb(15 23 42 / 6%);
+}
+
+.pane {
+  min-width: 0;
+  background: #fff;
+}
+
+.paneHeader {
+  display: flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-inline: 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+  color: #111827;
+  font-size: 0.8125rem;
+}
+
+.paneHeader span {
+  color: #6b7280;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.editor,
+.editorMount,
+.editorMount > div {
+  height: 26rem;
+  min-height: 26rem;
+}
+
+.placeholder {
+  height: 100%;
+  margin: 0;
+  overflow: auto;
+  padding: 0.75rem;
+  background: #fff;
+  color: #1f2937;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  white-space: pre;
+}
+
+.divider {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 12px;
+  cursor: col-resize;
+  touch-action: none;
+  background: color-mix(in srgb, var(--color-muted) 72%, transparent);
+  outline: none;
+  user-select: none;
+}
+
+.divider:hover,
+.divider:focus-visible {
+  background: color-mix(in srgb, var(--color-primary) 16%, var(--color-muted));
+}
+
+.dividerLine {
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: 1px;
+  background: var(--color-border);
+}
+
+.dividerGrip {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  justify-content: center;
+  width: 10px;
+  height: 2rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-background);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 12%);
+}
+
+.dividerGrip i {
+  width: 1px;
+  height: 0.75rem;
+  background: var(--color-muted-foreground);
+}
+
+@media (max-width: 767px) {
+  .comparison {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+    overflow: visible;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .pane {
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+  }
+
+  .divider {
+    display: none;
+  }
+
+  .editor,
+  .editorMount,
+  .editorMount > div {
+    height: 20rem;
+    min-height: 20rem;
+  }
+}
+
