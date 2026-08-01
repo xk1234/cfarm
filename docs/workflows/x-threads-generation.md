@@ -5,7 +5,25 @@ description: "Transform a persisted X/Threads automation and optional trend sour
 
 # X and Threads generation pipeline
 
-`"...output": "stage-N output"` represents the complete preceding output.
+`"...output": "stage-N output"` represents the complete preceding output. It is documentation
+shorthand rather than a literal runtime field.
+
+## Stage map
+
+| #   | Stage                        | Adds to the preceding output                          |
+| --- | ---------------------------- | ----------------------------------------------------- |
+| 1   | Validate and normalize input | Platform automation and validation result             |
+| 2   | Derive niche brief           | Audience, promise, pillars, keywords, and pain points |
+| 3   | Select content plan          | Archetype, pillar, hook style, topic, and proof       |
+| 4   | Build generation request     | Prompt messages and structured response schema        |
+| 5   | Generate draft               | Hook, body, closer, and composed posts                |
+| 6   | Optional humanize            | Brand-voice rewrite                                   |
+| 7   | Optional model review        | Pass/fix verdict and reviewed content                 |
+| 8   | Deterministic validation     | Platform, proof, formatting, and repetition findings  |
+| 9   | Repair retry                 | Accepted content or unresolved review findings        |
+| 10  | Build optional image prompt  | Topic-aware media prompt                              |
+| 11  | Optional image generation    | Downloaded image URLs                                 |
+| 12  | Benchmark and persist        | Draft run, score, trace, and recent-use memory        |
 
 ## Stage 1 — Validate and normalize input
 
@@ -128,9 +146,16 @@ the fallback receives one attempt after retryable failures.
   "...output": "stage-2 output",
   "plan": {
     "platform": "x",
-    "archetype": { "id": "contrarian_lesson", "kind": "single", "label": "Contrarian lesson" },
+    "archetype": {
+      "id": "contrarian_lesson",
+      "kind": "single",
+      "label": "Contrarian lesson"
+    },
     "pillar": { "label": "Activation design", "weight": 30 },
-    "hookStyle": { "id": "contrarian", "formula": "Reject the common default, then explain why" },
+    "hookStyle": {
+      "id": "contrarian",
+      "formula": "Reject the common default, then explain why"
+    },
     "topic": "activation checklists",
     "proof": ["Reduced activation time from 3 days to 40 minutes"],
     "recycleBody": null
@@ -263,7 +288,9 @@ format. Otherwise pass the stage-5 draft through.
   "reviewedDraft": "Your onboarding checklist is too complete. We removed every step that didn't lead to first value. Activation time dropped from 3 days to 40 minutes. Which step can you delete today?",
   "verdict": "pass",
   "issues": [],
-  "trace": [{ "stage": "review", "model": "openai/gpt-5.4-mini", "verdict": "pass" }]
+  "trace": [
+    { "stage": "review", "model": "openai/gpt-5.4-mini", "verdict": "pass" }
+  ]
 }
 ```
 
@@ -297,7 +324,14 @@ format. Otherwise pass the stage-5 draft through.
   "validation": {
     "valid": true,
     "errors": [],
-    "checks": ["slot lengths", "character limit", "links", "closer", "proof", "banned wording"]
+    "checks": [
+      "slot lengths",
+      "character limit",
+      "links",
+      "closer",
+      "proof",
+      "banned wording"
+    ]
   }
 }
 ```
@@ -314,7 +348,10 @@ format. Otherwise pass the stage-5 draft through.
 {
   "...output": "stage-8 output",
   "attempt": 1,
-  "validationErrors": ["post exceeds 280 characters", "final line must end with a question"]
+  "validationErrors": [
+    "post exceeds 280 characters",
+    "final line must end with a question"
+  ]
 }
 ```
 
@@ -323,7 +360,9 @@ format. Otherwise pass the stage-5 draft through.
 ```json
 {
   "...output": "stage-8 output",
-  "posts": [{ "index": 0, "text": "Repaired valid post", "characterCount": 238 }],
+  "posts": [
+    { "index": 0, "text": "Repaired valid post", "characterCount": 238 }
+  ],
   "attempts": 2,
   "needsReview": false,
   "reviewErrors": []
@@ -416,9 +455,7 @@ four images.
   "id": "xrun-01",
   "automationId": "x-auto-01",
   "platform": "x",
-  "posts": [
-    { "text": "Repaired valid post" }
-  ],
+  "posts": [{ "text": "Repaired valid post" }],
   "hook": "Your onboarding checklist is too complete.",
   "imagePrompt": "Editorial product illustration, high contrast",
   "imageUrls": ["/api/local-assets/x-automations/images/x-post-image.png"],
