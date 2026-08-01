@@ -31,8 +31,6 @@
     "mcp": "NODE_OPTIONS='--conditions=react-server' tsx scripts/lumenclip-mcp.mts",
     "mcp:docs": "tsx scripts/generate-mcp-docs.ts",
     "mcp:docs:check": "tsx scripts/generate-mcp-docs.ts --check",
-    "docs:hub:sync": "node scripts/sync-docs-hub.mjs",
-    "docs:hub:check": "node scripts/sync-docs-hub.mjs --check",
     "companion:package": "node scripts/package-companion-extension.mjs",
     "tiktok-studio:package": "pnpm companion:package",
     "tiktok-studio:backfill-urls": "NODE_OPTIONS='--conditions=react-server' tsx scripts/backfill-tiktok-canonical-urls.mts",
