@@ -66,11 +66,6 @@ const AutomationsView = dynamic(() =>
     (module) => module.AutomationsView
   )
 )
-const TestingFacility = dynamic(() =>
-  import("@/components/realfarm/testing-facility").then(
-    (module) => module.TestingFacility
-  )
-)
 const AutomationSettingsDrawer = dynamic(() =>
   import("@/components/realfarm/automation-settings").then(
     (module) => module.AutomationSettingsDrawer
@@ -913,7 +908,6 @@ export function RealFarmWorkspace({
             />
           )}
           {view === "analytics" && <AnalyticsView />}
-          {view === "testing" && <TestingFacility />}
           {view === "collections" &&
             (selectedCollection ? (
               <CollectionDetailView
