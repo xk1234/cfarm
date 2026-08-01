@@ -86,6 +86,62 @@ describe("LumenClip MCP server", () => {
     )
   })
 
+  it("runs a complete workflow or one independently validated step", async () => {
+    const automation = automationRecord()
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => automation),
+      listAutomationRuns: vi.fn(async () => []),
+      listWordCollections: vi.fn(async () => []),
+      listImageCollections: vi.fn(async () => []),
+    })
+
+    const single = await client.callTool({
+      name: "lumenclip_workflow_step_run",
+      arguments: {
+        tool: "lumenclip_automation_get",
+        arguments: { automationId: automation.id },
+      },
+    })
+    expect(single.structuredContent).toMatchObject({
+      tool: "lumenclip_automation_get",
+      status: "succeeded",
+      output: { automation: { id: automation.id } },
+    })
+
+    const workflow = await client.callTool({
+      name: "lumenclip_workflow_run",
+      arguments: {
+        workflowId: "inspect-twice",
+        steps: [
+          {
+            id: "first",
+            tool: "lumenclip_automation_get",
+            arguments: { automationId: automation.id },
+          },
+          {
+            id: "second",
+            tool: "lumenclip_automation_get",
+            arguments: {
+              automationId: {
+                $ref: "first",
+                path: "automation.id",
+              },
+            },
+          },
+        ],
+      },
+    })
+    expect(workflow.structuredContent).toMatchObject({
+      workflowId: "inspect-twice",
+      status: "succeeded",
+      completedSteps: 2,
+      steps: [
+        { id: "first", status: "succeeded" },
+        { id: "second", status: "succeeded" },
+      ],
+    })
+  })
+
   it("inspects and runs read-only automation experiments through injected services", async () => {
     const dimensions = {
       automationId: "automation-1",

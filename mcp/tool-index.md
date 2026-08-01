@@ -5,6 +5,8 @@ several workflows, but its input/output contract has one obvious owner.
 
 | Tool                                             | Primary use case                                | Availability       |
 | ------------------------------------------------ | ----------------------------------------------- | ------------------ |
+| `lumenclip_workflow_run`                         | [Workflows](workflows/README.md)                | Implemented        |
+| `lumenclip_workflow_step_run`                    | [Workflows](workflows/README.md)                | Implemented        |
 | `lumenclip_workspace_get`                        | [Workspace](workspace/README.md)                | Proposed v1        |
 | `lumenclip_templates_list`                       | [Templates](templates/README.md)                | Proposed v1        |
 | `lumenclip_template_get`                         | [Templates](templates/README.md)                | Proposed v1        |

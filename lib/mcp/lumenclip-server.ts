@@ -1,6 +1,14 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
 
+import {
+  captureMcpWorkflowTools,
+  executeMcpWorkflow,
+  executeMcpWorkflowStep,
+  workflowInputSchema,
+  workflowStepInputSchema,
+  type WorkflowToolRegistry,
+} from "@/lib/mcp/workflow-executor"
 import { toLumenClipDataError } from "@/lib/appwrite-errors"
 import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
 import {
@@ -483,6 +491,7 @@ export function createLumenClipMcpServer(
     name: "lumenclip",
     version: "2.0.0",
   })
+  const workflowTools = captureMcpWorkflowTools(server)
   const owned = <T>(task: () => T) => ownedMcpTask(ownerId, task)
 
   registerAutomationReadAndRunTools(server, ownerId, services)
@@ -985,8 +994,64 @@ export function createLumenClipMcpServer(
   registerTikTokPublicationTools(server, ownerId, services)
   registerTikTokStudioAnalyticsTools(server, ownerId, services)
   registerTikTokCommentTools(server, ownerId, services)
+  registerWorkflowTools(server, workflowTools)
 
   return server
+}
+
+function registerWorkflowTools(server: McpServer, tools: WorkflowToolRegistry) {
+  server.registerTool(
+    "lumenclip_workflow_run",
+    {
+      title: "Run an MCP workflow",
+      description:
+        'Runs an ordered workflow of up to 20 existing LumenClip MCP tools in one call. Every step is validated against its original tool schema, including confirmation gates. Later arguments can reference an earlier structured result with {"$ref":"step-id","path":"outputs.0.id"}. Publishing is never implicit; include a publishing tool and its required confirmation as an explicit step.',
+      inputSchema: workflowInputSchema(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input) =>
+      mcpResult(
+        await executeMcpWorkflow({
+          workflowId: input.workflowId,
+          steps: input.steps,
+          continueOnError: input.continueOnError,
+          tools,
+        })
+      )
+  )
+
+  server.registerTool(
+    "lumenclip_workflow_step_run",
+    {
+      title: "Run one MCP workflow step",
+      description:
+        "Runs any one existing LumenClip MCP tool as an independently callable workflow step. Arguments are validated against the selected tool's original schema, so ownership, confirmation, and idempotency rules remain unchanged. Workflow tools cannot recursively invoke themselves.",
+      inputSchema: workflowStepInputSchema(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input) => {
+      const output = await executeMcpWorkflowStep({
+        tool: input.tool,
+        arguments: input.arguments,
+        tools,
+      })
+      return mcpResult({
+        tool: input.tool,
+        status: "succeeded",
+        output,
+      })
+    }
+  )
 }
 
 function registerAutomationReadAndRunTools(
