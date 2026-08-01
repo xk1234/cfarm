@@ -7,8 +7,9 @@ This documentation is organized around the five areas maintained alongside the
 application.
 
 <Cards>
-  <Card title="Workflows" href="/docs/workflows">
-    End-to-end guides for completing product tasks.
+  <Card title="Output pipelines" href="/docs/workflows">
+    Generation pipelines that transform application inputs into content
+    outputs, including the exact model and provider at generative stages.
   </Card>
   <Card title="Libraries" href="/docs/libraries">
     Runtime and development dependencies used by LumenClip.
@@ -26,7 +27,9 @@ application.
 
 ## Documentation rules
 
-- Keep task instructions in `docs/workflows/`.
+- Keep only content-output generation pipelines in `docs/workflows/`. Express
+  each pipeline as ordered transformations with explicit inputs, outputs,
+  branches, validation, and model/provider details.
 - Keep dependency ownership in `docs/libraries/`.
 - Keep persisted shapes and backend contracts in `docs/data/`.
 - Keep frontend architecture and product surfaces in `docs/ui/`.
