@@ -193,7 +193,7 @@ function parseFirstTable(section: string): SchemaRow[] {
   if (headerIndex < 0) return [];
 
   const headers = splitTableRow(lines[headerIndex]).map((value) =>
-    value.toLowerCase(),
+    value.trim().toLowerCase(),
   );
   const rows: SchemaRow[] = [];
   for (const line of lines.slice(headerIndex + 2)) {
