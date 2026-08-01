@@ -1,32 +1,51 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { IconAlertTriangle, IconCheck, IconFlask } from "@tabler/icons-react"
+import {
+  IconAlertTriangle,
+  IconCheck,
+  IconFlask,
+  IconSparkles,
+} from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import type { AutomationRecord } from "@/lib/automations"
 
-type VariableDimension = {
-  token: string
-  variableName: string
-  source: "derived" | "override" | "missing"
-  collectionId?: string
-  collectionName?: string
-  sweepable: boolean
-  reason?: string
-  sampleValues: string[]
+type SectionId = "hook" | "body" | "cta"
+type FieldDimension =
+  | "slideDirection"
+  | "itemDirection"
+  | "wordRange"
+  | "staticText"
+  | "tone"
+  | "promptFormatting"
+  | "slideCount"
+
+type TextItemDimension = {
+  itemId: string
+  label: string
+  contentDirection: string
+  wordRange: { min: number; max: number; value: string }
+  textMode: "prompt" | "static"
+  staticText: string
 }
 
-type FixedDimension = {
-  name: string
-  label: string
-  token: string
-  reason: string
+type SectionDimension = {
+  section: SectionId
+  slideCount: number
+  textItems: TextItemDimension[]
+  slides: Array<{ slideIndex: number; contentDirection: string }>
 }
 
 type DimensionsResponse = {
-  variables: VariableDimension[]
-  fixed: FixedDimension[]
+  automationId: string
+  sections: SectionDimension[]
+  tone: { value: string; preset: string }
+  promptFormatting: {
+    style: string
+    narrative: string
+    num_of_slides: number
+  }
   enabledHookCount: number
 }
 
@@ -35,7 +54,6 @@ type ExperimentCell = {
   variant: Record<string, string>
   plan?: {
     hook: string
-    hookSubstitutions?: Record<string, string>
     slides: Array<{ id: string; role: string; text: string }>
   }
   qa?: {
@@ -54,18 +72,31 @@ type ExperimentResponse = {
   cells: ExperimentCell[]
 }
 
+type ExperimentView = ExperimentResponse & {
+  candidates: string[]
+  fieldKey: string
+  fieldLabel: string
+  repeats: number
+}
+
+const sectionLabels: Record<SectionId, string> = {
+  hook: "Hook",
+  body: "Body",
+  cta: "CTA",
+}
+
 export function TestingFacility() {
   const [automations, setAutomations] = useState<AutomationRecord[]>([])
   const [automationId, setAutomationId] = useState("")
   const [dimensions, setDimensions] = useState<DimensionsResponse | null>(null)
-  const [selectedVariables, setSelectedVariables] = useState<string[]>([])
-  const [variationValues, setVariationValues] = useState<
-    Record<string, string>
-  >({})
+  const [sectionId, setSectionId] = useState<SectionId | "automation">("body")
+  const [targetKey, setTargetKey] = useState("")
+  const [field, setField] = useState<FieldDimension>("slideDirection")
+  const [candidateText, setCandidateText] = useState("")
   const [allHooks, setAllHooks] = useState(true)
   const [repeats, setRepeats] = useState(1)
   const [seed, setSeed] = useState(4242)
-  const [result, setResult] = useState<ExperimentResponse | null>(null)
+  const [result, setResult] = useState<ExperimentView | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -99,46 +130,135 @@ export function TestingFacility() {
       .then(async (response) => {
         const payload = await response.json()
         if (!response.ok)
-          throw new Error(payload.error || "Could not load inputs")
+          throw new Error(payload.error || "Could not load fields")
         return payload as DimensionsResponse
       })
-      .then(setDimensions)
+      .then((response) => {
+        const initialSection =
+          response.sections.find((section) => section.section === "body") ??
+          response.sections[0]
+        const initialTarget = initialSection?.slides[0]
+          ? `slide:${initialSection.slides[0].slideIndex}`
+          : initialSection?.textItems[0]
+            ? `item:${initialSection.textItems[0].itemId}`
+            : "section"
+        const initialField = initialTarget.startsWith("slide:")
+          ? "slideDirection"
+          : initialTarget.startsWith("item:")
+            ? "itemDirection"
+            : "slideCount"
+        setDimensions(response)
+        setSectionId(initialSection?.section ?? "body")
+        setTargetKey(initialTarget)
+        setField(initialField)
+        setCandidateText(
+          currentFieldValue(
+            response,
+            initialSection?.section ?? "body",
+            initialTarget,
+            initialField
+          )
+        )
+      })
       .catch((loadError) =>
         setError(
           loadError instanceof Error
             ? loadError.message
-            : "Could not load inputs"
+            : "Could not load fields"
         )
       )
   }, [automationId])
 
-  const grid = useMemo(() => experimentGrid(result?.cells ?? []), [result])
+  const selectedSection = useMemo(
+    () =>
+      sectionId === "automation"
+        ? undefined
+        : dimensions?.sections.find((section) => section.section === sectionId),
+    [dimensions, sectionId]
+  )
+  const fieldOptions = optionsForTarget(sectionId, targetKey)
+  const candidates = parseValues(candidateText)
+  const grid = useMemo(() => experimentGrid(result), [result])
+
+  function chooseSection(nextSection: SectionId | "automation") {
+    setSectionId(nextSection)
+    setResult(null)
+    if (nextSection === "automation") {
+      chooseTarget(nextSection, "automation", "tone")
+      return
+    }
+    const section = dimensions?.sections.find(
+      (candidate) => candidate.section === nextSection
+    )
+    const nextTarget = section?.slides[0]
+      ? `slide:${section.slides[0].slideIndex}`
+      : section?.textItems[0]
+        ? `item:${section.textItems[0].itemId}`
+        : "section"
+    chooseTarget(nextSection, nextTarget)
+  }
+
+  function chooseTarget(
+    activeSection: SectionId | "automation",
+    nextTarget: string,
+    forcedField?: FieldDimension
+  ) {
+    const nextField =
+      forcedField ?? optionsForTarget(activeSection, nextTarget)[0]?.value
+    if (!nextField) return
+    setResult(null)
+    setTargetKey(nextTarget)
+    setField(nextField)
+    setCandidateText(
+      dimensions
+        ? currentFieldValue(dimensions, activeSection, nextTarget, nextField)
+        : ""
+    )
+  }
+
+  function chooseField(nextField: FieldDimension) {
+    setField(nextField)
+    setResult(null)
+    setCandidateText(
+      dimensions
+        ? currentFieldValue(dimensions, sectionId, targetKey, nextField)
+        : ""
+    )
+  }
 
   async function runExperiment() {
-    if (!automationId) return
+    if (!automationId || !dimensions) return
+    if (candidates.length === 0) {
+      setError("Add at least one candidate value")
+      return
+    }
     setLoading(true)
     setError("")
     setResult(null)
     try {
-      const vary = selectedVariables.map((name) => ({
-        dimension: "variable" as const,
-        name,
-        values: parseValues(variationValues[name]),
-      }))
-      if (vary.some((variation) => variation.values.length === 0)) {
-        throw new Error("Add at least one variation for every chosen variable")
-      }
+      const variation = buildVariation(sectionId, targetKey, field, candidates)
       const response = await fetch(
         `/api/automations/${encodeURIComponent(automationId)}/experiment`,
         {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ vary, allHooks, repeats, seed }),
+          body: JSON.stringify({
+            vary: [variation],
+            allHooks,
+            repeats,
+            seed,
+          }),
         }
       )
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || "Experiment failed")
-      setResult(payload as ExperimentResponse)
+      setResult({
+        ...(payload as ExperimentResponse),
+        candidates,
+        fieldKey: variationKey(variation),
+        fieldLabel: selectedFieldLabel(dimensions, sectionId, targetKey, field),
+        repeats,
+      })
     } catch (runError) {
       setError(
         runError instanceof Error ? runError.message : "Experiment failed"
@@ -156,148 +276,170 @@ export function TestingFacility() {
           <span className="text-role-label">Testing facility</span>
         </div>
         <h1 className="text-3xl font-semibold tracking-tight text-app-text">
-          Compare automation previews
+          Compare prompt fields
         </h1>
         <p className="text-sm leading-6 text-app-muted-text">
-          Hold a saved automation steady, move selected inputs, and inspect
-          every preview. Experiments cannot save or publish.
+          Change one generation instruction, hold the saved automation steady,
+          and compare the copy it produces. Experiments cannot save or publish.
         </p>
       </header>
 
       <section className="rounded-dialog border border-app-panel-border bg-app-surface-raised p-5">
-        <div className="grid gap-5 lg:grid-cols-2">
-          <Field label="Choose automation">
-            <select
-              value={automationId}
-              onChange={(event) => {
-                setError("")
-                setDimensions(null)
-                setSelectedVariables([])
-                setVariationValues({})
-                setResult(null)
-                setAutomationId(event.target.value)
-              }}
-              className="lc-focus-ring h-10 w-full rounded-control border border-app-panel-border bg-app-surface-raised px-3 text-sm text-app-text"
-            >
-              <option value="">Select a saved automation</option>
-              {automations.map((automation) => (
-                <option key={automation.id} value={automation.id}>
-                  {automation.name}
-                </option>
-              ))}
-            </select>
-          </Field>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)]">
+          <div className="space-y-5">
+            <Field label="Choose automation">
+              <select
+                value={automationId}
+                onChange={(event) => {
+                  setError("")
+                  setDimensions(null)
+                  setTargetKey("")
+                  setCandidateText("")
+                  setResult(null)
+                  setAutomationId(event.target.value)
+                }}
+                className="lc-focus-ring h-10 w-full rounded-control border border-app-panel-border bg-app-surface-raised px-3 text-sm text-app-text"
+              >
+                <option value="">Select a saved automation</option>
+                {automations.map((automation) => (
+                  <option key={automation.id} value={automation.id}>
+                    {automation.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
 
-          <Field label="Choose variables">
-            <div className="min-h-10 rounded-control border border-app-panel-border bg-app-surface-subtle p-2">
-              {!automationId ? (
-                <p className="px-1 py-1 text-xs text-app-muted-text">
-                  Choose an automation first.
-                </p>
-              ) : !dimensions ? (
-                <div className="h-6 animate-pulse rounded-control bg-app-control-hover" />
-              ) : dimensions.variables.length === 0 ? (
-                <p className="px-1 py-1 text-xs text-app-muted-text">
-                  This automation has no hook variables.
-                </p>
-              ) : (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {dimensions.variables.map((variable) => (
-                    <label
-                      key={variable.variableName}
-                      title={variable.reason}
-                      className="flex min-h-10 items-start gap-2 rounded-control px-2 py-2 text-xs text-app-text hover:bg-app-control-hover"
-                    >
-                      <input
-                        type="checkbox"
-                        className="mt-0.5 accent-app-action"
-                        disabled={!variable.sweepable}
-                        checked={selectedVariables.includes(
-                          variable.variableName
-                        )}
-                        onChange={(event) =>
-                          setSelectedVariables((current) =>
-                            event.target.checked
-                              ? [...current, variable.variableName]
-                              : current.filter(
-                                  (name) => name !== variable.variableName
-                                )
-                          )
-                        }
-                      />
-                      <span>
-                        <span className="font-mono">{variable.token}</span>
-                        <span className="block text-app-muted-text">
-                          {variable.sweepable
-                            ? variable.collectionName
-                            : variable.reason}
-                        </span>
-                      </span>
-                    </label>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Section">
+                <select
+                  value={sectionId}
+                  disabled={!dimensions}
+                  onChange={(event) =>
+                    chooseSection(
+                      event.target.value as SectionId | "automation"
+                    )
+                  }
+                  className="lc-focus-ring h-10 w-full rounded-control border border-app-panel-border bg-app-control-bg px-3 text-sm text-app-text disabled:opacity-50"
+                >
+                  <option value="automation">Automation-wide</option>
+                  {dimensions?.sections.map((section) => (
+                    <option key={section.section} value={section.section}>
+                      {sectionLabels[section.section]}
+                    </option>
                   ))}
-                </div>
-              )}
-            </div>
-          </Field>
+                </select>
+              </Field>
 
-          <Field label="Choose variations">
-            <div className="space-y-3">
-              {selectedVariables.length === 0 ? (
-                <p className="rounded-control border border-dashed border-app-panel-border p-3 text-xs text-app-muted-text">
-                  Select a variable to enter comma-separated values.
+              <Field label="Slide or text item">
+                <select
+                  value={targetKey}
+                  disabled={!dimensions}
+                  onChange={(event) =>
+                    chooseTarget(sectionId, event.target.value)
+                  }
+                  className="lc-focus-ring h-10 w-full rounded-control border border-app-panel-border bg-app-control-bg px-3 text-sm text-app-text disabled:opacity-50"
+                >
+                  {sectionId === "automation" ? (
+                    <option value="automation">Automation prompts</option>
+                  ) : (
+                    <>
+                      {selectedSection?.slides.map((slide) => (
+                        <option
+                          key={`slide-${slide.slideIndex}`}
+                          value={`slide:${slide.slideIndex}`}
+                        >
+                          Slide {slide.slideIndex}
+                        </option>
+                      ))}
+                      {selectedSection?.textItems.map((item) => (
+                        <option
+                          key={`item-${item.itemId}`}
+                          value={`item:${item.itemId}`}
+                        >
+                          {item.label}
+                        </option>
+                      ))}
+                      <option value="section">Section settings</option>
+                    </>
+                  )}
+                </select>
+              </Field>
+
+              <Field label="Field">
+                <select
+                  value={field}
+                  disabled={!dimensions}
+                  onChange={(event) =>
+                    chooseField(event.target.value as FieldDimension)
+                  }
+                  className="lc-focus-ring h-10 w-full rounded-control border border-app-panel-border bg-app-control-bg px-3 text-sm text-app-text disabled:opacity-50"
+                >
+                  {fieldOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+
+            <Field label="Candidate values">
+              <textarea
+                value={candidateText}
+                disabled={!dimensions}
+                onChange={(event) => {
+                  setCandidateText(event.target.value)
+                  setResult(null)
+                }}
+                rows={7}
+                placeholder="Enter one prompt direction per line"
+                className="lc-focus-ring w-full resize-y rounded-control border border-app-panel-border bg-app-control-bg px-3 py-2.5 text-sm leading-6 text-app-text placeholder:text-app-text-faint disabled:opacity-50"
+              />
+              <p className="text-xs leading-5 text-app-muted-text">
+                One candidate per line. The saved value is loaded first so you
+                can edit it or add alternatives below.
+              </p>
+            </Field>
+          </div>
+
+          <aside className="space-y-5 border-t border-app-panel-border pt-5 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
+            <div className="flex items-start gap-3">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-control bg-app-surface-subtle text-app-action">
+                <IconSparkles className="size-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-app-text">
+                  Controlled comparison
+                </h2>
+                <p className="mt-1 text-xs leading-5 text-app-muted-text">
+                  Every candidate in the same repeat shares hook and image
+                  draws. Only this field changes.
                 </p>
-              ) : (
-                selectedVariables.map((name) => {
-                  const variable = dimensions?.variables.find(
-                    (item) => item.variableName === name
-                  )
-                  return (
-                    <div key={name} className="space-y-1.5">
-                      <label
-                        htmlFor={`variations-${name}`}
-                        className="text-xs font-medium text-app-text"
-                      >
-                        {variable?.token}
-                      </label>
-                      <input
-                        id={`variations-${name}`}
-                        value={variationValues[name] ?? ""}
-                        onChange={(event) =>
-                          setVariationValues((current) => ({
-                            ...current,
-                            [name]: event.target.value,
-                          }))
-                        }
-                        placeholder={variable?.sampleValues.join(", ")}
-                        className="lc-focus-ring h-10 w-full rounded-control border border-app-panel-border bg-app-control-bg px-3 text-sm text-app-text placeholder:text-app-text-faint"
-                      />
-                    </div>
-                  )
-                })
-              )}
+              </div>
             </div>
-          </Field>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Repeats">
-              <input
-                type="number"
-                min={1}
-                max={20}
-                value={repeats}
-                onChange={(event) => setRepeats(Number(event.target.value))}
-                className="lc-focus-ring h-10 w-full rounded-control border border-app-panel-border bg-app-control-bg px-3 text-sm text-app-text"
-              />
-            </Field>
-            <Field label="Seed">
-              <input
-                type="number"
-                value={seed}
-                onChange={(event) => setSeed(Number(event.target.value))}
-                className="lc-focus-ring h-10 w-full rounded-control border border-app-panel-border bg-app-control-bg px-3 text-sm text-app-text"
-              />
-            </Field>
-            <label className="col-span-2 flex min-h-10 items-center gap-3 rounded-control border border-app-panel-border px-3 text-sm font-medium text-app-text">
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Repeats">
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={repeats}
+                  onChange={(event) => setRepeats(Number(event.target.value))}
+                  className="lc-focus-ring h-10 w-full rounded-control border border-app-panel-border bg-app-control-bg px-3 text-sm text-app-text"
+                />
+              </Field>
+              <Field label="Seed">
+                <input
+                  type="number"
+                  value={seed}
+                  onChange={(event) => setSeed(Number(event.target.value))}
+                  className="lc-focus-ring h-10 w-full rounded-control border border-app-panel-border bg-app-control-bg px-3 font-mono text-sm text-app-text"
+                />
+              </Field>
+            </div>
+
+            <label className="flex min-h-10 items-center gap-3 rounded-control border border-app-panel-border px-3 text-sm font-medium text-app-text transition-colors hover:bg-app-control-hover">
               <input
                 type="checkbox"
                 className="accent-app-action"
@@ -313,45 +455,39 @@ export function TestingFacility() {
                 </span>
               </span>
             </label>
-          </div>
-        </div>
 
-        {dimensions?.fixed.length ? (
-          <details className="mt-5 border-t border-app-panel-border pt-4">
-            <summary className="cursor-pointer text-xs font-medium text-app-muted-text">
-              Runtime variables are fixed
-            </summary>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {dimensions.fixed.map((variable) => (
-                <span
-                  key={variable.name}
-                  title={variable.reason}
-                  className="rounded-full border border-app-panel-border bg-app-surface-subtle px-2.5 py-1 font-mono text-xs text-app-muted-text"
-                >
-                  {variable.token}
-                </span>
-              ))}
+            <div className="border-t border-app-panel-border pt-4">
+              <p className="text-xs leading-5 text-app-muted-text">
+                {candidates.length || 0} candidate
+                {candidates.length === 1 ? "" : "s"} × {repeats || 0} repeat
+                {repeats === 1 ? "" : "s"}
+                {allHooks && dimensions
+                  ? ` × ${dimensions.enabledHookCount} hooks`
+                  : ""}
+                . Maximum 200 synchronous cells.
+              </p>
+              <Button
+                variant="action"
+                size="appDefault"
+                className="mt-3 w-full"
+                disabled={
+                  !automationId ||
+                  !dimensions ||
+                  candidates.length === 0 ||
+                  loading
+                }
+                onClick={() => void runExperiment()}
+              >
+                {loading ? "Running previews..." : "Run experiment"}
+              </Button>
             </div>
-          </details>
-        ) : null}
-
-        <div className="mt-5 flex items-center justify-between gap-4 border-t border-app-panel-border pt-4">
-          <p className="text-xs text-app-muted-text">
-            Maximum 200 synchronous cells. Each cell can make a model call.
-          </p>
-          <Button
-            variant="action"
-            size="appDefault"
-            disabled={!automationId || loading}
-            onClick={() => void runExperiment()}
-          >
-            {loading ? "Running previews..." : "Run experiment"}
-          </Button>
+          </aside>
         </div>
+
         {error ? (
           <p
             role="alert"
-            className="mt-4 flex items-start gap-2 rounded-control bg-app-danger-surface p-3 text-sm text-app-danger"
+            className="mt-5 flex items-start gap-2 rounded-control bg-app-danger-surface p-3 text-sm text-app-danger"
           >
             <IconAlertTriangle className="mt-0.5 size-4 shrink-0" />
             {error}
@@ -359,7 +495,7 @@ export function TestingFacility() {
         ) : null}
       </section>
 
-      <ResultsGrid grid={grid} hasResult={Boolean(result)} />
+      <ResultsGrid grid={grid} result={result} />
     </div>
   )
 }
@@ -381,12 +517,12 @@ function Field({
 
 function ResultsGrid({
   grid,
-  hasResult,
+  result,
 }: {
   grid: ReturnType<typeof experimentGrid>
-  hasResult: boolean
+  result: ExperimentView | null
 }) {
-  if (!hasResult) {
+  if (!result) {
     return (
       <section className="rounded-dialog border border-dashed border-app-panel-border bg-app-surface-raised px-6 py-12 text-center">
         <IconFlask className="mx-auto size-6 text-app-muted-text" />
@@ -394,7 +530,7 @@ function ResultsGrid({
           No test runs yet
         </h2>
         <p className="mt-1 text-sm text-app-muted-text">
-          Configure a sweep to compare generated copy and QA findings.
+          Choose a prompt field to compare generated copy and QA findings.
         </p>
       </section>
     )
@@ -405,46 +541,50 @@ function ResultsGrid({
       <div>
         <h2 className="text-heading font-semibold text-app-text">Results</h2>
         <p className="text-sm text-app-muted-text">
-          Rows are hooks. Columns are variations.
+          Varied field:{" "}
+          <span className="font-medium text-app-text">{result.fieldLabel}</span>
+          . Rows are candidate values; columns are repeats.
         </p>
       </div>
       <div className="overflow-x-auto rounded-dialog border border-app-panel-border bg-app-surface-raised">
         <table className="min-w-full border-collapse text-left">
           <thead>
             <tr className="bg-app-surface-subtle">
-              <th className="sticky left-0 min-w-52 border-r border-app-panel-border bg-app-surface-subtle p-3 text-xs font-semibold text-app-muted-text">
-                Hook
+              <th className="sticky left-0 min-w-64 border-r border-app-panel-border bg-app-surface-subtle p-3 text-xs font-semibold text-app-muted-text">
+                Candidate value
               </th>
               {grid.columns.map((column) => (
                 <th
-                  key={column}
+                  key={column.key}
                   className="min-w-80 border-l border-app-panel-border p-3 font-mono text-xs font-medium text-app-text"
                 >
-                  {column}
+                  {column.label}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {grid.rows.map((row) => (
-              <tr key={row.hook} className="align-top">
-                <th className="sticky left-0 border-t border-r border-app-panel-border bg-app-surface-raised p-3 text-sm font-medium text-app-text">
-                  {row.label}
+              <tr key={row.value} className="align-top">
+                <th className="sticky left-0 max-w-80 border-t border-r border-app-panel-border bg-app-surface-raised p-3 text-sm leading-5 font-medium text-app-text">
+                  {row.value}
                 </th>
                 {grid.columns.map((column) => (
                   <td
-                    key={column}
+                    key={column.key}
                     className="border-t border-l border-app-panel-border p-3"
                   >
-                    {row.cells
-                      .get(column)
-                      ?.map((cell) => (
-                        <ResultCell key={cell.cellId} cell={cell} />
-                      )) ?? (
-                      <span className="text-xs text-app-muted-text">
-                        No preview
-                      </span>
-                    )}
+                    <div className="space-y-3">
+                      {row.cells
+                        .get(column.key)
+                        ?.map((cell) => (
+                          <ResultCell key={cell.cellId} cell={cell} />
+                        )) ?? (
+                        <span className="text-xs text-app-muted-text">
+                          No preview
+                        </span>
+                      )}
+                    </div>
                   </td>
                 ))}
               </tr>
@@ -481,23 +621,15 @@ function ResultCell({ cell }: { cell: ExperimentCell }) {
       </p>
       <div className="space-y-1.5">
         {cell.plan?.slides.map((slide) => (
-          <p key={slide.id} className="text-xs leading-5 text-app-text">
-            {slide.text}
-          </p>
+          <div
+            key={slide.id}
+            className="grid grid-cols-[auto_1fr] gap-2 text-xs leading-5"
+          >
+            <span className="font-mono text-app-muted-text">{slide.role}</span>
+            <p className="text-app-text">{slide.text}</p>
+          </div>
         ))}
       </div>
-      {Object.keys(cell.plan?.hookSubstitutions ?? {}).length ? (
-        <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 border-t border-app-panel-border pt-2 font-mono text-xs">
-          {Object.entries(cell.plan?.hookSubstitutions ?? {}).map(
-            ([name, value]) => (
-              <div key={name} className="contents">
-                <dt className="text-app-muted-text">{name}</dt>
-                <dd className="text-app-text">{value}</dd>
-              </div>
-            )
-          )}
-        </dl>
-      ) : null}
       {cell.qa?.findings.length ? (
         <ul className="space-y-1 border-t border-app-panel-border pt-2">
           {cell.qa.findings.map((finding, index) => (
@@ -515,46 +647,166 @@ function ResultCell({ cell }: { cell: ExperimentCell }) {
   )
 }
 
+function optionsForTarget(
+  section: SectionId | "automation",
+  targetKey: string
+): Array<{ value: FieldDimension; label: string }> {
+  if (section === "automation") {
+    return [
+      { value: "tone", label: "Tone" },
+      { value: "promptFormatting", label: "Prompt formatting" },
+    ]
+  }
+  if (targetKey.startsWith("slide:")) {
+    return [{ value: "slideDirection", label: "Content direction" }]
+  }
+  if (targetKey.startsWith("item:")) {
+    return [
+      { value: "itemDirection", label: "Content direction" },
+      { value: "wordRange", label: "Word range" },
+      { value: "staticText", label: "Static text" },
+    ]
+  }
+  return [{ value: "slideCount", label: "Slide count" }]
+}
+
+function currentFieldValue(
+  dimensions: DimensionsResponse,
+  sectionId: SectionId | "automation",
+  targetKey: string,
+  field: FieldDimension
+) {
+  if (field === "tone") return dimensions.tone.value
+  if (field === "promptFormatting") return dimensions.promptFormatting.style
+  if (sectionId === "automation") return ""
+  const section = dimensions.sections.find(
+    (candidate) => candidate.section === sectionId
+  )
+  if (!section) return ""
+  if (field === "slideCount") return String(section.slideCount)
+  if (targetKey.startsWith("slide:")) {
+    const slideIndex = Number(targetKey.slice("slide:".length))
+    return (
+      section.slides.find((slide) => slide.slideIndex === slideIndex)
+        ?.contentDirection ?? ""
+    )
+  }
+  const itemId = targetKey.slice("item:".length)
+  const item = section.textItems.find(
+    (candidate) => candidate.itemId === itemId
+  )
+  if (!item) return ""
+  if (field === "itemDirection") return item.contentDirection
+  if (field === "wordRange") return item.wordRange.value
+  if (field === "staticText") return item.staticText
+  return ""
+}
+
+function buildVariation(
+  sectionId: SectionId | "automation",
+  targetKey: string,
+  field: FieldDimension,
+  values: string[]
+) {
+  if (field === "tone" || field === "promptFormatting") {
+    return { dimension: field, values } as const
+  }
+  if (sectionId === "automation") {
+    throw new Error("Choose an automation-wide prompt field")
+  }
+  if (field === "slideDirection") {
+    return {
+      dimension: field,
+      target: {
+        section: sectionId,
+        slideIndex: Number(targetKey.slice("slide:".length)),
+      },
+      values,
+    } as const
+  }
+  if (
+    field === "itemDirection" ||
+    field === "wordRange" ||
+    field === "staticText"
+  ) {
+    return {
+      dimension: field,
+      target: {
+        section: sectionId,
+        itemId: targetKey.slice("item:".length),
+      },
+      values,
+    } as const
+  }
+  return {
+    dimension: "slideCount" as const,
+    target: { section: sectionId },
+    values,
+  }
+}
+
+function variationKey(variation: ReturnType<typeof buildVariation>) {
+  if (variation.dimension === "slideDirection") {
+    return `${variation.dimension}:${variation.target.section}:${variation.target.slideIndex}`
+  }
+  if (
+    variation.dimension === "itemDirection" ||
+    variation.dimension === "wordRange" ||
+    variation.dimension === "staticText"
+  ) {
+    return `${variation.dimension}:${variation.target.section}:${variation.target.itemId}`
+  }
+  if (variation.dimension === "slideCount") {
+    return `${variation.dimension}:${variation.target.section}`
+  }
+  return variation.dimension
+}
+
+function selectedFieldLabel(
+  dimensions: DimensionsResponse,
+  sectionId: SectionId | "automation",
+  targetKey: string,
+  field: FieldDimension
+) {
+  const fieldLabel =
+    optionsForTarget(sectionId, targetKey).find(
+      (option) => option.value === field
+    )?.label ?? field
+  if (sectionId === "automation") return fieldLabel
+  const sectionLabel = sectionLabels[sectionId]
+  if (targetKey.startsWith("slide:")) {
+    return `${sectionLabel} · slide ${targetKey.slice("slide:".length)} · ${fieldLabel}`
+  }
+  if (targetKey.startsWith("item:")) {
+    const itemId = targetKey.slice("item:".length)
+    const item = dimensions.sections
+      .find((section) => section.section === sectionId)
+      ?.textItems.find((candidate) => candidate.itemId === itemId)
+    return `${sectionLabel} · ${item?.label ?? itemId} · ${fieldLabel}`
+  }
+  return `${sectionLabel} · ${fieldLabel}`
+}
+
 function parseValues(value = "") {
-  return [...new Set(value.split(/[\n,]/).map((item) => item.trim()))].filter(
+  return [...new Set(value.split("\n").map((item) => item.trim()))].filter(
     Boolean
   )
 }
 
-function experimentGrid(cells: ExperimentCell[]) {
-  const columns = [
-    ...new Set(
-      cells.map(
-        (cell) =>
-          Object.entries(cell.variant)
-            .filter(([key]) => key !== "hook" && key !== "repeat")
-            .map(([key, value]) => `${key}=${value}`)
-            .join(", ") || "Baseline"
-      )
-    ),
-  ]
-  const rowsByHook = new Map<
-    string,
-    {
-      hook: string
-      label: string
-      cells: Map<string, ExperimentCell[]>
+function experimentGrid(result: ExperimentView | null) {
+  if (!result) return { columns: [], rows: [] }
+  const columns = Array.from({ length: result.repeats }, (_, index) => ({
+    key: String(index + 1),
+    label: `Repeat ${index + 1}`,
+  }))
+  const rows = result.candidates.map((value) => {
+    const cells = new Map<string, ExperimentCell[]>()
+    for (const cell of result.cells) {
+      if (cell.variant[result.fieldKey] !== value) continue
+      const repeat = cell.variant.repeat ?? "1"
+      cells.set(repeat, [...(cells.get(repeat) ?? []), cell])
     }
-  >()
-  for (const cell of cells) {
-    const hook = cell.variant.hook || cell.plan?.hook || "Selected hook"
-    const column =
-      Object.entries(cell.variant)
-        .filter(([key]) => key !== "hook" && key !== "repeat")
-        .map(([key, value]) => `${key}=${value}`)
-        .join(", ") || "Baseline"
-    const row = rowsByHook.get(hook) ?? {
-      hook,
-      label: cell.plan?.hook || hook,
-      cells: new Map<string, ExperimentCell[]>(),
-    }
-    row.cells.set(column, [...(row.cells.get(column) ?? []), cell])
-    rowsByHook.set(hook, row)
-  }
-  return { columns, rows: [...rowsByHook.values()] }
+    return { value, cells }
+  })
+  return { columns, rows }
 }

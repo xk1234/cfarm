@@ -13,14 +13,42 @@ import { withSystemOwner } from "@/lib/system-owner-context"
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
 
+const sectionSchema = z.enum(["hook", "body", "cta"])
+const valuesSchema = z
+  .array(z.string().trim().min(1).max(1_000))
+  .min(1)
+  .max(200)
+
 const requestSchema = z.object({
   vary: z
     .array(
-      z.object({
-        dimension: z.enum(["hook", "variable", "tone", "model", "collection"]),
-        name: z.string().trim().min(1).max(200).optional(),
-        values: z.array(z.string().trim().min(1).max(1_000)).min(1).max(200),
-      })
+      z.discriminatedUnion("dimension", [
+        z.object({
+          dimension: z.literal("slideDirection"),
+          target: z.object({
+            section: sectionSchema,
+            slideIndex: z.number().int().min(1),
+          }),
+          values: valuesSchema,
+        }),
+        z.object({
+          dimension: z.enum(["itemDirection", "wordRange", "staticText"]),
+          target: z.object({
+            section: sectionSchema,
+            itemId: z.string().trim().min(1).max(200),
+          }),
+          values: valuesSchema,
+        }),
+        z.object({
+          dimension: z.literal("slideCount"),
+          target: z.object({ section: sectionSchema }),
+          values: valuesSchema,
+        }),
+        z.object({
+          dimension: z.enum(["tone", "promptFormatting", "model", "hook"]),
+          values: valuesSchema,
+        }),
+      ])
     )
     .max(20),
   allHooks: z.boolean().optional(),

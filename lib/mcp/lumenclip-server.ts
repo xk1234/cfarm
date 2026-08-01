@@ -1255,7 +1255,7 @@ function registerAutomationReadAndRunTools(
     {
       title: "Inspect automation experiment dimensions",
       description:
-        "Returns sweepable variables with their bound collections and sample values, fixed runtime variables, and the enabled hook count. Call this before running an automation experiment.",
+        "Returns every testable slideshow prompt field with its current value: sections, text items, slide directions, tone, prompt formatting, and the enabled hook count. Call this before running an automation experiment.",
       inputSchema: {
         automationId: z
           .string()
@@ -1280,25 +1280,81 @@ function registerAutomationReadAndRunTools(
       )
   )
 
-  const experimentVariationSchema = z.object({
-    dimension: z
-      .enum(["hook", "variable", "tone", "model", "collection"])
-      .describe('Input axis to sweep, e.g. "variable" for a bound hook token.'),
-    name: z
-      .string()
-      .trim()
-      .min(1)
-      .max(200)
-      .optional()
-      .describe(
-        'Variable token name when dimension is "variable", e.g. "zodiac"; omit for other dimensions.'
+  const experimentSectionSchema = z
+    .enum(["hook", "body", "cta"])
+    .describe('Slideshow section, e.g. "body".')
+  const experimentValuesSchema = z
+    .array(z.string().trim().min(1).max(1_000))
+    .min(1)
+    .max(200)
+  const experimentVariationSchema = z.discriminatedUnion("dimension", [
+    z.object({
+      dimension: z
+        .literal("slideDirection")
+        .describe("Sweep one slide's content direction prompt."),
+      target: z
+        .object({
+          section: experimentSectionSchema,
+          slideIndex: z
+            .number()
+            .int()
+            .min(1)
+            .describe("One-based slide index within the section, e.g. 2."),
+        })
+        .describe(
+          'Specific slide to vary, e.g. {"section":"body","slideIndex":2}.'
+        ),
+      values: experimentValuesSchema.describe(
+        'Prompt directions, e.g. ["Explain the core mistake with a concrete example.","Turn the lesson into a three-step checklist.","Challenge a common assumption with evidence."]'
       ),
-    values: z
-      .array(z.string().trim().min(1).max(1_000))
-      .min(1)
-      .max(200)
-      .describe('Values for this axis, e.g. ["Aries", "Taurus", "Gemini"].'),
-  })
+    }),
+    z.object({
+      dimension: z
+        .enum(["itemDirection", "wordRange", "staticText"])
+        .describe(
+          "Sweep a text item's content direction, word range, or fixed copy."
+        ),
+      target: z
+        .object({
+          section: experimentSectionSchema,
+          itemId: z
+            .string()
+            .trim()
+            .min(1)
+            .max(200)
+            .describe(
+              'Text item ID returned by the dimensions tool, e.g. "text-1".'
+            ),
+        })
+        .describe(
+          'Specific text item, e.g. {"section":"body","itemId":"text-1"}.'
+        ),
+      values: experimentValuesSchema.describe(
+        'Candidate strings; wordRange uses "20-40", while prompt and static-text values are natural language.'
+      ),
+    }),
+    z.object({
+      dimension: z
+        .literal("slideCount")
+        .describe("Sweep one section's slide count."),
+      target: z
+        .object({ section: experimentSectionSchema })
+        .describe('Section whose count changes, e.g. {"section":"body"}.'),
+      values: experimentValuesSchema.describe(
+        'Non-negative integer strings, e.g. ["2","3","4"].'
+      ),
+    }),
+    z.object({
+      dimension: z
+        .enum(["tone", "promptFormatting", "model", "hook"])
+        .describe(
+          "Sweep an automation-wide tone or writing-style prompt, the OpenRouter model, or a hook ID."
+        ),
+      values: experimentValuesSchema.describe(
+        'Candidates for the selected axis, e.g. ["Calm & Reflective","Bold & Provocative"] for tone.'
+      ),
+    }),
+  ])
 
   server.registerTool(
     "lumenclip_automation_experiment_run",
@@ -1318,7 +1374,7 @@ function registerAutomationReadAndRunTools(
           .array(experimentVariationSchema)
           .max(20)
           .describe(
-            'Dimensions to combine, e.g. [{"dimension":"variable","name":"zodiac","values":["Aries","Taurus"]},{"dimension":"tone","values":["Bold & Provocative"]}].'
+            'Dimensions to combine, e.g. [{"dimension":"slideDirection","target":{"section":"body","slideIndex":2},"values":["Explain the mistake with an example.","Give a concise three-step fix.","Challenge the default advice."]}].'
           ),
         allHooks: z
           .boolean()
@@ -1340,7 +1396,7 @@ function registerAutomationReadAndRunTools(
           .int()
           .optional()
           .describe(
-            "Base integer seed for reproducible variable draws, e.g. 4242."
+            "Base integer seed for reproducible hook and image draws, e.g. 4242."
           ),
       },
       annotations: {

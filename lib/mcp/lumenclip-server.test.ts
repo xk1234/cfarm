@@ -51,8 +51,33 @@ describe("LumenClip MCP server", () => {
   it("inspects and runs read-only automation experiments through injected services", async () => {
     const dimensions = {
       automationId: "automation-1",
-      variables: [],
-      fixed: [],
+      sections: [
+        {
+          section: "body" as const,
+          slideCount: 3,
+          textItems: [
+            {
+              itemId: "body-copy",
+              label: "Body copy",
+              contentDirection: "Explain one practical lesson.",
+              wordRange: { min: 20, max: 40, value: "20-40" },
+              textMode: "prompt" as const,
+              staticText: "",
+            },
+          ],
+          slides: [
+            { slideIndex: 1, contentDirection: "" },
+            { slideIndex: 2, contentDirection: "Show a concrete example." },
+            { slideIndex: 3, contentDirection: "" },
+          ],
+        },
+      ],
+      tone: { value: "Educational & Informative", preset: "educational" },
+      promptFormatting: {
+        style: "Keep every slide concise.",
+        narrative: "Build one clear argument.",
+        num_of_slides: 4,
+      },
       enabledHookCount: 2,
     }
     const experiment = {
@@ -80,9 +105,12 @@ describe("LumenClip MCP server", () => {
         automationId: "automation-1",
         vary: [
           {
-            dimension: "variable",
-            name: "zodiac",
-            values: ["Aries", "Taurus"],
+            dimension: "slideDirection",
+            target: { section: "body", slideIndex: 2 },
+            values: [
+              "Explain the mistake with an example.",
+              "Turn the lesson into a checklist.",
+            ],
           },
         ],
         allHooks: true,
@@ -97,9 +125,12 @@ describe("LumenClip MCP server", () => {
       automationId: "automation-1",
       vary: [
         {
-          dimension: "variable",
-          name: "zodiac",
-          values: ["Aries", "Taurus"],
+          dimension: "slideDirection",
+          target: { section: "body", slideIndex: 2 },
+          values: [
+            "Explain the mistake with an example.",
+            "Turn the lesson into a checklist.",
+          ],
         },
       ],
       allHooks: true,
