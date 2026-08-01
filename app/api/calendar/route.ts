@@ -27,9 +27,9 @@ import {
 import { clean, isRecord } from "@/lib/guards"
 import { postfastRequest } from "@/lib/postfast-client"
 import {
-  listPostFastPostRecords,
   type PostFastPostRecord,
 } from "@/lib/postfast-posts"
+import { listPublicationRecordsForRead } from "@/lib/post-repository"
 import { listJobs, type Job } from "@/lib/queue"
 import type { Automation } from "@/lib/realfarm-data"
 import { listResultRecords, type ResultRecord } from "@/lib/results"
@@ -89,7 +89,7 @@ export async function GET(request: Request) {
     listAutomationRuns({ limit: 500 }),
     listXAutomationRuns(),
     listResultRecords({ limit: 500 }),
-    listPostFastPostRecords(),
+    listPublicationRecordsForRead({ surface: "calendar" }),
     listJobs({ limit: 500 }).catch(() => []),
   ])
   const automations = [

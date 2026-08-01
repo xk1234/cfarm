@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "requiredKeys": [
+    "id",
+    "sourceType",
+    "sourceId",
+    "integrationId",
+    "provider",
+    "status",
+    "linkState",
+    "statsSources",
+    "content",
+    "media",
+    "createdAt",
+    "updatedAt"
+  ],
+  "cases": [
+    {
+      "name": "slideshow scheduled publication",
+      "input": {
+        "id": "pf-slideshow-1",
+        "sourceType": "automation",
+        "sourceId": "run-1",
+        "postfastPostId": "postfast-slideshow-1",
+        "integrationId": "integration-tiktok",
+        "provider": "tiktok",
+        "status": "scheduled",
+        "scheduledAt": "2026-07-30T09:00:00.000Z",
+        "content": "Slideshow caption\n\n#slideshow",
+        "media": [
+          {
+            "key": "slides/one.png",
+            "type": "IMAGE",
+            "sortOrder": 0
+          }
+        ],
+        "createdAt": "2026-07-30T08:00:00.000Z",
+        "updatedAt": "2026-07-30T08:00:00.000Z",
+        "lastSyncedAt": "2026-07-30T08:00:00.000Z",
+        "ownerId": "owner-1"
+      },
+      "expected": {
+        "id": "pf-slideshow-1",
+        "sourceType": "automation",
+        "sourceId": "run-1",
+        "postfastPostId": "postfast-slideshow-1",
+        "integrationId": "integration-tiktok",
+        "provider": "tiktok",
+        "status": "scheduled",
+        "scheduledAt": "2026-07-30T09:00:00.000Z",
+        "linkState": "unlinked",
+        "statsSources": [],
+        "content": "Slideshow caption\n\n#slideshow",
+        "media": [
+          {
+            "key": "slides/one.png",
+            "type": "IMAGE",
+            "sortOrder": 0
+          }
+        ],
+        "createdAt": "2026-07-30T08:00:00.000Z",
+        "updatedAt": "2026-07-30T08:00:00.000Z",
+        "lastSyncedAt": "2026-07-30T08:00:00.000Z",
+        "ownerId": "owner-1"
+      }
+    },
+    {
+      "name": "UGC scheduled publication",
+      "input": {
+        "id": "pf-ugc-1",
+        "sourceType": "ugc_ad",
+        "sourceId": "ugc-export-1",
+        "postfastPostId": "postfast-ugc-1",
+        "integrationId": "integration-instagram",
+        "provider": "instagram",
+        "status": "scheduled",
+        "scheduledAt": "2026-07-30T10:00:00.000Z",
+        "content": "UGC caption\n\n#useful",
+        "media": [
+          {
+            "key": "ugc/final.mp4",
+            "type": "VIDEO",
+            "sortOrder": 0
+          }
+        ],
+        "createdAt": "2026-07-30T08:01:00.000Z",
+        "updatedAt": "2026-07-30T08:01:00.000Z",
+        "lastSyncedAt": "2026-07-30T08:01:00.000Z"
+      },
+      "expected": {
+        "id": "pf-ugc-1",
+        "sourceType": "ugc_ad",
+        "sourceId": "ugc-export-1",
+        "postfastPostId": "postfast-ugc-1",
+        "integrationId": "integration-instagram",
+        "provider": "instagram",
+        "status": "scheduled",
+        "scheduledAt": "2026-07-30T10:00:00.000Z",
+        "linkState": "unlinked",
+        "statsSources": [],
+        "content": "UGC caption\n\n#useful",
+        "media": [
+          {
+            "key": "ugc/final.mp4",
+            "type": "VIDEO",
+            "sortOrder": 0
+          }
+        ],
+        "createdAt": "2026-07-30T08:01:00.000Z",
+        "updatedAt": "2026-07-30T08:01:00.000Z",
+        "lastSyncedAt": "2026-07-30T08:01:00.000Z"
+      }
+    },
+    {
+      "name": "X failed publication",
+      "input": {
+        "id": "pf-x-1",
+        "sourceType": "x_automation",
+        "sourceId": "x-run-1",
+        "integrationId": "integration-x",
+        "provider": "x",
+        "status": "failed",
+        "scheduledAt": "2026-07-30T08:03:00.000Z",
+        "content": "A concise X post",
+        "media": [],
+        "statsSources": ["tiktok_studio", "postfast", "postfast"],
+        "error": "PostFast failed (503)",
+        "createdAt": "2026-07-30T08:02:00.000Z",
+        "updatedAt": "2026-07-30T08:02:00.000Z",
+        "lastSyncedAt": "2026-07-30T08:02:00.000Z"
+      },
+      "expected": {
+        "id": "pf-x-1",
+        "sourceType": "x_automation",
+        "sourceId": "x-run-1",
+        "integrationId": "integration-x",
+        "provider": "x",
+        "status": "failed",
+        "scheduledAt": "2026-07-30T08:03:00.000Z",
+        "linkState": "unlinked",
+        "statsSources": ["postfast", "tiktok_studio"],
+        "content": "A concise X post",
+        "media": [],
+        "createdAt": "2026-07-30T08:02:00.000Z",
+        "updatedAt": "2026-07-30T08:02:00.000Z",
+        "lastSyncedAt": "2026-07-30T08:02:00.000Z",
+        "error": "PostFast failed (503)"
+      }
+    }
+  ]
+}

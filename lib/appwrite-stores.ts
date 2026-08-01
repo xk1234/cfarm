@@ -117,6 +117,11 @@ const RAW_STORE_ROUTES: Record<string, StoreRoute | string> = {
     sourceKey: "reminder_settings",
     public: false,
   },
+  "settings/generation-models.json": {
+    table: "permanent_assets",
+    sourceKey: "generation_model_settings",
+    public: false,
+  },
   "brand-profile/brand-profile.json": {
     table: "permanent_assets",
     sourceKey: "brand_profile",

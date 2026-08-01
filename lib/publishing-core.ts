@@ -1,5 +1,13 @@
 import { defaultPostFastProviderControls } from "@/lib/postfast-provider-controls"
 
+export {
+  buildPublicationRecord,
+  normalizePublicationRecord,
+  publicationRecordContractFixture,
+  publicationRecordSummary,
+  validatePublicationRecord,
+} from "@/lib/publication-record"
+
 export type PostingMode = "auto" | "review" | "manual"
 
 export function effectivePostingMode(schema: { posting_mode?: unknown }) {

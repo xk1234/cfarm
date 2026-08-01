@@ -18,7 +18,6 @@ import {
   IconPlus,
   IconPencilPlus,
   IconSettings,
-  IconTestPipe,
   IconX,
 } from "@tabler/icons-react"
 
@@ -48,7 +47,6 @@ const topNav: NavItem[] = [
 
 const slideshowNav: NavItem[] = [
   { key: "automations", label: "Automations", icon: IconBolt },
-  { key: "testing", label: "Testing facility", icon: IconTestPipe },
   { key: "collections", label: "Collections", icon: IconPhoto },
 ]
 

@@ -45,12 +45,17 @@ export const GET = withHandler(async (request: Request) => {
   const search = new URL(request.url).searchParams
   const operationId = search.get("operationId")?.trim()
   const automationId = search.get("automationId")?.trim()
+  const integrationId = search.get("integrationId")?.trim()
   if (!operationId || !automationId) {
     throw new ApiError(400, "operationId and automationId are required")
   }
 
   const preview = await withSystemOwner(user.$id, () =>
-    inspectTikTokPublicationImport({ operationId, automationId })
+    inspectTikTokPublicationImport({
+      operationId,
+      automationId,
+      integrationId,
+    })
   )
   return NextResponse.json({ preview })
 })

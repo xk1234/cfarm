@@ -16,6 +16,7 @@ import type {
   TikTokStudioBatchMode,
   TikTokStudioBatchView,
 } from "@/lib/tiktok-studio-analytics"
+import type { SocialIntegration } from "@/lib/social/provider-contract"
 
 type StartBatchResponse = {
   batch: TikTokStudioBatchView
@@ -23,15 +24,20 @@ type StartBatchResponse = {
 }
 
 export function TikTokStudioBatchDialog({
-  integrationIds,
+  accounts,
   onClose,
   onLinked,
 }: {
-  integrationIds: string[]
+  accounts: SocialIntegration[]
   onClose: () => void
   onLinked: () => void
 }) {
+  const integrationIds = accounts.map((account) => account.integration_id)
   const [mode, setMode] = useState<TikTokStudioBatchMode>("new")
+  const [postReferences, setPostReferences] = useState("")
+  const [seedIntegrationId, setSeedIntegrationId] = useState(
+    integrationIds[0] ?? ""
+  )
   const [batch, setBatch] = useState<TikTokStudioBatchView | null>(null)
   const [companion, setCompanion] =
     useState<TikTokStudioCompanionConfig | null>(null)
@@ -79,6 +85,29 @@ export function TikTokStudioBatchDialog({
             integrationIds,
             mode,
             recentDays: mode === "recent" ? 90 : undefined,
+          }),
+        }
+      )
+      setBatch(result.batch)
+      setCompanion(result.companion)
+      await connect(result.companion)
+    } finally {
+      setStarting(false)
+    }
+  }
+
+  async function startSeedBatch() {
+    setStarting(true)
+    try {
+      const result = await fetchJsonWithTimeout<StartBatchResponse>(
+        "/api/tiktok-studio-analytics",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            action: "start_seed_batch",
+            integrationId: seedIntegrationId,
+            postReferences,
           }),
         }
       )
@@ -160,6 +189,65 @@ export function TikTokStudioBatchDialog({
                 )}
                 Create account sync
               </Button>
+
+              <div className="mt-6 border-t border-app-panel-border pt-5">
+                <h3 className="text-[14px] font-semibold tracking-[-0.01em] text-app-text">
+                  Import specific posts
+                </h3>
+                <div className="mt-4 grid gap-4 sm:grid-cols-[220px_1fr]">
+                  <label className="block">
+                    <span className="mb-1.5 block text-[11px] font-semibold text-app-text">
+                      TikTok account
+                    </span>
+                    <SelectControl
+                      aria-label="Target TikTok account"
+                      value={seedIntegrationId}
+                      onChange={(event) =>
+                        setSeedIntegrationId(event.target.value)
+                      }
+                    >
+                      {accounts.map((account) => (
+                        <option
+                          key={account.integration_id}
+                          value={account.integration_id}
+                        >
+                          {account.name || account.integration_id}
+                        </option>
+                      ))}
+                    </SelectControl>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-[11px] font-semibold text-app-text">
+                      Post URLs or IDs
+                    </span>
+                    <textarea
+                      aria-label="TikTok post URLs or external IDs"
+                      className="app-control min-h-24 w-full resize-y px-3 py-2 text-sm font-medium text-app-text placeholder:text-app-text-faint"
+                      value={postReferences}
+                      onChange={(event) =>
+                        setPostReferences(event.target.value)
+                      }
+                      placeholder={"One full TikTok URL or raw ID per line"}
+                    />
+                  </label>
+                </div>
+                <Button
+                  className="mt-4"
+                  variant="softControl"
+                  size="appDefault"
+                  onClick={() => void startSeedBatch()}
+                  disabled={
+                    starting || !seedIntegrationId || !postReferences.trim()
+                  }
+                >
+                  {starting ? (
+                    <IconLoader2 className="size-4 animate-spin" />
+                  ) : (
+                    <IconBrandTiktok className="size-4" />
+                  )}
+                  Import specific posts
+                </Button>
+              </div>
             </div>
           ) : (
             <>

@@ -52,7 +52,7 @@ export function TikTokPublicationImportPanel({
         const payload = await fetchJsonWithTimeout<{
           preview: TikTokImportPreview
         }>(
-          `/api/tiktok-publications?operationId=${encodeURIComponent(id)}&automationId=${encodeURIComponent(automationId)}`,
+          `/api/tiktok-publications?operationId=${encodeURIComponent(id)}&automationId=${encodeURIComponent(automationId)}&integrationId=${encodeURIComponent(selectedIntegrationId)}`,
           { timeoutMs: 120_000, toastOnError: false }
         )
         setPreview(payload.preview)
@@ -72,7 +72,7 @@ export function TikTokPublicationImportPanel({
         toast.error(getApiErrorMessage(error, "Could not inspect TikTok posts"))
       }
     },
-    [automationId]
+    [automationId, selectedIntegrationId]
   )
 
   useEffect(() => {

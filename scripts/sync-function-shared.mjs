@@ -213,7 +213,12 @@ const generatedModules = [
     target: "appwrite/functions/job-worker/src/publishing-core.js",
     imports: {
       "@/lib/postfast-provider-controls": "./postfast-provider-controls.js",
+      "@/lib/publication-record": "./publication-record.js",
     },
+  },
+  {
+    source: "lib/publication-record.ts",
+    target: "appwrite/functions/job-worker/src/publication-record.js",
   },
   {
     source: "lib/usage-core.ts",

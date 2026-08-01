@@ -3,11 +3,9 @@ import {
   ManualPublicationUrlError,
   parseManualPublicationUrl,
 } from "@/lib/manual-publication"
-import {
-  listPostFastPostRecords,
-  upsertPostFastPostRecord,
-  type PostFastSourceType,
-} from "@/lib/postfast-posts"
+import { type PostFastSourceType } from "@/lib/postfast-posts"
+import { postRepository } from "@/lib/post-repository"
+import { upsertPublicationPost } from "@/lib/post-writer"
 import type { PostFastMedia } from "@/lib/postfast-client"
 import { enqueuePublishedCommentReminders } from "@/lib/publishing"
 
@@ -34,10 +32,11 @@ export async function linkPublishedOutput(input: {
     url: input.releaseUrl,
     provider: input.provider,
   })
-  const records = await listPostFastPostRecords()
+  const records = await postRepository.listPosts()
   const conflict = records.find(
     (item) =>
-      sameProvider(item.provider, input.provider) &&
+      Boolean(item.provider) &&
+      sameProvider(item.provider!, input.provider) &&
       item.externalPostId === parsed.externalPostId &&
       (item.sourceType !== input.sourceType || item.sourceId !== input.sourceId)
   )
@@ -47,7 +46,7 @@ export async function linkPublishedOutput(input: {
     )
   }
 
-  const publication = await upsertPostFastPostRecord({
+  const publication = await upsertPublicationPost({
     sourceType: input.sourceType,
     sourceId: clean(input.sourceId),
     integrationId: clean(input.integrationId),
@@ -59,6 +58,8 @@ export async function linkPublishedOutput(input: {
     linkState: "manually_linked",
     content: clean(input.content),
     media: input.media ?? [],
+    origin: "manual_link",
+    outputId: clean(input.sourceId),
   })
   await enqueuePublishedCommentReminders({
     sourceType: publication.sourceType,

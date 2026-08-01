@@ -6,8 +6,8 @@ description: "Configure Telegram lifecycle notifications and acknowledge manuall
 Reminders are configured in **App settings → Reminders**. They are off by
 default. Turn on **Send through Telegram** to enable them.
 
-For the complete BotFather, chat ID, test-message, and troubleshooting flow,
-see [Connecting Telegram notifications](/docs/workflows/connect-telegram-notifications).
+BotFather, chat ID, test-message, and deployment details are covered in
+[Telegram setup](#telegram-setup) below.
 
 ## Reminder events
 

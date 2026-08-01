@@ -3,9 +3,9 @@ import { listGeneratedVideoExports } from "@/lib/generated-videos"
 import type { GeneratedVideoExport } from "@/lib/generated-video-types"
 import { publicationMatchesRun } from "@/lib/hook-publications"
 import {
-  listPostFastPostRecords,
   type PostFastPostRecord,
 } from "@/lib/postfast-posts"
+import { listPublicationRecordsForRead } from "@/lib/post-repository"
 
 /**
  * When each output that reached an audience went out, for the dashboard graph.
@@ -20,7 +20,7 @@ import {
  */
 export async function loadPublishedPostDates() {
   const [postsResult, runsResult, videosResult] = await Promise.allSettled([
-    listPostFastPostRecords(),
+    listPublicationRecordsForRead({ surface: "dashboard_published_dates" }),
     listAutomationRuns({
       limit: Number.MAX_SAFE_INTEGER,
       postRecords: [],

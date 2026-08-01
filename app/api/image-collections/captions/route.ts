@@ -4,12 +4,12 @@ import { NextResponse } from "next/server"
 
 import { readAssetBytes } from "@/lib/asset-storage"
 import { toDataUrl } from "@/lib/data-url"
+import { getGenerationModelSettings } from "@/lib/generation-model-settings"
 import {
   updateImageCollectionCaptions,
   type StoredImageCollection,
 } from "@/lib/image-collections"
 import { openRouterChatCompletion } from "@/lib/openrouter"
-import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-registry"
 
 export const dynamic = "force-dynamic"
 
@@ -37,7 +37,13 @@ export async function POST(request: Request) {
       )
     }
 
-    const captionedImages = await captionImages(collection, request.url, apiKey)
+    const { imageCaptioningModel } = await getGenerationModelSettings()
+    const captionedImages = await captionImages(
+      collection,
+      request.url,
+      apiKey,
+      imageCaptioningModel
+    )
 
     const nextCollection: StoredImageCollection = {
       name: collection.name,
@@ -63,7 +69,8 @@ export async function POST(request: Request) {
 async function captionImages(
   collection: CaptionRequestPayload,
   requestUrl: string,
-  apiKey: string
+  apiKey: string,
+  model: string
 ) {
   const targetIndex = Number.isInteger(collection.image_index)
     ? collection.image_index
@@ -80,7 +87,8 @@ async function captionImages(
       ...image,
       caption: await captionImageWithRetry(
         await imageUrlForModel(image.image_link, requestUrl),
-        apiKey
+        apiKey,
+        model
       ),
     }
     return captionedImages
@@ -91,17 +99,22 @@ async function captionImages(
       ...image,
       caption: await captionImageWithRetry(
         await imageUrlForModel(image.image_link, requestUrl),
-        apiKey
+        apiKey,
+        model
       ),
     }))
   )
 }
 
-async function captionImageWithRetry(imageUrl: string, apiKey: string) {
+async function captionImageWithRetry(
+  imageUrl: string,
+  apiKey: string,
+  model: string
+) {
   let lastError: unknown
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      return await captionImage(imageUrl, apiKey)
+      return await captionImage(imageUrl, apiKey, model)
     } catch (error) {
       lastError = error
     }
@@ -112,10 +125,14 @@ async function captionImageWithRetry(imageUrl: string, apiKey: string) {
     : new Error("Image caption failed")
 }
 
-async function captionImage(imageUrl: string, apiKey: string) {
-  const { ok, status, payload: raw } = await openRouterChatCompletion({
+async function captionImage(imageUrl: string, apiKey: string, model: string) {
+  const {
+    ok,
+    status,
+    payload: raw,
+  } = await openRouterChatCompletion({
     apiKey,
-    model: openRouterModelForUseCase("imageCaptioning"),
+    model,
     headers: {
       "HTTP-Referer": "http://localhost:3000",
       "X-Title": "LumenClip Image Captioner",

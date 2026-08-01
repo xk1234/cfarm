@@ -10,6 +10,8 @@ import { listAnalyticsIntegrations } from "@/lib/postfast-analytics"
 import type { PostFastSocialIntegration } from "@/lib/postfast-client"
 import { listMetricSnapshots } from "@/lib/postfast-metric-snapshots"
 import { getPostFastPostRecord } from "@/lib/postfast-posts"
+import { getPublicationRecordForRead } from "@/lib/post-repository"
+import { snapshotlessPublication } from "@/components/realfarm/analytics/analytics-selectors"
 
 export const dynamic = "force-dynamic"
 
@@ -29,7 +31,11 @@ export default async function PostAnalyticsRoute({
   const postId = id.trim()
   const [allSnapshots, publication, integrations] = await Promise.all([
     listMetricSnapshots().catch(() => []),
-    getPostFastPostRecord(postId).catch(() => null),
+    getPublicationRecordForRead({
+      surface: "analytics_post_detail",
+      id: postId,
+      legacy: () => getPostFastPostRecord(postId),
+    }).catch(() => null),
     listAnalyticsIntegrations().catch(() => []),
   ])
   const snapshots = allSnapshots
@@ -38,7 +44,9 @@ export default async function PostAnalyticsRoute({
       (left, right) =>
         Date.parse(left.capturedAt) - Date.parse(right.capturedAt)
     )
-  const latest = snapshots.at(-1)
+  const latest =
+    snapshots.at(-1) ??
+    (publication ? snapshotlessPublication(publication) : undefined)
   if (!latest) notFound()
 
   const run =

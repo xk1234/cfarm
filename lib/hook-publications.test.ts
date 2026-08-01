@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   getAutomationRecord: vi.fn(),
@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   listMetricSnapshots: vi.fn(),
   listUsageRecords: vi.fn(),
   appendUsageRecords: vi.fn(),
+  canonicalList: vi.fn(),
 }))
 
 vi.mock("@/lib/automations", () => ({
@@ -20,6 +21,15 @@ vi.mock("@/lib/postfast-posts", () => ({
 }))
 vi.mock("@/lib/postfast-metric-snapshots", () => ({
   listMetricSnapshots: mocks.listMetricSnapshots,
+}))
+vi.mock("@/lib/output-publications", () => ({
+  outputPublicationsOwnerId: vi.fn(async () => "owner-1"),
+  writeCanonicalPostWithLegacyProjection: vi.fn(),
+}))
+vi.mock("@/lib/post-repository-appwrite", () => ({
+  appwritePostRepository: {
+    listPosts: mocks.canonicalList,
+  },
 }))
 vi.mock("@/lib/usage-ledger", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/usage-ledger")>()
@@ -77,11 +87,17 @@ const publication = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  delete process.env.POST_REPOSITORY_READ_MODE
   mocks.listAutomationRuns.mockResolvedValue([run])
   mocks.listPostFastPostRecords.mockResolvedValue([])
   mocks.listMetricSnapshots.mockResolvedValue([])
   mocks.listUsageRecords.mockResolvedValue([])
   mocks.appendUsageRecords.mockImplementation(async ({ records }) => records)
+  mocks.canonicalList.mockResolvedValue([])
+})
+
+afterEach(() => {
+  delete process.env.POST_REPOSITORY_READ_MODE
 })
 
 describe("published hook attribution", () => {
@@ -201,6 +217,103 @@ describe("published hook attribution", () => {
         publishedPosts: 1,
       }),
     ])
+  })
+
+  it("keeps hook analytics stable in all read modes and shadows drift", async () => {
+    const schema = defaultAutomationSchema({
+      id: "1",
+      name: "Demo",
+      status: "live",
+      account: "",
+      handle: "",
+      times: [],
+      theme: "",
+      socialIntegrations: [],
+      favorite: false,
+      automationKind: "slideshow",
+    })
+    schema.hooks = [
+      {
+        id: "hook-one",
+        text: "This is the published hook",
+        enabled: false,
+        createdAt: "2026-07-01T00:00:00.000Z",
+      },
+    ]
+    mocks.getAutomationRecord.mockResolvedValue({
+      id: "automation-1",
+      schema,
+    })
+    mocks.listPostFastPostRecords.mockResolvedValue([publication])
+    mocks.listMetricSnapshots.mockResolvedValue([
+      {
+        id: "snapshot-mode",
+        postId: publication.id,
+        integrationId: publication.integrationId,
+        provider: publication.provider,
+        capturedAt: "2026-07-18T12:00:00.000Z",
+        metrics: { views: 100, shares: 10 },
+        latestMetric: {},
+        rawMetrics: {},
+        observedKeys: [],
+      },
+    ])
+    const canonical = {
+      schemaVersion: 1 as const,
+      id: publication.id,
+      intentId: `legacy:${publication.id}`,
+      ownerId: "owner-1",
+      origin: "postfast_publish" as const,
+      sourceType: publication.sourceType,
+      sourceId: publication.sourceId,
+      sourceRefs: [
+        { kind: "slideshow" as const, id: publication.sourceId },
+        { kind: "run" as const, id: run.id },
+      ],
+      outputId: publication.sourceId,
+      runId: run.id,
+      lifecycleStatus: "published" as const,
+      linkState: "postfast_managed" as const,
+      linkMethod: "postfast" as const,
+      integrationId: publication.integrationId,
+      provider: "tiktok" as const,
+      statsSources: [],
+      content: publication.content,
+      hashtags: [],
+      media: [],
+      publishedAt: publication.publishedAt,
+      createdAt: publication.createdAt,
+      updatedAt: publication.updatedAt,
+    }
+    mocks.canonicalList.mockResolvedValue([canonical])
+
+    const reports = []
+    const options = { now: new Date("2026-07-30T00:00:00.000Z") }
+    for (const mode of ["legacy", "canonical", "union-shadow"] as const) {
+      process.env.POST_REPOSITORY_READ_MODE = mode
+      reports.push(await hookAnalyticsReport("automation-1", options))
+    }
+    expect(reports[1]).toEqual(reports[0])
+    expect(reports[2]).toEqual(reports[0])
+    expect(reports[0]?.rows[0]).toMatchObject({
+      hookId: "hook-one",
+      publishedPosts: 1,
+      views: 100,
+      shares: 10,
+    })
+
+    mocks.canonicalList.mockResolvedValue([
+      { ...canonical, content: "Canonical drift" },
+    ])
+    process.env.POST_REPOSITORY_READ_MODE = "union-shadow"
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+    await expect(
+      hookAnalyticsReport("automation-1", options)
+    ).resolves.toEqual(reports[0])
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('"surface":"hook_analytics"')
+    )
+    warn.mockRestore()
   })
 
   it("recovers hook attribution from a source-linked Studio snapshot", async () => {

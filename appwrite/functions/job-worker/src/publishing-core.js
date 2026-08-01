@@ -1,5 +1,6 @@
 // Generated from lib/publishing-core.ts. Do not edit by hand.
 import { defaultPostFastProviderControls } from "./postfast-provider-controls.js";
+export { buildPublicationRecord, normalizePublicationRecord, publicationRecordContractFixture, publicationRecordSummary, validatePublicationRecord, } from "./publication-record.js";
 export function effectivePostingMode(schema) {
     if (schema?.posting_mode === "auto" ||
         schema?.posting_mode === "review" ||

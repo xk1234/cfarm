@@ -315,11 +315,11 @@ describe("slideshow text structured output", () => {
       generateSlideshowText({ automation, apiKey: "test-key", fetchImpl })
     ).resolves.toMatchObject({
       skippedOpenRouter: false,
-      model: "anthropic/claude-sonnet-5",
+      model: "openai/gpt-5.6-luna",
     })
     expect(fetchImpl).toHaveBeenCalledTimes(2)
     expect(JSON.parse(String(fetchImpl.mock.calls[1]?.[1]?.body)).model).toBe(
-      "anthropic/claude-sonnet-5"
+      "openai/gpt-5.6-luna"
     )
   })
 

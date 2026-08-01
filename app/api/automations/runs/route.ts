@@ -13,9 +13,15 @@ import {
 } from "@/lib/generated-videos"
 import { isRecord } from "@/lib/guards"
 import {
-  listPostFastPostRecords,
   type PostFastAnalyticsMetric,
+  type PostFastPostRecord,
 } from "@/lib/postfast-posts"
+import {
+  listPublicationRecordsForRead,
+  readPostProjection,
+} from "@/lib/post-repository"
+import { listMetricSnapshots } from "@/lib/postfast-metric-snapshots"
+import type { Post } from "@/lib/posts"
 import { listJobs, type Job } from "@/lib/queue"
 
 export const dynamic = "force-dynamic"
@@ -25,7 +31,9 @@ export const GET = withHandler(async (request: Request) => {
   const automationId = searchParams.get("automationId")?.trim()
   const limitValue = Number(searchParams.get("limit"))
   const limit = Number.isFinite(limitValue) && limitValue > 0 ? limitValue : 20
-  const postRecordsPromise = listPostFastPostRecords().catch(() => [])
+  const postRecordsPromise = listPublicationRecordsForRead({
+    surface: "automation_runs_publications",
+  }).catch(() => [])
   const [automationRuns, videoExports, postRecords, generationJobs] =
     await Promise.all([
       listAutomationRuns({
@@ -69,27 +77,101 @@ export const GET = withHandler(async (request: Request) => {
         new Date(first.createdAt).getTime()
     )
     .slice(0, limit)
+  const viewsByRun = await readPostProjection({
+    surface: "automation_runs_analytics",
+    legacy: async () => legacyViewsByRun(runs, postRecords),
+    canonical: async (posts) =>
+      canonicalViewsByRun(
+        runs,
+        posts,
+        await listMetricSnapshots().catch(() => [])
+      ),
+  })
   const runsWithViews = runs.map((run) => ({
     ...run,
     ...(run.status === "running"
       ? { progress: automationRunProgress(run.id) }
       : {}),
-    views: postRecords
-      .filter(
-        (record) =>
-          (record.sourceType === "automation" && record.sourceId === run.id) ||
-          (Boolean(run.slideshowId) &&
-            record.sourceType === "slideshow" &&
-            record.sourceId === run.slideshowId)
-      )
-      .reduce(
-        (total, record) => total + postFastViewCount(record.analytics),
-        0
-      ),
+    views: viewsByRun[run.id] ?? 0,
   }))
 
   return NextResponse.json({ runs: runsWithViews })
 })
+
+function legacyViewsByRun(
+  runs: Array<Pick<AutomationRunRecord, "id" | "slideshowId">>,
+  records: PostFastPostRecord[]
+) {
+  return Object.fromEntries(
+    runs.map((run) => [
+      run.id,
+      records
+        .filter(
+          (record) =>
+            (record.sourceType === "automation" &&
+              record.sourceId === run.id) ||
+            (Boolean(run.slideshowId) &&
+              record.sourceType === "slideshow" &&
+              record.sourceId === run.slideshowId)
+        )
+        .reduce(
+          (total, record) => total + postFastViewCount(record.analytics),
+          0
+        ),
+    ])
+  )
+}
+
+function canonicalViewsByRun(
+  runs: Array<Pick<AutomationRunRecord, "id" | "slideshowId">>,
+  posts: Post[],
+  snapshots: Awaited<ReturnType<typeof listMetricSnapshots>>
+) {
+  const latestViewsByPost = new Map<string, { capturedAt: string; views: number }>()
+  for (const snapshot of snapshots) {
+    const current = latestViewsByPost.get(snapshot.postId)
+    if (
+      current &&
+      Date.parse(current.capturedAt) >= Date.parse(snapshot.capturedAt)
+    ) {
+      continue
+    }
+    latestViewsByPost.set(snapshot.postId, {
+      capturedAt: snapshot.capturedAt,
+      views: snapshot.metrics.views ?? 0,
+    })
+  }
+  return Object.fromEntries(
+    runs.map((run) => [
+      run.id,
+      posts
+        .filter((post) => postMatchesRun(post, run))
+        .reduce(
+          (total, post) =>
+            total + (latestViewsByPost.get(post.id)?.views ?? 0),
+          0
+        ),
+    ])
+  )
+}
+
+function postMatchesRun(
+  post: Post,
+  run: Pick<AutomationRunRecord, "id" | "slideshowId">
+) {
+  const sourceIds = new Set(
+    [
+      post.sourceId,
+      post.runId,
+      post.outputId,
+      ...post.sourceRefs.map((ref) => ref.id),
+    ].filter(Boolean)
+  )
+  return (
+    sourceIds.has(run.id) ||
+    (Boolean(run.slideshowId) && sourceIds.has(run.slideshowId))
+  )
+}
 
 function generatedVideoRun(item: GeneratedVideoExport) {
   const automationId = stringValue(item.sourceConfig.automationId)

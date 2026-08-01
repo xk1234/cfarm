@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   listAutomationRecords: vi.fn(),
@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   listXAutomations: vi.fn(),
   listXAutomationRuns: vi.fn(),
   postfastRequest: vi.fn(),
+  canonicalList: vi.fn(),
 }))
 
 vi.mock("@/lib/automations", () => ({
@@ -25,6 +26,15 @@ vi.mock("@/lib/postfast-posts", () => ({
 vi.mock("@/lib/postfast-client", () => ({
   postfastRequest: mocks.postfastRequest,
 }))
+vi.mock("@/lib/output-publications", () => ({
+  outputPublicationsOwnerId: vi.fn(async () => "owner-1"),
+  writeCanonicalPostWithLegacyProjection: vi.fn(),
+}))
+vi.mock("@/lib/post-repository-appwrite", () => ({
+  appwritePostRepository: {
+    listPosts: mocks.canonicalList,
+  },
+}))
 vi.mock("@/lib/results", () => ({
   listResultRecords: mocks.listResultRecords,
 }))
@@ -38,6 +48,7 @@ vi.mock("@/lib/x-automation", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  delete process.env.POST_REPOSITORY_READ_MODE
   mocks.listAutomationRecords.mockResolvedValue([])
   mocks.listAutomationRuns.mockResolvedValue([])
   mocks.listJobs.mockResolvedValue([])
@@ -46,6 +57,11 @@ beforeEach(() => {
   mocks.listXAutomations.mockResolvedValue([])
   mocks.listXAutomationRuns.mockResolvedValue([])
   mocks.postfastRequest.mockResolvedValue({ data: [] })
+  mocks.canonicalList.mockResolvedValue([])
+})
+
+afterEach(() => {
+  delete process.env.POST_REPOSITORY_READ_MODE
 })
 
 describe("GET /api/calendar", () => {
@@ -348,6 +364,74 @@ describe("GET /api/calendar", () => {
     expect(invalid.status).toBe(400)
     expect(reversed.status).toBe(400)
   })
+
+  it("keeps dedupe and paused projections stable in all read modes and shadows drift", async () => {
+    const publication = localPost({
+      id: "published-local",
+      status: "published",
+      scheduledAt: undefined,
+      publishedAt: "2099-07-15T02:30:00.000Z",
+      releaseUrl: "https://tiktok.com/@creator/video/1",
+      postfastPostId: "remote-1",
+      linkState: "postfast_published",
+      statsSources: [],
+    })
+    const paused = automationSummary()
+    mocks.listAutomationRecords.mockResolvedValue([
+      {
+        summary: {
+          ...paused,
+          status: "paused",
+        },
+      },
+    ])
+    mocks.listPostFastPostRecords.mockResolvedValue([publication])
+    mocks.postfastRequest.mockResolvedValue({
+      data: [
+        {
+          id: "remote-1",
+          status: "PUBLISHED",
+          publishedAt: "2099-07-15T02:30:00.000Z",
+          socialMediaId: "account-1",
+        },
+      ],
+    })
+    const canonical = canonicalCalendarPost(publication)
+    mocks.canonicalList.mockResolvedValue([canonical])
+
+    const payloads = []
+    for (const mode of ["legacy", "canonical", "union-shadow"] as const) {
+      process.env.POST_REPOSITORY_READ_MODE = mode
+      const { GET } = await import("./route")
+      const response = await GET(
+        new Request(
+          "http://localhost/api/calendar?from=2099-07-15T00:00:00.000Z&to=2099-07-15T23:59:59.999Z"
+        )
+      )
+      payloads.push(await response.json())
+    }
+    expect(payloads[1]).toEqual(payloads[0])
+    expect(payloads[2]).toEqual(payloads[0])
+    expect(payloads[0].items).toHaveLength(1)
+    expect(payloads[0].items[0].id).toBe("postfast:remote-1")
+
+    mocks.canonicalList.mockResolvedValue([
+      { ...canonical, content: "Canonical drift" },
+    ])
+    process.env.POST_REPOSITORY_READ_MODE = "union-shadow"
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+    const { GET } = await import("./route")
+    const response = await GET(
+      new Request(
+        "http://localhost/api/calendar?from=2099-07-15T00:00:00.000Z&to=2099-07-15T23:59:59.999Z"
+      )
+    )
+    expect(await response.json()).toEqual(payloads[0])
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('"surface":"calendar"')
+    )
+    warn.mockRestore()
+  })
 })
 
 function automationSummary() {
@@ -407,5 +491,35 @@ function localPost(overrides: Record<string, unknown>) {
     createdAt: "2099-07-15T00:00:00.000Z",
     updatedAt: "2099-07-15T00:00:00.000Z",
     ...overrides,
+  }
+}
+
+function canonicalCalendarPost(publication: Record<string, unknown>) {
+  return {
+    schemaVersion: 1 as const,
+    id: String(publication.id),
+    intentId: `legacy:${publication.id}`,
+    ownerId: "owner-1",
+    origin: "manual_link" as const,
+    sourceType: "automation" as const,
+    sourceId: String(publication.sourceId),
+    sourceRefs: [{ kind: "run" as const, id: String(publication.sourceId) }],
+    lifecycleStatus: "published" as const,
+    linkState: "externally_linked" as const,
+    linkMethod: "manual_url" as const,
+    integrationId: String(publication.integrationId),
+    provider: "tiktok" as const,
+    postfastPostId:
+      typeof publication.postfastPostId === "string"
+        ? publication.postfastPostId
+        : undefined,
+    releaseUrl: String(publication.releaseUrl),
+    statsSources: [],
+    content: String(publication.content),
+    hashtags: [],
+    media: [],
+    publishedAt: String(publication.publishedAt),
+    createdAt: String(publication.createdAt),
+    updatedAt: String(publication.updatedAt),
   }
 }

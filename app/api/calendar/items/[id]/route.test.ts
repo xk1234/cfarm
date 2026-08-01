@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
-  deletePostFastPostRecordById: vi.fn(),
+  deletePost: vi.fn(),
   getPostFastPostRecord: vi.fn(),
   postfastRequest: vi.fn(),
   reschedulePost: vi.fn(),
@@ -11,8 +11,15 @@ vi.mock("@/lib/postfast-client", () => ({
   postfastRequest: mocks.postfastRequest,
 }))
 vi.mock("@/lib/postfast-posts", () => ({
-  deletePostFastPostRecordById: mocks.deletePostFastPostRecordById,
   getPostFastPostRecord: mocks.getPostFastPostRecord,
+}))
+vi.mock("@/lib/post-repository", () => ({
+  deletePost: mocks.deletePost,
+  getPublicationRecordForRead: ({
+    legacy,
+  }: {
+    legacy: () => Promise<unknown>
+  }) => legacy(),
 }))
 vi.mock("@/lib/postfast-route", () => ({
   postfastRouteError: (error: unknown) =>
@@ -109,7 +116,7 @@ describe("DELETE /api/calendar/items/[id]", () => {
       "/social-posts/remote-1",
       { method: "DELETE" }
     )
-    expect(mocks.deletePostFastPostRecordById).toHaveBeenCalledWith("local-1")
+    expect(mocks.deletePost).toHaveBeenCalledWith("local-1")
   })
 
   it("can cancel an unmatched remote PostFast calendar item", async () => {

@@ -1,5 +1,6 @@
 import { clean, isRecord } from "@/lib/guards"
 import { normalizeLlmPunctuation } from "@/lib/llm-slop"
+import { getGenerationModelSettings } from "@/lib/generation-model-settings"
 import type {
   AutomationRunSlideRole,
   AutomationRunSlideView,
@@ -69,6 +70,7 @@ import {
   type PostFastPostRecord,
   type PostFastPostStatus,
 } from "@/lib/postfast-posts"
+import { markOutputPostPublished } from "@/lib/post-writer"
 import {
   publishAutomationRun,
   recordAwaitingManualAutomationRun,
@@ -703,6 +705,11 @@ async function createAutomationRun(input: {
     return { run }
   }
 
+  const postIntent = automationPostIntentOptions(input.record.schema)
+  const activeIntegrations = input.record.schema.social_integrations.filter(
+    (integration) => integration.integration_id && !integration.disabled
+  )
+  const postingMode = postIntent.publishMode
   setAutomationRunProgress(runId, "Rendering slides", plan.hook)
   const { slideshow, result } = await createSlideshowResultRecord({
     rootDir: input.slideshowRootDir,
@@ -718,6 +725,8 @@ async function createAutomationRun(input: {
     status: "exported",
     settings: automationSlideshowSettings(input.record.schema),
     images: automationRunSlidesToSlideshowSlides(input.record.schema, plan),
+    publishMode: postingMode,
+    postIntentDestinations: postIntent.destinations,
   })
 
   const runWithSlideshowId = {
@@ -738,9 +747,6 @@ async function createAutomationRun(input: {
   // Upload the rendered slides before any posting workflow is recorded. Auto,
   // review, and manual modes all use the same PostFast media keys, so approving
   // later can never degrade into a caption-only post.
-  const activeIntegrations = input.record.schema.social_integrations.filter(
-    (integration) => integration.integration_id && !integration.disabled
-  )
   const outputQa = validateAutomationRunOutput({
     run: runWithSlideshowId,
     schema: input.record.schema,
@@ -769,7 +775,6 @@ async function createAutomationRun(input: {
     input.claimedRun.generationSource !== "manual" &&
     outputQa.valid
   ) {
-    const postingMode = automationPostingMode(input.record.schema)
     let media
     try {
       media = await uploadPostFastMediaSources({
@@ -778,6 +783,8 @@ async function createAutomationRun(input: {
     } catch (error) {
       await recordFailedAutomationRun({
         runId: run.id,
+        outputId: slideshow.id,
+        automationId: input.record.id,
         scheduledFor: run.scheduledFor,
         integrations: activeIntegrations,
         content: automationPublishContent(plan),
@@ -789,6 +796,8 @@ async function createAutomationRun(input: {
     if (media && postingMode === "auto") {
       await publishAutomationRun({
         runId: run.id,
+        outputId: slideshow.id,
+        automationId: input.record.id,
         scheduledFor: run.scheduledFor,
         integrations: activeIntegrations,
         content: automationPublishContent(plan),
@@ -798,6 +807,8 @@ async function createAutomationRun(input: {
     } else if (media && postingMode === "review") {
       await recordReadyForReviewAutomationRun({
         runId: run.id,
+        outputId: slideshow.id,
+        automationId: input.record.id,
         scheduledFor: run.scheduledFor,
         integrations: activeIntegrations,
         content: automationPublishContent(plan),
@@ -817,6 +828,8 @@ async function createAutomationRun(input: {
     } else if (media) {
       await recordAwaitingManualAutomationRun({
         runId: run.id,
+        outputId: slideshow.id,
+        automationId: input.record.id,
         scheduledFor: run.scheduledFor,
         integrations: activeIntegrations,
         content: automationPublishContent(plan),
@@ -856,6 +869,20 @@ async function createAutomationRun(input: {
   return {
     run: runWithRenderedSlides(runWithStatuses, slideshow),
     result,
+  }
+}
+
+export function automationPostIntentOptions(schema: AutomationSchema) {
+  return {
+    publishMode: automationPostingMode(schema),
+    destinations: schema.social_integrations
+      .filter(
+        (integration) => integration.integration_id && !integration.disabled
+      )
+      .map((integration) => ({
+        integrationId: integration.integration_id,
+        provider: integration.provider,
+      })),
   }
 }
 
@@ -1063,6 +1090,13 @@ async function createAutomationRunPlan(
   } = {}
 ): Promise<AutomationRunPlan> {
   const progress = options.onProgress ?? (() => {})
+  const textModel =
+    clean(options.textModel) ||
+    (
+      await getGenerationModelSettings().catch(() => ({
+        slideshowTextModel: defaultSlideshowTextModel,
+      }))
+    ).slideshowTextModel
   const usageRecords = options.automationId
     ? await listUsageRecords({ rootDir: options.usageLedgerRootDir })
     : []
@@ -1194,7 +1228,7 @@ async function createAutomationRunPlan(
   let textGeneration = await generateAutomationText({
     automation: textAutomation,
     hook,
-    model: options.textModel,
+    model: textModel,
     systemPrompt: options.systemPrompt,
     promptInstructions,
     avoidSimilarHeadings: recentHeadingRecords.map((record) => record.key),
@@ -1216,7 +1250,7 @@ async function createAutomationRunPlan(
       hook,
       avoidSimilarOutputs: recentTextRecords.map((record) => record.key),
       avoidSimilarHeadings: recentHeadingRecords.map((record) => record.key),
-      model: options.textModel,
+      model: textModel,
       systemPrompt: options.systemPrompt,
       promptInstructions,
       webSearchEnabled: schema.web_search_enabled,
@@ -2490,6 +2524,7 @@ export async function markAutomationRunPublished(input: {
   slideshowId: string
   runId?: string
   publishedAt?: Date
+  publication?: PostFastPostRecord
 }) {
   const runRootDir = input.runRootDir ?? defaultRunRootDir
   const run = await automationRunForSlideshow(runRootDir, input)
@@ -2501,6 +2536,29 @@ export async function markAutomationRunPublished(input: {
     manuallyPublishedAt: publishedAt.toISOString(),
     updatedAt: publishedAt.toISOString(),
   }
+  await markOutputPostPublished({
+    sourceType: "slideshow",
+    sourceId: input.slideshowId,
+    outputId: input.slideshowId,
+    sourceEntityId: input.slideshowId,
+    automationId: run.automationId,
+    runId: run.id,
+    content: [run.plan.caption || run.plan.title, run.plan.hashtags]
+      .filter(Boolean)
+      .join("\n\n"),
+    publishedAt: publishedAt.toISOString(),
+    publication: input.publication,
+    media: [
+      ...(run.outputImages ?? []).map((url) => ({
+        kind: "image" as const,
+        url,
+      })),
+      ...(run.videoUrl ? [{ kind: "video" as const, url: run.videoUrl }] : []),
+      ...(run.thumbnailUrl
+        ? [{ kind: "thumbnail" as const, url: run.thumbnailUrl }]
+        : []),
+    ],
+  })
   await updateAutomationRun(runRootDir, updated)
   const usage: UsageRecord[] = [
     {

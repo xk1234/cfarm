@@ -9,6 +9,7 @@ import type {
   TikTokStudioSlideMetric,
 } from "@/lib/postfast-metric-snapshots"
 import type { PostFastPostRecord } from "@/lib/postfast-posts"
+import { listPublicationRecordsForRead } from "@/lib/post-repository"
 import type { SlideshowRecord } from "@/lib/slideshows"
 import type {
   TikTokStudioImportRecord,
@@ -90,7 +91,10 @@ export async function buildTikTokStudioMcpReport(
   }
   const [snapshots, publications, runs, videos, imports] = await Promise.all([
     services.listMetricSnapshots(),
-    services.listPostFastPostRecords(),
+    listPublicationRecordsForRead({
+      surface: "mcp_tiktok_studio_report",
+      legacy: services.listPostFastPostRecords,
+    }),
     services.listAutomationRuns({ limit: 500 }),
     services.listGeneratedVideoExports({ limit: 500 }),
     reportImports(input, services),

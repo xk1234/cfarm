@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import { latestPublicationsByPost } from "@/components/realfarm/analytics/analytics-selectors"
+import {
+  accountPostMetricSeries,
+  latestPublicationsByPost,
+  postMetricSeries,
+} from "@/components/realfarm/analytics/analytics-selectors"
+import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
 import type { PostFastPostRecord } from "@/lib/postfast-posts"
 
 describe("latestPublicationsByPost", () => {
@@ -27,6 +32,78 @@ describe("latestPublicationsByPost", () => {
         metrics: {},
         publication,
       }),
+    ])
+  })
+
+  it("joins a materialized external post by the snapshot's preserved post id", () => {
+    const publication: PostFastPostRecord = {
+      id: "orphan-post-id",
+      sourceType: "external",
+      sourceId: "native-1",
+      externalPostId: "native-1",
+      integrationId: "tiktok-1",
+      provider: "tiktok",
+      status: "published",
+      linkState: "manually_linked",
+      statsSources: ["tiktok_studio"],
+      content: "Studio post",
+      media: [],
+      createdAt: "2026-07-30T00:00:00.000Z",
+      updatedAt: "2026-07-30T00:00:00.000Z",
+    }
+    const snapshot: PostFastMetricSnapshot = {
+      id: "snapshot-1",
+      postId: "orphan-post-id",
+      platformPostId: "native-1",
+      integrationId: "tiktok-1",
+      provider: "tiktok",
+      capturedAt: "2026-07-30T01:00:00.000Z",
+      metrics: { views: 42 },
+      latestMetric: { views: 42 },
+      rawMetrics: { views: 42 },
+      observedKeys: ["views"],
+      source: "tiktok_studio",
+    }
+
+    expect(latestPublicationsByPost([publication], [snapshot])).toEqual([
+      expect.objectContaining({
+        postId: "orphan-post-id",
+        metrics: { views: 42 },
+        publication,
+      }),
+    ])
+  })
+
+  it("keeps only the latest snapshot per post/day and weights engagement by exposure", () => {
+    const snapshot = (
+      id: string,
+      postId: string,
+      capturedAt: string,
+      views: number,
+      interactions: number
+    ): PostFastMetricSnapshot => ({
+      id,
+      postId,
+      integrationId: "tiktok-1",
+      provider: "tiktok",
+      capturedAt,
+      metrics: { views, interactions },
+      latestMetric: {},
+      rawMetrics: {},
+      observedKeys: ["views", "interactions"],
+      source: "postfast",
+    })
+    const snapshots = [
+      snapshot("early", "post-1", "2026-07-30T01:00:00.000Z", 10, 9),
+      snapshot("latest", "post-1", "2026-07-30T02:00:00.000Z", 20, 2),
+      snapshot("other", "post-2", "2026-07-30T03:00:00.000Z", 30, 6),
+    ]
+
+    expect(postMetricSeries(snapshots, "views")).toEqual([
+      expect.objectContaining({ date: "2026-07-30", value: 50 }),
+    ])
+    expect(accountPostMetricSeries(snapshots, "engagementRate")).toEqual([
+      expect.objectContaining({ date: "2026-07-30", value: 16 }),
     ])
   })
 })
