@@ -1,3 +1,7 @@
+---
+title: "CFarm / LumenClip Paper-versus-application audit"
+---
+
 # CFarm / LumenClip Paper-versus-application audit
 
 Date: 1 August 2026.
