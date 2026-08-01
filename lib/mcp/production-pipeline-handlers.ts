@@ -35,7 +35,8 @@ import {
 import { translateTextsWithDeepL } from "@/lib/deepl-translate"
 import {
   createSlideshowResultRecord,
-  renderStoredSlideshowVideo,
+  finalizeStoredSlideshowVideo,
+  prepareStoredSlideshowVideo,
 } from "@/lib/slideshows"
 import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
 import {
@@ -92,6 +93,20 @@ import type { BrandProfile } from "@/lib/brand-profile"
 import { humanizeContent, reviewContent } from "@/lib/generation-chain"
 import { generationModelRegistry } from "@/lib/realfarm-generation-model-registry"
 import { getGenerationModelSettings } from "@/lib/generation-model-settings"
+import { synthesizeElevenLabsSpeechToTemp } from "@/lib/elevenlabs-tts"
+import {
+  completeRendiSessionUpload,
+  discardRendiUploadSession,
+  downloadRendiOutputToTemp,
+  getRendiFfmpegStatus,
+  getRendiUploadStatus,
+  initializeRendiUploadSession,
+  submitRendiFfmpeg,
+  uploadRendiSessionPart,
+} from "@/lib/pipeline-rendi"
+import { getRendiApiKey } from "@/lib/rendi-client"
+import { persistPipelineTempFile } from "@/lib/local-asset-download"
+import { prepareUgcRendiComposite } from "@/lib/pipeline-ugc-rendi"
 import {
   buildNanoBananaProPayload,
   createKieMarketTask,
@@ -101,6 +116,7 @@ import {
   getKieApiKey,
   persistDownloadedImage,
 } from "@/lib/kie-image"
+import { createHash } from "node:crypto"
 import path from "node:path"
 import {
   mergePipelineOutput,
@@ -162,6 +178,258 @@ export function createProductionPipelineHandlers(
     id: string,
     handler: NonNullable<ReturnType<typeof handlers.get>>
   ) => handlers.set(id, handler)
+
+  const registerRendiProtocol = (
+    workflowId: "slideshow-generation" | "ugc-video-generation"
+  ) => {
+    const id = (name: string) => `${workflowId}.${name}`
+    add(id("rendi-init-upload"), async (input, context) => {
+      const initialized = await context.externalCall("Rendi init-upload", () =>
+        initializeRendiUploadSession({
+          apiKey: requiredRendiApiKey(),
+          localFilePath: requiredString(input.localFilePath, "localFilePath"),
+          fileName: clean(input.rendiFileName) || undefined,
+        })
+      )
+      return mergePipelineOutput(input, {
+        rendiUpload: {
+          ...initialized,
+          parts: [],
+          phase: "uploading",
+        },
+        operation: rendiOperation(
+          initialized.fileId,
+          `${workflowId}.rendi.upload`,
+          "running"
+        ),
+      })
+    })
+
+    add(id("rendi-upload-part"), async (input, context) => {
+      const upload = requiredRecord(input.rendiUpload, "rendiUpload")
+      const parts = requiredArray<{ part_number: number; etag: string }>(
+        upload.parts,
+        "rendiUpload.parts",
+        true
+      )
+      const partNumber = numberValue(input.partNumber) || parts.length + 1
+      const part = await context.externalCall("Rendi signed part PUT", () =>
+        uploadRendiSessionPart({
+          uploadSessionPath: requiredString(
+            upload.uploadSessionPath,
+            "rendiUpload.uploadSessionPath"
+          ),
+          localFilePath: requiredString(input.localFilePath, "localFilePath"),
+          partNumber,
+          fileSize: numberValue(upload.fileSize),
+        })
+      )
+      return mergePipelineOutput(input, {
+        rendiUpload: { ...upload, parts: [...parts, part] },
+        operation: rendiOperation(
+          clean(upload.fileId),
+          `${workflowId}.rendi.upload`,
+          "running"
+        ),
+      })
+    })
+
+    add(id("rendi-complete-upload"), async (input, context) => {
+      const upload = requiredRecord(input.rendiUpload, "rendiUpload")
+      const completed = await context.externalCall(
+        "Rendi complete-upload",
+        () =>
+          completeRendiSessionUpload({
+            apiKey: requiredRendiApiKey(),
+            fileId: requiredString(upload.fileId, "rendiUpload.fileId"),
+            parts: requiredArray(upload.parts, "rendiUpload.parts"),
+          })
+      )
+      const succeeded =
+        clean(completed.status) === "STORED" && Boolean(completed.storage_url)
+      return mergePipelineOutput(input, {
+        rendiUpload: {
+          ...upload,
+          phase: succeeded ? "complete" : "polling",
+          storageUrl: clean(completed.storage_url) || undefined,
+        },
+        operation: rendiOperation(
+          clean(upload.fileId),
+          `${workflowId}.rendi.upload`,
+          succeeded ? "succeeded" : "running"
+        ),
+      })
+    })
+
+    add(id("rendi-get-file"), async (input, context) => {
+      const upload = requiredRecord(input.rendiUpload, "rendiUpload")
+      const file = await context.externalCall("Rendi file status GET", () =>
+        getRendiUploadStatus({
+          apiKey: requiredRendiApiKey(),
+          fileId: requiredString(upload.fileId, "rendiUpload.fileId"),
+        })
+      )
+      const succeeded =
+        clean(file.status) === "STORED" && Boolean(file.storage_url)
+      return mergePipelineOutput(input, {
+        rendiUpload: {
+          ...upload,
+          phase: succeeded ? "complete" : "polling",
+          storageUrl: clean(file.storage_url) || undefined,
+        },
+        operation: rendiOperation(
+          clean(upload.fileId),
+          `${workflowId}.rendi.upload`,
+          succeeded ? "succeeded" : "running"
+        ),
+      })
+    })
+
+    add(id("rendi-upload-file"), async (input, context) => {
+      const upload = isRecord(input.rendiUpload) ? input.rendiUpload : null
+      if (!upload?.fileId) {
+        return (await context.runStage(id("rendi-init-upload"), input)).output
+      }
+      const parts = requiredArray(upload.parts, "rendiUpload.parts", true)
+      if (parts.length < numberValue(upload.partCount)) {
+        return (await context.runStage(id("rendi-upload-part"), input)).output
+      }
+      if (upload.phase === "uploading") {
+        return (await context.runStage(id("rendi-complete-upload"), input))
+          .output
+      }
+      if (!clean(upload.storageUrl)) {
+        return (await context.runStage(id("rendi-get-file"), input)).output
+      }
+      return mergePipelineOutput(input, {
+        operation: rendiOperation(
+          clean(upload.fileId),
+          `${workflowId}.rendi.upload`,
+          "succeeded"
+        ),
+      })
+    })
+
+    add(id("rendi-submit-command"), async (input, context) => {
+      const request = requiredRecord(
+        input.rendiCommandRequest,
+        "rendiCommandRequest"
+      )
+      const submitted = await context.externalCall(
+        "Rendi run-ffmpeg-command",
+        () =>
+          submitRendiFfmpeg({
+            apiKey: requiredRendiApiKey(),
+            ffmpegCommand: requiredString(
+              request.ffmpegCommand,
+              "ffmpegCommand"
+            ),
+            inputFiles: requiredRecord(
+              request.inputFiles,
+              "inputFiles"
+            ) as Record<string, string>,
+            outputFiles: requiredRecord(
+              request.outputFiles,
+              "outputFiles"
+            ) as Record<string, string>,
+            maxCommandRunSeconds:
+              numberValue(request.maxCommandRunSeconds) || undefined,
+            vcpuCount: numberValue(request.vcpuCount) || undefined,
+            metadata: isRecord(request.metadata)
+              ? (request.metadata as never)
+              : undefined,
+          })
+      )
+      return mergePipelineOutput(input, {
+        rendiCommandId: submitted.command_id,
+        operation: rendiOperation(
+          submitted.command_id,
+          `${workflowId}.rendi.command`,
+          "running"
+        ),
+      })
+    })
+
+    add(id("rendi-get-command"), async (input, context) => {
+      const commandId = requiredString(input.rendiCommandId, "rendiCommandId")
+      const command = await context.externalCall(
+        "Rendi command status GET",
+        () =>
+          getRendiFfmpegStatus({
+            apiKey: requiredRendiApiKey(),
+            commandId,
+          })
+      )
+      const succeeded = ["SUCCESS", "SUCCEEDED", "COMPLETED"].includes(
+        clean(command.status)
+      )
+      return mergePipelineOutput(input, {
+        rendiCommandStatus: command,
+        rendiOutputUrls: succeeded
+          ? Object.fromEntries(
+              Object.entries(command.output_files ?? {}).flatMap(
+                ([name, file]) =>
+                  clean(file.storage_url) ? [[name, file.storage_url]] : []
+              )
+            )
+          : {},
+        operation: rendiOperation(
+          commandId,
+          `${workflowId}.rendi.command`,
+          succeeded ? "succeeded" : "running"
+        ),
+      })
+    })
+
+    add(id("rendi-download-output"), async (input, context) => {
+      const downloaded = await context.externalCall(
+        "Rendi output HTTP download",
+        () =>
+          downloadRendiOutputToTemp({
+            remoteUrl: requiredString(input.remoteOutputUrl, "remoteOutputUrl"),
+            commandId: requiredString(input.rendiCommandId, "rendiCommandId"),
+            fileName: requiredString(input.outputFileName, "outputFileName"),
+          })
+      )
+      return mergePipelineOutput(input, {
+        tempRendiOutputPath: downloaded.tempPath,
+        tempRendiOutputFileName: downloaded.fileName,
+      })
+    })
+
+    add(id("rendi-persist-output"), async (input, context) => {
+      const target = rendiPersistenceTarget(workflowId, context.ownerId, input)
+      await context.externalCall("Appwrite Rendi output-file create", () =>
+        persistPipelineTempFile({
+          tempPath: requiredString(
+            input.tempRendiOutputPath,
+            "tempRendiOutputPath"
+          ),
+          outputPath: target.outputPath,
+        })
+      )
+      return mergePipelineOutput(input, {
+        persistedRendiOutputUrl: target.publicUrl,
+        persistedRendiOutputKind: target.kind,
+      })
+    })
+
+    add(id("rendi-discard-temp"), async (input) => {
+      if (clean(input.uploadSessionPath)) {
+        await discardRendiUploadSession(clean(input.uploadSessionPath))
+      }
+      if (clean(input.tempRendiOutputPath)) {
+        await discardDownloadedImage(clean(input.tempRendiOutputPath))
+      }
+      return mergePipelineOutput(input, {
+        uploadSessionPath: null,
+        tempRendiOutputPath: null,
+      })
+    })
+  }
+
+  registerRendiProtocol("slideshow-generation")
+  registerRendiProtocol("ugc-video-generation")
 
   add("slideshow-generation.load-automation-record", async (input, context) => {
     const automationRecord = await context.externalCall(
@@ -1006,21 +1274,220 @@ export function createProductionPipelineHandlers(
     })
   })
 
-  add("slideshow-generation.render-store-mp4", async (input) => {
-    if (clean(asRecord(input.plan).publishType) !== "video") {
-      return mergePipelineOutput(input, { videoRenderSkipped: true })
-    }
-    const rendered = await renderStoredSlideshowVideo({
+  add("slideshow-generation.prepare-video-render", async (input) => {
+    const prepared = await prepareStoredSlideshowVideo({
       id: requiredString(input.slideshowId, "slideshowId"),
       durationSeconds:
         numberValue(asRecord(input.renderSettings).duration) || undefined,
     })
     return mergePipelineOutput(input, {
+      slideshowVideoPreparation: prepared,
+      rendiLocalInputs: prepared.slideImagePaths.map(
+        (localFilePath, index) => ({
+          alias: `in_slide_${index + 1}`,
+          localFilePath,
+          fileName: path.basename(localFilePath),
+        })
+      ),
+    })
+  })
+
+  add("slideshow-generation.build-rendi-video-command", async (input) => {
+    const preparation = requiredRecord(
+      input.slideshowVideoPreparation,
+      "slideshowVideoPreparation"
+    )
+    const uploads = requiredArray<Record<string, unknown>>(
+      input.rendiUploads,
+      "rendiUploads"
+    )
+    const inputFiles = Object.fromEntries(
+      uploads.map((upload, index) => [
+        `in_slide_${index + 1}`,
+        requiredString(upload.storageUrl, `rendiUploads.${index}.storageUrl`),
+      ])
+    )
+    const duration = Math.max(1, numberValue(preparation.durationSeconds) || 5)
+    const command: string[] = []
+    uploads.forEach((_, index) => {
+      const alias = `in_slide_${index + 1}`
+      command.push("-loop", "1", "-t", String(duration), "-i", `{{${alias}}}`)
+    })
+    if (uploads.length === 1) {
+      command.push("-vf", "fps=12,format=yuv420p")
+    } else {
+      const labels = uploads.map((_, index) => `[${index}:v]`).join("")
+      command.push(
+        "-filter_complex",
+        `${labels}concat=n=${uploads.length}:v=1:a=0,fps=12,format=yuv420p[v]`,
+        "-map",
+        "[v]"
+      )
+    }
+    command.push("-movflags", "+faststart", "{{out_video}}")
+    return mergePipelineOutput(input, {
+      rendiCommandRequest: {
+        ffmpegCommand: command.join(" "),
+        inputFiles,
+        outputFiles: { out_video: "slideshow-export.mp4" },
+        maxCommandRunSeconds: 300,
+        vcpuCount: 4,
+        metadata: { workflow: "slideshow_export" },
+      },
+    })
+  })
+
+  add("slideshow-generation.finalize-video-render", async (input) => {
+    const preparation = requiredRecord(
+      input.slideshowVideoPreparation,
+      "slideshowVideoPreparation"
+    )
+    const rendered = await finalizeStoredSlideshowVideo({
+      resultId: requiredString(preparation.resultId, "resultId"),
+      resultRootDir: clean(preparation.resultRootDir) || undefined,
+      videoUrl: requiredString(input.videoUrl, "videoUrl"),
+      thumbnailUrl: requiredString(input.thumbnailUrl, "thumbnailUrl"),
+    })
+    if (clean(preparation.thumbnailPath)) {
+      await discardDownloadedImage(clean(preparation.thumbnailPath))
+    }
+    return mergePipelineOutput(input, {
       videoUrl: rendered.video_url,
       thumbnailUrl: rendered.thumbnail_url,
       videoProvider: "rendi",
       videoProcessor: "ffmpeg",
+      operation: rendiOperation(
+        clean(input.rendiCommandId) || rendered.id,
+        "slideshow-generation.rendi.command",
+        "succeeded"
+      ),
     })
+  })
+
+  add("slideshow-generation.render-store-mp4", async (input, context) => {
+    if (clean(asRecord(input.plan).publishType) !== "video") {
+      return mergePipelineOutput(input, { videoRenderSkipped: true })
+    }
+    let state = input
+    if (!isRecord(state.slideshowVideoPreparation)) {
+      state = (
+        await context.runStage(
+          "slideshow-generation.prepare-video-render",
+          state
+        )
+      ).output
+    }
+    const localInputs = requiredArray<Record<string, unknown>>(
+      state.rendiLocalInputs,
+      "rendiLocalInputs"
+    )
+    const uploads = Array.isArray(state.rendiUploads)
+      ? ([...state.rendiUploads] as Record<string, unknown>[])
+      : localInputs.map(() => ({}))
+    for (const [index, localInput] of localInputs.entries()) {
+      const priorUpload = requiredRecord(
+        uploads[index] ?? {},
+        `rendiUploads.${index}`
+      )
+      if (clean(priorUpload.storageUrl)) continue
+      const execution = await context.runStage(
+        "slideshow-generation.rendi-upload-file",
+        {
+          ...state,
+          localFilePath: localInput.localFilePath,
+          rendiFileName: localInput.fileName,
+          rendiUpload: uploads[index],
+        }
+      )
+      uploads[index] = requiredRecord(
+        execution.output.rendiUpload,
+        "rendiUpload"
+      )
+      state = mergePipelineOutput(state, {
+        rendiUploads: uploads,
+        operation: execution.output.operation,
+      })
+      if (execution.status === "running") return state
+      await context.runStage("slideshow-generation.rendi-discard-temp", {
+        uploadSessionPath: requiredRecord(
+          uploads[index],
+          `rendiUploads.${index}`
+        ).uploadSessionPath,
+      })
+    }
+    if (!isRecord(state.rendiCommandRequest)) {
+      state = (
+        await context.runStage(
+          "slideshow-generation.build-rendi-video-command",
+          state
+        )
+      ).output
+    }
+    if (!clean(state.rendiCommandId)) {
+      return (
+        await context.runStage(
+          "slideshow-generation.rendi-submit-command",
+          state
+        )
+      ).output
+    }
+    if (!clean(asRecord(state.rendiOutputUrls).out_video)) {
+      const execution = await context.runStage(
+        "slideshow-generation.rendi-get-command",
+        state
+      )
+      state = execution.output
+      if (execution.status === "running") return state
+    }
+    if (!clean(state.videoUrl)) {
+      state = (
+        await context.runStage("slideshow-generation.rendi-download-output", {
+          ...state,
+          remoteOutputUrl: asRecord(state.rendiOutputUrls).out_video,
+          outputFileName: "slideshow-export.mp4",
+        })
+      ).output
+      state = (
+        await context.runStage("slideshow-generation.rendi-persist-output", {
+          ...state,
+          outputKind: "video",
+        })
+      ).output
+      state = mergePipelineOutput(state, {
+        videoUrl: state.persistedRendiOutputUrl,
+      })
+      const discarded = await context.runStage(
+        "slideshow-generation.rendi-discard-temp",
+        {
+          tempRendiOutputPath: state.tempRendiOutputPath,
+        }
+      )
+      state = mergePipelineOutput(state, discarded.output)
+    }
+    if (!clean(state.rendiThumbnailUrl)) {
+      const preparation = requiredRecord(
+        state.slideshowVideoPreparation,
+        "slideshowVideoPreparation"
+      )
+      const persisted = await context.runStage(
+        "slideshow-generation.rendi-persist-output",
+        {
+          ...state,
+          tempRendiOutputPath: preparation.thumbnailPath,
+          outputKind: "thumbnail",
+        }
+      )
+      state = mergePipelineOutput(persisted.output, {
+        thumbnailUrl: persisted.output.persistedRendiOutputUrl,
+        rendiThumbnailUrl: persisted.output.persistedRendiOutputUrl,
+      })
+    }
+    return (
+      await context.runStage(
+        "slideshow-generation.finalize-video-render",
+        state
+      )
+    ).output
   })
 
   add("slideshow-generation.validate-output", async (input) => {
@@ -1385,7 +1852,10 @@ export function createProductionPipelineHandlers(
       })
     )
     return mergePipelineOutput(input, {
-      providerAsset: normalizeFalAsset(raw, "image"),
+      providerAsset: normalizeFalAsset(
+        raw,
+        clean(input.assetKind) === "video" ? "video" : "image"
+      ),
       operation: {
         id: requiredString(input.providerRequestId, "providerRequestId"),
         kind: "ugc.broll.fal",
@@ -1550,13 +2020,310 @@ export function createProductionPipelineHandlers(
     ).output
   })
 
+  add(
+    "ugc-video-generation.elevenlabs-synthesize-speech",
+    async (input, context) => {
+      const text =
+        clean(input.voiceText) ||
+        requiredArray<Record<string, unknown>>(
+          asRecord(input.plan).segments,
+          "plan.segments"
+        )
+          .map((segment) => clean(segment.spokenText))
+          .filter(Boolean)
+          .join(" ")
+      if (!text) throw new Error("Voice synthesis text is required")
+      const staged = await context.externalCall(
+        "ElevenLabs speech with timestamps",
+        () =>
+          synthesizeElevenLabsSpeechToTemp({
+            text,
+            voiceId: requiredString(input.voiceId, "voiceId"),
+            apiKey: requiredString(
+              process.env.ELEVENLABS_API_KEY,
+              "ELEVENLABS_API_KEY"
+            ),
+            modelId:
+              clean(input.voiceModel) ||
+              generationModelRegistry.ugc.elevenLabsModelId,
+            endpoint:
+              clean(input.elevenLabsEndpoint) ||
+              generationModelRegistry.ugc.elevenLabsTimestampEndpoint,
+          })
+      )
+      return mergePipelineOutput(input, {
+        voiceText: text,
+        tempVoiceAudioPath: staged.audioPath,
+        tempVoiceTimingsPath: staged.timingsPath,
+        voiceContentType: staged.contentType,
+        voiceDurationMs: staged.durationMs,
+        voiceWords: staged.words,
+        provider: "ElevenLabs",
+        model:
+          clean(input.voiceModel) ||
+          generationModelRegistry.ugc.elevenLabsModelId,
+      })
+    }
+  )
+
+  for (const [stageId, field, kind] of [
+    ["ugc-video-generation.persist-voice-audio", "tempVoiceAudioPath", "voice"],
+    [
+      "ugc-video-generation.persist-voice-timings",
+      "tempVoiceTimingsPath",
+      "timings",
+    ],
+  ] as const) {
+    add(stageId, async (input, context) => {
+      const target = rendiPersistenceTarget(
+        "ugc-video-generation",
+        context.ownerId,
+        {
+          ...input,
+          outputKind: kind,
+        }
+      )
+      await context.externalCall(`Appwrite ${kind} asset-file create`, () =>
+        persistPipelineTempFile({
+          tempPath: requiredString(input[field], field),
+          outputPath: target.outputPath,
+        })
+      )
+      return mergePipelineOutput(input, {
+        [kind === "voice" ? "voiceAudioUrl" : "voiceTimingsUrl"]:
+          target.publicUrl,
+      })
+    })
+  }
+
+  add("ugc-video-generation.discard-voice-temp", async (input) => {
+    const tempPath =
+      clean(input.tempVoiceAudioPath) || clean(input.tempVoiceTimingsPath)
+    if (tempPath) {
+      await discardDownloadedImage(tempPath)
+    }
+    return mergePipelineOutput(input, {
+      tempVoiceAudioPath: null,
+      tempVoiceTimingsPath: null,
+    })
+  })
+
+  add(
+    "ugc-video-generation.synthesize-voice-assets",
+    async (input, context) => {
+      let state = input
+      if (!clean(state.tempVoiceAudioPath) && !clean(state.voiceAudioUrl)) {
+        state = (
+          await context.runStage(
+            "ugc-video-generation.elevenlabs-synthesize-speech",
+            state
+          )
+        ).output
+      }
+      if (!clean(state.voiceAudioUrl)) {
+        state = (
+          await context.runStage(
+            "ugc-video-generation.persist-voice-audio",
+            state
+          )
+        ).output
+      }
+      if (!clean(state.voiceTimingsUrl)) {
+        state = (
+          await context.runStage(
+            "ugc-video-generation.persist-voice-timings",
+            state
+          )
+        ).output
+      }
+      return (
+        await context.runStage("ugc-video-generation.discard-voice-temp", state)
+      ).output
+    }
+  )
+
+  add("ugc-video-generation.synthesize-voice", async (input, context) => {
+    if (clean(input.automationId)) return queueUgcStage(input, context, "voice")
+    return (
+      await context.runStage(
+        "ugc-video-generation.synthesize-voice-assets",
+        input
+      )
+    ).output
+  })
+
+  add("ugc-video-generation.build-rendi-composite-command", async (input) =>
+    mergePipelineOutput(input, await prepareUgcRendiComposite(input))
+  )
+
+  add("ugc-video-generation.render-rendi-composite", async (input, context) => {
+    let state = input
+    if (!isRecord(state.rendiCommandRequest)) {
+      state = (
+        await context.runStage(
+          "ugc-video-generation.build-rendi-composite-command",
+          state
+        )
+      ).output
+    }
+    const localInputs = requiredArray<Record<string, unknown>>(
+      state.rendiLocalInputs,
+      "rendiLocalInputs"
+    )
+    const uploads = Array.isArray(state.rendiUploads)
+      ? ([...state.rendiUploads] as Record<string, unknown>[])
+      : localInputs.map(() => ({}))
+    for (const [index, localInput] of localInputs.entries()) {
+      const priorUpload = requiredRecord(
+        uploads[index] ?? {},
+        `rendiUploads.${index}`
+      )
+      if (clean(priorUpload.storageUrl)) continue
+      const execution = await context.runStage(
+        "ugc-video-generation.rendi-upload-file",
+        {
+          ...state,
+          localFilePath: localInput.localFilePath,
+          rendiFileName: localInput.fileName,
+          rendiUpload: priorUpload,
+        }
+      )
+      uploads[index] = requiredRecord(
+        execution.output.rendiUpload,
+        "rendiUpload"
+      )
+      state = mergePipelineOutput(state, {
+        rendiUploads: uploads,
+        operation: execution.output.operation,
+      })
+      if (execution.status === "running") return state
+      await context.runStage("ugc-video-generation.rendi-discard-temp", {
+        uploadSessionPath: requiredRecord(
+          uploads[index],
+          `rendiUploads.${index}`
+        ).uploadSessionPath,
+      })
+    }
+
+    const commandRequest = requiredRecord(
+      state.rendiCommandRequest,
+      "rendiCommandRequest"
+    )
+    state = mergePipelineOutput(state, {
+      rendiCommandRequest: {
+        ...commandRequest,
+        inputFiles: Object.fromEntries(
+          localInputs.map((localInput, index) => [
+            requiredString(localInput.alias, `rendiLocalInputs.${index}.alias`),
+            requiredString(
+              requiredRecord(uploads[index], `rendiUploads.${index}`)
+                .storageUrl,
+              `rendiUploads.${index}.storageUrl`
+            ),
+          ])
+        ),
+      },
+    })
+    if (!clean(state.rendiCommandId)) {
+      return (
+        await context.runStage(
+          "ugc-video-generation.rendi-submit-command",
+          state
+        )
+      ).output
+    }
+    const outputUrls = asRecord(state.rendiOutputUrls)
+    if (!Object.keys(outputUrls).length) {
+      const execution = await context.runStage(
+        "ugc-video-generation.rendi-get-command",
+        state
+      )
+      state = execution.output
+      if (execution.status === "running") return state
+    }
+
+    const outputSpecs = requiredArray<Record<string, unknown>>(
+      state.rendiOutputSpecs,
+      "rendiOutputSpecs"
+    )
+    const persisted = { ...asRecord(state.rendiPersistedOutputs) }
+    for (const [index, outputSpec] of outputSpecs.entries()) {
+      const alias = requiredString(
+        outputSpec.alias,
+        `rendiOutputSpecs.${index}.alias`
+      )
+      if (clean(persisted[alias])) continue
+      const downloaded = await context.runStage(
+        "ugc-video-generation.rendi-download-output",
+        {
+          ...state,
+          remoteOutputUrl: requiredString(
+            asRecord(state.rendiOutputUrls)[alias],
+            `rendiOutputUrls.${alias}`
+          ),
+          outputFileName: requiredString(
+            outputSpec.fileName,
+            `rendiOutputSpecs.${index}.fileName`
+          ),
+        }
+      )
+      const saved = await context.runStage(
+        "ugc-video-generation.rendi-persist-output",
+        {
+          ...downloaded.output,
+          outputKind: requiredString(
+            outputSpec.outputKind,
+            `rendiOutputSpecs.${index}.outputKind`
+          ),
+        }
+      )
+      persisted[alias] = saved.output.persistedRendiOutputUrl
+      state = mergePipelineOutput(saved.output, {
+        rendiPersistedOutputs: persisted,
+      })
+      state = mergePipelineOutput(
+        state,
+        (
+          await context.runStage(
+            "ugc-video-generation.rendi-discard-temp",
+            state
+          )
+        ).output
+      )
+    }
+    return mergePipelineOutput(state, {
+      videoUrl: persisted["output.mp4"],
+      thumbnailUrl: persisted["thumbnail.jpg"],
+      provider: "Rendi",
+      model: "FFmpeg",
+      operation: rendiOperation(
+        requiredString(state.rendiCommandId, "rendiCommandId"),
+        "ugc-video-generation.rendi.command",
+        "succeeded"
+      ),
+    })
+  })
+
+  add("ugc-video-generation.composite-output", async (input, context) => {
+    if (
+      Array.isArray(input.rendiLocalInputs) ||
+      clean(input.actorLocalFilePath)
+    ) {
+      return (
+        await context.runStage(
+          "ugc-video-generation.render-rendi-composite",
+          input
+        )
+      ).output
+    }
+    return queueUgcStage(input, context, "composite")
+  })
+
   for (const [id, stage] of [
     ["ugc-video-generation.resolve-generate-actor", "actor"],
-    ["ugc-video-generation.synthesize-voice", "voice"],
     ["ugc-video-generation.animate-actor", "motion"],
     ["ugc-video-generation.lip-sync-performance", "lipsync"],
     ["ugc-video-generation.generate-broll", "broll"],
-    ["ugc-video-generation.composite-output", "composite"],
     ["ugc-video-generation.store-final-output", "store"],
   ] as const) {
     add(id, async (input, context) => queueUgcStage(input, context, stage))
@@ -2484,6 +3251,101 @@ function numberValue(value: unknown) {
 
 function contextId(input: Record<string, unknown>) {
   return clean(input.requestId) || `pipeline-${crypto.randomUUID()}`
+}
+
+function requiredRendiApiKey() {
+  const apiKey = getRendiApiKey()
+  if (!apiKey) throw new Error("RENDI_API_KEY is not configured")
+  return apiKey
+}
+
+function rendiOperation(
+  id: string,
+  kind: string,
+  status: "running" | "succeeded"
+) {
+  return {
+    id,
+    kind,
+    status,
+    ...(status === "running" ? { nextPollAfterMs: 3000 } : {}),
+  }
+}
+
+function rendiPersistenceTarget(
+  workflowId: "slideshow-generation" | "ugc-video-generation",
+  ownerId: string,
+  input: Record<string, unknown>
+) {
+  const kind = requiredString(input.outputKind, "outputKind")
+  const ownerScope = ownerScopeSegment(ownerId)
+  if (workflowId === "slideshow-generation") {
+    const slideshowId = safePathSegment(
+      requiredString(input.slideshowId, "slideshowId")
+    )
+    const fileName =
+      kind === "video"
+        ? "slideshow-export.mp4"
+        : kind === "thumbnail"
+          ? "slideshow-thumbnail.png"
+          : ""
+    if (!fileName) throw new Error("Unsupported slideshow Rendi output kind")
+    return {
+      kind,
+      outputPath: path.join(
+        process.cwd(),
+        "data",
+        "slideshows",
+        "outputs",
+        ownerScope,
+        slideshowId,
+        fileName
+      ),
+      publicUrl: `/api/local-assets/slideshows/outputs/${ownerScope}/${encodeURIComponent(slideshowId)}/${fileName}`,
+    }
+  }
+  const automationId = safePathSegment(
+    requiredString(input.automationId, "automationId")
+  )
+  const runId = safePathSegment(requiredString(input.runId, "runId"))
+  const fileName =
+    kind === "video"
+      ? "video.mp4"
+      : kind === "thumbnail"
+        ? "thumbnail.jpg"
+        : kind === "voice"
+          ? "voice.mp3"
+          : kind === "timings"
+            ? "word-timings.json"
+            : ""
+  if (!fileName) throw new Error("Unsupported UGC output kind")
+  return {
+    kind,
+    outputPath: path.join(
+      process.cwd(),
+      "data",
+      "ugc-automations",
+      ownerScope,
+      automationId,
+      runId,
+      fileName
+    ),
+    publicUrl: `/api/local-assets/ugc-automations/${ownerScope}/${encodeURIComponent(automationId)}/${encodeURIComponent(runId)}/${fileName}`,
+  }
+}
+
+function ownerScopeSegment(ownerId: string) {
+  return createHash("sha256")
+    .update(requiredString(ownerId, "ownerId"))
+    .digest("hex")
+    .slice(0, 24)
+}
+
+function safePathSegment(value: string) {
+  if (!/^[a-zA-Z0-9_-]{1,200}$/.test(value)) {
+    throw new Error("Invalid pipeline storage identifier")
+  }
+  return value
 }
 
 function isLinkedInBrief(value: unknown): value is LinkedInBrief {

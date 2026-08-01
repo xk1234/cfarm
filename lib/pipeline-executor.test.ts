@@ -203,6 +203,39 @@ describe("production pipeline executor", () => {
           ["deterministic", "provider", "storage"].includes(stage.kind)
         )
     ).toBe(true)
+    const allStages = catalog.flatMap((workflow) => workflow.stages)
+    expect(
+      allStages.every((stage) =>
+        stage.granularity === "composite"
+          ? stage.maxExternalCalls === 0
+          : stage.sideEffect === "none"
+            ? stage.maxExternalCalls === 0
+            : stage.maxExternalCalls === 1
+      )
+    ).toBe(true)
+    expect(allStages.map((stage) => stage.id)).toEqual(
+      expect.arrayContaining([
+        "slideshow-generation.rendi-init-upload",
+        "slideshow-generation.rendi-upload-part",
+        "slideshow-generation.rendi-complete-upload",
+        "slideshow-generation.rendi-get-file",
+        "slideshow-generation.rendi-submit-command",
+        "slideshow-generation.rendi-get-command",
+        "slideshow-generation.rendi-download-output",
+        "slideshow-generation.rendi-persist-output",
+        "ugc-video-generation.elevenlabs-synthesize-speech",
+        "ugc-video-generation.persist-voice-audio",
+        "ugc-video-generation.persist-voice-timings",
+        "ugc-video-generation.rendi-init-upload",
+        "ugc-video-generation.rendi-upload-part",
+        "ugc-video-generation.rendi-complete-upload",
+        "ugc-video-generation.rendi-get-file",
+        "ugc-video-generation.rendi-submit-command",
+        "ugc-video-generation.rendi-get-command",
+        "ugc-video-generation.rendi-download-output",
+        "ugc-video-generation.rendi-persist-output",
+      ])
+    )
     expect(
       catalog
         .flatMap((workflow) => workflow.stages)

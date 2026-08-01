@@ -445,6 +445,342 @@ describe("production pipeline stage handlers", () => {
     expect(persist).toHaveBeenCalledOnce()
     expect(discard).toHaveBeenCalledOnce()
   })
+
+  it("resumes slideshow Rendi across upload, submit, poll, download, and persistence stages", async () => {
+    const production = createProductionPipelineHandlers(services() as never)
+    const prepare = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      slideshowId: "slideshow-1",
+      slideshowVideoPreparation: {
+        resultId: "result-1",
+        thumbnailPath:
+          "/root/.tmp-cfarm-mcp/cfarm-slideshow-video-test/thumb.png",
+      },
+      rendiLocalInputs: [
+        {
+          alias: "slide_0",
+          fileName: "slide-1.png",
+          localFilePath:
+            "/root/.tmp-cfarm-mcp/cfarm-slideshow-video-test/slide-1.png",
+        },
+      ],
+    }))
+    const upload = vi
+      .fn<
+        (input: Record<string, unknown>) => Promise<Record<string, unknown>>
+      >()
+      .mockImplementationOnce(async (input) => ({
+        ...input,
+        rendiUpload: {
+          fileId: "file-1",
+          uploadSessionPath:
+            "/root/.tmp-cfarm-mcp/cfarm-rendi-upload-test/session.json",
+          phase: "uploading",
+        },
+        operation: { id: "file-1", status: "running" },
+      }))
+      .mockImplementationOnce(async (input) => ({
+        ...input,
+        rendiUpload: {
+          fileId: "file-1",
+          uploadSessionPath:
+            "/root/.tmp-cfarm-mcp/cfarm-rendi-upload-test/session.json",
+          storageUrl: "https://rendi.example/slide-1.png",
+          phase: "complete",
+        },
+        operation: { id: "file-1", status: "succeeded" },
+      }))
+    const build = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      rendiCommandRequest: {
+        ffmpegCommand: "ffmpeg ...",
+        inputFiles: { slide_0: "https://rendi.example/slide-1.png" },
+        outputFiles: { out_video: "slideshow-export.mp4" },
+      },
+    }))
+    const submit = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      rendiCommandId: "command-1",
+      operation: { id: "command-1", status: "running" },
+    }))
+    const poll = vi
+      .fn<
+        (input: Record<string, unknown>) => Promise<Record<string, unknown>>
+      >()
+      .mockImplementationOnce(async (input) => ({
+        ...input,
+        operation: { id: "command-1", status: "running" },
+      }))
+      .mockImplementationOnce(async (input) => ({
+        ...input,
+        rendiOutputUrls: {
+          out_video: "https://rendi.example/slideshow.mp4",
+        },
+        operation: { id: "command-1", status: "succeeded" },
+      }))
+    const download = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      tempRendiOutputPath:
+        "/root/.tmp-cfarm-mcp/cfarm-provider-test/slideshow.mp4",
+    }))
+    const persist = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      persistedRendiOutputUrl:
+        input.outputKind === "thumbnail"
+          ? "/assets/slideshow/thumbnail.png"
+          : "/assets/slideshow/video.mp4",
+    }))
+    const discard = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      tempRendiOutputPath: null,
+      uploadSessionPath: null,
+    }))
+    const finalize = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      operation: { id: "command-1", status: "succeeded" },
+    }))
+    const handlers = new Map(production)
+    handlers.set("slideshow-generation.prepare-video-render", prepare)
+    handlers.set("slideshow-generation.rendi-upload-file", upload)
+    handlers.set("slideshow-generation.build-rendi-video-command", build)
+    handlers.set("slideshow-generation.rendi-submit-command", submit)
+    handlers.set("slideshow-generation.rendi-get-command", poll)
+    handlers.set("slideshow-generation.rendi-download-output", download)
+    handlers.set("slideshow-generation.rendi-persist-output", persist)
+    handlers.set("slideshow-generation.rendi-discard-temp", discard)
+    handlers.set("slideshow-generation.finalize-video-render", finalize)
+    const registry = createPipelineStageRegistry(handlers)
+
+    const first = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "slideshow-generation.render-store-mp4",
+      stageInput: { plan: { publishType: "video" } },
+    })
+    const second = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "slideshow-generation.render-store-mp4",
+      stageInput: first.output,
+    })
+    const third = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "slideshow-generation.render-store-mp4",
+      stageInput: second.output,
+    })
+    const completed = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "slideshow-generation.render-store-mp4",
+      stageInput: third.output,
+    })
+
+    expect([
+      first.status,
+      second.status,
+      third.status,
+      completed.status,
+    ]).toEqual(["running", "running", "running", "succeeded"])
+    expect(completed.output).toMatchObject({
+      videoUrl: "/assets/slideshow/video.mp4",
+      thumbnailUrl: "/assets/slideshow/thumbnail.png",
+    })
+    expect(upload).toHaveBeenCalledTimes(2)
+    expect(submit).toHaveBeenCalledOnce()
+    expect(poll).toHaveBeenCalledTimes(2)
+    expect(download).toHaveBeenCalledOnce()
+    expect(persist).toHaveBeenCalledTimes(2)
+    expect(finalize).toHaveBeenCalledOnce()
+  })
+
+  it("resumes a UGC Rendi composite without repeating completed boundaries", async () => {
+    const production = createProductionPipelineHandlers(services() as never)
+    const upload = vi
+      .fn<
+        (input: Record<string, unknown>) => Promise<Record<string, unknown>>
+      >()
+      .mockImplementationOnce(async (input) => ({
+        ...input,
+        rendiUpload: { fileId: "actor-1", phase: "uploading" },
+        operation: { id: "actor-1", status: "running" },
+      }))
+      .mockImplementationOnce(async (input) => ({
+        ...input,
+        rendiUpload: {
+          fileId: "actor-1",
+          phase: "complete",
+          storageUrl: "https://rendi.example/actor.mp4",
+        },
+        operation: { id: "actor-1", status: "succeeded" },
+      }))
+    const submit = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      rendiCommandId: "ugc-command-1",
+      operation: { id: "ugc-command-1", status: "running" },
+    }))
+    const poll = vi
+      .fn<
+        (input: Record<string, unknown>) => Promise<Record<string, unknown>>
+      >()
+      .mockImplementationOnce(async (input) => ({
+        ...input,
+        operation: { id: "ugc-command-1", status: "running" },
+      }))
+      .mockImplementationOnce(async (input) => ({
+        ...input,
+        rendiOutputUrls: {
+          "output.mp4": "https://rendi.example/output.mp4",
+          "thumbnail.jpg": "https://rendi.example/thumbnail.jpg",
+        },
+        operation: { id: "ugc-command-1", status: "succeeded" },
+      }))
+    const download = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      tempRendiOutputPath: `/root/.tmp-cfarm-mcp/cfarm-provider-test/${String(input.outputFileName)}`,
+    }))
+    const persist = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      persistedRendiOutputUrl: `/assets/ugc/${String(input.outputKind)}`,
+    }))
+    const discard = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      tempRendiOutputPath: null,
+      uploadSessionPath: null,
+    }))
+    const handlers = new Map(production)
+    handlers.set("ugc-video-generation.rendi-upload-file", upload)
+    handlers.set("ugc-video-generation.rendi-submit-command", submit)
+    handlers.set("ugc-video-generation.rendi-get-command", poll)
+    handlers.set("ugc-video-generation.rendi-download-output", download)
+    handlers.set("ugc-video-generation.rendi-persist-output", persist)
+    handlers.set("ugc-video-generation.rendi-discard-temp", discard)
+    const registry = createPipelineStageRegistry(handlers)
+    const initial = {
+      automationId: "ugc-1",
+      runId: "run-1",
+      rendiLocalInputs: [
+        {
+          alias: "actor.mp4",
+          fileName: "actor.mp4",
+          localFilePath: "/root/.tmp-cfarm-mcp/cfarm-provider-test/actor.mp4",
+        },
+      ],
+      rendiCommandRequest: {
+        ffmpegCommand: "ffmpeg ...",
+        inputFiles: {},
+        outputFiles: {
+          "output.mp4": "output.mp4",
+          "thumbnail.jpg": "thumbnail.jpg",
+        },
+      },
+      rendiOutputSpecs: [
+        { alias: "output.mp4", fileName: "output.mp4", outputKind: "video" },
+        {
+          alias: "thumbnail.jpg",
+          fileName: "thumbnail.jpg",
+          outputKind: "thumbnail",
+        },
+      ],
+    }
+
+    const first = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "ugc-video-generation.render-rendi-composite",
+      stageInput: initial,
+    })
+    const second = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "ugc-video-generation.render-rendi-composite",
+      stageInput: first.output,
+    })
+    const third = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "ugc-video-generation.render-rendi-composite",
+      stageInput: second.output,
+    })
+    const completed = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "ugc-video-generation.render-rendi-composite",
+      stageInput: third.output,
+    })
+
+    expect([
+      first.status,
+      second.status,
+      third.status,
+      completed.status,
+    ]).toEqual(["running", "running", "running", "succeeded"])
+    expect(completed.output).toMatchObject({
+      videoUrl: "/assets/ugc/video",
+      thumbnailUrl: "/assets/ugc/thumbnail",
+    })
+    expect(upload).toHaveBeenCalledTimes(2)
+    expect(submit).toHaveBeenCalledOnce()
+    expect(poll).toHaveBeenCalledTimes(2)
+    expect(download).toHaveBeenCalledTimes(2)
+    expect(persist).toHaveBeenCalledTimes(2)
+  })
+
+  it("resumes ElevenLabs persistence without synthesizing a second time", async () => {
+    const production = createProductionPipelineHandlers(services() as never)
+    const synthesize = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      tempVoiceAudioPath:
+        "/root/.tmp-cfarm-mcp/cfarm-elevenlabs-test/voice.mp3",
+      tempVoiceTimingsPath:
+        "/root/.tmp-cfarm-mcp/cfarm-elevenlabs-test/word-timings.json",
+    }))
+    const audio = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      voiceAudioUrl: "/assets/ugc/voice.mp3",
+    }))
+    const timings = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      voiceTimingsUrl: "/assets/ugc/word-timings.json",
+    }))
+    const discard = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      tempVoiceAudioPath: null,
+      tempVoiceTimingsPath: null,
+    }))
+    const handlers = new Map(production)
+    handlers.set(
+      "ugc-video-generation.elevenlabs-synthesize-speech",
+      synthesize
+    )
+    handlers.set("ugc-video-generation.persist-voice-audio", audio)
+    handlers.set("ugc-video-generation.persist-voice-timings", timings)
+    handlers.set("ugc-video-generation.discard-voice-temp", discard)
+    const registry = createPipelineStageRegistry(handlers)
+
+    const resumed = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "ugc-video-generation.synthesize-voice-assets",
+      stageInput: {
+        automationId: "ugc-1",
+        runId: "run-1",
+        tempVoiceAudioPath:
+          "/root/.tmp-cfarm-mcp/cfarm-elevenlabs-test/voice.mp3",
+        tempVoiceTimingsPath:
+          "/root/.tmp-cfarm-mcp/cfarm-elevenlabs-test/word-timings.json",
+      },
+    })
+
+    expect(resumed.output).toMatchObject({
+      voiceAudioUrl: "/assets/ugc/voice.mp3",
+      voiceTimingsUrl: "/assets/ugc/word-timings.json",
+    })
+    expect(synthesize).not.toHaveBeenCalled()
+    expect(audio).toHaveBeenCalledOnce()
+    expect(timings).toHaveBeenCalledOnce()
+    expect(discard).toHaveBeenCalledOnce()
+  })
 })
 
 const slideshowAutomation: TempSlideTestingAutomation = {

@@ -1,9 +1,9 @@
 import path from "node:path"
 import os from "node:os"
 import { randomUUID } from "node:crypto"
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, open, readFile, rm, stat, writeFile } from "node:fs/promises"
 
-import { persistAsset } from "@/lib/asset-storage"
+import { createAssetOnce, persistAsset } from "@/lib/asset-storage"
 import { fetchWithTimeout } from "@/lib/http"
 
 type FetchLike = typeof fetch
@@ -73,6 +73,39 @@ export async function persistDownloadedFileToLocalAsset(input: {
   return `${input.publicPrefix}/${encodeURIComponent(path.basename(input.fileName))}`
 }
 
+export async function pipelineTempFileInfo(tempPath: string) {
+  assertProviderTempPath(tempPath)
+  const info = await stat(tempPath)
+  if (!info.isFile() || info.size <= 0) {
+    throw new Error("Pipeline temp file is empty or missing")
+  }
+  return { size: info.size, fileName: path.basename(tempPath) }
+}
+
+export async function readPipelineTempFilePart(input: {
+  tempPath: string
+  offset: number
+  size: number
+}) {
+  assertProviderTempPath(input.tempPath)
+  const handle = await open(input.tempPath, "r")
+  try {
+    const bytes = Buffer.alloc(input.size)
+    const result = await handle.read(bytes, 0, input.size, input.offset)
+    return bytes.subarray(0, result.bytesRead)
+  } finally {
+    await handle.close()
+  }
+}
+
+export async function persistPipelineTempFile(input: {
+  tempPath: string
+  outputPath: string
+}) {
+  assertProviderTempPath(input.tempPath)
+  await createAssetOnce(input.outputPath, await readFile(input.tempPath))
+}
+
 export async function discardDownloadedTempFile(tempPath: string) {
   const tempDir = assertProviderTempPath(tempPath)
   await rm(tempDir, { recursive: true, force: true })
@@ -81,9 +114,16 @@ export async function discardDownloadedTempFile(tempPath: string) {
 function assertProviderTempPath(tempPath: string) {
   const tempRoot = path.resolve(os.tmpdir())
   const tempDir = path.dirname(path.resolve(tempPath))
+  const allowedPrefixes = [
+    "cfarm-provider-",
+    "cfarm-slideshow-video-",
+    "cfarm-ugc-rendi-",
+    "cfarm-elevenlabs-",
+    "cfarm-rendi-upload-",
+  ]
   if (
     !tempDir.startsWith(`${tempRoot}${path.sep}`) ||
-    !path.basename(tempDir).startsWith("cfarm-provider-")
+    !allowedPrefixes.some((prefix) => path.basename(tempDir).startsWith(prefix))
   ) {
     throw new Error("Unrecognized provider temp path")
   }

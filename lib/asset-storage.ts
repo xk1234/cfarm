@@ -107,6 +107,28 @@ export async function persistAsset(
   await mirrorAssetToAppwrite(absPath, bytes)
 }
 
+/** Create one deterministic storage object with exactly one Appwrite request. */
+export async function createAssetOnce(
+  absPath: string,
+  bytes: Bytes
+): Promise<void> {
+  const aw = getAppwrite()
+  if (!aw) {
+    throw new Error("Appwrite is not configured; cannot persist asset bytes.")
+  }
+  const relPath = relForAppwrite(absPath)
+  if (!relPath) {
+    throw new Error(`Asset path is outside the data tree: ${absPath}`)
+  }
+  const buffer = toBuffer(bytes)
+  await aw.storage.createFile(
+    bucketForPath(relPath),
+    fileIdForPath(relPath),
+    InputFile.fromBuffer(buffer, path.basename(relPath)),
+    []
+  )
+}
+
 /** Upload a scratch tree to a logical data-tree destination in Storage. */
 export async function mirrorDirToAppwrite(
   dir: string,

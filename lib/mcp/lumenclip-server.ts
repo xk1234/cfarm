@@ -1040,7 +1040,7 @@ function registerPipelineTools(
     {
       title: "Run one production pipeline stage",
       description:
-        "Runs one registered atomic or composite generation stage with explicit structured JSON input. Atomic network/storage stages declare a one-call boundary; decomposed composites invoke registered stages through the same registry used by full workflow execution. Secrets and media bytes are rejected; provider and storage stages return durable references or operations. The workflow docs identify retained legacy bundled helpers.",
+        "Runs one registered atomic or composite generation stage with explicit structured JSON input. Atomic network/storage stages declare a one-call boundary; decomposed composites invoke registered stages through the same registry used by full workflow execution. Secrets and media bytes are rejected; provider and storage stages return durable references or operations. The workflow docs identify residual non-provider storage limitations.",
       inputSchema: {
         stageId: z.enum(
           PIPELINE_STAGE_CATALOG.map((stage) => stage.id) as [

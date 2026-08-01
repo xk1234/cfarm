@@ -23,6 +23,9 @@ const generatedModules = [
   {
     source: "lib/ugc-rendi-compositor.ts",
     target: "appwrite/functions/job-worker/src/ugc-rendi-compositor.js",
+    imports: {
+      "@/lib/rendi-client": "./rendi-client.js",
+    },
   },
   {
     source: "lib/ugc-automation-runner.ts",

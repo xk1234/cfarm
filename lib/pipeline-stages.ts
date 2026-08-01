@@ -337,6 +337,34 @@ export const PIPELINE_STAGE_CATALOG = [
     "Appwrite usage-record create",
     "Append one usage record through one storage action."
   ),
+  stage(
+    "slideshow-generation",
+    113,
+    "prepare-video-render",
+    "Prepare video render",
+    "storage",
+    "Stage rendered PNG inputs locally for resumable provider upload.",
+    { ...compositeStage, sideEffect: "storage", workflowStep: false }
+  ),
+  stage(
+    "slideshow-generation",
+    114,
+    "finalize-video-render",
+    "Finalize video render",
+    "storage",
+    "Attach persisted video artifacts to the slideshow result.",
+    { ...compositeStage, sideEffect: "storage", workflowStep: false }
+  ),
+  stage(
+    "slideshow-generation",
+    115,
+    "build-rendi-video-command",
+    "Build Rendi video command",
+    "deterministic",
+    "Build the slideshow FFmpeg command from completed Rendi slide uploads.",
+    { workflowStep: false }
+  ),
+  ...rendiProtocolStages("slideshow-generation", 120),
 
   stage(
     "ugc-video-generation",
@@ -571,6 +599,73 @@ export const PIPELINE_STAGE_CATALOG = [
     "Remove one local temporary b-roll image after durable persistence.",
     { workflowStep: false }
   ),
+  atomicStage(
+    "ugc-video-generation",
+    115,
+    "elevenlabs-synthesize-speech",
+    "provider",
+    "ElevenLabs speech with timestamps",
+    "Perform one ElevenLabs synthesis request and stage decoded outputs locally.",
+    { provider: "ElevenLabs", model: "configured voice model" }
+  ),
+  atomicStage(
+    "ugc-video-generation",
+    116,
+    "persist-voice-audio",
+    "storage",
+    "Appwrite voice asset-file create",
+    "Persist one locally staged voice audio file."
+  ),
+  atomicStage(
+    "ugc-video-generation",
+    117,
+    "persist-voice-timings",
+    "storage",
+    "Appwrite timings asset-file create",
+    "Persist one locally staged word-timing file."
+  ),
+  stage(
+    "ugc-video-generation",
+    118,
+    "synthesize-voice-assets",
+    "Synthesize and persist voice assets",
+    "provider",
+    "Invoke registered ElevenLabs, audio-persistence, and timing-persistence stages.",
+    { ...compositeStage, provider: "ElevenLabs", workflowStep: false }
+  ),
+  stage(
+    "ugc-video-generation",
+    119,
+    "build-rendi-composite-command",
+    "Build UGC Rendi composite command",
+    "deterministic",
+    "Build captions and the FFmpeg request from explicit actor and b-roll inputs, staging only local caption text.",
+    { workflowStep: false }
+  ),
+  stage(
+    "ugc-video-generation",
+    120,
+    "render-rendi-composite",
+    "Render one UGC Rendi composite",
+    "provider",
+    "Drive prepared UGC files through registered Rendi upload, command, download, and persistence stages.",
+    {
+      ...compositeStage,
+      provider: "Rendi",
+      model: "FFmpeg",
+      workflowStep: false,
+    }
+  ),
+  stage(
+    "ugc-video-generation",
+    121,
+    "discard-voice-temp",
+    "Discard voice temp files",
+    "deterministic",
+    "Remove locally staged ElevenLabs audio and timing files after persistence.",
+    { workflowStep: false }
+  ),
+  ...rendiProtocolStages("ugc-video-generation", 130),
 
   stage(
     "linkedin-generation",
@@ -933,6 +1028,103 @@ export function pipelineStagesForWorkflow(workflowId: PipelineWorkflowId) {
 
 export function pipelineStageId(workflowId: PipelineWorkflowId, name: string) {
   return `${workflowId}.${name}`
+}
+
+function rendiProtocolStages(
+  workflowId: PipelineWorkflowId,
+  firstOrder: number
+): PipelineStageMetadata[] {
+  return [
+    atomicStage(
+      workflowId,
+      firstOrder,
+      "rendi-init-upload",
+      "provider",
+      "Rendi init-upload",
+      "Initialize one Rendi multipart upload without exposing signed upload URLs.",
+      { provider: "Rendi" }
+    ),
+    atomicStage(
+      workflowId,
+      firstOrder + 1,
+      "rendi-upload-part",
+      "provider",
+      "Rendi signed part PUT",
+      "Upload one part for one initialized Rendi file.",
+      { provider: "Rendi" }
+    ),
+    atomicStage(
+      workflowId,
+      firstOrder + 2,
+      "rendi-complete-upload",
+      "provider",
+      "Rendi complete-upload",
+      "Complete one Rendi multipart upload without polling.",
+      { provider: "Rendi" }
+    ),
+    atomicStage(
+      workflowId,
+      firstOrder + 3,
+      "rendi-get-file",
+      "provider",
+      "Rendi file status GET",
+      "Read one Rendi file status exactly once.",
+      { provider: "Rendi" }
+    ),
+    stage(
+      workflowId,
+      firstOrder + 4,
+      "rendi-upload-file",
+      "Upload one file to Rendi",
+      "provider",
+      "Drive one local file through registered init, part, complete, and status stages.",
+      { ...compositeStage, provider: "Rendi", workflowStep: false }
+    ),
+    atomicStage(
+      workflowId,
+      firstOrder + 5,
+      "rendi-submit-command",
+      "provider",
+      "Rendi run-ffmpeg-command",
+      "Submit one Rendi FFmpeg command without polling.",
+      { provider: "Rendi", model: "FFmpeg" }
+    ),
+    atomicStage(
+      workflowId,
+      firstOrder + 6,
+      "rendi-get-command",
+      "provider",
+      "Rendi command status GET",
+      "Read one Rendi FFmpeg command status exactly once.",
+      { provider: "Rendi", model: "FFmpeg" }
+    ),
+    atomicStage(
+      workflowId,
+      firstOrder + 7,
+      "rendi-download-output",
+      "provider",
+      "Rendi output HTTP download",
+      "Download one Rendi output to local temporary staging.",
+      { provider: "Rendi output host" }
+    ),
+    atomicStage(
+      workflowId,
+      firstOrder + 8,
+      "rendi-persist-output",
+      "storage",
+      "Appwrite Rendi output-file create",
+      "Persist one locally staged Rendi output."
+    ),
+    stage(
+      workflowId,
+      firstOrder + 9,
+      "rendi-discard-temp",
+      "Discard Rendi temp state",
+      "deterministic",
+      "Remove local Rendi upload-session or output staging files.",
+      { workflowStep: false }
+    ),
+  ]
 }
 
 function atomicStage(

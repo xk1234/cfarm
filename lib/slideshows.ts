@@ -226,6 +226,28 @@ export async function renderStoredSlideshowVideo(input: {
   resultRootDir?: string
   durationSeconds?: number
 }) {
+  const prepared = await prepareStoredSlideshowVideo(input)
+  try {
+    const rendered = await materializeSlideshowVideo({
+      outputDir: prepared.scratchDir,
+      storageOutputDir: prepared.storageOutputDir,
+      slideshowId: prepared.slideshowId,
+      durationSeconds: prepared.durationSeconds,
+      slideImagePaths: prepared.slideImagePaths,
+    })
+    await mirrorDirToAppwrite(prepared.scratchDir, prepared.storageOutputDir)
+    return finalizeStoredSlideshowVideo({ ...prepared, ...rendered })
+  } finally {
+    await rm(prepared.scratchDir, { recursive: true, force: true })
+  }
+}
+
+export async function prepareStoredSlideshowVideo(input: {
+  id: string
+  rootDir?: string
+  resultRootDir?: string
+  durationSeconds?: number
+}) {
   const result = await resultRecordForSlideshow(input, input.id)
   const slideshow = result ? resultRecordToSlideshowRecord(result) : null
   if (!result || !slideshow) throw new Error("Rendered slideshow not found")
@@ -233,61 +255,68 @@ export async function renderStoredSlideshowVideo(input: {
     throw new Error("Video export requires rendered PNG slides")
   }
   const rootDir = input.rootDir ?? defaultRootDir()
-  const logicalOutputDir = path.join(rootDir, "outputs", slideshow.id)
+  const storageOutputDir = path.join(rootDir, "outputs", slideshow.id)
   const scratchDir = await mkdtemp(
     path.join(os.tmpdir(), "cfarm-slideshow-video-")
   )
-  try {
-    const slideImagePaths: string[] = []
-    for (const [index, outputImage] of slideshow.output_images.entries()) {
-      const fileName = path.basename(
-        new URL(outputImage, "http://local").pathname
-      )
-      const logicalPath = path.join(logicalOutputDir, fileName)
-      const scratchPath = path.join(
-        scratchDir,
-        fileName || `slide-${String(index + 1).padStart(3, "0")}.png`
-      )
-      await writeFile(scratchPath, await readAssetBytes(logicalPath))
-      slideImagePaths.push(scratchPath)
-    }
-    const rendered = await materializeSlideshowVideo({
-      outputDir: scratchDir,
-      storageOutputDir: logicalOutputDir,
-      slideshowId: slideshow.id,
-      durationSeconds: input.durationSeconds ?? slideshow.settings.duration,
-      slideImagePaths,
-    })
-    await mirrorDirToAppwrite(scratchDir, logicalOutputDir)
-    const updated = await updateResultRecord({
-      rootDir: resultRootDirFor(input),
-      id: result.id,
-      update: (record) => ({
-        ...record,
-        updatedAt: new Date().toISOString(),
-        artifacts: {
-          ...record.artifacts,
-          videoUrl: rendered.videoUrl,
-          thumbnailUrl: rendered.thumbnailUrl,
-        },
-        payload:
-          record.payload?.type === "slideshow"
-            ? {
-                ...record.payload,
-                settings: {
-                  ...record.payload.settings,
-                  export_as_video: true,
-                },
-              }
-            : record.payload,
-      }),
-    })
-    const stored = updated ? resultRecordToSlideshowRecord(updated) : null
-    if (!stored) throw new Error("Rendered slideshow could not be updated")
-    return stored
-  } finally {
-    await rm(scratchDir, { recursive: true, force: true })
+  const slideImagePaths: string[] = []
+  for (const [index, outputImage] of slideshow.output_images.entries()) {
+    const fileName = path.basename(
+      new URL(outputImage, "http://local").pathname
+    )
+    const logicalPath = path.join(storageOutputDir, fileName)
+    const scratchPath = path.join(
+      scratchDir,
+      fileName || `slide-${String(index + 1).padStart(3, "0")}.png`
+    )
+    await writeFile(scratchPath, await readAssetBytes(logicalPath))
+    slideImagePaths.push(scratchPath)
   }
+  const thumbnailPath = path.join(scratchDir, "slideshow-thumbnail.png")
+  await copyFile(slideImagePaths[0], thumbnailPath)
+  return {
+    slideshowId: slideshow.id,
+    resultId: result.id,
+    resultRootDir: resultRootDirFor(input),
+    scratchDir,
+    storageOutputDir,
+    slideImagePaths,
+    thumbnailPath,
+    durationSeconds: input.durationSeconds ?? slideshow.settings.duration,
+    videoUrl: outputFileUrl(slideshow.id, "slideshow-export.mp4"),
+    thumbnailUrl: outputFileUrl(slideshow.id, "slideshow-thumbnail.png"),
+  }
+}
+
+export async function finalizeStoredSlideshowVideo(input: {
+  resultId: string
+  resultRootDir?: string
+  videoUrl: string
+  thumbnailUrl: string
+}) {
+  const updated = await updateResultRecord({
+    rootDir: input.resultRootDir,
+    id: input.resultId,
+    update: (record) => ({
+      ...record,
+      updatedAt: new Date().toISOString(),
+      artifacts: {
+        ...record.artifacts,
+        videoUrl: input.videoUrl,
+        thumbnailUrl: input.thumbnailUrl,
+      },
+      payload:
+        record.payload?.type === "slideshow"
+          ? {
+              ...record.payload,
+              settings: { ...record.payload.settings, export_as_video: true },
+            }
+          : record.payload,
+    }),
+  })
+  const stored = updated ? resultRecordToSlideshowRecord(updated) : null
+  if (!stored) throw new Error("Rendered slideshow could not be updated")
+  return stored
 }
 
 export async function recordSlideshowPostIntents(

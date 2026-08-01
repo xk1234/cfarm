@@ -16,14 +16,14 @@ envelope and pass it to another stage.
 
 Every catalog entry publishes these machine-readable boundary fields:
 
-| Field                | Meaning                                                                                                                                                 |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `granularity`        | `atomic` performs one transformation/boundary; `composite` invokes registered stages through `context.runStage`.                                        |
-| `sideEffect`         | `none`, `network`, or `storage`. Appwrite/database/storage access is `storage`.                                                                         |
-| `operation`          | The named provider, storage, or deterministic action.                                                                                                   |
-| `maxExternalCalls`   | `0` for deterministic/composite handlers and `1` for an atomic network/storage handler. The executor rejects a second declared boundary before it runs. |
-| `provider` / `model` | Provider and model provenance when applicable.                                                                                                          |
-| `workflowStep`       | Whether the stage participates in the ordered full workflow.                                                                                            |
+| Field                | Meaning                                                                                                                                                                                             |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `granularity`        | `atomic` performs one transformation/boundary; `composite` invokes registered stages through `context.runStage`.                                                                                    |
+| `sideEffect`         | `none`, `network`, or `storage`. Appwrite/database/storage access is `storage`.                                                                                                                     |
+| `operation`          | The named provider, storage, or deterministic action.                                                                                                                                               |
+| `maxExternalCalls`   | `0` for deterministic/composite handlers and `1` for an atomic network/storage handler. The executor rejects a second declared boundary before it runs; audited repository fan-out is listed below. |
+| `provider` / `model` | Provider and model provenance when applicable.                                                                                                                                                      |
+| `workflowStep`       | Whether the stage participates in the ordered full workflow.                                                                                                                                        |
 
 Atomic provider handlers never own retry loops. A repair or retry is another
 invocation of the same registered atomic handler by a composite. Async APIs use
@@ -33,8 +33,8 @@ the retained structured output.
 
 Full workflow execution resolves every step from the same registry used by
 `lumenclip_pipeline_stage_run`. Decomposed convenience composites likewise call
-atomic handlers through the registry; the exact legacy compatibility blockers
-are listed in the boundary audit below.
+atomic handlers through the registry. Production compatibility entry points use
+the same extracted one-request provider primitives.
 
 ## Tools
 
@@ -216,8 +216,11 @@ Publishing is deliberately absent from all four lists.
   attempt stages.
 - UGC: one DNS lookup, one product-page HTTP response, one OpenRouter product
   analysis, one OpenRouter script attempt, one checkpoint enqueue/read, and
-  fal task create/status/result. `generate-one-broll-image` is a resumable
-  composite over the three fal stages.
+  fal task create/status/result. ElevenLabs synthesis is separate from its two
+  storage writes. fal and Rendi expose create/upload, one-status-read, result,
+  remote download, and persistence boundaries. `generate-one-broll-image`,
+  `synthesize-voice-assets`, and `render-rendi-composite` are resumable
+  composites over those registered stages.
 - LinkedIn: validation, plan selection, request construction, one brief
   derivation, one per-post generation attempt, draft validation, repair
   orchestration, and batch orchestration. Each post attempt is independently
@@ -265,31 +268,31 @@ poll loop.
 
 ## Current boundary audit and blockers
 
-The catalog exposes all safely extracted boundaries, but the legacy production
-helpers below still bundle more than one underlying network/storage call. They
-are retained to preserve production behavior and are not claimed as fully
-atomic:
+All slideshow Rendi, UGC ElevenLabs, UGC fal, and UGC Rendi provider calls now
+have independently callable atomic stages. Rendi multipart initialization,
+each signed part PUT, completion, one file-status read, command submission, one
+command-status read, each output download, and each persistence action are
+separate. The durable UGC compatibility worker composes the same extracted
+one-request provider primitives, while MCP composites resume through the
+registered handlers.
+
+The genuine residual limitations are storage orchestration, not bundled
+provider protocols:
 
 1. `slideshow-generation.render-store-pngs` calls
    `createSlideshowResultRecord`, which may read remote source assets, mirror
    multiple files to Appwrite storage, create the result row, create output
    media rows, and create post-intent rows.
-2. `slideshow-generation.render-store-mp4` calls
-   `renderStoredSlideshowVideo`, which reads stored assets and result state,
-   runs the multi-call Rendi upload/command/poll/download protocol, mirrors
-   artifacts, and updates result/output-media storage.
+2. Slideshow video preparation/finalization and saved UGC checkpoint execution
+   still use purpose-specific storage composites around local staging and
+   checkpoint state. Their provider work is decomposed, but some Appwrite
+   helpers may perform more than one storage request internally.
 3. Collection-style Appwrite helpers used by slideshow input lists and the
    X/Threads run/automation upserts can paginate, read-before-write, retry, or
    synchronize related rows. Their MCP handler boundary is singular, but the
    underlying SDK boundary is not yet one-call atomic.
-4. Saved UGC workflow steps enqueue the durable production checkpoint worker.
-   The worker still bundles configured-asset lookup, ElevenLabs/fal/Rendi
-   provider calls, remote downloads, checkpoint writes, and final output/media
-   persistence. The extracted fal create/status/result and singular b-roll
-   stages are available for explicit composition, but the production worker has
-   not yet been safely rewritten around them.
 
-Fully removing these blockers requires lower-level production storage/render
-APIs with resumable state between every call. Until then, callers should treat
-the named legacy stages above as compatibility composites, not proof that each
-underlying SDK request has been isolated.
+Residual composites are not labeled atomic. Repository-backed stages named in
+the audit use the safest available domain action, but are not claimed to map to
+one underlying Appwrite SDK request. Further splitting them requires narrower
+Appwrite repository primitives; no generic arbitrary database stage is exposed.
