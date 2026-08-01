@@ -1,28 +1,30 @@
 ---
-title: "Output pipelines"
+title: "Output generation"
 description: "The generation pipelines that transform application inputs into content outputs."
 ---
 
-# Output pipelines
+# Output generation
 
 This section documents generation code paths, not user journeys, setup tasks, scheduling,
 analytics, authentication, or account management.
 
-A pipeline is an ordered sequence of transformations. Each stage accepts an input and emits an
-output. `...output` means the entire preceding stage output is piped into the next stage.
+A workflow is an ordered sequence of transformations. Each stage accepts an input and emits an
+output. In the JSON examples, `"...output": "stage-N output"` is documentation shorthand for
+spreading the complete preceding output into the next stage input. It is not a literal runtime
+field.
 
-## Pipelines in the application
+## Generation workflows
 
-| Pipeline | Initial input | Final output | Availability |
-| --- | --- | --- | --- |
-| [Slideshow generation](/docs/workflows/slideshow-generation) | Automation schema, hooks, collections, and generation context | Rendered slideshow images and optional MP4 | Shipped |
-| [X and Threads generation](/docs/workflows/x-threads-generation) | Persisted social automation, niche brief, optional topic/trend | Validated X post/thread or Threads post | Shipped |
-| [LinkedIn generation](/docs/workflows/linkedin-generation) | Niche, persona, proof, optional brief, and model selection | One to four validated LinkedIn posts | Generation endpoint shipped; persistence/scheduling are not wired |
-| [UGC video generation](/docs/workflows/ugc-video-generation) | Product source, actor, voice, duration, and media settings | Talking-actor MP4 and thumbnail | Implemented; gated by `ENABLE_UGC_AUTOMATION=true` |
+| Workflow                                                         | Initial input                                                  | Final output                               | Availability                                                      |
+| ---------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------- |
+| [Slideshow generation](/docs/workflows/slideshow-generation)     | Automation schema, hooks, collections, and generation context  | Rendered slideshow images and optional MP4 | Shipped                                                           |
+| [X and Threads generation](/docs/workflows/x-threads-generation) | Persisted social automation, niche brief, optional topic/trend | Validated X post/thread or Threads post    | Shipped                                                           |
+| [LinkedIn generation](/docs/workflows/linkedin-generation)       | Niche, persona, proof, optional brief, and model selection     | One to four validated LinkedIn posts       | Generation endpoint shipped; persistence/scheduling are not wired |
+| [UGC video generation](/docs/workflows/ugc-video-generation)     | Product source, actor, voice, duration, and media settings     | Talking-actor MP4 and thumbnail            | Implemented; gated by `ENABLE_UGC_AUTOMATION=true`                |
 
 ## Documentation contract
 
-Every pipeline page contains only:
+Every workflow page contains only:
 
 1. the initial input contract;
 2. ordered processing stages;
@@ -36,20 +38,20 @@ this section because they do not generate a content output.
 
 ## Model summary
 
-| Pipeline stage | Model | API provider |
-| --- | --- | --- |
-| Slideshow research | `openai/gpt-5.4-mini` | OpenRouter, using the Exa web plugin |
-| Slideshow text, visual concepts, and image choice | Configurable; default `openai/gpt-5.6-luna` | OpenRouter |
-| X/Threads strategy and draft | Configurable; default `anthropic/claude-sonnet-5` | OpenRouter |
-| X/Threads strategy fallback | `google/gemini-3.1-flash-lite` | OpenRouter |
-| Optional social-content humanization | `google/gemini-3.1-flash-lite` | OpenRouter |
-| Optional social-content review | `openai/gpt-5.4-mini` | OpenRouter |
-| Optional X/Threads image | `nano-banana-pro` | KIE.ai |
-| LinkedIn brief | Configurable; default `google/gemini-3.1-flash-lite` | OpenRouter |
-| LinkedIn post | Configurable; default `openai/gpt-5.6-luna` | OpenRouter |
-| UGC product analysis | `openai/gpt-5.4-mini` | OpenRouter |
-| UGC script | `anthropic/claude-sonnet-5` | OpenRouter |
-| UGC actor and b-roll | `fal-ai/flux-2-pro` | fal.ai |
-| UGC motion | `fal-ai/minimax/hailuo-2.3-fast/standard/image-to-video` | fal.ai |
-| UGC lip sync | `veed/lipsync` or `fal-ai/kling-video/ai-avatar/v2/standard` | fal.ai |
-| UGC voice | Configurable; default `eleven_multilingual_v2` | ElevenLabs |
+| Pipeline stage                                    | Model                                                        | API provider                         |
+| ------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------ |
+| Slideshow research                                | `openai/gpt-5.4-mini`                                        | OpenRouter, using the Exa web plugin |
+| Slideshow text, visual concepts, and image choice | Configurable; default `openai/gpt-5.6-luna`                  | OpenRouter                           |
+| X/Threads strategy and draft                      | Configurable; default `anthropic/claude-sonnet-5`            | OpenRouter                           |
+| X/Threads strategy fallback                       | `google/gemini-3.1-flash-lite`                               | OpenRouter                           |
+| Optional social-content humanization              | `google/gemini-3.1-flash-lite`                               | OpenRouter                           |
+| Optional social-content review                    | `openai/gpt-5.4-mini`                                        | OpenRouter                           |
+| Optional X/Threads image                          | `nano-banana-pro`                                            | KIE.ai                               |
+| LinkedIn brief                                    | Configurable; default `google/gemini-3.1-flash-lite`         | OpenRouter                           |
+| LinkedIn post                                     | Configurable; default `openai/gpt-5.6-luna`                  | OpenRouter                           |
+| UGC product analysis                              | `openai/gpt-5.4-mini`                                        | OpenRouter                           |
+| UGC script                                        | `anthropic/claude-sonnet-5`                                  | OpenRouter                           |
+| UGC actor and b-roll                              | `fal-ai/flux-2-pro`                                          | fal.ai                               |
+| UGC motion                                        | `fal-ai/minimax/hailuo-2.3-fast/standard/image-to-video`     | fal.ai                               |
+| UGC lip sync                                      | `veed/lipsync` or `fal-ai/kling-video/ai-avatar/v2/standard` | fal.ai                               |
+| UGC voice                                         | Configurable; default `eleven_multilingual_v2`               | ElevenLabs                           |

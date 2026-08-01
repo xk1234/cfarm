@@ -9,10 +9,25 @@ description: "Transform a product source and actor configuration into a voiced, 
 provider credentials in the worker.
 
 `"...output": "stage-N output"` means the complete JSON output from stage N is piped into the
-next stage. The example values below are abbreviated, but every block is valid JSON.
+next stage. It is documentation shorthand rather than a literal runtime field. The example values
+below are abbreviated, but every block is valid JSON.
 
 Each stage writes a checkpoint. On retry, a stage is skipped only when its checkpoint exists and
 every referenced storage file is still durable.
+
+## Stage map
+
+| #   | Stage                     | Adds to the preceding output                          |
+| --- | ------------------------- | ----------------------------------------------------- |
+| 1   | Analyze product           | Structured product, audience, proof, and visual facts |
+| 2   | Generate script plan      | Hook, spoken segments, b-roll prompts, and timing     |
+| 3   | Resolve or generate actor | Durable actor image                                   |
+| 4   | Synthesize voice          | Audio, timestamps, and duration                       |
+| 5   | Animate actor             | Talking-performance source video                      |
+| 6   | Lip-sync performance      | Voice-synchronized actor video                        |
+| 7   | Generate b-roll           | Timed visual inserts                                  |
+| 8   | Composite output          | Captions, overlays, final MP4, and thumbnail          |
+| 9   | Store final output        | Result record and durable artifact references         |
 
 ## Stage 1 — Analyze the product
 
@@ -209,7 +224,10 @@ uses no model.
   "checkpoint": {
     "stage": "voice",
     "status": "complete",
-    "files": ["runs/ugc-run-123/voice.mp3", "runs/ugc-run-123/voice-timings.json"]
+    "files": [
+      "runs/ugc-run-123/voice.mp3",
+      "runs/ugc-run-123/voice-timings.json"
+    ]
   }
 }
 ```
@@ -435,10 +453,22 @@ overlays, hook text, word-timed ASS captions, and thumbnail; render at 1080×192
     "segments": "stage-2 plan.segments",
     "checkpoints": "stage-1 through stage-9 checkpoint map",
     "providerUsage": [
-      { "provider": "OpenRouter", "model": "openai/gpt-5.4-mini", "stage": "analysis" },
-      { "provider": "OpenRouter", "model": "anthropic/claude-sonnet-5", "stage": "script" },
+      {
+        "provider": "OpenRouter",
+        "model": "openai/gpt-5.4-mini",
+        "stage": "analysis"
+      },
+      {
+        "provider": "OpenRouter",
+        "model": "anthropic/claude-sonnet-5",
+        "stage": "script"
+      },
       { "provider": "fal.ai", "model": "fal-ai/flux-2-pro", "stage": "actor" },
-      { "provider": "ElevenLabs", "model": "eleven_multilingual_v2", "stage": "voice" }
+      {
+        "provider": "ElevenLabs",
+        "model": "eleven_multilingual_v2",
+        "stage": "voice"
+      }
     ]
   }
 }

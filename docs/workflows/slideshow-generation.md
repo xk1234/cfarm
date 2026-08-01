@@ -6,8 +6,35 @@ description: "Transform a slideshow automation and its asset collections into re
 # Slideshow generation pipeline
 
 The pipeline transforms an automation snapshot, asset collections, and generation history into a
-stored slideshow. `"...output": "stage-N output"` means the complete preceding output is piped
-into the next input.
+stored slideshow. `"...output": "stage-N output"` means the complete preceding output is spread
+into the next stage input; it is documentation shorthand, not a literal runtime field. The stage
+envelopes below make internal values visible even when the implementation passes them as function
+arguments rather than serializing them between stages.
+
+The interactive path is orchestrated by `lib/automation-runner.ts`. Scheduled Appwrite jobs use
+`appwrite/functions/job-worker/src/slideshow-automation.js`. Both delegate hook, text, and image
+decisions to `lib/slideshow-generation-engine.ts` and use the shared slideshow render contract.
+
+## Stage map
+
+| #   | Stage                       | Adds to the preceding output                                    |
+| --- | --------------------------- | --------------------------------------------------------------- |
+| 1   | Validate generation input   | Normalized automation, collections, history, and model settings |
+| 2   | Resolve slide count         | Hook, body, CTA, and total counts                               |
+| 3   | Select and expand hook      | Concrete hook text, substitutions, and per-hook overrides       |
+| 4   | Optional web research       | Exact-hook facts and source URLs                                |
+| 5   | Build structured prompt     | OpenRouter messages and response schema                         |
+| 6   | Generate slideshow text     | Metadata and non-hook placeholder text                          |
+| 7   | Similarity retry            | Accepted first draft or one rewritten draft                     |
+| 8   | Optional visual concepts    | Concrete visual search concepts per AI-selected slide           |
+| 9   | Build image shortlists      | At most 12 caption-ranked candidates per AI-selected slide      |
+| 10  | Select images               | One pinned, deterministic, or model-selected image per slide    |
+| 11  | Assemble slideshow plan     | Complete hook, content, and CTA slide objects                   |
+| 12  | Optional translation        | Localized displayed text                                        |
+| 13  | Render and store PNG slides | Ordered image artifacts and thumbnail                           |
+| 14  | Optional MP4 render         | Video artifact for video publish type                           |
+| 15  | Validate generated output   | Deterministic QA report                                         |
+| 16  | Finalize generated output   | Result record, run state, and reuse-memory entries              |
 
 ## Stage 1 — Validate generation input
 
@@ -19,7 +46,13 @@ into the next input.
   "automationName": "Daily zodiac signs",
   "scheduledFor": "2026-08-01T03:00:00.000Z",
   "schema": {
-    "hooks": [{ "id": "hook-1", "text": "3 signs that need to hear this", "enabled": true }],
+    "hooks": [
+      {
+        "id": "hook-1",
+        "text": "3 signs that need to hear this",
+        "enabled": true
+      }
+    ],
     "hook_slots": { "SIGN": "zodiac-signs" },
     "formatting": [
       { "id": "hook", "slideCount": 1 },
@@ -39,7 +72,9 @@ into the next input.
     { "id": "zodiac-scenes", "assetCount": 80 },
     { "id": "zodiac-cta", "assetCount": 5 }
   ],
-  "wordCollections": [{ "id": "zodiac-signs", "values": ["Aries", "Cancer", "Pisces"] }],
+  "wordCollections": [
+    { "id": "zodiac-signs", "values": ["Aries", "Cancer", "Pisces"] }
+  ],
   "usageHistory": [],
   "generationSettings": { "slideshowTextModel": "openai/gpt-5.6-luna" }
 }
@@ -52,9 +87,16 @@ assets, valid word-collection bindings, slide sections, and an OpenRouter key.
 
 ```json
 {
-  "automation": { "id": "automation-astrology-01", "name": "Daily zodiac signs" },
+  "automation": {
+    "id": "automation-astrology-01",
+    "name": "Daily zodiac signs"
+  },
   "scheduledFor": "2026-08-01T03:00:00.000Z",
-  "schema": { "status": "valid", "language": "English", "webSearchEnabled": true },
+  "schema": {
+    "status": "valid",
+    "language": "English",
+    "webSearchEnabled": true
+  },
   "collectionsById": {
     "zodiac-covers": { "assetCount": 20 },
     "zodiac-scenes": { "assetCount": 80 },
@@ -114,7 +156,11 @@ automation default when that hook is later selected.
 {
   "...output": "stage-2 output",
   "enabledHooks": [
-    { "id": "hook-1", "text": "3 signs that need to hear this", "enabled": true },
+    {
+      "id": "hook-1",
+      "text": "3 signs that need to hear this",
+      "enabled": true
+    },
     { "id": "hook-2", "text": "Why [[SIGN]] goes quiet", "enabled": true }
   ],
   "hookSlots": { "SIGN": "zodiac-signs" },
@@ -166,7 +212,7 @@ values, enforce distinct draws, and apply casing plus hook-specific tone/count o
 {
   "...output": "stage-3 output",
   "research": {
-    "summary": "Concise source-grounded facts relevant to the selected hook.",
+    "content": "Concise source-grounded facts relevant to the selected hook.",
     "sources": [
       { "title": "Source title", "url": "https://example.com/source" }
     ]
@@ -185,20 +231,28 @@ values, enforce distinct draws, and apply casing plus hook-specific tone/count o
 {
   "...output": "stage-4 output",
   "tone": "Conversational & Relatable",
-  "narrative": "Explain the behavior without making medical claims.",
-  "slideRoles": ["hook", "content", "content", "content", "cta"],
-  "wordLimits": {
-    "hook": { "minimum": 4, "maximum": 12 },
-    "content": { "minimum": 12, "maximum": 35 },
-    "cta": { "minimum": 3, "maximum": 12 }
-  },
-  "recentHeadings": [],
-  "research": { "summary": "Concise source-grounded facts." }
+  "promptInstructions": [
+    "Keep every body slide specific to the selected hook.",
+    "Use the selected repeatable content route when one matches."
+  ],
+  "placeholders": [
+    {
+      "id": "content-2__body",
+      "section": "content",
+      "contentDirection": "Explain one concrete behavior",
+      "wordLengthMin": 12,
+      "wordLengthMax": 35
+    }
+  ],
+  "recentTextExclusions": [],
+  "recentHeadingExclusions": []
 }
 ```
 
-**Processing:** compile all content, formatting, metadata, avoidance, and research instructions
-into a structured OpenRouter request.
+**Processing:** compile the automation name, fixed hook, tone, metadata requirements, non-hook
+placeholder directions, structure/content-route instructions, reuse exclusions, and optional
+research into a structured OpenRouter request. The hook is context and is not a model-fillable
+placeholder.
 
 **Output**
 
@@ -207,14 +261,25 @@ into a structured OpenRouter request.
   "...output": "stage-4 output",
   "promptPayload": {
     "model": "openai/gpt-5.6-luna",
-    "selectedHook": "Why Cancer goes quiet",
+    "stream": false,
+    "plugins": [{ "id": "response-healing" }],
     "messages": [
-      { "role": "system", "content": "Slideshow generation rules and JSON contract" },
-      { "role": "user", "content": "Automation, slide, research, and avoidance instructions" }
-    ]
+      {
+        "role": "system",
+        "content": "Slideshow generation rules and JSON contract"
+      },
+      {
+        "role": "user",
+        "content": "Automation, slide, research, and avoidance instructions"
+      }
+    ],
+    "response_format": {
+      "type": "json_schema",
+      "json_schema": { "name": "temp_slide_testing_text", "strict": true }
+    }
   },
   "responseSchema": {
-    "name": "slideshow_text",
+    "name": "temp_slide_testing_text",
     "required": ["title", "caption", "hashtags", "text"]
   }
 }
@@ -235,8 +300,10 @@ into a structured OpenRouter request.
 }
 ```
 
-**Processing:** generate structured metadata and slide text, normalize punctuation/case, and
-validate required fields and configured word ranges.
+**Processing:** require complete structured output, normalize punctuation, enforce the configured
+tone casing, validate required fields and word ranges, and retry once with exact repair feedback
+when the provider response is incomplete or invalid. The provider returns hashtags as an array;
+the normalized stage output stores them as one space-separated string.
 
 **Output**
 
@@ -246,23 +313,21 @@ validate required fields and configured word ranges.
   "generatedText": {
     "title": "Why Cancer Goes Quiet",
     "caption": "Silence is sometimes how Cancer makes room to process.",
-    "hashtags": ["cancer", "zodiac", "astrology"],
+    "hashtags": "#cancer #zodiac #astrology",
     "text": {
-      "hook": "Why Cancer goes quiet",
-      "content-1": "They notice the emotional shift before anyone names it.",
-      "content-2": "Distance gives them time to separate instinct from reaction.",
-      "content-3": "They return when their words feel honest instead of defensive.",
-      "cta": "Save this for the Cancer in your life."
+      "content-2__body": "They notice the emotional shift before anyone names it.",
+      "content-3__body": "Distance gives them time to separate instinct from reaction.",
+      "content-4__body": "They return when their words feel honest instead of defensive.",
+      "cta-5__body": "Save this for the Cancer in your life."
     }
   },
   "textModel": "openai/gpt-5.6-luna",
   "violations": [],
-  "providerAttempts": 1
+  "transformations": []
 }
 ```
 
-**Model/provider:** configured `slideshowTextModel`; default `openai/gpt-5.6-luna` via
-OpenRouter.
+**Model/provider:** configured `slideshowTextModel`; default `openai/gpt-5.6-luna` via OpenRouter.
 
 ## Stage 7 — Similarity retry
 
@@ -272,7 +337,9 @@ OpenRouter.
 {
   "...output": "stage-6 output",
   "generatedSignature": "why cancer goes quiet they notice the emotional shift",
-  "recentPublishedSignatures": ["why cancer goes quiet they feel every emotional shift"],
+  "recentPublishedSignatures": [
+    "why cancer goes quiet they feel every emotional shift"
+  ],
   "similarityThreshold": 0.85
 }
 ```
@@ -285,11 +352,23 @@ regenerate once with exact text and heading exclusions. Otherwise pass stage 6 t
 ```json
 {
   "...output": "stage-6 output",
-  "generatedText": { "title": "What Cancer's Silence Is Doing", "text": "revised structured text" },
-  "textSimilarityRetry": true,
-  "similarityAfterRetry": 0.41
+  "generatedText": {
+    "title": "What Cancer's Silence Is Doing",
+    "caption": "Cancer often gets quiet before choosing an honest response.",
+    "hashtags": "#cancer #zodiac #astrology",
+    "text": {
+      "content-2__body": "They register the shift before deciding whether it is safe to respond.",
+      "content-3__body": "Time alone helps them separate the feeling from the first reaction.",
+      "content-4__body": "They speak again once the answer feels honest rather than defensive.",
+      "cta-5__body": "Save this for the Cancer you understand differently now."
+    }
+  },
+  "textSimilarityRetry": true
 }
 ```
+
+The retry result becomes authoritative; the pipeline does not calculate or expose a second
+similarity score after rewriting.
 
 **Model/provider:** same configured slideshow model via OpenRouter.
 
@@ -300,16 +379,25 @@ regenerate once with exact text and heading exclusions. Otherwise pass stage 6 t
 ```json
 {
   "...output": "stage-7 output",
+  "enabled": true,
   "model": "openai/gpt-5.6-luna",
   "slides": [
-    { "id": "content-1", "text": "They notice the emotional shift before anyone names it." },
-    { "id": "content-2", "text": "Distance gives them time to separate instinct from reaction." }
+    {
+      "id": "content-1",
+      "text": "They notice the emotional shift before anyone names it."
+    },
+    {
+      "id": "content-2",
+      "text": "Distance gives them time to separate instinct from reaction."
+    }
   ]
 }
 ```
 
-**Processing:** convert abstract copy into concrete subjects, objects, settings, lighting, and
-colors suitable for caption matching. Provider failure returns an empty array per slide.
+**Processing:** when at least one slide enables AI image selection, convert abstract copy into
+concrete subjects, objects, settings, lighting, and colors suitable for caption matching. Provider
+failure returns an empty concept array for each slide. When no slide enables AI selection, this
+stage passes stage 7 through without calling a model.
 
 **Output**
 
@@ -317,8 +405,14 @@ colors suitable for caption matching. Provider failure returns an empty array pe
 {
   "...output": "stage-7 output",
   "visualConceptsBySlide": [
-    { "slideId": "content-1", "concepts": ["person noticing a mood change", "dim room", "blue light"] },
-    { "slideId": "content-2", "concepts": ["solitary figure by water", "moonlight", "quiet reflection"] }
+    {
+      "slideId": "content-1",
+      "concepts": ["person noticing a mood change", "dim room", "blue light"]
+    },
+    {
+      "slideId": "content-2",
+      "concepts": ["solitary figure by water", "moonlight", "quiet reflection"]
+    }
   ]
 }
 ```
@@ -343,8 +437,11 @@ colors suitable for caption matching. Provider failure returns an empty array pe
 }
 ```
 
-**Processing:** load candidates, exclude recent usage, honor pinned assets, score caption/concept
-overlap locally, and retain at most 12 candidates for each unpinned slide.
+**Processing:** load the collection bound to each section, prefer section-tagged captions, honor
+pinned assets, remove duplicates already chosen in the current slideshow, and rank caption/concept
+overlap locally. AI-selected slides retain at most 12 candidates. Recent-use history controls the
+deterministic fresh/least-recently-used path and is recorded as a warning if an AI choice reuses an
+image; it is not a hard exclusion from the AI shortlist.
 
 **Output**
 
@@ -355,8 +452,16 @@ overlap locally, and retain at most 12 candidates for each unpinned slide.
     {
       "slideId": "content-1",
       "candidates": [
-        { "index": 0, "id": "image-44", "caption": "Person in blue light watching a quiet room", "localScore": 16 },
-        { "index": 1, "id": "image-12", "caption": "Moonlit portrait near water", "localScore": 8 }
+        {
+          "index": 0,
+          "id": "image-44",
+          "caption": "Person in blue light watching a quiet room"
+        },
+        {
+          "index": 1,
+          "id": "image-12",
+          "caption": "Moonlit portrait near water"
+        }
       ]
     }
   ]
@@ -376,14 +481,20 @@ overlap locally, and retain at most 12 candidates for each unpinned slide.
   "slideText": "They notice the emotional shift before anyone names it.",
   "visualConcepts": ["person noticing a mood change", "dim room", "blue light"],
   "candidates": [
-    { "index": 0, "id": "image-44", "caption": "Person in blue light watching a quiet room" },
+    {
+      "index": 0,
+      "id": "image-44",
+      "caption": "Person in blue light watching a quiet room"
+    },
     { "index": 1, "id": "image-12", "caption": "Moonlit portrait near water" }
   ]
 }
 ```
 
-**Processing:** choose one candidate index per slide. A malformed or out-of-range provider result
-falls back to candidate 0.
+**Processing:** a pinned slide uses its configured image. An AI-selected slide with multiple
+candidates asks the model for one candidate index; a malformed or out-of-range result falls back
+to candidate 0. Every other slide selects a fresh candidate deterministically, then falls back to
+the least recently used candidate when its fresh pool is empty.
 
 **Output**
 
@@ -391,7 +502,13 @@ falls back to candidate 0.
 {
   "...output": "stage-9 output",
   "selectedImages": [
-    { "slideId": "content-1", "imageId": "image-44", "imageUrl": "/api/local-assets/image-44.jpg", "selection": "model" }
+    {
+      "id": "image-44",
+      "key": "image-44",
+      "imageUrl": "/api/local-assets/image-44.jpg",
+      "imageCaption": "Person in blue light watching a quiet room",
+      "reusedRecently": false
+    }
   ]
 }
 ```
@@ -417,12 +534,13 @@ falls back to candidate 0.
 ```
 
 **Processing:** attach each text item to its selected image, role, overlay, icon layout, aspect
-ratio, placement, and duration.
+ratio, and placement. Duration is applied later from the slideshow render settings.
 
 **Output**
 
 ```json
 {
+  "...output": "stage-10 output",
   "plan": {
     "title": "What Cancer's Silence Is Doing",
     "caption": "Silence is sometimes how Cancer makes room to process.",
@@ -435,8 +553,7 @@ ratio, placement, and duration.
         "role": "hook",
         "imageUrl": "/api/local-assets/hook.jpg",
         "textItems": [{ "id": "hook-text", "text": "Why Cancer goes quiet" }],
-        "aspectRatio": "9:16",
-        "durationMs": 3000
+        "aspectRatio": "9:16"
       }
     ]
   }
@@ -453,7 +570,10 @@ ratio, placement, and duration.
 {
   "...output": "stage-11 output",
   "language": "German",
-  "texts": ["Why Cancer goes quiet", "They notice the emotional shift before anyone names it."]
+  "texts": [
+    "Why Cancer goes quiet",
+    "They notice the emotional shift before anyone names it."
+  ]
 }
 ```
 
@@ -468,7 +588,10 @@ English and unsupported targets pass through unchanged. Missing translations fai
   "localizedPlan": {
     "language": "German",
     "slides": [
-      { "id": "slide-1", "textItems": [{ "id": "hook-text", "text": "Warum Krebs still wird" }] }
+      {
+        "id": "slide-1",
+        "textItems": [{ "id": "hook-text", "text": "Warum Krebs still wird" }]
+      }
     ]
   }
 }
@@ -476,7 +599,7 @@ English and unsupported targets pass through unchanged. Missing translations fai
 
 **Model/provider:** DeepL API. LumenClip does not select a DeepL model.
 
-## Stage 13 — Render PNG slides
+## Stage 13 — Render and store PNG slides
 
 **Input**
 
@@ -485,12 +608,17 @@ English and unsupported targets pass through unchanged. Missing translations fai
   "...output": "stage-12 output",
   "slideshowId": "slideshow-run-01",
   "plan": "localized stage-12 plan",
-  "renderSettings": { "aspectRatio": "9:16", "font": "Inter", "imageFit": "cover" }
+  "renderSettings": {
+    "aspectRatio": "9:16",
+    "font": "Inter",
+    "imageFit": "cover"
+  }
 }
 ```
 
 **Processing:** load source/overlay/icon bytes, render each slide to SVG, rasterize it with
-`sharp`, and persist ordered PNGs.
+`sharp`, and store ordered PNGs. The result/output record is created with these artifacts before
+QA runs; QA controls downstream readiness rather than whether the generated media exists.
 
 **Output**
 
@@ -553,8 +681,9 @@ video, and persist it. Slideshow publish type skips this stage.
 }
 ```
 
-**Processing:** check count, empty text, unresolved tokens, word ranges, duplicate variable draws,
-and near-duplicate output.
+**Processing:** check count, empty text, unresolved tokens, word ranges, and duplicate variable
+draws. The validator can also emit a near-duplicate warning when a caller supplies prior runs; the
+normal scheduled call performs its text-similarity retry earlier at stage 7 instead.
 
 **Output**
 
@@ -563,22 +692,16 @@ and near-duplicate output.
   "...output": "stage-14 output",
   "qa": {
     "valid": true,
-    "findings": [],
-    "checked": [
-      "COUNT_MISMATCH",
-      "EMPTY_SLIDE_TEXT",
-      "UNRESOLVED_TOKEN",
-      "WORD_LENGTH_VIOLATION",
-      "DUPLICATE_VARIABLE_DRAW",
-      "NEAR_DUPLICATE_OUTPUT"
-    ]
+    "actualSlideCount": 5,
+    "bodySlideCount": 3,
+    "findings": []
   }
 }
 ```
 
 **Model/provider:** none.
 
-## Stage 16 — Persist final output
+## Stage 16 — Finalize generated output
 
 **Input**
 
@@ -587,41 +710,59 @@ and near-duplicate output.
   "...output": "stage-15 output",
   "automationId": "automation-astrology-01",
   "runId": "run-01",
-  "slideshowId": "slideshow-run-01",
-  "plan": "stage-12 localized plan",
-  "artifacts": {
-    "outputImages": "stage-13 PNG URLs",
-    "videoUrl": "stage-14 MP4 URL",
-    "thumbnailUrl": "stage-13 thumbnail URL"
-  },
-  "qa": "stage-15 QA result"
+  "slideshowId": "slideshow-run-01"
 }
 ```
 
-**Processing:** write the slideshow, result, run, artifact references, prompt/model trace, and
-candidate usage. Published-use history is committed only after downstream publication evidence.
+**Processing:** finalize the run with the slideshow/result identifiers and QA state, then append
+generated image, text, and heading reuse-memory entries. The PNGs, optional MP4, and base result
+record were already stored during rendering. Hook and hook-combination exclusion is based only on
+later publication evidence.
 
 **Output**
 
 ```json
 {
-  "id": "slideshow-run-01",
-  "kind": "slideshow",
-  "runId": "run-01",
-  "automationId": "automation-astrology-01",
-  "title": "What Cancer's Silence Is Doing",
-  "caption": "Silence is sometimes how Cancer makes room to process.",
-  "hashtags": "#cancer #zodiac #astrology",
-  "outputImages": [
-    "/api/local-assets/slideshows/outputs/slideshow-run-01/slide-001.png",
-    "/api/local-assets/slideshows/outputs/slideshow-run-01/slide-002.png"
-  ],
-  "videoUrl": "/api/local-assets/slideshows/outputs/slideshow-run-01/slideshow-export.mp4",
-  "thumbnailUrl": "/api/local-assets/slideshows/outputs/slideshow-run-01/slide-001.png",
-  "model": "openai/gpt-5.6-luna",
-  "qa": { "valid": true, "findings": [] }
+  "result": {
+    "id": "result-run-01",
+    "automationId": "automation-astrology-01",
+    "runId": "run-01",
+    "workflowType": "slideshow",
+    "title": "What Cancer's Silence Is Doing",
+    "status": "succeeded",
+    "artifacts": {
+      "slideshowId": "slideshow-run-01",
+      "outputImages": [
+        "/api/local-assets/slideshows/outputs/slideshow-run-01/slide-001.png",
+        "/api/local-assets/slideshows/outputs/slideshow-run-01/slide-002.png"
+      ],
+      "videoUrl": "/api/local-assets/slideshows/outputs/slideshow-run-01/slideshow-export.mp4",
+      "thumbnailUrl": "/api/local-assets/slideshows/outputs/slideshow-run-01/slide-001.png"
+    },
+    "payload": {
+      "type": "slideshow",
+      "caption": "Cancer often gets quiet before choosing an honest response.",
+      "hashtags": "#cancer #zodiac #astrology"
+    }
+  },
+  "run": {
+    "id": "run-01",
+    "status": "succeeded",
+    "slideshowId": "slideshow-run-01",
+    "qa": {
+      "valid": true,
+      "actualSlideCount": 5,
+      "bodySlideCount": 3,
+      "findings": []
+    }
+  },
+  "reuseMemory": {
+    "images": 5,
+    "textSignatures": 1,
+    "headingSignatures": 4
+  }
 }
 ```
 
-**Model/provider:** none; Appwrite database/storage. Publication consumes this output downstream
-and is not part of the pipeline.
+**Model/provider:** none; the result store and slideshow storage (Appwrite-backed in the scheduled
+worker). Publication consumes this generated output downstream and is not part of this workflow.

@@ -9,7 +9,21 @@ description: "Transform a niche, persona, proof bank, and optional brief into va
 persistence. The store, editor, scheduler, and publisher are not wired.
 
 `"...output": "stage-N output"` means the complete JSON output from stage N is piped into the
-next stage. The example values below are abbreviated, but every block is valid JSON.
+next stage. It is documentation shorthand rather than a literal runtime field. The example values
+below are abbreviated, but every block is valid JSON.
+
+## Stage map
+
+| #   | Stage                        | Adds to the preceding output                          |
+| --- | ---------------------------- | ----------------------------------------------------- |
+| 1   | Validate and normalize input | Supported request shape and validation result         |
+| 2   | Resolve the niche brief      | Audience, promise, pillars, keywords, and pain points |
+| 3   | Select the post plan         | Archetype, hook style, pillar, topic, and proof       |
+| 4   | Build prompt and schema      | Structured OpenRouter request                         |
+| 5   | Generate and compose         | Slot values and plain-text post                       |
+| 6   | Deterministic validation     | Violations and character count                        |
+| 7   | Repair when necessary        | Validated post or review state                        |
+| 8   | Complete batch               | One to four generated posts returned to the caller    |
 
 ## Stage 1 — Validate and normalize input
 
@@ -154,8 +168,14 @@ need it, choose a pillar/topic, and avoid repeating recent selections within the
   "generationRequest": {
     "model": "openai/gpt-5.6-luna",
     "messages": [
-      { "role": "system", "content": "LinkedIn post generation rules and voice constraints" },
-      { "role": "user", "content": "Niche brief, selected plan, proof, exclusions, and topic" }
+      {
+        "role": "system",
+        "content": "LinkedIn post generation rules and voice constraints"
+      },
+      {
+        "role": "user",
+        "content": "Niche brief, selected plan, proof, exclusions, and topic"
+      }
     ],
     "responseSchema": {
       "type": "object",
