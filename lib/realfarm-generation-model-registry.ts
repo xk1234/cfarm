@@ -19,10 +19,7 @@ export type OpenRouterModelUseCase =
 export const generationModelRegistry = {
   openRouter: {
     slideshowText: {
-      // Model shootout 2026-07-14: claude-sonnet-5 scored 8.95/10 overall
-      // (vs 7.75 for gemini-3.1-flash-lite) with the best latency of the top
-      // tier and zero structured-output failures. ~$0.011 per slideshow.
-      model: "anthropic/claude-sonnet-5",
+      model: "openai/gpt-5.6-luna",
     },
     webResearch: {
       model: "openai/gpt-5.4-mini",
@@ -41,7 +38,7 @@ export const generationModelRegistry = {
       model: "openai/gpt-5.4-mini",
     },
     imageCaptioning: {
-      model: "google/gemini-2.5-flash",
+      model: "openai/gpt-5.6-luna",
     },
     toneAnalysis: {
       model: "google/gemini-3.1-flash-lite",
@@ -136,6 +133,9 @@ export function openRouterModelForUseCase(useCase: OpenRouterModelUseCase) {
 
 export const defaultSlideshowTextModel =
   generationModelRegistry.openRouter.slideshowText.model
+
+export const defaultImageCaptioningModel =
+  generationModelRegistry.openRouter.imageCaptioning.model
 
 export const featuredOpenRouterModelIds: readonly string[] =
   generationModelRegistry.openRouter.tempTestingCenter.featuredModelIds

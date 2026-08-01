@@ -70,7 +70,7 @@ const JOBS = "jobs"
 const SLIDESHOW_BUCKET = "slideshows"
 // Operational escape hatch: pin a cheaper model while debugging a broken
 // pipeline. Unset the variable and the registry default applies again.
-const defaultTextModel =
+const fallbackTextModel =
   process.env.SLIDESHOW_TEXT_MODEL || openRouterModelForUseCase("slideshowText")
 const PAGE = 100
 
@@ -433,23 +433,25 @@ async function loadGenerationContext({
   ownerId,
   automation,
 }) {
-  const [rawCollections, wordCollections, usage] = await Promise.all([
-    listStoredRecords(
-      tables,
-      databaseId,
-      PERMANENT_ASSETS,
-      ownerId,
-      "image_collection"
-    ),
-    listStoredRecords(
-      tables,
-      databaseId,
-      PERMANENT_ASSETS,
-      ownerId,
-      "word_collection"
-    ),
-    listStoredRecords(tables, databaseId, USAGE, ownerId),
-  ])
+  const [rawCollections, wordCollections, usage, modelSettings] =
+    await Promise.all([
+      listStoredRecords(
+        tables,
+        databaseId,
+        PERMANENT_ASSETS,
+        ownerId,
+        "image_collection"
+      ),
+      listStoredRecords(
+        tables,
+        databaseId,
+        PERMANENT_ASSETS,
+        ownerId,
+        "word_collection"
+      ),
+      listStoredRecords(tables, databaseId, USAGE, ownerId),
+      generationModelSettings(tables, databaseId, ownerId),
+    ])
   const collections = rawCollections.map(normalizeCollection)
   const requested = new Set(automationCollectionIds(automation.schema))
   const available = collections.some((collection) =>
@@ -458,7 +460,7 @@ async function loadGenerationContext({
   if (!available) {
     throw new Error("No images are available for the automation collections")
   }
-  return { collections, wordCollections, usage }
+  return { collections, wordCollections, usage, modelSettings }
 }
 
 async function createPlan({
@@ -468,6 +470,7 @@ async function createPlan({
   collections,
   wordCollections,
   usage,
+  modelSettings,
 }) {
   const schema = automation.schema
   const seed = seededBytes(`${runId}:${scheduledFor}`)
@@ -561,7 +564,7 @@ async function createPlan({
       },
       slides: specs,
     },
-    model: defaultTextModel,
+    model: clean(modelSettings?.slideshowTextModel) || fallbackTextModel,
     selectedHook: hook,
     promptInstructions: slideshowMetadataPromptInstructions(schema),
     avoidSimilarHeadings: recentHeadings,
@@ -604,7 +607,7 @@ async function createPlan({
     recentImageUsage,
     random: seededRandom(`${runId}:${scheduledFor}:images`),
     apiKey: clean(process.env.OPENROUTER_API_KEY),
-    model: defaultTextModel,
+    model: clean(modelSettings?.slideshowTextModel) || fallbackTextModel,
     fetchImpl: fetch,
   })
   if (selectedImages.length < specs.length) {
@@ -1191,6 +1194,15 @@ async function reminderSettings(tables, databaseId, ownerId) {
   ])
   const value = safeJson(response.rows[0]?.data)
   return value || null
+}
+
+async function generationModelSettings(tables, databaseId, ownerId) {
+  const response = await tables.listRows(databaseId, PERMANENT_ASSETS, [
+    Query.equal("owner_id", [ownerId]),
+    Query.equal("source_key", ["generation_model_settings"]),
+    Query.limit(1),
+  ])
+  return safeJson(response.rows[0]?.data) || null
 }
 
 export function reminderChannel(settings, event) {

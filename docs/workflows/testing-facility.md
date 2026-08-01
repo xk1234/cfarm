@@ -11,7 +11,7 @@ results side by side.
 Change one input — the hook, a variable draw, the tone, the model — and see how the output moves
 while everything else stays fixed.
 
-`Last tested: 2026-07-26 — exercised over MCP against the local stack; see the caveat below`
+`Last tested: 2026-08-01 — UI trace, model defaults, typecheck, focused tests, and production build`
 
 ## What shipped
 
@@ -28,9 +28,30 @@ It reads **saved automations**, not templates. Each cell clones the schema in me
 variation to the clone, and calls `previewAutomationRunPlan` — no saved record is ever written, and
 a test asserts that.
 
-Determinism is real now: the base seed is normalised to a uint32, the cell index is added, and that
-initialises a `mulberry32` PRNG passed as `random`. Same seed and cell order → identical variable
-draws. Repeats are separate cells with their own per-cell seed.
+Determinism is real now: the base seed is normalised to a uint32 and each repeat initialises one
+`mulberry32` PRNG passed as `random`. Every variation in the same repeat shares that stream, so only
+the selected dimension moves. Separate repeats use separate streams.
+
+## Inspecting one output
+
+Every successful result cell is clickable. It opens a **Generation trace** with the exact prompt or
+input and the produced output for four ordered steps:
+
+1. **Resolve hook** — hook template, substitutions, variant, and resolved hook.
+2. **Generate slide text** — the actual OpenRouter request payload from `plan.debug.textModelPrompt`
+   and the structured response from `plan.debug.textGenerationResult`.
+3. **Choose pictures** — collection IDs and slide copy in; chosen image URLs and captions out.
+4. **Validate output** — generated hook and slide text in; the complete QA report out.
+
+The trace is returned by the same preview planner used for production runs. The UI does not rebuild
+or approximate the model prompt.
+
+## Default generation models
+
+Slide text generation and picture captioning both default to `openai/gpt-5.6-luna`. Workspace
+settings exposes the two OpenRouter model IDs separately under **AI models**, so either use case can
+be changed without a deployment. Scheduled Appwrite jobs read the same workspace setting before
+generation; if no setting exists, the central registry default applies.
 
 > **Verified over MCP, with one gap.** `lumenclip_automation_experiment_dimensions` returns the real
 > sweepable variables and their collection values. `lumenclip_automation_experiment_run` builds the

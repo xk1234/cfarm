@@ -1,5 +1,6 @@
 import { clean, isRecord } from "@/lib/guards"
 import { normalizeLlmPunctuation } from "@/lib/llm-slop"
+import { getGenerationModelSettings } from "@/lib/generation-model-settings"
 import type {
   AutomationRunSlideRole,
   AutomationRunSlideView,
@@ -1060,6 +1061,13 @@ async function createAutomationRunPlan(
   } = {}
 ): Promise<AutomationRunPlan> {
   const progress = options.onProgress ?? (() => {})
+  const textModel =
+    clean(options.textModel) ||
+    (
+      await getGenerationModelSettings().catch(() => ({
+        slideshowTextModel: defaultSlideshowTextModel,
+      }))
+    ).slideshowTextModel
   const usageRecords = options.automationId
     ? await listUsageRecords({ rootDir: options.usageLedgerRootDir })
     : []
@@ -1190,7 +1198,7 @@ async function createAutomationRunPlan(
   let textGeneration = await generateAutomationText({
     automation: textAutomation,
     hook,
-    model: options.textModel,
+    model: textModel,
     systemPrompt: options.systemPrompt,
     promptInstructions,
     avoidSimilarHeadings: recentHeadingRecords.map((record) => record.key),
@@ -1212,7 +1220,7 @@ async function createAutomationRunPlan(
       hook,
       avoidSimilarOutputs: recentTextRecords.map((record) => record.key),
       avoidSimilarHeadings: recentHeadingRecords.map((record) => record.key),
-      model: options.textModel,
+      model: textModel,
       systemPrompt: options.systemPrompt,
       promptInstructions,
       webSearchEnabled: schema.web_search_enabled,

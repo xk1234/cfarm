@@ -1,10 +1,17 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { IconAlertTriangle, IconCheck, IconFlask } from "@tabler/icons-react"
+import {
+  IconAlertTriangle,
+  IconCheck,
+  IconChevronRight,
+  IconFlask,
+} from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
+import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import type { AutomationRecord } from "@/lib/automations"
+import { cn } from "@/lib/utils"
 
 type VariableDimension = {
   token: string
@@ -55,9 +62,29 @@ type ExperimentCell = {
   cellId: string
   variant: Record<string, string>
   plan?: {
+    title?: string
+    caption?: string
+    hashtags?: string
     hook: string
+    hookTemplate?: string
     hookSubstitutions?: Record<string, string>
-    slides: Array<{ id: string; role: string; text: string }>
+    imageCollectionIds?: string[]
+    textModel?: string
+    slides: Array<{
+      id: string
+      role: string
+      text: string
+      imageUrl?: string
+      imageCaption?: string
+    }>
+    debug?: {
+      selectedHookIndex?: number
+      textSimilarityRetry?: boolean
+      textModelPrompt?: unknown
+      textGenerationResult?: unknown
+      textTransformations?: unknown
+      webSearchSources?: unknown
+    }
   }
   qa?: {
     valid: boolean
@@ -493,6 +520,7 @@ function ResultsGrid({
   grid: ReturnType<typeof experimentGrid>
   hasResult: boolean
 }) {
+  const [selectedCell, setSelectedCell] = useState<ExperimentCell | null>(null)
   if (!hasResult) {
     return (
       <section className="rounded-dialog border border-dashed border-app-panel-border bg-app-surface-raised px-6 py-12 text-center">
@@ -541,7 +569,11 @@ function ResultsGrid({
                     {row.cells
                       .get(column)
                       ?.map((cell) => (
-                        <ResultCell key={cell.cellId} cell={cell} />
+                        <ResultCell
+                          key={cell.cellId}
+                          cell={cell}
+                          onSelect={() => setSelectedCell(cell)}
+                        />
                       )) ?? (
                       <span className="text-xs text-app-muted-text">
                         No preview
@@ -554,11 +586,23 @@ function ResultsGrid({
           </tbody>
         </table>
       </div>
+      {selectedCell ? (
+        <OutputTraceModal
+          cell={selectedCell}
+          onClose={() => setSelectedCell(null)}
+        />
+      ) : null}
     </section>
   )
 }
 
-function ResultCell({ cell }: { cell: ExperimentCell }) {
+function ResultCell({
+  cell,
+  onSelect,
+}: {
+  cell: ExperimentCell
+  onSelect: () => void
+}) {
   if (cell.error && !cell.plan) {
     return (
       <div className="rounded-card bg-app-danger-surface p-3 text-sm text-app-danger">
@@ -567,7 +611,11 @@ function ResultCell({ cell }: { cell: ExperimentCell }) {
     )
   }
   return (
-    <article className="space-y-3 rounded-card border border-app-panel-border p-3">
+    <button
+      type="button"
+      onClick={onSelect}
+      className="group w-full space-y-3 rounded-card border border-app-panel-border p-3 text-left transition-colors hover:border-app-action/40 hover:bg-app-surface-subtle focus-visible:ring-2 focus-visible:ring-app-action/30 focus-visible:outline-none"
+    >
       <div className="flex items-center gap-2">
         {cell.qa?.valid ? (
           <IconCheck className="size-4 text-app-success" />
@@ -577,6 +625,7 @@ function ResultCell({ cell }: { cell: ExperimentCell }) {
         <span className="text-xs font-medium text-app-muted-text">
           {cell.qa?.valid ? "QA passed" : "Review findings"}
         </span>
+        <IconChevronRight className="ml-auto size-4 text-app-text-faint transition-transform group-hover:translate-x-0.5 group-hover:text-app-action" />
       </div>
       <p className="text-sm leading-5 font-semibold text-app-text">
         {cell.plan?.hook}
@@ -613,8 +662,169 @@ function ResultCell({ cell }: { cell: ExperimentCell }) {
           ))}
         </ul>
       ) : null}
-    </article>
+    </button>
   )
+}
+
+type TraceStep = {
+  id: string
+  label: string
+  model?: string
+  prompt: unknown
+  output: unknown
+}
+
+function OutputTraceModal({
+  cell,
+  onClose,
+}: {
+  cell: ExperimentCell
+  onClose: () => void
+}) {
+  const steps = traceSteps(cell)
+  const [activeStepId, setActiveStepId] = useState(steps[0]?.id ?? "")
+  const activeStep = steps.find((step) => step.id === activeStepId) ?? steps[0]
+
+  return (
+    <AppModal className="z-[110] bg-[#242136]/45" onClose={onClose}>
+      <AppModalPanel className="max-h-[calc(100vh-2rem)] max-w-[1120px] overflow-hidden p-0">
+        <AppModalHeader
+          title="Generation trace"
+          closeLabel="Close generation trace"
+          onClose={onClose}
+        />
+        <div className="grid min-h-0 md:h-[min(720px,calc(100vh-7rem))] md:grid-cols-[250px_minmax(0,1fr)]">
+          <nav className="overflow-y-auto border-b border-app-panel-border bg-app-surface-subtle p-3 md:border-r md:border-b-0">
+            {steps.map((step, index) => (
+              <button
+                key={step.id}
+                type="button"
+                onClick={() => setActiveStepId(step.id)}
+                className={cn(
+                  "mb-1 flex min-h-12 w-full items-center gap-3 rounded-control px-3 py-2 text-left",
+                  step.id === activeStep?.id
+                    ? "bg-app-strong text-white"
+                    : "text-app-text hover:bg-app-control-hover"
+                )}
+              >
+                <span
+                  className={cn(
+                    "grid size-6 shrink-0 place-items-center rounded-full border text-xs font-semibold",
+                    step.id === activeStep?.id
+                      ? "border-white/35"
+                      : "border-app-panel-border text-app-muted-text"
+                  )}
+                >
+                  {index + 1}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">
+                    {step.label}
+                  </span>
+                  {step.model ? (
+                    <span
+                      className={cn(
+                        "block truncate font-mono text-[11px]",
+                        step.id === activeStep?.id
+                          ? "text-white/70"
+                          : "text-app-text-faint"
+                      )}
+                    >
+                      {step.model}
+                    </span>
+                  ) : null}
+                </span>
+              </button>
+            ))}
+          </nav>
+          {activeStep ? (
+            <div className="min-h-0 overflow-y-auto p-4 sm:p-6">
+              <div className="grid gap-5 xl:grid-cols-2">
+                <TraceValue title="Prompt / input" value={activeStep.prompt} />
+                <TraceValue title="Produced output" value={activeStep.output} />
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </AppModalPanel>
+    </AppModal>
+  )
+}
+
+function TraceValue({ title, value }: { title: string; value: unknown }) {
+  return (
+    <section className="min-w-0">
+      <h3 className="mb-2 text-sm font-semibold text-app-text">{title}</h3>
+      <pre className="min-h-52 overflow-auto rounded-card border border-app-panel-border bg-app-surface-subtle p-4 font-mono text-xs leading-5 break-words whitespace-pre-wrap text-app-text">
+        {formatTraceValue(value)}
+      </pre>
+    </section>
+  )
+}
+
+function formatTraceValue(value: unknown) {
+  if (typeof value === "string") return value
+  return JSON.stringify(value ?? null, null, 2)
+}
+
+function traceSteps(cell: ExperimentCell): TraceStep[] {
+  if (!cell.plan) return []
+  const plan = cell.plan
+  return [
+    {
+      id: "hook",
+      label: "Resolve hook",
+      prompt: {
+        template: plan.hookTemplate ?? plan.hook,
+        substitutions: plan.hookSubstitutions ?? {},
+        variant: cell.variant,
+      },
+      output: { hook: plan.hook },
+    },
+    {
+      id: "text",
+      label: "Generate slide text",
+      model: plan.textModel,
+      prompt: plan.debug?.textModelPrompt ?? "Prompt trace unavailable",
+      output: plan.debug?.textGenerationResult ?? {
+        title: plan.title,
+        caption: plan.caption,
+        hashtags: plan.hashtags,
+        slides: plan.slides.map(({ id, role, text }) => ({ id, role, text })),
+      },
+    },
+    {
+      id: "images",
+      label: "Choose pictures",
+      prompt: {
+        collectionIds: plan.imageCollectionIds ?? [],
+        slideCopy: plan.slides.map(({ id, role, text }) => ({
+          id,
+          role,
+          text,
+        })),
+      },
+      output: plan.slides.map(({ id, role, imageUrl, imageCaption }) => ({
+        id,
+        role,
+        imageUrl,
+        imageCaption,
+      })),
+    },
+    {
+      id: "qa",
+      label: "Validate output",
+      prompt: {
+        generatedHook: plan.hook,
+        generatedSlides: plan.slides.map(({ id, role, text }) => ({
+          id,
+          role,
+          text,
+        })),
+      },
+      output: cell.qa ?? { valid: false, findings: [] },
+    },
+  ]
 }
 
 function parseValues(value = "") {
