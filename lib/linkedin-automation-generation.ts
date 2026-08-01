@@ -38,6 +38,28 @@ export type LinkedInGeneratedPost = {
   characterCount: number
 }
 
+export type LinkedInGenerationRequest = {
+  model: string
+  system: string
+  user: string
+  schema: ReturnType<typeof buildPostSchema>
+}
+
+export type LinkedInDraft = {
+  slots: Record<string, unknown>
+  post: string
+  attempts: number
+  provider: "OpenRouter"
+  model: string
+  providerError?: string
+}
+
+export type LinkedInDraftValidation = {
+  violations: string[]
+  characterCount: number
+  needsRepair: boolean
+}
+
 const BANNED_CLOSER_SHAPES = [
   "where does it stall",
   "which one is missing",
@@ -339,6 +361,148 @@ export function validateSlots(
   return errors
 }
 
+export function buildLinkedInGenerationRequest(input: {
+  niche: string
+  brief: LinkedInBrief
+  plan: LinkedInPostPlan
+  personaVoiceId: "educator" | "practitioner"
+  model: string
+  excludedTopics?: string[]
+  proof?: string[]
+}): LinkedInGenerationRequest {
+  const voice = voicePresetById(input.personaVoiceId)
+  return {
+    model: input.model,
+    system: buildLinkedInSystemPrompt({
+      voice,
+      niche: input.niche,
+      brief: input.brief,
+      excludedTopics: input.excludedTopics,
+      proof: input.proof,
+    }),
+    user: buildLinkedInUserPrompt({ plan: input.plan }),
+    schema: buildPostSchema(input.plan.archetype),
+  }
+}
+
+export async function generateLinkedInDraft(input: {
+  request: LinkedInGenerationRequest
+  plan: LinkedInPostPlan
+  repairViolations?: string[]
+  attempt?: number
+  apiKey?: string
+  fetchImpl?: typeof fetch
+}): Promise<LinkedInDraft> {
+  const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
+  let output: Record<string, unknown>
+  try {
+    output = await openRouterJson({
+      apiKey,
+      fetchImpl: input.fetchImpl,
+      model: input.request.model,
+      timeoutMs: 120_000,
+      maxTokens: 4096,
+      temperature: 0.8,
+      plugins: [{ id: "response-healing" }],
+      system: input.request.system,
+      user: `${input.request.user}${input.repairViolations?.length ? `\n\nYour previous attempt failed validation. Repair these exact errors:\n- ${input.repairViolations.join("\n- ")}` : ""}`,
+      schema: input.request.schema,
+    })
+  } catch (error) {
+    return {
+      slots: {},
+      post: "",
+      attempts: input.attempt ?? 1,
+      provider: "OpenRouter",
+      model: input.request.model,
+      providerError:
+        error instanceof Error
+          ? error.message
+          : "OpenRouter generation failed before returning a draft",
+    }
+  }
+  return {
+    slots: output,
+    post: composePost(input.plan.archetype, output),
+    attempts: input.attempt ?? 1,
+    provider: "OpenRouter",
+    model: input.request.model,
+  }
+}
+
+export function validateLinkedInDraft(input: {
+  plan: LinkedInPostPlan
+  draft: Pick<LinkedInDraft, "slots" | "post" | "providerError">
+  proof?: string[]
+}): LinkedInDraftValidation {
+  const violations = [
+    ...(input.draft.providerError ? [input.draft.providerError] : []),
+    ...validateSlots(input.plan.archetype, input.draft.slots),
+    ...deterministicChecks(input.draft.post, {
+      proof: input.proof,
+      archetypeMinCharacters: input.plan.archetype.minCharacters,
+    }),
+  ]
+  return {
+    violations,
+    characterCount: input.draft.post.length,
+    needsRepair: violations.length > 0,
+  }
+}
+
+export async function repairLinkedInDraft(input: {
+  request: LinkedInGenerationRequest
+  plan: LinkedInPostPlan
+  draft: LinkedInDraft
+  validation: LinkedInDraftValidation
+  proof?: string[]
+  maximumAttempts?: number
+  apiKey?: string
+  fetchImpl?: typeof fetch
+}) {
+  const maximumAttempts = Math.max(1, Math.min(3, input.maximumAttempts ?? 3))
+  let draft = input.draft
+  let validation = input.validation
+  while (validation.needsRepair && draft.attempts < maximumAttempts) {
+    try {
+      draft = await generateLinkedInDraft({
+        request: input.request,
+        plan: input.plan,
+        repairViolations: validation.violations,
+        attempt: draft.attempts + 1,
+        apiKey: input.apiKey,
+        fetchImpl: input.fetchImpl,
+      })
+      validation = validateLinkedInDraft({
+        plan: input.plan,
+        draft,
+        proof: input.proof,
+      })
+    } catch (error) {
+      if (draft.attempts + 1 >= maximumAttempts) throw error
+      validation = {
+        violations: [
+          error instanceof Error
+            ? error.message
+            : "Return compact, complete JSON matching the schema exactly",
+        ],
+        characterCount: draft.post.length,
+        needsRepair: true,
+      }
+      draft = { ...draft, attempts: draft.attempts + 1 }
+    }
+  }
+  if (
+    validation.needsRepair &&
+    draft.providerError &&
+    draft.attempts >= maximumAttempts
+  ) {
+    throw new Error(draft.providerError)
+  }
+  return { draft, validation }
+}
+
 export async function generateLinkedInPost(input: {
   niche: string
   brief: LinkedInBrief
@@ -355,16 +519,7 @@ export async function generateLinkedInPost(input: {
   const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
   const { plan } = input
-  const voice = voicePresetById(input.personaVoiceId)
-  const schema = buildPostSchema(plan.archetype)
-  const system = buildLinkedInSystemPrompt({
-    voice,
-    niche: input.niche,
-    brief: input.brief,
-    excludedTopics: input.excludedTopics,
-    proof: input.proof,
-  })
-  const basePrompt = buildLinkedInUserPrompt({ plan })
+  const request = buildLinkedInGenerationRequest(input)
 
   const chainEnabled =
     (input.enableGenerationChain ??
@@ -372,7 +527,7 @@ export async function generateLinkedInPost(input: {
     Boolean(input.brandProfile)
   if (chainEnabled && input.brandProfile) {
     const chained = await runGenerationChain({
-      generate: { model: input.model, system },
+      generate: { model: input.model, system: request.system },
       humanize: {
         model: generationModelRegistry.openRouter.contentHumanize.model,
       },
@@ -381,7 +536,7 @@ export async function generateLinkedInPost(input: {
         apiKey,
         fetchImpl: input.fetchImpl,
         brandProfile: input.brandProfile,
-        prompt: `${basePrompt}\n\nReturn only the complete publishable LinkedIn post text in content.`,
+        prompt: `${request.user}\n\nReturn only the complete publishable LinkedIn post text in content.`,
       },
     })
     const violations = [
@@ -404,57 +559,36 @@ export async function generateLinkedInPost(input: {
     }
   }
 
-  let output: Record<string, unknown> = {}
-  let post = ""
-  let errors: string[] = []
-  let attempts = 0
-  // 3 attempts: a transient invalid-JSON response should not fail the whole
-  // generation, and a valid-but-non-conforming draft gets one repair pass.
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    attempts += 1
-    try {
-      output = await openRouterJson({
-        apiKey,
-        fetchImpl: input.fetchImpl,
-        model: input.model,
-        timeoutMs: 120_000,
-        maxTokens: 4096,
-        temperature: 0.8,
-        plugins: [{ id: "response-healing" }],
-        system,
-        user: `${basePrompt}${errors.length ? `\n\nYour previous attempt failed validation. Repair these exact errors:\n- ${errors.join("\n- ")}` : ""}`,
-        schema,
-      })
-    } catch (error) {
-      errors = [
-        error instanceof Error
-          ? error.message
-          : "Return compact, complete JSON matching the schema exactly",
-      ]
-      if (attempt < 2) continue
-      throw error
-    }
-    post = composePost(plan.archetype, output)
-    errors = [
-      ...validateSlots(plan.archetype, output),
-      ...deterministicChecks(post, {
-        proof: input.proof,
-        archetypeMinCharacters: plan.archetype.minCharacters,
-      }),
-    ]
-    if (errors.length === 0) break
-  }
+  const firstDraft = await generateLinkedInDraft({
+    request,
+    plan,
+    apiKey,
+    fetchImpl: input.fetchImpl,
+  })
+  const repaired = await repairLinkedInDraft({
+    request,
+    plan,
+    draft: firstDraft,
+    validation: validateLinkedInDraft({
+      plan,
+      draft: firstDraft,
+      proof: input.proof,
+    }),
+    proof: input.proof,
+    apiKey,
+    fetchImpl: input.fetchImpl,
+  })
 
   return {
-    post,
+    post: repaired.draft.post,
     archetypeId: plan.archetype.id,
     archetypeLabel: plan.archetype.label,
     hookStyleId: plan.hookStyle.id,
     pillar: plan.pillar,
-    violations: errors,
-    needsReview: errors.length > 0,
-    attempts,
-    characterCount: post.length,
+    violations: repaired.validation.violations,
+    needsReview: repaired.validation.needsRepair,
+    attempts: repaired.draft.attempts,
+    characterCount: repaired.validation.characterCount,
   }
 }
 

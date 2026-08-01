@@ -23,8 +23,20 @@ export async function generateStoredXAutomationRun(input: {
     topic: clean(input.topic),
     sourceCandidate: input.sourceCandidate,
   })
+  return persistGeneratedXAutomationRun({
+    automation: input.automation,
+    run: generated,
+    requestId: input.requestId,
+  })
+}
+
+export async function persistGeneratedXAutomationRun(input: {
+  automation: XAutomationRecord
+  run: Awaited<ReturnType<typeof generateXAutomationRun>>
+  requestId?: string
+}) {
   const run = {
-    ...generated,
+    ...input.run,
     requestId: clean(input.requestId) || undefined,
   }
   await upsertXAutomationRun(run)

@@ -26,6 +26,9 @@ export async function runUgcAutomationJob({ payload, tables, storage, job, datab
   if (!automationId || !scheduledFor || !ownerId) throw new UgcConfigurationError("run-ugc-automation: invalid job identity")
   const runId = ugcRunId(automationId, scheduledFor)
   const draftOnly = payload?.draftOnly === true
+  const stopAfter = ["analysis", "script", "actor", "voice", "motion", "lipsync", "broll", "composite", "store"].includes(payload?.stopAfter)
+    ? payload.stopAfter
+    : undefined
 
   // Kill switch is deliberately checked before any database or provider call.
   if (process.env.ENABLE_UGC_AUTOMATION !== "true") return { skipped: true, reason: "feature_disabled", runId }
@@ -66,7 +69,7 @@ export async function runUgcAutomationJob({ payload, tables, storage, job, datab
   const durableInput = async (path, contentType) => dataUrl(await load(path), contentType)
   const usage = async (stage, detail = {}) => recordUsage(tables, databaseId, ownerId, automationId, runId, stage, detail)
   try { return await runUgcAutomation({
-    automationId, ownerId, scheduledFor, automation, checkpoints,
+    automationId, ownerId, scheduledFor, automation, checkpoints, stopAfter,
     assetExists: async (storagePath) => {
       const fileId = crypto.createHash("sha256").update(storagePath.replace(/^data\//, "")).digest("hex").slice(0, 36)
       try { await storage.getFile("ugc_videos", fileId); return true } catch { return false }

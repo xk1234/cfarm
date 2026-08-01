@@ -486,8 +486,6 @@ export async function generateSlideshowText(input: {
   const model = clean(input.model) || defaultSlideshowTextModel
   const selectedHook =
     clean(input.selectedHook) || promptPreviewHook(input.automation)
-  const placeholders = getTempSlidePromptPlaceholders(input.automation)
-
   const apiKey = clean(input.apiKey)
   if (!apiKey) {
     throw new Error("OPENROUTER_API_KEY is not configured")
@@ -519,16 +517,41 @@ export async function generateSlideshowText(input: {
     avoidSimilarHeadings: input.avoidSimilarHeadings,
     performanceMemory: input.performanceMemory,
   })
+  const generated = await generateSlideshowTextFromPayload({
+    automation: input.automation,
+    selectedHook,
+    promptPayload,
+    apiKey,
+    fetchImpl: input.fetchImpl,
+    requireHookSubjectCoverage: input.requireHookSubjectCoverage,
+  })
+  return {
+    ...generated,
+    webSearchSources: research?.sources ?? [],
+  }
+}
+
+export async function generateSlideshowTextFromPayload(input: {
+  automation: TempSlideTestingAutomation
+  selectedHook: string
+  promptPayload: ReturnType<typeof slideshowTextGenerationPayload>
+  apiKey?: string
+  fetchImpl?: typeof fetch
+  requireHookSubjectCoverage?: boolean
+}): Promise<SlideshowTextGenerationResult> {
+  const apiKey = clean(input.apiKey)
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
+  const placeholders = getTempSlidePromptPlaceholders(input.automation)
   const completion = await requestStructuredOutput({
     apiKey,
     fetchImpl: input.fetchImpl,
-    model,
-    promptPayload,
+    model: input.promptPayload.model,
+    promptPayload: input.promptPayload,
     placeholders,
-    selectedHook,
+    selectedHook: input.selectedHook,
     requireHookSubjectCoverage:
       input.requireHookSubjectCoverage ??
-      selectedHook !== "Create a high-performing TikTok slideshow.",
+      input.selectedHook !== "Create a high-performing TikTok slideshow.",
   })
   const lowercase = toneRequestsLowercase(input.automation.tone)
   const normalizedResult = normalizeTempSlideStructuredOutput(
@@ -538,11 +561,11 @@ export async function generateSlideshowText(input: {
   )
   return {
     model: completion.model,
-    selectedHook,
+    selectedHook: input.selectedHook,
     result: normalizedResult,
     skippedOpenRouter: false,
-    promptPayload,
-    webSearchSources: research?.sources ?? [],
+    promptPayload: input.promptPayload,
+    webSearchSources: [],
     violations: completion.violations ?? [],
     transformations: [
       ...(completion.transformations ?? []),
@@ -889,7 +912,7 @@ function structuredOutputFindings(
   return { errors, violations }
 }
 
-async function researchSelectedHook(input: {
+export async function researchSelectedHook(input: {
   apiKey: string
   fetchImpl?: typeof fetch
   model: string

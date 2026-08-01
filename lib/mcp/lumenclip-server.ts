@@ -2,13 +2,17 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
 
 import {
-  captureMcpWorkflowTools,
-  executeMcpWorkflow,
-  executeMcpWorkflowStep,
-  workflowInputSchema,
-  workflowStepInputSchema,
-  type WorkflowToolRegistry,
-} from "@/lib/mcp/workflow-executor"
+  createPipelineStageRegistry,
+  executeNamedPipeline,
+  executePipelineStage,
+  pipelineCatalog,
+} from "@/lib/pipeline-executor"
+import { createProductionPipelineHandlers } from "@/lib/mcp/production-pipeline-handlers"
+import {
+  PIPELINE_STAGE_CATALOG,
+  PIPELINE_WORKFLOW_IDS,
+  type PipelineStageRegistry,
+} from "@/lib/pipeline-stages"
 import { toLumenClipDataError } from "@/lib/appwrite-errors"
 import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
 import {
@@ -157,7 +161,10 @@ import {
 } from "@/lib/tiktok-comments"
 import { draftTikTokCommentReplies } from "@/lib/tiktok-comment-replies"
 import type { XAutomationRecord, XAutomationRun } from "@/lib/x-automation"
-import { generateStoredXAutomationRun } from "@/lib/x-automation-runner"
+import {
+  generateStoredXAutomationRun,
+  persistGeneratedXAutomationRun,
+} from "@/lib/x-automation-runner"
 import {
   deleteXAutomationRun,
   getXAutomation,
@@ -340,6 +347,7 @@ export type LumenClipMcpServices = {
   markAutomationRunPublished: typeof markAutomationRunPublished
   updateAutomationRunSlideText: typeof updateAutomationRunSlideText
   generateStoredXAutomationRun: typeof generateStoredXAutomationRun
+  persistGeneratedXAutomationRun: typeof persistGeneratedXAutomationRun
   listXAutomationRuns: typeof listXAutomationRuns
   getXAutomationRun: typeof getXAutomationRun
   upsertXAutomationRun: typeof upsertXAutomationRun
@@ -415,6 +423,7 @@ const defaultServices: LumenClipMcpServices = {
   markAutomationRunPublished,
   updateAutomationRunSlideText,
   generateStoredXAutomationRun,
+  persistGeneratedXAutomationRun,
   listXAutomationRuns,
   getXAutomationRun,
   upsertXAutomationRun,
@@ -491,8 +500,10 @@ export function createLumenClipMcpServer(
     name: "lumenclip",
     version: "2.0.0",
   })
-  const workflowTools = captureMcpWorkflowTools(server)
   const owned = <T>(task: () => T) => ownedMcpTask(ownerId, task)
+  const pipelineRegistry = createPipelineStageRegistry(
+    createProductionPipelineHandlers(services)
+  )
 
   registerAutomationReadAndRunTools(server, ownerId, services)
   registerCollectionTools(server, ownerId, services)
@@ -994,63 +1005,104 @@ export function createLumenClipMcpServer(
   registerTikTokPublicationTools(server, ownerId, services)
   registerTikTokStudioAnalyticsTools(server, ownerId, services)
   registerTikTokCommentTools(server, ownerId, services)
-  registerWorkflowTools(server, workflowTools)
+  registerPipelineTools(server, ownerId, pipelineRegistry)
 
   return server
 }
 
-function registerWorkflowTools(server: McpServer, tools: WorkflowToolRegistry) {
+function registerPipelineTools(
+  server: McpServer,
+  ownerId: string,
+  registry: PipelineStageRegistry
+) {
   server.registerTool(
-    "lumenclip_workflow_run",
+    "lumenclip_pipeline_catalog",
     {
-      title: "Run an MCP workflow",
+      title: "List production generation pipelines",
       description:
-        'Runs an ordered workflow of up to 20 existing LumenClip MCP tools in one call. Every step is validated against its original tool schema, including confirmation gates. Later arguments can reference an earlier structured result with {"$ref":"step-id","path":"outputs.0.id"}. Publishing is never implicit; include a publishing tool and its required confirmation as an explicit step.',
-      inputSchema: workflowInputSchema(),
+        "Lists the registered slideshow, UGC video, LinkedIn, and X/Threads production workflows and every named deterministic, provider, and storage stage. It never executes a stage.",
+      inputSchema: {},
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async () => mcpResult({ workflows: pipelineCatalog() })
+  )
+
+  server.registerTool(
+    "lumenclip_pipeline_stage_run",
+    {
+      title: "Run one production pipeline stage",
+      description:
+        "Runs one registered generation stage with explicit structured JSON input. The same registered handler is used by full workflow execution. Secrets and media bytes are rejected; provider and storage stages return durable references or operations.",
+      inputSchema: {
+        stageId: z.enum(
+          PIPELINE_STAGE_CATALOG.map((stage) => stage.id) as [
+            (typeof PIPELINE_STAGE_CATALOG)[number]["id"],
+            ...(typeof PIPELINE_STAGE_CATALOG)[number]["id"][],
+          ]
+        ),
+        input: z.record(z.string(), z.unknown()),
+        requestId: z.string().trim().min(1).max(200).optional(),
+      },
       annotations: {
         readOnlyHint: false,
-        destructiveHint: true,
+        destructiveHint: false,
         idempotentHint: false,
         openWorldHint: true,
       },
     },
     async (input) =>
       mcpResult(
-        await executeMcpWorkflow({
-          workflowId: input.workflowId,
-          steps: input.steps,
-          continueOnError: input.continueOnError,
-          tools,
-        })
+        await ownedMcpTask(ownerId, () =>
+          executePipelineStage({
+            registry,
+            ownerId,
+            stageId: input.stageId,
+            stageInput: input.input,
+            requestId: input.requestId,
+          })
+        )
       )
   )
 
   server.registerTool(
-    "lumenclip_workflow_step_run",
+    "lumenclip_pipeline_run",
     {
-      title: "Run one MCP workflow step",
+      title: "Run a named production generation pipeline",
       description:
-        "Runs any one existing LumenClip MCP tool as an independently callable workflow step. Arguments are validated against the selected tool's original schema, so ownership, confirmation, and idempotency rules remain unchanged. Workflow tools cannot recursively invoke themselves.",
-      inputSchema: workflowStepInputSchema(),
+        "Runs a registered named generation workflow by invoking its registered stage handlers in order and piping each complete structured output to the next. A running operation pauses the workflow at that exact stage. Generation never publishes; publishing remains a separate confirmed MCP action.",
+      inputSchema: {
+        workflowId: z.enum(PIPELINE_WORKFLOW_IDS),
+        input: z.record(z.string(), z.unknown()),
+        requestId: z.string().trim().min(1).max(200).optional(),
+        startAt: z.string().trim().min(1).optional(),
+        stopAfter: z.string().trim().min(1).optional(),
+      },
       annotations: {
         readOnlyHint: false,
-        destructiveHint: true,
+        destructiveHint: false,
         idempotentHint: false,
         openWorldHint: true,
       },
     },
-    async (input) => {
-      const output = await executeMcpWorkflowStep({
-        tool: input.tool,
-        arguments: input.arguments,
-        tools,
-      })
-      return mcpResult({
-        tool: input.tool,
-        status: "succeeded",
-        output,
-      })
-    }
+    async (input) =>
+      mcpResult(
+        await ownedMcpTask(ownerId, () =>
+          executeNamedPipeline({
+            registry,
+            ownerId,
+            workflowId: input.workflowId,
+            workflowInput: input.input,
+            requestId: input.requestId,
+            startAt: input.startAt,
+            stopAfter: input.stopAfter,
+          })
+        )
+      )
   )
 }
 
@@ -3829,6 +3881,7 @@ async function ugcJobOperation(services: LumenClipMcpServices, job: Job) {
     run,
     automationId,
     scheduledFor,
+    stopAfter: clean(payload.stopAfter) || undefined,
   })
 }
 
@@ -3852,6 +3905,7 @@ async function ugcOperationEnvelope(
     run: UgcRunStatus | null
     automationId: string
     scheduledFor: string
+    stopAfter?: string
   }
 ) {
   const outputId =
@@ -3868,13 +3922,20 @@ async function ugcOperationEnvelope(
     input.job?.status === "dead" ||
     input.run?.status === "failed" ||
     output?.status === "failed"
-  const succeeded = output?.status === "ready"
+  const stageSucceeded = Boolean(
+    input.stopAfter &&
+    input.job?.status === "completed" &&
+    input.run?.checkpoints[input.stopAfter]
+  )
+  const succeeded = output?.status === "ready" || stageSucceeded
   const status = failed ? "failed" : succeeded ? "succeeded" : "running"
   const activeStage = input.run?.stages.find(
     (stage) => stage.status === "active" || stage.status === "failed"
   )?.name
   const stage = succeeded
-    ? "complete"
+    ? input.stopAfter
+      ? input.stopAfter
+      : "complete"
     : failed
       ? (activeStage ?? "failed")
       : (activeStage ?? input.job?.status ?? input.run?.status ?? "queued")
@@ -3886,7 +3947,7 @@ async function ugcOperationEnvelope(
     runId: input.run?.id,
     operation: {
       id: input.id,
-      kind: "ugc.generate",
+      kind: input.stopAfter ? `ugc.stage.${input.stopAfter}` : "ugc.generate",
       status,
       stage,
       progress:
@@ -3899,7 +3960,7 @@ async function ugcOperationEnvelope(
       resourceUri: `lumenclip://operations/${encodeURIComponent(input.id)}`,
     },
     outputs:
-      succeeded && output
+      succeeded && output && !input.stopAfter
         ? [
             {
               id: output.id,

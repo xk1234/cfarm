@@ -86,59 +86,56 @@ describe("LumenClip MCP server", () => {
     )
   })
 
-  it("runs a complete workflow or one independently validated step", async () => {
-    const automation = automationRecord()
-    const client = await connectClient({
-      getAutomationRecord: vi.fn(async () => automation),
-      listAutomationRuns: vi.fn(async () => []),
-      listWordCollections: vi.fn(async () => []),
-      listImageCollections: vi.fn(async () => []),
+  it("runs a named production workflow or one exact registered stage", async () => {
+    const client = await connectClient()
+    const stageInput = {
+      niche: "B2B SaaS onboarding",
+      persona: "practitioner",
+      proof: ["Reduced activation time from 9 days to 3 days"],
+      count: 2,
+    }
+
+    const catalog = await client.callTool({
+      name: "lumenclip_pipeline_catalog",
+      arguments: {},
+    })
+    expect(catalog.structuredContent).toMatchObject({
+      workflows: expect.arrayContaining([
+        expect.objectContaining({ id: "slideshow-generation" }),
+        expect.objectContaining({ id: "ugc-video-generation" }),
+        expect.objectContaining({ id: "linkedin-generation" }),
+        expect.objectContaining({ id: "x-threads-generation" }),
+      ]),
     })
 
     const single = await client.callTool({
-      name: "lumenclip_workflow_step_run",
+      name: "lumenclip_pipeline_stage_run",
       arguments: {
-        tool: "lumenclip_automation_get",
-        arguments: { automationId: automation.id },
+        stageId: "linkedin-generation.validate-input",
+        input: stageInput,
+        requestId: "linkedin-stage-test",
       },
     })
-    expect(single.structuredContent).toMatchObject({
-      tool: "lumenclip_automation_get",
-      status: "succeeded",
-      output: { automation: { id: automation.id } },
+    const workflow = await client.callTool({
+      name: "lumenclip_pipeline_run",
+      arguments: {
+        workflowId: "linkedin-generation",
+        input: stageInput,
+        requestId: "linkedin-stage-test",
+        stopAfter: "linkedin-generation.validate-input",
+      },
     })
 
-    const workflow = await client.callTool({
-      name: "lumenclip_workflow_run",
-      arguments: {
-        workflowId: "inspect-twice",
-        steps: [
-          {
-            id: "first",
-            tool: "lumenclip_automation_get",
-            arguments: { automationId: automation.id },
-          },
-          {
-            id: "second",
-            tool: "lumenclip_automation_get",
-            arguments: {
-              automationId: {
-                $ref: "first",
-                path: "automation.id",
-              },
-            },
-          },
-        ],
-      },
+    expect(single.structuredContent).toMatchObject({
+      stage: { id: "linkedin-generation.validate-input" },
+      status: "succeeded",
+      output: { normalizedInput: { niche: "B2B SaaS onboarding", count: 2 } },
     })
     expect(workflow.structuredContent).toMatchObject({
-      workflowId: "inspect-twice",
+      workflowId: "linkedin-generation",
       status: "succeeded",
-      completedSteps: 2,
-      steps: [
-        { id: "first", status: "succeeded" },
-        { id: "second", status: "succeeded" },
-      ],
+      completedStages: 1,
+      output: (single.structuredContent as { output: unknown }).output,
     })
   })
 
@@ -2039,6 +2036,68 @@ describe("LumenClip MCP server", () => {
         progress: 30,
       },
       outputs: [],
+    })
+  })
+
+  it("reports a completed UGC checkpoint as a successful stage operation", async () => {
+    const current = ugcAutomationRecord()
+    const baseJob = ugcJob(current.id)
+    const job = {
+      ...baseJob,
+      status: "completed" as const,
+      payload: {
+        ...(baseJob.payload as Record<string, unknown>),
+        stopAfter: "voice",
+      },
+    }
+    const client = await connectClient({
+      getJob: vi.fn(async () => job),
+      getUgcRunStatus: vi.fn(async (): Promise<UgcRunStatus> => ({
+        id: "ugcrun-voice",
+        automationId: current.id,
+        scheduledFor: String(
+          (job.payload as Record<string, unknown>).scheduledFor
+        ),
+        status: "voice",
+        error: null,
+        checkpoints: { voice: { storagePath: "ugc/voice.wav" } },
+        stages: [
+          { name: "analysis", status: "done", assetPaths: [] },
+          { name: "script", status: "done", assetPaths: [] },
+          { name: "actor", status: "done", assetPaths: [] },
+          {
+            name: "voice",
+            status: "done",
+            assetPaths: ["ugc/voice.wav"],
+          },
+          { name: "motion", status: "pending", assetPaths: [] },
+          { name: "lipsync", status: "pending", assetPaths: [] },
+          { name: "broll", status: "pending", assetPaths: [] },
+          { name: "composite", status: "pending", assetPaths: [] },
+          { name: "store", status: "pending", assetPaths: [] },
+          { name: "publish", status: "pending", assetPaths: [] },
+        ],
+        createdAt: "2026-07-22T12:00:01.000Z",
+        updatedAt: "2026-07-22T12:00:10.000Z",
+      })),
+      getGeneratedVideoExport: vi.fn(async () => null),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_operation_get",
+      arguments: { operationId: job.id },
+    })
+
+    expect(result.structuredContent).toMatchObject({
+      operation: {
+        id: job.id,
+        kind: "ugc.stage.voice",
+        status: "succeeded",
+        stage: "voice",
+        progress: 100,
+      },
+      outputs: [],
+      errors: [],
     })
   })
 
