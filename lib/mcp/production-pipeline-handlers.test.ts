@@ -1,7 +1,16 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { createProductionPipelineHandlers } from "@/lib/mcp/production-pipeline-handlers"
-import { PIPELINE_STAGE_CATALOG } from "@/lib/pipeline-stages"
+import {
+  createPipelineStageRegistry,
+  executePipelineStage,
+} from "@/lib/pipeline-executor"
+import {
+  PIPELINE_STAGE_CATALOG,
+  type PipelineStageContext,
+} from "@/lib/pipeline-stages"
+import { slideshowTextGenerationPayload } from "@/lib/slideshow-text-generation-payload"
+import type { TempSlideTestingAutomation } from "@/lib/temp-slide-testing"
 
 function services() {
   return {
@@ -9,10 +18,15 @@ function services() {
     getAutomationRecord: vi.fn(async () => null),
     listImageCollections: vi.fn(async () => []),
     listWordCollections: vi.fn(async () => []),
+    listAutomationRuns: vi.fn(async () => []),
     getXAutomation: vi.fn(async () => null),
     generateStoredXAutomationRun: vi.fn(),
     persistGeneratedXAutomationRun: vi.fn(),
     upsertXAutomationRun: vi.fn(),
+    upsertXAutomation: vi.fn(async (automation) => automation),
+    getReminderSettings: vi.fn(async () => ({
+      events: { generated: { channel: "telegram" } },
+    })),
     enqueueJob: vi.fn(async () => ({ id: "job-1", status: "queued" })),
     getJob: vi.fn(async () => null),
     ugcGenerationEnabled: () => true,
@@ -22,7 +36,7 @@ function services() {
 describe("production pipeline stage handlers", () => {
   it("registers one concrete handler for every documented stage", () => {
     const handlers = createProductionPipelineHandlers(services() as never)
-    expect([...handlers.keys()]).toHaveLength(45)
+    expect([...handlers.keys()]).toHaveLength(PIPELINE_STAGE_CATALOG.length)
     expect([...handlers.keys()].sort()).toEqual(
       PIPELINE_STAGE_CATALOG.map((stage) => stage.id).sort()
     )
@@ -59,7 +73,7 @@ describe("production pipeline stage handlers", () => {
         automationId: "ugc-automation-1",
         scheduledFor: "2026-08-01T09:00:00.000Z",
       },
-      context("ugc-video-generation.synthesize-voice")
+      context("ugc-video-generation.synthesize-voice", handlers)
     )
 
     expect(runtime.enqueueJob).toHaveBeenCalledWith(
@@ -134,14 +148,386 @@ describe("production pipeline stage handlers", () => {
       ],
     })
   })
+
+  it("selects one supplied slide shortlist and composes aggregate selection through that registered handler", async () => {
+    const production = createProductionPipelineHandlers(services() as never)
+    const singular = vi.fn(
+      production.get("slideshow-generation.select-one-slide-image")!
+    )
+    const handlers = new Map(production)
+    handlers.set("slideshow-generation.select-one-slide-image", singular)
+    const registry = createPipelineStageRegistry(handlers)
+    const shortlists = [
+      {
+        slideId: "hook-1",
+        slideText: "Fixed hook",
+        aiImageSelection: false,
+        candidates: [
+          {
+            id: "image-1",
+            imageUrl: "/assets/one.jpg",
+            caption: "First image",
+          },
+        ],
+      },
+      {
+        slideId: "content-1",
+        slideText: "Body",
+        aiImageSelection: false,
+        candidates: [
+          {
+            id: "image-2",
+            imageUrl: "/assets/two.jpg",
+            caption: "Second image",
+          },
+        ],
+      },
+    ]
+
+    const single = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "slideshow-generation.select-one-slide-image",
+      stageInput: { shortlist: shortlists[0] },
+    })
+    const aggregate = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "slideshow-generation.select-slide-images",
+      stageInput: { shortlists },
+    })
+
+    expect(single).toMatchObject({
+      externalCalls: 0,
+      output: { selectedImage: { slideId: "hook-1", id: "image-1" } },
+    })
+    expect(aggregate.output.selectedImages).toMatchObject([
+      { slideId: "hook-1", id: "image-1" },
+      { slideId: "content-1", id: "image-2" },
+    ])
+    expect(singular).toHaveBeenCalledTimes(3)
+  })
+
+  it("generates slide text from supplied slideshow context while preserving the fixed hook", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key")
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        choices: [
+          {
+            finish_reason: "stop",
+            native_finish_reason: "stop",
+            message: {
+              content: JSON.stringify({
+                title: "Provider title",
+                caption: "A concise provider caption.",
+                hashtags: ["#workflow", "#testing"],
+                text: {
+                  "content-2__heading": "fixed hooks keep context stable",
+                },
+              }),
+            },
+          },
+        ],
+      })
+    )
+    vi.stubGlobal("fetch", fetchMock)
+    const production = createProductionPipelineHandlers(services() as never)
+    const registry = createPipelineStageRegistry(production)
+    const fixedHook = "This hook must remain fixed"
+    const promptPayload = slideshowTextGenerationPayload({
+      automation: slideshowAutomation,
+      selectedHook: fixedHook,
+    })
+
+    const execution = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "slideshow-generation.generate-slide-text-attempt",
+      stageInput: {
+        textAutomation: slideshowAutomation,
+        hook: fixedHook,
+        promptPayload,
+        finalAttempt: true,
+      },
+    })
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(execution).toMatchObject({
+      externalCalls: 1,
+      output: {
+        selectedHook: fixedHook,
+        generatedText: {
+          text: {
+            "content-2__heading": "fixed hooks keep context stable",
+          },
+        },
+      },
+    })
+  })
+
+  it("resumes image generation across registered create, poll, download, and persist stages", async () => {
+    const production = createProductionPipelineHandlers(services() as never)
+    const createTask = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      providerTaskId: "kie-task-1",
+      operation: {
+        id: "kie-task-1",
+        kind: "x.image.kie",
+        status: "running",
+      },
+    }))
+    const getTask = vi
+      .fn<
+        (input: Record<string, unknown>) => Promise<Record<string, unknown>>
+      >()
+      .mockImplementationOnce(async (input) => ({
+        ...input,
+        operation: {
+          id: "kie-task-1",
+          kind: "x.image.kie",
+          status: "running",
+        },
+      }))
+      .mockImplementationOnce(async (input) => ({
+        ...input,
+        remoteImageUrl: "https://provider.example/image.png",
+        operation: {
+          id: "kie-task-1",
+          kind: "x.image.kie",
+          status: "succeeded",
+        },
+      }))
+    const download = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      tempImagePath: "/root/.tmp-cfarm-mcp/cfarm-provider-test/image.png",
+      tempImageFileName: "image.png",
+    }))
+    const persistAsset = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      imageUrl: "/api/local-assets/x-automations/images/image.png",
+    }))
+    const persist = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      persistedImageRun: true,
+    }))
+    const discard = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      tempImagePath: null,
+      tempImageFileName: null,
+    }))
+    const handlers = new Map(production)
+    handlers.set("x-threads-generation.create-image-task", createTask)
+    handlers.set("x-threads-generation.get-image-task", getTask)
+    handlers.set("x-threads-generation.download-image-asset", download)
+    handlers.set("x-threads-generation.persist-image-asset", persistAsset)
+    handlers.set("x-threads-generation.persist-image-run", persist)
+    handlers.set("x-threads-generation.discard-image-temp-file", discard)
+    const registry = createPipelineStageRegistry(handlers)
+
+    const created = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "x-threads-generation.generate-image",
+      stageInput: { imageTaskPayload: { model: "nano-banana-pro" } },
+    })
+    const polling = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "x-threads-generation.generate-image",
+      stageInput: created.output,
+    })
+    const completed = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "x-threads-generation.generate-image",
+      stageInput: polling.output,
+    })
+
+    expect(created.status).toBe("running")
+    expect(polling.status).toBe("running")
+    expect(completed).toMatchObject({
+      status: "succeeded",
+      output: {
+        providerTaskId: "kie-task-1",
+        remoteImageUrl: "https://provider.example/image.png",
+        imageUrl: "/api/local-assets/x-automations/images/image.png",
+        persistedImageRun: true,
+      },
+    })
+    expect(createTask).toHaveBeenCalledOnce()
+    expect(getTask).toHaveBeenCalledTimes(2)
+    expect(download).toHaveBeenCalledOnce()
+    expect(persistAsset).toHaveBeenCalledOnce()
+    expect(persist).toHaveBeenCalledOnce()
+    expect(discard).toHaveBeenCalledOnce()
+  })
+
+  it("generates one b-roll item through singular registered async boundaries", async () => {
+    const production = createProductionPipelineHandlers(services() as never)
+    const create = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      providerRequestId: "fal-task-1",
+    }))
+    const status = vi
+      .fn<
+        (input: Record<string, unknown>) => Promise<Record<string, unknown>>
+      >()
+      .mockImplementationOnce(async (input) => ({
+        ...input,
+        falStatus: { status: "IN_PROGRESS" },
+      }))
+      .mockImplementationOnce(async (input) => ({
+        ...input,
+        falStatus: { status: "COMPLETED" },
+      }))
+    const result = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      providerAsset: { url: "https://provider.example/broll.png" },
+      operation: { id: "fal-task-1", status: "succeeded" },
+    }))
+    const download = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      tempBrollPath: "/root/.tmp-cfarm-mcp/cfarm-provider-test/broll.png",
+      tempBrollFileName: "broll.png",
+    }))
+    const persist = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      brollUrl: "/api/local-assets/ugc-automations/broll/broll.png",
+    }))
+    const discard = vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      tempBrollPath: null,
+    }))
+    const handlers = new Map(production)
+    handlers.set("ugc-video-generation.fal-create-task", create)
+    handlers.set("ugc-video-generation.fal-get-task-status", status)
+    handlers.set("ugc-video-generation.fal-get-task-result", result)
+    handlers.set("ugc-video-generation.download-one-broll-asset", download)
+    handlers.set("ugc-video-generation.persist-one-broll-asset", persist)
+    handlers.set("ugc-video-generation.discard-broll-temp-file", discard)
+    const registry = createPipelineStageRegistry(handlers)
+
+    const created = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "ugc-video-generation.generate-one-broll-image",
+      stageInput: {
+        endpoint: "fal-ai/flux-2-pro",
+        providerInput: { prompt: "One product close-up" },
+      },
+    })
+    const polling = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "ugc-video-generation.generate-one-broll-image",
+      stageInput: created.output,
+    })
+    const completed = await executePipelineStage({
+      registry,
+      ownerId: "owner-1",
+      stageId: "ugc-video-generation.generate-one-broll-image",
+      stageInput: polling.output,
+    })
+
+    expect(created.status).toBe("running")
+    expect(polling.status).toBe("running")
+    expect(completed).toMatchObject({
+      status: "succeeded",
+      output: {
+        providerRequestId: "fal-task-1",
+        brollUrl: "/api/local-assets/ugc-automations/broll/broll.png",
+      },
+    })
+    expect(create).toHaveBeenCalledOnce()
+    expect(status).toHaveBeenCalledTimes(2)
+    expect(result).toHaveBeenCalledOnce()
+    expect(download).toHaveBeenCalledOnce()
+    expect(persist).toHaveBeenCalledOnce()
+    expect(discard).toHaveBeenCalledOnce()
+  })
 })
 
-function context(stageId: string) {
+const slideshowAutomation: TempSlideTestingAutomation = {
+  id: "atomic-slideshow",
+  name: "Atomic slideshow",
+  theme: "workflow testing",
+  hooks: ["This hook must remain fixed"],
+  tone: "Educational & Informative",
+  imageCollectionIds: { hook: "", content: "", cta: "" },
+  slides: [
+    {
+      id: "hook-1",
+      index: 0,
+      section: "hook",
+      title: "Hook",
+      aspectRatio: "9:16",
+      imageGrid: "none",
+      overlay: true,
+      displayText: true,
+      collectionId: "",
+      textItems: [],
+    },
+    {
+      id: "content-2",
+      index: 1,
+      section: "content",
+      title: "Content",
+      aspectRatio: "9:16",
+      imageGrid: "none",
+      overlay: true,
+      displayText: true,
+      collectionId: "",
+      textItems: [
+        {
+          id: "content-2__heading",
+          itemId: "heading",
+          section: "content",
+          slideId: "content-2",
+          label: "Heading",
+          contentDirection: "Explain why fixed hooks matter",
+          wordLengthMin: 3,
+          wordLengthMax: 8,
+          textMode: "prompt",
+          staticText: "",
+          font: "TikTok Display Medium",
+          fontSize: "12px",
+          textStyle: "whiteText",
+          textPosition: "center",
+          textItemWidth: "80%",
+          textAlign: "left",
+          textAnchor: "flush",
+          textVerticalAnchor: "padded",
+        },
+      ],
+    },
+  ],
+}
+
+function context(
+  stageId: string,
+  handlers?: ReturnType<typeof createProductionPipelineHandlers>
+): PipelineStageContext {
   return {
     ownerId: "owner-1",
     workflowId: stageId.split(".")[0] as never,
     stageId,
     requestId: "request-1",
-    runStage: vi.fn(),
+    runStage: async (
+      nestedStageId: string,
+      input: Record<string, unknown>
+    ) => ({
+      stage: {} as never,
+      requestId: "request-1",
+      status: "succeeded" as const,
+      externalCalls: 0,
+      output: await handlers!.get(nestedStageId)!(
+        input,
+        context(nestedStageId, handlers)
+      ),
+    }),
+    externalCall: async <T>(
+      _operation: string,
+      task: () => Promise<T>
+    ): Promise<T> => task(),
   }
 }

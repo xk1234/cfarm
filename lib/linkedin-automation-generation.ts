@@ -54,6 +54,8 @@ export type LinkedInDraft = {
   providerError?: string
 }
 
+export type LinkedInSlotsAttempt = Omit<LinkedInDraft, "post">
+
 export type LinkedInDraftValidation = {
   violations: string[]
   characterCount: number
@@ -393,6 +395,22 @@ export async function generateLinkedInDraft(input: {
   apiKey?: string
   fetchImpl?: typeof fetch
 }): Promise<LinkedInDraft> {
+  const attempt = await generateLinkedInSlotsAttempt(input)
+  return {
+    ...attempt,
+    post: attempt.providerError
+      ? ""
+      : composePost(input.plan.archetype, attempt.slots),
+  }
+}
+
+export async function generateLinkedInSlotsAttempt(input: {
+  request: LinkedInGenerationRequest
+  repairViolations?: string[]
+  attempt?: number
+  apiKey?: string
+  fetchImpl?: typeof fetch
+}): Promise<LinkedInSlotsAttempt> {
   const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
   let output: Record<string, unknown>
@@ -412,7 +430,6 @@ export async function generateLinkedInDraft(input: {
   } catch (error) {
     return {
       slots: {},
-      post: "",
       attempts: input.attempt ?? 1,
       provider: "OpenRouter",
       model: input.request.model,
@@ -424,7 +441,6 @@ export async function generateLinkedInDraft(input: {
   }
   return {
     slots: output,
-    post: composePost(input.plan.archetype, output),
     attempts: input.attempt ?? 1,
     provider: "OpenRouter",
     model: input.request.model,

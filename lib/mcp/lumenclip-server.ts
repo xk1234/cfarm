@@ -182,6 +182,7 @@ import {
 } from "@/lib/word-collections"
 import { wordCollectionVariableName } from "@/lib/hook-variables"
 import { estimateUgcCost } from "@/lib/ugc-cost"
+import { getReminderSettings } from "@/lib/reminder-settings"
 import {
   ugcExportId,
   ugcRunId,
@@ -348,6 +349,7 @@ export type LumenClipMcpServices = {
   updateAutomationRunSlideText: typeof updateAutomationRunSlideText
   generateStoredXAutomationRun: typeof generateStoredXAutomationRun
   persistGeneratedXAutomationRun: typeof persistGeneratedXAutomationRun
+  getReminderSettings: typeof getReminderSettings
   listXAutomationRuns: typeof listXAutomationRuns
   getXAutomationRun: typeof getXAutomationRun
   upsertXAutomationRun: typeof upsertXAutomationRun
@@ -424,6 +426,7 @@ const defaultServices: LumenClipMcpServices = {
   updateAutomationRunSlideText,
   generateStoredXAutomationRun,
   persistGeneratedXAutomationRun,
+  getReminderSettings,
   listXAutomationRuns,
   getXAutomationRun,
   upsertXAutomationRun,
@@ -1020,7 +1023,7 @@ function registerPipelineTools(
     {
       title: "List production generation pipelines",
       description:
-        "Lists the registered slideshow, UGC video, LinkedIn, and X/Threads production workflows and every named deterministic, provider, and storage stage. It never executes a stage.",
+        "Lists the registered slideshow, UGC video, LinkedIn, and X/Threads production workflows plus every atomic and composite deterministic, provider, and storage stage. Each entry declares granularity, side effect, operation, maxExternalCalls, provider/model provenance, and workflow membership. It never executes a stage.",
       inputSchema: {},
       annotations: {
         readOnlyHint: true,
@@ -1037,7 +1040,7 @@ function registerPipelineTools(
     {
       title: "Run one production pipeline stage",
       description:
-        "Runs one registered generation stage with explicit structured JSON input. The same registered handler is used by full workflow execution. Secrets and media bytes are rejected; provider and storage stages return durable references or operations.",
+        "Runs one registered atomic or composite generation stage with explicit structured JSON input. Atomic network/storage stages declare a one-call boundary; decomposed composites invoke registered stages through the same registry used by full workflow execution. Secrets and media bytes are rejected; provider and storage stages return durable references or operations. The workflow docs identify retained legacy bundled helpers.",
       inputSchema: {
         stageId: z.enum(
           PIPELINE_STAGE_CATALOG.map((stage) => stage.id) as [

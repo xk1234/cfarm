@@ -1,23 +1,236 @@
 # Production generation pipelines
 
-The pipeline MCP surface exposes the live cfarm generation architecture, not a
-generic wrapper around unrelated MCP tools. Every workflow is an ordered list
-of registered stage handlers. Full-workflow execution and single-stage
-execution look up and invoke the same handler object.
+The pipeline MCP surface exposes registered production handlers for the four
+live generation workflows. It is not a generic MCP-tool wrapper. Callers can
+run a complete workflow, invoke one named stage with JSON, or retain a stage
+envelope and pass it to another stage.
+
+## Execution model
+
+`lumenclip_pipeline_catalog` returns two stage lists per workflow:
+
+- `workflowStages` is the ordered convenience pipeline used by
+  `lumenclip_pipeline_run`.
+- `stages` is the complete catalog, including every independently callable
+  atomic stage used inside composites.
+
+Every catalog entry publishes these machine-readable boundary fields:
+
+| Field                | Meaning                                                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `granularity`        | `atomic` performs one transformation/boundary; `composite` invokes registered stages through `context.runStage`.                                        |
+| `sideEffect`         | `none`, `network`, or `storage`. Appwrite/database/storage access is `storage`.                                                                         |
+| `operation`          | The named provider, storage, or deterministic action.                                                                                                   |
+| `maxExternalCalls`   | `0` for deterministic/composite handlers and `1` for an atomic network/storage handler. The executor rejects a second declared boundary before it runs. |
+| `provider` / `model` | Provider and model provenance when applicable.                                                                                                          |
+| `workflowStep`       | Whether the stage participates in the ordered full workflow.                                                                                            |
+
+Atomic provider handlers never own retry loops. A repair or retry is another
+invocation of the same registered atomic handler by a composite. Async APIs use
+separate create, one-status-read, result/download, and persistence stages. A
+composite may return a running operation so the caller can resume later with
+the retained structured output.
+
+Full workflow execution resolves every step from the same registry used by
+`lumenclip_pipeline_stage_run`. Decomposed convenience composites likewise call
+atomic handlers through the registry; the exact legacy compatibility blockers
+are listed in the boundary audit below.
 
 ## Tools
 
 | Tool                           | Purpose                                                                                               |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| `lumenclip_pipeline_catalog`   | List workflows, ordered stages, stage kind, provider, model, and optionality.                         |
-| `lumenclip_pipeline_stage_run` | Run one named stage with explicit JSON input.                                                         |
-| `lumenclip_pipeline_run`       | Run a named workflow and pipe each complete structured stage output into the next registered handler. |
+| `lumenclip_pipeline_catalog`   | List all workflows, workflow stages, atomic stages, boundary metadata, and provider/model provenance. |
+| `lumenclip_pipeline_stage_run` | Invoke one registered atomic or composite stage with explicit JSON.                                   |
+| `lumenclip_pipeline_run`       | Invoke an ordered named workflow and pipe each complete stage output to the next registered handler.  |
 
-The older caller-defined `lumenclip_workflow_run` and
-`lumenclip_workflow_step_run` tool-wrapper contracts are not part of this
-surface. They were too coarse to expose production generation boundaries.
+## Generate slideshow text for a fixed hook
 
-## Run a complete workflow
+First run `slideshow-generation.build-text-prompt`. Pipe its complete output to
+the singular provider attempt and keep the same `hook` value:
+
+```json
+{
+  "stageId": "slideshow-generation.generate-slide-text-attempt",
+  "requestId": "slides-text-2026-08-01",
+  "input": {
+    "hook": "This hook must remain fixed",
+    "textAutomation": {
+      "id": "slideshow-1",
+      "name": "Workflow lessons",
+      "theme": "production workflows",
+      "hooks": ["This hook must remain fixed"],
+      "tone": "Educational & Informative",
+      "imageCollectionIds": { "hook": "", "content": "", "cta": "" },
+      "slides": [
+        {
+          "id": "content-1",
+          "index": 0,
+          "section": "content",
+          "title": "Content",
+          "aspectRatio": "9:16",
+          "imageGrid": "none",
+          "overlay": true,
+          "displayText": true,
+          "collectionId": "",
+          "textItems": [
+            {
+              "id": "content-1__heading",
+              "itemId": "heading",
+              "section": "content",
+              "slideId": "content-1",
+              "label": "Heading",
+              "contentDirection": "Explain the lesson",
+              "wordLengthMin": 3,
+              "wordLengthMax": 8,
+              "textMode": "prompt",
+              "staticText": "",
+              "font": "TikTok Display Medium",
+              "fontSize": "12px",
+              "textStyle": "whiteText",
+              "textPosition": "center",
+              "textItemWidth": "80%",
+              "textAlign": "left",
+              "textAnchor": "flush",
+              "textVerticalAnchor": "padded"
+            }
+          ]
+        }
+      ]
+    },
+    "promptPayload": {
+      "model": "openai/gpt-5.6-luna",
+      "stream": false,
+      "messages": [
+        { "role": "system", "content": "Return the supplied strict schema." },
+        {
+          "role": "user",
+          "content": "Write the non-hook slide text for the fixed hook."
+        }
+      ],
+      "response_format": {
+        "type": "json_schema",
+        "json_schema": {
+          "name": "temp_slide_testing_text",
+          "strict": true,
+          "schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["title", "caption", "hashtags", "text"],
+            "properties": {
+              "title": { "type": "string" },
+              "caption": { "type": "string" },
+              "hashtags": { "type": "array", "items": { "type": "string" } },
+              "text": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["content-1__heading"],
+                "properties": { "content-1__heading": { "type": "string" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "finalAttempt": true
+  }
+}
+```
+
+The response always reports `selectedHook` equal to the input `hook`. The hook
+is context, not a model-fillable text placeholder. To use production prompt
+wording and schema, pass the exact `promptPayload` emitted by
+`build-text-prompt` rather than constructing it manually.
+
+## Select one image for one slideshow slide
+
+This singular stage consumes exactly one supplied shortlist. It returns IDs,
+URLs, and captions only—never image bytes:
+
+```json
+{
+  "stageId": "slideshow-generation.select-one-slide-image",
+  "requestId": "slide-image-content-1",
+  "input": {
+    "shortlist": {
+      "slideId": "content-1",
+      "slideText": "They notice the emotional shift first.",
+      "aiImageSelection": true,
+      "concepts": ["person in blue light", "quiet room"],
+      "candidates": [
+        {
+          "id": "image-44",
+          "imageUrl": "/api/assets/image-44.jpg",
+          "caption": "Person in blue light watching a quiet room"
+        },
+        {
+          "id": "image-57",
+          "imageUrl": "/api/assets/image-57.jpg",
+          "caption": "Empty warm office"
+        }
+      ]
+    },
+    "recentImageUsage": {},
+    "usedImageIds": [],
+    "usedImageUrls": []
+  }
+}
+```
+
+`slideshow-generation.select-slide-images` is only an aggregate composite. It
+invokes `select-one-slide-image` once per slide through the registry and never
+calls OpenRouter directly.
+
+## Ordered workflow stages
+
+The full-workflow order remains aligned with the four production specs:
+
+- Slideshow: `validate-input` → `resolve-slide-count` →
+  `select-expand-hook` → `research-hook` → `build-text-prompt` →
+  `generate-slide-text` → `retry-text-similarity` →
+  `derive-visual-concepts` → `build-image-shortlists` →
+  `select-slide-images` → `assemble-plan` → `translate-plan` →
+  `render-store-pngs` → `render-store-mp4` → `validate-output` →
+  `finalize-output`.
+- UGC: `analyze-product` → `generate-script-plan` →
+  `resolve-generate-actor` → `synthesize-voice` → `animate-actor` →
+  `lip-sync-performance` → `generate-broll` → `composite-output` →
+  `store-final-output`.
+- LinkedIn: `validate-input` → `resolve-brief` → `select-post-plan` →
+  `build-generation-request` → `generate-compose` → `validate-draft` →
+  `repair-draft` → `complete-batch`.
+- X/Threads: `validate-input` → `resolve-brief` → `select-content-plan` →
+  `build-generation-request` → `generate-draft` → `humanize-draft` →
+  `review-draft` → `validate-draft` → `repair-draft` →
+  `benchmark-build-run` → `persist-run-memory` → `generate-image`.
+
+Publishing is deliberately absent from all four lists.
+
+## Atomic stage groups
+
+- Slideshow: owner-scoped input reads, one hook-research attempt, one
+  slide-text attempt, one slide-image selection, one usage-record append, and
+  automation-run persistence. Deterministic stages cover slide counts, hook
+  expansion, prompt construction, concepts/shortlists assembly, plan assembly,
+  and validation; provider composites orchestrate retries through registered
+  attempt stages.
+- UGC: one DNS lookup, one product-page HTTP response, one OpenRouter product
+  analysis, one OpenRouter script attempt, one checkpoint enqueue/read, and
+  fal task create/status/result. `generate-one-broll-image` is a resumable
+  composite over the three fal stages.
+- LinkedIn: validation, plan selection, request construction, one brief
+  derivation, one per-post generation attempt, draft validation, repair
+  orchestration, and batch orchestration. Each post attempt is independently
+  callable.
+- X/Threads: one brief attempt, one generation/humanize/review attempt,
+  deterministic planning/validation, separated run/reminder/memory storage,
+  and KIE image task build/create/status/download/persist stages.
+
+Use `lumenclip_pipeline_catalog` as the canonical source of exact stage IDs;
+the catalog includes atomic stages that are intentionally absent from the
+ordered `workflowStages` list.
+
+## Run and resume
 
 ```json
 {
@@ -32,137 +245,51 @@ surface. They were too coarse to expose production generation boundaries.
 }
 ```
 
-`input` is passed to stage 1. A stage returns the complete pipeline envelope,
-which becomes the next stage's input without a client-side mapping layer. The
-result includes ordered stage executions, the final structured output, and
-published stage metadata.
+`startAt` resumes an ordered workflow from an envelope returned by the prior
+stage. `stopAfter` stops after a named workflow stage for inspection. For an
+async atomic sequence, retain the complete output containing the provider task
+ID, invoke its one-status-read stage after `nextPollAfterMs`, and pipe a
+succeeded output to download and persistence. No stage blocks in an internal
+poll loop.
 
-Use `startAt` only to resume from an envelope previously returned by the prior
-stage. Use `stopAfter` to deliberately stop after a named stage for inspection
-or composition.
+## Safety
 
-## Run one stage
-
-```json
-{
-  "stageId": "slideshow-generation.build-image-shortlists",
-  "requestId": "slideshow-2026-08-01",
-  "input": {
-    "visualConceptsBySlide": [
-      {
-        "slideId": "content-1",
-        "concepts": ["person in blue light", "quiet room"]
-      }
-    ],
-    "candidatesBySlide": [
-      {
-        "slideId": "content-1",
-        "slideText": "They notice the emotional shift first.",
-        "candidates": [
-          {
-            "id": "image-44",
-            "imageUrl": "/api/assets/image-44.jpg",
-            "caption": "Person in blue light watching a quiet room"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-The response identifies the stage as `deterministic`, `provider`, or
-`storage`. Provider stages also publish provider/model metadata. Conditional
-provider stages state when no provider was called in their structured output.
-
-## Registered stages
-
-### `slideshow-generation`
-
-1. `validate-input` — owner-scoped storage read plus deterministic validation
-2. `resolve-slide-count` — deterministic
-3. `select-expand-hook` — deterministic
-4. `research-hook` — OpenRouter + Exa (`openai/gpt-5.4-mini`), optional
-5. `build-text-prompt` — deterministic
-6. `generate-slide-text` — OpenRouter (configured slideshow model)
-7. `retry-text-similarity` — deterministic comparison plus conditional OpenRouter rewrite
-8. `derive-visual-concepts` — conditional OpenRouter
-9. `build-image-shortlists` — deterministic caption/concept ranking, at most 12 candidates
-10. `select-slide-images` — pinned/deterministic selection or conditional OpenRouter choice
-11. `assemble-plan` — deterministic
-12. `translate-plan` — conditional DeepL
-13. `render-store-pngs` — local SVG/Sharp render plus owner-scoped storage
-14. `render-store-mp4` — conditional Rendi/FFmpeg
-15. `validate-output` — deterministic QA
-16. `finalize-output` — owner-scoped result/run/reuse-memory storage
-
-The fixed selected hook is context, never a model-fillable text placeholder.
-Image stages exchange candidate IDs, captions, URLs, and storage references;
-they never exchange image bytes.
-
-### `ugc-video-generation`
-
-1. `analyze-product` — guarded public HTTP fetch + OpenRouter analysis
-2. `generate-script-plan` — OpenRouter script generation and validation
-3. `resolve-generate-actor` — configured asset or fal.ai actor generation
-4. `synthesize-voice` — ElevenLabs speech and timestamps
-5. `animate-actor` — fal.ai image-to-video
-6. `lip-sync-performance` — fal.ai standard/premium lip sync
-7. `generate-broll` — fal.ai supporting images
-8. `composite-output` — Rendi/FFmpeg captions, overlays, MP4, and thumbnail
-9. `store-final-output` — owner-scoped canonical output and media references
-
-Saved UGC stage calls return queue operations. They include `stopAfter` in the
-worker job and resume through the production durable-checkpoint runner. Retain
-the stage envelope, poll with `lumenclip_operation_get`, then pass that retained
-envelope to the next stage after the operation succeeds. Deleted checkpoint
-files make the provider stage run and bill again, matching the production UGC
-retry contract.
-
-### `linkedin-generation`
-
-1. `validate-input` — deterministic
-2. `resolve-brief` — supplied brief or OpenRouter derivation
-3. `select-post-plan` — deterministic
-4. `build-generation-request` — deterministic production prompt/schema
-5. `generate-compose` — one OpenRouter structured generation attempt
-6. `validate-draft` — deterministic format, proof, claim, and slot checks
-7. `repair-draft` — conditional OpenRouter repair, at most three total attempts
-8. `complete-batch` — repeat stages 3–7 through the same registry for 1–4 posts
-
-This workflow is stateless and does not store or publish the returned posts.
-
-### `x-threads-generation`
-
-1. `validate-input` — owner-scoped storage read plus deterministic validation
-2. `resolve-brief` — persisted brief or explicit OpenRouter preflight
-3. `select-content-plan` — deterministic
-4. `build-generation-request` — deterministic
-5. `generate-draft` — OpenRouter structured generation
-6. `humanize-draft` — optional brand-voice pass
-7. `review-draft` — optional factual/brand review
-8. `validate-draft` — deterministic platform and proof checks
-9. `repair-draft` — one conditional OpenRouter retry
-10. `benchmark-build-run` — deterministic scoring and run construction
-11. `persist-run-memory` — owner-scoped run, reminder, and reuse memory
-12. `generate-image` — optional KIE.ai `nano-banana-pro` generation and storage
-
-Publication consumes the stored draft downstream and is never a pipeline
-stage.
-
-## Safety and operations
-
-- Owner scope comes from the MCP server (`LUMENCLIP_MCP_OWNER_ID` or the
-  configured system owner), never from stage JSON.
+- Owner identity is supplied by the MCP server, never trusted from stage JSON.
 - Inputs and outputs reject secret-like fields, binary values, and media data
-  URLs. Provider credentials are read only inside production handlers.
-- Stages return durable storage paths, asset URLs, resource URIs, provider
-  request IDs, and model metadata—not media bytes or credentials.
-- A stage that returns a queued/running operation pauses full-workflow
-  execution at that stage. No polling loop blocks the MCP request.
-- Generation pipelines never append publication. Use
-  `lumenclip_output_publish` separately with its normal explicit confirmation,
-  QA override, account, and scheduling rules.
-- The executor performs no generic retries. Retry policy belongs to the
-  registered production stage (for example LinkedIn repair or UGC checkpoint
-  resume), so whole and single-stage execution behave identically.
+  URLs. Provider credentials stay inside production handlers.
+- Publication is not a generation stage. Use `lumenclip_output_publish`
+  separately; its explicit confirmation, QA override, account, and scheduling
+  rules are unchanged.
+- Provider stages return provider/model/task metadata and durable references,
+  not secrets or media bytes.
+
+## Current boundary audit and blockers
+
+The catalog exposes all safely extracted boundaries, but the legacy production
+helpers below still bundle more than one underlying network/storage call. They
+are retained to preserve production behavior and are not claimed as fully
+atomic:
+
+1. `slideshow-generation.render-store-pngs` calls
+   `createSlideshowResultRecord`, which may read remote source assets, mirror
+   multiple files to Appwrite storage, create the result row, create output
+   media rows, and create post-intent rows.
+2. `slideshow-generation.render-store-mp4` calls
+   `renderStoredSlideshowVideo`, which reads stored assets and result state,
+   runs the multi-call Rendi upload/command/poll/download protocol, mirrors
+   artifacts, and updates result/output-media storage.
+3. Collection-style Appwrite helpers used by slideshow input lists and the
+   X/Threads run/automation upserts can paginate, read-before-write, retry, or
+   synchronize related rows. Their MCP handler boundary is singular, but the
+   underlying SDK boundary is not yet one-call atomic.
+4. Saved UGC workflow steps enqueue the durable production checkpoint worker.
+   The worker still bundles configured-asset lookup, ElevenLabs/fal/Rendi
+   provider calls, remote downloads, checkpoint writes, and final output/media
+   persistence. The extracted fal create/status/result and singular b-roll
+   stages are available for explicit composition, but the production worker has
+   not yet been safely rewritten around them.
+
+Fully removing these blockers requires lower-level production storage/render
+APIs with resumable state between every call. Until then, callers should treat
+the named legacy stages above as compatibility composites, not proof that each
+underlying SDK request has been isolated.

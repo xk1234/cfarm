@@ -101,7 +101,19 @@ describe("LumenClip MCP server", () => {
     })
     expect(catalog.structuredContent).toMatchObject({
       workflows: expect.arrayContaining([
-        expect.objectContaining({ id: "slideshow-generation" }),
+        expect.objectContaining({
+          id: "slideshow-generation",
+          stages: expect.arrayContaining([
+            expect.objectContaining({
+              id: "slideshow-generation.select-one-slide-image",
+              granularity: "atomic",
+              sideEffect: "network",
+              operation: "conditional OpenRouter image choice",
+              maxExternalCalls: 1,
+              workflowStep: false,
+            }),
+          ]),
+        }),
         expect.objectContaining({ id: "ugc-video-generation" }),
         expect.objectContaining({ id: "linkedin-generation" }),
         expect.objectContaining({ id: "x-threads-generation" }),
@@ -125,6 +137,26 @@ describe("LumenClip MCP server", () => {
         stopAfter: "linkedin-generation.validate-input",
       },
     })
+    const selectedImage = await client.callTool({
+      name: "lumenclip_pipeline_stage_run",
+      arguments: {
+        stageId: "slideshow-generation.select-one-slide-image",
+        input: {
+          shortlist: {
+            slideId: "content-1",
+            slideText: "A supplied shortlist",
+            aiImageSelection: false,
+            candidates: [
+              {
+                id: "image-1",
+                imageUrl: "/api/assets/image-1.jpg",
+                caption: "One candidate",
+              },
+            ],
+          },
+        },
+      },
+    })
 
     expect(single.structuredContent).toMatchObject({
       stage: { id: "linkedin-generation.validate-input" },
@@ -136,6 +168,16 @@ describe("LumenClip MCP server", () => {
       status: "succeeded",
       completedStages: 1,
       output: (single.structuredContent as { output: unknown }).output,
+    })
+    expect(selectedImage.structuredContent).toMatchObject({
+      stage: { id: "slideshow-generation.select-one-slide-image" },
+      externalCalls: 0,
+      output: {
+        selectedImage: {
+          slideId: "content-1",
+          id: "image-1",
+        },
+      },
     })
   })
 

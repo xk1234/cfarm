@@ -45,6 +45,7 @@ export async function executePipelineStage(input: {
   const requestId = cleanRequestId(input.requestId)
   const parsed = registered.inputSchema.parse(input.stageInput)
   assertSafePipelineValue(parsed, "input")
+  let externalCalls = 0
   const runStage = (stageId: string, stageInput: Record<string, unknown>) =>
     executePipelineStage({
       registry: input.registry,
@@ -59,6 +60,15 @@ export async function executePipelineStage(input: {
     stageId: registered.id,
     requestId,
     runStage,
+    externalCall: async (operation, task) => {
+      if (externalCalls >= registered.maxExternalCalls) {
+        throw new Error(
+          `Pipeline stage ${registered.id} exceeded maxExternalCalls=${registered.maxExternalCalls} before ${operation}`
+        )
+      }
+      externalCalls += 1
+      return task()
+    },
   })
   assertSafePipelineValue(rawOutput, "output")
   const output = structuredClone(rawOutput)
@@ -67,6 +77,7 @@ export async function executePipelineStage(input: {
     stage: stageMetadata(registered),
     requestId,
     status: operation ? "running" : "succeeded",
+    externalCalls,
     output,
     ...(operation ? { operation } : {}),
   }
@@ -146,7 +157,10 @@ export async function executeNamedPipeline(input: {
 export function pipelineCatalog() {
   return PIPELINE_WORKFLOW_IDS.map((workflowId) => ({
     id: workflowId,
-    stages: pipelineStagesForWorkflow(workflowId),
+    workflowStages: pipelineStagesForWorkflow(workflowId),
+    stages: PIPELINE_STAGE_CATALOG.filter(
+      (stage) => stage.workflowId === workflowId
+    ).sort((left, right) => left.order - right.order),
   }))
 }
 
@@ -216,6 +230,11 @@ function stageMetadata(stage: RegisteredPipelineStage) {
     provider: stage.provider,
     model: stage.model,
     optional: stage.optional,
+    granularity: stage.granularity,
+    sideEffect: stage.sideEffect,
+    operation: stage.operation,
+    maxExternalCalls: stage.maxExternalCalls,
+    workflowStep: stage.workflowStep,
     description: stage.description,
   }
 }

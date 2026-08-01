@@ -21,8 +21,8 @@ import {
 } from "@/lib/automation-runner"
 import { automationSchemaToTempSlideTestingAutomation } from "@/lib/temp-slide-testing"
 import {
-  generateSlideshowTextFromPayload,
-  researchSelectedHook,
+  generateSlideshowTextAttemptFromPayload,
+  researchSelectedHookAttempt,
   selectSlideshowHook,
 } from "@/lib/slideshow-generation-engine"
 import { slideshowTextGenerationPayload } from "@/lib/slideshow-text-generation-payload"
@@ -50,9 +50,9 @@ import {
 } from "@/lib/text-similarity"
 import {
   buildLinkedInGenerationRequest,
+  composePost,
   deriveLinkedInBrief,
-  generateLinkedInDraft,
-  repairLinkedInDraft,
+  generateLinkedInSlotsAttempt,
   selectLinkedInPlan,
   validateLinkedInDraft,
   type LinkedInBrief,
@@ -62,41 +62,59 @@ import {
 } from "@/lib/linkedin-automation-generation"
 import type { LinkedInPostPlan } from "@/lib/linkedin-post-presets"
 import {
-  analyzeUgcProduct,
+  analyzeUgcProductFacts,
+  fetchProductPageResponse,
   generateUgcScript,
+  resolvePublicProductUrl,
 } from "@/lib/ugc-video-generation"
+import {
+  falCreateTask,
+  falGetTaskResult,
+  falGetTaskStatus,
+  normalizeFalAsset,
+} from "@/lib/fal-client"
 import { estimateUgcCost } from "@/lib/ugc-cost"
 import { ugcExportId, ugcRunId } from "@/lib/ugc-automation-runner"
 import {
   buildXAutomationRun,
   buildXGenerationRequest,
-  derivePillarsFromNicheWithDiagnostics,
-  generateXPostDraft,
+  composeXStructuredPost,
+  deriveXBriefAttempt,
+  generateXStructuredAttempt,
+  normalizeStructuredOutput,
   selectPostPlan,
   validateGeneratedPost,
   type PostPlan,
 } from "@/lib/x-automation-generation"
 import type { XAutomationRecord, XAutomationRun } from "@/lib/x-automation"
+import { buildXAutomationUsageUpdate } from "@/lib/x-automation-runner"
 import type { BrandProfile } from "@/lib/brand-profile"
 import { humanizeContent, reviewContent } from "@/lib/generation-chain"
 import { generationModelRegistry } from "@/lib/realfarm-generation-model-registry"
 import { getGenerationModelSettings } from "@/lib/generation-model-settings"
 import {
   buildNanoBananaProPayload,
-  downloadRemoteImageToLocalAsset,
+  createKieMarketTask,
+  discardDownloadedImage,
+  downloadRemoteImageToTemp,
+  getKieMarketTask,
   getKieApiKey,
-  runKieMarketTask,
+  persistDownloadedImage,
 } from "@/lib/kie-image"
 import path from "node:path"
 import {
   mergePipelineOutput,
   type PipelineHandlerMap,
 } from "@/lib/pipeline-executor"
-import { PIPELINE_STAGE_CATALOG } from "@/lib/pipeline-stages"
+import {
+  PIPELINE_STAGE_CATALOG,
+  type PipelineStageContext,
+} from "@/lib/pipeline-stages"
 import type { AutomationRecord } from "@/lib/automations"
 import type { StoredImageCollection } from "@/lib/image-collections"
 import type { WordCollectionRecord } from "@/lib/word-collections"
 import type { Job } from "@/lib/queue"
+import type { ReminderSettings } from "@/lib/reminder-settings"
 
 export type ProductionPipelineServices = {
   now: () => Date
@@ -119,6 +137,10 @@ export type ProductionPipelineServices = {
     requestId?: string
   }) => Promise<XAutomationRun>
   upsertXAutomationRun: (run: XAutomationRun) => Promise<XAutomationRun>
+  upsertXAutomation: (
+    automation: XAutomationRecord
+  ) => Promise<XAutomationRecord>
+  getReminderSettings: () => Promise<ReminderSettings>
   enqueueJob: (input: {
     type: string
     payload: Record<string, unknown>
@@ -141,45 +163,126 @@ export function createProductionPipelineHandlers(
     handler: NonNullable<ReturnType<typeof handlers.get>>
   ) => handlers.set(id, handler)
 
+  add("slideshow-generation.load-automation-record", async (input, context) => {
+    const automationRecord = await context.externalCall(
+      "Appwrite automation read",
+      () =>
+        services.getAutomationRecord(
+          requiredString(input.automationId, "automationId")
+        )
+    )
+    return mergePipelineOutput(input, { automationRecord })
+  })
+  add("slideshow-generation.list-image-collections", async (input, context) =>
+    mergePipelineOutput(input, {
+      collections: await context.externalCall(
+        "Appwrite image-collection list",
+        () => services.listImageCollections()
+      ),
+    })
+  )
+  add("slideshow-generation.list-word-collections", async (input, context) =>
+    mergePipelineOutput(input, {
+      wordCollections: await context.externalCall(
+        "Appwrite word-collection list",
+        () => services.listWordCollections()
+      ),
+    })
+  )
+  add("slideshow-generation.list-usage-history", async (input, context) =>
+    mergePipelineOutput(input, {
+      usageHistory: await context.externalCall(
+        "Appwrite usage-history list",
+        () => listUsageRecords()
+      ),
+    })
+  )
+  add("slideshow-generation.list-prior-runs", async (input, context) =>
+    mergePipelineOutput(input, {
+      priorRuns: await context.externalCall(
+        "Appwrite automation-run list",
+        () =>
+          services.listAutomationRuns({
+            automationId: requiredString(input.automationId, "automationId"),
+            limit: 500,
+          })
+      ),
+    })
+  )
+  add("slideshow-generation.load-model-settings", async (input, context) =>
+    mergePipelineOutput(input, {
+      generationSettings: await context.externalCall(
+        "generation-model settings read",
+        () => getGenerationModelSettings()
+      ),
+    })
+  )
+
   add("slideshow-generation.validate-input", async (input, context) => {
-    const saved = clean(input.automationId)
-      ? await services.getAutomationRecord(clean(input.automationId))
+    let state = input
+    if (clean(state.automationId) && !isRecord(state.automationRecord)) {
+      state = (
+        await context.runStage(
+          "slideshow-generation.load-automation-record",
+          state
+        )
+      ).output
+    }
+    const saved = isRecord(state.automationRecord)
+      ? (state.automationRecord as unknown as AutomationRecord)
       : null
     if (clean(input.automationId) && !saved)
       throw new Error("Automation not found")
     const schema = requiredRecord(
-      isRecord(input.schema) ? input.schema : saved?.schema,
+      isRecord(state.schema) ? state.schema : saved?.schema,
       "schema"
     ) as unknown as AutomationSchema
     if (schema.automationKind !== "slideshow") {
       throw new Error("The selected automation is not a slideshow")
     }
-    const [
-      collections,
-      wordCollections,
-      usageRecords,
-      priorRuns,
-      modelSettings,
-    ] = await Promise.all([
-      Array.isArray(input.collections)
-        ? Promise.resolve(input.collections as StoredImageCollection[])
-        : services.listImageCollections(),
-      Array.isArray(input.wordCollections)
-        ? Promise.resolve(input.wordCollections as WordCollectionRecord[])
-        : services.listWordCollections(),
-      Array.isArray(input.usageHistory)
-        ? Promise.resolve(input.usageHistory as UsageRecord[])
-        : listUsageRecords(),
-      clean(input.automationId)
-        ? services.listAutomationRuns({
-            automationId: clean(input.automationId),
-            limit: 500,
-          })
-        : Promise.resolve([]),
-      isRecord(input.generationSettings)
-        ? Promise.resolve(input.generationSettings)
-        : getGenerationModelSettings(),
-    ])
+    for (const [stageId, needed] of [
+      [
+        "slideshow-generation.list-image-collections",
+        !Array.isArray(state.collections),
+      ],
+      [
+        "slideshow-generation.list-word-collections",
+        !Array.isArray(state.wordCollections),
+      ],
+      [
+        "slideshow-generation.list-usage-history",
+        !Array.isArray(state.usageHistory),
+      ],
+      [
+        "slideshow-generation.list-prior-runs",
+        Boolean(clean(state.automationId)) && !Array.isArray(state.priorRuns),
+      ],
+      [
+        "slideshow-generation.load-model-settings",
+        !isRecord(state.generationSettings),
+      ],
+    ] as const) {
+      if (needed) state = (await context.runStage(stageId, state)).output
+    }
+    const collections = requiredArray<StoredImageCollection>(
+      state.collections,
+      "collections"
+    )
+    const wordCollections = requiredArray<WordCollectionRecord>(
+      state.wordCollections,
+      "wordCollections"
+    )
+    const usageRecords = requiredArray<UsageRecord>(
+      state.usageHistory,
+      "usageHistory"
+    )
+    const priorRuns = Array.isArray(state.priorRuns)
+      ? (state.priorRuns as AutomationRunRecord[])
+      : []
+    const modelSettings = requiredRecord(
+      state.generationSettings,
+      "generationSettings"
+    )
     const blockers = automationGenerationBlockers({
       schema,
       collections: collections.map((collection) => ({
@@ -212,7 +315,7 @@ export function createProductionPipelineHandlers(
     )
     const usageFor = (kind: UsageRecord["kind"]) =>
       publishedUsage.filter((record) => record.kind === kind)
-    return mergePipelineOutput(input, {
+    return mergePipelineOutput(state, {
       automation,
       schema,
       collections,
@@ -344,7 +447,29 @@ export function createProductionPipelineHandlers(
     return mergePipelineOutput(input, additions)
   })
 
-  add("slideshow-generation.research-hook", async (input) => {
+  add("slideshow-generation.research-hook-attempt", async (input, context) => {
+    const apiKey = clean(process.env.OPENROUTER_API_KEY)
+    if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
+    const research = await context.externalCall(
+      "OpenRouter chat completion with Exa",
+      () =>
+        researchSelectedHookAttempt({
+          apiKey,
+          model: clean(input.model) || "openai/gpt-5.4-mini",
+          hook: requiredString(input.hook, "hook"),
+          automationName:
+            clean(input.automationName) ||
+            clean(asRecord(input.automation).name) ||
+            "Slideshow",
+        })
+    )
+    return mergePipelineOutput(input, {
+      research,
+      webSearchSources: research.sources.map((source) => source.url),
+    })
+  })
+
+  add("slideshow-generation.research-hook", async (input, context) => {
     const schema = requiredSchema(input)
     if (
       input.enabled === false ||
@@ -356,21 +481,20 @@ export function createProductionPipelineHandlers(
         webSearchSources: [],
       })
     }
-    const apiKey = clean(process.env.OPENROUTER_API_KEY)
-    if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-    const research = await researchSelectedHook({
-      apiKey,
-      model: clean(input.model) || "openai/gpt-5.4-mini",
-      hook: requiredString(input.hook, "hook"),
-      automationName:
-        clean(input.automationName) ||
-        clean(asRecord(input.automation).name) ||
-        "Slideshow",
-    })
-    return mergePipelineOutput(input, {
-      research,
-      webSearchSources: research.sources.map((source) => source.url),
-    })
+    let lastError: unknown
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        return (
+          await context.runStage("slideshow-generation.research-hook-attempt", {
+            ...input,
+            attempt,
+          })
+        ).output
+      } catch (error) {
+        lastError = error
+      }
+    }
+    throw lastError
   })
 
   add("slideshow-generation.build-text-prompt", async (input) => {
@@ -400,27 +524,63 @@ export function createProductionPipelineHandlers(
     })
   })
 
-  add("slideshow-generation.generate-slide-text", async (input) => {
-    const apiKey = clean(process.env.OPENROUTER_API_KEY)
-    if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-    const generated = await generateSlideshowTextFromPayload({
-      automation: requiredRecord(
-        input.textAutomation,
-        "textAutomation"
-      ) as never,
-      selectedHook: requiredString(input.hook, "hook"),
-      promptPayload: requiredRecord(
-        input.promptPayload,
-        "promptPayload"
-      ) as never,
-      apiKey,
-    })
-    return mergePipelineOutput(input, {
-      generatedText: generated.result,
-      textModel: generated.model,
-      violations: generated.violations ?? [],
-      transformations: generated.transformations ?? [],
-    })
+  add(
+    "slideshow-generation.generate-slide-text-attempt",
+    async (input, context) => {
+      const apiKey = clean(process.env.OPENROUTER_API_KEY)
+      if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
+      const fixedHook = requiredString(input.hook, "hook")
+      const generated = await context.externalCall(
+        "OpenRouter chat completion",
+        () =>
+          generateSlideshowTextAttemptFromPayload({
+            automation: requiredRecord(
+              input.textAutomation,
+              "textAutomation"
+            ) as never,
+            selectedHook: fixedHook,
+            promptPayload: requiredRecord(
+              input.promptPayload,
+              "promptPayload"
+            ) as never,
+            repairFeedback: clean(input.repairFeedback) || undefined,
+            finalAttempt: input.finalAttempt === true,
+            apiKey,
+          })
+      )
+      if (generated.selectedHook !== fixedHook) {
+        throw new Error("The fixed slideshow hook cannot be overwritten")
+      }
+      return mergePipelineOutput(input, {
+        generatedText: generated.result,
+        textModel: generated.model,
+        violations: generated.violations ?? [],
+        transformations: generated.transformations ?? [],
+        selectedHook: fixedHook,
+      })
+    }
+  )
+
+  add("slideshow-generation.generate-slide-text", async (input, context) => {
+    let repairFeedback = ""
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        return (
+          await context.runStage(
+            "slideshow-generation.generate-slide-text-attempt",
+            mergePipelineOutput(input, {
+              attempt,
+              repairFeedback: repairFeedback || undefined,
+              finalAttempt: attempt === 2,
+            })
+          )
+        ).output
+      } catch (error) {
+        repairFeedback = error instanceof Error ? error.message : String(error)
+        if (attempt === 2) throw error
+      }
+    }
+    throw new Error("Slideshow text generation exhausted its attempts")
   })
 
   add("slideshow-generation.retry-text-similarity", async (input, context) => {
@@ -459,7 +619,7 @@ export function createProductionPipelineHandlers(
     return mergePipelineOutput(retry.output, { textSimilarityRetry: true })
   })
 
-  add("slideshow-generation.derive-visual-concepts", async (input) => {
+  add("slideshow-generation.derive-visual-concepts", async (input, context) => {
     const generatedText = asRecord(asRecord(input.generatedText).text)
     const slides = Array.isArray(input.visualSlides)
       ? (input.visualSlides as Record<string, unknown>[])
@@ -485,11 +645,15 @@ export function createProductionPipelineHandlers(
     }
     const apiKey = clean(process.env.OPENROUTER_API_KEY)
     if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-    const concepts = await deriveSlideVisualConcepts({
-      slideTexts: slides.map((slide) => clean(slide.text)),
-      apiKey,
-      model: clean(input.textModel) || undefined,
-    })
+    const concepts = await context.externalCall(
+      "OpenRouter visual-concept derivation",
+      () =>
+        deriveSlideVisualConcepts({
+          slideTexts: slides.map((slide) => clean(slide.text)),
+          apiKey,
+          model: clean(input.textModel) || undefined,
+        })
+    )
     return mergePipelineOutput(input, {
       visualConceptsBySlide: slides.map((slide, index) => ({
         slideId: clean(slide.id) || `slide-${index + 1}`,
@@ -593,69 +757,62 @@ export function createProductionPipelineHandlers(
     return mergePipelineOutput(input, { shortlists })
   })
 
-  add("slideshow-generation.select-slide-images", async (input) => {
-    const shortlists = requiredArray<Record<string, unknown>>(
-      input.shortlists,
-      "shortlists"
+  add("slideshow-generation.select-one-slide-image", async (input, context) => {
+    const shortlist = requiredRecord(input.shortlist, "shortlist")
+    const candidates = requiredArray<SlideshowImageCandidate>(
+      shortlist.candidates,
+      "shortlist candidates"
     )
-    const apiKey = clean(process.env.OPENROUTER_API_KEY)
+    if (!candidates.length) throw new Error("Image shortlist is empty")
     const recentUsage = asRecord(input.recentImageUsage)
-    const usedIds = new Set<string>()
-    const usedUrls = new Set<string>()
-    const selectedImages = []
-    for (const [index, shortlist] of shortlists.entries()) {
-      const candidates = requiredArray<SlideshowImageCandidate>(
-        shortlist.candidates,
-        "shortlist candidates"
-      )
-      if (!candidates.length) throw new Error("Image shortlist is empty")
-      const pinnedId =
-        index === 0
-          ? clean(input.firstSlidePinnedImageId)
-          : index === shortlists.length - 1
-            ? clean(input.ctaPinnedImageId)
-            : ""
-      const pinned = pinnedId
-        ? candidates.find(
-            (candidate) =>
-              candidate.id === pinnedId || candidate.imageUrl === pinnedId
-          )
-        : undefined
-      const available = candidates.filter(
-        (candidate) =>
-          !usedIds.has(candidate.id) && !usedUrls.has(candidate.imageUrl)
-      )
-      const pool = available.length ? available : candidates
-      const fresh = pool.filter(
-        (candidate) =>
-          !recentUsage[candidate.id] && !recentUsage[candidate.imageUrl]
-      )
-      const deterministic = (fresh.length ? fresh : pool).toSorted(
-        (left, right) =>
-          Date.parse(
-            clean(recentUsage[left.id] ?? recentUsage[left.imageUrl]) || "0"
-          ) -
-          Date.parse(
-            clean(recentUsage[right.id] ?? recentUsage[right.imageUrl]) || "0"
-          )
-      )[0]
-      const selectedId =
-        pinned?.id ??
-        (shortlist.aiImageSelection === false || pool.length === 1
-          ? deterministic.id
-          : await selectSlideshowImageWithAi({
+    const usedIds = new Set(stringArray(input.usedImageIds))
+    const usedUrls = new Set(stringArray(input.usedImageUrls))
+    const pinnedId = clean(input.pinnedImageId)
+    const pinned = pinnedId
+      ? candidates.find(
+          (candidate) =>
+            candidate.id === pinnedId || candidate.imageUrl === pinnedId
+        )
+      : undefined
+    const available = candidates.filter(
+      (candidate) =>
+        !usedIds.has(candidate.id) && !usedUrls.has(candidate.imageUrl)
+    )
+    const pool = available.length ? available : candidates
+    const fresh = pool.filter(
+      (candidate) =>
+        !recentUsage[candidate.id] && !recentUsage[candidate.imageUrl]
+    )
+    const deterministic = (fresh.length ? fresh : pool).toSorted(
+      (left, right) =>
+        Date.parse(
+          clean(recentUsage[left.id] ?? recentUsage[left.imageUrl]) || "0"
+        ) -
+        Date.parse(
+          clean(recentUsage[right.id] ?? recentUsage[right.imageUrl]) || "0"
+        )
+    )[0]
+    const selectedId =
+      pinned?.id ??
+      (shortlist.aiImageSelection === false || pool.length === 1
+        ? deterministic.id
+        : await context.externalCall("OpenRouter image choice", () =>
+            selectSlideshowImageWithAi({
               slideText: clean(shortlist.slideText),
               candidates: pool,
-              apiKey: requiredString(apiKey, "OPENROUTER_API_KEY"),
+              apiKey: requiredString(
+                process.env.OPENROUTER_API_KEY,
+                "OPENROUTER_API_KEY"
+              ),
               concepts: stringArray(shortlist.concepts),
               model: clean(input.textModel) || undefined,
-            }))
-      const selected =
-        pool.find((candidate) => candidate.id === selectedId) ?? pinned
-      if (!selected) throw new Error("Selected image is not in the shortlist")
-      usedIds.add(selected.id)
-      usedUrls.add(selected.imageUrl)
-      selectedImages.push({
+            })
+          ))
+    const selected =
+      pool.find((candidate) => candidate.id === selectedId) ?? pinned
+    if (!selected) throw new Error("Selected image is not in the shortlist")
+    return mergePipelineOutput(input, {
+      selectedImage: {
         slideId: clean(shortlist.slideId),
         id: selected.id,
         imageUrl: selected.imageUrl,
@@ -663,7 +820,36 @@ export function createProductionPipelineHandlers(
         reusedRecently: Boolean(
           recentUsage[selected.id] || recentUsage[selected.imageUrl]
         ),
-      })
+      },
+    })
+  })
+
+  add("slideshow-generation.select-slide-images", async (input, context) => {
+    const shortlists = requiredArray<Record<string, unknown>>(
+      input.shortlists,
+      "shortlists"
+    )
+    const selectedImages: Record<string, unknown>[] = []
+    for (const [index, shortlist] of shortlists.entries()) {
+      const execution = await context.runStage(
+        "slideshow-generation.select-one-slide-image",
+        {
+          shortlist,
+          textModel: input.textModel,
+          recentImageUsage: input.recentImageUsage,
+          usedImageIds: selectedImages.map((image) => clean(image.id)),
+          usedImageUrls: selectedImages.map((image) => clean(image.imageUrl)),
+          pinnedImageId:
+            index === 0
+              ? input.firstSlidePinnedImageId
+              : index === shortlists.length - 1
+                ? input.ctaPinnedImageId
+                : undefined,
+        }
+      )
+      selectedImages.push(
+        requiredRecord(execution.output.selectedImage, "selectedImage")
+      )
     }
     return mergePipelineOutput(input, { selectedImages })
   })
@@ -746,7 +932,7 @@ export function createProductionPipelineHandlers(
     return mergePipelineOutput(input, { plan })
   })
 
-  add("slideshow-generation.translate-plan", async (input) => {
+  add("slideshow-generation.translate-plan", async (input, context) => {
     const plan = requiredRecord(input.plan, "plan")
     const slides = requiredArray<Record<string, unknown>>(
       plan.slides,
@@ -759,11 +945,13 @@ export function createProductionPipelineHandlers(
     const apiKey = clean(process.env.DEEPL_KEY)
     if (!apiKey) throw new Error("DEEPL_KEY is not configured")
     const texts = slides.map((slide) => clean(slide.text))
-    const translated = await translateTextsWithDeepL({
-      apiKey,
-      targetLanguage: language,
-      texts,
-    })
+    const translated = await context.externalCall("DeepL translation", () =>
+      translateTextsWithDeepL({
+        apiKey,
+        targetLanguage: language,
+        texts,
+      })
+    )
     return mergePipelineOutput(input, {
       localizedPlan: {
         ...plan,
@@ -866,7 +1054,48 @@ export function createProductionPipelineHandlers(
     })
   })
 
-  add("slideshow-generation.finalize-output", async (input) => {
+  add(
+    "slideshow-generation.append-one-usage-record",
+    async (input, context) => {
+      await context.externalCall("Appwrite usage-record create", () =>
+        appendUsageRecords({
+          records: [
+            requiredRecord(
+              input.usageRecord,
+              "usageRecord"
+            ) as unknown as UsageRecord,
+          ],
+        })
+      )
+      return mergePipelineOutput(input, { usageRecordPersisted: true })
+    }
+  )
+
+  add("slideshow-generation.append-usage-records", async (input, context) => {
+    const records = requiredArray<UsageRecord>(
+      input.usageRecords,
+      "usageRecords"
+    )
+    for (const usageRecord of records) {
+      await context.runStage("slideshow-generation.append-one-usage-record", {
+        usageRecord,
+      })
+    }
+    return mergePipelineOutput(input, {
+      usageRecordsPersisted: records.length,
+    })
+  })
+
+  add("slideshow-generation.upsert-automation-run", async (input, context) => {
+    await context.externalCall("Appwrite automation-run upsert", () =>
+      upsertRecoveredAutomationRun(
+        requiredRecord(input.runToPersist, "runToPersist") as never
+      )
+    )
+    return mergePipelineOutput(input, { automationRunPersisted: true })
+  })
+
+  add("slideshow-generation.finalize-output", async (input, context) => {
     const plan = requiredRecord(input.plan, "plan")
     const runId = clean(input.runId) || contextId(input)
     const automationId = clean(asRecord(input.automation).id) || "standalone"
@@ -924,9 +1153,11 @@ export function createProductionPipelineHandlers(
       input.runRecord,
       "runRecord"
     ) as unknown as AutomationRunRecord
-    await Promise.all([
-      appendUsageRecords({ records }),
-      upsertRecoveredAutomationRun({
+    await context.runStage("slideshow-generation.append-usage-records", {
+      usageRecords: records,
+    })
+    await context.runStage("slideshow-generation.upsert-automation-run", {
+      runToPersist: {
         ...runRecord,
         status: asRecord(input.qa).valid === false ? "failed" : "succeeded",
         slideshowId: clean(input.slideshowId) || undefined,
@@ -934,8 +1165,8 @@ export function createProductionPipelineHandlers(
         videoUrl: clean(input.videoUrl) || undefined,
         thumbnailUrl: clean(input.thumbnailUrl) || undefined,
         updatedAt: services.now().toISOString(),
-      }),
-    ])
+      },
+    })
     return {
       result: {
         id: clean(input.resultId),
@@ -971,36 +1202,352 @@ export function createProductionPipelineHandlers(
     }
   })
 
-  add("ugc-video-generation.analyze-product", async (input, context) => {
-    if (clean(input.automationId))
-      return queueUgcStage(services, input, context.requestId, "analysis")
+  add("ugc-video-generation.resolve-product-host", async (input, context) => {
+    const resolvedProductUrl = await context.externalCall(
+      "public DNS lookup",
+      () =>
+        resolvePublicProductUrl(
+          requiredString(
+            input.currentProductUrl ?? input.productUrl,
+            "productUrl"
+          )
+        )
+    )
+    return mergePipelineOutput(input, { resolvedProductUrl })
+  })
+
+  add(
+    "ugc-video-generation.fetch-product-page-response",
+    async (input, context) => {
+      const result = await context.externalCall(
+        "product-page HTTP request",
+        () =>
+          fetchProductPageResponse({
+            url: requiredString(input.resolvedProductUrl, "resolvedProductUrl"),
+          })
+      )
+      return mergePipelineOutput(input, {
+        productPage: result.page,
+        redirectUrl: result.redirectUrl,
+      })
+    }
+  )
+
+  add("ugc-video-generation.fetch-product-page", async (input, context) => {
+    let state = mergePipelineOutput(input, {
+      currentProductUrl: requiredString(input.productUrl, "productUrl"),
+    })
+    for (let redirects = 0; redirects <= 4; redirects += 1) {
+      state = (
+        await context.runStage(
+          "ugc-video-generation.resolve-product-host",
+          state
+        )
+      ).output
+      state = (
+        await context.runStage(
+          "ugc-video-generation.fetch-product-page-response",
+          state
+        )
+      ).output
+      if (isRecord(state.productPage)) return state
+      if (!clean(state.redirectUrl) || redirects === 4) {
+        throw new Error("Product URL has too many or invalid redirects")
+      }
+      state = mergePipelineOutput(state, {
+        currentProductUrl: state.redirectUrl,
+      })
+    }
+    throw new Error("Product page redirect failure")
+  })
+
+  add("ugc-video-generation.analyze-product-facts", async (input, context) => {
     const apiKey = clean(process.env.OPENROUTER_API_KEY)
     if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-    const analysis = await analyzeUgcProduct({
-      apiKey,
-      productUrl: clean(input.productUrl) || undefined,
-      productBrief: clean(input.productBrief) || undefined,
-    })
+    const analysis = await context.externalCall(
+      "OpenRouter product analysis",
+      () =>
+        analyzeUgcProductFacts({
+          apiKey,
+          productBrief: clean(input.productBrief) || undefined,
+          page: isRecord(input.productPage)
+            ? (input.productPage as never)
+            : undefined,
+        })
+    )
     return mergePipelineOutput(input, {
       analysis,
       checkpoint: { stage: "analysis", status: "complete" },
     })
   })
 
+  add(
+    "ugc-video-generation.generate-script-attempt",
+    async (input, context) => {
+      const apiKey = clean(process.env.OPENROUTER_API_KEY)
+      if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
+      const plan = await context.externalCall(
+        "OpenRouter UGC script generation",
+        () =>
+          generateUgcScript({
+            apiKey,
+            analysis: requiredRecord(input.analysis, "analysis") as never,
+            targetDurationSeconds:
+              numberValue(input.targetDurationSeconds) || 60,
+          })
+      )
+      return mergePipelineOutput(input, {
+        plan,
+        checkpoint: { stage: "script", status: "complete" },
+      })
+    }
+  )
+
+  add("ugc-video-generation.enqueue-checkpoint-job", async (input, context) => {
+    if (!services.ugcGenerationEnabled()) {
+      throw new Error("AI UGC generation is disabled")
+    }
+    const automationId = requiredString(input.automationId, "automationId")
+    const scheduledFor =
+      clean(input.scheduledFor) || services.now().toISOString()
+    const stopAfter = requiredString(input.stopAfter, "stopAfter")
+    const queued = await context.externalCall("Appwrite job enqueue", () =>
+      services.enqueueJob({
+        type: "run-ugc-automation",
+        payload: {
+          automationId,
+          scheduledFor,
+          requestId: context.requestId,
+          source: "mcp_pipeline_stage",
+          draftOnly: true,
+          stopAfter,
+        },
+        dedupeKey: `ugc-stage:${automationId}:${scheduledFor}:${stopAfter}:${context.requestId}`,
+        maxAttempts: 3,
+      })
+    )
+    if (!queued) throw new Error("The generation queue is unavailable")
+    return mergePipelineOutput(input, {
+      automationId,
+      scheduledFor,
+      runId: ugcRunId(automationId, scheduledFor),
+      expectedOutputId: ugcExportId(automationId, scheduledFor),
+      estimate: estimateUgcCost({}),
+      operation: {
+        id: queued.id,
+        kind: `ugc.stage.${stopAfter}`,
+        status: "running",
+        stage: queued.status === "duplicate" ? "queued_existing" : "queued",
+        createdAt: scheduledFor,
+        updatedAt: scheduledFor,
+        nextPollAfterMs: 5000,
+        resourceUri: `lumenclip://operations/${encodeURIComponent(queued.id)}`,
+      },
+    })
+  })
+
+  add("ugc-video-generation.get-checkpoint-job", async (input, context) => {
+    const job = await context.externalCall("Appwrite job read", () =>
+      services.getJob(requiredString(input.jobId, "jobId"))
+    )
+    return mergePipelineOutput(input, { job })
+  })
+
+  add("ugc-video-generation.fal-create-task", async (input, context) => {
+    const apiKey = requiredString(process.env.FAL_KEY, "FAL_KEY")
+    const requestId = await context.externalCall("fal queue task submit", () =>
+      falCreateTask({
+        endpoint: requiredString(input.endpoint, "endpoint"),
+        input: input.providerInput,
+        apiKey,
+      })
+    )
+    return mergePipelineOutput(input, { providerRequestId: requestId })
+  })
+
+  add("ugc-video-generation.fal-get-task-status", async (input, context) => {
+    const status = await context.externalCall("fal queue status read", () =>
+      falGetTaskStatus({
+        endpoint: requiredString(input.endpoint, "endpoint"),
+        requestId: requiredString(input.providerRequestId, "providerRequestId"),
+        apiKey: requiredString(process.env.FAL_KEY, "FAL_KEY"),
+      })
+    )
+    return mergePipelineOutput(input, { falStatus: status })
+  })
+
+  add("ugc-video-generation.fal-get-task-result", async (input, context) => {
+    const raw = await context.externalCall("fal queue result read", () =>
+      falGetTaskResult<Record<string, unknown>>({
+        endpoint: requiredString(input.endpoint, "endpoint"),
+        requestId: requiredString(input.providerRequestId, "providerRequestId"),
+        apiKey: requiredString(process.env.FAL_KEY, "FAL_KEY"),
+      })
+    )
+    return mergePipelineOutput(input, {
+      providerAsset: normalizeFalAsset(raw, "image"),
+      operation: {
+        id: requiredString(input.providerRequestId, "providerRequestId"),
+        kind: "ugc.broll.fal",
+        status: "succeeded",
+      },
+    })
+  })
+
+  add(
+    "ugc-video-generation.download-one-broll-asset",
+    async (input, context) => {
+      const asset = requiredRecord(input.providerAsset, "providerAsset")
+      const downloaded = await context.externalCall(
+        "remote b-roll HTTP download",
+        () =>
+          downloadRemoteImageToTemp({
+            imageUrl: requiredString(asset.url, "providerAsset.url"),
+            taskId: requiredString(
+              input.providerRequestId,
+              "providerRequestId"
+            ),
+            fallbackName: "ugc-broll",
+            failureMessage: "Failed to download generated UGC b-roll",
+          })
+      )
+      return mergePipelineOutput(input, {
+        tempBrollPath: downloaded.tempPath,
+        tempBrollFileName: downloaded.fileName,
+      })
+    }
+  )
+
+  add(
+    "ugc-video-generation.persist-one-broll-asset",
+    async (input, context) => {
+      const brollUrl = await context.externalCall(
+        "Appwrite b-roll asset-file create",
+        () =>
+          persistDownloadedImage({
+            tempPath: requiredString(input.tempBrollPath, "tempBrollPath"),
+            fileName: requiredString(
+              input.tempBrollFileName,
+              "tempBrollFileName"
+            ),
+            folder: path.join(
+              process.cwd(),
+              "data",
+              "ugc-automations",
+              "broll"
+            ),
+            publicPrefix: "/api/local-assets/ugc-automations/broll",
+          })
+      )
+      return mergePipelineOutput(input, { brollUrl })
+    }
+  )
+
+  add("ugc-video-generation.discard-broll-temp-file", async (input) => {
+    if (clean(input.tempBrollPath)) {
+      await discardDownloadedImage(clean(input.tempBrollPath))
+    }
+    return mergePipelineOutput(input, {
+      tempBrollPath: null,
+      tempBrollFileName: null,
+    })
+  })
+
+  add(
+    "ugc-video-generation.generate-one-broll-image",
+    async (input, context) => {
+      let state = input
+      if (!clean(state.providerRequestId)) {
+        state = (
+          await context.runStage("ugc-video-generation.fal-create-task", state)
+        ).output
+        return mergePipelineOutput(state, {
+          operation: {
+            id: clean(state.providerRequestId),
+            kind: "ugc.broll.fal",
+            status: "running",
+            nextPollAfterMs: 2000,
+          },
+        })
+      }
+      state = (
+        await context.runStage(
+          "ugc-video-generation.fal-get-task-status",
+          state
+        )
+      ).output
+      const status = clean(asRecord(state.falStatus).status)
+      if (status !== "COMPLETED") {
+        if (status === "FAILED")
+          throw new Error(
+            clean(asRecord(state.falStatus).error) || "FAL b-roll task failed"
+          )
+        return mergePipelineOutput(state, {
+          operation: {
+            id: clean(state.providerRequestId),
+            kind: "ugc.broll.fal",
+            status: "running",
+            nextPollAfterMs: 2000,
+          },
+        })
+      }
+      state = (
+        await context.runStage(
+          "ugc-video-generation.fal-get-task-result",
+          state
+        )
+      ).output
+      if (!clean(state.tempBrollPath) && !clean(state.brollUrl)) {
+        state = (
+          await context.runStage(
+            "ugc-video-generation.download-one-broll-asset",
+            state
+          )
+        ).output
+      }
+      if (!clean(state.brollUrl)) {
+        state = (
+          await context.runStage(
+            "ugc-video-generation.persist-one-broll-asset",
+            state
+          )
+        ).output
+      }
+      return (
+        await context.runStage(
+          "ugc-video-generation.discard-broll-temp-file",
+          state
+        )
+      ).output
+    }
+  )
+
+  add("ugc-video-generation.analyze-product", async (input, context) => {
+    if (clean(input.automationId))
+      return queueUgcStage(input, context, "analysis")
+    let state = input
+    if (clean(input.productUrl)) {
+      state = (
+        await context.runStage("ugc-video-generation.fetch-product-page", state)
+      ).output
+    }
+    return (
+      await context.runStage(
+        "ugc-video-generation.analyze-product-facts",
+        state
+      )
+    ).output
+  })
+
   add("ugc-video-generation.generate-script-plan", async (input, context) => {
     if (clean(input.automationId))
-      return queueUgcStage(services, input, context.requestId, "script")
-    const apiKey = clean(process.env.OPENROUTER_API_KEY)
-    if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-    const plan = await generateUgcScript({
-      apiKey,
-      analysis: requiredRecord(input.analysis, "analysis") as never,
-      targetDurationSeconds: numberValue(input.targetDurationSeconds) || 60,
-    })
-    return mergePipelineOutput(input, {
-      plan,
-      checkpoint: { stage: "script", status: "complete" },
-    })
+      return queueUgcStage(input, context, "script")
+    return (
+      await context.runStage(
+        "ugc-video-generation.generate-script-attempt",
+        input
+      )
+    ).output
   })
 
   for (const [id, stage] of [
@@ -1012,9 +1559,7 @@ export function createProductionPipelineHandlers(
     ["ugc-video-generation.composite-output", "composite"],
     ["ugc-video-generation.store-final-output", "store"],
   ] as const) {
-    add(id, async (input, context) =>
-      queueUgcStage(services, input, context.requestId, stage)
-    )
+    add(id, async (input, context) => queueUgcStage(input, context, stage))
   }
 
   add("linkedin-generation.validate-input", async (input) => {
@@ -1040,15 +1585,17 @@ export function createProductionPipelineHandlers(
     }
   })
 
-  add("linkedin-generation.resolve-brief", async (input) => {
+  add("linkedin-generation.resolve-brief", async (input, context) => {
     const normalized = requiredRecord(input.normalizedInput, "normalizedInput")
     const supplied = isLinkedInBrief(normalized.brief)
     const brief = supplied
       ? normalized.brief
-      : await deriveLinkedInBrief({
-          niche: clean(normalized.niche),
-          model: clean(normalized.briefModel),
-        })
+      : await context.externalCall("OpenRouter LinkedIn brief derivation", () =>
+          deriveLinkedInBrief({
+            niche: clean(normalized.niche),
+            model: clean(normalized.briefModel),
+          })
+        )
     return mergePipelineOutput(input, {
       brief,
       briefSource: supplied ? "supplied" : "generated",
@@ -1104,22 +1651,63 @@ export function createProductionPipelineHandlers(
     })
   })
 
-  add("linkedin-generation.generate-compose", async (input) => {
-    const draft = await generateLinkedInDraft({
-      request: requiredRecord(
-        input.generationRequest,
-        "generationRequest"
-      ) as unknown as LinkedInGenerationRequest,
-      plan: requiredRecord(input.plan, "plan") as unknown as LinkedInPostPlan,
-    })
+  add("linkedin-generation.generate-slots-attempt", async (input, context) => {
+    const attempt = await context.externalCall(
+      "OpenRouter LinkedIn post generation",
+      () =>
+        generateLinkedInSlotsAttempt({
+          request: requiredRecord(
+            input.generationRequest,
+            "generationRequest"
+          ) as unknown as LinkedInGenerationRequest,
+          repairViolations: stringArray(input.repairViolations),
+          attempt: numberValue(input.attempt) || 1,
+        })
+    )
     return mergePipelineOutput(input, {
-      draft,
+      slotsAttempt: attempt,
       generation: {
-        model: draft.model,
-        provider: draft.provider,
-        attempt: draft.attempts,
+        model: attempt.model,
+        provider: attempt.provider,
+        attempt: attempt.attempts,
       },
     })
+  })
+
+  add("linkedin-generation.compose-draft", async (input) => {
+    const attempt = requiredRecord(input.slotsAttempt, "slotsAttempt")
+    const plan = requiredRecord(
+      input.plan,
+      "plan"
+    ) as unknown as LinkedInPostPlan
+    const providerError = clean(attempt.providerError)
+    const draft: LinkedInDraft = {
+      slots: requiredRecord(attempt.slots, "slotsAttempt.slots"),
+      post: providerError
+        ? ""
+        : composePost(
+            plan.archetype,
+            requiredRecord(attempt.slots, "slotsAttempt.slots")
+          ),
+      attempts: numberValue(attempt.attempts) || 1,
+      provider: "OpenRouter",
+      model: clean(attempt.model),
+      ...(providerError ? { providerError } : {}),
+    }
+    return mergePipelineOutput(input, { draft })
+  })
+
+  add("linkedin-generation.generate-compose", async (input, context) => {
+    const generated = await context.runStage(
+      "linkedin-generation.generate-slots-attempt",
+      input
+    )
+    return (
+      await context.runStage(
+        "linkedin-generation.compose-draft",
+        generated.output
+      )
+    ).output
   })
 
   add("linkedin-generation.validate-draft", async (input) => {
@@ -1131,37 +1719,50 @@ export function createProductionPipelineHandlers(
     return mergePipelineOutput(input, { validation })
   })
 
-  add("linkedin-generation.repair-draft", async (input) => {
-    const repaired = await repairLinkedInDraft({
-      request: requiredRecord(
-        input.generationRequest,
-        "generationRequest"
-      ) as unknown as LinkedInGenerationRequest,
-      plan: requiredRecord(input.plan, "plan") as unknown as LinkedInPostPlan,
-      draft: requiredRecord(input.draft, "draft") as unknown as LinkedInDraft,
-      validation: requiredRecord(
-        input.validation,
+  add("linkedin-generation.repair-draft", async (input, context) => {
+    let state = input
+    let draft = requiredRecord(state.draft, "draft") as unknown as LinkedInDraft
+    let validation = requiredRecord(
+      state.validation,
+      "validation"
+    ) as unknown as LinkedInDraftValidation
+    while (validation.needsRepair && draft.attempts < 3) {
+      state = (
+        await context.runStage("linkedin-generation.generate-compose", {
+          ...state,
+          repairViolations: validation.violations,
+          attempt: draft.attempts + 1,
+        })
+      ).output
+      state = (
+        await context.runStage("linkedin-generation.validate-draft", state)
+      ).output
+      draft = requiredRecord(state.draft, "draft") as unknown as LinkedInDraft
+      validation = requiredRecord(
+        state.validation,
         "validation"
-      ) as unknown as LinkedInDraftValidation,
-      proof: stringArray(asRecord(input.normalizedInput).proof),
-    })
+      ) as unknown as LinkedInDraftValidation
+    }
+    if (validation.needsRepair && draft.providerError) {
+      throw new Error(draft.providerError)
+    }
     const plan = requiredRecord(
-      input.plan,
+      state.plan,
       "plan"
     ) as unknown as LinkedInPostPlan
-    return mergePipelineOutput(input, {
-      draft: repaired.draft,
-      validation: repaired.validation,
+    return mergePipelineOutput(state, {
+      draft,
+      validation,
       generatedPost: {
-        post: repaired.draft.post,
+        post: draft.post,
         archetypeId: plan.archetype.id,
         archetypeLabel: plan.archetype.label,
         hookStyleId: plan.hookStyle.id,
         pillar: plan.pillar,
-        violations: repaired.validation.violations,
-        needsReview: repaired.validation.needsRepair,
-        attempts: repaired.draft.attempts,
-        characterCount: repaired.validation.characterCount,
+        violations: validation.violations,
+        needsReview: validation.needsRepair,
+        attempts: draft.attempts,
+        characterCount: validation.characterCount,
       },
     })
   })
@@ -1197,9 +1798,11 @@ export function createProductionPipelineHandlers(
     }
   })
 
-  add("x-threads-generation.validate-input", async (input) => {
+  add("x-threads-generation.validate-input", async (input, context) => {
     const automation = clean(input.automationId)
-      ? await services.getXAutomation(clean(input.automationId))
+      ? await context.externalCall("Appwrite X-automation read", () =>
+          services.getXAutomation(clean(input.automationId))
+        )
       : isRecord(input.automation)
         ? (input.automation as unknown as XAutomationRecord)
         : null
@@ -1214,7 +1817,19 @@ export function createProductionPipelineHandlers(
     })
   })
 
-  add("x-threads-generation.resolve-brief", async (input) => {
+  add("x-threads-generation.resolve-brief-attempt", async (input, context) => {
+    const brief = await context.externalCall(
+      "OpenRouter X/Threads brief derivation",
+      () =>
+        deriveXBriefAttempt({
+          niche: requiredString(input.niche, "niche"),
+          model: requiredString(input.model, "model"),
+        })
+    )
+    return mergePipelineOutput(input, { brief, selectedModel: input.model })
+  })
+
+  add("x-threads-generation.resolve-brief", async (input, context) => {
     const automation = requiredRecord(
       input.automation,
       "automation"
@@ -1227,16 +1842,42 @@ export function createProductionPipelineHandlers(
     if (input.deriveBrief !== true) {
       throw new Error("Generate the niche strategy before creating a draft")
     }
-    const derived = await derivePillarsFromNicheWithDiagnostics({
-      niche: automation.niche.label,
-      model: automation.generation.model,
-    })
-    return mergePipelineOutput(input, {
-      automation: { ...automation, brief: derived.brief },
-      brief: derived.brief,
-      selectedModel: derived.selectedModel,
-      attempts: derived.attempts,
-    })
+    const models = [
+      automation.generation.model,
+      ...generationModelRegistry.openRouter.xPostGeneration.fallbackModels,
+    ].filter((model, index, values) => model && values.indexOf(model) === index)
+    const attempts: Record<string, unknown>[] = []
+    for (const [modelIndex, model] of models.entries()) {
+      const maximum = modelIndex === 0 ? 2 : 1
+      for (let attempt = 1; attempt <= maximum; attempt += 1) {
+        try {
+          const result = await context.runStage(
+            "x-threads-generation.resolve-brief-attempt",
+            { niche: automation.niche.label, model, attempt }
+          )
+          const brief = requiredRecord(result.output.brief, "brief")
+          return mergePipelineOutput(input, {
+            automation: { ...automation, brief },
+            brief,
+            selectedModel: model,
+            attempts,
+          })
+        } catch (error) {
+          const retryable =
+            isRecord(error) && typeof error.retryable === "boolean"
+              ? error.retryable
+              : true
+          attempts.push({
+            model,
+            attempt,
+            retryable,
+            message: error instanceof Error ? error.message : String(error),
+          })
+          if (!retryable) throw error
+        }
+      }
+    }
+    throw new Error("X/Threads strategy derivation exhausted its attempts")
   })
 
   add("x-threads-generation.select-content-plan", async (input) => {
@@ -1264,35 +1905,81 @@ export function createProductionPipelineHandlers(
     })
   })
 
-  add("x-threads-generation.generate-draft", async (input) => {
-    let draft
+  add(
+    "x-threads-generation.generate-structured-attempt",
+    async (input, context) => {
+      const generated = await context.externalCall(
+        "OpenRouter X/Threads post generation",
+        () =>
+          generateXStructuredAttempt({
+            request: requiredRecord(
+              input.generationRequest,
+              "generationRequest"
+            ) as ReturnType<typeof buildXGenerationRequest>,
+            repairErrors: stringArray(input.repairErrors),
+          })
+      )
+      return mergePipelineOutput(input, { structuredAttempt: generated })
+    }
+  )
+
+  add("x-threads-generation.compose-structured-draft", async (input) => {
+    const generated = requiredRecord(
+      input.structuredAttempt,
+      "structuredAttempt"
+    )
+    const plan = requiredRecord(input.plan, "plan") as unknown as PostPlan
+    const rawOutput = requiredRecord(
+      generated.output,
+      "structuredAttempt.output"
+    )
+    const output =
+      input.normalize === true
+        ? normalizeStructuredOutput(plan.archetype, rawOutput)
+        : rawOutput
+    return mergePipelineOutput(input, {
+      draft: {
+        output,
+        posts: composeXStructuredPost(plan.archetype, output),
+        provider: "OpenRouter",
+        model: clean(generated.model),
+        attempts: 1,
+      },
+      rawPosts: composeXStructuredPost(plan.archetype, output),
+    })
+  })
+
+  add("x-threads-generation.generate-draft", async (input, context) => {
     try {
-      draft = await generateXPostDraft({
-        request: requiredRecord(
-          input.generationRequest,
-          "generationRequest"
-        ) as ReturnType<typeof buildXGenerationRequest>,
-        plan: requiredRecord(input.plan, "plan") as unknown as PostPlan,
-      })
+      const generated = await context.runStage(
+        "x-threads-generation.generate-structured-attempt",
+        input
+      )
+      return (
+        await context.runStage(
+          "x-threads-generation.compose-structured-draft",
+          generated.output
+        )
+      ).output
     } catch (error) {
       if (!(error instanceof Error) || !/invalid json/i.test(error.message)) {
         throw error
       }
-      draft = {
+      const draft = {
         output: {},
         posts: [],
         provider: "OpenRouter" as const,
         model: clean(asRecord(input.generationRequest).model),
         providerError: error.message,
       }
+      return mergePipelineOutput(input, {
+        draft: { ...draft, attempts: 1 },
+        rawPosts: draft.posts,
+      })
     }
-    return mergePipelineOutput(input, {
-      draft: { ...draft, attempts: 1 },
-      rawPosts: draft.posts,
-    })
   })
 
-  add("x-threads-generation.humanize-draft", async (input) => {
+  add("x-threads-generation.humanize-draft", async (input, context) => {
     const draft = requiredRecord(input.draft, "draft")
     if (!isRecord(input.brandProfile) || input.humanizeEnabled === false) {
       return mergePipelineOutput(input, {
@@ -1303,14 +1990,18 @@ export function createProductionPipelineHandlers(
     const apiKey = clean(process.env.OPENROUTER_API_KEY)
     if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
     const plan = requiredRecord(input.plan, "plan") as unknown as PostPlan
-    const content = await humanizeContent({
-      stage: {
-        model: generationModelRegistry.openRouter.contentHumanize.model,
-      },
-      apiKey,
-      brandProfile: input.brandProfile as unknown as BrandProfile,
-      content: joinSocialPosts(stringArray(draft.posts), plan),
-    })
+    const content = await context.externalCall(
+      "OpenRouter brand humanization",
+      () =>
+        humanizeContent({
+          stage: {
+            model: generationModelRegistry.openRouter.contentHumanize.model,
+          },
+          apiKey,
+          brandProfile: input.brandProfile as unknown as BrandProfile,
+          content: joinSocialPosts(stringArray(draft.posts), plan),
+        })
+    )
     return mergePipelineOutput(input, {
       humanizedPosts: splitSocialPosts(content, plan),
       humanizeSkipped: false,
@@ -1322,7 +2013,7 @@ export function createProductionPipelineHandlers(
       ],
     })
   })
-  add("x-threads-generation.review-draft", async (input) => {
+  add("x-threads-generation.review-draft", async (input, context) => {
     const plan = requiredRecord(input.plan, "plan") as unknown as PostPlan
     const posts = stringArray(
       input.humanizedPosts ?? asRecord(input.draft).posts
@@ -1337,12 +2028,16 @@ export function createProductionPipelineHandlers(
     }
     const apiKey = clean(process.env.OPENROUTER_API_KEY)
     if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-    const reviewed = await reviewContent({
-      stage: { model: generationModelRegistry.openRouter.contentReview.model },
-      apiKey,
-      brandProfile: input.brandProfile as unknown as BrandProfile,
-      content: joinSocialPosts(posts, plan),
-    })
+    const reviewed = await context.externalCall("OpenRouter brand review", () =>
+      reviewContent({
+        stage: {
+          model: generationModelRegistry.openRouter.contentReview.model,
+        },
+        apiKey,
+        brandProfile: input.brandProfile as unknown as BrandProfile,
+        content: joinSocialPosts(posts, plan),
+      })
+    )
     return mergePipelineOutput(input, {
       reviewedPosts: splitSocialPosts(reviewed.content, plan),
       verdict: reviewed.verdict,
@@ -1374,7 +2069,7 @@ export function createProductionPipelineHandlers(
       validation: { valid: errors.length === 0, errors },
     })
   })
-  add("x-threads-generation.repair-draft", async (input) => {
+  add("x-threads-generation.repair-draft", async (input, context) => {
     const validation = requiredRecord(input.validation, "validation")
     const current = requiredRecord(input.draft, "draft")
     if (validation.valid === true) {
@@ -1391,23 +2086,22 @@ export function createProductionPipelineHandlers(
       })
     }
     const plan = requiredRecord(input.plan, "plan") as unknown as PostPlan
-    const retry = await generateXPostDraft({
-      request: requiredRecord(
-        input.generationRequest,
-        "generationRequest"
-      ) as ReturnType<typeof buildXGenerationRequest>,
-      plan,
-      repairErrors: stringArray(validation.errors),
-      normalize: true,
-    })
+    const retryState = (
+      await context.runStage("x-threads-generation.generate-draft", {
+        ...input,
+        repairErrors: stringArray(validation.errors),
+        normalize: true,
+      })
+    ).output
+    const retry = requiredRecord(retryState.draft, "draft")
     const errors = validateGeneratedPost({
       plan,
       record: requiredRecord(
         input.automation,
         "automation"
       ) as unknown as XAutomationRecord,
-      output: retry.output,
-      posts: retry.posts,
+      output: requiredRecord(retry.output, "draft.output"),
+      posts: stringArray(retry.posts),
     })
     return mergePipelineOutput(input, {
       acceptedDraft: {
@@ -1416,7 +2110,7 @@ export function createProductionPipelineHandlers(
         needsReview: errors.length > 0,
         errors,
       },
-      posts: retry.posts,
+      posts: stringArray(retry.posts),
       attempts: 2,
       needsReview: errors.length > 0,
       reviewErrors: errors,
@@ -1451,20 +2145,103 @@ export function createProductionPipelineHandlers(
       run,
     })
   })
-  add("x-threads-generation.persist-run-memory", async (input, context) => {
+  add("x-threads-generation.persist-run", async (input, context) => {
+    const run = requiredRecord(input.run, "run") as unknown as XAutomationRun
+    await context.externalCall("Appwrite X-run upsert", () =>
+      services.upsertXAutomationRun(run)
+    )
+    return mergePipelineOutput(input, { persistedRun: run.id })
+  })
+
+  add(
+    "x-threads-generation.get-generated-reminder-policy",
+    async (input, context) => {
+      const settings = await context.externalCall(
+        "Appwrite reminder-settings read",
+        () => services.getReminderSettings()
+      )
+      return mergePipelineOutput(input, {
+        reminderChannel: settings.events.generated.channel,
+      })
+    }
+  )
+
+  add("x-threads-generation.enqueue-reminder-job", async (input, context) => {
+    const run = requiredRecord(input.run, "run") as unknown as XAutomationRun
     const automation = requiredRecord(
       input.automation,
       "automation"
     ) as unknown as XAutomationRecord
-    const run = await services.persistGeneratedXAutomationRun({
-      automation,
-      run: requiredRecord(input.run, "run") as unknown as XAutomationRun,
-      requestId: context.requestId,
-    })
+    const queued = await context.externalCall(
+      "Appwrite reminder-job enqueue",
+      () =>
+        services.enqueueJob({
+          type: "send-notification",
+          payload: {
+            event: "generated",
+            sourceType: run.platform,
+            sourceId: run.id,
+            text: `Post generated\n${run.hook || automation.name}`,
+          },
+          dedupeKey: `reminder:generated:${run.platform}:${run.id}`,
+          maxAttempts: 5,
+        })
+    )
     return mergePipelineOutput(input, {
+      reminderEnqueued: Boolean(queued),
+    })
+  })
+
+  add(
+    "x-threads-generation.enqueue-generated-reminder",
+    async (input, context) => {
+      const policy = await context.runStage(
+        "x-threads-generation.get-generated-reminder-policy",
+        input
+      )
+      if (policy.output.reminderChannel !== "telegram") {
+        return mergePipelineOutput(policy.output, {
+          reminderEnqueued: false,
+        })
+      }
+      return (
+        await context.runStage(
+          "x-threads-generation.enqueue-reminder-job",
+          policy.output
+        )
+      ).output
+    }
+  )
+
+  add("x-threads-generation.persist-usage-memory", async (input, context) => {
+    const automation = requiredRecord(
+      input.automation,
+      "automation"
+    ) as unknown as XAutomationRecord
+    const run = requiredRecord(input.run, "run") as unknown as XAutomationRun
+    const updatedAutomation = buildXAutomationUsageUpdate({ automation, run })
+    await context.externalCall("Appwrite X-automation upsert", () =>
+      services.upsertXAutomation(updatedAutomation)
+    )
+    return mergePipelineOutput(input, { automation: updatedAutomation })
+  })
+
+  add("x-threads-generation.persist-run-memory", async (input, context) => {
+    const run = {
+      ...(requiredRecord(input.run, "run") as unknown as XAutomationRun),
+      requestId: context.requestId,
+    }
+    let state = mergePipelineOutput(input, { run })
+    for (const stageId of [
+      "x-threads-generation.persist-run",
+      "x-threads-generation.enqueue-generated-reminder",
+      "x-threads-generation.persist-usage-memory",
+    ]) {
+      state = (await context.runStage(stageId, state)).output
+    }
+    return mergePipelineOutput(state, {
       run,
       persistedRun: clean(run.id),
-      reminderEnqueued: true,
       usageMemory: {
         recentArchetypesAdded: (run.plans ?? []).map((plan) => plan.archetype),
         recentHookStylesAdded: (run.plans ?? []).map((plan) => plan.hookStyle),
@@ -1472,7 +2249,8 @@ export function createProductionPipelineHandlers(
       },
     })
   })
-  add("x-threads-generation.generate-image", async (input) => {
+
+  add("x-threads-generation.build-image-task", async (input) => {
     const automation = requiredRecord(
       input.automation,
       "automation"
@@ -1487,39 +2265,166 @@ export function createProductionPipelineHandlers(
     }
     const prompt = clean(input.imagePrompt) || clean(run.imagePrompt)
     if (!prompt) throw new Error("An image prompt is required")
-    const apiKey = getKieApiKey()
-    if (!apiKey) throw new Error("KIE_KEY is not configured")
-    const { taskId, url } = await runKieMarketTask({
-      apiKey,
-      body: buildNanoBananaProPayload({
+    return mergePipelineOutput(input, {
+      imagePrompt: prompt,
+      imageTaskPayload: buildNanoBananaProPayload({
         prompt,
         imageUrls: [],
         aspectRatio: allowedImageRatio(input.aspectRatio),
       }),
-      pollLimit: 80,
-      pollDelayMs: 3_000,
     })
-    const imageUrl = await downloadRemoteImageToLocalAsset({
-      imageUrl: url,
-      taskId,
-      folder: path.join(process.cwd(), "data", "x-automations", "images"),
-      publicPrefix: "/api/local-assets/x-automations/images",
-      fallbackName: "x-post-image",
-      failureMessage: "Failed to save generated X image",
+  })
+
+  add("x-threads-generation.create-image-task", async (input, context) => {
+    const apiKey = getKieApiKey()
+    if (!apiKey) throw new Error("KIE_KEY is not configured")
+    const providerTaskId = await context.externalCall("KIE createTask", () =>
+      createKieMarketTask({
+        apiKey,
+        body: input.imageTaskPayload,
+      })
+    )
+    return mergePipelineOutput(input, {
+      providerTaskId,
+      operation: {
+        id: providerTaskId,
+        kind: "x.image.kie",
+        status: "running",
+        nextPollAfterMs: 3000,
+      },
     })
+  })
+
+  add("x-threads-generation.get-image-task", async (input, context) => {
+    const providerTaskId = requiredString(
+      input.providerTaskId,
+      "providerTaskId"
+    )
+    const apiKey = getKieApiKey()
+    if (!apiKey) throw new Error("KIE_KEY is not configured")
+    const task = await context.externalCall("KIE recordInfo", () =>
+      getKieMarketTask({ apiKey, taskId: providerTaskId })
+    )
+    return mergePipelineOutput(input, {
+      ...(task.status === "succeeded" ? { remoteImageUrl: task.url } : {}),
+      operation: {
+        id: providerTaskId,
+        kind: "x.image.kie",
+        status: task.status,
+        ...(task.status === "running" ? { nextPollAfterMs: 3000 } : {}),
+      },
+    })
+  })
+
+  add("x-threads-generation.download-image-asset", async (input, context) => {
+    const downloaded = await context.externalCall(
+      "remote image HTTP download",
+      () =>
+        downloadRemoteImageToTemp({
+          imageUrl: requiredString(input.remoteImageUrl, "remoteImageUrl"),
+          taskId: requiredString(input.providerTaskId, "providerTaskId"),
+          fallbackName: "x-post-image",
+          failureMessage: "Failed to save generated X image",
+        })
+    )
+    return mergePipelineOutput(input, {
+      tempImagePath: downloaded.tempPath,
+      tempImageFileName: downloaded.fileName,
+    })
+  })
+
+  add("x-threads-generation.persist-image-asset", async (input, context) => {
+    const imageUrl = await context.externalCall(
+      "Appwrite asset-file create",
+      () =>
+        persistDownloadedImage({
+          tempPath: requiredString(input.tempImagePath, "tempImagePath"),
+          fileName: requiredString(
+            input.tempImageFileName,
+            "tempImageFileName"
+          ),
+          folder: path.join(process.cwd(), "data", "x-automations", "images"),
+          publicPrefix: "/api/local-assets/x-automations/images",
+        })
+    )
+    return mergePipelineOutput(input, { imageUrl })
+  })
+
+  add("x-threads-generation.discard-image-temp-file", async (input) => {
+    if (clean(input.tempImagePath)) {
+      await discardDownloadedImage(clean(input.tempImagePath))
+    }
+    return mergePipelineOutput(input, {
+      tempImagePath: null,
+      tempImageFileName: null,
+    })
+  })
+
+  add("x-threads-generation.persist-image-run", async (input, context) => {
+    const run = requiredRecord(input.run, "run") as unknown as XAutomationRun
+    const imageUrl = requiredString(input.imageUrl, "imageUrl")
     const updated = {
       ...run,
       imageUrls: [...run.imageUrls, imageUrl].slice(0, 4),
       updatedAt: services.now().toISOString(),
     }
-    await services.upsertXAutomationRun(updated)
+    await context.externalCall("Appwrite X-run upsert", () =>
+      services.upsertXAutomationRun(updated)
+    )
     return mergePipelineOutput(input, {
       run: updated,
       imageUrl,
       provider: "KIE.ai",
       model: "nano-banana-pro",
-      providerRequestId: taskId,
+      providerRequestId: input.providerTaskId,
     })
+  })
+
+  add("x-threads-generation.generate-image", async (input, context) => {
+    let state = input
+    if (input.imageGenerationSkipped === true) return input
+    if (!isRecord(state.imageTaskPayload)) {
+      state = (
+        await context.runStage("x-threads-generation.build-image-task", state)
+      ).output
+      if (state.imageGenerationSkipped === true) return state
+    }
+    if (!clean(state.providerTaskId)) {
+      return (
+        await context.runStage("x-threads-generation.create-image-task", state)
+      ).output
+    }
+    if (!clean(state.remoteImageUrl)) {
+      state = (
+        await context.runStage("x-threads-generation.get-image-task", state)
+      ).output
+      if (asRecord(state.operation).status === "running") return state
+    }
+    if (!clean(state.tempImagePath) && !clean(state.imageUrl)) {
+      state = (
+        await context.runStage(
+          "x-threads-generation.download-image-asset",
+          state
+        )
+      ).output
+    }
+    if (!clean(state.imageUrl)) {
+      state = (
+        await context.runStage(
+          "x-threads-generation.persist-image-asset",
+          state
+        )
+      ).output
+    }
+    state = (
+      await context.runStage("x-threads-generation.persist-image-run", state)
+    ).output
+    return (
+      await context.runStage(
+        "x-threads-generation.discard-image-temp-file",
+        state
+      )
+    ).output
   })
 
   for (const metadata of PIPELINE_STAGE_CATALOG) {
@@ -1531,48 +2436,16 @@ export function createProductionPipelineHandlers(
 }
 
 async function queueUgcStage(
-  services: ProductionPipelineServices,
   input: Record<string, unknown>,
-  requestId: string,
+  context: PipelineStageContext,
   stopAfter: string
 ) {
-  if (!services.ugcGenerationEnabled()) {
-    throw new Error("AI UGC generation is disabled")
-  }
-  const automationId = requiredString(input.automationId, "automationId")
-  const scheduledFor = clean(input.scheduledFor) || services.now().toISOString()
-  const queued = await services.enqueueJob({
-    type: "run-ugc-automation",
-    payload: {
-      automationId,
-      scheduledFor,
-      requestId,
-      source: "mcp_pipeline_stage",
-      draftOnly: true,
+  return (
+    await context.runStage("ugc-video-generation.enqueue-checkpoint-job", {
+      ...input,
       stopAfter,
-    },
-    dedupeKey: `ugc-stage:${automationId}:${scheduledFor}:${stopAfter}:${requestId}`,
-    maxAttempts: 3,
-  })
-  if (!queued) throw new Error("The generation queue is unavailable")
-  const job = await services.getJob(queued.id)
-  return mergePipelineOutput(input, {
-    automationId,
-    scheduledFor,
-    runId: ugcRunId(automationId, scheduledFor),
-    expectedOutputId: ugcExportId(automationId, scheduledFor),
-    estimate: estimateUgcCost({}),
-    operation: {
-      id: queued.id,
-      kind: `ugc.stage.${stopAfter}`,
-      status: "running",
-      stage: queued.status === "duplicate" ? "queued_existing" : "queued",
-      createdAt: job?.createdAt ?? scheduledFor,
-      updatedAt: job?.updatedAt ?? scheduledFor,
-      nextPollAfterMs: 5000,
-      resourceUri: `lumenclip://operations/${encodeURIComponent(queued.id)}`,
-    },
-  })
+    })
+  ).output
 }
 
 function requiredSchema(input: Record<string, unknown>) {

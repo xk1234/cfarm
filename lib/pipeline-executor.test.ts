@@ -146,6 +146,42 @@ describe("production pipeline executor", () => {
     ).rejects.toThrow("media data URLs")
   })
 
+  it("prevents an atomic handler from crossing more than its declared external-call boundary", async () => {
+    const firstCall = vi.fn(async () => ({ ok: true }))
+    const forbiddenSecondCall = vi.fn(async () => ({ ok: true }))
+    const violating = vi.fn(
+      async (
+        input: Record<string, unknown>,
+        context: {
+          externalCall: <T>(
+            operation: string,
+            task: () => Promise<T>
+          ) => Promise<T>
+        }
+      ) => {
+        await context.externalCall("first", firstCall)
+        await context.externalCall("second", forbiddenSecondCall)
+        return input
+      }
+    )
+    const registry = createPipelineStageRegistry(
+      handlers({
+        "slideshow-generation.select-one-slide-image": violating,
+      })
+    )
+
+    await expect(
+      executePipelineStage({
+        registry,
+        ownerId: "owner-1",
+        stageId: "slideshow-generation.select-one-slide-image",
+        stageInput: { shortlist: [] },
+      })
+    ).rejects.toThrow("exceeded maxExternalCalls=1")
+    expect(firstCall).toHaveBeenCalledOnce()
+    expect(forbiddenSecondCall).not.toHaveBeenCalled()
+  })
+
   it("publishes complete typed stage metadata for all four live workflows", () => {
     const catalog = pipelineCatalog()
     expect(catalog.map((workflow) => workflow.id)).toEqual([
@@ -154,14 +190,27 @@ describe("production pipeline executor", () => {
       "linkedin-generation",
       "x-threads-generation",
     ])
-    expect(catalog.map((workflow) => workflow.stages.length)).toEqual([
+    expect(catalog.map((workflow) => workflow.workflowStages.length)).toEqual([
       16, 9, 8, 12,
     ])
+    expect(
+      catalog.reduce((total, workflow) => total + workflow.stages.length, 0)
+    ).toBe(PIPELINE_STAGE_CATALOG.length)
     expect(
       catalog
         .flatMap((workflow) => workflow.stages)
         .every((stage) =>
           ["deterministic", "provider", "storage"].includes(stage.kind)
+        )
+    ).toBe(true)
+    expect(
+      catalog
+        .flatMap((workflow) => workflow.stages)
+        .every(
+          (stage) =>
+            ["atomic", "composite"].includes(stage.granularity) &&
+            ["none", "network", "storage"].includes(stage.sideEffect) &&
+            [0, 1].includes(stage.maxExternalCalls)
         )
     ).toBe(true)
     expect(

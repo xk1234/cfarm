@@ -106,48 +106,12 @@ export async function derivePillarsFromNicheWithDiagnostics(input: {
     const maxAttempts = modelIndex === 0 ? 2 : 1
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
-        const result = await openRouterJson({
+        brief = await deriveXBriefAttempt({
+          niche,
+          model,
           apiKey,
           fetchImpl: input.fetchImpl,
-          model,
-          timeoutMs: 90_000,
-          maxTokens: 2_800,
-          system:
-            "You derive a focused social-content strategy from one niche. Return concrete audience language and distinct content pillars. Never invent performance claims.",
-          user: `Niche: ${niche}\nReturn {"audience":"...","promise":"...","pillars":[{"label":"..."}],"keywords":["..."],"painPoints":["..."]}. Return exactly 3–5 pillars.`,
-          schema: {
-            name: "x_automation_brief",
-            schema: {
-              type: "object",
-              additionalProperties: false,
-              required: [
-                "audience",
-                "promise",
-                "pillars",
-                "keywords",
-                "painPoints",
-              ],
-              properties: {
-                audience: { type: "string" },
-                promise: { type: "string" },
-                pillars: {
-                  type: "array",
-                  minItems: 3,
-                  maxItems: 5,
-                  items: {
-                    type: "object",
-                    additionalProperties: false,
-                    required: ["label"],
-                    properties: { label: { type: "string" } },
-                  },
-                },
-                keywords: { type: "array", items: { type: "string" } },
-                painPoints: { type: "array", items: { type: "string" } },
-              },
-            },
-          },
         })
-        brief = briefFromStrategyResult(result)
         selectedModel = model
         break
       } catch (error) {
@@ -170,6 +134,54 @@ export async function derivePillarsFromNicheWithDiagnostics(input: {
   }
   if (!brief) throw new XStrategyDerivationError(attempts)
   return { brief, attempts, selectedModel }
+}
+
+export async function deriveXBriefAttempt(input: {
+  niche: string
+  model: string
+  apiKey?: string
+  fetchImpl?: typeof fetch
+}) {
+  const niche = clean(input.niche)
+  if (!niche) throw new Error("A niche is required")
+  const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
+  const result = await openRouterJson({
+    apiKey,
+    fetchImpl: input.fetchImpl,
+    model: input.model,
+    timeoutMs: 90_000,
+    maxTokens: 2_800,
+    system:
+      "You derive a focused social-content strategy from one niche. Return concrete audience language and distinct content pillars. Never invent performance claims.",
+    user: `Niche: ${niche}\nReturn {"audience":"...","promise":"...","pillars":[{"label":"..."}],"keywords":["..."],"painPoints":["..."]}. Return exactly 3–5 pillars.`,
+    schema: {
+      name: "x_automation_brief",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["audience", "promise", "pillars", "keywords", "painPoints"],
+        properties: {
+          audience: { type: "string" },
+          promise: { type: "string" },
+          pillars: {
+            type: "array",
+            minItems: 3,
+            maxItems: 5,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["label"],
+              properties: { label: { type: "string" } },
+            },
+          },
+          keywords: { type: "array", items: { type: "string" } },
+          painPoints: { type: "array", items: { type: "string" } },
+        },
+      },
+    },
+  })
+  return briefFromStrategyResult(result)
 }
 
 function briefFromStrategyResult(
@@ -694,9 +706,28 @@ export async function generateXPostDraft(input: {
   repairErrors?: string[]
   normalize?: boolean
 }) {
+  const generated = await generateXStructuredAttempt(input)
+  let output = generated.output
+  if (input.normalize) {
+    output = normalizeStructuredOutput(input.plan.archetype, output)
+  }
+  return {
+    output,
+    posts: composeXStructuredPost(input.plan.archetype, output),
+    provider: generated.provider,
+    model: generated.model,
+  }
+}
+
+export async function generateXStructuredAttempt(input: {
+  request: ReturnType<typeof buildXGenerationRequest>
+  apiKey?: string
+  fetchImpl?: typeof fetch
+  repairErrors?: string[]
+}) {
   const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
-  let output = await openRouterJson({
+  const output = await openRouterJson({
     apiKey,
     fetchImpl: input.fetchImpl,
     model: input.request.model,
@@ -706,18 +737,14 @@ export async function generateXPostDraft(input: {
     user: `${input.request.user}${input.repairErrors?.length ? `\n\nRepair these exact errors:\n- ${input.repairErrors.join("\n- ")}` : ""}`,
     schema: input.request.schema,
   })
-  if (input.normalize) {
-    output = normalizeStructuredOutput(input.plan.archetype, output)
-  }
   return {
     output,
-    posts: composeStructuredPost(input.plan.archetype, output),
     provider: "OpenRouter" as const,
     model: input.request.model,
   }
 }
 
-function composeStructuredPost(
+export function composeXStructuredPost(
   archetype: PostArchetype,
   output: Record<string, unknown>
 ) {

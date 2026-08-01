@@ -8,7 +8,12 @@ import {
 } from "@/lib/realfarm-generation-model-registry"
 import { clean, isRecord, readRecord, readString } from "@/lib/guards"
 import { fetchWithTimeout } from "@/lib/http"
-import { downloadRemoteFileToLocalAsset } from "@/lib/local-asset-download"
+import {
+  discardDownloadedTempFile,
+  downloadRemoteFileToLocalAsset,
+  downloadRemoteFileToTemp,
+  persistDownloadedFileToLocalAsset,
+} from "@/lib/local-asset-download"
 import { pollUntil } from "@/lib/poll"
 
 export type KieImageMode = "edit" | "upscale"
@@ -395,6 +400,32 @@ export async function pollKieMarketTask(input: {
   })
 }
 
+export async function getKieMarketTask(input: {
+  apiKey: string
+  taskId: string
+  fetchImpl?: FetchLike
+}) {
+  const response = await fetchWithTimeout(
+    `${KIE_API_BASE_URL}/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(input.taskId)}`,
+    {
+      headers: { Authorization: `Bearer ${input.apiKey}` },
+    },
+    {
+      fetchImpl: input.fetchImpl,
+      timeoutMs: 30_000,
+    }
+  )
+  const payload = await response.json().catch(() => ({}))
+  const url = readKieMarketResultUrls(payload)[0] ?? ""
+  if (url) return { status: "succeeded" as const, url }
+  if (!response.ok || isFailedKieResult(payload)) {
+    throw new Error(
+      readKieError(payload) || `Kie image result failed with ${response.status}`
+    )
+  }
+  return { status: "running" as const }
+}
+
 export async function pollFluxKontextTask(input: {
   apiKey: string
   taskId: string
@@ -435,6 +466,36 @@ export async function downloadRemoteImageToLocalAsset(input: {
     fetchImpl: input.fetchImpl,
     extensionForContentType: imageExtensionForContentType,
   })
+}
+
+export async function downloadRemoteImageToTemp(input: {
+  imageUrl: string
+  taskId: string
+  fallbackName: string
+  failureMessage: string
+  fetchImpl?: FetchLike
+}) {
+  return downloadRemoteFileToTemp({
+    url: input.imageUrl,
+    taskId: input.taskId,
+    fallbackName: input.fallbackName,
+    failureMessage: input.failureMessage,
+    fetchImpl: input.fetchImpl,
+    extensionForContentType: imageExtensionForContentType,
+  })
+}
+
+export async function persistDownloadedImage(input: {
+  tempPath: string
+  fileName: string
+  folder: string
+  publicPrefix: string
+}) {
+  return persistDownloadedFileToLocalAsset(input)
+}
+
+export async function discardDownloadedImage(tempPath: string) {
+  await discardDownloadedTempFile(tempPath)
 }
 
 async function createKieTask(
