@@ -18,9 +18,5 @@ export function docsLayoutOptions(): BaseLayoutProps {
       ),
       url: "/docs",
     },
-    links: [
-      { text: "Workspace", url: "/app" },
-      { text: "Product", url: "/product" },
-    ],
   }
 }
