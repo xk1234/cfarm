@@ -2,15 +2,16 @@
   "title": "UI",
   "pages": [
     "index",
+    "routes",
     "workspace",
-    "automation-settings",
-    "media-viewers",
-    "ui-primitives",
-    "pages",
     "home",
     "automations",
-    "image-collections",
+    "compose",
     "schedule",
-    "analytics"
+    "analytics",
+    "collections",
+    "testing",
+    "settings",
+    "public"
   ]
 }

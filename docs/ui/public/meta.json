@@ -1,0 +1,4 @@
+{
+  "title": "Public and system",
+  "pages": ["index", "landing", "auth", "public-slideshow", "docs", "legal"]
+}
