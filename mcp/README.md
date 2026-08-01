@@ -50,6 +50,8 @@ may link to a shared tool but do not invent a second incompatible schema.
 - `lumenclip_automation_hook_set_enabled`
 - `lumenclip_automation_hook_delete`
 - `lumenclip_hook_performance`
+- `lumenclip_hook_variants_generate`
+- `lumenclip_hook_variant_select`
 - `lumenclip_run_plan_get`
 - `lumenclip_automation_run`
 - `lumenclip_schedule_get`

@@ -1688,18 +1688,31 @@ describe("LumenClip MCP server", () => {
     vi.stubEnv("SLIDESHOW_SHARE_SECRET", "test-secret")
     const current = automationRecord()
     const run = relativeRun(current.id)
+    const generate = vi.fn(async () => ({
+      created: [run],
+      results: [],
+      skipped: [],
+    }))
     const client = await connectClient({
       getAutomationRecord: vi.fn(async () => current),
-      runDueAutomations: vi.fn(async () => ({
-        created: [run],
-        results: [],
-        skipped: [],
-      })) as unknown as LumenClipMcpServices["runDueAutomations"],
+      runDueAutomations:
+        generate as unknown as LumenClipMcpServices["runDueAutomations"],
     })
 
     const result = await client.callTool({
       name: "lumenclip_slideshow_generate",
-      arguments: { automationId: current.id, requestId: "request-1" },
+      arguments: {
+        automationId: current.id,
+        requestId: "request-1",
+        hook: "My exact slideshow hook",
+      },
+    })
+
+    expect(generate).toHaveBeenCalledWith({
+      automationId: current.id,
+      force: true,
+      requestId: "request-1",
+      hook: "My exact slideshow hook",
     })
 
     const summary = (
@@ -1712,6 +1725,7 @@ describe("LumenClip MCP server", () => {
       {
         index: 1,
         role: "hook",
+        text: run.plan.slides[0].text,
         renderedImageUrl:
           "https://studio.example.com/api/local-assets/slideshows/outputs/slideshow-1/slide-001.png",
         sourceImageUrl:
@@ -1759,6 +1773,7 @@ describe("LumenClip MCP server", () => {
       {
         index: 1,
         role: "hook",
+        text: run.plan.slides[0].text,
         renderedImageUrl:
           "/api/local-assets/slideshows/outputs/slideshow-1/slide-001.png",
         sourceImageUrl: "/api/local-assets/slideshows/sources/img-1.png",
@@ -1865,6 +1880,7 @@ describe("LumenClip MCP server", () => {
       arguments: {
         automationId: current.id,
         requestId: "general-run-1",
+        hook: "My exact MCP hook",
       },
     })
 
@@ -1872,6 +1888,7 @@ describe("LumenClip MCP server", () => {
       automationId: current.id,
       force: true,
       requestId: "general-run-1",
+      hook: "My exact MCP hook",
     })
     expect(result.structuredContent).toMatchObject({
       operation: { id: run.id, status: "succeeded" },
@@ -1891,6 +1908,121 @@ describe("LumenClip MCP server", () => {
           tool: "lumenclip_automation_run",
           blocks: ["lumenclip_output_publish"],
         }),
+      ],
+    })
+  })
+
+  it("generates 2-10 hook variants with the text of every slide", async () => {
+    const current = automationRecord()
+    const variants = [
+      {
+        index: 1,
+        hook: "First random hook",
+        hookId: "hook-1",
+        title: "First title",
+        caption: "First caption",
+        hashtags: "#first",
+        slides: [
+          { index: 1, role: "hook" as const, text: "First random hook" },
+          { index: 2, role: "content" as const, text: "First body" },
+        ],
+      },
+      {
+        index: 2,
+        hook: "Second random hook",
+        hookId: "hook-2",
+        title: "Second title",
+        caption: "Second caption",
+        hashtags: "#second",
+        slides: [
+          { index: 1, role: "hook" as const, text: "Second random hook" },
+          { index: 2, role: "content" as const, text: "Second body" },
+        ],
+      },
+    ]
+    const generateVariants = vi.fn(async () => variants)
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      previewAutomationHookVariants:
+        generateVariants as LumenClipMcpServices["previewAutomationHookVariants"],
+      now: () => new Date("2026-08-01T12:00:00.000Z"),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_hook_variants_generate",
+      arguments: { automationId: current.id, count: 2 },
+    })
+
+    expect(generateVariants).toHaveBeenCalledWith(current.schema, {
+      automationId: current.id,
+      automationTitle: current.name,
+      count: 2,
+      now: new Date("2026-08-01T12:00:00.000Z"),
+    })
+    expect(result.structuredContent).toMatchObject({
+      automationId: current.id,
+      count: 2,
+      variants,
+      nextAction: { tool: "lumenclip_hook_variant_select" },
+    })
+
+    const invalid = await client.callTool({
+      name: "lumenclip_hook_variants_generate",
+      arguments: { automationId: current.id, count: 1 },
+    })
+    expect(invalid.isError).toBe(true)
+
+    const tooMany = await client.callTool({
+      name: "lumenclip_hook_variants_generate",
+      arguments: { automationId: current.id, count: 11 },
+    })
+    expect(tooMany.isError).toBe(true)
+    expect(generateVariants).toHaveBeenCalledTimes(1)
+  })
+
+  it("persists the selected hook variant and returns its slide text", async () => {
+    const current = automationRecord()
+    const run = generatedRun(current.id)
+    run.plan.hook = "Selected exact hook"
+    run.plan.slides[0].text = "Selected exact hook"
+    const generate = vi.fn(async () => ({
+      created: [run],
+      results: [],
+      skipped: [],
+    }))
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      listAutomationRuns: vi.fn(async () => []),
+      runDueAutomations: generate,
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_hook_variant_select",
+      arguments: {
+        automationId: current.id,
+        selectedHook: "Selected exact hook",
+        requestId: "selected-hook-1",
+      },
+    })
+
+    expect(generate).toHaveBeenCalledWith({
+      automationId: current.id,
+      force: true,
+      requestId: "selected-hook-1",
+      hook: "Selected exact hook",
+    })
+    expect(result.structuredContent).toMatchObject({
+      outputs: [
+        {
+          hook: "Selected exact hook",
+          slides: [
+            {
+              index: 1,
+              role: "hook",
+              text: "Selected exact hook",
+            },
+          ],
+        },
       ],
     })
   })

@@ -38,6 +38,8 @@ export const LUMENCLIP_MCP_TOOLS = [
   },
   { name: "lumenclip_automation_hook_delete", category: "automations" },
   { name: "lumenclip_hook_performance", category: "analytics" },
+  { name: "lumenclip_hook_variants_generate", category: "automations" },
+  { name: "lumenclip_hook_variant_select", category: "automations" },
   { name: "lumenclip_run_plan_get", category: "automations" },
   { name: "lumenclip_automation_run", category: "automations" },
   { name: "lumenclip_schedule_get", category: "scheduling" },
