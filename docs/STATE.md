@@ -48,10 +48,10 @@ publication or a user links an output as published; used rows cannot be
 renamed or deleted but can be disabled. Each automation has a hook analytics
 table backed by its attributed publication metric snapshots.
 
-**Not a view:** `creator-ui.tsx` is a shared component library. The testing
-center (`components/temp/slide-testing-center.tsx`) is reachable two ways: the
-internal `/debug` page, and the product `Testing facility` nav entry at
-`/app/testing`.
+**Not a view:** `creator-ui.tsx` is a shared component library. The legacy slide
+testing center remains available only on the internal `/debug` page. The shared
+Testing Facility lives in LumenLab; `/app/testing` redirects there while cfarm
+continues to provide the experiment engine over MCP.
 
 ## 3. Subsystems
 

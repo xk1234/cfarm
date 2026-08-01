@@ -1,5 +1,5 @@
-import { WorkspaceRoute } from "@/components/realfarm/routes/workspace-route"
+import { redirect } from "next/navigation"
 
 export default function TestingFacilityPage() {
-  return <WorkspaceRoute navigation={{ view: "testing" }} />
+  redirect("https://lumenlab-one.vercel.app/testing")
 }
