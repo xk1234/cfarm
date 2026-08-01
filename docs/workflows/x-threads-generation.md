@@ -13,7 +13,7 @@ shorthand rather than a literal runtime field.
 | #   | Stage                        | Adds to the preceding output                          |
 | --- | ---------------------------- | ----------------------------------------------------- |
 | 1   | Validate and normalize input | Platform automation and validation result             |
-| 2   | Derive niche brief           | Audience, promise, pillars, keywords, and pain points |
+| 2   | Resolve required niche brief | Audience, promise, pillars, keywords, and pain points |
 | 3   | Select content plan          | Archetype, pillar, hook style, topic, and proof       |
 | 4   | Build generation request     | Prompt messages and structured response schema        |
 | 5   | Generate draft               | Hook, body, closer, and composed posts                |
@@ -21,9 +21,9 @@ shorthand rather than a literal runtime field.
 | 7   | Optional model review        | Pass/fix verdict and reviewed content                 |
 | 8   | Deterministic validation     | Platform, proof, formatting, and repetition findings  |
 | 9   | Repair retry                 | Accepted content or unresolved review findings        |
-| 10  | Build optional image prompt  | Topic-aware media prompt                              |
-| 11  | Optional image generation    | Downloaded image URLs                                 |
-| 12  | Benchmark and persist        | Draft run, score, trace, and recent-use memory        |
+| 10  | Benchmark and build run      | Draft run, deterministic score, and image prompt      |
+| 11  | Persist run and usage memory | Stored draft and recent archetype/hook/body memory    |
+| 12  | Optional image generation    | Updated run with as many as four downloaded images    |
 
 ## Stage 1 — Validate and normalize input
 
@@ -36,7 +36,13 @@ shorthand rather than a literal runtime field.
     "platform": "x",
     "niche": { "label": "SaaS onboarding" },
     "brief": null,
-    "proofBank": ["Reduced activation time from 3 days to 40 minutes"],
+    "proofBank": [
+      {
+        "id": "proof-1",
+        "text": "Reduced activation time from 3 days to 40 minutes",
+        "kind": "result"
+      }
+    ],
     "generation": {
       "model": "anthropic/claude-sonnet-5",
       "hookStyles": ["contrarian", "specific_observation"],
@@ -68,7 +74,13 @@ shorthand rather than a literal runtime field.
   },
   "topic": "activation checklists",
   "sourceCandidate": null,
-  "proofBank": ["Reduced activation time from 3 days to 40 minutes"],
+  "proofBank": [
+    {
+      "id": "proof-1",
+      "text": "Reduced activation time from 3 days to 40 minutes",
+      "kind": "result"
+    }
+  ],
   "brandProfile": {
     "voice": "Direct operator",
     "rules": ["Use concrete verbs", "Avoid motivational language"]
@@ -82,7 +94,7 @@ OpenRouter credentials.
 
 **Model/provider:** none.
 
-## Stage 2 — Derive niche brief
+## Stage 2 — Resolve required niche brief
 
 **Input**
 
@@ -117,8 +129,11 @@ OpenRouter credentials.
 }
 ```
 
-**Processing:** reuse a valid brief or generate one. The configured model receives two attempts;
-the fallback receives one attempt after retryable failures.
+**Processing:** the post-generation route requires a previously persisted brief and stops with
+`Generate the niche strategy before creating a draft` when it is absent. The separate
+`derive-brief` preflight endpoint generates and persists the brief: the configured model receives
+two attempts, then the fallback receives one attempt after retryable failures. Rerun generation
+with that persisted brief as stage 2 output.
 
 **Model/provider:** configured/default `anthropic/claude-sonnet-5`, fallback
 `google/gemini-3.1-flash-lite`, via OpenRouter.
@@ -132,7 +147,13 @@ the fallback receives one attempt after retryable failures.
   "...output": "stage-2 output",
   "platform": "x",
   "topic": "activation checklists",
-  "proofBank": ["Reduced activation time from 3 days to 40 minutes"],
+  "proofBank": [
+    {
+      "id": "proof-1",
+      "text": "Reduced activation time from 3 days to 40 minutes",
+      "kind": "result"
+    }
+  ],
   "recentArchetypes": ["how_to"],
   "recentHookStyles": ["specific_observation"],
   "enabledHookStyles": ["contrarian", "specific_observation"]
@@ -147,9 +168,9 @@ the fallback receives one attempt after retryable failures.
   "plan": {
     "platform": "x",
     "archetype": {
-      "id": "contrarian_lesson",
+      "id": "contrarian_take",
       "kind": "single",
-      "label": "Contrarian lesson"
+      "label": "Contrarian take"
     },
     "pillar": { "label": "Activation design", "weight": 30 },
     "hookStyle": {
@@ -157,7 +178,13 @@ the fallback receives one attempt after retryable failures.
       "formula": "Reject the common default, then explain why"
     },
     "topic": "activation checklists",
-    "proof": ["Reduced activation time from 3 days to 40 minutes"],
+    "proof": [
+      {
+        "id": "proof-1",
+        "text": "Reduced activation time from 3 days to 40 minutes",
+        "kind": "result"
+      }
+    ],
     "recycleBody": null
   }
 }
@@ -192,8 +219,8 @@ requirements and platform eligibility.
     "systemPrompt": "Platform, voice, factual, and anti-slop rules",
     "userPrompt": "Archetype, hook formula, topic, pillar, and proof",
     "responseSchema": {
-      "name": "x_post_contrarian_lesson",
-      "required": ["hook", "body", "closer"]
+      "name": "x_post_contrarian_take",
+      "required": ["hook", "belief", "reasons", "alternative"]
     }
   }
 }
@@ -221,11 +248,12 @@ requirements and platform eligibility.
   "...output": "stage-4 output",
   "draft": {
     "hook": "Your onboarding checklist is probably too complete.",
-    "body": "We cut every step that did not lead directly to first value. Activation time fell from 3 days to 40 minutes.",
-    "closer": "Which setup step could disappear today?"
+    "belief": "Most teams think every setup step belongs in onboarding.",
+    "reasons": "Long checklists delay first value. We removed every step that did not lead there.",
+    "alternative": "Activation fell from 3 days to 40 minutes. Which step can disappear?"
   },
   "rawPosts": [
-    "Your onboarding checklist is probably too complete.\n\nWe cut every step that did not lead directly to first value. Activation time fell from 3 days to 40 minutes.\n\nWhich setup step could disappear today?"
+    "Your onboarding checklist is probably too complete.\n\nMost teams think every setup step belongs in onboarding.\n\nLong checklists delay first value. We removed every step that did not lead there.\n\nActivation fell from 3 days to 40 minutes. Which step can disappear?"
   ],
   "model": "anthropic/claude-sonnet-5"
 }
@@ -263,7 +291,9 @@ OpenRouter.
 ```
 
 **Processing:** when enabled with a brand profile, rewrite without changing facts, meaning, or
-format. Otherwise pass the stage-5 draft through.
+format. Otherwise pass the stage-5 draft through. This branch exists in the generation library,
+but the current stored HTTP/MCP runner does not supply a brand profile, so those surfaces pass
+through today.
 
 **Model/provider:** `google/gemini-3.1-flash-lite` via OpenRouter.
 
@@ -275,7 +305,13 @@ format. Otherwise pass the stage-5 draft through.
 {
   "...output": "stage-6 output",
   "brandRules": ["Use concrete verbs", "Avoid motivational language"],
-  "proofBank": ["Reduced activation time from 3 days to 40 minutes"],
+  "proofBank": [
+    {
+      "id": "proof-1",
+      "text": "Reduced activation time from 3 days to 40 minutes",
+      "kind": "result"
+    }
+  ],
   "content": "stage-6 humanized draft"
 }
 ```
@@ -295,7 +331,8 @@ format. Otherwise pass the stage-5 draft through.
 ```
 
 **Processing:** review factual and brand constraints and return publishable content with a
-`pass`/`fix` verdict.
+`pass`/`fix` verdict. Like stage 6, this is active only for callers that enable the generation
+chain and supply a brand profile.
 
 **Model/provider:** `openai/gpt-5.4-mini` via OpenRouter.
 
@@ -309,7 +346,13 @@ format. Otherwise pass the stage-5 draft through.
   "platform": "x",
   "posts": ["stage-7 reviewed post"],
   "plan": "stage-3 plan",
-  "proofBank": ["Reduced activation time from 3 days to 40 minutes"]
+  "proofBank": [
+    {
+      "id": "proof-1",
+      "text": "Reduced activation time from 3 days to 40 minutes",
+      "kind": "result"
+    }
+  ]
 }
 ```
 
@@ -374,17 +417,20 @@ the output for review.
 
 **Model/provider:** same configured generation model via OpenRouter.
 
-## Stage 10 — Build optional image prompt
+## Stage 10 — Benchmark and build the draft run
 
 **Input**
 
 ```json
 {
   "...output": "stage-9 output",
-  "mediaMode": "generate",
-  "baseMediaPrompt": "Editorial product illustration, high contrast",
-  "topic": "activation checklists",
-  "hook": "Your onboarding checklist is too complete."
+  "automationId": "x-auto-01",
+  "media": {
+    "mode": "generate",
+    "prompt": "Editorial product illustration, high contrast"
+  },
+  "plan": "stage-3 plan",
+  "posts": "stage-9 validated posts"
 }
 ```
 
@@ -393,24 +439,47 @@ the output for review.
 ```json
 {
   "...output": "stage-9 output",
-  "imagePrompt": "Editorial product illustration, high contrast\n\nTopic: activation checklists\nCore idea: Your onboarding checklist is too complete."
+  "run": {
+    "id": "x-run-01",
+    "automationId": "x-auto-01",
+    "platform": "x",
+    "posts": [{ "text": "Repaired valid post", "characterCount": 238 }],
+    "hook": "Your onboarding checklist is too complete.",
+    "imagePrompt": "Editorial product illustration, high contrast\n\nTopic: activation checklists\nCore idea: Your onboarding checklist is too complete.",
+    "imageUrls": [],
+    "benchmark": {
+      "total": 92,
+      "hook": 92,
+      "specificity": 91,
+      "readability": 96,
+      "cta": 92,
+      "formatFit": 100,
+      "stageCompleteness": 100,
+      "archetypeFit": 88,
+      "comparison": { "archetype": "contrarian_take" },
+      "notes": []
+    },
+    "needsReview": false,
+    "reviewErrors": [],
+    "status": "draft"
+  }
 }
 ```
 
-**Processing:** produce the media prompt only when media mode is `generate`.
+**Processing:** score the accepted post deterministically, construct the draft run, and build the
+topic/hook-aware image prompt when media mode is `generate`. Benchmarking does not call a model and
+does not expose a separate `passed` boolean; consumers use `total`, component scores, and notes.
 
 **Model/provider:** none.
 
-## Stage 11 — Optional image generation
+## Stage 11 — Persist run and update reuse memory
 
 **Input**
 
 ```json
 {
   "...output": "stage-10 output",
-  "imagePrompt": "stage-10 image prompt",
-  "aspectRatio": "16:9",
-  "resolution": "1K"
+  "run": "stage-10 run"
 }
 ```
 
@@ -419,32 +488,31 @@ the output for review.
 ```json
 {
   "...output": "stage-10 output",
-  "image": {
-    "taskId": "kie-task-01",
-    "imageUrl": "/api/local-assets/x-automations/images/x-post-image.png",
-    "aspectRatio": "16:9"
+  "persistedRun": "x-run-01",
+  "usageMemory": {
+    "recentArchetypesAdded": ["contrarian_take"],
+    "recentHookStylesAdded": ["contrarian"],
+    "recentBodiesAdded": 0
   },
-  "imageUrls": ["/api/local-assets/x-automations/images/x-post-image.png"]
+  "reminderEnqueued": true
 }
 ```
 
-**Processing:** create and poll a KIE marketplace task, download the result, and attach at most
-four images.
+**Processing:** store the draft run, enqueue its generated notification, and update bounded recent
+archetype/hook/body memory on the automation. This happens before optional image generation.
 
-**Model/provider:** `nano-banana-pro` via KIE.ai.
+**Model/provider:** none; Appwrite-backed stores in the configured runtime.
 
-## Stage 12 — Benchmark and persist final output
+## Stage 12 — Optional image generation
 
 **Input**
 
 ```json
 {
   "...output": "stage-11 output",
-  "automationId": "x-auto-01",
-  "plan": "stage-3 plan",
-  "posts": "stage-9 validated posts",
-  "imageUrls": "stage-11 images",
-  "modelTrace": "stage-5 through stage-9 trace"
+  "runId": "x-run-01",
+  "prompt": "stage-10 image prompt",
+  "aspectRatio": "16:9"
 }
 ```
 
@@ -452,24 +520,20 @@ four images.
 
 ```json
 {
-  "id": "xrun-01",
-  "automationId": "x-auto-01",
-  "platform": "x",
-  "posts": [{ "text": "Repaired valid post" }],
-  "hook": "Your onboarding checklist is too complete.",
-  "imagePrompt": "Editorial product illustration, high contrast",
-  "imageUrls": ["/api/local-assets/x-automations/images/x-post-image.png"],
-  "sourceCandidate": null,
-  "benchmark": { "score": 92, "passed": true },
-  "attempts": 2,
-  "needsReview": false,
-  "reviewErrors": [],
-  "status": "draft"
+  "...output": "stage-11 output",
+  "run": {
+    "id": "x-run-01",
+    "status": "draft",
+    "imagePrompt": "Editorial product illustration, high contrast\n\nTopic: activation checklists\nCore idea: Your onboarding checklist is too complete.",
+    "imageUrls": ["/api/local-assets/x-automations/images/x-post-image.png"]
+  },
+  "imageUrl": "/api/local-assets/x-automations/images/x-post-image.png"
 }
 ```
 
-**Processing:** benchmark and store the generated content, source attribution, plan, model
-attempts, validation state, and recent-use memory.
+**Processing:** through the separate image endpoint, load the already-persisted run, submit and
+poll a KIE task, download the result into local assets, append the URL, cap the run at four images,
+and persist the updated run. If media generation is skipped, stage 11 is the final output.
 
-**Model/provider:** none. Publication consumes this draft downstream and is not part of the
-generation pipeline.
+**Model/provider:** `nano-banana-pro` via KIE.ai. Publication consumes this draft downstream and is
+not part of the generation workflow.

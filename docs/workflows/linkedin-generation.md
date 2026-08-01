@@ -263,7 +263,7 @@ unsupported numeric claims.
 {
   "...output": "stage-6 output",
   "repairPolicy": {
-    "maximumAttempts": 2
+    "maximumAttempts": 3
   }
 }
 ```
@@ -287,9 +287,10 @@ unsupported numeric claims.
 }
 ```
 
-**Processing:** if violations exist, regenerate with the exact validation failures as repair
-instructions. Keep the last violations and set `needsReview` when the final attempt still fails.
-If validation already passed, preserve the post without another model call.
+**Processing:** retry as many as three total generation attempts. Invalid JSON and deterministic
+violations become exact repair instructions for the next attempt. Keep the last violations and set
+`needsReview` when the final attempt still fails. If validation already passed, preserve the post
+without another model call.
 
 **Model/provider:** the same requested post model via OpenRouter on the repair branch; none when
 no repair is needed.
