@@ -25,7 +25,7 @@ import { resolveOrCreateTikTokPost } from "@/lib/tiktok-studio-analytics"
 import { enqueuePublishedCommentReminders } from "@/lib/publishing"
 import { postToPostFastRecord } from "@/lib/posts"
 import { getOpenRouterApiKey, openRouterJson } from "@/lib/openrouter"
-import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-registry"
+import { getGenerationModelSettings } from "@/lib/generation-model-settings"
 import {
   createSlideshowResultRecord,
   defaultSlideshowSettings,
@@ -606,10 +606,11 @@ async function extractTikTokHook(post: TikTokImportedPost) {
 export async function extractTikTokSlideTexts(post: TikTokImportedPost) {
   const apiKey = getOpenRouterApiKey()
   if (!apiKey) return fallbackSlideTexts(post)
+  const { imageCaptioningModel } = await getGenerationModelSettings()
   const count = post.photos.length
   const result = await openRouterJson({
     apiKey,
-    model: openRouterModelForUseCase("imageCaptioning"),
+    model: imageCaptioningModel,
     timeoutMs: 90_000,
     maxTokens: Math.max(600, count * 350),
     temperature: 0,

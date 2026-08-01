@@ -11,6 +11,7 @@ import {
   IconExternalLink,
   IconPlus,
   IconRefresh,
+  IconSparkles,
   IconBell,
   IconSettings,
   IconTrash,
@@ -35,7 +36,7 @@ import { clientSWRFetcher } from "@/lib/client-swr"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { cn } from "@/lib/utils"
 
-type Tab = "billing" | "accounts" | "reminders" | "team" | "demos"
+type Tab = "billing" | "accounts" | "models" | "reminders" | "team" | "demos"
 type Member = {
   id: string
   email: string
@@ -81,9 +82,17 @@ type ReminderResponse = {
   }
 }
 
+type GenerationModelSettings = {
+  id: "generation-models"
+  slideshowTextModel: string
+  imageCaptioningModel: string
+  updatedAt: string
+}
+
 const tabs = [
   { id: "billing", label: "Billing & plans", icon: IconCreditCard },
   { id: "accounts", label: "Connected accounts", icon: IconExternalLink },
+  { id: "models", label: "AI models", icon: IconSparkles },
   { id: "reminders", label: "Notifications", icon: IconBell },
   { id: "team", label: "Team members", icon: IconUsers },
   { id: "demos", label: "Demos", icon: IconVideo },
@@ -98,7 +107,8 @@ export function UserSettingsModal({
 }) {
   const [tab, setTab] = useState<Tab>("billing")
   const [remindersDirty, setRemindersDirty] = useState(false)
-  const dirtyGuard = useDirtyGuard(remindersDirty)
+  const [modelsDirty, setModelsDirty] = useState(false)
+  const dirtyGuard = useDirtyGuard(remindersDirty || modelsDirty)
 
   function requestClose() {
     dirtyGuard.run(onClose)
@@ -108,6 +118,7 @@ export function UserSettingsModal({
     if (nextTab === tab) return
     dirtyGuard.run(() => {
       setRemindersDirty(false)
+      setModelsDirty(false)
       setTab(nextTab)
     })
   }
@@ -149,6 +160,9 @@ export function UserSettingsModal({
                   onSocialAccountDisconnected={onSocialAccountDisconnected}
                 />
               )}
+              {tab === "models" && (
+                <GenerationModelsPanel onDirtyChange={setModelsDirty} />
+              )}
               {tab === "reminders" && (
                 <RemindersPanel onDirtyChange={setRemindersDirty} />
               )}
@@ -160,6 +174,169 @@ export function UserSettingsModal({
       </AppModal>
       {dirtyGuard.confirmation}
     </>
+  )
+}
+
+const recommendedOpenRouterModels = [
+  "openai/gpt-5.6-luna",
+  "openai/gpt-5.6-luna-pro",
+  "openai/gpt-5.6-terra",
+  "openai/gpt-5.4-mini",
+  "google/gemini-3.1-flash-lite",
+] as const
+
+function GenerationModelsPanel({
+  onDirtyChange,
+}: {
+  onDirtyChange: (dirty: boolean) => void
+}) {
+  const {
+    data,
+    error: loadError,
+    isLoading,
+    mutate,
+  } = useSWR<{
+    settings: GenerationModelSettings
+  }>("/api/settings/generation-models", clientSWRFetcher)
+  const [draft, setDraft] = useState<GenerationModelSettings | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const [message, setMessage] = useState("")
+  const settings = draft ?? data?.settings ?? null
+  const dirty = Boolean(
+    draft &&
+    data?.settings &&
+    (draft.slideshowTextModel !== data.settings.slideshowTextModel ||
+      draft.imageCaptioningModel !== data.settings.imageCaptioningModel)
+  )
+
+  useEffect(() => {
+    onDirtyChange(dirty)
+    return () => onDirtyChange(false)
+  }, [dirty, onDirtyChange])
+
+  function edit(patch: Partial<GenerationModelSettings>) {
+    if (!settings) return
+    setDraft({ ...settings, ...patch })
+    setError("")
+    setMessage("")
+  }
+
+  async function save() {
+    if (!settings) return
+    setSaving(true)
+    setError("")
+    setMessage("")
+    try {
+      const payload = await fetchJsonWithTimeout<{
+        settings: GenerationModelSettings
+      }>("/api/settings/generation-models", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slideshowTextModel: settings.slideshowTextModel,
+          imageCaptioningModel: settings.imageCaptioningModel,
+        }),
+        toastOnError: false,
+      })
+      setDraft(payload.settings)
+      await mutate(payload, false)
+      setMessage("AI model settings saved.")
+    } catch (saveError) {
+      setError(getApiErrorMessage(saveError, "AI models could not be saved."))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div>
+      <PanelHeading title="AI models" />
+      {loadError ? (
+        <div>
+          <p className="text-sm font-medium text-destructive">
+            AI model settings could not be loaded.
+          </p>
+          <Button
+            className="mt-3"
+            variant="outline"
+            onClick={() => void mutate()}
+          >
+            Try again
+          </Button>
+        </div>
+      ) : isLoading || !settings ? (
+        <ListSkeleton count={2} className="border-y border-app-panel-border" />
+      ) : (
+        <div className="space-y-6">
+          <datalist id="openrouter-model-options">
+            {recommendedOpenRouterModels.map((model) => (
+              <option key={model} value={model} />
+            ))}
+          </datalist>
+          <ModelSettingField
+            label="Slide text generation"
+            value={settings.slideshowTextModel}
+            onChange={(value) => edit({ slideshowTextModel: value })}
+          />
+          <ModelSettingField
+            label="Picture captioning"
+            value={settings.imageCaptioningModel}
+            onChange={(value) => edit({ imageCaptioningModel: value })}
+          />
+          {error ? (
+            <p className="text-sm font-medium text-destructive">{error}</p>
+          ) : null}
+          {message ? (
+            <p className="text-sm font-medium text-emerald-700">{message}</p>
+          ) : null}
+          <div className="flex flex-wrap gap-2 border-t border-app-panel-border pt-5">
+            <Button
+              variant="action"
+              disabled={saving || !dirty}
+              onClick={() => void save()}
+            >
+              {saving ? "Saving…" : "Save AI models"}
+            </Button>
+            <Button
+              variant="outline"
+              disabled={saving}
+              onClick={() =>
+                edit({
+                  slideshowTextModel: "openai/gpt-5.6-luna",
+                  imageCaptioningModel: "openai/gpt-5.6-luna",
+                })
+              }
+            >
+              Use Luna defaults
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ModelSettingField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <label className="block border-t border-app-panel-border pt-4 text-sm font-semibold">
+      {label}
+      <input
+        list="openrouter-model-options"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        spellCheck={false}
+        className="mt-2 h-10 w-full rounded-control border border-app-panel-border bg-background px-3 font-mono text-sm font-normal text-app-text outline-none focus:border-app-action focus:ring-2 focus:ring-app-action/15"
+      />
+    </label>
   )
 }
 
