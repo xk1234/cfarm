@@ -1,62 +1,100 @@
 ---
-title: Component architecture
-description: Ownership boundaries and conventions for the React component tree.
+title: UI field guide
+description: Current CFarm destinations, interaction states, and shared interface rules.
 ---
 
-The frontend is a Next.js App Router application with a large authenticated
-client workspace. Components are organized by responsibility rather than by
-route because most product views are switched inside `RealFarmWorkspace`.
+This section documents the current CFarm interface contract. It is organized by
+destination and visible interaction state rather than by source file.
 
-## Directory map
+Production screenshots were captured at 1440 x 900 for desktop and 390 x 844
+for mobile on 29 July 2026. The remaining imagery was exported from the
+LumenClip Paper design file on 1 August 2026 from boards traced against the
+shipped UI. Screenshots are reference imagery, and the written behavior takes
+precedence where they disagree.
 
-| Location                                   | Responsibility                                                                       |
-| ------------------------------------------ | ------------------------------------------------------------------------------------ |
-| `components/ui/`                           | Reusable product primitives with no LumenClip domain ownership                       |
-| `components/realfarm/`                     | Workspace navigation, product views, collections, publishing, and media surfaces     |
-| `components/realfarm/automation-settings/` | Automation editor shell and individual settings panels                               |
-| `components/realfarm/analytics/`           | Analytics browsing and export UI                                                     |
-| `components/realfarm/content-calendar/`    | Schedule projections and publication actions                                         |
-| `components/marketing/`                    | Public marketing navigation, footer, and page sections                               |
-| `components/debug/` and `components/temp/` | Internal testing surfaces; not stable product components                             |
-| `components/*.tsx`                         | Route-level feature roots such as auth, workspace, team invite, and X/Threads studio |
+## Current workspace layout contract
 
-## Main ownership chain
+- `/app` is one authenticated, tabbed workspace. Its visible destination is
+  addressed by the `view` query parameter rather than by a route per
+  destination.
+- The six workspace destinations are Home, Compose, Schedule, Analytics,
+  Collections, and Automations. Their query values are `home`, `compose`,
+  `schedule`, `analytics`, `collections`, and `automations`.
+- Automation deep links keep the Automations destination selected and add
+  `automation=<id>` or `run=<id>` to the workspace query.
+- Collection detail at `/app/collections/[id]`, post analytics at
+  `/app/analytics/posts/[id]`, the testing facility at `/app/testing`, X and
+  Threads automations at `/app/x-automations`, UGC run status at
+  `/app/ugc/[id]`, and analytics previews at
+  `/analytics-preview/[platform]` are separately routed surfaces.
+- Public, authentication, documentation, shared slideshow, legal, and system
+  pages also use their own routes outside the authenticated workspace.
+- In-app page and section headings stand alone. The interface does not add
+  explanatory subtitles beneath them.
 
-```text
-app/app/page.tsx
-  -> RealFarmWorkspace
-     -> Sidebar
-     -> HomeView
-     -> ContentCalendarView
-     -> AnalyticsView
-     -> CollectionsView / CollectionDetailView
-     -> AutomationsView
-     -> AutomationSettingsDrawer
-     -> UserSettingsModal
-```
+## Route reference
 
-`RealFarmWorkspace` owns cross-view state, initial server data, selected
-automations, recent generation runs, and modal visibility. Feature components
-should own state that is local to one view. Data required by multiple views
-belongs in the workspace or a shared data hook.
+- [Browser routes](/docs/ui/routes)
 
-## Component rules
+## Page map
 
-1. Extend `components/ui/` when a visual or interaction pattern is genuinely
-   reusable and domain-neutral.
-2. Keep provider calls and route-specific payload normalization in feature
-   components or `lib/client-api.ts`, not in UI primitives.
-3. Reuse `shared-media.tsx`, social-account components, and settings-layout
-   primitives before introducing another card, toggle, or media state.
-4. Keep renderer calculations in `lib/` when they must be shared by preview,
-   export, and tests.
-5. Every modal must expose an explicit close action and close on backdrop or
-   outside interaction when doing so cannot lose an in-flight destructive
-   operation.
+### Workspace shell
 
-## Related references
+- [Application shell](/docs/ui/workspace/app-shell)
+- [Navigation](/docs/ui/workspace/navigation)
+- [UI primitives](/docs/ui/workspace/ui-primitives)
+- [Media viewers](/docs/ui/workspace/media-viewers)
 
-- [Workspace components](workspace.md)
-- [Automation settings](automation-settings.md)
-- [Media viewers](media-viewers.md)
-- [UI primitives](ui-primitives.md)
+### Home
+
+- [Home](/docs/ui/home/home)
+- [Published posts](/docs/ui/home/published-posts)
+
+### Automations
+
+- [Automations overview](/docs/ui/automations/overview)
+- [Templates](/docs/ui/automations/templates)
+- [Hooks](/docs/ui/automations/hooks)
+- [Hook analytics](/docs/ui/automations/hook-analytics)
+- [Automation schedule](/docs/ui/automations/schedule)
+- [Automation settings](/docs/ui/automations/settings)
+- [Social settings](/docs/ui/automations/social-settings)
+- [X automations](/docs/ui/automations/x-automations)
+- [UGC video](/docs/ui/automations/ugc)
+
+### Compose, Schedule, Analytics
+
+- [Compose](/docs/ui/compose/compose)
+- [Schedule](/docs/ui/schedule/schedule)
+- [Analytics](/docs/ui/analytics/analytics)
+- [Post analytics](/docs/ui/analytics/post-analytics)
+- [Analytics preview](/docs/ui/analytics/analytics-preview)
+
+### Collections and Testing
+
+- [Collections](/docs/ui/collections/collections)
+- [Collection detail](/docs/ui/collections/collection-detail)
+- [Testing facility](/docs/ui/testing/testing)
+- [Output trace](/docs/ui/testing/output-trace)
+
+### Workspace settings
+
+- [Notifications](/docs/ui/settings/notifications)
+- [AI models](/docs/ui/settings/ai-models)
+
+### Public and system
+
+- [Landing](/docs/ui/public/landing)
+- [Authentication](/docs/ui/public/auth)
+- [Shared slideshow](/docs/ui/public/public-slideshow)
+- [Documentation shell](/docs/ui/public/docs)
+- [Legal and system](/docs/ui/public/legal)
+
+## Reading MCP coverage
+
+`Yes` means the underlying data operation is registered. `Partial` means some
+underlying operations exist but a UI-only step remains. `No` means there is no
+matching registered operation.
+
+Opening a destination, expanding a card, and opening or closing a dialog are UI
+navigation and are not expected to have MCP tools.
