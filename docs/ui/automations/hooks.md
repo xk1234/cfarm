@@ -50,4 +50,15 @@ Yes. `lumenclip_automation_hooks_get`, `lumenclip_automation_hooks_update`,
 `lumenclip_automation_hook_set_enabled`, and
 `lumenclip_automation_hook_delete` cover the canonical hook pool.
 `lumenclip_automation_schema_update` covers casing, variable bindings, tone, and
-shared style fields. Clipboard copying and section navigation are UI-only.
+shared style fields. `lumenclip_automation_run` and
+`lumenclip_slideshow_generate` accept an optional exact `hook`, bypassing random
+selection for that draft without changing the saved pool.
+
+Variant generation is a two-stage MCP flow. Call
+`lumenclip_hook_variants_generate` with `count` from 2 through 10 to randomly
+resolve distinct unused hooks and generate a text-only slideshow draft for
+each. Every variant returns its hook and every slide's `index`, `role`, and
+`text`. Choose one hook, then call `lumenclip_hook_variant_select` with that
+exact `selectedHook` and a new `requestId`; stage 2 persists the unpublished
+draft and returns its chosen hook, slide text, and rendered media URLs.
+Clipboard copying and section navigation are UI-only.
