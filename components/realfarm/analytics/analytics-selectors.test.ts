@@ -75,6 +75,92 @@ describe("latestPublicationsByPost", () => {
     ])
   })
 
+  it("collapses historical internal ids for the same platform post", () => {
+    const publication: PostFastPostRecord = {
+      id: "current-publication",
+      sourceType: "external",
+      sourceId: "7662360324313517330",
+      externalPostId: "7662360324313517330",
+      integrationId: "tiktok-1",
+      provider: "tiktok",
+      status: "published",
+      linkState: "manually_linked",
+      statsSources: ["tiktok_studio"],
+      content: "The secrets a Cancer keeps",
+      media: [],
+      createdAt: "2026-08-02T14:09:45.155Z",
+      updatedAt: "2026-08-02T14:22:43.689Z",
+    }
+    const snapshot = (
+      id: string,
+      postId: string,
+      capturedAt: string,
+      views: number
+    ): PostFastMetricSnapshot => ({
+      id,
+      postId,
+      platformPostId: "7662360324313517330",
+      integrationId: "tiktok-1",
+      provider: "tiktok",
+      capturedAt,
+      metrics: { views },
+      latestMetric: { views },
+      rawMetrics: { views },
+      observedKeys: ["views"],
+      source: "tiktok_studio",
+    })
+
+    const posts = latestPublicationsByPost(
+      [publication],
+      [
+        snapshot(
+          "historical",
+          "former-internal-id",
+          "2026-07-23T05:42:05.742Z",
+          29_790
+        ),
+        snapshot("current", publication.id, "2026-08-02T14:21:56.652Z", 35_896),
+      ]
+    )
+
+    expect(posts).toHaveLength(1)
+    expect(posts[0]).toEqual(
+      expect.objectContaining({
+        id: "current",
+        postId: publication.id,
+        metrics: { views: 35_896 },
+        publication,
+        previous: expect.objectContaining({ id: "historical" }),
+      })
+    )
+  })
+
+  it("does not collapse the same platform id across different accounts", () => {
+    const snapshot = (
+      id: string,
+      integrationId: string
+    ): PostFastMetricSnapshot => ({
+      id,
+      postId: `post-${id}`,
+      platformPostId: "shared-platform-id",
+      integrationId,
+      provider: "tiktok",
+      capturedAt: "2026-08-02T14:21:56.652Z",
+      metrics: { views: 1 },
+      latestMetric: { views: 1 },
+      rawMetrics: { views: 1 },
+      observedKeys: ["views"],
+      source: "tiktok_studio",
+    })
+
+    expect(
+      latestPublicationsByPost(
+        [],
+        [snapshot("one", "tiktok-1"), snapshot("two", "tiktok-2")]
+      )
+    ).toHaveLength(2)
+  })
+
   it("keeps only the latest snapshot per post/day and weights engagement by exposure", () => {
     const snapshot = (
       id: string,
