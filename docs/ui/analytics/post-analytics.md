@@ -38,6 +38,13 @@ TikTok Studio starts a linked Chrome companion capture. Collect in extension is
 available only when a platform post ID exists and sends comment collection to
 the companion.
 
+The companion's **Connect this post** action includes the post's native TikTok
+ID. Both `/video/` and slideshow `/photo/` URLs are supported. Analytics
+resolves the ID against published or manually linked posts,
+opens the matching post analytics page, and starts collection automatically.
+An inline status confirms the handoff; an unmatched video returns a specific
+linking prerequisite on the Analytics page.
+
 ## MCP coverage
 
 Partial. `lumenclip_analytics_report` returns stored per-post analytics entries.

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { normalizeProvider } from "@/components/realfarm/analytics/account-profile-icon"
 import { useAnalyticsData } from "@/components/realfarm/analytics/use-analytics-data"
@@ -21,6 +21,7 @@ import {
 import {
   availablePlatformMetrics,
   defaultPlatformMetric,
+  findTikTokPostByPlatformId,
   initialMetricForPlatform,
   latestPublicationsByPost,
   type LatestPost,
@@ -43,15 +44,21 @@ export type AnalyticsPayload = {
 type AnalyticsViewProps = {
   previewData?: AnalyticsPayload
   initialPlatform?: string
+  companionIntent?: "tiktok-studio" | "tiktok-comments"
+  platformPostId?: string
 }
 
 export function AnalyticsView({
   previewData,
   initialPlatform,
+  companionIntent,
+  platformPostId,
 }: AnalyticsViewProps = {}) {
   const router = useRouter()
   const [overviewAccountId, setOverviewAccountId] = useState("all")
-  const [activePlatform, setActivePlatform] = useState(initialPlatform || "")
+  const [activePlatform, setActivePlatform] = useState(
+    initialPlatform || (companionIntent === "tiktok-studio" ? "tiktok" : "")
+  )
   const [platformAccountIds, setPlatformAccountIds] = useState<string[]>(() =>
     previewData && initialPlatform
       ? previewData.integrations
@@ -63,10 +70,15 @@ export function AnalyticsView({
       : []
   )
   const [platformMetric, setPlatformMetric] = useState<CanonicalMetric>(() =>
-    initialMetricForPlatform(initialPlatform)
+    initialMetricForPlatform(
+      initialPlatform || (companionIntent === "tiktok-studio" ? "tiktok" : "")
+    )
   )
   const [chartMode, setChartMode] = useState<"absolute" | "indexed">("absolute")
-  const [showTikTokStudioSync, setShowTikTokStudioSync] = useState(false)
+  const [showTikTokStudioSync, setShowTikTokStudioSync] = useState(
+    companionIntent === "tiktok-studio"
+  )
+  const handledCompanionIntent = useRef(false)
   const { data, error, isLoading, days, setDays, refreshing, refresh } =
     useAnalyticsData(previewData)
   const integrations = useMemo(
@@ -86,6 +98,52 @@ export function AnalyticsView({
       ),
     [activePlatform, integrations]
   )
+
+  useEffect(() => {
+    if (
+      handledCompanionIntent.current ||
+      !companionIntent ||
+      isLoading ||
+      !data
+    ) {
+      return
+    }
+    handledCompanionIntent.current = true
+
+    if (companionIntent === "tiktok-studio") return
+
+    const post = platformPostId
+      ? findTikTokPostByPlatformId(latestPosts, platformPostId)
+      : undefined
+    if (post) {
+      router.replace(
+        `/app/analytics/posts/${encodeURIComponent(post.postId)}?companion=tiktok-comments&platformPostId=${encodeURIComponent(platformPostId!)}`
+      )
+      return
+    }
+  }, [companionIntent, data, isLoading, latestPosts, platformPostId, router])
+
+  const companionNotice = useMemo(() => {
+    if (!companionIntent || isLoading || !data) return ""
+    if (companionIntent === "tiktok-studio") {
+      return integrations.some(
+        (integration) => normalizeProvider(integration.provider) === "tiktok"
+      )
+        ? ""
+        : "Connect a TikTok account in Settings before importing TikTok Studio analytics."
+    }
+    return platformPostId &&
+      findTikTokPostByPlatformId(latestPosts, platformPostId)
+      ? ""
+      : "This TikTok post is not linked to a published LumenClip post yet. Import or mark the post as published, then open the extension on the post again."
+  }, [
+    companionIntent,
+    data,
+    integrations,
+    isLoading,
+    latestPosts,
+    platformPostId,
+  ])
 
   const resolvedPlatformAccountIds = useMemo(() => {
     const available = new Set(
@@ -147,6 +205,15 @@ export function AnalyticsView({
             : undefined
         }
       />
+
+      {companionNotice ? (
+        <div
+          role="alert"
+          className="mb-5 rounded-[10px] border border-app-warning/25 bg-app-warning-surface px-4 py-3 text-[12px] leading-5 font-semibold text-app-warning"
+        >
+          {companionNotice}
+        </div>
+      ) : null}
 
       {data?.integrationWarning ? (
         <div className="mb-5 rounded-[10px] bg-app-warning-surface px-4 py-3 text-[12px] font-semibold text-app-warning">
@@ -226,7 +293,7 @@ export function AnalyticsView({
           )}
         </>
       )}
-      {showTikTokStudioSync ? (
+      {showTikTokStudioSync && !isLoading && platformAccounts.length ? (
         <TikTokStudioBatchDialog
           accounts={platformAccounts.filter((account) =>
             resolvedPlatformAccountIds.includes(account.integration_id)

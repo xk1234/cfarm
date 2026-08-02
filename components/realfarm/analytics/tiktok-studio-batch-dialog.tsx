@@ -298,7 +298,7 @@ export function TikTokStudioBatchDialog({
                     Download Chrome companion
                   </a>
                   <span>
-                    Install or reload version 1.2.0 once. No pairing codes are
+                    Install or reload version 2.2.0 once. No pairing codes are
                     required.
                   </span>
                 </div>

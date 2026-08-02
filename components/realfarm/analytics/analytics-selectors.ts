@@ -81,6 +81,33 @@ export function snapshotlessPublication(
   }
 }
 
+export function findTikTokPostByPlatformId(
+  posts: LatestPost[],
+  platformPostId: string
+) {
+  const id = platformPostId.trim()
+  if (!id) return undefined
+  return posts.find(
+    (post) =>
+      post.provider.toLowerCase().startsWith("tiktok") &&
+      (post.platformPostId?.trim() === id ||
+        post.publication?.externalPostId?.trim() === id ||
+        tiktokPostId(post.releaseUrl) === id ||
+        tiktokPostId(post.publication?.releaseUrl) === id)
+  )
+}
+
+function tiktokPostId(value: string | undefined) {
+  if (!value) return undefined
+  try {
+    return new URL(value).pathname.match(
+      /^\/@[^/]+\/(?:video|photo)\/(\d+)\/?$/
+    )?.[1]
+  } catch {
+    return undefined
+  }
+}
+
 export function postMetricSeries(
   snapshots: PostFastMetricSnapshot[],
   metric: CanonicalMetric

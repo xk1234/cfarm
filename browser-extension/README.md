@@ -4,10 +4,31 @@ This Chrome MV3 extension connects a logged-in TikTok session to LumenClip. It
 imports TikTok Studio analytics and owns the TikTok comment workflow: capture,
 draft review, editing, approval, optional hearts, and sending.
 
+## URL-aware popup
+
+The active TikTok tab determines the task shown in the popup:
+
+- `https://www.tiktok.com/tiktokstudio/content` and Studio analytics report
+  pages show the analytics import flow.
+- An exact `https://www.tiktok.com/@handle/video/{id}` or
+  `https://www.tiktok.com/@handle/photo/{id}` page shows the comment flow for
+  that post only. TikTok can redirect slideshow `/video/` URLs to `/photo/`.
+- Other pages explain the two supported locations and link back to TikTok
+  Studio Content.
+
+The popup includes the full next-step sequence for the detected task. Continue
+in LumenClip carries the task and video ID in the URL. A Studio deep link opens
+the account and scope chooser automatically. A video deep link finds the
+matching published or user-linked LumenClip post, opens it, and starts comment
+collection. If the account or linked post is missing, Analytics shows the exact
+prerequisite instead of dropping the user on the generic overview.
+
 ## Comment review
 
-Start **Collect in extension** from a TikTok post in LumenClip Analytics. The
-signed collection is handed to the extension and capture starts immediately.
+Open the extension on an exact TikTok post and choose **Connect this post**,
+or start **Collect in extension** from a TikTok post in LumenClip Analytics.
+The signed collection is handed to the extension and capture starts
+immediately.
 Open the extension in **Comments** mode to see every captured comment beside
 its drafted response.
 
@@ -23,7 +44,8 @@ its drafted response.
 1. Open `chrome://extensions`.
 2. Turn on **Developer mode**.
 3. Choose **Load unpacked** and select `browser-extension`.
-4. Open the extension popup and connect each feature from its LumenClip page.
+4. Open TikTok Studio Content for analytics or one exact TikTok video for
+   comments, then follow the steps shown in the popup.
 
 ## Content scripts
 

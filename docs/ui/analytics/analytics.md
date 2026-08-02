@@ -68,6 +68,11 @@ the comparison chart between absolute values and indexed growth, inspect an
 account breakdown, and page through recent posts. TikTok additionally supports
 a Chrome companion batch for new, recent, or all linked posts.
 
+Opening Analytics from the companion on TikTok Studio Content carries a
+`companion=tiktok-studio` intent. LumenClip selects the connected TikTok
+accounts and opens the batch scope chooser immediately. If no TikTok account is
+connected, the page names that prerequisite in an inline alert.
+
 ## MCP coverage
 
 Partial. `lumenclip_analytics_report` reads the stored account and post report.

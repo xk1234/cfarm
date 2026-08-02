@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   accountPostMetricSeries,
+  findTikTokPostByPlatformId,
   latestPublicationsByPost,
   postMetricSeries,
 } from "@/components/realfarm/analytics/analytics-selectors"
@@ -105,5 +106,37 @@ describe("latestPublicationsByPost", () => {
     expect(accountPostMetricSeries(snapshots, "engagementRate")).toEqual([
       expect.objectContaining({ date: "2026-07-30", value: 16 }),
     ])
+  })
+})
+
+describe("findTikTokPostByPlatformId", () => {
+  it("finds a TikTok publication by native id or video URL", () => {
+    const posts = latestPublicationsByPost(
+      [
+        {
+          id: "publication-1",
+          sourceType: "external",
+          sourceId: "source-1",
+          externalPostId: "7669076017918561554",
+          integrationId: "tiktok-1",
+          provider: "tiktok",
+          status: "published",
+          linkState: "manually_linked",
+          statsSources: [],
+          content: "A linked video",
+          releaseUrl:
+            "https://www.tiktok.com/@horoiq/photo/7669076017918561554?image_index=2",
+          media: [],
+          createdAt: "2026-07-01T00:00:00.000Z",
+          updatedAt: "2026-07-02T00:00:00.000Z",
+        },
+      ],
+      []
+    )
+
+    expect(
+      findTikTokPostByPlatformId(posts, "7669076017918561554")?.postId
+    ).toBe("publication-1")
+    expect(findTikTokPostByPlatformId(posts, "missing")).toBeUndefined()
   })
 })
