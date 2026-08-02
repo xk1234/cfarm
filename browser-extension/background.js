@@ -2,6 +2,7 @@ const STUDIO_SECTIONS = ["overview", "viewers", "engagement"]
 const STEP_TIMEOUT_MINUTES = 0.5
 const STUDIO_STEP_ALARM = "lumenclip-tiktok-studio-step"
 const STUDIO_PENDING_SYNC_ALARM = "lumenclip-tiktok-studio-pending"
+const STUDIO_CANCELLED_CAPTURE_KEY = "studioCancelledCaptureId"
 const COMMENTS_POLL_ALARM = "lumenclip-tiktok-comments-poll"
 const COMMENTS_STEP_TIMEOUT_MS = 30_000
 const pendingAdvances = new Set()
@@ -43,7 +44,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message?.type === "START_PENDING_CAPTURE") {
-    void activatePendingCapture({ autoStart: true })
+    void activatePendingCapture({ autoStart: true, restartCancelled: true })
       .then((result) => sendResponse({ ok: true, ...result }))
       .catch((error) =>
         sendResponse({
@@ -102,6 +103,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         "studioCaptureConfig",
         "studioCaptureStatus",
         "studioBatchSync",
+        STUDIO_CANCELLED_CAPTURE_KEY,
       ])
       .then(() => sendResponse({ ok: true }))
     return true
@@ -246,6 +248,16 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 })
 
+chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
+  void cancelStudioBatchForClosedTab(tabId, removeInfo)
+})
+
+chrome.runtime.onStartup.addListener(() => {
+  void cancelRunningStudioBatch(
+    "Analytics sync cancelled because Chrome was closed."
+  )
+})
+
 async function configureDevice(config, { autoStart }) {
   if (
     config?.version !== 3 ||
@@ -268,7 +280,7 @@ async function configureDevice(config, { autoStart }) {
   await chrome.alarms.create(STUDIO_PENDING_SYNC_ALARM, {
     periodInMinutes: 1,
   })
-  await activatePendingCapture({ autoStart })
+  await activatePendingCapture({ autoStart, restartCancelled: true })
   return studioDeviceConfig
 }
 
@@ -350,13 +362,23 @@ async function configureCapture(config) {
       updatedAt: new Date().toISOString(),
     },
   })
-  await chrome.storage.local.remove("studioBatchSync")
+  await chrome.storage.local.remove([
+    "studioBatchSync",
+    STUDIO_CANCELLED_CAPTURE_KEY,
+  ])
   return hydrated
 }
 
-async function activatePendingCapture({ autoStart }) {
-  const { studioDeviceConfig, studioBatchSync } =
-    await chrome.storage.local.get(["studioDeviceConfig", "studioBatchSync"])
+async function activatePendingCapture({ autoStart, restartCancelled = false }) {
+  const {
+    studioDeviceConfig,
+    studioBatchSync,
+    [STUDIO_CANCELLED_CAPTURE_KEY]: cancelledCaptureId,
+  } = await chrome.storage.local.get([
+    "studioDeviceConfig",
+    "studioBatchSync",
+    STUDIO_CANCELLED_CAPTURE_KEY,
+  ])
   if (!studioDeviceConfig?.endpoint || !studioDeviceConfig?.token) {
     throw new Error("Connect the companion from LumenClip first")
   }
@@ -386,6 +408,7 @@ async function activatePendingCapture({ autoStart }) {
     await chrome.storage.local.remove([
       "studioCaptureConfig",
       "studioBatchSync",
+      STUDIO_CANCELLED_CAPTURE_KEY,
     ])
     await chrome.storage.local.set({
       studioCaptureStatus: {
@@ -395,6 +418,20 @@ async function activatePendingCapture({ autoStart }) {
       },
     })
     return { pending: false }
+  }
+  if (
+    manifest.captureId &&
+    cancelledCaptureId === manifest.captureId &&
+    !restartCancelled
+  ) {
+    return {
+      pending: true,
+      cancelled: true,
+      count: manifest.posts.length,
+    }
+  }
+  if (restartCancelled || cancelledCaptureId !== manifest.captureId) {
+    await chrome.storage.local.remove(STUDIO_CANCELLED_CAPTURE_KEY)
   }
   const studioCaptureConfig = {
     ...studioDeviceConfig,
@@ -455,6 +492,7 @@ async function startBatchCapture() {
     tabId: null,
     updatedAt: new Date().toISOString(),
   }
+  await chrome.storage.local.remove(STUDIO_CANCELLED_CAPTURE_KEY)
   await chrome.storage.local.set({ studioBatchSync: sync })
   await navigateCurrentStep(studioCaptureConfig, sync)
 }
@@ -607,6 +645,7 @@ async function advanceBatch(timedOut, expectedStep) {
         updatedAt: new Date().toISOString(),
       },
     })
+    await chrome.storage.local.remove(STUDIO_CANCELLED_CAPTURE_KEY)
     return
   }
   sync.updatedAt = new Date().toISOString()
@@ -644,16 +683,26 @@ async function navigateCurrentStep(config, sync) {
   if (!post || !section) return
   const url = `https://www.tiktok.com/tiktokstudio/analytics/${post.postId}/${section}`
   let tabId = sync.tabId
-  try {
-    if (tabId) {
+  if (tabId) {
+    try {
       await chrome.tabs.update(tabId, { url, active: true })
-    } else {
+    } catch {
+      await cancelRunningStudioBatch(
+        "Analytics sync cancelled because the TikTok Studio tab was closed.",
+        tabId
+      )
+      return
+    }
+  } else {
+    try {
       const tab = await chrome.tabs.create({ url, active: true })
       tabId = tab.id
+    } catch {
+      await cancelRunningStudioBatch(
+        "Analytics sync cancelled because Chrome was closed."
+      )
+      return
     }
-  } catch {
-    const tab = await chrome.tabs.create({ url, active: true })
-    tabId = tab.id
   }
   const next = {
     ...sync,
@@ -674,6 +723,46 @@ async function navigateCurrentStep(config, sync) {
   await chrome.alarms.create(STUDIO_STEP_ALARM, {
     delayInMinutes: STEP_TIMEOUT_MINUTES,
   })
+}
+
+async function cancelStudioBatchForClosedTab(tabId, removeInfo) {
+  return cancelRunningStudioBatch(
+    removeInfo?.isWindowClosing
+      ? "Analytics sync cancelled because Chrome was closed."
+      : "Analytics sync cancelled because the TikTok Studio tab was closed.",
+    tabId
+  )
+}
+
+async function cancelRunningStudioBatch(message, expectedTabId) {
+  const { studioCaptureConfig, studioBatchSync } =
+    await chrome.storage.local.get(["studioCaptureConfig", "studioBatchSync"])
+  if (
+    studioBatchSync?.kind !== "running" ||
+    (expectedTabId && studioBatchSync.tabId !== expectedTabId)
+  ) {
+    return false
+  }
+  await chrome.alarms.clear(STUDIO_STEP_ALARM)
+  pendingAdvances.clear()
+  const updatedAt = new Date().toISOString()
+  await chrome.storage.local.set({
+    studioBatchSync: {
+      ...studioBatchSync,
+      kind: "cancelled",
+      tabId: null,
+      updatedAt,
+    },
+    studioCaptureStatus: {
+      kind: "warning",
+      message,
+      updatedAt,
+    },
+    ...(studioCaptureConfig?.captureId
+      ? { [STUDIO_CANCELLED_CAPTURE_KEY]: studioCaptureConfig.captureId }
+      : {}),
+  })
+  return true
 }
 
 async function handleStepTimeout() {
@@ -716,6 +805,7 @@ async function forgetPairing(message) {
     "studioDeviceConfig",
     "studioCaptureConfig",
     "studioBatchSync",
+    STUDIO_CANCELLED_CAPTURE_KEY,
   ])
   await chrome.storage.local.set({
     studioCaptureStatus: {

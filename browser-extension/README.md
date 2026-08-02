@@ -28,6 +28,11 @@ matching published or user-linked LumenClip post, opens it, and starts comment
 collection. If the account or linked post is missing, Analytics shows the exact
 prerequisite instead of dropping the user on the generic overview.
 
+An analytics sync owns one Studio tab only while it is running. Closing that
+tab, closing Chrome, or restarting Chrome cancels the local sync instead of
+recreating the tab. The cancelled capture stays paused until the user explicitly
+chooses **Sync now** again.
+
 ## Comment review
 
 Open the extension on an exact TikTok post and choose **Connect this post**,
