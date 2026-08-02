@@ -21,13 +21,14 @@ export function classifyTikTokContext(value) {
       label: "TikTok Studio",
       title: "Import TikTok analytics",
       description:
-        "Choose what to import in LumenClip. The companion will open each private Studio report and save it automatically.",
+        "Import every post from TikTok Studio, including posts that are not in LumenClip yet, then capture their private analytics.",
       identity: "Content and analytics",
-      connectLabel: "Continue in LumenClip",
+      connectLabel: "Import all posts",
       steps: [
-        "Choose a TikTok account and sync scope in LumenClip.",
-        "Keep Chrome open while the companion visits each report.",
-        "Captured metrics are attached to the matching LumenClip posts.",
+        "Choose the matching TikTok account in LumenClip.",
+        "The companion discovers every post in TikTok Studio Content.",
+        "Missing publications are created before analytics capture starts.",
+        "Private Studio reports are captured and saved automatically.",
       ],
     }
   }

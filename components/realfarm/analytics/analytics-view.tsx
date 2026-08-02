@@ -298,6 +298,7 @@ export function AnalyticsView({
           accounts={platformAccounts.filter((account) =>
             resolvedPlatformAccountIds.includes(account.integration_id)
           )}
+          autoStart={companionIntent === "tiktok-studio"}
           onClose={() => setShowTikTokStudioSync(false)}
           onLinked={() => void refreshReport()}
         />

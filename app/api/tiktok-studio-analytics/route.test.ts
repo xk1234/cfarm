@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => ({
   createBatch: vi.fn(),
   createDevice: vi.fn(),
+  createDiscoveredBatch: vi.fn(),
   createImport: vi.fn(),
   createSeedBatch: vi.fn(),
   getCurrentUser: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock("@/lib/postfast-analytics", () => ({
 vi.mock("@/lib/tiktok-studio-analytics", () => ({
   createTikTokStudioAnalyticsImport: mocks.createImport,
   createTikTokStudioAnalyticsBatch: mocks.createBatch,
+  createTikTokStudioAnalyticsDiscoveredBatch: mocks.createDiscoveredBatch,
   createTikTokStudioAnalyticsSeedBatch: mocks.createSeedBatch,
   createTikTokStudioDeviceAuthorization: mocks.createDevice,
   inspectTikTokStudioAnalyticsBatch: vi.fn(),
@@ -45,6 +47,9 @@ describe("TikTok Studio analytics route", () => {
     ])
     mocks.createSeedBatch.mockResolvedValue({
       batch: { id: "batch-1", items: [], counts: {} },
+    })
+    mocks.createDiscoveredBatch.mockResolvedValue({
+      batch: { id: "batch-discovered", items: [], counts: {} },
     })
     mocks.createDevice.mockReturnValue({
       captureToken: "capture-token",
@@ -79,6 +84,43 @@ describe("TikTok Studio analytics route", () => {
     })
     await expect(response.json()).resolves.toMatchObject({
       batch: { id: "batch-1" },
+      companion: {
+        version: 3,
+        endpoint: "https://example.com/api/tiktok-studio-analytics/capture",
+        token: "capture-token",
+      },
+    })
+  })
+
+  it("imports companion-discovered posts under the connected TikTok account", async () => {
+    const posts = [
+      {
+        externalPostId: "7662360324313517330",
+        releaseUrl: "https://www.tiktok.com/@creator/video/7662360324313517330",
+        content: "Studio caption",
+        publishedAt: "2026-07-30T00:00:00.000Z",
+      },
+    ]
+    const response = await POST(
+      new Request("https://example.com/api/tiktok-studio-analytics", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "start_discovered_batch",
+          integrationId: "tiktok-account-1",
+          posts,
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.createDiscoveredBatch).toHaveBeenCalledWith({
+      ownerId: "owner-1",
+      integrationId: "tiktok-account-1",
+      posts,
+    })
+    await expect(response.json()).resolves.toMatchObject({
+      batch: { id: "batch-discovered" },
       companion: {
         version: 3,
         endpoint: "https://example.com/api/tiktok-studio-analytics/capture",

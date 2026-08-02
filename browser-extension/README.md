@@ -18,7 +18,12 @@ The active TikTok tab determines the task shown in the popup:
 
 The popup includes the full next-step sequence for the detected task. Continue
 in LumenClip carries the task and video ID in the URL. A Studio deep link opens
-the account and scope chooser automatically. A video deep link finds the
+the import dialog and starts discovery automatically. The companion scrolls
+the virtualized Studio Content list, collects every post URL exposed by the
+logged-in account, and restores the user's scroll position. LumenClip creates
+missing publication records under the matching connected account before the
+existing private analytics capture begins. No post URLs or IDs need to be
+entered manually. A video deep link finds the
 matching published or user-linked LumenClip post, opens it, and starts comment
 collection. If the account or linked post is missing, Analytics shows the exact
 prerequisite instead of dropping the user on the generic overview.
@@ -51,5 +56,6 @@ its drafted response.
 
 - `capture-main.js` observes TikTok Studio analytics `fetch` and XHR responses on the existing `tiktokstudio/analytics/*` pages.
 - `capture-bridge.js` relays those captured responses to the extension service worker.
+- `studio-discovery-helpers.js` and `studio-content.js` discover posts from the virtualized TikTok Studio Content table without reading cookies or browser storage.
 - `tiktok.js` runs only on matching TikTok post pages after the worker requests a comments collection or an approved reply.
 - `lumenclip-bridge.js` accepts Studio and Comments connection messages only on the configured LumenClip app origins.

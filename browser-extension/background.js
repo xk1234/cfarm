@@ -54,6 +54,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true
   }
 
+  if (message?.type === "DISCOVER_STUDIO_POSTS") {
+    void discoverTikTokStudioPosts()
+      .then((posts) => sendResponse({ ok: true, posts }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "TikTok Studio posts were not found",
+        })
+      )
+    return true
+  }
+
   if (message?.type === "SET_CAPTURE_CONFIG") {
     void configureCapture(message.config)
       .then((config) => sendResponse({ ok: true, config }))
@@ -255,6 +270,57 @@ async function configureDevice(config, { autoStart }) {
   })
   await activatePendingCapture({ autoStart })
   return studioDeviceConfig
+}
+
+async function discoverTikTokStudioPosts() {
+  const tabs = await chrome.tabs.query({
+    url: "https://www.tiktok.com/tiktokstudio/content*",
+  })
+  let tab = tabs.find((candidate) => candidate.active) || tabs[0]
+  if (!tab?.id) {
+    tab = await chrome.tabs.create({
+      url: "https://www.tiktok.com/tiktokstudio/content",
+      active: true,
+    })
+    await waitForTabComplete(tab.id)
+  }
+  const response = await sendStudioDiscoveryMessage(tab.id)
+  if (!response?.ok || !Array.isArray(response.posts)) {
+    throw new Error(response?.error || "TikTok Studio posts were not found")
+  }
+  return response.posts
+}
+
+async function sendStudioDiscoveryMessage(tabId) {
+  const message = { type: "DISCOVER_TIKTOK_STUDIO_POSTS" }
+  try {
+    return await chrome.tabs.sendMessage(tabId, message)
+  } catch {
+    // Content scripts are not injected retroactively when an unpacked
+    // extension is reloaded. Refresh the existing Studio tab once so the
+    // latest discovery script is present, then retry.
+    await chrome.tabs.reload(tabId)
+    await waitForTabComplete(tabId)
+    return chrome.tabs.sendMessage(tabId, message)
+  }
+}
+
+async function waitForTabComplete(tabId) {
+  const current = await chrome.tabs.get(tabId)
+  if (current.status === "complete") return
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(listener)
+      reject(new Error("TikTok Studio took too long to load"))
+    }, 20_000)
+    const listener = (updatedTabId, info) => {
+      if (updatedTabId !== tabId || info.status !== "complete") return
+      clearTimeout(timer)
+      chrome.tabs.onUpdated.removeListener(listener)
+      resolve()
+    }
+    chrome.tabs.onUpdated.addListener(listener)
+  })
 }
 
 async function configureCapture(config) {

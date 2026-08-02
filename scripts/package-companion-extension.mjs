@@ -29,6 +29,7 @@ for (const outputPath of outputPaths) {
 
 async function addDirectory(directory, zipPath) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (entry.name.endsWith(".test.js")) continue
     const sourcePath = path.join(directory, entry.name)
     const entryPath = `${zipPath}/${entry.name}`
     if (entry.isDirectory()) {

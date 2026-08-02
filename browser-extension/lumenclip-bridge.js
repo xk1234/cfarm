@@ -11,6 +11,10 @@ window.addEventListener("message", (event) => {
     connectStudio(event.data)
     return
   }
+  if (event.data?.type === "LUMENCLIP_TIKTOK_STUDIO_DISCOVER") {
+    discoverStudio(event.data)
+    return
+  }
   if (event.data?.type === "LUMENCLIP_TIKTOK_COMMENTS_CONNECT") {
     connectComments(event.data)
   }
@@ -61,6 +65,19 @@ function connectStudio(data) {
   )
 }
 
+function discoverStudio(data) {
+  chrome.runtime.sendMessage({ type: "DISCOVER_STUDIO_POSTS" }, (result) => {
+    const error = chrome.runtime.lastError?.message || result?.error
+    respond(
+      "LUMENCLIP_TIKTOK_STUDIO_DISCOVER_RESULT",
+      data.requestId,
+      Boolean(result?.ok),
+      error,
+      { posts: result?.posts }
+    )
+  })
+}
+
 function connectComments(data) {
   const requestId = data.requestId
   const config = data.config
@@ -107,7 +124,7 @@ function parseEndpoint(value) {
   }
 }
 
-function respond(type, requestId, ok, error) {
+function respond(type, requestId, ok, error, result) {
   window.postMessage(
     {
       source: "lumenclip-companion",
@@ -115,6 +132,7 @@ function respond(type, requestId, ok, error) {
       requestId,
       ok,
       error,
+      result,
     },
     window.location.origin
   )
