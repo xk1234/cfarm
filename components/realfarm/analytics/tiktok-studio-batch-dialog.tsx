@@ -133,6 +133,7 @@ export function TikTokStudioBatchDialog({
               integrationId,
               posts,
             }),
+            timeoutMs: 120_000,
             toastOnError: false,
           }
         )
