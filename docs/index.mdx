@@ -1,10 +1,38 @@
 ---
 title: LumenClip engineering documentation
-description: Workflows, libraries, application data, UI, and scheduled jobs.
+description: "How LumenClip turns collections, templates, and automations into published social content."
 ---
 
-This documentation is organized around the five areas maintained alongside the
+LumenClip is a content-production and automation workspace. It turns reusable
+media collections, templates, and automation definitions into finished social
+content: slideshow images with an optional MP4, X and Threads posts, LinkedIn
+posts, and AI UGC video. Generated output is reviewed in the workspace, planned
+on a shared content calendar, published through PostFast, and tracked with
+imported analytics.
+
+This documentation covers the code that produces that content and the
+structures it is stored in, across five areas maintained alongside the
 application.
+
+## Start here
+
+- **Add or change a generation workflow.** Read the documentation contract in
+  [Output generation](/docs/workflows), then the pipeline page closest to what
+  you are building.
+- **Change which model a stage uses.** Check the model summary in
+  [Output generation](/docs/workflows) for the model and provider at every
+  generative stage, and [AI models](/docs/ui/settings/ai-models) for the model
+  IDs an operator can set from the workspace.
+- **Debug a failed run.** Start with [Backend scheduling](/docs/jobs/backend)
+  for job states, retry backoff, dead-letter handling, and the triage table.
+- **Understand a persisted shape.** Open the [Data dictionary](/docs/data) and
+  the domain group that holds the object you are changing.
+- **Find an API route.** Search the route-handler inventory in
+  [Backend endpoints](/docs/data/backend-endpoints).
+- **Decide where a dependency belongs.** Check
+  [Libraries and dependencies](/docs/libraries) before adding a package.
+
+## Areas
 
 <Cards>
   <Card title="Output generation" href="/docs/workflows">
