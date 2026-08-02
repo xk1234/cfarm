@@ -57,6 +57,22 @@ describe("TikTok Studio batch lifecycle", () => {
     )
   })
 
+  it("cancels persisted work when the companion is reloaded or updated", async () => {
+    const harness = loadBackground({
+      studioCaptureConfig: captureConfig(),
+      studioBatchSync: runningSync({ tabId: 42 }),
+    })
+
+    harness.listeners.installed({ reason: "update" })
+    await vi.waitFor(() =>
+      expect(harness.state.studioBatchSync.kind).toBe("cancelled")
+    )
+
+    expect(harness.state.studioCaptureStatus.message).toContain(
+      "companion was updated"
+    )
+  })
+
   it("does not auto-start the same capture after Chrome restarts", async () => {
     const harness = loadBackground({
       studioDeviceConfig: deviceConfig(),
@@ -128,6 +144,9 @@ function loadBackground(initialState) {
       },
       onStartup: {
         addListener: vi.fn((listener) => (listeners.startup = listener)),
+      },
+      onInstalled: {
+        addListener: vi.fn((listener) => (listeners.installed = listener)),
       },
     },
     alarms: {

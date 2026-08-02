@@ -258,6 +258,12 @@ chrome.runtime.onStartup.addListener(() => {
   )
 })
 
+chrome.runtime.onInstalled.addListener(() => {
+  void cancelRunningStudioBatch(
+    "Analytics sync cancelled because the companion was updated."
+  )
+})
+
 async function configureDevice(config, { autoStart }) {
   if (
     config?.version !== 3 ||
