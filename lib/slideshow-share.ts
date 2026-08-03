@@ -3,7 +3,7 @@ import "server-only"
 import crypto from "node:crypto"
 
 import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
-import { listAutomationRuns } from "@/lib/automation-runner"
+import { getAutomationRunForSlideshow } from "@/lib/automation-runner"
 import { getAutomationRecord } from "@/lib/automations"
 import { clean } from "@/lib/guards"
 import { listSlideshowRecords, type SlideshowRecord } from "@/lib/slideshows"
@@ -87,21 +87,16 @@ export async function loadSharedSlideshowWorkflow(
   const claims = verifySlideshowShareToken(token, outputId)
   if (!claims) return null
   return withSystemOwner(claims.ownerId, async () => {
-    const [slideshows, runs] = await Promise.all([
+    const [slideshows, run] = await Promise.all([
       listSlideshowRecords({ id: outputId, limit: 1 }),
-      listAutomationRuns({ limit: 500 }),
+      getAutomationRunForSlideshow({ slideshowId: outputId }),
     ])
     const slideshow = slideshows[0]
-    const run = runs.find(
-      (candidate) =>
-        candidate.slideshowId === outputId || candidate.id === outputId
-    )
     if (!slideshow || !run) return null
     const automation = await getAutomationRecord(run.automationId)
     const qa = validateAutomationRunOutput({
       run,
       schema: automation?.schema,
-      priorRuns: runs,
     })
     return { slideshow, run, automation, qa }
   })
