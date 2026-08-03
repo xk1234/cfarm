@@ -25,8 +25,8 @@ treated as an image or video. A network-specific area follows with a text
 override, media override, provider-specific fields, character count, and live
 preview for the active account. Desktop uses a horizontally scrollable tab row
 and places the editor beside the preview. Below the `sm` breakpoint, the tab row
-is replaced by a full-width network select and the two columns stack. This is
-the current fix for the network-tab overflow visible in the July mobile capture.
+is replaced by a full-width network select and the two columns stack, which
+keeps the network tabs from overflowing on narrow viewports.
 
 A sticky action panel holds the local date and time field, Schedule, and Post
 now. On phones it stacks the date field above the two equal-width actions. The

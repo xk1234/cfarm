@@ -1,6 +1,6 @@
 ---
 title: Automations overview
-description: Automation cards, recent output previews, account summaries, schedules, and editor entry points.
+description: Review automation cards, recent output, account summaries, and schedules, and open the editor.
 ---
 
 Route: `/app?view=automations`
@@ -20,8 +20,8 @@ Owner: `components/realfarm/automations-view.tsx`.
 The destination places Match slideshow and New automation beside the Automations
 heading, followed by a responsive card grid. The grid is one column by default,
 two columns from the medium breakpoint, and three columns from the large
-breakpoint. The three-column desktop layout therefore now collapses to one card
-per row on phones.
+breakpoint. The three-column desktop layout therefore collapses to one card per
+row on phones.
 
 Slideshow and video cards show live or paused state, favorite state, an editable
 name, and three recent-generation slots. A slideshow slot prefers the newest

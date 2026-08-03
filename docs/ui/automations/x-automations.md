@@ -1,6 +1,6 @@
 ---
 title: X and Threads automations
-description: Separate X and Threads strategy, draft generation, discovery, preview, scheduling, and publishing workspace.
+description: Generate, discover, preview, schedule, and publish X and Threads drafts in a separate strategy workspace.
 ---
 
 Route: `/app/x-automations`

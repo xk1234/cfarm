@@ -1,6 +1,6 @@
 ---
 title: Automation social settings
-description: Connected account selection and per-platform publishing configuration for an automation.
+description: Select connected accounts and configure per-platform publishing for an automation.
 ---
 
 Route: `/app?view=automations&automation=<id>`

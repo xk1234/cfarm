@@ -1,6 +1,6 @@
 ---
 title: Collections
-description: Reusable image, video, product, and variable libraries for content generation.
+description: Build reusable image, video, product, and variable libraries for content generation.
 ---
 
 Route: `/app?view=collections`
@@ -27,12 +27,13 @@ Variables uses its own searchable collection editor.
 The media library also projects read-only AI UGC Avatar Videos and Greenscreen
 Memes collections. There is no All Images rollup.
 
-Mobile replaces the four collection tabs with a full-width type selector, so
-the controls no longer overflow the viewport. Search, sort, and the grid or
-table toggle share the next row, and the grid uses cards at least 150 pixels
-wide. The July production captures predate this selector and still show the
-former overflowing tab row. They also show the former Create empty collection
-and Add labels; the current actions are New collection and Import images.
+Mobile replaces the four collection tabs with a full-width type selector, which
+keeps the controls inside the viewport. Search, sort, and the grid or table
+toggle share the next row, and the grid uses cards at least 150 pixels wide.
+
+The July 2026 production captures predate this selector. They show an
+overflowing tab row and the labels Create empty collection and Add. The shipped
+actions are New collection and Import images.
 
 ## Interactions
 

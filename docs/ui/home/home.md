@@ -1,6 +1,6 @@
 ---
 title: Home
-description: Workspace dashboard for posting activity, generated output, and reusable automation templates.
+description: Track posting activity, recent generated output, and reusable automation templates.
 ---
 
 Route: `/app?view=home`
@@ -40,10 +40,6 @@ The final section, Start from a proven workflow, displays six reusable
 templates per page. Each template contains generated example covers, its name,
 its slideshow or video type, and a Use action. The grid has three columns on
 large screens, two at the small breakpoint, and one on phones.
-
-The former editorial welcome block and decorative creator media described in
-the old documentation are no longer rendered. The activity graph and live
-workspace metrics occupy that area instead.
 
 ## Interactions
 

@@ -40,6 +40,11 @@ export type TempSlideTextPlaceholder = {
   textAlign: string
   textAnchor: string
   textVerticalAnchor: string
+  positionX?: number
+  positionY?: number
+  fontWeight?: number
+  backgroundMode?: "line" | "block"
+  backgroundRadius?: number
 }
 
 export type TempSlideSpec = {

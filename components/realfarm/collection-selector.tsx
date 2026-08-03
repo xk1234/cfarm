@@ -32,7 +32,9 @@ export function CollectionSelector({
     () =>
       collections.filter(
         (item) =>
-          (!item.virtual || item.mediaType === "video") &&
+          (!item.virtual ||
+            item.mediaType === "video" ||
+            item.source === "influlab") &&
           item.images.length > 0
       ),
     [collections]
@@ -56,7 +58,12 @@ export function CollectionSelector({
     <>
       <button
         type="button"
-        className="mb-4 w-full cursor-pointer rounded-xl border border-[#eee] bg-app-surface px-3 py-3 text-left text-[14px] font-medium text-app-text shadow-sm transition-colors hover:opacity-[65%]"
+        className={cn(
+          "mb-4 w-full cursor-pointer rounded-xl border bg-app-surface px-3 py-3 text-left text-[14px] font-medium text-app-text shadow-sm transition-colors hover:opacity-[65%]",
+          collection?.source === "influlab"
+            ? "border-violet-400 ring-1 ring-violet-200"
+            : "border-[#eee]"
+        )}
         onClick={() => setOpen(true)}
       >
         <div className="flex w-full items-center justify-between gap-3">
@@ -65,6 +72,7 @@ export function CollectionSelector({
             <LuChevronRight className="ml-1 size-4 shrink-0 stroke-[3]" />
           </span>
           <span className="max-w-[140px] truncate text-[12px] font-normal text-[#666]">
+            {collection?.source === "influlab" ? "InfluLab · " : ""}
             {collection?.title ?? "Select collection"}
           </span>
         </div>
@@ -237,7 +245,9 @@ function CollectionOption({
           "flex w-full items-center justify-between gap-3 rounded-[8px] border bg-app-surface px-3 py-3 text-left shadow-sm transition outline-none hover:bg-app-surface-subtle",
           selected
             ? "border-app-action text-app-action ring-1 ring-app-action"
-            : "border-[#e2e1da] text-app-text"
+            : collection.source === "influlab"
+              ? "border-violet-400 text-app-text ring-1 ring-violet-200"
+              : "border-[#e2e1da] text-app-text"
         )}
         onClick={onClick}
       >
@@ -246,6 +256,7 @@ function CollectionOption({
             {collection.title}
           </span>
           <span className="mt-0.5 block text-[11px] font-medium text-app-muted-text">
+            {collection.source === "influlab" ? "InfluLab · " : ""}
             {collection.images.length} {collectionMediaLabel(collection)}
           </span>
         </span>
@@ -266,7 +277,11 @@ function CollectionOption({
       <div
         className={cn(
           "relative aspect-square overflow-hidden rounded-[8px] bg-[#d9d8d0] ring-offset-2",
-          selected ? "ring-2 ring-app-action" : "ring-1 ring-[#e2e1da]"
+          selected
+            ? "ring-2 ring-app-action"
+            : collection.source === "influlab"
+              ? "ring-2 ring-violet-400"
+              : "ring-1 ring-[#e2e1da]"
         )}
       >
         {coverImage ? (
@@ -280,6 +295,11 @@ function CollectionOption({
             <LuImages className="size-6" />
           </div>
         )}
+        {collection.source === "influlab" ? (
+          <span className="absolute top-2 left-2 rounded-full bg-violet-600 px-2 py-1 text-[9px] font-bold tracking-wide text-white uppercase shadow-sm">
+            InfluLab
+          </span>
+        ) : null}
         <div className="absolute inset-x-0 bottom-0 translate-y-full bg-black/70 px-2 py-2 text-[11px] leading-tight font-semibold text-white transition group-hover:translate-y-0">
           {collection.title}
         </div>

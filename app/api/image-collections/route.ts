@@ -2,9 +2,9 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 
 import { validate, providerFail } from "@/lib/api"
+import { listAvailableImageCollections } from "@/lib/available-image-collections"
 import {
   deleteImageCollections,
-  listImageCollections,
   restoreImageCollections,
   upsertImageCollection,
 } from "@/lib/image-collections"
@@ -36,7 +36,9 @@ const deleteSchema = z.object({
 const restoreSchema = deleteSchema.extend({ action: z.literal("restore") })
 
 export async function GET() {
-  return NextResponse.json({ collections: await listImageCollections() })
+  return NextResponse.json({
+    collections: await listAvailableImageCollections(),
+  })
 }
 
 export async function POST(request: Request) {

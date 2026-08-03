@@ -223,8 +223,8 @@ range support for video/audio.
 | settings demo videos   | `demos` (direct, not path-derived) |
 
 Removed path categories such as `characters/`, knowledge-base files, and
-benchmark images now fall through to `misc` if an old URL is requested; their
-former dedicated mappings are no longer part of `bucketForPath()`.
+benchmark images fall through to `misc` if an old URL is requested.
+`bucketForPath()` holds no dedicated mapping for them.
 
 File IDs use `sha256(relativePath).slice(0, 36)`. Do not add a second lookup
 table for path-derived files unless the storage contract itself changes.

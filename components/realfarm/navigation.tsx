@@ -9,6 +9,7 @@ import useSWR from "swr"
 import {
   IconBolt,
   IconBook,
+  IconBrandTiktok,
   IconChartHistogram,
   IconCalendar,
   IconHome,
@@ -48,6 +49,11 @@ const topNav: NavItem[] = [
 const slideshowNav: NavItem[] = [
   { key: "automations", label: "Automations", icon: IconBolt },
   { key: "collections", label: "Collections", icon: IconPhoto },
+  {
+    key: "published-posts",
+    label: "Published posts",
+    icon: IconBrandTiktok,
+  },
 ]
 
 export function Sidebar({

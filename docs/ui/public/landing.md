@@ -38,7 +38,7 @@ problem, intended outcome, and workflow moves.
 `/pricing` is a complete private-beta pricing presentation, not a stub. It shows
 a $0 private workspace during beta, a Custom team workspace, included
 capabilities, and a question section. The team features and paid terms are
-described as planned rather than currently billable.
+described as planned rather than billable.
 
 `/careers` is a complete company page, not a stub. It presents three working
 principles and plainly states that there are no open roles right now.

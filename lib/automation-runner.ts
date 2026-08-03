@@ -63,6 +63,7 @@ import {
   selectSlideshowHook,
   selectSlideshowImages,
   slideshowHookCombinationUsageKey,
+  slideshowHookSourcePrompt,
   slideshowHookUsageKey,
   SlideshowHookCombinationsExhaustedError as HookCombinationsExhaustedError,
   type SlideshowTextGenerationResult,

@@ -1,6 +1,6 @@
 ---
 title: Browser routes
-description: Current browser pages and the access boundary for each route.
+description: Look up every browser page and the access boundary that guards it.
 ---
 
 ## Public product pages

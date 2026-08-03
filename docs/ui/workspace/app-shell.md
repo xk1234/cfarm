@@ -1,6 +1,6 @@
 ---
 title: Application shell
-description: Authenticated workspace chrome and responsive content framing for CFarm.
+description: Frame the authenticated workspace with persistent chrome and a responsive content region.
 ---
 
 Route: `/app?view=home`

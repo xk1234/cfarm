@@ -6,7 +6,7 @@ import {
   type AutomationAspectRatio,
   type AutomationFormatSection,
   type AutomationSchema,
-  type AutomationTextItem,
+  type TextItem,
 } from "@/lib/realfarm-automation"
 import {
   findCollectionByIdOrAlias,
@@ -107,15 +107,26 @@ export function previewSlideshowTextItems(
       textAlign: textItem.textAlign || "center",
       textAnchor: textItem.textAnchor || "padded",
       textVerticalAnchor: textItem.textVerticalAnchor || "padded",
-      textPlacement: textItem.textPosition,
+      textPlacement:
+        textItem.positionY === undefined ? textItem.textPosition : undefined,
       textPosition: previewTextItemPosition(textItem),
+      fontWeight: textItem.fontWeight,
+      backgroundMode: textItem.backgroundMode,
+      backgroundRadius: textItem.backgroundRadius,
     }
   })
 }
 
-export function previewTextItemPosition(
-  textItem: AutomationTextItem | undefined
-) {
+export function previewTextItemPosition(textItem: TextItem | undefined) {
+  if (
+    Number.isFinite(textItem?.positionX) &&
+    Number.isFinite(textItem?.positionY)
+  ) {
+    return {
+      x: clampPercent(textItem?.positionX ?? 50),
+      y: clampPercent(textItem?.positionY ?? 45),
+    }
+  }
   const y =
     textItem?.textPosition === "bottom"
       ? 82
@@ -146,8 +157,8 @@ export type AutomationFormatPreviewItem = {
   images: PinterestSearchResult[]
   overlayImages: PinterestSearchResult[]
   text: string
-  textItem: AutomationTextItem
-  textItems: AutomationTextItem[]
+  textItem: TextItem
+  textItems: TextItem[]
 }
 
 export function clampPercent(value: number) {
@@ -162,7 +173,7 @@ export function updateAutomationTextItemAt(
   schema: AutomationSchema,
   role: "hook" | "content" | "cta",
   index: number,
-  patch: Partial<AutomationTextItem>
+  patch: Partial<TextItem>
 ) {
   const section = automationFormatSection(schema, role)
   const textItems =
@@ -178,9 +189,7 @@ export function updateAutomationTextItemAt(
   return updateAutomationFormatSection(schema, role, { textItems })
 }
 
-export function newAutomationTextItemAfter(
-  previous: AutomationTextItem | undefined
-) {
+export function newAutomationTextItemAfter(previous: TextItem | undefined) {
   if (!previous) {
     return defaultAutomationTextItem()
   }
@@ -194,6 +203,11 @@ export function newAutomationTextItemAfter(
     textAlign: previous.textAlign,
     textAnchor: previous.textAnchor,
     textVerticalAnchor: previous.textVerticalAnchor,
+    positionX: previous.positionX,
+    positionY: previous.positionY,
+    fontWeight: previous.fontWeight,
+    backgroundMode: previous.backgroundMode,
+    backgroundRadius: previous.backgroundRadius,
   })
 }
 

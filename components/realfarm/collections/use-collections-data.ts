@@ -49,8 +49,12 @@ export function useCollectionsData({
       "/api/image-collections"
     )
       .then((payload) => {
-        if (active && payload.collections?.length) {
-          setCollections(payload.collections.map(storedToCollection))
+        if (active) {
+          setCollections(
+            payload.collections?.length
+              ? payload.collections.map(storedToCollection)
+              : defaultImageCollections()
+          )
         }
       })
       .catch(() => undefined)
@@ -61,6 +65,18 @@ export function useCollectionsData({
       active = false
     }
   }, [collectionsLoaded, enabled])
+
+  useEffect(() => {
+    function refreshCollections() {
+      setCollectionsLoaded(false)
+    }
+    window.addEventListener("lumenclip:collections-changed", refreshCollections)
+    return () =>
+      window.removeEventListener(
+        "lumenclip:collections-changed",
+        refreshCollections
+      )
+  }, [])
 
   useEffect(() => {
     if (!enabled || productCollectionsLoaded) return

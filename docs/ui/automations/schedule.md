@@ -1,6 +1,6 @@
 ---
 title: Automation schedule
-description: Per-automation posting times, weekdays, timezone, and weekly frequency.
+description: Set an automation's posting times, weekdays, timezone, and weekly frequency.
 ---
 
 Route: `/app?view=automations&automation=<id>`

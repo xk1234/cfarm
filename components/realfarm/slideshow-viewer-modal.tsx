@@ -36,6 +36,8 @@ import {
   clampSlideTransform,
   clampSlideZoom,
   fitSlideToViewport,
+  MAX_SLIDE_ZOOM,
+  MIN_SLIDE_ZOOM,
   zoomSlideAroundPoint,
   type SlideViewportPoint,
   type SlideViewportTransform,
@@ -443,7 +445,7 @@ function SlideshowViewerContent({
           </div>
         ) : null}
         <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="relative flex min-h-0 flex-1 items-center justify-center px-3 py-4 sm:px-10 sm:py-7">
+          <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-3 py-4 sm:gap-4 sm:px-10 sm:py-7">
             {slides.length === 0 ? (
               <TemplateGeneratedPreview
                 exampleSlides={fallbackSlides}
@@ -453,7 +455,7 @@ function SlideshowViewerContent({
             ) : (
               // The arrows overlay the slide below sm: side-by-side they left
               // a phone barely 200px for the slide itself.
-              <div className="flex h-full min-h-0 w-full max-w-full items-center justify-center gap-3">
+              <div className="relative flex min-h-0 w-full max-w-full flex-1 items-center justify-center gap-3">
                 <button
                   type="button"
                   className="absolute left-2 z-10 grid size-10 shrink-0 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30 sm:static"
@@ -489,22 +491,25 @@ function SlideshowViewerContent({
               </div>
             )}
             {slides.length > 0 ? (
-              <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 gap-2">
+              <nav
+                className="flex min-h-8 shrink-0 items-center gap-2 rounded-full bg-app-surface/88 px-3 py-2 shadow-sm ring-1 ring-black/6 backdrop-blur"
+                aria-label="Choose slideshow slide"
+              >
                 {slides.map((_, dot) => (
                   <button
                     key={dot}
                     type="button"
                     className={cn(
-                      "size-2 rounded-full",
+                      "size-2 rounded-full transition-transform hover:scale-125 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-app-action",
                       dot === boundedActiveSlide
-                        ? "bg-app-surface"
-                        : "bg-white/55"
+                        ? "scale-125 bg-app-action"
+                        : "bg-[#9b9a94] hover:bg-[#6f6e68]"
                     )}
                     onClick={() => setActiveSlide(dot)}
                     aria-label={`Show slide ${dot + 1}`}
                   />
                 ))}
-              </div>
+              </nav>
             ) : null}
           </div>
         </section>
@@ -609,7 +614,6 @@ function InteractiveSlideStage({
   onReplace: () => void
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
-  const stageRef = useRef<HTMLDivElement>(null)
   const pointersRef = useRef(new Map<number, SlidePointer>())
   const dragStartRef = useRef<{
     pointer: SlidePointer
@@ -689,7 +693,7 @@ function InteractiveSlideStage({
   }, [stage.width, stage.height])
 
   function pointFor(clientX: number, clientY: number): SlideViewportPoint {
-    const rect = stageRef.current?.getBoundingClientRect()
+    const rect = viewportRef.current?.getBoundingClientRect()
     if (!rect) return { x: 0, y: 0 }
     return {
       x: clientX - rect.left - rect.width / 2,
@@ -852,48 +856,49 @@ function InteractiveSlideStage({
   return (
     <div
       ref={viewportRef}
-      className="relative flex h-full min-h-0 w-full max-w-[760px] min-w-0 items-center justify-center sm:max-w-[min(72vw,760px)] sm:shrink-0"
+      className={cn(
+        "group relative isolate h-full min-h-0 w-full max-w-[760px] min-w-0 overflow-hidden rounded-[12px] select-none focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-app-action sm:max-w-[min(72vw,760px)] sm:shrink-0",
+        transform.zoom > 1
+          ? panning
+            ? "cursor-grabbing"
+            : "cursor-grab"
+          : "cursor-zoom-in"
+      )}
+      role="group"
+      aria-label={`${label}. The complete slide frame zooms from 50 to 500 percent. Use the mouse wheel or plus and minus keys to zoom. Drag or use arrow keys to pan when enlarged.`}
+      tabIndex={0}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={finishPointer}
+      onPointerCancel={finishPointer}
+      onLostPointerCapture={finishPointer}
+      onWheel={onWheel}
+      onDoubleClick={onDoubleClick}
+      onKeyDown={onKeyDown}
+      style={{ touchAction: "none" }}
     >
       <div
-        ref={stageRef}
-        className={cn(
-          "group relative isolate overflow-hidden rounded-[9px] bg-app-surface text-left shadow-xl ring-2 ring-white select-none focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-app-action",
-          transform.zoom > 1
-            ? panning
-              ? "cursor-grabbing"
-              : "cursor-grab"
-            : "cursor-zoom-in"
-        )}
+        className="pointer-events-none absolute top-1/2 left-1/2 overflow-hidden rounded-[9px] bg-app-surface text-left shadow-xl ring-2 ring-white will-change-transform"
         style={
           stageReady
-            ? { width: stage.width, height: stage.height, touchAction: "none" }
+            ? {
+                width: stage.width,
+                height: stage.height,
+                transform: `translate3d(calc(-50% + ${transform.x}px), calc(-50% + ${transform.y}px), 0) scale(${transform.zoom})`,
+              }
             : {
                 width: "min(100%, 400px)",
                 maxHeight: "100%",
                 aspectRatio: "4 / 5",
-                touchAction: "none",
+                transform: "translate3d(-50%, -50%, 0)",
               }
         }
-        role="group"
-        aria-label={`${label}. Use the mouse wheel or plus and minus keys to zoom. Drag or use arrow keys to pan.`}
-        tabIndex={0}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={finishPointer}
-        onPointerCancel={finishPointer}
-        onLostPointerCapture={finishPointer}
-        onWheel={onWheel}
-        onDoubleClick={onDoubleClick}
-        onKeyDown={onKeyDown}
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- Generated slides may be authenticated local or remote assets and expose their dimensions only after loading. */}
         <img
           src={slide.imageUrl}
           alt={alt}
-          className="absolute inset-0 block size-full origin-center object-contain will-change-transform"
-          style={{
-            transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.zoom})`,
-          }}
+          className="block size-full object-contain"
           draggable={false}
           onLoad={(event) => {
             const image = event.currentTarget
@@ -905,82 +910,84 @@ function InteractiveSlideStage({
             }
           }}
         />
+      </div>
 
-        <div className="pointer-events-none absolute top-2 left-2 z-10 hidden rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-semibold text-app-text opacity-0 shadow-sm backdrop-blur transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 sm:block">
-          Scroll to zoom · drag to pan
+      <div className="pointer-events-none absolute top-3 left-1/2 z-10 hidden -translate-x-1/2 rounded-full bg-black/68 px-3 py-1.5 text-[10px] font-semibold whitespace-nowrap text-white opacity-0 shadow-md backdrop-blur transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 sm:block">
+        Scroll to resize slide · drag enlarged slides to pan
+      </div>
+
+      {canReplace || canDelete ? (
+        <div className="absolute top-3 right-3 z-20 flex gap-2">
+          {canReplace ? (
+            <button
+              type="button"
+              className="flex h-11 cursor-pointer items-center gap-2 rounded-full bg-app-action px-3 text-white shadow-lg ring-2 ring-white/85 transition hover:brightness-95 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-app-action active:translate-y-px disabled:opacity-50 sm:size-10 sm:justify-center sm:px-0"
+              aria-label={`Edit picture for slide ${slideNumber}`}
+              title="Edit picture"
+              onClick={onReplace}
+            >
+              <IconPhotoEdit className="size-[18px]" />
+              <span className="text-xs font-bold sm:sr-only">Edit</span>
+            </button>
+          ) : null}
+          {canDelete ? (
+            <button
+              type="button"
+              className="flex h-11 cursor-pointer items-center gap-2 rounded-full bg-red-600 px-3 text-white shadow-lg ring-2 ring-white/85 transition hover:bg-red-700 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-red-500 active:translate-y-px disabled:opacity-50 sm:size-10 sm:justify-center sm:px-0"
+              aria-label={`Delete slide ${slideNumber}`}
+              title="Delete this slide"
+              onClick={onDelete}
+            >
+              <IconTrash className="size-[18px]" />
+              <span className="text-xs font-bold sm:sr-only">Delete</span>
+            </button>
+          ) : null}
         </div>
+      ) : null}
 
-        {canReplace || canDelete ? (
-          <div className="absolute top-2 right-2 z-20 flex gap-1.5">
-            {canReplace ? (
-              <button
-                type="button"
-                className="grid size-8 cursor-pointer place-items-center rounded-full bg-black/60 text-white transition hover:bg-app-action disabled:opacity-50"
-                aria-label={`Edit picture for slide ${slideNumber}`}
-                title="Edit picture"
-                onClick={onReplace}
-              >
-                <IconPhotoEdit className="size-4" />
-              </button>
-            ) : null}
-            {canDelete ? (
-              <button
-                type="button"
-                className="grid size-8 cursor-pointer place-items-center rounded-full bg-black/60 text-white transition hover:bg-red-600 disabled:opacity-50"
-                aria-label={`Delete slide ${slideNumber}`}
-                title="Delete this slide"
-                onClick={onDelete}
-              >
-                <IconTrash className="size-4" />
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-
-        <div
-          className="absolute bottom-2 left-2 z-20 flex items-center gap-0.5 rounded-full bg-white/92 p-1 text-app-text shadow-md backdrop-blur"
-          role="toolbar"
-          aria-label="Slide zoom controls"
+      <div
+        className="pointer-events-auto absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-0.5 rounded-full bg-white/94 p-1 text-app-text opacity-100 shadow-lg ring-1 ring-black/7 backdrop-blur transition-all sm:pointer-events-none sm:translate-y-1 sm:opacity-0 sm:group-focus-within:pointer-events-auto sm:group-focus-within:translate-y-0 sm:group-focus-within:opacity-100 sm:group-hover:pointer-events-auto sm:group-hover:translate-y-0 sm:group-hover:opacity-100"
+        role="toolbar"
+        aria-label="Slide zoom controls"
+      >
+        <button
+          type="button"
+          className="grid size-8 place-items-center rounded-full transition hover:bg-black/7 disabled:cursor-not-allowed disabled:opacity-35"
+          aria-label="Zoom out"
+          title="Zoom out"
+          disabled={transform.zoom <= MIN_SLIDE_ZOOM}
+          onClick={() => zoomTo(transformRef.current.zoom - 0.25)}
         >
-          <button
-            type="button"
-            className="grid size-8 place-items-center rounded-full transition hover:bg-black/7 disabled:cursor-not-allowed disabled:opacity-35"
-            aria-label="Zoom out"
-            title="Zoom out"
-            disabled={transform.zoom <= 1}
-            onClick={() => zoomTo(transformRef.current.zoom - 0.25)}
-          >
-            <IconZoomOut className="size-4" />
-          </button>
-          <output
-            className="min-w-11 text-center text-[11px] font-bold tabular-nums"
-            aria-live="polite"
-          >
-            {Math.round(transform.zoom * 100)}%
-          </output>
-          <button
-            type="button"
-            className="grid size-8 place-items-center rounded-full transition hover:bg-black/7 disabled:cursor-not-allowed disabled:opacity-35"
-            aria-label="Zoom in"
-            title="Zoom in"
-            disabled={transform.zoom >= 5}
-            onClick={() => zoomTo(transformRef.current.zoom + 0.25)}
-          >
-            <IconZoomIn className="size-4" />
-          </button>
-          <button
-            type="button"
-            className="grid size-8 place-items-center rounded-full transition hover:bg-black/7 disabled:cursor-not-allowed disabled:opacity-35"
-            aria-label="Reset zoom and position"
-            title="Reset zoom and position"
-            disabled={
-              transform.zoom === 1 && transform.x === 0 && transform.y === 0
-            }
-            onClick={resetView}
-          >
-            <IconFocusCentered className="size-4" />
-          </button>
-        </div>
+          <IconZoomOut className="size-4" />
+        </button>
+        <output
+          className="min-w-11 text-center text-[11px] font-bold tabular-nums"
+          aria-live="polite"
+        >
+          {Math.round(transform.zoom * 100)}%
+        </output>
+        <button
+          type="button"
+          className="grid size-8 place-items-center rounded-full transition hover:bg-black/7 disabled:cursor-not-allowed disabled:opacity-35"
+          aria-label="Zoom in"
+          title="Zoom in"
+          disabled={transform.zoom >= MAX_SLIDE_ZOOM}
+          onClick={() => zoomTo(transformRef.current.zoom + 0.25)}
+        >
+          <IconZoomIn className="size-4" />
+        </button>
+        <button
+          type="button"
+          className="grid size-8 place-items-center rounded-full transition hover:bg-black/7 disabled:cursor-not-allowed disabled:opacity-35"
+          aria-label="Reset zoom and position"
+          title="Reset zoom and position"
+          disabled={
+            transform.zoom === 1 && transform.x === 0 && transform.y === 0
+          }
+          onClick={resetView}
+        >
+          <IconFocusCentered className="size-4" />
+        </button>
       </div>
     </div>
   )

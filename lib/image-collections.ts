@@ -10,6 +10,8 @@ import {
 import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 
 export type StoredImageCollection = {
+  id?: string
+  externalId?: string
   ownerId?: string
   name: string
   created_at: string
@@ -17,6 +19,8 @@ export type StoredImageCollection = {
   mediaType?: "image" | "video"
   deletedAt?: string
   deletedUntil?: string
+  source?: "lumenclip" | "influlab"
+  readOnly?: boolean
   images: {
     image_link: string
     caption: string

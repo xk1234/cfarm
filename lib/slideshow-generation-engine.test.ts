@@ -4,7 +4,7 @@ import {
   generateSlideshowText,
   outputDevelopsHookSubject,
   slideshowTextGenerationPayload,
-} from "@/lib/slideshow-text-generation"
+} from "@/lib/slideshow-generation-engine"
 import type { TempSlideTestingAutomation } from "@/lib/temp-slide-testing"
 
 const automation: TempSlideTestingAutomation = {

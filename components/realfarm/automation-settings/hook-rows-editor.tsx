@@ -111,99 +111,148 @@ export function HookRowsEditor({
             <div
               key={item.id}
               className={cn(
-                "flex min-h-12 items-center gap-3 border-b border-app-panel-border px-3 last:border-b-0",
+                "border-b border-app-panel-border last:border-b-0",
                 item.enabled ? "bg-app-surface" : "bg-app-surface-subtle"
               )}
             >
-              <button
-                type="button"
-                role="switch"
-                aria-checked={item.enabled}
-                aria-label={`${item.enabled ? "Disable" : "Enable"} hook`}
-                disabled={lockedForSafety}
-                className={cn(
-                  "relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-45",
-                  item.enabled ? "bg-app-action" : "bg-[#c9c8c1]"
-                )}
-                onClick={() => updateItem(item.id, { enabled: !item.enabled })}
-              >
-                <span
-                  className={cn(
-                    "absolute top-0.5 left-0 size-4 rounded-full bg-white shadow-sm transition-transform",
-                    item.enabled ? "translate-x-[18px]" : "translate-x-0.5"
-                  )}
-                />
-              </button>
-              <input
-                ref={(node) => {
-                  if (node) inputRefs.current.set(item.id, node)
-                  else inputRefs.current.delete(item.id)
-                }}
-                value={item.text}
-                disabled={locked}
-                aria-label={`Hook ${index + 1}`}
-                placeholder="Add a hook…"
-                className="min-w-0 flex-1 bg-transparent py-3 text-[14px] font-medium text-app-text outline-none placeholder:text-app-text-faint disabled:cursor-default disabled:text-app-text-soft"
-                onChange={(event) =>
-                  updateItem(item.id, { text: event.target.value })
-                }
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault()
-                    addHook(index)
-                  }
-                }}
-                onPaste={(event) => {
-                  if (pasteLines(index, event.clipboardData.getData("text"))) {
-                    event.preventDefault()
-                  }
-                }}
-              />
-              {locked ? (
-                <span
-                  className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#eee9fb] px-2 py-1 text-[11px] font-semibold text-app-action"
-                  title={
-                    lockedForSafety
-                      ? "Hook usage could not be verified"
-                      : used?.lastPublishedAt
-                        ? `Last published ${new Date(used.lastPublishedAt).toLocaleDateString()}`
-                        : "Published hook"
-                  }
-                >
-                  <IconLock className="size-3" />
-                  {lockedForSafety
-                    ? "Usage unavailable"
-                    : `Used · ${used?.publishedPosts ?? 0}`}
-                </span>
-              ) : null}
-              {used?.used ? (
+              <div className="flex min-h-12 items-center gap-3 px-3">
                 <button
                   type="button"
-                  className="rounded-md p-1.5 text-app-text-faint hover:bg-app-surface-subtle hover:text-app-text"
-                  aria-label="Duplicate hook"
-                  onClick={() => addHook(index, `${item.text} variation`)}
+                  role="switch"
+                  aria-checked={item.enabled}
+                  aria-label={`${item.enabled ? "Disable" : "Enable"} hook`}
+                  disabled={lockedForSafety}
+                  className={cn(
+                    "relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-45",
+                    item.enabled ? "bg-app-action" : "bg-[#c9c8c1]"
+                  )}
+                  onClick={() =>
+                    updateItem(item.id, { enabled: !item.enabled })
+                  }
                 >
-                  <IconCopy className="size-4" />
+                  <span
+                    className={cn(
+                      "absolute top-0.5 left-0 size-4 rounded-full bg-white shadow-sm transition-transform",
+                      item.enabled ? "translate-x-[18px]" : "translate-x-0.5"
+                    )}
+                  />
                 </button>
+                <input
+                  ref={(node) => {
+                    if (node) inputRefs.current.set(item.id, node)
+                    else inputRefs.current.delete(item.id)
+                  }}
+                  value={item.text}
+                  disabled={locked}
+                  aria-label={`Hook ${index + 1}`}
+                  placeholder="Add a hook…"
+                  className="min-w-0 flex-1 bg-transparent py-3 text-[14px] font-medium text-app-text outline-none placeholder:text-app-text-faint disabled:cursor-default disabled:text-app-text-soft"
+                  onChange={(event) =>
+                    updateItem(item.id, { text: event.target.value })
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault()
+                      addHook(index)
+                    }
+                  }}
+                  onPaste={(event) => {
+                    if (
+                      pasteLines(index, event.clipboardData.getData("text"))
+                    ) {
+                      event.preventDefault()
+                    }
+                  }}
+                />
+                {item.source?.provider === "lumenlab" ? (
+                  <span
+                    className="shrink-0 rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-bold text-violet-700"
+                    title={`${item.source.scriptId ? "Analyzed" : "Imported"} from ${item.source.projectTitle}`}
+                  >
+                    {item.source.scriptId ? "LumenLab script" : "LumenLab"}
+                  </span>
+                ) : null}
+                {locked ? (
+                  <span
+                    className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#eee9fb] px-2 py-1 text-[11px] font-semibold text-app-action"
+                    title={
+                      lockedForSafety
+                        ? "Hook usage could not be verified"
+                        : used?.lastPublishedAt
+                          ? `Last published ${new Date(used.lastPublishedAt).toLocaleDateString()}`
+                          : "Published hook"
+                    }
+                  >
+                    <IconLock className="size-3" />
+                    {lockedForSafety
+                      ? "Usage unavailable"
+                      : `Used · ${used?.publishedPosts ?? 0}`}
+                  </span>
+                ) : null}
+                {used?.used ? (
+                  <button
+                    type="button"
+                    className="rounded-md p-1.5 text-app-text-faint hover:bg-app-surface-subtle hover:text-app-text"
+                    aria-label="Duplicate hook"
+                    onClick={() => addHook(index, `${item.text} variation`)}
+                  >
+                    <IconCopy className="size-4" />
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={locked}
+                  title={
+                    lockedForSafety
+                      ? "Hook usage must load before this hook can be deleted"
+                      : used?.used
+                        ? "Published hooks cannot be deleted"
+                        : "Delete hook"
+                  }
+                  aria-label="Delete hook"
+                  className="rounded-md p-1.5 text-app-text-faint hover:bg-[#fff0ed] hover:text-[#b84a3a] disabled:cursor-not-allowed disabled:opacity-35"
+                  onClick={() =>
+                    onChange(items.filter((row) => row.id !== item.id))
+                  }
+                >
+                  <IconTrash className="size-4" />
+                </button>
+              </div>
+              {item.contentDirection || item.content ? (
+                <details className="border-t border-app-panel-border bg-violet-50/40 px-3 py-2">
+                  <summary className="cursor-pointer text-[11px] font-bold tracking-wide text-violet-700 uppercase">
+                    Content brief
+                  </summary>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <label className="grid gap-1.5 text-[11px] font-bold text-app-text-soft">
+                      Content direction
+                      <textarea
+                        value={item.contentDirection ?? ""}
+                        disabled={locked}
+                        rows={5}
+                        className="resize-y rounded-[7px] border border-app-panel-border bg-app-surface p-2 text-[13px] leading-5 font-medium text-app-text outline-none focus:border-app-action disabled:cursor-default disabled:opacity-70"
+                        onChange={(event) =>
+                          updateItem(item.id, {
+                            contentDirection: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-[11px] font-bold text-app-text-soft">
+                      Source content
+                      <textarea
+                        value={item.content ?? ""}
+                        disabled={locked}
+                        rows={5}
+                        className="resize-y rounded-[7px] border border-app-panel-border bg-app-surface p-2 text-[13px] leading-5 font-medium text-app-text outline-none focus:border-app-action disabled:cursor-default disabled:opacity-70"
+                        onChange={(event) =>
+                          updateItem(item.id, { content: event.target.value })
+                        }
+                      />
+                    </label>
+                  </div>
+                </details>
               ) : null}
-              <button
-                type="button"
-                disabled={locked}
-                title={
-                  lockedForSafety
-                    ? "Hook usage must load before this hook can be deleted"
-                    : used?.used
-                      ? "Published hooks cannot be deleted"
-                      : "Delete hook"
-                }
-                aria-label="Delete hook"
-                className="rounded-md p-1.5 text-app-text-faint hover:bg-[#fff0ed] hover:text-[#b84a3a] disabled:cursor-not-allowed disabled:opacity-35"
-                onClick={() =>
-                  onChange(items.filter((row) => row.id !== item.id))
-                }
-              >
-                <IconTrash className="size-4" />
-              </button>
             </div>
           )
         })}

@@ -1,6 +1,6 @@
 ---
 title: Published posts
-description: Slideshow automation workspace for inspecting and linking published TikTok photo posts.
+description: Inspect and link published TikTok photo posts for a slideshow automation.
 ---
 
 Route: `/app?view=automations&automation=<id>`

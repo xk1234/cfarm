@@ -22,11 +22,13 @@ export function SchedulePanel({
   onConfigChange,
   onCancel,
   onSave,
+  hideFooter = false,
 }: {
   config: AutomationSchema
   onConfigChange: (config: AutomationSchema) => void
-  onCancel: () => void
-  onSave: () => void
+  onCancel?: () => void
+  onSave?: () => void
+  hideFooter?: boolean
 }) {
   return (
     <PostingSchedulePanel
@@ -34,6 +36,7 @@ export function SchedulePanel({
       onScheduleChange={(schedule) => onConfigChange({ ...config, schedule })}
       onCancel={onCancel}
       onSave={onSave}
+      hideFooter={hideFooter}
     />
   )
 }
@@ -47,8 +50,8 @@ export function PostingSchedulePanel({
 }: {
   schedule: AutomationSchedule
   onScheduleChange: (schedule: AutomationSchedule) => void
-  onCancel: () => void
-  onSave: () => void
+  onCancel?: () => void
+  onSave?: () => void
   hideFooter?: boolean
 }) {
   const postingTimes = schedulePostingTimes({ schedule } as AutomationSchema)
@@ -181,7 +184,7 @@ export function PostingSchedulePanel({
       >
         Add posting time
       </Button>
-      {hideFooter ? null : (
+      {hideFooter || !onCancel || !onSave ? null : (
         <SettingsFooter onCancel={onCancel} onSave={onSave} />
       )}
     </SettingsPage>

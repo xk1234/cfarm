@@ -1,4 +1,13 @@
 {
   "title": "LumenClip Docs",
-  "pages": ["index", "workflows", "libraries", "data", "ui", "jobs"]
+  "pages": [
+    "index",
+    "workflows",
+    "libraries",
+    "data",
+    "ui",
+    "uiux",
+    "jobs",
+    "reference"
+  ]
 }

@@ -1,17 +1,35 @@
 ---
 title: "UI and UX guidelines"
+description: Apply the design rules that new LumenClip interface work is expected to follow.
 ---
 
 These are the guidelines for UI and UX.
 
-Toolbars should always have been within the minimum number of rows. Avoid buttons with both icons and text. Use only icon buttons whenever possible. Should be on the left, button and interactive elements should be on the right. Everything in toolbar should be aligned at the same height.
+## Toolbars
 
-Grid elements To display something visual should be cards with only a picture. Never use subtitles, If explanation is required, use a tool tip. Please have some margin and padding.
+Keep toolbars within the minimum number of rows. Avoid buttons that carry both
+an icon and a text label; use icon-only buttons wherever possible. Place buttons
+and interactive elements on the right. Align everything in a toolbar to the same
+height.
 
-Keep in mind contrast when having an element that is being hovered on and changes color.
+## Grids and cards
 
-Never have two call-to-action buttons In one section.
+A grid element that displays something visual should be a card containing only a
+picture. Never use subtitles. Where an explanation is required, use a tooltip.
+Give cards margin and padding.
+
+## Color and state
+
+Maintain contrast when an element changes color on hover.
+
+## Actions
+
+Never place two call-to-action buttons in one section.
+
+## Navigation and clarity
 
 When designing UX, consider hidden and contextual navigation.
 
-When creating something, make it as clear as possible to the end user and easy to do what they need to do, Keep layouts consistent. Consider https://lawsofux.com/ when designing UX
+Make it as clear as possible for the end user to do what they need to do, and
+keep layouts consistent. Consult [Laws of UX](https://lawsofux.com/) when
+designing UX.

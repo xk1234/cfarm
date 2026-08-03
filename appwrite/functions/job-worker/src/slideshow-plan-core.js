@@ -205,9 +205,12 @@ export function textItemsForSpec(input) {
     if (!spec.displayText)
         return [];
     if (spec.section === "hook") {
-        return [
-            slideshowTextItem(spec.textItems[0] || {}, hook, schema, spec.section),
-        ];
+        const hookItems = spec.textItems.length ? spec.textItems : [{}];
+        return hookItems.map((item, index) => slideshowTextItem(item, index === 0
+            ? hook
+            : item.textMode === "static"
+                ? clean(item.staticText) || hook
+                : clean(item.id ? generated.text?.[item.id] : "") || hook, schema, spec.section));
     }
     if (!spec.textItems.length) {
         throw new Error(`${spec.id} displays text but has no configured text items`);
@@ -231,6 +234,8 @@ export function slideshowTextItem(item, text, schema, role) {
         : "center";
     const textAnchor = item.textAnchor || "padded";
     const y = placement === "bottom" ? 82 : placement === "center" ? 45 : 16;
+    const positionX = numericPercent(item.positionX);
+    const positionY = numericPercent(item.positionY);
     return {
         id: clean(item.itemId) ||
             clean(item.id) ||
@@ -245,13 +250,28 @@ export function slideshowTextItem(item, text, schema, role) {
         textAlign,
         textAnchor,
         textVerticalAnchor: item.textVerticalAnchor || "padded",
-        textPlacement: placement,
+        textPlacement: positionX === undefined || positionY === undefined
+            ? placement
+            : undefined,
         textPosition: {
-            x: textPositionX(textAlign, textAnchor),
-            y: role === "hook" && placement === "center" ? 45 : y,
+            x: positionX ?? textPositionX(textAlign, textAnchor),
+            y: positionY ?? (role === "hook" && placement === "center" ? 45 : y),
         },
         font: item.font || schema.font,
+        fontWeight: numericValue(item.fontWeight, 800),
+        backgroundMode: item.backgroundMode === "block" ? "block" : "line",
+        backgroundRadius: numericValue(item.backgroundRadius, 6),
     };
+}
+function numericPercent(value) {
+    const number = Number(value);
+    return Number.isFinite(number)
+        ? Math.max(0, Math.min(100, number))
+        : undefined;
+}
+function numericValue(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
 }
 export function automationFormatSection(schema, role) {
     const id = role === "content" ? "body" : role;

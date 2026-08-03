@@ -1,6 +1,6 @@
 ---
 title: UGC run status
-description: Gated AI UGC generation progress, cached stages, costs, and retry status.
+description: Track gated AI UGC generation progress, cached stages, costs, and retry status.
 ---
 
 Route: `/app/ugc/[id]`
