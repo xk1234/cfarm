@@ -3,6 +3,7 @@
   "pages": [
     "index",
     "routes",
+    "conventions",
     "workspace",
     "home",
     "automations",
