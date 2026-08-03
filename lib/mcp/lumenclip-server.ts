@@ -135,6 +135,7 @@ import {
 } from "@/lib/slideshows"
 import { withSystemOwner } from "@/lib/system-owner-context"
 import { assertPublicHttpUrl } from "@/lib/url-guard"
+import { buildSlideshowWorkflowTrace } from "@/lib/slideshow-workflow-trace"
 import {
   analyzeSlideshowTone,
   slideshowToneToAutomationFields,
@@ -3301,6 +3302,87 @@ function registerOutputAndPublishingTools(
   )
 
   server.registerTool(
+    "lumenclip_workflow_trace_get",
+    {
+      title: "Inspect an output workflow trace",
+      description:
+        "Returns the complete 16-stage slideshow generation trace for one caller-owned output. Every stage includes its metadata, status, persisted or reconstructed input, and persisted or reconstructed output, plus the signed visual workflow URL.",
+      inputSchema: {
+        outputId: z
+          .string()
+          .trim()
+          .min(1)
+          .describe(
+            'Slideshow output ID returned by outputs_list or output_get, e.g. "slideshow_123".'
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ outputId }) =>
+      mcpResult(
+        await owned(async () => {
+          const trace = await slideshowWorkflowTrace(services, outputId)
+          return {
+            ...trace,
+            ...slideshowDeliveryFields(ownerId, trace.outputId),
+          }
+        })
+      )
+  )
+
+  server.registerTool(
+    "lumenclip_workflow_stage_get",
+    {
+      title: "Inspect one output workflow stage",
+      description:
+        "Returns one exact slideshow workflow stage with its input and output. Use workflow_trace_get to discover ordered stage IDs, then address a stage by ID.",
+      inputSchema: {
+        outputId: z
+          .string()
+          .trim()
+          .min(1)
+          .describe('Slideshow output ID, e.g. "slideshow_123".'),
+        stageId: z
+          .string()
+          .trim()
+          .min(1)
+          .describe(
+            'Stage ID returned by workflow_trace_get, e.g. "slideshow-generation.generate-slide-text".'
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ outputId, stageId }) =>
+      mcpResult(
+        await owned(async () => {
+          const trace = await slideshowWorkflowTrace(services, outputId)
+          const stage = trace.stages.find(
+            (candidate) => candidate.id === stageId
+          )
+          if (!stage) throw new Error("Workflow stage not found")
+          return {
+            workflowId: trace.workflowId,
+            runId: trace.runId,
+            outputId: trace.outputId,
+            stage,
+            workflowUrl: slideshowDeliveryFields(ownerId, trace.outputId)
+              .workflowUrl,
+          }
+        })
+      )
+  )
+
+  server.registerTool(
     "lumenclip_output_validate",
     {
       title: "Validate a generated output",
@@ -4788,6 +4870,30 @@ async function getAutomationOutput(
       findings: [],
     },
   }
+}
+
+async function slideshowWorkflowTrace(
+  services: LumenClipMcpServices,
+  outputId: string
+) {
+  const runs = await services.listAutomationRuns({ limit: 500 })
+  const run = runs.find(
+    (candidate) =>
+      candidate.slideshowId === outputId || candidate.id === outputId
+  )
+  if (!run?.slideshowId) throw new Error("Slideshow workflow not found")
+  const [automation, slideshows] = await Promise.all([
+    services.getAutomationRecord(run.automationId),
+    services.listSlideshowRecords({ id: run.slideshowId, limit: 1 }),
+  ])
+  const slideshow = slideshows[0]
+  if (!slideshow) throw new Error("Slideshow output not found")
+  const qa = validateAutomationRunOutput({
+    run,
+    schema: automation?.schema,
+    priorRuns: runs,
+  })
+  return buildSlideshowWorkflowTrace({ run, automation, slideshow, qa })
 }
 
 function outputAnalyticsSummary(
@@ -7680,6 +7786,7 @@ function slideshowDeliveryFields(ownerId: string, outputId: string) {
   return delivery
     ? {
         previewUrl: delivery.previewUrl,
+        workflowUrl: delivery.workflowUrl,
         downloadUrl: delivery.downloadUrl,
       }
     : {}

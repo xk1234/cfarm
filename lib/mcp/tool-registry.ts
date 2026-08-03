@@ -59,6 +59,8 @@ export const LUMENCLIP_MCP_TOOLS = [
   { name: "lumenclip_collection_delete", category: "collections" },
   { name: "lumenclip_outputs_list", category: "outputs" },
   { name: "lumenclip_output_get", category: "outputs" },
+  { name: "lumenclip_workflow_trace_get", category: "workflows" },
+  { name: "lumenclip_workflow_stage_get", category: "workflows" },
   { name: "lumenclip_output_validate", category: "outputs" },
   { name: "lumenclip_output_slide_text_update", category: "outputs" },
   { name: "lumenclip_output_delete", category: "outputs" },

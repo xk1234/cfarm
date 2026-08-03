@@ -22,6 +22,7 @@ export type GeneratedShowcaseRun = {
   scheduledFor?: string
   status?: string
   slideshowId?: string
+  workflowUrl?: string
   socialStatuses?: Array<{ status?: string }>
   createdAt?: string
   updatedAt?: string

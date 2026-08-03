@@ -47,6 +47,7 @@ export type AutomationRunApiRecord = {
   thumbnailUrl?: string
   outputImages?: string[]
   outputDir?: string
+  workflowUrl?: string
   socialStatuses?: SocialAccountStatusItem[]
   manuallyPublishedAt?: string
   renderedSlides?: AutomationRunApiSlide[]
