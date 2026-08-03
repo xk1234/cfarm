@@ -489,7 +489,7 @@ Persistence: `automation_runs`.
 | `publishType`         | string                 | Yes      | Normalized publish type                | Output/publication form.                       |
 | `autoMusic`           | boolean                | Yes      | `true`, `false`                        | Music decision.                                |
 | `autoPost`            | boolean                | Yes      | `true`, `false`                        | Auto-publication decision.                     |
-| `reuseWarnings`       | object[]               | No       | `kind` currently `image`               | Reuse exceptions.                              |
+| `reuseWarnings`       | object[]               | No       | `kind` is `image`                      | Reuse exceptions.                              |
 | `hookCandidates`      | string[]               | No       | Free strings                           | Candidate hooks.                               |
 | `textModel`           | string                 | No       | Provider model ID                      | Text model used.                               |
 | `language`            | string                 | Yes      | Language label/code                    | Generation language.                           |

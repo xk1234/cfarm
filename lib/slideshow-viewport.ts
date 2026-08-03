@@ -1,4 +1,4 @@
-export const MIN_SLIDE_ZOOM = 1
+export const MIN_SLIDE_ZOOM = 0.5
 export const MAX_SLIDE_ZOOM = 5
 
 export type SlideViewportSize = {

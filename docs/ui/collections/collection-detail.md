@@ -1,6 +1,6 @@
 ---
 title: Collection detail
-description: Media review and maintenance inside one image or video collection.
+description: Review and maintain the media inside one image or video collection.
 ---
 
 Route: `/app/collections/[id]`

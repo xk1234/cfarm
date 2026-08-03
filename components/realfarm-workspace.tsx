@@ -51,6 +51,11 @@ const AnalyticsView = dynamic(() =>
     (module) => module.AnalyticsView
   )
 )
+const PublishedTikTokPostsView = dynamic(() =>
+  import("@/components/realfarm/published-tiktok-posts-view").then(
+    (module) => module.PublishedTikTokPostsView
+  )
+)
 const CollectionsView = dynamic(() =>
   import("@/components/realfarm/collections-view").then(
     (module) => module.CollectionsView
@@ -914,6 +919,18 @@ export function RealFarmWorkspace({
             <AnalyticsView
               companionIntent={initialNavigation?.companionIntent}
               platformPostId={initialNavigation?.platformPostId}
+            />
+          )}
+          {view === "published-posts" && (
+            <PublishedTikTokPostsView
+              automations={automations}
+              onRunsImported={(automationId, runs) => {
+                recentRunsRevisionRef.current += 1
+                setRecentAutomationRuns((current) => [
+                  ...runs,
+                  ...current.filter((run) => run.automationId !== automationId),
+                ])
+              }}
             />
           )}
           {view === "collections" &&

@@ -24,6 +24,15 @@ describe("PostFrequencyGraph rendering", () => {
     expect(cells).toBe(8 * 7 + 5)
   })
 
+  it("uses compact mobile cells and larger desktop cells", () => {
+    const html = renderToStaticMarkup(
+      <PostFrequencyGraph dates={dates} weeks={8} />
+    )
+
+    expect(html).toContain("size-2 rounded-[2px] sm:size-[13px]")
+    expect(html).toContain("gap-[2px] sm:gap-[4px]")
+  })
+
   it("reports the real total, not zero", () => {
     const html = renderToStaticMarkup(
       <PostFrequencyGraph dates={dates} weeks={8} />

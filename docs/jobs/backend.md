@@ -79,7 +79,7 @@ deployed scheduler. For each requested calendar day it:
 
 The projection scan is capped at 370 days. `jitter_minutes` shifts a slot by a
 stable value, so repeated reads do not move it. `min_gap_minutes` is normalized
-but is not currently enforced; configure posting rows far enough apart.
+but is not enforced; configure posting rows far enough apart.
 
 Schedules use explicit posting-time rows. Interval-based records must be
 migrated before the app loads them.

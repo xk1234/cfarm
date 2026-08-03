@@ -13,6 +13,7 @@ describe("workspace navigation", () => {
     ["analytics", "/app/analytics"],
     ["collections", "/app/collections"],
     ["automations", "/app?view=automations"],
+    ["published-posts", "/app?view=published-posts"],
   ] as const)("maps %s to its shareable URL", (view, href) => {
     expect(workspaceViewHref(view)).toBe(href)
   })
@@ -26,6 +27,9 @@ describe("workspace navigation", () => {
     })
     expect(workspaceLocationFromUrl("/app/x-automations")).toEqual({
       view: "automations",
+    })
+    expect(workspaceLocationFromUrl("/app", "?view=published-posts")).toEqual({
+      view: "published-posts",
     })
     expect(
       workspaceLocationFromUrl("/app/collections/mystical%20pictures")

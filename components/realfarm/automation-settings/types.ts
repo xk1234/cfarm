@@ -11,7 +11,6 @@ export type AutomationDrawerTab =
   | "analytics"
   | "schedule"
   | "tiktok"
-  | "published-posts"
   | "settings"
 
 export type AutomationRunApiPayload = {

@@ -215,7 +215,8 @@ function renderedTextItemSvg(rendered, font) {
         .join("");
     const fontFamily = escapeXml(font || resolveSlideshowFont());
     const background = renderedTextBackgroundSvg(rendered);
-    return `${background}<text id="${escapeXml(item.id)}" x="${x}" y="${y}" text-anchor="${textAnchor}" dominant-baseline="middle" font-family="${fontFamily}, sans-serif" font-size="${fontSize}" font-weight="800" fill="${fill}"${stroke}>${tspans}</text>`;
+    const fontWeight = Math.max(100, Math.min(900, item.fontWeight ?? 800));
+    return `${background}<text id="${escapeXml(item.id)}" x="${x}" y="${y}" text-anchor="${textAnchor}" dominant-baseline="middle" font-family="${fontFamily}, sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}"${stroke}>${tspans}</text>`;
 }
 function renderedTextBackgroundSvg(rendered) {
     const color = textStyleToEditorColor(rendered.item.textStyle);
@@ -226,8 +227,22 @@ function renderedTextBackgroundSvg(rendered) {
     const height = rendered.fontSize * 1.1 + paddingY * 2;
     const fill = color.startsWith("White") ? "#ffffff" : "#111111";
     const opacity = color.includes("50%") ? 0.56 : 0.9;
-    return rendered.lines
-        .map((line, index) => {
+    const radius = Math.max(0, rendered.item.backgroundRadius ?? Math.max(3, rendered.fontSize * 0.06));
+    if (rendered.item.backgroundMode === "block") {
+        const textWidth = Math.max(rendered.fontSize * 0.55, ...rendered.lines.map((line) => textDisplayUnits(line) * rendered.fontSize));
+        const width = textWidth + paddingX * 2;
+        const blockHeight = rendered.fontSize * 1.1 +
+            Math.max(0, rendered.lines.length - 1) * rendered.lineHeight +
+            paddingY * 2;
+        const left = rendered.item.textAlign === "left"
+            ? rendered.x - paddingX
+            : rendered.item.textAlign === "right"
+                ? rendered.x - textWidth - paddingX
+                : rendered.x - width / 2;
+        const top = rendered.y - rendered.fontSize * 0.55 - paddingY;
+        return `<rect data-text-background="${escapeXml(rendered.item.id)}" x="${left}" y="${top}" width="${width}" height="${blockHeight}" rx="${radius}" fill="${fill}" fill-opacity="${opacity}"/>`;
+    }
+    const lineBoxes = rendered.lines.map((line, index) => {
         const textWidth = Math.max(rendered.fontSize * 0.55, textDisplayUnits(line) * rendered.fontSize);
         const width = textWidth + paddingX * 2;
         const left = rendered.item.textAlign === "left"
@@ -237,9 +252,25 @@ function renderedTextBackgroundSvg(rendered) {
                 : rendered.x - width / 2;
         const lineY = rendered.y + index * rendered.lineHeight;
         const top = lineY - rendered.fontSize * 0.55 - paddingY;
-        return `<rect data-text-background="${escapeXml(rendered.item.id)}" data-text-background-line="${index}" x="${left}" y="${top}" width="${width}" height="${height}" rx="${Math.max(3, rendered.fontSize * 0.06)}" fill="${fill}" fill-opacity="${opacity}"/>`;
+        return { left, top, width, height };
+    });
+    const connectors = lineBoxes
+        .slice(1)
+        .map((box, index) => {
+        const previous = lineBoxes[index];
+        const left = Math.max(previous.left, box.left);
+        const right = Math.min(previous.left + previous.width, box.left + box.width);
+        const top = box.top;
+        const bottom = Math.min(previous.top + previous.height, box.top + box.height);
+        if (right <= left || bottom <= top)
+            return "";
+        return `<rect data-text-background-connector="${escapeXml(rendered.item.id)}" x="${left}" y="${top}" width="${right - left}" height="${bottom - top}" fill="${fill}" fill-opacity="${opacity}"/>`;
     })
         .join("");
+    const lines = lineBoxes
+        .map((box, index) => `<rect data-text-background="${escapeXml(rendered.item.id)}" data-text-background-line="${index}" x="${box.left}" y="${box.top}" width="${box.width}" height="${box.height}" rx="${radius}" fill="${fill}" fill-opacity="${opacity}"/>`)
+        .join("");
+    return `${connectors}${lines}`;
 }
 function textItemY(item, slideHeight, blockHeight) {
     const safeMargin = item.textVerticalAnchor === "flush"

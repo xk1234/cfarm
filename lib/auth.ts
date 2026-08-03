@@ -18,6 +18,12 @@ export type AuthUser = Pick<
 
 export type LumenClipUserPreferences = Models.Preferences & {
   postfastDisconnectedIntegrationIds?: string[]
+  influlabConnection?: {
+    baseUrl: string
+    accessToken: string
+    accountEmail: string
+    connectedAt: string
+  } | null
 }
 
 function baseClient() {

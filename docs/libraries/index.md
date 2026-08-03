@@ -90,7 +90,7 @@ development points at the shared machine stack described in
 | `ag-grid-community`         |        `^36.0.0` | Grid engine, column definitions, styling, and table APIs.                                                                                            | `components/ui/ag-data-table.tsx`, collection tables             |
 | `ag-grid-react`             |        `^36.0.0` | React integration for AG Grid.                                                                                                                       | `components/ui/ag-data-table.tsx`                                |
 | `ag-charts-types`           |        `^14.0.0` | Shared AG chart type declarations used by the grid/chart toolchain.                                                                                  | Type-level dependency                                            |
-| `ag-stack`                  |        `^36.0.0` | Declared AG toolchain package. No direct source import is currently present; verify whether it is still required before the next dependency cleanup. | `package.json` only                                              |
+| `ag-stack`                  |        `^36.0.0` | Declared AG toolchain package. No direct source import exists; verify whether it is still required before the next dependency cleanup. | `package.json` only                                              |
 | `recharts`                  |         `^3.9.1` | Analytics charts and visual reporting.                                                                                                               | `components/realfarm/analytics/analytics-view.tsx`               |
 
 Keep every FullCalendar package on the same exact version to avoid plugin/core
@@ -157,4 +157,4 @@ When adding or changing a library:
   browser or server runtime.
 - Provider integrations—Appwrite, PostFast, OpenRouter, KIE, Rendi, DeepL,
   Pinterest, Pexels, Apify, and FAL—are documented as services in architecture
-  references. Only Appwrite currently uses a direct third-party SDK package.
+  references. Only Appwrite uses a direct third-party SDK package.

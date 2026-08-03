@@ -1,6 +1,6 @@
 ---
 title: Testing facility
-description: Redirect from CFarm to the external LumenLab workflow testing surface.
+description: Leave LumenClip for the external LumenLab workflow testing surface.
 ---
 
 Route: `/app/testing`
@@ -13,30 +13,30 @@ Route: `/app/testing`
 
 Owner: `app/app/testing/page.tsx`.
 
-The current route renders no CFarm testing layout. It performs a server redirect
-to `https://lumenlab-one.vercel.app/testing`, and Testing facility is no longer
-present in the CFarm desktop or mobile workspace navigation. The production
-captures above show the comparison form that existed on July 29, before the
-August 1 handoff; they are historical reference imagery rather than the current
-local screen.
+`/app/testing` renders no local layout. It performs a server redirect to
+`https://lumenlab-one.vercel.app/testing`. Testing facility does not appear in
+the LumenClip desktop or mobile workspace navigation.
 
-No current CFarm testing component remains in which the raw TikHub environment
-error flagged by the July audit could render. The destination application's
-current error presentation is outside this repository and is not asserted here.
+The captures above show the comparison form as it stood on 29 July 2026, before
+the 1 August handoff to LumenLab. They are historical reference imagery, not the
+shipped screen.
+
+LumenClip mounts no testing component, so the raw TikHub environment error
+flagged by the July audit has nowhere to render. Error presentation in the
+destination application is outside this repository and is not asserted here.
 
 ## Interactions
 
-Opening `/app/testing` leaves the CFarm application for the LumenLab testing
-URL. CFarm does not currently mount controls for choosing an automation,
-selecting dimensions, setting repeats, running a sweep, or opening a result
-trace on this route.
+Opening `/app/testing` leaves LumenClip for the LumenLab testing URL. This route
+mounts no controls for choosing an automation, selecting dimensions, setting
+repeats, running a sweep, or opening a result trace.
 
-The retained backend experiment engine accepts one saved slideshow automation,
-a Cartesian set of hook, variable, tone, model, collection, or content-direction
-variations, and 1 to 20 repeats. It previews without persisting or publishing,
-caps synchronous work at 200 cells, and returns each cell's variant, generation
-plan, QA report, warnings, and error when one occurs. That engine is available
-to MCP but is not mounted as a current CFarm page.
+The backend experiment engine is retained. It accepts one saved slideshow
+automation, a Cartesian set of hook, variable, tone, model, collection, or
+content-direction variations, and 1 to 20 repeats. It previews without
+persisting or publishing, and caps synchronous work at 200 cells. Each cell
+returns its variant, generation plan, QA report, warnings, and error when one
+occurs. The engine is reachable through MCP only; no LumenClip page mounts it.
 
 ## MCP coverage
 

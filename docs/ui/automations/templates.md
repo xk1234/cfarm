@@ -1,6 +1,6 @@
 ---
 title: Automation templates
-description: Searchable templates and blank starting points for creating automations.
+description: Search templates and blank starting points to create an automation.
 ---
 
 Route: `/app?view=automations`

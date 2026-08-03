@@ -18,7 +18,7 @@ import {
   automationHooks,
   defaultAutomationTextItem,
   type AutomationSchema,
-  type AutomationTextItem,
+  type TextItem,
   type AutomationVideoFormat,
 } from "@/lib/realfarm-automation"
 import {
@@ -582,7 +582,7 @@ async function requestVideoCopy(
 }
 
 function resolveTexts(
-  items: AutomationTextItem[],
+  items: TextItem[],
   hookItemId: string,
   hook: string,
   generated: Record<string, string | string[]>,

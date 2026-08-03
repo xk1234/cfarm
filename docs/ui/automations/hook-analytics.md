@@ -1,6 +1,6 @@
 ---
 title: Hook analytics
-description: Publication-backed performance reporting for an automation's hooks.
+description: Report hook performance for one automation from linked publication metrics.
 ---
 
 Route: `/app?view=automations&automation=<id>`

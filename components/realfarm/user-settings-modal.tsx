@@ -22,6 +22,7 @@ import {
 import useSWR from "swr"
 
 import { Button } from "@/components/ui/button"
+import { InfluLabAccountCard } from "@/components/realfarm/influlab-account-card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import { useDirtyGuard } from "@/components/ui/use-dirty-guard"
@@ -879,6 +880,7 @@ function AccountsPanel({
   return (
     <div>
       <PanelHeading title="Connected accounts" />
+      <InfluLabAccountCard />
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <button
           onClick={connect}

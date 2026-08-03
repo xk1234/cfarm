@@ -12,6 +12,10 @@ import {
 } from "@/components/ui/form-controls"
 import { fetchJsonWithTimeout } from "@/lib/client-api"
 import {
+  AUTOMATION_FONT_OPTIONS,
+  automationFontPreviewFamily,
+} from "@/lib/automation-font-options"
+import {
   aspectRatioLabel,
   automationHookId,
   automationAspectRatios,
@@ -49,6 +53,7 @@ import { cn } from "@/lib/utils"
 
 import { SettingsFooter, SettingsPage, SettingsRow } from "./settings-layout"
 import { HookRowsEditor } from "./hook-rows-editor"
+import { LumenLabHookImporter } from "./lumenlab-hook-importer"
 
 export function PromptTextarea({
   title,
@@ -92,8 +97,8 @@ export function PromptConfigPanel({
   automation: Automation
   config: AutomationSchema
   onConfigChange: (config: AutomationSchema) => void
-  onCancel: () => void
-  onSave: () => void
+  onCancel?: () => void
+  onSave?: () => void
   hideFooter?: boolean
 }) {
   const initialHooks = automationHookItems(config)
@@ -287,6 +292,15 @@ export function PromptConfigPanel({
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  <LumenLabHookImporter
+                    currentHooks={hookItemsDraft}
+                    onImport={(imported) =>
+                      updateHooks([
+                        ...hookItemsDraft.filter((item) => item.text.trim()),
+                        ...imported,
+                      ])
+                    }
+                  />
                   <Button
                     type="button"
                     variant="iconControl"
@@ -497,6 +511,11 @@ export function PromptConfigPanel({
               control={
                 <SelectControl
                   value={sharedSlideStyle.font}
+                  style={{
+                    fontFamily: automationFontPreviewFamily(
+                      sharedSlideStyle.font
+                    ),
+                  }}
                   onChange={(event) =>
                     onConfigChange(
                       schemaWithAutomationSharedSlideStyle(config, {
@@ -505,8 +524,12 @@ export function PromptConfigPanel({
                     )
                   }
                 >
-                  {["TikTok Display Medium", "Inter", "Arial"].map((font) => (
-                    <option key={font} value={font}>
+                  {AUTOMATION_FONT_OPTIONS.map((font) => (
+                    <option
+                      key={font}
+                      value={font}
+                      style={{ fontFamily: automationFontPreviewFamily(font) }}
+                    >
                       {font}
                     </option>
                   ))}
@@ -541,7 +564,7 @@ export function PromptConfigPanel({
           </>
         ) : null}
       </div>
-      {hideFooter ? null : (
+      {hideFooter || !onCancel || !onSave ? null : (
         <SettingsFooter onCancel={onCancel} onSave={onSave} />
       )}
     </SettingsPage>
