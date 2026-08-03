@@ -36,11 +36,40 @@ export function automationHookItems(schema) {
                     ? { bodySlideCount: validBodySlideCount(item.bodySlideCount) }
                     : {}),
                 ...(clean(item.tone) ? { tone: clean(item.tone) } : {}),
+                ...(clean(item.contentDirection)
+                    ? { contentDirection: clean(item.contentDirection).slice(0, 5_000) }
+                    : {}),
+                ...(clean(item.content)
+                    ? { content: clean(item.content).slice(0, 20_000) }
+                    : {}),
+                ...(normalizeHookSource(item.source)
+                    ? { source: normalizeHookSource(item.source) }
+                    : {}),
                 createdAt: clean(item.createdAt) || new Date(0).toISOString(),
                 ...(clean(item.updatedAt) ? { updatedAt: clean(item.updatedAt) } : {}),
             },
         ];
     });
+}
+function normalizeHookSource(value) {
+    if (!value || typeof value !== "object")
+        return undefined;
+    const source = value;
+    const provider = clean(source.provider);
+    if (!provider)
+        return undefined;
+    return {
+        provider,
+        ...(clean(source.projectId) ? { projectId: clean(source.projectId) } : {}),
+        ...(clean(source.projectTitle)
+            ? { projectTitle: clean(source.projectTitle) }
+            : {}),
+        ...(clean(source.hookId) ? { hookId: clean(source.hookId) } : {}),
+        ...(clean(source.scriptId) ? { scriptId: clean(source.scriptId) } : {}),
+        ...(clean(source.importedAt)
+            ? { importedAt: clean(source.importedAt) }
+            : {}),
+    };
 }
 function validBodySlideCount(value) {
     const count = Number(value);
