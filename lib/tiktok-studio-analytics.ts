@@ -29,6 +29,7 @@ import {
 } from "@/lib/post-repository"
 import { outputPublicationsOwnerId } from "@/lib/output-publications"
 import { postToPostFastRecord, type Post } from "@/lib/posts"
+import { autoReconcileTikTokPublicationOutput } from "@/lib/publication-output-reconciliation"
 import { APPWRITE_API_KEY } from "@/lib/appwrite"
 
 const rootDir = path.join(process.cwd(), "data")
@@ -666,18 +667,20 @@ export async function linkTikTokStudioAnalyticsImport(input: {
     authorUsername: record.capture.overview.authorUsername,
     photoCount: record.capture.overview.photoCount,
   })
-  const publication = await resolveOrCreateTikTokPost({
-    ownerId: await outputPublicationsOwnerId(),
-    postId: record.targetPostId,
-    integrationId: record.integrationId,
-    externalPostId: record.externalPostId,
-    releaseUrl: canonicalReleaseUrl,
-    publishedAt: record.capture.overview.publishedAt,
-    content: record.capture.overview.caption,
-    origin: "tiktok_studio_import",
-    linkMethod: "tiktok_studio",
-    statsSources: ["tiktok_studio"],
-  })
+  const publication = await autoReconcileTikTokPublicationOutput(
+    await resolveOrCreateTikTokPost({
+      ownerId: await outputPublicationsOwnerId(),
+      postId: record.targetPostId,
+      integrationId: record.integrationId,
+      externalPostId: record.externalPostId,
+      releaseUrl: canonicalReleaseUrl,
+      publishedAt: record.capture.overview.publishedAt,
+      content: record.capture.overview.caption,
+      origin: "tiktok_studio_import",
+      linkMethod: "tiktok_studio",
+      statsSources: ["tiktok_studio"],
+    })
+  )
   const linkedPublication = postToPostFastRecord(publication)
   const now = input.now ?? new Date()
   const linkedSnapshot = record.linkedSnapshotId
@@ -743,18 +746,23 @@ export async function createTikTokStudioAnalyticsDiscoveredBatch(input: {
   const integrationId = clean(input.integrationId)
   if (!integrationId) throw new Error("Choose a TikTok account")
   const discovered = normalizeDiscoveredTikTokPosts(input.posts)
+  const { listAutomationRuns } = await import("@/lib/automation-runner")
+  const runs = await listAutomationRuns({ limit: 2_000, postRecords: [] })
   const publications: PostFastPostRecord[] = []
   for (const seed of discovered) {
-    const post = await resolveOrCreateTikTokPost({
-      ownerId: input.ownerId,
-      integrationId,
-      externalPostId: seed.externalPostId,
-      releaseUrl: seed.releaseUrl,
-      content: seed.content,
-      publishedAt: seed.publishedAt,
-      origin: "tiktok_studio_import",
-      linkMethod: "tiktok_studio",
-    })
+    const post = await autoReconcileTikTokPublicationOutput(
+      await resolveOrCreateTikTokPost({
+        ownerId: input.ownerId,
+        integrationId,
+        externalPostId: seed.externalPostId,
+        releaseUrl: seed.releaseUrl,
+        content: seed.content,
+        publishedAt: seed.publishedAt,
+        origin: "tiktok_studio_import",
+        linkMethod: "tiktok_studio",
+      }),
+      runs
+    )
     publications.push(postToPostFastRecord(post))
   }
   return createBatchSession({
