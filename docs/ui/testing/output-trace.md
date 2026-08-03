@@ -1,38 +1,37 @@
 ---
 title: Output trace
-description: Reference state for inspecting the inputs and outputs of one automation experiment cell.
+description: Inspect every persisted input and output behind one generated slideshow.
 ---
 
-Route: `/app/testing` (panel state; no separate route)
-
-![Desktop testing output trace](../assets/screenshots/desktop-testing-output-trace.png)
-
-![Mobile testing output trace](../assets/screenshots/mobile-testing-output-trace.png)
+Route: `/share/workflows/[outputId]?token=...`
 
 ## Layout
 
-No current CFarm component owns this panel. The owning route is
-`app/app/testing/page.tsx`, which redirects to LumenLab without rendering a
-local result grid or trace.
+`components/realfarm/public-workflow-trace.tsx` owns the signed public workflow
+viewer. It presents the production slideshow pipeline as an ordered set of 16
+expandable stages. Every stage contains an Input and Output panel, provider and
+stage-kind metadata, execution status, and a reconstructed marker when a
+historical run did not persist the transient intermediate value. Workflow input
+and final output remain pinned in a desktop side rail and flow below the stages
+on smaller screens.
 
-The images above are August 1 Paper design-file exports traced from the removed
-CFarm testing UI, not captures of a currently shipped CFarm surface. They depict
-a Generation trace dialog with Resolve hook, Generate slide text, Choose
-pictures, and Validate output steps. The desktop reference places the step list
-beside prompt and output panes; the mobile reference stacks the step list above
-those panes. This visual description does not assert that the external LumenLab
-destination implements the panel.
+The visual view is the default. Raw JSON exposes the complete trace contract,
+including custom prompt configuration, the exact retained provider prompt,
+selected media identities, rendered outputs, and QA. The signed token is scoped
+to one owner and slideshow output and is shared with the existing slideshow
+preview and download links.
 
 ## Interactions
 
-There is no current local result cell to select and no CFarm trace dialog to
-open, close, or step through. The retained experiment operation still returns a
-plan and QA report for each successful cell, plus per-cell warnings or errors,
-but `/app/testing` does not present those fields before redirecting.
+Opening a Recent slideshow exposes a Workflow action in the viewer header. The
+public trace can switch between visual and raw JSON modes, copy the full JSON,
+expand any stage, and return to the signed slideshow preview.
 
 ## MCP coverage
 
-Yes for the underlying cell data via `lumenclip_automation_experiment_run`,
-which returns each cell's variant, generation plan, QA report, warnings, and
-error. Opening a trace panel or switching its visible step would be UI
-navigation and is not expected to have a separate MCP tool.
+Yes. `lumenclip_workflow_trace_get` returns the complete ordered trace and
+signed visual URL. `lumenclip_workflow_stage_get` returns one addressed stage
+with the same input and output shown in the viewer. Existing
+`lumenclip_pipeline_stage_run` and `lumenclip_pipeline_run` remain the execution
+surfaces for rerunning an individual registered stage or a suffix of the named
+pipeline.

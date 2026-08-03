@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 
 import { withHandler } from "@/lib/api"
+import { slideshowDeliveryLinks } from "@/lib/asset-urls"
+import { getCurrentUser } from "@/lib/auth"
 import { automationRunProgress } from "@/lib/automation-run-progress"
 import {
   listAutomationRuns,
@@ -27,6 +29,7 @@ import { listJobs, type Job } from "@/lib/queue"
 export const dynamic = "force-dynamic"
 
 export const GET = withHandler(async (request: Request) => {
+  const user = await getCurrentUser()
   const { searchParams } = new URL(request.url)
   const automationId = searchParams.get("automationId")?.trim()
   const limitValue = Number(searchParams.get("limit"))
@@ -89,6 +92,14 @@ export const GET = withHandler(async (request: Request) => {
   })
   const runsWithViews = runs.map((run) => ({
     ...run,
+    ...(user && run.slideshowId
+      ? {
+          workflowUrl: slideshowDeliveryLinks({
+            ownerId: user.$id,
+            outputId: run.slideshowId,
+          })?.workflowUrl,
+        }
+      : {}),
     ...(run.status === "running"
       ? { progress: automationRunProgress(run.id) }
       : {}),
@@ -127,7 +138,10 @@ function canonicalViewsByRun(
   posts: Post[],
   snapshots: Awaited<ReturnType<typeof listMetricSnapshots>>
 ) {
-  const latestViewsByPost = new Map<string, { capturedAt: string; views: number }>()
+  const latestViewsByPost = new Map<
+    string,
+    { capturedAt: string; views: number }
+  >()
   for (const snapshot of snapshots) {
     const current = latestViewsByPost.get(snapshot.postId)
     if (
@@ -147,8 +161,7 @@ function canonicalViewsByRun(
       posts
         .filter((post) => postMatchesRun(post, run))
         .reduce(
-          (total, post) =>
-            total + (latestViewsByPost.get(post.id)?.views ?? 0),
+          (total, post) => total + (latestViewsByPost.get(post.id)?.views ?? 0),
           0
         ),
     ])

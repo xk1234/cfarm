@@ -109,6 +109,7 @@ export type AutomationRunSummary = {
   thumbnailUrl?: string
   outputImages?: string[]
   outputDir?: string
+  workflowUrl?: string
   renderedSlides?: {
     id?: string
     imageUrl?: string

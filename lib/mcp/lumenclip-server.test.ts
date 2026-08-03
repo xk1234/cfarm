@@ -1523,6 +1523,9 @@ describe("LumenClip MCP server", () => {
       previewUrl: expect.stringMatching(
         /^https:\/\/studio\.example\.com\/share\/slideshows\//
       ),
+      workflowUrl: expect.stringMatching(
+        /^https:\/\/studio\.example\.com\/share\/workflows\//
+      ),
       downloadUrl: expect.stringMatching(
         /^https:\/\/studio\.example\.com\/api\/public\/slideshows\/.+\/download\?token=/
       ),
@@ -1553,6 +1556,77 @@ describe("LumenClip MCP server", () => {
     expect(validated.structuredContent).toMatchObject({
       outputId: run.slideshowId,
       qa: { valid: false },
+    })
+  })
+
+  it("exposes a complete workflow trace and every addressed stage", async () => {
+    vi.stubEnv("BASE_URL", "https://studio.example.com")
+    vi.stubEnv("SLIDESHOW_SHARE_SECRET", "test-secret")
+    const automation = automationRecord()
+    const run = generatedRun(automation.id)
+    run.plan.debug = {
+      textModelPrompt: {
+        messages: [{ role: "user", content: "Generate the slideshow" }],
+      } as never,
+    }
+    const slideshow = generatedSlideshow(run)
+    const client = await connectClient({
+      listAutomationRuns: vi.fn(async () => [run]),
+      getAutomationRecord: vi.fn(async () => automation),
+      listSlideshowRecords: vi.fn(async () => [slideshow]),
+    })
+
+    const trace = await client.callTool({
+      name: "lumenclip_workflow_trace_get",
+      arguments: { outputId: run.slideshowId },
+    })
+    const traceContent = trace.structuredContent as {
+      workflowId: string
+      runId: string
+      outputId: string
+      workflowUrl: string
+      stages: Array<{
+        id: string
+        input: unknown
+        output: unknown
+      }>
+    }
+    expect(traceContent.workflowId).toBe("slideshow-generation")
+    expect(traceContent.runId).toBe(run.id)
+    expect(traceContent.outputId).toBe(run.slideshowId)
+    expect(traceContent.workflowUrl).toMatch(
+      /^https:\/\/studio\.example\.com\/share\/workflows\//
+    )
+    expect(traceContent.stages).toHaveLength(16)
+    expect(
+      traceContent.stages.find(
+        (candidate) => candidate.id === "slideshow-generation.build-text-prompt"
+      )
+    ).toMatchObject({
+      id: "slideshow-generation.build-text-prompt",
+      input: expect.any(Object),
+      output: {
+        promptPayload: {
+          messages: [{ role: "user", content: "Generate the slideshow" }],
+        },
+      },
+    })
+
+    const stage = await client.callTool({
+      name: "lumenclip_workflow_stage_get",
+      arguments: {
+        outputId: run.slideshowId,
+        stageId: "slideshow-generation.generate-slide-text",
+      },
+    })
+    expect(stage.structuredContent).toMatchObject({
+      runId: run.id,
+      outputId: run.slideshowId,
+      stage: {
+        id: "slideshow-generation.generate-slide-text",
+        input: expect.any(Object),
+        output: expect.objectContaining({ title: run.plan.title }),
+      },
     })
   })
 
