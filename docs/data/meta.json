@@ -2,6 +2,7 @@
   "title": "Data",
   "pages": [
     "index",
+    "schema-reference",
     "persistence",
     "workspace-assets",
     "automations",

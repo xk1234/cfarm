@@ -8,12 +8,110 @@ description: "Transform a product source and actor configuration into a voiced, 
 **Availability:** implemented and checkpointed, but requires `ENABLE_UGC_AUTOMATION=true` plus
 provider credentials in the worker.
 
-`"...output": "stage-N output"` means the complete JSON output from stage N is piped into the
-next stage. It is documentation shorthand rather than a literal runtime field. The example values
-below are abbreviated, but every block is valid JSON.
+The example values below are abbreviated, but every block is valid JSON.
+
+<StageShorthand />
 
 Each stage writes a checkpoint. On retry, a stage is skipped only when its checkpoint exists and
 every referenced storage file is still durable.
+
+## Run this
+
+<Callout type="warn">
+This pipeline is gated. `ENABLE_UGC_AUTOMATION=true` must be set for the job worker and the MCP
+process, or generation refuses to start and the `/api/ugc-runs/*` routes answer 404. The automation
+must also be `live` and pass its UGC configuration checks.
+</Callout>
+
+<Tabs items={['MCP', 'HTTP', 'Studio']}>
+
+<Tab value="MCP">
+
+Price the configuration first, then queue the draft.
+
+```json
+{
+  "tool": "lumenclip_ugc_estimate",
+  "arguments": {
+    "automationId": "automation_ugc_123",
+    "targetDurationSeconds": 30,
+    "brollCount": 3,
+    "lipSyncTier": "standard"
+  }
+}
+```
+
+```json
+{
+  "tool": "lumenclip_ugc_generate",
+  "arguments": {
+    "automationId": "automation_ugc_123",
+    "requestId": "ugc-test-001"
+  }
+}
+```
+
+Both arguments are required on `lumenclip_ugc_generate`. `requestId` is the idempotency key, so
+reusing it returns the already queued operation. The call returns a running operation, the expected
+output id, and a cost estimate; poll it with `lumenclip_operation_get`. The queued job is allowed
+three attempts. `lumenclip_automation_run` accepts the same UGC automation and forwards to the same
+queue, but rejects a `hook` argument.
+
+</Tab>
+
+<Tab value="HTTP">
+
+No HTTP route starts a fresh UGC run. The routes that exist cover estimating, polling, and resuming.
+
+```bash
+# Estimate a configuration without generating anything.
+curl -X POST https://<your-host>/api/ugc-runs/estimate \
+  -H 'Content-Type: application/json' \
+  -d '{"ugc":{"actorSource":"generate","lipSyncTier":"standard","targetDurationSeconds":30,"brollCount":3}}'
+
+# Poll one run, with its estimated and actual cost.
+curl https://<your-host>/api/ugc-runs/ugc-run-123
+
+# Re-enqueue an existing run from its checkpoints.
+curl -X POST https://<your-host>/api/ugc-runs/ugc-run-123/retry
+```
+
+The estimate route also accepts the bare configuration object as the body. The retry route resumes
+an existing run and answers 409 when that run is already complete, queued, or processing. To start
+a new run, use the MCP tool or let the scheduler enqueue the automation's next due slot.
+
+</Tab>
+
+<Tab value="Studio">
+
+<Steps>
+
+<Step>
+
+Open the automation at `/app?view=automations&automation=automation_ugc_123` and configure it in the
+**AI actor format** tab. The panel calls `/api/ugc-runs/estimate` and shows the projected cost.
+
+</Step>
+
+<Step>
+
+Set the automation live so its schedule enqueues runs, or queue one immediately through MCP. There
+is no Studio button that starts a UGC run outside the schedule.
+
+</Step>
+
+<Step>
+
+Follow a queued run from the **UGC runs** list on the automation overview, which links to
+`/app/ugc/<runId>` for stage-by-stage progress and a retry control.
+
+</Step>
+
+</Steps>
+
+</Tab>
+
+</Tabs>
 
 ## Stage map
 

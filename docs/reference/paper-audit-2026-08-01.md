@@ -1,5 +1,6 @@
 ---
-title: "CFarm / LumenClip Paper-versus-application audit"
+title: "Paper versus application audit, 1 August 2026"
+description: "Where the traced LumenClip Paper boards and the shipped application disagree. Delete this page once the findings are closed."
 ---
 
 # CFarm / LumenClip Paper-versus-application audit
