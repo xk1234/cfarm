@@ -1,4 +1,7 @@
-# UI/UX Audit Framework
+---
+title: "UI and UX audit framework"
+description: "How LumenClip and its sibling products are audited from the point of view of an ordinary user."
+---
 
 ## Purpose
 

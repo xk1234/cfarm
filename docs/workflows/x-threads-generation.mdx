@@ -5,8 +5,89 @@ description: "Transform a persisted X/Threads automation and optional trend sour
 
 # X and Threads generation pipeline
 
-`"...output": "stage-N output"` represents the complete preceding output. It is documentation
-shorthand rather than a literal runtime field.
+<StageShorthand />
+
+## Run this
+
+<Callout type="warn">
+Every trigger below requires a persisted niche brief on the automation. Without one, generation
+stops with `Generate the niche strategy before creating a draft`. Derive it first with
+`POST /api/x-automations/<id>/derive-brief`, or with **Generate strategy** in the studio.
+</Callout>
+
+<Tabs items={['MCP', 'HTTP', 'Studio']}>
+
+<Tab value="MCP">
+
+```json
+{
+  "tool": "lumenclip_automation_run",
+  "arguments": {
+    "automationId": "x-auto-01",
+    "topic": "activation checklists",
+    "requestId": "x-draft-2026-08-01-001"
+  }
+}
+```
+
+`automationId` and `requestId` are both required; `requestId` is the idempotency key, so reusing it
+returns the same draft instead of generating a second one. Do not pass `hook`: it is accepted only
+for slideshow automations and otherwise fails with `Explicit hooks are supported only for slideshow
+runs`.
+
+To drive the stage graph directly, call `lumenclip_pipeline_run` with
+`workflowId: "x-threads-generation"`, or one stage with `lumenclip_pipeline_stage_run` and a
+`stageId` such as `x-threads-generation.validate-input`.
+
+</Tab>
+
+<Tab value="HTTP">
+
+```bash
+curl -X POST https://<your-host>/api/x-automations/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "automationId": "x-auto-01",
+    "topic": "activation checklists",
+    "sourceCandidate": null
+  }'
+```
+
+Only `automationId` is required. `topic` overrides topic selection and `sourceCandidate` supplies a
+trend record to react to. A successful call answers 201 with `{ "run": ... }`. The same path also
+serves `GET` for stored runs and `DELETE` to clear an automation's runs and usage memory.
+
+</Tab>
+
+<Tab value="Studio">
+
+<Steps>
+
+<Step>
+
+Open `/app/x-automations`, or open the automation from the workspace with
+`/app?view=automations&automation=x-auto-01`, which embeds the same studio.
+
+</Step>
+
+<Step>
+
+Set the niche, then click **Generate strategy** if the automation has no brief yet.
+
+</Step>
+
+<Step>
+
+Enter an optional topic and click **Generate draft**. The studio saves the automation, posts to
+`/api/x-automations/generate`, and shows the new run in the overview tab.
+
+</Step>
+
+</Steps>
+
+</Tab>
+
+</Tabs>
 
 ## Stage map
 

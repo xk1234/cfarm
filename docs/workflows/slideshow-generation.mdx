@@ -6,14 +6,94 @@ description: "Transform a slideshow automation and its asset collections into re
 # Slideshow generation pipeline
 
 The pipeline transforms an automation snapshot, asset collections, and generation history into a
-stored slideshow. `"...output": "stage-N output"` means the complete preceding output is spread
-into the next stage input; it is documentation shorthand, not a literal runtime field. The stage
-envelopes below make internal values visible even when the implementation passes them as function
-arguments rather than serializing them between stages.
+stored slideshow. The stage envelopes below make internal values visible even when the
+implementation passes them as function arguments rather than serializing them between stages.
+
+<StageShorthand />
 
 The interactive path is orchestrated by `lib/automation-runner.ts`. Scheduled Appwrite jobs use
 `appwrite/functions/job-worker/src/slideshow-automation.js`. Both delegate hook, text, and image
 decisions to `lib/slideshow-generation-engine.ts` and use the shared slideshow render contract.
+
+## Run this
+
+Every trigger below generates an unpublished draft against a saved slideshow automation. None of
+them publish or schedule anything.
+
+<Tabs items={['MCP', 'HTTP', 'Studio']}>
+
+<Tab value="MCP">
+
+```json
+{
+  "tool": "lumenclip_slideshow_generate",
+  "arguments": {
+    "automationId": "automation_123",
+    "requestId": "manual-run-2026-08-01-001",
+    "hook": "3 signs that need to hear this"
+  }
+}
+```
+
+`automationId` is required; `requestId` and `hook` are optional. A supplied `hook` replaces random
+selection from the saved pool without changing the pool. The tool rejects any automation whose kind
+is not `slideshow`.
+
+`lumenclip_automation_run` runs the same pipeline and additionally accepts X, Threads, and AI UGC
+automations, but there `requestId` is required. To replay the stage graph directly, call
+`lumenclip_pipeline_run` with `workflowId: "slideshow-generation"`, or a single stage with
+`lumenclip_pipeline_stage_run` and a `stageId` such as `slideshow-generation.validate-input`.
+
+</Tab>
+
+<Tab value="HTTP">
+
+```bash
+curl -X POST https://<your-host>/api/automations/run \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "automationId": "automation_123",
+    "force": true,
+    "requestId": "manual-run-2026-08-01-001"
+  }'
+```
+
+`automationId` and `force: true` are both required; the route answers 400 without them. Optional
+`now` takes an ISO timestamp and becomes the run slot. The response carries `created`, `results`,
+and `skipped`; a `skipped` entry with reason `hooks_exhausted` means no unused hook combination
+remains.
+
+</Tab>
+
+<Tab value="Studio">
+
+<Steps>
+
+<Step>
+
+Open `/app?view=automations` and select the slideshow automation, or deep link straight to it with
+`/app?view=automations&automation=automation_123`.
+
+</Step>
+
+<Step>
+
+Adjust format, hooks, and style in the drawer. Editor state is persisted before the run starts.
+
+</Step>
+
+<Step>
+
+Click **Generate**. The drawer posts to `/api/automations/run` and the finished draft appears under
+the automation's recent runs.
+
+</Step>
+
+</Steps>
+
+</Tab>
+
+</Tabs>
 
 ## Stage map
 
@@ -367,8 +447,10 @@ regenerate once with exact text and heading exclusions. Otherwise pass stage 6 t
 }
 ```
 
-The retry result becomes authoritative; the pipeline does not calculate or expose a second
-similarity score after rewriting.
+<Callout type="warn">
+Similarity rewriting happens at most once. The retry result becomes authoritative; the pipeline
+does not calculate or expose a second similarity score after rewriting.
+</Callout>
 
 **Model/provider:** same configured slideshow model via OpenRouter.
 

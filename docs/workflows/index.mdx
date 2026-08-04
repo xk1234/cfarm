@@ -9,9 +9,9 @@ This section documents generation code paths, not user journeys, setup tasks, sc
 analytics, authentication, or account management.
 
 A workflow is an ordered sequence of transformations. Each stage accepts an input and emits an
-output. In the JSON examples, `"...output": "stage-N output"` is documentation shorthand for
-spreading the complete preceding output into the next stage input. It is not a literal runtime
-field.
+output.
+
+<StageShorthand />
 
 ## Generation workflows
 
@@ -21,6 +21,17 @@ field.
 | [X and Threads generation](/docs/workflows/x-threads-generation) | Persisted social automation, niche brief, optional topic/trend | Validated X post/thread or Threads post    | Shipped                                                           |
 | [LinkedIn generation](/docs/workflows/linkedin-generation)       | Niche, persona, proof, optional brief, and model selection     | One to four validated LinkedIn posts       | Generation endpoint shipped; persistence/scheduling are not wired |
 | [UGC video generation](/docs/workflows/ugc-video-generation)     | Product source, actor, voice, duration, and media settings     | Talking-actor MP4 and thumbnail            | Implemented; gated by `ENABLE_UGC_AUTOMATION=true`                |
+
+<Callout type="warn" title="Two workflows are not fully available">
+  UGC video generation is implemented, but execution is gated. Unless
+  `ENABLE_UGC_AUTOMATION` is exactly `true`, the scheduler skips UGC jobs, the
+  job worker refuses them, and the UGC run endpoints reject the request. The
+  `FAL_KEY` and `ELEVENLABS_API_KEY` provider keys must also be present.
+  LinkedIn generation exposes a shipped generation endpoint, but its persistence
+  and scheduling are not wired, so a generated LinkedIn post cannot yet be
+  stored or queued the way slideshow and X/Threads output is. Do not treat
+  either pipeline as an end-to-end shipped path.
+</Callout>
 
 ## Documentation contract
 

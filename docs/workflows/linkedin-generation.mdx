@@ -8,9 +8,73 @@ description: "Transform a niche, persona, proof bank, and optional brief into va
 **Availability:** `POST /api/linkedin-automations/generate` executes this pipeline without
 persistence. The store, editor, scheduler, and publisher are not wired.
 
-`"...output": "stage-N output"` means the complete JSON output from stage N is piped into the
-next stage. It is documentation shorthand rather than a literal runtime field. The example values
-below are abbreviated, but every block is valid JSON.
+The example values below are abbreviated, but every block is valid JSON.
+
+<StageShorthand />
+
+## Run this
+
+<Tabs items={['MCP', 'HTTP', 'Studio']}>
+
+<Tab value="MCP">
+
+No MCP tool wraps LinkedIn generation on its own. Run it through the generic workflow tool, which
+executes the registered `linkedin-generation` stages in order and pipes each output into the next.
+
+```json
+{
+  "tool": "lumenclip_pipeline_run",
+  "arguments": {
+    "workflowId": "linkedin-generation",
+    "input": {
+      "niche": "B2B SaaS onboarding",
+      "persona": "practitioner",
+      "topic": "Reducing time to first value",
+      "excludedTopics": ["generic growth hacks"],
+      "proof": ["Cut median activation time from 9 days to 3 days"],
+      "count": 2
+    },
+    "requestId": "linkedin-2026-08-01-001"
+  }
+}
+```
+
+To run part of the pipeline, pass `startAt` or `stopAfter` with a stage id such as
+`linkedin-generation.validate-input`. To run a single stage, call `lumenclip_pipeline_stage_run`
+with that `stageId` and an explicit `input` object.
+
+</Tab>
+
+<Tab value="HTTP">
+
+Post the request body directly. Only `niche` is required.
+
+```bash
+curl -X POST https://<your-host>/api/linkedin-automations/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "niche": "B2B SaaS onboarding",
+    "persona": "practitioner",
+    "topic": "Reducing time to first value",
+    "excludedTopics": ["generic growth hacks"],
+    "proof": ["Cut median activation time from 9 days to 3 days"],
+    "count": 2
+  }'
+```
+
+Supply `brief` to skip brief derivation, `briefModel` to change the strategy model, and `model` to
+change the post model. The response is `{ niche, model, brief, posts }`; nothing is stored.
+
+</Tab>
+
+<Tab value="Studio">
+
+There is no Studio surface for this pipeline. No workspace view calls
+`POST /api/linkedin-automations/generate`, so use the HTTP or MCP path above.
+
+</Tab>
+
+</Tabs>
 
 ## Stage map
 
@@ -286,6 +350,11 @@ unsupported numeric claims.
   }
 }
 ```
+
+<Callout type="warn">
+Repair is capped at three total generation attempts. When the third attempt still violates the
+deterministic gate, the post is returned with `needsReview` set and the last violations attached.
+</Callout>
 
 **Processing:** retry as many as three total generation attempts. Invalid JSON and deterministic
 violations become exact repair instructions for the next attempt. Keep the last violations and set
