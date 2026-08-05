@@ -480,7 +480,7 @@ async function createPlan({
   const defaultBodySlideCount = selectedBodySlideCount(schema, seed[1])
   const hookCutoff =
     Date.parse(scheduledFor) -
-    Math.max(0, Number(schema.reuse_policy?.hook_exclusion_days) || 45) *
+    Math.max(0, Number(schema.reuse_policy?.hook_exclusion_days ?? 45)) *
       24 *
       60 *
       60 *

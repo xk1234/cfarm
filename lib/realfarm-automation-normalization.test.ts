@@ -36,6 +36,19 @@ describe("automation schema normalization", () => {
     ).toBe("manual")
   })
 
+  it("preserves a zero-day hook exclusion window", () => {
+    const defaults = defaultAutomationSchema(automation)
+    const normalized = normalizeAutomationSchema(
+      {
+        ...defaults,
+        reuse_policy: { hook_exclusion_days: 0 },
+      },
+      automation
+    )
+
+    expect(normalized.reuse_policy).toEqual({ hook_exclusion_days: 0 })
+  })
+
   it("does not recover tone from obsolete formatting entries", () => {
     const base = defaultAutomationSchema(automation)
     const normalized = normalizeAutomationSchema(

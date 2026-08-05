@@ -1546,7 +1546,7 @@ export function normalizePostingTimes(
 
 function normalizeNonNegativeNumber(value: unknown) {
   const parsed = Number(value)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined
 }
 
 function normalizeBoundedNumber(value: unknown, min: number, max: number) {
@@ -1590,12 +1590,7 @@ function normalizeReusePolicy(
       1
     ),
   }
-  return policy.image_exclusion_days ||
-    policy.image_exclusion_limit ||
-    policy.hook_exclusion_days ||
-    policy.text_exclusion_days ||
-    policy.text_exclusion_limit ||
-    policy.text_similarity_threshold
+  return Object.values(policy).some((item) => item !== undefined)
     ? policy
     : undefined
 }
