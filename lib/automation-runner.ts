@@ -1596,10 +1596,11 @@ export function selectContentSlideCount(input: {
   max?: number
   random?: () => number
 }) {
-  const min = Math.max(1, Math.round(input.min ?? input.count))
+  const minimumAllowed = input.mode === "static" ? 0 : 1
+  const min = Math.max(minimumAllowed, Math.round(input.min ?? input.count))
   const max = Math.max(min, Math.round(input.max ?? input.count))
   if (input.mode === "static") {
-    return { count: Math.max(1, Math.round(input.count)), min, max }
+    return { count: Math.max(0, Math.round(input.count)), min, max }
   }
 
   const randomValue = Math.min(
