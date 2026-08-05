@@ -1,4 +1,10 @@
 {
   "title": "Contributing",
-  "pages": ["index", "documentation-rules", "agent-github-publishing"]
+  "pages": [
+    "index",
+    "documentation-rules",
+    "agent-github-publishing",
+    "ui-audit-framework",
+    "paper-audit-2026-08-01"
+  ]
 }

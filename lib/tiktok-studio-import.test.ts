@@ -50,6 +50,7 @@ vi.mock("@/lib/postfast-metric-snapshots", () => ({
 
 import {
   createTikTokStudioAnalyticsBatch,
+  createTikTokStudioAnalyticsDiscoveredBatch,
   createTikTokStudioAnalyticsImport,
   createTikTokStudioAnalyticsSeedBatch,
   getTikTokStudioCaptureManifest,
@@ -141,6 +142,41 @@ describe("TikTok Studio import post materialization", () => {
         provider: "tiktok",
         integrationId: "integration-1",
         externalPostId: "7662360324313517330",
+      })
+    )
+    expect(session.batch.items).toHaveLength(1)
+  })
+
+  it("creates missing publications from posts discovered in Studio Content", async () => {
+    const session = await createTikTokStudioAnalyticsDiscoveredBatch({
+      ownerId: "owner-1",
+      integrationId: "integration-1",
+      posts: [
+        {
+          externalPostId: "7662360324313517330",
+          releaseUrl:
+            "https://www.tiktok.com/@creator/video/7662360324313517330",
+          content: "Studio caption",
+          publishedAt: "2026-07-29T08:30:00.000Z",
+        },
+        {
+          externalPostId: "7662360324313517330",
+          releaseUrl:
+            "https://www.tiktok.com/@creator/video/7662360324313517330",
+        },
+      ],
+      now: new Date("2026-07-30T00:00:00.000Z"),
+    })
+
+    expect(mocks.resolvePost).toHaveBeenCalledTimes(1)
+    expect(mocks.resolvePost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownerId: "owner-1",
+        provider: "tiktok",
+        integrationId: "integration-1",
+        externalPostId: "7662360324313517330",
+        content: "Studio caption",
+        publishedAt: "2026-07-29T08:30:00.000Z",
       })
     )
     expect(session.batch.items).toHaveLength(1)

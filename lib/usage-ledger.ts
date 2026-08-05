@@ -188,7 +188,7 @@ export function usageKeyForHook(hook: string) {
   return clean(hook).toLowerCase().replace(/\s+/g, " ")
 }
 
-function normalizeUsageRecord(raw: UsageRecord) {
+export function normalizeUsageRecord(raw: UsageRecord) {
   const record: Record<string, unknown> = isRecord(raw) ? raw : {}
   const automationId = clean(record.automation_id)
   const accountKey = clean(record.account_key)

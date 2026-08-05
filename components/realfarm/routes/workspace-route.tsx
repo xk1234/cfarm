@@ -23,6 +23,8 @@ export type WorkspaceNavigation = {
   automationId?: string
   runId?: string
   collectionId?: string
+  companionIntent?: "tiktok-studio" | "tiktok-comments"
+  platformPostId?: string
 }
 
 export async function WorkspaceRoute({

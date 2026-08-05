@@ -1,4 +1,7 @@
 // Generated from lib/elevenlabs-tts.ts. Do not edit by hand.
+import { mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 export async function synthesizeElevenLabsSpeech(input) {
     if (!input.apiKey.trim())
         throw new Error("Missing ELEVENLABS_API_KEY");
@@ -7,10 +10,18 @@ export async function synthesizeElevenLabsSpeech(input) {
     const endpoint = input.endpoint ?? "https://api.elevenlabs.io/v1/text-to-speech";
     const response = await (input.fetchImpl ?? fetch)(`${endpoint}/${encodeURIComponent(input.voiceId)}/with-timestamps?output_format=${encodeURIComponent(input.outputFormat ?? "mp3_44100_128")}`, {
         method: "POST",
-        headers: { "xi-api-key": input.apiKey, "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ text: input.text, model_id: input.modelId, voice_settings: input.voiceSettings }),
+        headers: {
+            "xi-api-key": input.apiKey,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+        },
+        body: JSON.stringify({
+            text: input.text,
+            model_id: input.modelId,
+            voice_settings: input.voiceSettings,
+        }),
     });
-    const payload = await response.json().catch(() => null);
+    const payload = (await response.json().catch(() => null));
     if (!response.ok)
         throw new Error([
             `ElevenLabs request failed (${response.status})`,
@@ -28,16 +39,51 @@ export async function synthesizeElevenLabsSpeech(input) {
         throw new Error("ElevenLabs response did not include audio");
     const alignment = (payload?.normalized_alignment ?? payload?.alignment);
     const words = alignmentToWords(alignment);
-    return { audio: Uint8Array.from(Buffer.from(audioBase64, "base64")), contentType: "audio/mpeg", durationMs: words.at(-1)?.endMs, words };
+    return {
+        audio: Uint8Array.from(Buffer.from(audioBase64, "base64")),
+        contentType: "audio/mpeg",
+        durationMs: words.at(-1)?.endMs,
+        words,
+    };
+}
+export async function synthesizeElevenLabsSpeechToTemp(input) {
+    const result = await synthesizeElevenLabsSpeech(input);
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "cfarm-elevenlabs-"));
+    const audioPath = path.join(tempDir, "voice.mp3");
+    const timingsPath = path.join(tempDir, "word-timings.json");
+    await Promise.all([
+        writeFile(audioPath, result.audio),
+        writeFile(timingsPath, JSON.stringify(result.words)),
+    ]);
+    return {
+        audioPath,
+        timingsPath,
+        contentType: result.contentType,
+        durationMs: result.durationMs,
+        words: result.words,
+    };
 }
 export function alignmentToWords(alignment) {
-    const chars = Array.isArray(alignment?.characters) ? alignment.characters.map(String) : [];
-    const starts = Array.isArray(alignment?.character_start_times_seconds) ? alignment.character_start_times_seconds.map(Number) : [];
-    const ends = Array.isArray(alignment?.character_end_times_seconds) ? alignment.character_end_times_seconds.map(Number) : [];
+    const chars = Array.isArray(alignment?.characters)
+        ? alignment.characters.map(String)
+        : [];
+    const starts = Array.isArray(alignment?.character_start_times_seconds)
+        ? alignment.character_start_times_seconds.map(Number)
+        : [];
+    const ends = Array.isArray(alignment?.character_end_times_seconds)
+        ? alignment.character_end_times_seconds.map(Number)
+        : [];
     const out = [];
     let text = "", start = 0, end = 0;
-    const flush = () => { if (text)
-        out.push({ word: text, startMs: Math.round(start * 1000), endMs: Math.round(end * 1000) }); text = ""; };
+    const flush = () => {
+        if (text)
+            out.push({
+                word: text,
+                startMs: Math.round(start * 1000),
+                endMs: Math.round(end * 1000),
+            });
+        text = "";
+    };
     chars.forEach((char, index) => {
         if (/\s/.test(char)) {
             flush();

@@ -128,7 +128,7 @@ export function AnalyticsHeader({
             onClick={onTikTokStudioSync}
           >
             <IconBrandTiktok className="size-4" />
-            Sync TikTok Studio
+            Import TikTok posts
           </Button>
         ) : null}
         <SelectControl

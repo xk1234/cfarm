@@ -21,9 +21,10 @@ the registered image-model choices from the application model registry.
 On desktop, the slideshow viewer is a large modal with a header, one centered
 slide stage, a dedicated position-dot row below it, and a Publishing details panel below the stage. The
 header contains Close, the output title, caller-supplied publication status and
-actions, PNG export, and optional generation-debug and whole-output deletion
-controls. The details panel can show creation date, post date, language, title,
-description, and hashtags.
+actions, a Workflow link for persisted generated slideshows, PNG export, and
+optional generation-debug and whole-output deletion controls. The Workflow link
+opens the signed public trace for that exact output. The details panel can show
+creation date, post date, language, title, description, and hashtags.
 
 On mobile, the slideshow viewer fills the viewport. Previous and next arrows
 overlay the slide, publication status moves into the stage, and Publishing
@@ -78,8 +79,10 @@ in the shared renderer and export paths.
 
 Partial. `lumenclip_assets_list` retrieves collection assets, while
 `lumenclip_outputs_list` and `lumenclip_output_get` retrieve generated output
-data. `lumenclip_output_publish` publishes or schedules an eligible output, and
-`lumenclip_output_delete` deletes an unpublished output. Viewer navigation,
+data. `lumenclip_workflow_trace_get` returns all 16 slideshow-generation stages
+with their input and output, and `lumenclip_workflow_stage_get` addresses one
+stage by ID. `lumenclip_output_publish` publishes or schedules an eligible
+output, and `lumenclip_output_delete` deletes an unpublished output. Viewer navigation,
 zoom and pan, clipboard copy, PNG export, collection-image caption edits,
 image-model edit or upscale, slideshow metadata edits, slide-image replacement,
 and individual slide deletion remain UI-only.

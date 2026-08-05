@@ -86,6 +86,101 @@ describe("LumenClip MCP server", () => {
     )
   })
 
+  it("runs a named production workflow or one exact registered stage", async () => {
+    const client = await connectClient()
+    const stageInput = {
+      niche: "B2B SaaS onboarding",
+      persona: "practitioner",
+      proof: ["Reduced activation time from 9 days to 3 days"],
+      count: 2,
+    }
+
+    const catalog = await client.callTool({
+      name: "lumenclip_pipeline_catalog",
+      arguments: {},
+    })
+    expect(catalog.structuredContent).toMatchObject({
+      workflows: expect.arrayContaining([
+        expect.objectContaining({
+          id: "slideshow-generation",
+          stages: expect.arrayContaining([
+            expect.objectContaining({
+              id: "slideshow-generation.select-one-slide-image",
+              granularity: "atomic",
+              sideEffect: "network",
+              operation: "conditional OpenRouter image choice",
+              maxExternalCalls: 1,
+              workflowStep: false,
+            }),
+          ]),
+        }),
+        expect.objectContaining({ id: "ugc-video-generation" }),
+        expect.objectContaining({ id: "linkedin-generation" }),
+        expect.objectContaining({ id: "x-threads-generation" }),
+      ]),
+    })
+
+    const single = await client.callTool({
+      name: "lumenclip_pipeline_stage_run",
+      arguments: {
+        stageId: "linkedin-generation.validate-input",
+        input: stageInput,
+        requestId: "linkedin-stage-test",
+      },
+    })
+    const workflow = await client.callTool({
+      name: "lumenclip_pipeline_run",
+      arguments: {
+        workflowId: "linkedin-generation",
+        input: stageInput,
+        requestId: "linkedin-stage-test",
+        stopAfter: "linkedin-generation.validate-input",
+      },
+    })
+    const selectedImage = await client.callTool({
+      name: "lumenclip_pipeline_stage_run",
+      arguments: {
+        stageId: "slideshow-generation.select-one-slide-image",
+        input: {
+          shortlist: {
+            slideId: "content-1",
+            slideText: "A supplied shortlist",
+            aiImageSelection: false,
+            candidates: [
+              {
+                id: "image-1",
+                imageUrl: "/api/assets/image-1.jpg",
+                caption: "One candidate",
+              },
+            ],
+          },
+        },
+      },
+    })
+
+    expect(single.structuredContent).toMatchObject({
+      stage: { id: "linkedin-generation.validate-input" },
+      status: "succeeded",
+      output: { normalizedInput: { niche: "B2B SaaS onboarding", count: 2 } },
+    })
+    expect(workflow.structuredContent).toMatchObject({
+      workflowId: "linkedin-generation",
+      status: "succeeded",
+      completedStages: 1,
+      output: (single.structuredContent as { output: unknown }).output,
+    })
+    expect(selectedImage.structuredContent).toMatchObject({
+      stage: { id: "slideshow-generation.select-one-slide-image" },
+      externalCalls: 0,
+      output: {
+        selectedImage: {
+          slideId: "content-1",
+          id: "image-1",
+        },
+      },
+    })
+  })
+
   it("inspects and runs read-only automation experiments through injected services", async () => {
     const dimensions = {
       automationId: "automation-1",
@@ -1428,6 +1523,9 @@ describe("LumenClip MCP server", () => {
       previewUrl: expect.stringMatching(
         /^https:\/\/studio\.example\.com\/share\/slideshows\//
       ),
+      workflowUrl: expect.stringMatching(
+        /^https:\/\/studio\.example\.com\/share\/workflows\//
+      ),
       downloadUrl: expect.stringMatching(
         /^https:\/\/studio\.example\.com\/api\/public\/slideshows\/.+\/download\?token=/
       ),
@@ -1458,6 +1556,77 @@ describe("LumenClip MCP server", () => {
     expect(validated.structuredContent).toMatchObject({
       outputId: run.slideshowId,
       qa: { valid: false },
+    })
+  })
+
+  it("exposes a complete workflow trace and every addressed stage", async () => {
+    vi.stubEnv("BASE_URL", "https://studio.example.com")
+    vi.stubEnv("SLIDESHOW_SHARE_SECRET", "test-secret")
+    const automation = automationRecord()
+    const run = generatedRun(automation.id)
+    run.plan.debug = {
+      textModelPrompt: {
+        messages: [{ role: "user", content: "Generate the slideshow" }],
+      } as never,
+    }
+    const slideshow = generatedSlideshow(run)
+    const client = await connectClient({
+      listAutomationRuns: vi.fn(async () => [run]),
+      getAutomationRecord: vi.fn(async () => automation),
+      listSlideshowRecords: vi.fn(async () => [slideshow]),
+    })
+
+    const trace = await client.callTool({
+      name: "lumenclip_workflow_trace_get",
+      arguments: { outputId: run.slideshowId },
+    })
+    const traceContent = trace.structuredContent as {
+      workflowId: string
+      runId: string
+      outputId: string
+      workflowUrl: string
+      stages: Array<{
+        id: string
+        input: unknown
+        output: unknown
+      }>
+    }
+    expect(traceContent.workflowId).toBe("slideshow-generation")
+    expect(traceContent.runId).toBe(run.id)
+    expect(traceContent.outputId).toBe(run.slideshowId)
+    expect(traceContent.workflowUrl).toMatch(
+      /^https:\/\/studio\.example\.com\/share\/workflows\//
+    )
+    expect(traceContent.stages).toHaveLength(16)
+    expect(
+      traceContent.stages.find(
+        (candidate) => candidate.id === "slideshow-generation.build-text-prompt"
+      )
+    ).toMatchObject({
+      id: "slideshow-generation.build-text-prompt",
+      input: expect.any(Object),
+      output: {
+        promptPayload: {
+          messages: [{ role: "user", content: "Generate the slideshow" }],
+        },
+      },
+    })
+
+    const stage = await client.callTool({
+      name: "lumenclip_workflow_stage_get",
+      arguments: {
+        outputId: run.slideshowId,
+        stageId: "slideshow-generation.generate-slide-text",
+      },
+    })
+    expect(stage.structuredContent).toMatchObject({
+      runId: run.id,
+      outputId: run.slideshowId,
+      stage: {
+        id: "slideshow-generation.generate-slide-text",
+        input: expect.any(Object),
+        output: expect.objectContaining({ title: run.plan.title }),
+      },
     })
   })
 
@@ -1593,18 +1762,31 @@ describe("LumenClip MCP server", () => {
     vi.stubEnv("SLIDESHOW_SHARE_SECRET", "test-secret")
     const current = automationRecord()
     const run = relativeRun(current.id)
+    const generate = vi.fn(async () => ({
+      created: [run],
+      results: [],
+      skipped: [],
+    }))
     const client = await connectClient({
       getAutomationRecord: vi.fn(async () => current),
-      runDueAutomations: vi.fn(async () => ({
-        created: [run],
-        results: [],
-        skipped: [],
-      })) as unknown as LumenClipMcpServices["runDueAutomations"],
+      runDueAutomations:
+        generate as unknown as LumenClipMcpServices["runDueAutomations"],
     })
 
     const result = await client.callTool({
       name: "lumenclip_slideshow_generate",
-      arguments: { automationId: current.id, requestId: "request-1" },
+      arguments: {
+        automationId: current.id,
+        requestId: "request-1",
+        hook: "My exact slideshow hook",
+      },
+    })
+
+    expect(generate).toHaveBeenCalledWith({
+      automationId: current.id,
+      force: true,
+      requestId: "request-1",
+      hook: "My exact slideshow hook",
     })
 
     const summary = (
@@ -1617,6 +1799,7 @@ describe("LumenClip MCP server", () => {
       {
         index: 1,
         role: "hook",
+        text: run.plan.slides[0].text,
         renderedImageUrl:
           "https://studio.example.com/api/local-assets/slideshows/outputs/slideshow-1/slide-001.png",
         sourceImageUrl:
@@ -1664,6 +1847,7 @@ describe("LumenClip MCP server", () => {
       {
         index: 1,
         role: "hook",
+        text: run.plan.slides[0].text,
         renderedImageUrl:
           "/api/local-assets/slideshows/outputs/slideshow-1/slide-001.png",
         sourceImageUrl: "/api/local-assets/slideshows/sources/img-1.png",
@@ -1770,6 +1954,7 @@ describe("LumenClip MCP server", () => {
       arguments: {
         automationId: current.id,
         requestId: "general-run-1",
+        hook: "My exact MCP hook",
       },
     })
 
@@ -1777,6 +1962,7 @@ describe("LumenClip MCP server", () => {
       automationId: current.id,
       force: true,
       requestId: "general-run-1",
+      hook: "My exact MCP hook",
     })
     expect(result.structuredContent).toMatchObject({
       operation: { id: run.id, status: "succeeded" },
@@ -1796,6 +1982,121 @@ describe("LumenClip MCP server", () => {
           tool: "lumenclip_automation_run",
           blocks: ["lumenclip_output_publish"],
         }),
+      ],
+    })
+  })
+
+  it("generates 2-10 hook variants with the text of every slide", async () => {
+    const current = automationRecord()
+    const variants = [
+      {
+        index: 1,
+        hook: "First random hook",
+        hookId: "hook-1",
+        title: "First title",
+        caption: "First caption",
+        hashtags: "#first",
+        slides: [
+          { index: 1, role: "hook" as const, text: "First random hook" },
+          { index: 2, role: "content" as const, text: "First body" },
+        ],
+      },
+      {
+        index: 2,
+        hook: "Second random hook",
+        hookId: "hook-2",
+        title: "Second title",
+        caption: "Second caption",
+        hashtags: "#second",
+        slides: [
+          { index: 1, role: "hook" as const, text: "Second random hook" },
+          { index: 2, role: "content" as const, text: "Second body" },
+        ],
+      },
+    ]
+    const generateVariants = vi.fn(async () => variants)
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      previewAutomationHookVariants:
+        generateVariants as LumenClipMcpServices["previewAutomationHookVariants"],
+      now: () => new Date("2026-08-01T12:00:00.000Z"),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_hook_variants_generate",
+      arguments: { automationId: current.id, count: 2 },
+    })
+
+    expect(generateVariants).toHaveBeenCalledWith(current.schema, {
+      automationId: current.id,
+      automationTitle: current.name,
+      count: 2,
+      now: new Date("2026-08-01T12:00:00.000Z"),
+    })
+    expect(result.structuredContent).toMatchObject({
+      automationId: current.id,
+      count: 2,
+      variants,
+      nextAction: { tool: "lumenclip_hook_variant_select" },
+    })
+
+    const invalid = await client.callTool({
+      name: "lumenclip_hook_variants_generate",
+      arguments: { automationId: current.id, count: 1 },
+    })
+    expect(invalid.isError).toBe(true)
+
+    const tooMany = await client.callTool({
+      name: "lumenclip_hook_variants_generate",
+      arguments: { automationId: current.id, count: 11 },
+    })
+    expect(tooMany.isError).toBe(true)
+    expect(generateVariants).toHaveBeenCalledTimes(1)
+  })
+
+  it("persists the selected hook variant and returns its slide text", async () => {
+    const current = automationRecord()
+    const run = generatedRun(current.id)
+    run.plan.hook = "Selected exact hook"
+    run.plan.slides[0].text = "Selected exact hook"
+    const generate = vi.fn(async () => ({
+      created: [run],
+      results: [],
+      skipped: [],
+    }))
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      listAutomationRuns: vi.fn(async () => []),
+      runDueAutomations: generate,
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_hook_variant_select",
+      arguments: {
+        automationId: current.id,
+        selectedHook: "Selected exact hook",
+        requestId: "selected-hook-1",
+      },
+    })
+
+    expect(generate).toHaveBeenCalledWith({
+      automationId: current.id,
+      force: true,
+      requestId: "selected-hook-1",
+      hook: "Selected exact hook",
+    })
+    expect(result.structuredContent).toMatchObject({
+      outputs: [
+        {
+          hook: "Selected exact hook",
+          slides: [
+            {
+              index: 1,
+              role: "hook",
+              text: "Selected exact hook",
+            },
+          ],
+        },
       ],
     })
   })
@@ -1983,6 +2284,68 @@ describe("LumenClip MCP server", () => {
         progress: 30,
       },
       outputs: [],
+    })
+  })
+
+  it("reports a completed UGC checkpoint as a successful stage operation", async () => {
+    const current = ugcAutomationRecord()
+    const baseJob = ugcJob(current.id)
+    const job = {
+      ...baseJob,
+      status: "completed" as const,
+      payload: {
+        ...(baseJob.payload as Record<string, unknown>),
+        stopAfter: "voice",
+      },
+    }
+    const client = await connectClient({
+      getJob: vi.fn(async () => job),
+      getUgcRunStatus: vi.fn(async (): Promise<UgcRunStatus> => ({
+        id: "ugcrun-voice",
+        automationId: current.id,
+        scheduledFor: String(
+          (job.payload as Record<string, unknown>).scheduledFor
+        ),
+        status: "voice",
+        error: null,
+        checkpoints: { voice: { storagePath: "ugc/voice.wav" } },
+        stages: [
+          { name: "analysis", status: "done", assetPaths: [] },
+          { name: "script", status: "done", assetPaths: [] },
+          { name: "actor", status: "done", assetPaths: [] },
+          {
+            name: "voice",
+            status: "done",
+            assetPaths: ["ugc/voice.wav"],
+          },
+          { name: "motion", status: "pending", assetPaths: [] },
+          { name: "lipsync", status: "pending", assetPaths: [] },
+          { name: "broll", status: "pending", assetPaths: [] },
+          { name: "composite", status: "pending", assetPaths: [] },
+          { name: "store", status: "pending", assetPaths: [] },
+          { name: "publish", status: "pending", assetPaths: [] },
+        ],
+        createdAt: "2026-07-22T12:00:01.000Z",
+        updatedAt: "2026-07-22T12:00:10.000Z",
+      })),
+      getGeneratedVideoExport: vi.fn(async () => null),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_operation_get",
+      arguments: { operationId: job.id },
+    })
+
+    expect(result.structuredContent).toMatchObject({
+      operation: {
+        id: job.id,
+        kind: "ugc.stage.voice",
+        status: "succeeded",
+        stage: "voice",
+        progress: 100,
+      },
+      outputs: [],
+      errors: [],
     })
   })
 

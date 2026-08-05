@@ -13,6 +13,14 @@
         <span id="context">LumenClip companion</span>
       </header>
 
+      <section class="task-intro">
+        <div id="pageIdentity" class="page-identity"></div>
+        <h1 id="screenTitle">Checking this page…</h1>
+        <p id="screenDescription"></p>
+      </section>
+
+      <ol id="steps" class="steps"></ol>
+
       <div id="status" class="status">
         <span class="dot" aria-hidden="true"></span>
         <span id="statusText">Checking…</span>
@@ -42,10 +50,11 @@
         <button id="sync" class="primary" hidden>Sync now</button>
         <button id="reconnect" class="secondary" hidden>Reconnect</button>
         <button id="clear" class="secondary" hidden>Clear pairing</button>
+        <button id="openSupported" class="primary" hidden>
+          Open TikTok Studio
+        </button>
       </div>
-
-      <button id="switch" class="link" hidden></button>
     </main>
-    <script src="popup.js"></script>
+    <script type="module" src="popup.js"></script>
   </body>
 </html>

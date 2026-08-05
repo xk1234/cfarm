@@ -292,17 +292,24 @@ export function slideSpecs(
   const hookSection = formatSection(schema, "hook")
   const content = formatSection(schema, "content")
   const cta = formatSection(schema, "cta")
+  const hookCount = Math.max(0, Math.round(Number(hookSection.slideCount) || 0))
+  const configuredContentCount = Math.max(
+    0,
+    Math.round(Number(bodySlideCount) || Number(content.slideCount) || 0)
+  )
   const implied = Number(clean(hook).match(/^(\d{1,2})\s+[a-z]/i)?.[1])
   const contentCount =
-    implied >= 1 && implied <= 10
+    configuredContentCount > 0 && implied >= 1 && implied <= 10
       ? implied
-      : Math.max(1, bodySlideCount || content.slideCount || 1)
+      : configuredContentCount
   const ctaCount =
     Number(cta.slideCount) > 0 || schema.image_collection_ids?.cta_slide?.check
       ? Math.max(1, Number(cta.slideCount) || 1)
       : 0
   return [
-    specForSection(schema, hookSection, "hook", 0),
+    ...Array.from({ length: hookCount }, (_, index) =>
+      specForSection(schema, hookSection, "hook", index)
+    ),
     ...Array.from({ length: contentCount }, (_, index) => {
       const override = content.slideOverrides?.find(
         (item) => Number(item.slideIndex) === index + 1
@@ -325,12 +332,12 @@ export function slideSpecs(
             : {}),
         },
         "content",
-        index + 1,
+        hookCount + index,
         imageOverride?.collectionId
       )
     }),
     ...Array.from({ length: ctaCount }, (_, index) =>
-      specForSection(schema, cta, "cta", contentCount + index + 1)
+      specForSection(schema, cta, "cta", hookCount + contentCount + index)
     ),
   ]
 }
@@ -338,7 +345,7 @@ export function slideSpecs(
 export function selectedBodySlideCount(schema: PlanSchema, seedValue: number) {
   const content = formatSection(schema, "content")
   if (content.slideCountMode !== "varying") {
-    return Math.max(1, Number(content.slideCount) || 1)
+    return Math.max(0, Math.round(Number(content.slideCount) || 0))
   }
   const min = Math.max(
     1,

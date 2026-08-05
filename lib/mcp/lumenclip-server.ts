@@ -1,6 +1,18 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
 
+import {
+  createPipelineStageRegistry,
+  executeNamedPipeline,
+  executePipelineStage,
+  pipelineCatalog,
+} from "@/lib/pipeline-executor"
+import { createProductionPipelineHandlers } from "@/lib/mcp/production-pipeline-handlers"
+import {
+  PIPELINE_STAGE_CATALOG,
+  PIPELINE_WORKFLOW_IDS,
+  type PipelineStageRegistry,
+} from "@/lib/pipeline-stages"
 import { toLumenClipDataError } from "@/lib/appwrite-errors"
 import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
 import {
@@ -31,6 +43,7 @@ import { lintAutomationHooks } from "@/lib/automation-hook-lint"
 import { assertValidAutomationHookTokens } from "@/lib/automation-hook-token-validation"
 import {
   deleteAutomationRuns,
+  previewAutomationHookVariants,
   runDueAutomations,
   listAutomationRuns,
   markAutomationRunPublished,
@@ -122,6 +135,7 @@ import {
 } from "@/lib/slideshows"
 import { withSystemOwner } from "@/lib/system-owner-context"
 import { assertPublicHttpUrl } from "@/lib/url-guard"
+import { buildSlideshowWorkflowTrace } from "@/lib/slideshow-workflow-trace"
 import {
   analyzeSlideshowTone,
   slideshowToneToAutomationFields,
@@ -149,7 +163,10 @@ import {
 } from "@/lib/tiktok-comments"
 import { draftTikTokCommentReplies } from "@/lib/tiktok-comment-replies"
 import type { XAutomationRecord, XAutomationRun } from "@/lib/x-automation"
-import { generateStoredXAutomationRun } from "@/lib/x-automation-runner"
+import {
+  generateStoredXAutomationRun,
+  persistGeneratedXAutomationRun,
+} from "@/lib/x-automation-runner"
 import {
   deleteXAutomationRun,
   getXAutomation,
@@ -167,6 +184,7 @@ import {
 } from "@/lib/word-collections"
 import { wordCollectionVariableName } from "@/lib/hook-variables"
 import { estimateUgcCost } from "@/lib/ugc-cost"
+import { getReminderSettings } from "@/lib/reminder-settings"
 import {
   ugcExportId,
   ugcRunId,
@@ -327,11 +345,14 @@ export type LumenClipMcpServices = {
   getXAutomation: typeof getXAutomation
   upsertXAutomation: typeof upsertXAutomation
   runDueAutomations: typeof runDueAutomations
+  previewAutomationHookVariants: typeof previewAutomationHookVariants
   deleteAutomationRuns: typeof deleteAutomationRuns
   listAutomationRuns: typeof listAutomationRuns
   markAutomationRunPublished: typeof markAutomationRunPublished
   updateAutomationRunSlideText: typeof updateAutomationRunSlideText
   generateStoredXAutomationRun: typeof generateStoredXAutomationRun
+  persistGeneratedXAutomationRun: typeof persistGeneratedXAutomationRun
+  getReminderSettings: typeof getReminderSettings
   listXAutomationRuns: typeof listXAutomationRuns
   getXAutomationRun: typeof getXAutomationRun
   upsertXAutomationRun: typeof upsertXAutomationRun
@@ -402,11 +423,14 @@ const defaultServices: LumenClipMcpServices = {
   getXAutomation,
   upsertXAutomation,
   runDueAutomations,
+  previewAutomationHookVariants,
   deleteAutomationRuns,
   listAutomationRuns,
   markAutomationRunPublished,
   updateAutomationRunSlideText,
   generateStoredXAutomationRun,
+  persistGeneratedXAutomationRun,
+  getReminderSettings,
   listXAutomationRuns,
   getXAutomationRun,
   upsertXAutomationRun,
@@ -484,6 +508,9 @@ export function createLumenClipMcpServer(
     version: "2.0.0",
   })
   const owned = <T>(task: () => T) => ownedMcpTask(ownerId, task)
+  const pipelineRegistry = createPipelineStageRegistry(
+    createProductionPipelineHandlers(services)
+  )
 
   registerAutomationReadAndRunTools(server, ownerId, services)
   registerCollectionTools(server, ownerId, services)
@@ -597,7 +624,7 @@ export function createLumenClipMcpServer(
     {
       title: "Generate a slideshow draft",
       description:
-        "Runs one existing slideshow automation immediately and returns an unpublished, unscheduled draft summary. It never auto-publishes, even when the saved automation is live. Each completed run carries `outputImages` (relative slide paths), a per-slide `slides` array (`index`, `role`, absolute `renderedImageUrl`, absolute `sourceImageUrl`), a signed public `previewUrl`, and a signed direct ZIP `downloadUrl`. Delivery and slide URLs are absolutised against the server's BASE_URL; when BASE_URL is unset they fall back to relative paths.",
+        "Runs one existing slideshow automation immediately and returns an unpublished, unscheduled draft summary. It never auto-publishes, even when the saved automation is live. An optional exact hook bypasses random selection. Each completed run carries `outputImages` (relative slide paths), a per-slide `slides` array (`index`, `role`, `text`, absolute `renderedImageUrl`, absolute `sourceImageUrl`), a signed public `previewUrl`, and a signed direct ZIP `downloadUrl`. Delivery and slide URLs are absolutised against the server's BASE_URL; when BASE_URL is unset they fall back to relative paths.",
       inputSchema: {
         automationId: z
           .string()
@@ -615,6 +642,15 @@ export function createLumenClipMcpServer(
           .describe(
             'Optional caller-generated idempotency key for this draft request, e.g. "uat-hdb-2026-07-23".'
           ),
+        hook: z
+          .string()
+          .trim()
+          .min(1)
+          .max(2_000)
+          .optional()
+          .describe(
+            "Optional exact hook text for this draft. When supplied, generation uses this hook instead of randomly selecting from the saved pool."
+          ),
       },
       annotations: {
         readOnlyHint: false,
@@ -623,7 +659,7 @@ export function createLumenClipMcpServer(
         openWorldHint: true,
       },
     },
-    async ({ automationId, requestId }) =>
+    async ({ automationId, requestId, hook }) =>
       mcpResult(
         await owned(async () => {
           const automation = await services.getAutomationRecord(automationId)
@@ -636,6 +672,7 @@ export function createLumenClipMcpServer(
             automationId,
             force: true,
             requestId: traceId,
+            hook,
           })
           const priorRuns = await services.listAutomationRuns({
             automationId,
@@ -985,8 +1022,105 @@ export function createLumenClipMcpServer(
   registerTikTokPublicationTools(server, ownerId, services)
   registerTikTokStudioAnalyticsTools(server, ownerId, services)
   registerTikTokCommentTools(server, ownerId, services)
+  registerPipelineTools(server, ownerId, pipelineRegistry)
 
   return server
+}
+
+function registerPipelineTools(
+  server: McpServer,
+  ownerId: string,
+  registry: PipelineStageRegistry
+) {
+  server.registerTool(
+    "lumenclip_pipeline_catalog",
+    {
+      title: "List production generation pipelines",
+      description:
+        "Lists the registered slideshow, UGC video, LinkedIn, and X/Threads production workflows plus every atomic and composite deterministic, provider, and storage stage. Each entry declares granularity, side effect, operation, maxExternalCalls, provider/model provenance, and workflow membership. It never executes a stage.",
+      inputSchema: {},
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async () => mcpResult({ workflows: pipelineCatalog() })
+  )
+
+  server.registerTool(
+    "lumenclip_pipeline_stage_run",
+    {
+      title: "Run one production pipeline stage",
+      description:
+        "Runs one registered atomic or composite generation stage with explicit structured JSON input. Atomic network/storage stages declare a one-call boundary; decomposed composites invoke registered stages through the same registry used by full workflow execution. Secrets and media bytes are rejected; provider and storage stages return durable references or operations. The workflow docs identify residual non-provider storage limitations.",
+      inputSchema: {
+        stageId: z.enum(
+          PIPELINE_STAGE_CATALOG.map((stage) => stage.id) as [
+            (typeof PIPELINE_STAGE_CATALOG)[number]["id"],
+            ...(typeof PIPELINE_STAGE_CATALOG)[number]["id"][],
+          ]
+        ),
+        input: z.record(z.string(), z.unknown()),
+        requestId: z.string().trim().min(1).max(200).optional(),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input) =>
+      mcpResult(
+        await ownedMcpTask(ownerId, () =>
+          executePipelineStage({
+            registry,
+            ownerId,
+            stageId: input.stageId,
+            stageInput: input.input,
+            requestId: input.requestId,
+          })
+        )
+      )
+  )
+
+  server.registerTool(
+    "lumenclip_pipeline_run",
+    {
+      title: "Run a named production generation pipeline",
+      description:
+        "Runs a registered named generation workflow by invoking its registered stage handlers in order and piping each complete structured output to the next. A running operation pauses the workflow at that exact stage. Generation never publishes; publishing remains a separate confirmed MCP action.",
+      inputSchema: {
+        workflowId: z.enum(PIPELINE_WORKFLOW_IDS),
+        input: z.record(z.string(), z.unknown()),
+        requestId: z.string().trim().min(1).max(200).optional(),
+        startAt: z.string().trim().min(1).optional(),
+        stopAfter: z.string().trim().min(1).optional(),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (input) =>
+      mcpResult(
+        await ownedMcpTask(ownerId, () =>
+          executeNamedPipeline({
+            registry,
+            ownerId,
+            workflowId: input.workflowId,
+            workflowInput: input.input,
+            requestId: input.requestId,
+            startAt: input.startAt,
+            stopAfter: input.stopAfter,
+          })
+        )
+      )
+  )
 }
 
 function registerAutomationReadAndRunTools(
@@ -2078,6 +2212,108 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
+    "lumenclip_hook_variants_generate",
+    {
+      title: "Generate random hook variants",
+      description:
+        "Stage 1 of hook-variant generation. Randomly resolves 2-10 distinct unused hooks from a saved slideshow automation and generates a text-only slide draft for each. Returns every hook and the text of every slide without persisting outputs.",
+      inputSchema: {
+        automationId: z
+          .string()
+          .trim()
+          .min(1)
+          .describe('Saved slideshow automation ID, e.g. "automation_123".'),
+        count: z
+          .number()
+          .int()
+          .min(2)
+          .max(10)
+          .default(3)
+          .describe("Number of distinct random hook variations to generate."),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ automationId, count }) =>
+      mcpResult(
+        await owned(async () => {
+          const automation = await services.getAutomationRecord(automationId)
+          if (!automation) throw new Error("Automation not found")
+          if (automation.schema.automationKind !== "slideshow") {
+            throw new Error("Hook variants require a slideshow automation")
+          }
+          const variants = await services.previewAutomationHookVariants(
+            automation.schema,
+            {
+              automationId,
+              automationTitle: automation.name,
+              count,
+              now: services.now(),
+            }
+          )
+          return {
+            automationId,
+            count: variants.length,
+            variants,
+            nextAction: {
+              tool: "lumenclip_hook_variant_select",
+              instructions:
+                "Choose the best variant and pass its exact hook text as selectedHook with a new requestId.",
+            },
+          }
+        })
+      )
+  )
+
+  server.registerTool(
+    "lumenclip_hook_variant_select",
+    {
+      title: "Select and generate a hook variant",
+      description:
+        "Stage 2 of hook-variant generation. Persists one unpublished slideshow draft using the exact selected hook and returns the chosen hook plus the text and media URLs of every slide.",
+      inputSchema: {
+        automationId: z.string().trim().min(1),
+        selectedHook: z
+          .string()
+          .trim()
+          .min(1)
+          .max(2_000)
+          .describe(
+            "Exact hook text copied from a stage-1 variant or supplied by the caller."
+          ),
+        requestId: z
+          .string()
+          .trim()
+          .min(1)
+          .max(200)
+          .describe(
+            'Caller-generated idempotency key, e.g. "hook-selection-2026-08-01-001".'
+          ),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ selectedHook, ...input }) =>
+      mcpResult(
+        await owned(() =>
+          runAutomationDraft(
+            services,
+            { ...input, hook: selectedHook },
+            ownerId
+          )
+        )
+      )
+  )
+
+  server.registerTool(
     "lumenclip_run_plan_get",
     {
       title: "Get an automation run plan",
@@ -2124,7 +2360,7 @@ function registerAutomationReadAndRunTools(
     {
       title: "Run an automation",
       description:
-        "Generates one unpublished, unscheduled draft from a saved slideshow, AI UGC, X, or Threads automation. AI UGC runs asynchronously and returns a pollable operation. Saved video automations remain discoverable but do not yet have a shared runner. For completed slideshow runs the output entry includes `outputImages` (relative slide paths), a per-slide `slides` array (`index`, `role`, absolute `renderedImageUrl`, absolute `sourceImageUrl`), a signed public `previewUrl`, and a signed direct ZIP `downloadUrl`. Delivery and slide URLs are absolutised against the server's BASE_URL; when BASE_URL is unset they fall back to relative paths.",
+        "Generates one unpublished, unscheduled draft from a saved slideshow, AI UGC, X, or Threads automation. Slideshow callers may supply an exact hook instead of random selection. AI UGC runs asynchronously and returns a pollable operation. Saved video automations remain discoverable but do not yet have a shared runner. For completed slideshow runs the output entry includes the selected hook, `outputImages` (relative slide paths), a per-slide `slides` array (`index`, `role`, `text`, absolute `renderedImageUrl`, absolute `sourceImageUrl`), a signed public `previewUrl`, and a signed direct ZIP `downloadUrl`. Delivery and slide URLs are absolutised against the server's BASE_URL; when BASE_URL is unset they fall back to relative paths.",
       inputSchema: {
         automationId: z
           .string()
@@ -2140,6 +2376,15 @@ function registerAutomationReadAndRunTools(
           .optional()
           .describe(
             'Optional topic override for this manual draft, e.g. "Singapore HDB resale prices in 2026".'
+          ),
+        hook: z
+          .string()
+          .trim()
+          .min(1)
+          .max(2_000)
+          .optional()
+          .describe(
+            "Optional exact hook for a slideshow draft. This bypasses random hook selection without changing the saved hook pool."
           ),
         requestId: z
           .string()
@@ -3057,6 +3302,87 @@ function registerOutputAndPublishingTools(
   )
 
   server.registerTool(
+    "lumenclip_workflow_trace_get",
+    {
+      title: "Inspect an output workflow trace",
+      description:
+        "Returns the complete 16-stage slideshow generation trace for one caller-owned output. Every stage includes its metadata, status, persisted or reconstructed input, and persisted or reconstructed output, plus the signed visual workflow URL.",
+      inputSchema: {
+        outputId: z
+          .string()
+          .trim()
+          .min(1)
+          .describe(
+            'Slideshow output ID returned by outputs_list or output_get, e.g. "slideshow_123".'
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ outputId }) =>
+      mcpResult(
+        await owned(async () => {
+          const trace = await slideshowWorkflowTrace(services, outputId)
+          return {
+            ...trace,
+            ...slideshowDeliveryFields(ownerId, trace.outputId),
+          }
+        })
+      )
+  )
+
+  server.registerTool(
+    "lumenclip_workflow_stage_get",
+    {
+      title: "Inspect one output workflow stage",
+      description:
+        "Returns one exact slideshow workflow stage with its input and output. Use workflow_trace_get to discover ordered stage IDs, then address a stage by ID.",
+      inputSchema: {
+        outputId: z
+          .string()
+          .trim()
+          .min(1)
+          .describe('Slideshow output ID, e.g. "slideshow_123".'),
+        stageId: z
+          .string()
+          .trim()
+          .min(1)
+          .describe(
+            'Stage ID returned by workflow_trace_get, e.g. "slideshow-generation.generate-slide-text".'
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ outputId, stageId }) =>
+      mcpResult(
+        await owned(async () => {
+          const trace = await slideshowWorkflowTrace(services, outputId)
+          const stage = trace.stages.find(
+            (candidate) => candidate.id === stageId
+          )
+          if (!stage) throw new Error("Workflow stage not found")
+          return {
+            workflowId: trace.workflowId,
+            runId: trace.runId,
+            outputId: trace.outputId,
+            stage,
+            workflowUrl: slideshowDeliveryFields(ownerId, trace.outputId)
+              .workflowUrl,
+          }
+        })
+      )
+  )
+
+  server.registerTool(
     "lumenclip_output_validate",
     {
       title: "Validate a generated output",
@@ -3596,12 +3922,20 @@ function registerOutputAndPublishingTools(
 
 async function runAutomationDraft(
   services: LumenClipMcpServices,
-  input: { automationId: string; topic?: string; requestId: string },
+  input: {
+    automationId: string
+    topic?: string
+    hook?: string
+    requestId: string
+  },
   ownerId: string
 ) {
   const standard = await services.getAutomationRecord(input.automationId)
   if (standard) {
     if (standard.schema.automationKind === "ugc") {
+      if (input.hook) {
+        throw new Error("Explicit hooks are supported only for slideshow runs")
+      }
       return runUgcDraft(services, input)
     }
     if (standard.schema.automationKind === "video") {
@@ -3630,6 +3964,7 @@ async function runAutomationDraft(
       automationId: input.automationId,
       force: true,
       requestId: input.requestId,
+      hook: input.hook,
     })
     const run = result.created[0]
     if (!run) {
@@ -3653,6 +3988,9 @@ async function runAutomationDraft(
 
   const social = await services.getXAutomation(input.automationId)
   if (!social) throw new Error("Automation not found")
+  if (input.hook) {
+    throw new Error("Explicit hooks are supported only for slideshow runs")
+  }
   const existing = (
     await services.listXAutomationRuns(input.automationId)
   ).find((run) => run.requestId === input.requestId)
@@ -3764,6 +4102,7 @@ async function ugcJobOperation(services: LumenClipMcpServices, job: Job) {
     run,
     automationId,
     scheduledFor,
+    stopAfter: clean(payload.stopAfter) || undefined,
   })
 }
 
@@ -3787,6 +4126,7 @@ async function ugcOperationEnvelope(
     run: UgcRunStatus | null
     automationId: string
     scheduledFor: string
+    stopAfter?: string
   }
 ) {
   const outputId =
@@ -3803,13 +4143,20 @@ async function ugcOperationEnvelope(
     input.job?.status === "dead" ||
     input.run?.status === "failed" ||
     output?.status === "failed"
-  const succeeded = output?.status === "ready"
+  const stageSucceeded = Boolean(
+    input.stopAfter &&
+    input.job?.status === "completed" &&
+    input.run?.checkpoints[input.stopAfter]
+  )
+  const succeeded = output?.status === "ready" || stageSucceeded
   const status = failed ? "failed" : succeeded ? "succeeded" : "running"
   const activeStage = input.run?.stages.find(
     (stage) => stage.status === "active" || stage.status === "failed"
   )?.name
   const stage = succeeded
-    ? "complete"
+    ? input.stopAfter
+      ? input.stopAfter
+      : "complete"
     : failed
       ? (activeStage ?? "failed")
       : (activeStage ?? input.job?.status ?? input.run?.status ?? "queued")
@@ -3821,7 +4168,7 @@ async function ugcOperationEnvelope(
     runId: input.run?.id,
     operation: {
       id: input.id,
-      kind: "ugc.generate",
+      kind: input.stopAfter ? `ugc.stage.${input.stopAfter}` : "ugc.generate",
       status,
       stage,
       progress:
@@ -3834,7 +4181,7 @@ async function ugcOperationEnvelope(
       resourceUri: `lumenclip://operations/${encodeURIComponent(input.id)}`,
     },
     outputs:
-      succeeded && output
+      succeeded && output && !input.stopAfter
         ? [
             {
               id: output.id,
@@ -4525,6 +4872,30 @@ async function getAutomationOutput(
   }
 }
 
+async function slideshowWorkflowTrace(
+  services: LumenClipMcpServices,
+  outputId: string
+) {
+  const runs = await services.listAutomationRuns({ limit: 500 })
+  const run = runs.find(
+    (candidate) =>
+      candidate.slideshowId === outputId || candidate.id === outputId
+  )
+  if (!run?.slideshowId) throw new Error("Slideshow workflow not found")
+  const [automation, slideshows] = await Promise.all([
+    services.getAutomationRecord(run.automationId),
+    services.listSlideshowRecords({ id: run.slideshowId, limit: 1 }),
+  ])
+  const slideshow = slideshows[0]
+  if (!slideshow) throw new Error("Slideshow output not found")
+  const qa = validateAutomationRunOutput({
+    run,
+    schema: automation?.schema,
+    priorRuns: runs,
+  })
+  return buildSlideshowWorkflowTrace({ run, automation, slideshow, qa })
+}
+
 function outputAnalyticsSummary(
   publications: PostFastPostRecord[],
   snapshots: PostFastMetricSnapshot[],
@@ -4762,6 +5133,8 @@ function regularOperation(
           {
             id: outputId,
             outputType: "slideshow",
+            title: run.plan.title,
+            hook: run.plan.hook,
             publicationState: "not_published",
             qaFindings: qa?.findings ?? [],
             qaValid: qa?.valid,
@@ -7400,6 +7773,7 @@ function buildRunSlides(run: AutomationRunRecord) {
     return {
       index: index + 1,
       role: planSlide.role,
+      text: renderedSlide?.text || planSlide.text,
       renderedImageUrl: absoluteAssetUrl(renderedPath),
       sourceImageUrl: sourcePath ? absoluteAssetUrl(sourcePath) : undefined,
     }
@@ -7412,6 +7786,7 @@ function slideshowDeliveryFields(ownerId: string, outputId: string) {
   return delivery
     ? {
         previewUrl: delivery.previewUrl,
+        workflowUrl: delivery.workflowUrl,
         downloadUrl: delivery.downloadUrl,
       }
     : {}

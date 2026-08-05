@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 
 import { clean } from "@/lib/guards"
 import { outputPublicationsOwnerId } from "@/lib/output-publications"
@@ -189,51 +189,62 @@ export async function upsertGeneratedPostIntents(
 ): Promise<Post[]> {
   if (postRepositoryWriteMode() === "legacy") return []
   const ownerId = await outputPublicationsOwnerId()
+  const posts = buildGeneratedPostIntents(input, ownerId)
+  return Promise.all(posts.map((post) => postRepository.upsertPost(post)))
+}
+
+/** Pure mapping used by storage-stage composites before any identity/post call. */
+export function buildGeneratedPostIntents(
+  input: GeneratedPostIntentInput,
+  ownerId: string
+): Post[] {
   const generatedAt = clean(input.generatedAt) || new Date().toISOString()
   const destinations = (input.destinations ?? []).filter(
     (destination) =>
       clean(destination.integrationId) && clean(destination.provider)
   )
   const targets = destinations.length ? destinations : [null]
-  const posts = targets.map((destination): Post => ({
-    schemaVersion: 1,
-    id: randomUUID(),
-    intentId: destination
+  return targets.map((destination): Post => {
+    const intentId = destination
       ? destinationIntentId({
           sourceType: input.sourceType,
           sourceId: input.sourceId,
           outputId: input.outputId,
           integrationId: destination.integrationId,
         })
-      : unassignedIntentId(input.outputId),
-    ownerId,
-    origin: "automation_generation",
-    sourceType: input.sourceType,
-    sourceId: clean(input.sourceId),
-    sourceRefs: publicationSourceRefs(input),
-    outputId: clean(input.outputId),
-    automationId: clean(input.automationId) || undefined,
-    runId: clean(input.runId) || undefined,
-    sourceEntityId: clean(input.sourceEntityId) || undefined,
-    lifecycleStatus: "ready",
-    publishMode: input.publishMode,
-    linkState: "unlinked",
-    integrationId: destination ? clean(destination.integrationId) : undefined,
-    provider: destination?.provider as Post["provider"],
-    statsSources: [],
-    content: clean(input.content),
-    hashtags: [],
-    contentType: generatedContentType(input),
-    media: (input.media ?? []).flatMap((item, index) => {
-      const url = clean(item.url)
-      return url ? [{ kind: item.kind, url, order: index }] : []
-    }),
-    generatedAt,
-    readyAt: generatedAt,
-    createdAt: generatedAt,
-    updatedAt: generatedAt,
-  }))
-  return Promise.all(posts.map((post) => postRepository.upsertPost(post)))
+      : unassignedIntentId(input.outputId)
+    return {
+      schemaVersion: 1,
+      id: `intent-${createHash("sha256").update(`${ownerId}:${intentId}`).digest("hex").slice(0, 28)}`,
+      intentId,
+      ownerId,
+      origin: "automation_generation",
+      sourceType: input.sourceType,
+      sourceId: clean(input.sourceId),
+      sourceRefs: publicationSourceRefs(input),
+      outputId: clean(input.outputId),
+      automationId: clean(input.automationId) || undefined,
+      runId: clean(input.runId) || undefined,
+      sourceEntityId: clean(input.sourceEntityId) || undefined,
+      lifecycleStatus: "ready",
+      publishMode: input.publishMode,
+      linkState: "unlinked",
+      integrationId: destination ? clean(destination.integrationId) : undefined,
+      provider: destination?.provider as Post["provider"],
+      statsSources: [],
+      content: clean(input.content),
+      hashtags: [],
+      contentType: generatedContentType(input),
+      media: (input.media ?? []).flatMap((item, index) => {
+        const url = clean(item.url)
+        return url ? [{ kind: item.kind, url, order: index }] : []
+      }),
+      generatedAt,
+      readyAt: generatedAt,
+      createdAt: generatedAt,
+      updatedAt: generatedAt,
+    }
+  })
 }
 
 export async function markOutputPostPublished(input: {

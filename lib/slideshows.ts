@@ -1,5 +1,5 @@
 import { clean } from "@/lib/guards"
-import { randomUUID } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import {
   copyFile,
   mkdtemp,
@@ -101,6 +101,7 @@ export type SlideshowRenderOutputs = {
 export type SlideshowRecord = SlideshowDraft & SlideshowRenderOutputs
 
 export type CreateSlideshowInput = {
+  ownerId?: string
   rootDir?: string
   resultRootDir?: string
   runId?: string
@@ -218,6 +219,355 @@ export async function createSlideshowResultRecord(input: CreateSlideshowInput) {
     slideshow: resultRecordToSlideshowRecord(result) ?? recordWithOutputs,
     result,
   }
+}
+
+export type StagedSlideshowAsset = {
+  fileName: string
+  filePath: string
+  extension: string
+  publicUrl: string
+}
+
+/** Local-only initialization for the resumable MCP render protocol. */
+export async function prepareSlideshowResultRender(
+  input: CreateSlideshowInput
+) {
+  const now = normalizeDate(input.createdAt, new Date().toISOString())
+  const id = clean(input.runId)
+    ? `slideshow-${createHash("sha256")
+        .update(`${clean(input.ownerId)}:${clean(input.runId)}`)
+        .digest("hex")
+        .slice(0, 24)}`
+    : `slideshow-${randomUUID()}`
+  const record = normalizeSlideshowRecord({
+    id,
+    automationId: clean(input.automationId) || undefined,
+    title: clean(input.title) || "New Slideshow",
+    caption: clean(input.caption),
+    hashtags: clean(input.hashtags),
+    status: input.status ?? "exported",
+    prompt: clean(input.prompt),
+    image_collection: clean(input.image_collection),
+    slideshow_type: clean(input.slideshow_type) || "educational",
+    created_at: now,
+    updated_at: now,
+    settings: { ...defaultSlideshowSettings(), ...input.settings },
+    images: input.images ?? [],
+    video_url: clean(input.video_url) || undefined,
+    thumbnail_url: clean(input.thumbnail_url) || undefined,
+  })
+  const scratchDir = await mkdtemp(path.join(os.tmpdir(), "cfarm-slideshow-"))
+  return {
+    record,
+    scratchDir,
+    storageOutputDir: path.join(
+      input.rootDir ?? defaultRootDir(),
+      "outputs",
+      record.id
+    ),
+  }
+}
+
+export function slideshowAssetRequests(record: SlideshowRecord) {
+  return record.images.flatMap((slide, slideIndex) => {
+    const requests = [
+      {
+        key: `${slideIndex}:source`,
+        slideIndex,
+        role: "source",
+        sourceUrl: slide.source_image_url || slide.image_url,
+      },
+    ]
+    const overlayUrl =
+      slide.overlayImage?.source_image_url || slide.overlayImage?.image_url
+    if (overlayUrl) {
+      requests.push({
+        key: `${slideIndex}:overlay`,
+        slideIndex,
+        role: "overlay",
+        sourceUrl: overlayUrl,
+      })
+    }
+    for (const [iconIndex, icon] of (
+      slide.iconLayout?.surrounding ?? []
+    ).entries()) {
+      requests.push({
+        key: `${slideIndex}:icon:${iconIndex}`,
+        slideIndex,
+        role: `icon-${String(iconIndex + 1).padStart(2, "0")}`,
+        sourceUrl: icon.source_image_url || icon.image_url,
+      })
+    }
+    return requests
+  })
+}
+
+/** One Appwrite Storage read plus local staging; rejects remote URLs. */
+export async function stageOneStoredSlideshowAsset(input: {
+  scratchDir: string
+  slideshowId: string
+  slideIndex: number
+  role: string
+  sourceUrl: string
+}): Promise<StagedSlideshowAsset> {
+  assertSlideshowScratch(input.scratchDir)
+  const sourcePath = localAssetPathForUrl(input.sourceUrl)
+  if (!sourcePath) throw new Error("A stored slideshow asset URL is required")
+  const requestedExtension = imageExtensionFromUrl(input.sourceUrl)
+  const filePath = path.join(
+    input.scratchDir,
+    `${input.role}-${String(input.slideIndex + 1).padStart(3, "0")}${requestedExtension}`
+  )
+  await writeFile(filePath, await readAssetBytes(sourcePath))
+  return normalizeMaterializedImageSource({
+    outputDir: input.scratchDir,
+    slideshowId: input.slideshowId,
+    slideIndex: input.slideIndex,
+    filePath,
+    fallbackExtension: requestedExtension,
+    prefix: input.role,
+  })
+}
+
+/** One HTTP response plus local staging; rejects local/storage URLs. */
+export async function stageOneRemoteSlideshowAsset(input: {
+  scratchDir: string
+  slideshowId: string
+  slideIndex: number
+  role: string
+  sourceUrl: string
+}): Promise<StagedSlideshowAsset> {
+  assertSlideshowScratch(input.scratchDir)
+  if (!/^https?:\/\//i.test(input.sourceUrl)) {
+    throw new Error("A remote slideshow asset URL is required")
+  }
+  const remote = await fetchRemoteAsset(input.sourceUrl)
+  if (!remote) throw new Error("Could not stage remote slideshow asset")
+  const extension = imageExtensionFromBuffer(remote.body) ?? remote.extension
+  const fileName = `${input.role}-${String(input.slideIndex + 1).padStart(3, "0")}${extension}`
+  const filePath = path.join(input.scratchDir, fileName)
+  await writeFile(filePath, remote.body)
+  return {
+    fileName,
+    filePath,
+    extension,
+    publicUrl: outputFileUrl(input.slideshowId, fileName),
+  }
+}
+
+/** CPU/file-only rendering from already staged sources. */
+export async function renderOneStagedSlideshowSlide(input: {
+  scratchDir: string
+  record: SlideshowRecord
+  slideIndex: number
+  source: StagedSlideshowAsset
+  overlay?: StagedSlideshowAsset
+  icons?: StagedSlideshowAsset[]
+}) {
+  assertSlideshowScratch(input.scratchDir)
+  const slide = input.record.images[input.slideIndex]
+  if (!slide) throw new Error("Slide index is out of range")
+  const { configureFontconfig } = await import("@/lib/font-config")
+  configureFontconfig()
+  const { renderSlideshowSlideBuffers } =
+    await import("@/lib/slideshow-raster-renderer")
+  const { svg, png } = await renderSlideshowSlideBuffers({
+    slide,
+    sourceUrl: await imageDataUri(
+      input.source.filePath,
+      input.source.extension
+    ),
+    overlayUrl: input.overlay
+      ? await imageDataUri(input.overlay.filePath, input.overlay.extension)
+      : undefined,
+    aspectRatio: input.record.settings.aspect_ratio,
+    font: input.record.settings.font,
+    iconUrls: await Promise.all(
+      (input.icons ?? []).map((icon) =>
+        imageDataUri(icon.filePath, icon.extension)
+      )
+    ),
+  })
+  const base = `slide-${String(input.slideIndex + 1).padStart(3, "0")}`
+  await writeFile(path.join(input.scratchDir, `${base}.svg`), svg)
+  await writeFile(path.join(input.scratchDir, `${base}.png`), png)
+  return {
+    publicUrl: outputFileUrl(input.record.id, `${base}.png`),
+    rasterPublicUrl: outputFileUrl(input.record.id, `${base}.png`),
+    sourcePublicUrl: input.source.publicUrl,
+    overlayPublicUrl: input.overlay?.publicUrl,
+    iconPublicUrls: (input.icons ?? []).map((icon) => icon.publicUrl),
+  }
+}
+
+export function assembleSlideshowRenderRecord(input: {
+  record: SlideshowRecord
+  outputs: Array<{
+    publicUrl: string
+    sourcePublicUrl: string
+    overlayPublicUrl?: string
+    iconPublicUrls?: string[]
+  }>
+}) {
+  return {
+    ...input.record,
+    output_dir: outputDirUrl(input.record.id),
+    output_images: input.outputs.map((output) => output.publicUrl),
+    images: input.record.images.map((slide, index) => {
+      const output = input.outputs[index]
+      return {
+        ...slide,
+        image_url: output.publicUrl,
+        source_image_url: output.sourcePublicUrl,
+        overlayImage: slide.overlayImage
+          ? {
+              ...slide.overlayImage,
+              source_image_url:
+                output.overlayPublicUrl ||
+                slide.overlayImage.source_image_url ||
+                slide.overlayImage.image_url,
+            }
+          : undefined,
+        iconLayout: slide.iconLayout
+          ? {
+              ...slide.iconLayout,
+              surrounding: slide.iconLayout.surrounding.map(
+                (icon, iconIndex) => ({
+                  ...icon,
+                  source_image_url:
+                    output.iconPublicUrls?.[iconIndex] ||
+                    icon.source_image_url ||
+                    icon.image_url,
+                })
+              ),
+            }
+          : undefined,
+      }
+    }),
+  } satisfies SlideshowRecord
+}
+
+export async function slideshowScratchFiles(scratchDir: string) {
+  assertSlideshowScratch(scratchDir)
+  const { readdir } = await import("node:fs/promises")
+  return (await readdir(scratchDir, { withFileTypes: true }))
+    .filter((entry) => entry.isFile())
+    .map((entry) => ({
+      fileName: entry.name,
+      localPath: path.join(scratchDir, entry.name),
+    }))
+}
+
+export async function discardSlideshowScratch(scratchDir: string) {
+  assertSlideshowScratch(scratchDir)
+  await rm(scratchDir, { recursive: true, force: true })
+}
+
+function assertSlideshowScratch(scratchDir: string) {
+  const resolved = path.resolve(scratchDir)
+  if (!path.basename(resolved).startsWith("cfarm-slideshow-")) {
+    throw new Error("Unsupported slideshow scratch directory")
+  }
+  return resolved
+}
+
+export async function renderStoredSlideshowVideo(input: {
+  id: string
+  rootDir?: string
+  resultRootDir?: string
+  durationSeconds?: number
+}) {
+  const prepared = await prepareStoredSlideshowVideo(input)
+  try {
+    const rendered = await materializeSlideshowVideo({
+      outputDir: prepared.scratchDir,
+      storageOutputDir: prepared.storageOutputDir,
+      slideshowId: prepared.slideshowId,
+      durationSeconds: prepared.durationSeconds,
+      slideImagePaths: prepared.slideImagePaths,
+    })
+    await mirrorDirToAppwrite(prepared.scratchDir, prepared.storageOutputDir)
+    return finalizeStoredSlideshowVideo({ ...prepared, ...rendered })
+  } finally {
+    await rm(prepared.scratchDir, { recursive: true, force: true })
+  }
+}
+
+export async function prepareStoredSlideshowVideo(input: {
+  id: string
+  rootDir?: string
+  resultRootDir?: string
+  durationSeconds?: number
+}) {
+  const result = await resultRecordForSlideshow(input, input.id)
+  const slideshow = result ? resultRecordToSlideshowRecord(result) : null
+  if (!result || !slideshow) throw new Error("Rendered slideshow not found")
+  if (slideshow.output_images.length === 0) {
+    throw new Error("Video export requires rendered PNG slides")
+  }
+  const rootDir = input.rootDir ?? defaultRootDir()
+  const storageOutputDir = path.join(rootDir, "outputs", slideshow.id)
+  const scratchDir = await mkdtemp(
+    path.join(os.tmpdir(), "cfarm-slideshow-video-")
+  )
+  const slideImagePaths: string[] = []
+  for (const [index, outputImage] of slideshow.output_images.entries()) {
+    const fileName = path.basename(
+      new URL(outputImage, "http://local").pathname
+    )
+    const logicalPath = path.join(storageOutputDir, fileName)
+    const scratchPath = path.join(
+      scratchDir,
+      fileName || `slide-${String(index + 1).padStart(3, "0")}.png`
+    )
+    await writeFile(scratchPath, await readAssetBytes(logicalPath))
+    slideImagePaths.push(scratchPath)
+  }
+  const thumbnailPath = path.join(scratchDir, "slideshow-thumbnail.png")
+  await copyFile(slideImagePaths[0], thumbnailPath)
+  return {
+    slideshowId: slideshow.id,
+    resultId: result.id,
+    resultRootDir: resultRootDirFor(input),
+    scratchDir,
+    storageOutputDir,
+    slideImagePaths,
+    thumbnailPath,
+    durationSeconds: input.durationSeconds ?? slideshow.settings.duration,
+    videoUrl: outputFileUrl(slideshow.id, "slideshow-export.mp4"),
+    thumbnailUrl: outputFileUrl(slideshow.id, "slideshow-thumbnail.png"),
+  }
+}
+
+export async function finalizeStoredSlideshowVideo(input: {
+  resultId: string
+  resultRootDir?: string
+  videoUrl: string
+  thumbnailUrl: string
+}) {
+  const updated = await updateResultRecord({
+    rootDir: input.resultRootDir,
+    id: input.resultId,
+    update: (record) => ({
+      ...record,
+      updatedAt: new Date().toISOString(),
+      artifacts: {
+        ...record.artifacts,
+        videoUrl: input.videoUrl,
+        thumbnailUrl: input.thumbnailUrl,
+      },
+      payload:
+        record.payload?.type === "slideshow"
+          ? {
+              ...record.payload,
+              settings: { ...record.payload.settings, export_as_video: true },
+            }
+          : record.payload,
+    }),
+  })
+  const stored = updated ? resultRecordToSlideshowRecord(updated) : null
+  if (!stored) throw new Error("Rendered slideshow could not be updated")
+  return stored
 }
 
 export async function recordSlideshowPostIntents(

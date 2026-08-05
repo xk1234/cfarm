@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { IconBrandTiktok, IconLoader2 } from "@tabler/icons-react"
 import { toast } from "sonner"
 
@@ -10,12 +10,10 @@ import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import { fetchJsonWithTimeout } from "@/lib/client-api"
 import {
   connectTikTokStudioCompanion,
+  discoverTikTokStudioPosts,
   type TikTokStudioCompanionConfig,
 } from "@/lib/tiktok-studio-companion"
-import type {
-  TikTokStudioBatchMode,
-  TikTokStudioBatchView,
-} from "@/lib/tiktok-studio-analytics"
+import type { TikTokStudioBatchView } from "@/lib/tiktok-studio-analytics"
 import type { SocialIntegration } from "@/lib/social/provider-contract"
 
 type StartBatchResponse = {
@@ -25,16 +23,16 @@ type StartBatchResponse = {
 
 export function TikTokStudioBatchDialog({
   accounts,
+  autoStart = false,
   onClose,
   onLinked,
 }: {
   accounts: SocialIntegration[]
+  autoStart?: boolean
   onClose: () => void
   onLinked: () => void
 }) {
   const integrationIds = accounts.map((account) => account.integration_id)
-  const [mode, setMode] = useState<TikTokStudioBatchMode>("new")
-  const [postReferences, setPostReferences] = useState("")
   const [seedIntegrationId, setSeedIntegrationId] = useState(
     integrationIds[0] ?? ""
   )
@@ -43,7 +41,12 @@ export function TikTokStudioBatchDialog({
     useState<TikTokStudioCompanionConfig | null>(null)
   const [starting, setStarting] = useState(false)
   const [connecting, setConnecting] = useState(false)
+  const [discoveryMessage, setDiscoveryMessage] = useState("")
   const notifiedLinked = useRef(false)
+  const autoStarted = useRef(false)
+  const discoveredPosts = useRef<
+    Awaited<ReturnType<typeof discoverTikTokStudioPosts>> | undefined
+  >(undefined)
 
   useEffect(() => {
     if (
@@ -72,79 +75,101 @@ export function TikTokStudioBatchDialog({
     }
   }, [batch, onLinked])
 
-  async function start() {
-    setStarting(true)
-    try {
-      const result = await fetchJsonWithTimeout<StartBatchResponse>(
-        "/api/tiktok-studio-analytics",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            action: "start_batch",
-            integrationIds,
-            mode,
-            recentDays: mode === "recent" ? 90 : undefined,
-          }),
-        }
-      )
-      setBatch(result.batch)
-      setCompanion(result.companion)
-      await connect(result.companion)
-    } finally {
-      setStarting(false)
-    }
-  }
+  const connect = useCallback(
+    async (config = companion) => {
+      if (!config) return
+      setConnecting(true)
+      try {
+        await connectTikTokStudioCompanion(config, { autoStart: true })
+        toast.success("Chrome companion connected; analytics sync started")
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Chrome companion not detected"
+        )
+      } finally {
+        setConnecting(false)
+      }
+    },
+    [companion]
+  )
 
-  async function startSeedBatch() {
-    setStarting(true)
-    try {
-      const result = await fetchJsonWithTimeout<StartBatchResponse>(
-        "/api/tiktok-studio-analytics",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            action: "start_seed_batch",
-            integrationId: seedIntegrationId,
-            postReferences,
-          }),
+  const start = useCallback(
+    async (automatic = false) => {
+      setStarting(true)
+      setDiscoveryMessage("Reading posts from TikTok Studio Content…")
+      try {
+        const posts =
+          discoveredPosts.current ?? (await discoverTikTokStudioPosts())
+        discoveredPosts.current = posts
+        const handles = [
+          ...new Set(posts.map((post) => post.accountHandle).filter(Boolean)),
+        ]
+        const detectedIntegrationId = matchingIntegrationId(accounts, handles)
+        if (automatic && accounts.length > 1 && !detectedIntegrationId) {
+          setDiscoveryMessage(
+            `Found ${posts.length} ${posts.length === 1 ? "post" : "posts"}${handles.length === 1 ? ` from @${handles[0]}` : ""}. Choose the matching account, then import all posts.`
+          )
+          return
         }
-      )
-      setBatch(result.batch)
-      setCompanion(result.companion)
-      await connect(result.companion)
-    } finally {
-      setStarting(false)
-    }
-  }
+        const integrationId = detectedIntegrationId || seedIntegrationId
+        if (
+          detectedIntegrationId &&
+          detectedIntegrationId !== seedIntegrationId
+        ) {
+          setSeedIntegrationId(detectedIntegrationId)
+        }
+        setDiscoveryMessage(
+          `Found ${posts.length} ${posts.length === 1 ? "post" : "posts"}${handles.length === 1 ? ` from @${handles[0]}` : ""}. Creating LumenClip publications…`
+        )
+        const result = await fetchJsonWithTimeout<StartBatchResponse>(
+          "/api/tiktok-studio-analytics",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              action: "start_discovered_batch",
+              integrationId,
+              posts,
+            }),
+            timeoutMs: 120_000,
+            toastOnError: false,
+          }
+        )
+        setBatch(result.batch)
+        setCompanion(result.companion)
+        setDiscoveryMessage(
+          `${posts.length} ${posts.length === 1 ? "post" : "posts"} imported. Starting analytics capture…`
+        )
+        await connect(result.companion)
+      } catch (error) {
+        setDiscoveryMessage("")
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "TikTok posts could not be imported"
+        )
+      } finally {
+        setStarting(false)
+      }
+    },
+    [accounts, connect, seedIntegrationId]
+  )
 
-  async function connect(config = companion) {
-    if (!config) return
-    setConnecting(true)
-    try {
-      await connectTikTokStudioCompanion(config, { autoStart: true })
-      toast.success("Chrome companion connected; analytics sync started")
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Chrome companion not detected"
-      )
-    } finally {
-      setConnecting(false)
-    }
-  }
+  useEffect(() => {
+    if (!autoStart || autoStarted.current) return
+    autoStarted.current = true
+    void start(true)
+  }, [autoStart, start])
 
   return (
     <AppModal onClose={onClose}>
       <AppModalPanel
-        accessibleTitle="Sync TikTok Studio"
+        accessibleTitle="Import TikTok Studio posts"
         className="max-h-[calc(100dvh-2rem)] max-w-[780px] overflow-y-auto"
       >
-        <AppModalHeader
-          title="Sync TikTok Studio"
-          description="Capture every linked post in sequence from your logged-in Chrome session."
-          onClose={onClose}
-        />
+        <AppModalHeader title="Import TikTok Studio posts" onClose={onClose} />
         <div className="p-5 sm:p-6">
           {!batch ? (
             <div className="rounded-[14px] border border-app-panel-border bg-app-surface-subtle p-5">
@@ -152,107 +177,64 @@ export function TikTokStudioBatchDialog({
                 <IconBrandTiktok className="size-5" />
               </div>
               <h3 className="mt-4 text-[16px] font-semibold tracking-[-0.02em] text-app-text">
-                Choose which linked posts to sync
+                Import every post from TikTok Studio
               </h3>
-              <p className="mt-2 max-w-[600px] text-[12px] leading-5 font-medium text-app-muted-text">
-                LumenClip sends the companion an explicit list of linked TikTok
-                post IDs. The companion visits each Studio report one at a time
-                and never sends cookies or browser storage.
-              </p>
               <label className="mt-5 block max-w-[320px]">
                 <span className="mb-1.5 block text-[11px] font-semibold text-app-text">
-                  Sync scope
+                  Save posts under
                 </span>
                 <SelectControl
-                  aria-label="TikTok Studio sync scope"
-                  value={mode}
-                  onChange={(event) =>
-                    setMode(event.target.value as TikTokStudioBatchMode)
-                  }
+                  aria-label="Target TikTok account"
+                  value={seedIntegrationId}
+                  onChange={(event) => setSeedIntegrationId(event.target.value)}
                 >
-                  <option value="new">New posts only</option>
-                  <option value="recent">Posts from the last 90 days</option>
-                  <option value="all">All linked posts</option>
+                  {accounts.map((account) => (
+                    <option
+                      key={account.integration_id}
+                      value={account.integration_id}
+                    >
+                      {account.profile
+                        ? `${account.name} (${account.profile})`
+                        : account.name || account.integration_id}
+                    </option>
+                  ))}
                 </SelectControl>
               </label>
+              <p className="mt-4 max-w-[600px] text-[12px] leading-5 font-medium text-app-muted-text">
+                The companion reads the Content table, creates missing LumenClip
+                publications, then visits each private analytics report. It
+                never reads cookies, passwords, or browser storage.
+              </p>
               <Button
                 className="mt-5"
                 variant="action"
                 size="appDefault"
                 onClick={() => void start()}
-                disabled={starting}
+                disabled={starting || !seedIntegrationId}
               >
                 {starting ? (
                   <IconLoader2 className="size-4 animate-spin" />
                 ) : (
                   <IconBrandTiktok className="size-4" />
                 )}
-                Create account sync
+                Import all posts
               </Button>
-
-              <div className="mt-6 border-t border-app-panel-border pt-5">
-                <h3 className="text-[14px] font-semibold tracking-[-0.01em] text-app-text">
-                  Import specific posts
-                </h3>
-                <div className="mt-4 grid gap-4 sm:grid-cols-[220px_1fr]">
-                  <label className="block">
-                    <span className="mb-1.5 block text-[11px] font-semibold text-app-text">
-                      TikTok account
-                    </span>
-                    <SelectControl
-                      aria-label="Target TikTok account"
-                      value={seedIntegrationId}
-                      onChange={(event) =>
-                        setSeedIntegrationId(event.target.value)
-                      }
-                    >
-                      {accounts.map((account) => (
-                        <option
-                          key={account.integration_id}
-                          value={account.integration_id}
-                        >
-                          {account.name || account.integration_id}
-                        </option>
-                      ))}
-                    </SelectControl>
-                  </label>
-                  <label className="block">
-                    <span className="mb-1.5 block text-[11px] font-semibold text-app-text">
-                      Post URLs or IDs
-                    </span>
-                    <textarea
-                      aria-label="TikTok post URLs or external IDs"
-                      className="app-control min-h-24 w-full resize-y px-3 py-2 text-sm font-medium text-app-text placeholder:text-app-text-faint"
-                      value={postReferences}
-                      onChange={(event) =>
-                        setPostReferences(event.target.value)
-                      }
-                      placeholder={"One full TikTok URL or raw ID per line"}
-                    />
-                  </label>
-                </div>
-                <Button
-                  className="mt-4"
-                  variant="softControl"
-                  size="appDefault"
-                  onClick={() => void startSeedBatch()}
-                  disabled={
-                    starting || !seedIntegrationId || !postReferences.trim()
-                  }
+              {discoveryMessage ? (
+                <p
+                  role="status"
+                  className="mt-4 text-[11px] leading-5 font-semibold text-app-muted-text"
                 >
-                  {starting ? (
-                    <IconLoader2 className="size-4 animate-spin" />
-                  ) : (
-                    <IconBrandTiktok className="size-4" />
-                  )}
-                  Import specific posts
-                </Button>
-              </div>
+                  {discoveryMessage}
+                </p>
+              ) : null}
             </div>
           ) : (
             <>
               <div className="grid gap-3 sm:grid-cols-3">
-                <ProgressCard label="Linked posts" value={batch.counts.total} />
+                <ProgressCard
+                  label="Imported posts"
+                  value={batch.counts.total}
+                />
                 <ProgressCard
                   label="Captured"
                   value={batch.counts.captured}
@@ -298,7 +280,7 @@ export function TikTokStudioBatchDialog({
                     Download Chrome companion
                   </a>
                   <span>
-                    Install or reload version 1.2.0 once. No pairing codes are
+                    Install or reload version 2.3.0 once. No pairing codes are
                     required.
                   </span>
                 </div>
@@ -341,6 +323,29 @@ export function TikTokStudioBatchDialog({
       </AppModalPanel>
     </AppModal>
   )
+}
+
+function matchingIntegrationId(
+  accounts: SocialIntegration[],
+  handles: (string | undefined)[]
+) {
+  const identities = new Set(
+    handles.map(normalizedAccountIdentity).filter(Boolean)
+  )
+  if (identities.size !== 1) return undefined
+  const matches = accounts.filter((account) =>
+    [account.profile, account.name]
+      .map(normalizedAccountIdentity)
+      .some((identity) => identities.has(identity))
+  )
+  return matches.length === 1 ? matches[0]?.integration_id : undefined
+}
+
+function normalizedAccountIdentity(value: string | undefined) {
+  return String(value || "")
+    .trim()
+    .replace(/^@+/, "")
+    .toLowerCase()
 }
 
 function ProgressCard({

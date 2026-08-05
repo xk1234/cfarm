@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest"
 import { selectSlideshowHook } from "@/lib/slideshow-generation-engine"
 import {
   resolveSlideshowCaption,
+  selectedBodySlideCount,
+  slideSpecs,
   slideshowMetadataPromptInstructions,
   slideshowStructurePromptInstructions,
 } from "@/lib/slideshow-plan-core"
@@ -104,6 +106,35 @@ describe("slideshow plan metadata and hook overrides", () => {
         text: "12 zodiac signs, ranked",
         substitutions: { SLIDE_COUNT: "12" },
       },
+    })
+  })
+
+  it("plans exactly one hook slide when content and CTA are disabled", () => {
+    const schema = {
+      formatting: [
+        { id: "hook", slideCount: 1, textItems: [], noText: true },
+        {
+          id: "body",
+          slideCount: 0,
+          slideCountMode: "static",
+          textItems: [],
+          noText: true,
+        },
+        { id: "cta", slideCount: 0, textItems: [], noText: true },
+      ],
+      image_collection_ids: {
+        first_slide: { collection: "photos" },
+        all_slides: "photos",
+        cta_slide: { check: false, cta_collection_id: "" },
+      },
+    }
+
+    expect(selectedBodySlideCount(schema, 0)).toBe(0)
+    expect(slideSpecs(schema, "Random photo", 0)).toHaveLength(1)
+    expect(slideSpecs(schema, "Random photo", 0)[0]).toMatchObject({
+      section: "hook",
+      index: 0,
+      displayText: false,
     })
   })
 })

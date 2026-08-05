@@ -55,17 +55,20 @@ export async function uploadRendiPart(input) {
     return { part_number: input.partNumber, etag };
 }
 export async function completeRendiUpload(input) {
-    const completed = await rendiJson({
+    const completed = await completeRendiUploadRequest(input);
+    if (completed.status === "STORED" && completed.storage_url) {
+        return completed;
+    }
+    return pollRendiFile(input);
+}
+export async function completeRendiUploadRequest(input) {
+    return rendiJson({
         apiKey: requiredApiKey(input.apiKey),
         path: `/v1/files/${encodeURIComponent(input.fileId)}/complete-upload`,
         method: "POST",
         body: { parts: input.parts },
         fetchImpl: input.fetchImpl,
     });
-    if (completed.status === "STORED" && completed.storage_url) {
-        return completed;
-    }
-    return pollRendiFile(input);
 }
 export async function uploadBytesToRendi(input) {
     const initialized = await initializeRendiUpload({
@@ -95,22 +98,7 @@ export async function uploadBytesToRendi(input) {
 }
 export async function runRendiFfmpegAndDownloadBytes(input) {
     const apiKey = requiredApiKey(input.apiKey);
-    const submitted = await rendiJson({
-        apiKey,
-        path: "/v1/run-ffmpeg-command",
-        method: "POST",
-        body: {
-            ffmpeg_command: input.ffmpegCommand,
-            input_files: input.inputFiles,
-            output_files: input.outputFiles,
-            ...(input.maxCommandRunSeconds
-                ? { max_command_run_seconds: input.maxCommandRunSeconds }
-                : {}),
-            ...(input.vcpuCount ? { vcpu_count: input.vcpuCount } : {}),
-            ...(input.metadata ? { metadata: input.metadata } : {}),
-        },
-        fetchImpl: input.fetchImpl,
-    });
+    const submitted = await submitRendiCommand(input);
     if (!submitted.command_id) {
         throw new Error("Rendi did not return a command id");
     }
@@ -125,31 +113,75 @@ export async function runRendiFfmpegAndDownloadBytes(input) {
     if (!outputFile?.storage_url) {
         throw new Error("Rendi command finished without a downloadable output file");
     }
-    const response = await fetchWithTimeout(outputFile.storage_url, undefined, {
+    return {
+        status,
+        bytes: await downloadRendiOutputBytes({
+            storageUrl: outputFile.storage_url,
+            fetchImpl: input.fetchImpl,
+        }),
+        downloadUrl: outputFile.storage_url,
+    };
+}
+export async function downloadRendiOutputBytes(input) {
+    const response = await fetchWithTimeout(input.storageUrl, undefined, {
         fetchImpl: input.fetchImpl,
         timeoutMs: 120_000,
     });
     if (!response.ok) {
         throw new Error(`Failed to download Rendi output with ${response.status}`);
     }
-    return {
-        status,
-        bytes: Buffer.from(await response.arrayBuffer()),
-        downloadUrl: outputFile.storage_url,
-    };
+    return new Uint8Array(await response.arrayBuffer());
+}
+export async function submitRendiCommand(input) {
+    const submitted = await rendiJson({
+        apiKey: requiredApiKey(input.apiKey),
+        path: "/v1/run-ffmpeg-command",
+        method: "POST",
+        body: {
+            ffmpeg_command: input.ffmpegCommand,
+            input_files: input.inputFiles,
+            output_files: input.outputFiles,
+            ...(input.maxCommandRunSeconds
+                ? { max_command_run_seconds: input.maxCommandRunSeconds }
+                : {}),
+            ...(input.vcpuCount ? { vcpu_count: input.vcpuCount } : {}),
+            ...(input.metadata ? { metadata: input.metadata } : {}),
+        },
+        fetchImpl: input.fetchImpl,
+    });
+    if (!submitted.command_id)
+        throw new Error("Rendi did not return a command id");
+    return submitted;
+}
+export async function getRendiFile(input) {
+    const file = await rendiJson({
+        apiKey: requiredApiKey(input.apiKey),
+        path: `/v1/files/${encodeURIComponent(input.fileId)}`,
+        fetchImpl: input.fetchImpl,
+    });
+    if (file.status === "FAILED") {
+        throw new Error(file.external_error_message ||
+            file.error_status ||
+            "Rendi file upload failed");
+    }
+    return file;
+}
+export async function getRendiCommand(input) {
+    const command = await rendiJson({
+        apiKey: requiredApiKey(input.apiKey),
+        path: `/v1/commands/${encodeURIComponent(input.commandId)}`,
+        fetchImpl: input.fetchImpl,
+    });
+    if (command.status === "FAILED") {
+        throw new Error(command.error_message ||
+            command.error_status ||
+            "Rendi FFmpeg command failed");
+    }
+    return command;
 }
 export async function pollRendiFile(input) {
     return pollUntil(async () => {
-        const file = await rendiJson({
-            apiKey: requiredApiKey(input.apiKey),
-            path: `/v1/files/${encodeURIComponent(input.fileId)}`,
-            fetchImpl: input.fetchImpl,
-        });
-        if (file.status === "FAILED") {
-            throw new Error(file.external_error_message ||
-                file.error_status ||
-                "Rendi file upload failed");
-        }
+        const file = await getRendiFile(input);
         return file.status === "STORED" && file.storage_url ? file : null;
     }, {
         intervalMs: input.pollDelayMs ?? DEFAULT_POLL_DELAY_MS,
@@ -160,17 +192,10 @@ export async function pollRendiFile(input) {
 }
 export async function pollRendiCommand(input) {
     return pollUntil(async () => {
-        const command = await rendiJson({
-            apiKey: requiredApiKey(input.apiKey),
-            path: `/v1/commands/${encodeURIComponent(input.commandId)}`,
-            fetchImpl: input.fetchImpl,
-        });
-        if (command.status === "FAILED") {
-            throw new Error(command.error_message ||
-                command.error_status ||
-                "Rendi FFmpeg command failed");
-        }
-        return command.status === "SUCCESS" ? command : null;
+        const command = await getRendiCommand(input);
+        return ["SUCCESS", "SUCCEEDED", "COMPLETED"].includes(command.status)
+            ? command
+            : null;
     }, {
         intervalMs: input.pollDelayMs ?? DEFAULT_POLL_DELAY_MS,
         maxAttempts: input.pollLimit ?? DEFAULT_COMMAND_POLL_LIMIT,

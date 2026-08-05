@@ -49,7 +49,7 @@ snapshot, not the raw TikTok response or signed media URLs.
 The current loading layout constrains every skeleton with `min-w-0` and
 `max-w-full`, hides overflow at the wrapper, and uses one column on narrow
 screens. The general header has only one Sync analytics control. A distinct
-Sync TikTok Studio control appears only inside the TikTok platform drill-down.
+Import TikTok posts control appears only inside the TikTok platform drill-down.
 No-account and no-snapshot states direct the user to connect accounts or run
 the first sync. If a PostFast integration refresh fails temporarily, stored
 analytics remain visible with an inline warning.
@@ -66,7 +66,19 @@ Compare platform opens an in-place platform drill-down. There the user can
 select multiple accounts, choose any metric exposed for those accounts, switch
 the comparison chart between absolute values and indexed growth, inspect an
 account breakdown, and page through recent posts. TikTok additionally supports
-a Chrome companion batch for new, recent, or all linked posts.
+a Chrome companion import for every post visible in TikTok Studio Content.
+The extension scrolls the virtualized post list, deduplicates native post URLs,
+and restores the user's previous Studio scroll position. LumenClip creates
+missing publication records as published external TikTok posts, then captures
+the private analytics reports. The user does not paste post URLs or IDs.
+
+Opening Analytics from the companion on TikTok Studio Content carries a
+`companion=tiktok-studio` intent. LumenClip opens the import dialog and starts
+post discovery immediately. With one connected TikTok account the import
+continues without another click. With multiple accounts, the detected TikTok
+handle is matched against the account profile; the chooser remains available
+when that match is ambiguous. If no TikTok account is connected, the page names
+that prerequisite in an inline alert.
 
 ## MCP coverage
 

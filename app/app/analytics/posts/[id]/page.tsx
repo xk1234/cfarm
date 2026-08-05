@@ -22,12 +22,17 @@ export const metadata = {
 
 export default async function PostAnalyticsRoute({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{
+    companion?: string | string[]
+    platformPostId?: string | string[]
+  }>
 }) {
   const user = await getCurrentUser()
   if (!user) redirect("/login")
-  const { id } = await params
+  const [{ id }, query] = await Promise.all([params, searchParams])
   const postId = id.trim()
   const [allSnapshots, publication, integrations] = await Promise.all([
     listMetricSnapshots().catch(() => []),
@@ -53,14 +58,14 @@ export default async function PostAnalyticsRoute({
     publication &&
     (publication.sourceType === "slideshow" ||
       publication.sourceType === "automation")
-    ? await getAutomationRunForSlideshow({
-        slideshowId: publication.sourceId,
-        runId:
-          publication.sourceType === "automation"
-            ? publication.sourceId
-            : undefined,
-      }).catch(() => null)
-    : null
+      ? await getAutomationRunForSlideshow({
+          slideshowId: publication.sourceId,
+          runId:
+            publication.sourceType === "automation"
+              ? publication.sourceId
+              : undefined,
+        }).catch(() => null)
+      : null
   const slides = (run?.outputImages ?? []).flatMap((path, index) => {
     const imageUrl = absoluteAssetUrl(path)
     return imageUrl ? [{ index: index + 1, imageUrl }] : []
@@ -77,16 +82,25 @@ export default async function PostAnalyticsRoute({
     <>
       <div className="pt-14 md:pt-0">
         <PostAnalyticsPage
-          snapshots={snapshots}
+          snapshots={snapshots.length ? snapshots : [latest]}
           integration={integration}
           contentType={latest.contentType || contentType}
-          publicationPlatformPostId={publication?.externalPostId}
+          publicationPlatformPostId={
+            publication?.externalPostId ||
+            first(query.platformPostId)?.trim() ||
+            undefined
+          }
           slides={slides}
+          autoCollectComments={first(query.companion) === "tiktok-comments"}
         />
       </div>
       <StandaloneMobileNav />
     </>
   )
+}
+
+function first(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value
 }
 
 function fallbackIntegration(input: {

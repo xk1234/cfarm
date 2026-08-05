@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   listPostFastPostRecords: vi.fn(),
   listMetricSnapshots: vi.fn(),
   canonicalList: vi.fn(),
+  getCurrentUser: vi.fn(),
 }))
 
 vi.mock("@/lib/automations", () => ({
@@ -15,6 +16,9 @@ vi.mock("@/lib/automations", () => ({
 }))
 vi.mock("@/lib/automation-runner", () => ({
   listAutomationRuns: mocks.listAutomationRuns,
+}))
+vi.mock("@/lib/auth", () => ({
+  getCurrentUser: mocks.getCurrentUser,
 }))
 vi.mock("@/lib/generated-videos", () => ({
   listGeneratedVideoExports: mocks.listGeneratedVideoExports,
@@ -49,6 +53,7 @@ beforeEach(() => {
   mocks.listPostFastPostRecords.mockResolvedValue([])
   mocks.listMetricSnapshots.mockResolvedValue([])
   mocks.canonicalList.mockResolvedValue([])
+  mocks.getCurrentUser.mockResolvedValue({ $id: "owner-1" })
 })
 
 afterEach(() => {

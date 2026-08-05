@@ -79,19 +79,12 @@ export async function runGenerationChain(input: {
   if (!brandProfile)
     return { content: draft, verdict: "pass", issues: [], trace }
 
-  const humanized = await contentPass({
-    ...input.humanize,
+  const humanized = await humanizeContent({
+    stage: input.humanize,
     apiKey,
     fetchImpl,
-    system: [
-      input.humanize.system,
-      "Rewrite the draft in a natural, specific human voice without changing facts, format, or meaning.",
-      llmSlopPromptLine(),
-      brand,
-    ]
-      .filter(Boolean)
-      .join("\n\n"),
-    user: `DRAFT:\n${draft}`,
+    brandProfile,
+    content: draft,
   })
   trace.push({
     stage: "humanize",
@@ -99,26 +92,14 @@ export async function runGenerationChain(input: {
     content: humanized,
   })
 
-  const reviewed = await openRouterJson({
+  const reviewed = await reviewContent({
+    stage: input.review,
     apiKey,
     fetchImpl,
-    model: input.review.model,
-    system: [
-      input.review.system,
-      "Review the content against every brand rule and factual constraint. Return pass when no changes are needed. Return fix when you corrected anything; content must always contain the publishable final version.",
-      brand,
-    ]
-      .filter(Boolean)
-      .join("\n\n"),
-    user: `CONTENT:\n${humanized}`,
-    schema: reviewSchema,
-    temperature: 0.2,
+    brandProfile,
+    content: humanized,
   })
-  const verdict = reviewed.verdict === "fix" ? "fix" : "pass"
-  const content = clean(reviewed.content) || humanized
-  const issues = Array.isArray(reviewed.issues)
-    ? reviewed.issues.map(clean).filter(Boolean)
-    : []
+  const { verdict, content, issues } = reviewed
   trace.push({
     stage: "review",
     model: input.review.model,
@@ -127,6 +108,60 @@ export async function runGenerationChain(input: {
     issues,
   })
   return { content, verdict, issues, trace }
+}
+
+export async function humanizeContent(input: {
+  stage: GenerationChainStage
+  apiKey: string
+  content: string
+  brandProfile: BrandProfile
+  fetchImpl?: typeof fetch
+}) {
+  return contentPass({
+    ...input.stage,
+    apiKey: input.apiKey,
+    fetchImpl: input.fetchImpl,
+    system: [
+      input.stage.system,
+      "Rewrite the draft in a natural, specific human voice without changing facts, format, or meaning.",
+      llmSlopPromptLine(),
+      brandProfilePrompt(input.brandProfile),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    user: `DRAFT:\n${input.content}`,
+  })
+}
+
+export async function reviewContent(input: {
+  stage: GenerationChainStage
+  apiKey: string
+  content: string
+  brandProfile: BrandProfile
+  fetchImpl?: typeof fetch
+}) {
+  const reviewed = await openRouterJson({
+    apiKey: input.apiKey,
+    fetchImpl: input.fetchImpl,
+    model: input.stage.model,
+    system: [
+      input.stage.system,
+      "Review the content against every brand rule and factual constraint. Return pass when no changes are needed. Return fix when you corrected anything; content must always contain the publishable final version.",
+      brandProfilePrompt(input.brandProfile),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    user: `CONTENT:\n${input.content}`,
+    schema: reviewSchema,
+    temperature: 0.2,
+  })
+  return {
+    verdict: reviewed.verdict === "fix" ? ("fix" as const) : ("pass" as const),
+    content: clean(reviewed.content) || input.content,
+    issues: Array.isArray(reviewed.issues)
+      ? reviewed.issues.map(clean).filter(Boolean)
+      : [],
+  }
 }
 
 async function contentPass(

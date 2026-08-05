@@ -64,9 +64,15 @@ import {
   selectSlideshowHook,
   selectSlideshowImages,
   slideshowHookSourcePrompt,
+  slideshowHookCombinationUsageKey,
+  slideshowHookUsageKey,
   SlideshowHookCombinationsExhaustedError as HookCombinationsExhaustedError,
   type SlideshowTextGenerationResult,
 } from "@/lib/slideshow-generation-engine"
+import {
+  expandAllHookCombinations,
+  type HookExpansionResult,
+} from "@/lib/hook-expansion"
 import {
   listPostFastPostRecords,
   type PostFastPostRecord,
@@ -195,6 +201,23 @@ export type AutomationRunPlan = {
     webSearchSources?: SlideshowTextGenerationResult["webSearchSources"]
     imageTextCoherenceRepair?: boolean
   }
+}
+
+export type AutomationHookVariant = {
+  index: number
+  hook: string
+  hookId?: string
+  hookTemplate?: string
+  hookSubstitutions?: Record<string, string>
+  title: string
+  caption: string
+  hashtags: string
+  textModel?: string
+  slides: Array<{
+    index: number
+    role: AutomationRunSlideRole
+    text: string
+  }>
 }
 
 export type AutomationRunReuseWarning = {
@@ -447,6 +470,7 @@ export async function runDueAutomations(
     lookbackMinutes?: number
     random?: () => number
     requestId?: string
+    hook?: string
     fetchImpl?: typeof fetch
   } = {}
 ): Promise<AutomationRunResult> {
@@ -518,7 +542,11 @@ export async function runDueAutomations(
         mediaType: "image",
       })),
       wordCollections,
-    })
+    }).filter((blocker) =>
+      clean(input.hook)
+        ? !["missing_hook", "invalid_hook_variable"].includes(blocker.code)
+        : true
+    )
     if (blockers.length > 0) {
       if (record.status === "live") {
         await patchAutomationRecord({
@@ -582,6 +610,7 @@ export async function runDueAutomations(
         usageLedgerRootDir,
         now,
         random: input.random,
+        hook: input.hook,
         fetchImpl: input.fetchImpl,
       }).catch(async (error) => {
         clearAutomationRunProgress(claim.run!.id)
@@ -619,6 +648,9 @@ export async function previewAutomationRunPlan(
     usageLedgerRootDir?: string
     now?: Date
     random?: () => number
+    hook?: string
+    usedHookKeys?: Set<string>
+    usedHookCombinationKeys?: Set<string>
     textModel?: string
     systemPrompt?: string
     promptInstructions?: string
@@ -643,6 +675,101 @@ export async function previewAutomationRunPlan(
   }
 }
 
+export async function previewAutomationHookVariants(
+  schema: AutomationSchema,
+  input: {
+    count: number
+    automationId?: string
+    automationTitle?: string
+    imageCollectionDbPath?: string
+    wordCollectionRootDir?: string
+    usageLedgerRootDir?: string
+    now?: Date
+    random?: () => number
+    textModel?: string
+    systemPrompt?: string
+    promptInstructions?: string
+    fetchImpl?: typeof fetch
+  }
+): Promise<AutomationHookVariant[]> {
+  if (!Number.isInteger(input.count) || input.count < 2 || input.count > 10) {
+    throw new Error("Hook variant count must be an integer from 2 to 10")
+  }
+
+  const hookItems = automationHookItems(schema).filter((item) => item.enabled)
+  const usedHookKeys = new Set<string>()
+  const usedHookCombinationKeys = new Set<string>()
+  const selections: AutomationHookSelection[] = []
+
+  for (let index = 0; index < input.count; index += 1) {
+    let selection: AutomationHookSelection
+    try {
+      selection = await selectAutomationHook({
+        schema,
+        hookItems,
+        automationId: input.automationId,
+        wordCollectionRootDir: input.wordCollectionRootDir,
+        usageLedgerRootDir: input.usageLedgerRootDir,
+        usedHookKeys,
+        usedHookCombinationKeys,
+        now: input.now,
+        random: input.random,
+      })
+    } catch (error) {
+      if (error instanceof HookCombinationsExhaustedError) {
+        throw new Error(
+          `Only ${selections.length} unused hook variations are available; ${input.count} were requested.`
+        )
+      }
+      throw error
+    }
+    selections.push(selection)
+    usedHookKeys.add(slideshowHookUsageKey(selection.expansion.text))
+    usedHookCombinationKeys.add(
+      slideshowHookCombinationUsageKey(
+        selection.expansion.template,
+        selection.expansion.substitutions
+      )
+    )
+  }
+
+  const variants: AutomationHookVariant[] = []
+  for (const [index, selection] of selections.entries()) {
+    const plan = await createAutomationRunPlan(schema, {
+      automationId: input.automationId,
+      automationTitle: input.automationTitle,
+      imageCollectionDbPath: input.imageCollectionDbPath,
+      wordCollectionRootDir: input.wordCollectionRootDir,
+      usageLedgerRootDir: input.usageLedgerRootDir,
+      now: input.now,
+      random: input.random,
+      hook: selection.expansion.text,
+      textModel: input.textModel,
+      systemPrompt: input.systemPrompt,
+      promptInstructions: input.promptInstructions,
+      textOnly: true,
+      fetchImpl: input.fetchImpl,
+    })
+    variants.push({
+      index: index + 1,
+      hook: plan.hook,
+      hookId: plan.hookId,
+      hookTemplate: plan.hookTemplate,
+      hookSubstitutions: plan.hookSubstitutions,
+      title: plan.title,
+      caption: plan.caption,
+      hashtags: plan.hashtags,
+      textModel: plan.textModel,
+      slides: plan.slides.map((slide, slideIndex) => ({
+        index: slideIndex + 1,
+        role: slide.role,
+        text: slide.text,
+      })),
+    })
+  }
+  return variants
+}
+
 async function createAutomationRun(input: {
   claimedRun: AutomationRunRecord
   record: AutomationRecord
@@ -656,6 +783,7 @@ async function createAutomationRun(input: {
   usedHookCombinationKeys?: Set<string>
   now: Date
   random?: () => number
+  hook?: string
   fetchImpl?: typeof fetch
 }) {
   const now = new Date().toISOString()
@@ -672,6 +800,7 @@ async function createAutomationRun(input: {
       usedHookCombinationKeys: input.usedHookCombinationKeys,
       now: input.now,
       random: input.random,
+      hook: input.hook,
       fetchImpl: input.fetchImpl,
       onProgress: (stage, detail) =>
         setAutomationRunProgress(runId, stage, detail),
@@ -1082,6 +1211,7 @@ async function createAutomationRunPlan(
     usedHookCombinationKeys?: Set<string>
     now?: Date
     random?: () => number
+    hook?: string
     textModel?: string
     systemPrompt?: string
     promptInstructions?: string
@@ -1135,19 +1265,31 @@ async function createAutomationRunPlan(
   }
   progress("Selecting hook")
   const hookItems = automationHookItems(schema).filter((item) => item.enabled)
-  const hookCandidates = hookItems.map((item) => item.text)
-  const hookSelection = await selectAutomationHook({
-    schema,
-    hookItems,
-    automationId: options.automationId,
-    wordCollectionRootDir: options.wordCollectionRootDir,
-    usageLedgerRootDir: options.usageLedgerRootDir,
-    usedHookKeys: options.usedHookKeys,
-    usedHookCombinationKeys: options.usedHookCombinationKeys,
-    usageRecords,
-    now: options.now,
-    random: options.random,
-  })
+  const requestedHook = clean(options.hook)
+  const hookCandidates = [
+    ...(requestedHook ? [requestedHook] : []),
+    ...hookItems.map((item) => item.text),
+  ].filter((hook, index, hooks) => hooks.indexOf(hook) === index)
+  const hookSelection: AutomationHookSelection = requestedHook
+    ? await selectExplicitAutomationHook({
+        schema,
+        hookItems,
+        hook: requestedHook,
+        wordCollectionRootDir: options.wordCollectionRootDir,
+        now: options.now,
+      })
+    : await selectAutomationHook({
+        schema,
+        hookItems,
+        automationId: options.automationId,
+        wordCollectionRootDir: options.wordCollectionRootDir,
+        usageLedgerRootDir: options.usageLedgerRootDir,
+        usedHookKeys: options.usedHookKeys,
+        usedHookCombinationKeys: options.usedHookCombinationKeys,
+        usageRecords,
+        now: options.now,
+        random: options.random,
+      })
   if (
     hookSelection.bodySlideCount &&
     hookSelection.bodySlideCount !== selectedContentSlideCount
@@ -1372,7 +1514,8 @@ async function createAutomationRunPlan(
         }
       : undefined,
     debug: {
-      selectedHookIndex: hookSelection.index,
+      selectedHookIndex:
+        hookSelection.index >= 0 ? hookSelection.index : undefined,
       textSimilarityRetry,
       textModelPrompt: textGeneration.promptPayload,
       webSearchSources: textGeneration.webSearchSources,
@@ -1456,10 +1599,11 @@ export function selectContentSlideCount(input: {
   max?: number
   random?: () => number
 }) {
-  const min = Math.max(1, Math.round(input.min ?? input.count))
+  const minimumAllowed = input.mode === "static" ? 0 : 1
+  const min = Math.max(minimumAllowed, Math.round(input.min ?? input.count))
   const max = Math.max(min, Math.round(input.max ?? input.count))
   if (input.mode === "static") {
-    return { count: Math.max(1, Math.round(input.count)), min, max }
+    return { count: Math.max(0, Math.round(input.count)), min, max }
   }
 
   const randomValue = Math.min(
@@ -1470,6 +1614,72 @@ export function selectContentSlideCount(input: {
     count: min + Math.floor(randomValue * (max - min + 1)),
     min,
     max,
+  }
+}
+
+type AutomationHookSelection = {
+  expansion: HookExpansionResult
+  index: number
+  hookId?: string
+  bodySlideCount?: number
+  tone?: string
+  contentDirection?: string
+  content?: string
+}
+
+async function selectExplicitAutomationHook(input: {
+  schema: AutomationSchema
+  hookItems: import("@/lib/realfarm-automation").AutomationHookItem[]
+  hook: string
+  wordCollectionRootDir?: string
+  now?: Date
+}): Promise<AutomationHookSelection> {
+  const wordCollections = await listWordCollections({
+    rootDir: input.wordCollectionRootDir,
+  })
+  const normalizedRequested = slideshowHookUsageKey(input.hook)
+  for (const [index, item] of input.hookItems.entries()) {
+    try {
+      const expansion = expandAllHookCombinations(
+        item.text,
+        input.schema.hook_slots,
+        wordCollections,
+        {
+          noDuplicates: input.schema.distinct_variable_draws !== false,
+          caseMode: input.schema.prompt_formatting.hook_case,
+          now: input.now ?? new Date(),
+          timeZone: input.schema.schedule.timezone,
+          slideCount:
+            item.bodySlideCount ??
+            automationFormatSection(input.schema, "content").slideCount,
+        }
+      ).find(
+        (candidate) =>
+          slideshowHookUsageKey(candidate.text) === normalizedRequested
+      )
+      if (expansion) {
+        return {
+          expansion,
+          index,
+          hookId: item.id,
+          bodySlideCount: item.bodySlideCount,
+          tone: item.tone,
+          contentDirection: item.contentDirection,
+          content: item.content,
+        }
+      }
+    } catch {
+      // A custom hook must remain usable even when another stored template is
+      // malformed. Readiness reports the malformed pool separately.
+    }
+  }
+  return {
+    expansion: {
+      text: input.hook,
+      template: input.hook,
+      substitutions: {},
+    },
+    index: -1,
   }
 }
 
@@ -1484,7 +1694,7 @@ async function selectAutomationHook(input: {
   usageRecords?: UsageRecord[]
   now?: Date
   random?: () => number
-}) {
+}): Promise<AutomationHookSelection> {
   const wordCollections = await listWordCollections({
     rootDir: input.wordCollectionRootDir,
   })

@@ -106,48 +106,12 @@ export async function derivePillarsFromNicheWithDiagnostics(input: {
     const maxAttempts = modelIndex === 0 ? 2 : 1
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
-        const result = await openRouterJson({
+        brief = await deriveXBriefAttempt({
+          niche,
+          model,
           apiKey,
           fetchImpl: input.fetchImpl,
-          model,
-          timeoutMs: 90_000,
-          maxTokens: 2_800,
-          system:
-            "You derive a focused social-content strategy from one niche. Return concrete audience language and distinct content pillars. Never invent performance claims.",
-          user: `Niche: ${niche}\nReturn {"audience":"...","promise":"...","pillars":[{"label":"..."}],"keywords":["..."],"painPoints":["..."]}. Return exactly 3–5 pillars.`,
-          schema: {
-            name: "x_automation_brief",
-            schema: {
-              type: "object",
-              additionalProperties: false,
-              required: [
-                "audience",
-                "promise",
-                "pillars",
-                "keywords",
-                "painPoints",
-              ],
-              properties: {
-                audience: { type: "string" },
-                promise: { type: "string" },
-                pillars: {
-                  type: "array",
-                  minItems: 3,
-                  maxItems: 5,
-                  items: {
-                    type: "object",
-                    additionalProperties: false,
-                    required: ["label"],
-                    properties: { label: { type: "string" } },
-                  },
-                },
-                keywords: { type: "array", items: { type: "string" } },
-                painPoints: { type: "array", items: { type: "string" } },
-              },
-            },
-          },
         })
-        brief = briefFromStrategyResult(result)
         selectedModel = model
         break
       } catch (error) {
@@ -170,6 +134,54 @@ export async function derivePillarsFromNicheWithDiagnostics(input: {
   }
   if (!brief) throw new XStrategyDerivationError(attempts)
   return { brief, attempts, selectedModel }
+}
+
+export async function deriveXBriefAttempt(input: {
+  niche: string
+  model: string
+  apiKey?: string
+  fetchImpl?: typeof fetch
+}) {
+  const niche = clean(input.niche)
+  if (!niche) throw new Error("A niche is required")
+  const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
+  const result = await openRouterJson({
+    apiKey,
+    fetchImpl: input.fetchImpl,
+    model: input.model,
+    timeoutMs: 90_000,
+    maxTokens: 2_800,
+    system:
+      "You derive a focused social-content strategy from one niche. Return concrete audience language and distinct content pillars. Never invent performance claims.",
+    user: `Niche: ${niche}\nReturn {"audience":"...","promise":"...","pillars":[{"label":"..."}],"keywords":["..."],"painPoints":["..."]}. Return exactly 3–5 pillars.`,
+    schema: {
+      name: "x_automation_brief",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["audience", "promise", "pillars", "keywords", "painPoints"],
+        properties: {
+          audience: { type: "string" },
+          promise: { type: "string" },
+          pillars: {
+            type: "array",
+            minItems: 3,
+            maxItems: 5,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["label"],
+              properties: { label: { type: "string" } },
+            },
+          },
+          keywords: { type: "array", items: { type: "string" } },
+          painPoints: { type: "array", items: { type: "string" } },
+        },
+      },
+    },
+  })
+  return briefFromStrategyResult(result)
 }
 
 function briefFromStrategyResult(
@@ -453,6 +465,31 @@ export async function generateXAutomationRun(
       input.enableGenerationChain ??
       process.env.ENABLE_GENERATION_CHAIN === "true",
   })
+  return buildXAutomationRun({
+    automation: input.automation,
+    topic,
+    sourceCandidate: input.sourceCandidate,
+    plan,
+    draft: first,
+    now: input.now,
+  })
+}
+
+export function buildXAutomationRun(input: {
+  automation: XAutomationRecord
+  topic: string
+  sourceCandidate?: XTrendCandidate
+  plan: PostPlan
+  draft: {
+    output: Record<string, unknown>
+    posts: string[]
+    needsReview: boolean
+    errors: string[]
+  }
+  now?: Date
+}): XAutomationRun {
+  const first = input.draft
+  const plan = input.plan
   const posts: XGeneratedPost[] = first.posts.map((text, index) => ({
     id: `${plan.platform}-post-${index + 1}`,
     text,
@@ -471,8 +508,8 @@ export async function generateXAutomationRun(
   const cta = clean(values.closer ?? values.cta)
   const benchmark = benchmarkXRun({
     platform: input.automation.platform,
-    contentType: first.plan.archetype.kind,
-    archetype: first.plan.archetype.id as never,
+    contentType: plan.archetype.kind,
+    archetype: plan.archetype.id as never,
     hook,
     content,
     proof: clean(values.proof),
@@ -485,9 +522,9 @@ export async function generateXAutomationRun(
     id: `x-run-${crypto.randomUUID()}`,
     automationId: input.automation.id,
     automationName: input.automation.name,
-    topic,
-    archetype: first.plan.archetype.id as never,
-    contentType: first.plan.archetype.kind,
+    topic: input.topic,
+    archetype: plan.archetype.id as never,
+    contentType: plan.archetype.kind,
     platform: input.automation.platform as XAutomationPlatform,
     reactionMode: input.sourceCandidate
       ? input.automation.discovery.reactionMode
@@ -502,7 +539,7 @@ export async function generateXAutomationRun(
     posts,
     imagePrompt:
       input.automation.media.mode === "generate"
-        ? `${input.automation.media.prompt}\n\nTopic: ${topic}\nCore idea: ${hook}`
+        ? `${input.automation.media.prompt}\n\nTopic: ${input.topic}\nCore idea: ${hook}`
         : undefined,
     imageUrls: [],
     benchmark,
@@ -530,6 +567,89 @@ async function generatePost(input: {
   fetchImpl?: typeof fetch
   brandProfile?: BrandProfile | null
   enableGenerationChain: boolean
+}) {
+  const request = buildXGenerationRequest({
+    plan: input.plan,
+    record: input.record,
+  })
+  if (input.enableGenerationChain && input.brandProfile) {
+    const chained = await runGenerationChain({
+      generate: {
+        model: input.record.generation.model,
+        system: request.system,
+      },
+      humanize: {
+        model: generationModelRegistry.openRouter.contentHumanize.model,
+      },
+      review: { model: generationModelRegistry.openRouter.contentReview.model },
+      input: {
+        apiKey: input.apiKey,
+        fetchImpl: input.fetchImpl,
+        brandProfile: input.brandProfile,
+        prompt: `${request.user}\n\nReturn only the complete publishable post text in content. For a thread, separate posts with a line containing ---.`,
+      },
+    })
+    const posts =
+      input.plan.archetype.kind === "thread"
+        ? chained.content
+            .split(/\n\s*---\s*\n/)
+            .map(clean)
+            .filter(Boolean)
+        : [chained.content]
+    return {
+      plan: input.plan,
+      output: { hook: posts[0] ?? "", posts: chained.content },
+      posts,
+      needsReview: chained.issues.length > 0,
+      errors: chained.issues,
+    }
+  }
+  let output: Record<string, unknown> = {}
+  let posts: string[] = []
+  let errors: string[] = []
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const draft = await generateXPostDraft({
+        request,
+        plan: input.plan,
+        apiKey: input.apiKey,
+        fetchImpl: input.fetchImpl,
+        repairErrors: errors,
+        normalize: attempt === 1,
+      })
+      output = draft.output
+      posts = draft.posts
+    } catch (error) {
+      if (
+        attempt === 0 &&
+        error instanceof Error &&
+        /invalid json/i.test(error.message)
+      ) {
+        errors = ["Return compact, complete JSON matching the schema exactly"]
+        continue
+      }
+      throw error
+    }
+    errors = validateGeneratedPost({
+      plan: input.plan,
+      record: input.record,
+      output,
+      posts,
+    })
+    if (errors.length === 0) break
+  }
+  return {
+    plan: input.plan,
+    output,
+    posts,
+    needsReview: errors.length > 0,
+    errors,
+  }
+}
+
+export function buildXGenerationRequest(input: {
+  plan: PostPlan
+  record: XAutomationRecord
 }) {
   const schema = buildPostStructuredOutputSchema(input.plan.archetype)
   const voice = voicePreset(input.record.generation.voicePreset)
@@ -569,83 +689,62 @@ async function generatePost(input: {
   ]
     .filter(Boolean)
     .join("\n")
-  const basePrompt = `Platform: ${input.plan.platform}\nArchetype: ${input.plan.archetype.label}\nStructure: ${input.plan.archetype.structure}\nTemplate: ${input.plan.archetype.template}\n${input.plan.platform === "x" && input.plan.archetype.kind === "single" ? "HARD LENGTH BUDGET: the final post, including blank lines, must be 280 characters or fewer. Keep every slot under its schema word and character caps.\n" : ""}${input.plan.platform === "x" && input.plan.archetype.engagementCloser ? "HARD CLOSER RULE: the final slot or final thread post must end with a genuine curiosity or self-identification question and a ? character.\n" : ""}Pillar: ${input.plan.pillar.label}\nHook formula: ${input.plan.hookStyle.formula}\nHook examples: ${input.plan.hookStyle.examples.join(" | ")}\nTopic: ${input.plan.topic ?? "none"}${input.plan.recycleBody ? `\nRECYCLE BODY (keep its core meaning, write a clearly different hook): ${input.plan.recycleBody}` : ""}\nPROOF:\n${proof}`
-  if (input.enableGenerationChain && input.brandProfile) {
-    const chained = await runGenerationChain({
-      generate: { model: input.record.generation.model, system },
-      humanize: {
-        model: generationModelRegistry.openRouter.contentHumanize.model,
-      },
-      review: { model: generationModelRegistry.openRouter.contentReview.model },
-      input: {
-        apiKey: input.apiKey,
-        fetchImpl: input.fetchImpl,
-        brandProfile: input.brandProfile,
-        prompt: `${basePrompt}\n\nReturn only the complete publishable post text in content. For a thread, separate posts with a line containing ---.`,
-      },
-    })
-    const posts =
-      input.plan.archetype.kind === "thread"
-        ? chained.content
-            .split(/\n\s*---\s*\n/)
-            .map(clean)
-            .filter(Boolean)
-        : [chained.content]
-    return {
-      plan: input.plan,
-      output: { hook: posts[0] ?? "", posts: chained.content },
-      posts,
-      needsReview: chained.issues.length > 0,
-      errors: chained.issues,
-    }
-  }
-  let output: Record<string, unknown> = {}
-  let posts: string[] = []
-  let errors: string[] = []
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      output = await openRouterJson({
-        apiKey: input.apiKey,
-        fetchImpl: input.fetchImpl,
-        model: input.record.generation.model,
-        timeoutMs: 90_000,
-        maxTokens: 2_800,
-        system,
-        user: `${basePrompt}${errors.length ? `\n\nRepair these exact errors:\n- ${errors.join("\n- ")}` : ""}`,
-        schema,
-      })
-      if (attempt === 1)
-        output = normalizeStructuredOutput(input.plan.archetype, output)
-    } catch (error) {
-      if (
-        attempt === 0 &&
-        error instanceof Error &&
-        /invalid json/i.test(error.message)
-      ) {
-        errors = ["Return compact, complete JSON matching the schema exactly"]
-        continue
-      }
-      throw error
-    }
-    posts = composeStructuredPost(input.plan.archetype, output)
-    errors = validateGeneratedPost({
-      plan: input.plan,
-      record: input.record,
-      output,
-      posts,
-    })
-    if (errors.length === 0) break
-  }
+  const user = `Platform: ${input.plan.platform}\nArchetype: ${input.plan.archetype.label}\nStructure: ${input.plan.archetype.structure}\nTemplate: ${input.plan.archetype.template}\n${input.plan.platform === "x" && input.plan.archetype.kind === "single" ? "HARD LENGTH BUDGET: the final post, including blank lines, must be 280 characters or fewer. Keep every slot under its schema word and character caps.\n" : ""}${input.plan.platform === "x" && input.plan.archetype.engagementCloser ? "HARD CLOSER RULE: the final slot or final thread post must end with a genuine curiosity or self-identification question and a ? character.\n" : ""}Pillar: ${input.plan.pillar.label}\nHook formula: ${input.plan.hookStyle.formula}\nHook examples: ${input.plan.hookStyle.examples.join(" | ")}\nTopic: ${input.plan.topic ?? "none"}${input.plan.recycleBody ? `\nRECYCLE BODY (keep its core meaning, write a clearly different hook): ${input.plan.recycleBody}` : ""}\nPROOF:\n${proof}`
   return {
-    plan: input.plan,
-    output,
-    posts,
-    needsReview: errors.length > 0,
-    errors,
+    model: input.record.generation.model,
+    system,
+    user,
+    schema,
   }
 }
 
-function composeStructuredPost(
+export async function generateXPostDraft(input: {
+  request: ReturnType<typeof buildXGenerationRequest>
+  plan: PostPlan
+  apiKey?: string
+  fetchImpl?: typeof fetch
+  repairErrors?: string[]
+  normalize?: boolean
+}) {
+  const generated = await generateXStructuredAttempt(input)
+  let output = generated.output
+  if (input.normalize) {
+    output = normalizeStructuredOutput(input.plan.archetype, output)
+  }
+  return {
+    output,
+    posts: composeXStructuredPost(input.plan.archetype, output),
+    provider: generated.provider,
+    model: generated.model,
+  }
+}
+
+export async function generateXStructuredAttempt(input: {
+  request: ReturnType<typeof buildXGenerationRequest>
+  apiKey?: string
+  fetchImpl?: typeof fetch
+  repairErrors?: string[]
+}) {
+  const apiKey = clean(input.apiKey) || getOpenRouterApiKey()
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
+  const output = await openRouterJson({
+    apiKey,
+    fetchImpl: input.fetchImpl,
+    model: input.request.model,
+    timeoutMs: 90_000,
+    maxTokens: 2_800,
+    system: input.request.system,
+    user: `${input.request.user}${input.repairErrors?.length ? `\n\nRepair these exact errors:\n- ${input.repairErrors.join("\n- ")}` : ""}`,
+    schema: input.request.schema,
+  })
+  return {
+    output,
+    provider: "OpenRouter" as const,
+    model: input.request.model,
+  }
+}
+
+export function composeXStructuredPost(
   archetype: PostArchetype,
   output: Record<string, unknown>
 ) {

@@ -1,0 +1,620 @@
+---
+title: "X and Threads generation pipeline"
+description: "Transform a persisted X/Threads automation and optional trend source into validated social text and optional generated media."
+---
+
+# X and Threads generation pipeline
+
+<StageShorthand />
+
+## Run this
+
+<Callout type="warn">
+Every trigger below requires a persisted niche brief on the automation. Without one, generation
+stops with `Generate the niche strategy before creating a draft`. Derive it first with
+`POST /api/x-automations/<id>/derive-brief`, or with **Generate strategy** in the studio.
+</Callout>
+
+<Tabs items={['MCP', 'HTTP', 'Studio']}>
+
+<Tab value="MCP">
+
+```json
+{
+  "tool": "lumenclip_automation_run",
+  "arguments": {
+    "automationId": "x-auto-01",
+    "topic": "activation checklists",
+    "requestId": "x-draft-2026-08-01-001"
+  }
+}
+```
+
+`automationId` and `requestId` are both required; `requestId` is the idempotency key, so reusing it
+returns the same draft instead of generating a second one. Do not pass `hook`: it is accepted only
+for slideshow automations and otherwise fails with `Explicit hooks are supported only for slideshow
+runs`.
+
+To drive the stage graph directly, call `lumenclip_pipeline_run` with
+`workflowId: "x-threads-generation"`, or one stage with `lumenclip_pipeline_stage_run` and a
+`stageId` such as `x-threads-generation.validate-input`.
+
+</Tab>
+
+<Tab value="HTTP">
+
+```bash
+curl -X POST https://<your-host>/api/x-automations/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "automationId": "x-auto-01",
+    "topic": "activation checklists",
+    "sourceCandidate": null
+  }'
+```
+
+Only `automationId` is required. `topic` overrides topic selection and `sourceCandidate` supplies a
+trend record to react to. A successful call answers 201 with `{ "run": ... }`. The same path also
+serves `GET` for stored runs and `DELETE` to clear an automation's runs and usage memory.
+
+</Tab>
+
+<Tab value="Studio">
+
+<Steps>
+
+<Step>
+
+Open `/app/x-automations`, or open the automation from the workspace with
+`/app?view=automations&automation=x-auto-01`, which embeds the same studio.
+
+</Step>
+
+<Step>
+
+Set the niche, then click **Generate strategy** if the automation has no brief yet.
+
+</Step>
+
+<Step>
+
+Enter an optional topic and click **Generate draft**. The studio saves the automation, posts to
+`/api/x-automations/generate`, and shows the new run in the overview tab.
+
+</Step>
+
+</Steps>
+
+</Tab>
+
+</Tabs>
+
+## Stage map
+
+| #   | Stage                        | Adds to the preceding output                          |
+| --- | ---------------------------- | ----------------------------------------------------- |
+| 1   | Validate and normalize input | Platform automation and validation result             |
+| 2   | Resolve required niche brief | Audience, promise, pillars, keywords, and pain points |
+| 3   | Select content plan          | Archetype, pillar, hook style, topic, and proof       |
+| 4   | Build generation request     | Prompt messages and structured response schema        |
+| 5   | Generate draft               | Hook, body, closer, and composed posts                |
+| 6   | Optional humanize            | Brand-voice rewrite                                   |
+| 7   | Optional model review        | Pass/fix verdict and reviewed content                 |
+| 8   | Deterministic validation     | Platform, proof, formatting, and repetition findings  |
+| 9   | Repair retry                 | Accepted content or unresolved review findings        |
+| 10  | Benchmark and build run      | Draft run, deterministic score, and image prompt      |
+| 11  | Persist run and usage memory | Stored draft and recent archetype/hook/body memory    |
+| 12  | Optional image generation    | Updated run with as many as four downloaded images    |
+
+## Stage 1 — Validate and normalize input
+
+**Input**
+
+```json
+{
+  "automation": {
+    "id": "x-auto-01",
+    "platform": "x",
+    "niche": { "label": "SaaS onboarding" },
+    "brief": null,
+    "proofBank": [
+      {
+        "id": "proof-1",
+        "text": "Reduced activation time from 3 days to 40 minutes",
+        "kind": "result"
+      }
+    ],
+    "generation": {
+      "model": "anthropic/claude-sonnet-5",
+      "hookStyles": ["contrarian", "specific_observation"],
+      "voicePreset": "practitioner"
+    },
+    "media": { "mode": "generate", "prompt": "Editorial product illustration" }
+  },
+  "topic": "activation checklists",
+  "sourceCandidate": null,
+  "brandProfile": {
+    "voice": "Direct operator",
+    "rules": ["Use concrete verbs", "Avoid motivational language"]
+  }
+}
+```
+
+**Output**
+
+```json
+{
+  "automation": {
+    "id": "x-auto-01",
+    "platform": "x",
+    "niche": "SaaS onboarding",
+    "generationModel": "anthropic/claude-sonnet-5",
+    "hookStyles": ["contrarian", "specific_observation"],
+    "voicePreset": "practitioner",
+    "mediaMode": "generate"
+  },
+  "topic": "activation checklists",
+  "sourceCandidate": null,
+  "proofBank": [
+    {
+      "id": "proof-1",
+      "text": "Reduced activation time from 3 days to 40 minutes",
+      "kind": "result"
+    }
+  ],
+  "brandProfile": {
+    "voice": "Direct operator",
+    "rules": ["Use concrete verbs", "Avoid motivational language"]
+  },
+  "validationErrors": []
+}
+```
+
+**Processing:** normalize platform defaults and require niche, limits, generation model, and
+OpenRouter credentials.
+
+**Model/provider:** none.
+
+## Stage 2 — Resolve required niche brief
+
+**Input**
+
+```json
+{
+  "...output": "stage-1 output",
+  "niche": "SaaS onboarding",
+  "existingBrief": null,
+  "primaryModel": "anthropic/claude-sonnet-5",
+  "fallbackModels": ["google/gemini-3.1-flash-lite"]
+}
+```
+
+**Output**
+
+```json
+{
+  "...output": "stage-1 output",
+  "brief": {
+    "audience": "Product teams improving new-user activation",
+    "promise": "Replace onboarding friction with measurable activation steps",
+    "pillars": [
+      { "label": "Activation design", "weight": 30 },
+      { "label": "Onboarding research", "weight": 20 },
+      { "label": "Retention systems", "weight": 15 }
+    ],
+    "keywords": ["activation", "onboarding", "time to value"],
+    "painPoints": ["empty states", "long setup", "unclear first value"]
+  },
+  "selectedModel": "anthropic/claude-sonnet-5",
+  "attempts": []
+}
+```
+
+**Processing:** the post-generation route requires a previously persisted brief and stops with
+`Generate the niche strategy before creating a draft` when it is absent. The separate
+`derive-brief` preflight endpoint generates and persists the brief: the configured model receives
+two attempts, then the fallback receives one attempt after retryable failures. Rerun generation
+with that persisted brief as stage 2 output.
+
+**Model/provider:** configured/default `anthropic/claude-sonnet-5`, fallback
+`google/gemini-3.1-flash-lite`, via OpenRouter.
+
+## Stage 3 — Select content plan
+
+**Input**
+
+```json
+{
+  "...output": "stage-2 output",
+  "platform": "x",
+  "topic": "activation checklists",
+  "proofBank": [
+    {
+      "id": "proof-1",
+      "text": "Reduced activation time from 3 days to 40 minutes",
+      "kind": "result"
+    }
+  ],
+  "recentArchetypes": ["how_to"],
+  "recentHookStyles": ["specific_observation"],
+  "enabledHookStyles": ["contrarian", "specific_observation"]
+}
+```
+
+**Output**
+
+```json
+{
+  "...output": "stage-2 output",
+  "plan": {
+    "platform": "x",
+    "archetype": {
+      "id": "contrarian_take",
+      "kind": "single",
+      "label": "Contrarian take"
+    },
+    "pillar": { "label": "Activation design", "weight": 30 },
+    "hookStyle": {
+      "id": "contrarian",
+      "formula": "Reject the common default, then explain why"
+    },
+    "topic": "activation checklists",
+    "proof": [
+      {
+        "id": "proof-1",
+        "text": "Reduced activation time from 3 days to 40 minutes",
+        "kind": "result"
+      }
+    ],
+    "recycleBody": null
+  }
+}
+```
+
+**Processing:** select an eligible non-repeating archetype, pillar, and hook style; enforce proof
+requirements and platform eligibility.
+
+**Model/provider:** none.
+
+## Stage 4 — Build generation request
+
+**Input**
+
+```json
+{
+  "...output": "stage-3 output",
+  "plan": "stage-3 plan",
+  "platformLimits": { "maxCharacters": 280 },
+  "voicePreset": "practitioner",
+  "bannedRules": ["no links", "no unsupported claims", "no generic AI wording"]
+}
+```
+
+**Output**
+
+```json
+{
+  "...output": "stage-3 output",
+  "generationRequest": {
+    "model": "anthropic/claude-sonnet-5",
+    "systemPrompt": "Platform, voice, factual, and anti-slop rules",
+    "userPrompt": "Archetype, hook formula, topic, pillar, and proof",
+    "responseSchema": {
+      "name": "x_post_contrarian_take",
+      "required": ["hook", "belief", "reasons", "alternative"]
+    }
+  }
+}
+```
+
+**Processing:** compile plan and platform rules into a structured-output request.
+
+**Model/provider:** none.
+
+## Stage 5 — Generate draft
+
+**Input**
+
+```json
+{
+  "...output": "stage-4 output",
+  "generationRequest": "stage-4 request"
+}
+```
+
+**Output**
+
+```json
+{
+  "...output": "stage-4 output",
+  "draft": {
+    "hook": "Your onboarding checklist is probably too complete.",
+    "belief": "Most teams think every setup step belongs in onboarding.",
+    "reasons": "Long checklists delay first value. We removed every step that did not lead there.",
+    "alternative": "Activation fell from 3 days to 40 minutes. Which step can disappear?"
+  },
+  "rawPosts": [
+    "Your onboarding checklist is probably too complete.\n\nMost teams think every setup step belongs in onboarding.\n\nLong checklists delay first value. We removed every step that did not lead there.\n\nActivation fell from 3 days to 40 minutes. Which step can disappear?"
+  ],
+  "model": "anthropic/claude-sonnet-5"
+}
+```
+
+**Processing:** fill the selected schema or produce `---`-separated thread text.
+
+**Model/provider:** automation's configured model; default `anthropic/claude-sonnet-5` via
+OpenRouter.
+
+## Stage 6 — Optional humanize
+
+**Input**
+
+```json
+{
+  "...output": "stage-5 output",
+  "enabled": true,
+  "brandProfile": {
+    "voice": "Direct operator",
+    "rules": ["Use concrete verbs", "Avoid motivational language"]
+  },
+  "draft": "stage-5 post text"
+}
+```
+
+**Output**
+
+```json
+{
+  "...output": "stage-5 output",
+  "humanizedDraft": "Your onboarding checklist is too complete. We removed every step that didn't lead to first value. Activation time dropped from 3 days to 40 minutes. Which step can you delete today?",
+  "trace": [{ "stage": "humanize", "model": "google/gemini-3.1-flash-lite" }]
+}
+```
+
+**Processing:** when enabled with a brand profile, rewrite without changing facts, meaning, or
+format. Otherwise pass the stage-5 draft through. This branch exists in the generation library,
+but the current stored HTTP/MCP runner does not supply a brand profile, so those surfaces pass
+through today.
+
+**Model/provider:** `google/gemini-3.1-flash-lite` via OpenRouter.
+
+## Stage 7 — Optional model review
+
+**Input**
+
+```json
+{
+  "...output": "stage-6 output",
+  "brandRules": ["Use concrete verbs", "Avoid motivational language"],
+  "proofBank": [
+    {
+      "id": "proof-1",
+      "text": "Reduced activation time from 3 days to 40 minutes",
+      "kind": "result"
+    }
+  ],
+  "content": "stage-6 humanized draft"
+}
+```
+
+**Output**
+
+```json
+{
+  "...output": "stage-6 output",
+  "reviewedDraft": "Your onboarding checklist is too complete. We removed every step that didn't lead to first value. Activation time dropped from 3 days to 40 minutes. Which step can you delete today?",
+  "verdict": "pass",
+  "issues": [],
+  "trace": [
+    { "stage": "review", "model": "openai/gpt-5.4-mini", "verdict": "pass" }
+  ]
+}
+```
+
+**Processing:** review factual and brand constraints and return publishable content with a
+`pass`/`fix` verdict. Like stage 6, this is active only for callers that enable the generation
+chain and supply a brand profile.
+
+**Model/provider:** `openai/gpt-5.4-mini` via OpenRouter.
+
+## Stage 8 — Deterministic validation
+
+**Input**
+
+```json
+{
+  "...output": "stage-7 output",
+  "platform": "x",
+  "posts": ["stage-7 reviewed post"],
+  "plan": "stage-3 plan",
+  "proofBank": [
+    {
+      "id": "proof-1",
+      "text": "Reduced activation time from 3 days to 40 minutes",
+      "kind": "result"
+    }
+  ]
+}
+```
+
+**Output**
+
+```json
+{
+  "...output": "stage-7 output",
+  "posts": [
+    { "index": 0, "text": "stage-7 reviewed post", "characterCount": 203 }
+  ],
+  "validation": {
+    "valid": true,
+    "errors": [],
+    "checks": [
+      "slot lengths",
+      "character limit",
+      "links",
+      "closer",
+      "proof",
+      "banned wording"
+    ]
+  }
+}
+```
+
+**Processing:** enforce deterministic platform, proof, formatting, and anti-repetition rules.
+
+**Model/provider:** none.
+
+## Stage 9 — Repair retry
+
+**Input**
+
+```json
+{
+  "...output": "stage-8 output",
+  "attempt": 1,
+  "validationErrors": [
+    "post exceeds 280 characters",
+    "final line must end with a question"
+  ]
+}
+```
+
+**Output**
+
+```json
+{
+  "...output": "stage-8 output",
+  "posts": [
+    { "index": 0, "text": "Repaired valid post", "characterCount": 238 }
+  ],
+  "attempts": 2,
+  "needsReview": false,
+  "reviewErrors": []
+}
+```
+
+**Processing:** regenerate once with exact failures. If hard failures remain, retain them and mark
+the output for review.
+
+**Model/provider:** same configured generation model via OpenRouter.
+
+## Stage 10 — Benchmark and build the draft run
+
+**Input**
+
+```json
+{
+  "...output": "stage-9 output",
+  "automationId": "x-auto-01",
+  "media": {
+    "mode": "generate",
+    "prompt": "Editorial product illustration, high contrast"
+  },
+  "plan": "stage-3 plan",
+  "posts": "stage-9 validated posts"
+}
+```
+
+**Output**
+
+```json
+{
+  "...output": "stage-9 output",
+  "run": {
+    "id": "x-run-01",
+    "automationId": "x-auto-01",
+    "platform": "x",
+    "posts": [{ "text": "Repaired valid post", "characterCount": 238 }],
+    "hook": "Your onboarding checklist is too complete.",
+    "imagePrompt": "Editorial product illustration, high contrast\n\nTopic: activation checklists\nCore idea: Your onboarding checklist is too complete.",
+    "imageUrls": [],
+    "benchmark": {
+      "total": 92,
+      "hook": 92,
+      "specificity": 91,
+      "readability": 96,
+      "cta": 92,
+      "formatFit": 100,
+      "stageCompleteness": 100,
+      "archetypeFit": 88,
+      "comparison": { "archetype": "contrarian_take" },
+      "notes": []
+    },
+    "needsReview": false,
+    "reviewErrors": [],
+    "status": "draft"
+  }
+}
+```
+
+**Processing:** score the accepted post deterministically, construct the draft run, and build the
+topic/hook-aware image prompt when media mode is `generate`. Benchmarking does not call a model and
+does not expose a separate `passed` boolean; consumers use `total`, component scores, and notes.
+
+**Model/provider:** none.
+
+## Stage 11 — Persist run and update reuse memory
+
+**Input**
+
+```json
+{
+  "...output": "stage-10 output",
+  "run": "stage-10 run"
+}
+```
+
+**Output**
+
+```json
+{
+  "...output": "stage-10 output",
+  "persistedRun": "x-run-01",
+  "usageMemory": {
+    "recentArchetypesAdded": ["contrarian_take"],
+    "recentHookStylesAdded": ["contrarian"],
+    "recentBodiesAdded": 0
+  },
+  "reminderEnqueued": true
+}
+```
+
+**Processing:** store the draft run, enqueue its generated notification, and update bounded recent
+archetype/hook/body memory on the automation. This happens before optional image generation.
+
+**Model/provider:** none; Appwrite-backed stores in the configured runtime.
+
+## Stage 12 — Optional image generation
+
+**Input**
+
+```json
+{
+  "...output": "stage-11 output",
+  "runId": "x-run-01",
+  "prompt": "stage-10 image prompt",
+  "aspectRatio": "16:9"
+}
+```
+
+**Output**
+
+```json
+{
+  "...output": "stage-11 output",
+  "run": {
+    "id": "x-run-01",
+    "status": "draft",
+    "imagePrompt": "Editorial product illustration, high contrast\n\nTopic: activation checklists\nCore idea: Your onboarding checklist is too complete.",
+    "imageUrls": ["/api/local-assets/x-automations/images/x-post-image.png"]
+  },
+  "imageUrl": "/api/local-assets/x-automations/images/x-post-image.png"
+}
+```
+
+**Processing:** through the separate image endpoint, load the already-persisted run, submit and
+poll a KIE task, download the result into local assets, append the URL, cap the run at four images,
+and persist the updated run. If media generation is skipped, stage 11 is the final output.
+
+**Model/provider:** `nano-banana-pro` via KIE.ai. Publication consumes this draft downstream and is
+not part of the generation workflow.

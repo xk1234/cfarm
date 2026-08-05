@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LumenClip companion",
-  "version": "2.1.0",
+  "version": "2.3.2",
   "description": "Imports TikTok Studio analytics and reviews, approves, and sends drafted comment replies through your logged-in TikTok session.",
   "permissions": ["storage", "tabs", "alarms"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
@@ -20,6 +20,11 @@
     "128": "icons/icon128.png"
   },
   "content_scripts": [
+    {
+      "matches": ["https://www.tiktok.com/tiktokstudio/content*"],
+      "js": ["studio-discovery-helpers.js", "studio-content.js"],
+      "run_at": "document_idle"
+    },
     {
       "matches": ["https://www.tiktok.com/tiktokstudio/analytics/*"],
       "js": ["capture-main.js"],

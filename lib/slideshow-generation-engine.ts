@@ -508,8 +508,6 @@ export async function generateSlideshowText(input: {
   const model = clean(input.model) || defaultSlideshowTextModel
   const selectedHook =
     clean(input.selectedHook) || promptPreviewHook(input.automation)
-  const placeholders = getTempSlidePromptPlaceholders(input.automation)
-
   const apiKey = clean(input.apiKey)
   if (!apiKey) {
     throw new Error("OPENROUTER_API_KEY is not configured")
@@ -541,16 +539,41 @@ export async function generateSlideshowText(input: {
     avoidSimilarHeadings: input.avoidSimilarHeadings,
     performanceMemory: input.performanceMemory,
   })
+  const generated = await generateSlideshowTextFromPayload({
+    automation: input.automation,
+    selectedHook,
+    promptPayload,
+    apiKey,
+    fetchImpl: input.fetchImpl,
+    requireHookSubjectCoverage: input.requireHookSubjectCoverage,
+  })
+  return {
+    ...generated,
+    webSearchSources: research?.sources ?? [],
+  }
+}
+
+export async function generateSlideshowTextFromPayload(input: {
+  automation: TempSlideTestingAutomation
+  selectedHook: string
+  promptPayload: ReturnType<typeof slideshowTextGenerationPayload>
+  apiKey?: string
+  fetchImpl?: typeof fetch
+  requireHookSubjectCoverage?: boolean
+}): Promise<SlideshowTextGenerationResult> {
+  const apiKey = clean(input.apiKey)
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
+  const placeholders = getTempSlidePromptPlaceholders(input.automation)
   const completion = await requestStructuredOutput({
     apiKey,
     fetchImpl: input.fetchImpl,
-    model,
-    promptPayload,
+    model: input.promptPayload.model,
+    promptPayload: input.promptPayload,
     placeholders,
-    selectedHook,
+    selectedHook: input.selectedHook,
     requireHookSubjectCoverage:
       input.requireHookSubjectCoverage ??
-      selectedHook !== "Create a high-performing TikTok slideshow.",
+      input.selectedHook !== "Create a high-performing TikTok slideshow.",
   })
   const lowercase = toneRequestsLowercase(input.automation.tone)
   const normalizedResult = normalizeTempSlideStructuredOutput(
@@ -560,11 +583,65 @@ export async function generateSlideshowText(input: {
   )
   return {
     model: completion.model,
-    selectedHook,
+    selectedHook: input.selectedHook,
+    result: normalizedResult,
+    skippedOpenRouter: false,
+    promptPayload: input.promptPayload,
+    webSearchSources: [],
+    violations: completion.violations ?? [],
+    transformations: [
+      ...(completion.transformations ?? []),
+      ...(lowercase
+        ? lowercaseTextTransformations(completion.output, normalizedResult)
+        : []),
+    ],
+  }
+}
+
+export async function generateSlideshowTextAttemptFromPayload(input: {
+  automation: TempSlideTestingAutomation
+  selectedHook: string
+  promptPayload: ReturnType<typeof slideshowTextGenerationPayload>
+  repairFeedback?: string
+  finalAttempt?: boolean
+  apiKey?: string
+  fetchImpl?: typeof fetch
+  requireHookSubjectCoverage?: boolean
+}): Promise<SlideshowTextGenerationResult> {
+  const apiKey = clean(input.apiKey)
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured")
+  const placeholders = getTempSlidePromptPlaceholders(input.automation)
+  const promptPayload = clean(input.repairFeedback)
+    ? promptPayloadWithRepairFeedback(
+        input.promptPayload,
+        new Error(clean(input.repairFeedback))
+      )
+    : input.promptPayload
+  const completion = await requestStructuredOutputAttempt({
+    apiKey,
+    fetchImpl: input.fetchImpl,
+    model: promptPayload.model,
+    promptPayload,
+    placeholders,
+    selectedHook: input.selectedHook,
+    requireHookSubjectCoverage:
+      input.requireHookSubjectCoverage ??
+      input.selectedHook !== "Create a high-performing TikTok slideshow.",
+    allowViolations: input.finalAttempt === true,
+  })
+  const lowercase = toneRequestsLowercase(input.automation.tone)
+  const normalizedResult = normalizeTempSlideStructuredOutput(
+    completion.output,
+    placeholders,
+    { lowercase }
+  )
+  return {
+    model: completion.model,
+    selectedHook: input.selectedHook,
     result: normalizedResult,
     skippedOpenRouter: false,
     promptPayload,
-    webSearchSources: research?.sources ?? [],
+    webSearchSources: completion.webSearchSources,
     violations: completion.violations ?? [],
     transformations: [
       ...(completion.transformations ?? []),
@@ -610,137 +687,24 @@ async function requestStructuredOutput(input: {
   let repairError: unknown
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
-    const attemptModel = input.model
     const attemptPayload = repairError
       ? promptPayloadWithRepairFeedback(input.promptPayload, repairError)
       : input.promptPayload
-    const routedPayload = { ...attemptPayload, model: attemptModel }
-    let payload: OpenRouterResponse
     try {
-      payload = await fetchJson<OpenRouterResponse>(
-        "https://openrouter.ai/api/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${input.apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(routedPayload),
-        },
-        {
-          fetchImpl: input.fetchImpl,
-          // Reasoning-heavy models routinely take 30-90s to emit the full
-          // structured slideshow JSON; generation runs in the background, so a
-          // generous timeout beats failing the run.
-          timeoutMs: 120_000,
-          errorMessage: (response, payload) => {
-            const providerError =
-              typeof payload === "object" &&
-              payload !== null &&
-              "error" in payload &&
-              typeof payload.error === "object" &&
-              payload.error !== null
-                ? payload.error
-                : null
-            const providerMessage =
-              providerError &&
-              "message" in providerError &&
-              typeof providerError.message === "string"
-                ? providerError.message
-                : "Provider returned no error details"
-            const providerMetadata = openRouterProviderMetadata(providerError)
-            return `OpenRouter generation failed (${response.status}): ${providerMessage}${
-              providerMetadata ? ` [${providerMetadata}]` : ""
-            }`
-          },
-        }
-      )
-    } catch (error) {
-      lastError = error
-      if (attempt < 2) {
-        console.warn("OpenRouter slideshow request failed; retrying", {
-          attempt,
-          model: attemptModel,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-      continue
-    }
-
-    const choice = payload.choices?.[0]
-    try {
-      assertCompleteStructuredChoice(choice)
-      let output = JSON.parse(parseOpenRouterContent(choice?.message?.content))
-      const punctuation = normalizeStructuredOutputPunctuation(output)
-      output = punctuation.output
-      let { errors: validationErrors, violations } = structuredOutputFindings(
-        output,
-        input.placeholders,
-        input.selectedHook
-      )
-      if (validationErrors.length > 0) {
-        throw new Error(validationErrors.join("; "))
-      }
-      if (violations.length > 0 && attempt < 2) {
-        throw new Error(violations.join("; "))
-      }
-      const truncated = truncateStructuredOutputOverruns(
-        output,
-        input.placeholders
-      )
-      output = truncated.output
-      if (truncated.transformations.length > 0) {
-        ;({ errors: validationErrors, violations } = structuredOutputFindings(
-          output,
-          input.placeholders,
-          input.selectedHook
-        ))
-        if (validationErrors.length > 0) {
-          throw new Error(validationErrors.join("; "))
-        }
-      }
-      const webSearchSources = parseWebSearchSources(
-        choice?.message?.annotations
-      )
-      if (
-        input.requireHookSubjectCoverage &&
-        !outputDevelopsHookSubject(output, input.selectedHook)
-      ) {
-        const coverageViolation = `Generated body text does not develop the selected hook subject: ${input.selectedHook}`
-        // Retry once for copy that echoes the subject, but never throw the
-        // generation away for this. The check is lexical: it demands a hook
-        // word appear in the body, while good slideshow copy develops a hook
-        // instead of repeating its nouns. "clear counters after every use"
-        // plainly develops "keep a small kitchen tidy" and still fails it.
-        // Word-count violations above already degrade to a warning on the
-        // final attempt; this now behaves the same way.
-        if (attempt < 2) throw new Error(coverageViolation)
-        violations = [...violations, coverageViolation]
-      }
-      return {
-        output,
-        webSearchSources,
-        model: attemptModel,
-        violations,
-        transformations: [
-          ...punctuation.transformations,
-          ...truncated.transformations,
-        ],
-      }
+      return await requestStructuredOutputAttempt({
+        ...input,
+        promptPayload: attemptPayload,
+        allowViolations: attempt === 2,
+      })
     } catch (error) {
       lastError = error
       repairError = error
       if (attempt < 2) {
-        console.warn(
-          "OpenRouter returned invalid structured slideshow text; retrying",
-          {
-            attempt,
-            model: attemptModel,
-            finishReason: choice?.finish_reason ?? null,
-            nativeFinishReason: choice?.native_finish_reason ?? null,
-            error: error instanceof Error ? error.message : String(error),
-          }
-        )
+        console.warn("OpenRouter slideshow attempt failed; retrying", {
+          attempt,
+          model: input.model,
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
     }
   }
@@ -750,6 +714,96 @@ async function requestStructuredOutput(input: {
       lastError instanceof Error ? lastError.message : String(lastError)
     }`
   )
+}
+
+async function requestStructuredOutputAttempt(input: {
+  apiKey: string
+  fetchImpl?: typeof fetch
+  model: string
+  promptPayload: ReturnType<typeof slideshowTextGenerationPayload>
+  placeholders: ReturnType<typeof getTempSlidePromptPlaceholders>
+  selectedHook: string
+  requireHookSubjectCoverage?: boolean
+  allowViolations: boolean
+}) {
+  const payload = await fetchJson<OpenRouterResponse>(
+    "https://openrouter.ai/api/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${input.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ ...input.promptPayload, model: input.model }),
+    },
+    {
+      fetchImpl: input.fetchImpl,
+      timeoutMs: 120_000,
+      errorMessage: (response, value) => {
+        const providerError =
+          typeof value === "object" &&
+          value !== null &&
+          "error" in value &&
+          typeof value.error === "object" &&
+          value.error !== null
+            ? value.error
+            : null
+        const providerMessage =
+          providerError &&
+          "message" in providerError &&
+          typeof providerError.message === "string"
+            ? providerError.message
+            : "Provider returned no error details"
+        const providerMetadata = openRouterProviderMetadata(providerError)
+        return `OpenRouter generation failed (${response.status}): ${providerMessage}${
+          providerMetadata ? ` [${providerMetadata}]` : ""
+        }`
+      },
+    }
+  )
+  const choice = payload.choices?.[0]
+  assertCompleteStructuredChoice(choice)
+  let output = JSON.parse(parseOpenRouterContent(choice?.message?.content))
+  const punctuation = normalizeStructuredOutputPunctuation(output)
+  output = punctuation.output
+  let { errors: validationErrors, violations } = structuredOutputFindings(
+    output,
+    input.placeholders,
+    input.selectedHook
+  )
+  if (validationErrors.length > 0) throw new Error(validationErrors.join("; "))
+  if (violations.length > 0 && !input.allowViolations) {
+    throw new Error(violations.join("; "))
+  }
+  const truncated = truncateStructuredOutputOverruns(output, input.placeholders)
+  output = truncated.output
+  if (truncated.transformations.length > 0) {
+    ;({ errors: validationErrors, violations } = structuredOutputFindings(
+      output,
+      input.placeholders,
+      input.selectedHook
+    ))
+    if (validationErrors.length > 0)
+      throw new Error(validationErrors.join("; "))
+  }
+  if (
+    input.requireHookSubjectCoverage &&
+    !outputDevelopsHookSubject(output, input.selectedHook)
+  ) {
+    const violation = `Generated body text does not develop the selected hook subject: ${input.selectedHook}`
+    if (!input.allowViolations) throw new Error(violation)
+    violations = [...violations, violation]
+  }
+  return {
+    output,
+    webSearchSources: parseWebSearchSources(choice?.message?.annotations),
+    model: input.model,
+    violations,
+    transformations: [
+      ...punctuation.transformations,
+      ...truncated.transformations,
+    ],
+  }
 }
 
 function normalizeStructuredOutputPunctuation(output: unknown) {
@@ -911,7 +965,7 @@ function structuredOutputFindings(
   return { errors, violations }
 }
 
-async function researchSelectedHook(input: {
+export async function researchSelectedHook(input: {
   apiKey: string
   fetchImpl?: typeof fetch
   model: string
@@ -921,57 +975,7 @@ async function researchSelectedHook(input: {
   let lastError: unknown
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
-      const payload = await fetchJson<OpenRouterResponse>(
-        "https://openrouter.ai/api/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${input.apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: input.model,
-            stream: false,
-            max_tokens: 2_000,
-            plugins: [{ id: "web", engine: "exa", max_results: 5 }],
-            messages: [
-              {
-                role: "system",
-                content:
-                  "Research the exact slideshow hook using current authoritative sources. Return concise facts that directly answer the hook. Cite every fact with a full source URL. Do not substitute generic facts about the broader niche.",
-              },
-              {
-                role: "user",
-                content: `Automation: ${input.automationName}\nExact hook: ${input.hook}`,
-              },
-            ],
-          }),
-        },
-        {
-          fetchImpl: input.fetchImpl,
-          timeoutMs: 90_000,
-          errorMessage: providerErrorMessage("OpenRouter hook research failed"),
-        }
-      )
-      const choice = payload.choices?.[0]
-      assertCompleteStructuredChoice(choice)
-      const content =
-        typeof choice?.message?.content === "string"
-          ? choice.message.content.trim()
-          : ""
-      const sources = [
-        ...parseLinkedSources(content),
-        ...parseWebSearchSources(choice?.message?.annotations),
-      ]
-      const uniqueSources = [
-        ...new Map(sources.map((source) => [source.url, source])).values(),
-      ]
-      if (!content || uniqueSources.length === 0) {
-        throw new Error(
-          "Web research returned without content and cited sources."
-        )
-      }
-      return { content, sources: uniqueSources }
+      return await researchSelectedHookAttempt(input)
     } catch (error) {
       lastError = error
       if (attempt < 2) {
@@ -988,6 +992,64 @@ async function researchSelectedHook(input: {
       lastError instanceof Error ? lastError.message : String(lastError)
     }`
   )
+}
+
+export async function researchSelectedHookAttempt(input: {
+  apiKey: string
+  fetchImpl?: typeof fetch
+  model: string
+  hook: string
+  automationName: string
+}) {
+  const payload = await fetchJson<OpenRouterResponse>(
+    "https://openrouter.ai/api/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${input.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: input.model,
+        stream: false,
+        max_tokens: 2_000,
+        plugins: [{ id: "web", engine: "exa", max_results: 5 }],
+        messages: [
+          {
+            role: "system",
+            content:
+              "Research the exact slideshow hook using current authoritative sources. Return concise facts that directly answer the hook. Cite every fact with a full source URL. Do not substitute generic facts about the broader niche.",
+          },
+          {
+            role: "user",
+            content: `Automation: ${input.automationName}\nExact hook: ${input.hook}`,
+          },
+        ],
+      }),
+    },
+    {
+      fetchImpl: input.fetchImpl,
+      timeoutMs: 90_000,
+      errorMessage: providerErrorMessage("OpenRouter hook research failed"),
+    }
+  )
+  const choice = payload.choices?.[0]
+  assertCompleteStructuredChoice(choice)
+  const content =
+    typeof choice?.message?.content === "string"
+      ? choice.message.content.trim()
+      : ""
+  const sources = [
+    ...parseLinkedSources(content),
+    ...parseWebSearchSources(choice?.message?.annotations),
+  ]
+  const uniqueSources = [
+    ...new Map(sources.map((source) => [source.url, source])).values(),
+  ]
+  if (!content || uniqueSources.length === 0) {
+    throw new Error("Web research returned without content and cited sources.")
+  }
+  return { content, sources: uniqueSources }
 }
 
 const broadHookWords = new Set([
