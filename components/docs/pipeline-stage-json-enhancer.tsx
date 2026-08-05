@@ -1,7 +1,7 @@
-"use client";
+"use client"
 
-import type JSONEditor from "jsoneditor";
-import type { JSONEditorMode } from "jsoneditor";
+import type JSONEditor from "jsoneditor"
+import type { JSONEditorMode } from "jsoneditor"
 import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -9,70 +9,70 @@ import {
   useEffect,
   useRef,
   useState,
-} from "react";
-import { createPortal } from "react-dom";
+} from "react"
+import { createPortal } from "react-dom"
 
-import styles from "./pipeline-stage-json-enhancer.module.css";
+import styles from "./pipeline-stage-json-enhancer.module.css"
 
 type StagePanel = {
-  id: string;
-  anchor: HTMLDivElement;
-  input: unknown;
-  output: unknown;
-};
+  id: string
+  anchor: HTMLDivElement
+  input: unknown
+  output: unknown
+}
 
 type HiddenSource = {
-  anchor: HTMLDivElement;
-  elements: HTMLElement[];
-};
+  anchor: HTMLDivElement
+  elements: HTMLElement[]
+}
 
 export function PipelineStageJsonEnhancer() {
-  const markerRef = useRef<HTMLSpanElement | null>(null);
-  const [panels, setPanels] = useState<StagePanel[]>([]);
+  const markerRef = useRef<HTMLSpanElement | null>(null)
+  const [panels, setPanels] = useState<StagePanel[]>([])
 
   useEffect(() => {
-    const docsBody = markerRef.current?.closest(".docs-body");
-    if (!docsBody) return;
+    const docsBody = markerRef.current?.closest(".docs-body")
+    if (!docsBody) return
 
-    const hiddenSources: HiddenSource[] = [];
-    const nextPanels: StagePanel[] = [];
-    const headings = Array.from(docsBody.querySelectorAll("h2"));
+    const hiddenSources: HiddenSource[] = []
+    const nextPanels: StagePanel[] = []
+    const headings = Array.from(docsBody.querySelectorAll("h2"))
 
     for (const [index, heading] of headings.entries()) {
-      if (!heading.textContent?.trim().startsWith("Stage ")) continue;
+      if (!heading.textContent?.trim().startsWith("Stage ")) continue
 
-      const stageElements = elementsUntilNextHeading(heading);
-      const input = labeledJsonBlock(stageElements, "Input");
-      const output = labeledJsonBlock(stageElements, "Output");
-      if (!input || !output) continue;
+      const stageElements = elementsUntilNextHeading(heading)
+      const input = labeledJsonBlock(stageElements, "Input")
+      const output = labeledJsonBlock(stageElements, "Output")
+      if (!input || !output) continue
 
-      const anchor = document.createElement("div");
-      anchor.dataset.pipelineStageJson = "true";
-      input.label.before(anchor);
+      const anchor = document.createElement("div")
+      anchor.dataset.pipelineStageJson = "true"
+      input.label.before(anchor)
 
       const elements = Array.from(
-        new Set([input.label, input.block, output.label, output.block]),
-      );
-      for (const element of elements) element.hidden = true;
+        new Set([input.label, input.block, output.label, output.block])
+      )
+      for (const element of elements) element.hidden = true
 
-      hiddenSources.push({ anchor, elements });
+      hiddenSources.push({ anchor, elements })
       nextPanels.push({
         id: `${heading.id || "pipeline-stage"}-${index}`,
         anchor,
         input: input.value,
         output: output.value,
-      });
+      })
     }
 
-    setPanels(nextPanels);
+    setPanels(nextPanels)
 
     return () => {
       for (const source of hiddenSources) {
-        for (const element of source.elements) element.hidden = false;
-        source.anchor.remove();
+        for (const element of source.elements) element.hidden = false
+        source.anchor.remove()
       }
-    };
-  }, []);
+    }
+  }, [])
 
   return (
     <>
@@ -81,58 +81,58 @@ export function PipelineStageJsonEnhancer() {
         createPortal(
           <StageJsonComparison input={panel.input} output={panel.output} />,
           panel.anchor,
-          panel.id,
-        ),
+          panel.id
+        )
       )}
     </>
-  );
+  )
 }
 
 function StageJsonComparison({
   input,
   output,
 }: {
-  input: unknown;
-  output: unknown;
+  input: unknown
+  output: unknown
 }) {
-  const frameRef = useRef<HTMLDivElement | null>(null);
-  const draggingRef = useRef(false);
-  const [split, setSplit] = useState(50);
+  const frameRef = useRef<HTMLDivElement | null>(null)
+  const draggingRef = useRef(false)
+  const [split, setSplit] = useState(50)
 
   function updateSplit(clientX: number) {
-    const bounds = frameRef.current?.getBoundingClientRect();
-    if (!bounds || bounds.width === 0) return;
-    const next = ((clientX - bounds.left) / bounds.width) * 100;
-    setSplit(Math.min(82, Math.max(18, next)));
+    const bounds = frameRef.current?.getBoundingClientRect()
+    if (!bounds || bounds.width === 0) return
+    const next = ((clientX - bounds.left) / bounds.width) * 100
+    setSplit(Math.min(82, Math.max(18, next)))
   }
 
   function startDragging(event: ReactPointerEvent<HTMLDivElement>) {
-    draggingRef.current = true;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    updateSplit(event.clientX);
-    event.preventDefault();
+    draggingRef.current = true
+    event.currentTarget.setPointerCapture(event.pointerId)
+    updateSplit(event.clientX)
+    event.preventDefault()
   }
 
   function drag(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!draggingRef.current) return;
-    updateSplit(event.clientX);
+    if (!draggingRef.current) return
+    updateSplit(event.clientX)
   }
 
   function stopDragging(event: ReactPointerEvent<HTMLDivElement>) {
-    draggingRef.current = false;
+    draggingRef.current = false
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
+      event.currentTarget.releasePointerCapture(event.pointerId)
     }
   }
 
   function resizeWithKeyboard(event: ReactKeyboardEvent<HTMLDivElement>) {
-    if (event.key === "ArrowLeft") setSplit((value) => Math.max(18, value - 5));
+    if (event.key === "ArrowLeft") setSplit((value) => Math.max(18, value - 5))
     else if (event.key === "ArrowRight")
-      setSplit((value) => Math.min(82, value + 5));
-    else if (event.key === "Home") setSplit(18);
-    else if (event.key === "End") setSplit(82);
-    else return;
-    event.preventDefault();
+      setSplit((value) => Math.min(82, value + 5))
+    else if (event.key === "Home") setSplit(18)
+    else if (event.key === "End") setSplit(82)
+    else return
+    event.preventDefault()
   }
 
   return (
@@ -166,43 +166,43 @@ function StageJsonComparison({
       </div>
       <JsonPane label="Output" value={output} />
     </div>
-  );
+  )
 }
 
 function JsonPane({ label, value }: { label: string; value: unknown }) {
-  const visibilityRef = useRef<HTMLDivElement | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [active, setActive] = useState(false);
+  const visibilityRef = useRef<HTMLDivElement | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [active, setActive] = useState(false)
 
   useEffect(() => {
-    const element = visibilityRef.current;
+    const element = visibilityRef.current
     if (!element || typeof IntersectionObserver === "undefined") {
-      setActive(true);
-      return;
+      setActive(true)
+      return
     }
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (!entries.some((entry) => entry.isIntersecting)) return;
-        setActive(true);
-        observer.disconnect();
+        if (!entries.some((entry) => entry.isIntersecting)) return
+        setActive(true)
+        observer.disconnect()
       },
-      { rootMargin: "600px 0px" },
-    );
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
+      { rootMargin: "600px 0px" }
+    )
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
-    if (!active) return;
-    let cancelled = false;
-    let editor: JSONEditor | null = null;
+    if (!active) return
+    let cancelled = false
+    let editor: JSONEditor | null = null
 
     async function mountEditor() {
-      const container = containerRef.current;
-      if (!container) return;
-      const { default: JSONEditorConstructor } = await import("jsoneditor");
-      if (cancelled) return;
+      const container = containerRef.current
+      if (!container) return
+      const { default: JSONEditorConstructor } = await import("jsoneditor")
+      if (cancelled) return
 
       editor = new JSONEditorConstructor(
         container,
@@ -215,16 +215,16 @@ function JsonPane({ label, value }: { label: string; value: unknown }) {
           search: true,
           history: true,
         },
-        value,
-      );
+        value
+      )
     }
 
-    void mountEditor();
+    void mountEditor()
     return () => {
-      cancelled = true;
-      editor?.destroy();
-    };
-  }, [active, value]);
+      cancelled = true
+      editor?.destroy()
+    }
+  }, [active, value])
 
   return (
     <section className={styles.pane} aria-label={`${label} JSON`}>
@@ -242,44 +242,43 @@ function JsonPane({ label, value }: { label: string; value: unknown }) {
         )}
       </div>
     </section>
-  );
+  )
 }
 
 function elementsUntilNextHeading(heading: Element) {
-  const elements: HTMLElement[] = [];
-  let current = heading.nextElementSibling;
+  const elements: HTMLElement[] = []
+  let current = heading.nextElementSibling
   while (current && current.tagName !== "H2") {
-    if (current instanceof HTMLElement) elements.push(current);
-    current = current.nextElementSibling;
+    if (current instanceof HTMLElement) elements.push(current)
+    current = current.nextElementSibling
   }
-  return elements;
+  return elements
 }
 
 function labeledJsonBlock(elements: HTMLElement[], label: string) {
   const labelIndex = elements.findIndex(
     (element) =>
-      element.textContent?.trim() === label && element.querySelector("strong"),
-  );
-  if (labelIndex < 0) return null;
+      element.textContent?.trim() === label && element.querySelector("strong")
+  )
+  if (labelIndex < 0) return null
 
   for (let index = labelIndex + 1; index < elements.length; index += 1) {
-    const element = elements[index];
+    const element = elements[index]
     const code = element.matches("pre")
       ? (element.querySelector("code") ?? element)
-      : (element.querySelector("pre code") ?? element.querySelector("pre"));
-    if (!code) continue;
+      : (element.querySelector("pre code") ?? element.querySelector("pre"))
+    if (!code) continue
 
     try {
       return {
         label: elements[labelIndex],
         block: element,
         value: JSON.parse(code.textContent ?? ""),
-      };
+      }
     } catch {
-      return null;
+      return null
     }
   }
 
-  return null;
+  return null
 }
-

@@ -16,6 +16,7 @@ import {
   patchAutomationRecord,
   type AutomationRecord,
 } from "@/lib/automations"
+import { listAvailableImageCollections } from "@/lib/available-image-collections"
 import { automationGenerationBlockers } from "@/lib/automation-readiness"
 import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
 import {
@@ -62,6 +63,7 @@ import {
   imagesForSlideshowSection,
   selectSlideshowHook,
   selectSlideshowImages,
+  slideshowHookSourcePrompt,
   slideshowHookCombinationUsageKey,
   slideshowHookUsageKey,
   SlideshowHookCombinationsExhaustedError as HookCombinationsExhaustedError,
@@ -238,7 +240,7 @@ export type AutomationRunSlide = AutomationRunSlideView & {
     padding: number
   }
   text: string
-  textPlacement: NonNullable<SlideshowTextItem["textPlacement"]>
+  textPlacement?: SlideshowTextItem["textPlacement"]
   aspectRatio?: string
   imageGrid?: string
   overlay?: boolean
@@ -1343,6 +1345,7 @@ async function createAutomationRunPlan(
     : baseTextAutomation
   const promptInstructions = [
     options.promptInstructions,
+    slideshowHookSourcePrompt(hookSelection),
     slideshowStructurePromptInstructions(schema),
     contentRoutePrompt(contentRoute),
     slideshowMetadataPromptInstructions(schema),
@@ -1620,6 +1623,8 @@ type AutomationHookSelection = {
   hookId?: string
   bodySlideCount?: number
   tone?: string
+  contentDirection?: string
+  content?: string
 }
 
 async function selectExplicitAutomationHook(input: {
@@ -1659,6 +1664,8 @@ async function selectExplicitAutomationHook(input: {
           hookId: item.id,
           bodySlideCount: item.bodySlideCount,
           tone: item.tone,
+          contentDirection: item.contentDirection,
+          content: item.content,
         }
       }
     } catch {
@@ -2250,8 +2257,15 @@ export function automationRunSlidesToSlideshowSlides(
               textAlign: textItem?.textAlign || "center",
               textAnchor: textItem?.textAnchor || "padded",
               textVerticalAnchor: textItem?.textVerticalAnchor || "padded",
-              textPlacement: slide.textPlacement,
+              textPlacement:
+                textItem?.positionX === undefined ||
+                textItem?.positionY === undefined
+                  ? slide.textPlacement
+                  : undefined,
               textPosition,
+              fontWeight: textItem?.fontWeight,
+              backgroundMode: textItem?.backgroundMode,
+              backgroundRadius: textItem?.backgroundRadius,
             },
           ]
 
@@ -2304,8 +2318,15 @@ function slideshowTextItemFromTempTextItem(input: {
     textAnchor: input.textItem?.textAnchor || "padded",
     textVerticalAnchor: input.textItem?.textVerticalAnchor || "padded",
     textPlacement:
-      input.textPlacement ?? tempTextPlacement(input.textItem?.textPosition),
+      input.textItem?.positionX === undefined ||
+      input.textItem?.positionY === undefined
+        ? (input.textPlacement ??
+          tempTextPlacement(input.textItem?.textPosition))
+        : undefined,
     textPosition: tempTextItemPosition(input.textItem),
+    fontWeight: input.textItem?.fontWeight,
+    backgroundMode: input.textItem?.backgroundMode,
+    backgroundRadius: input.textItem?.backgroundRadius,
   }
 }
 
@@ -2339,6 +2360,15 @@ function textItemPosition(
   textItem:
     ReturnType<typeof automationFormatSection>["textItems"][number] | undefined
 ) {
+  if (
+    Number.isFinite(textItem?.positionX) &&
+    Number.isFinite(textItem?.positionY)
+  ) {
+    return {
+      x: clampTextPercent(textItem?.positionX),
+      y: clampTextPercent(textItem?.positionY),
+    }
+  }
   const y =
     textItem?.textPosition === "bottom"
       ? 82
@@ -2352,6 +2382,15 @@ function textItemPosition(
 function tempTextItemPosition(
   textItem: TempSlideSpec["textItems"][number] | undefined
 ) {
+  if (
+    Number.isFinite(textItem?.positionX) &&
+    Number.isFinite(textItem?.positionY)
+  ) {
+    return {
+      x: clampTextPercent(textItem?.positionX),
+      y: clampTextPercent(textItem?.positionY),
+    }
+  }
   const y =
     textItem?.textPosition === "bottom"
       ? 82
@@ -2360,6 +2399,10 @@ function tempTextItemPosition(
         : 16
   const x = slideshowTextPositionX(textItem?.textAlign, textItem?.textAnchor)
   return { x, y }
+}
+
+function clampTextPercent(value: number | undefined) {
+  return Math.max(0, Math.min(100, value ?? 0))
 }
 
 function textItemWidth(value: string | undefined, text: string) {
@@ -2387,18 +2430,25 @@ async function readImageCollections(
     "image-collections.json"
   )
 ) {
-  const collections = await readJsonArrayStore<{
-    name?: string
-    created_at?: string
-    images?: { image_link?: string; caption?: string; hash?: string }[]
-  }>({
-    rootDir: path.dirname(imageCollectionDbPath),
-    fileName: path.basename(imageCollectionDbPath),
-    key: "collections",
-  })
+  const defaultPath = path.join(process.cwd(), "data", "image-collections.json")
+  const collections =
+    imageCollectionDbPath === defaultPath
+      ? await listAvailableImageCollections()
+      : await readJsonArrayStore<{
+          id?: string
+          name?: string
+          created_at?: string
+          images?: { image_link?: string; caption?: string; hash?: string }[]
+        }>({
+          rootDir: path.dirname(imageCollectionDbPath),
+          fileName: path.basename(imageCollectionDbPath),
+          key: "collections",
+        })
   return collections
     .map((collection) => ({
-      id: storedCollectionId({ name: clean(collection.name) }),
+      id:
+        clean(collection.id) ||
+        storedCollectionId({ name: clean(collection.name) }),
       name: clean(collection.name),
       createdAt: clean(collection.created_at),
       images: (collection.images ?? []).flatMap((image) => {
