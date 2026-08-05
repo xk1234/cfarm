@@ -7,6 +7,14 @@ import {
 } from "@/lib/automation-runner"
 
 describe("automation runner image selection", () => {
+  it("supports a static automation with zero content slides", () => {
+    expect(selectContentSlideCount({ mode: "static", count: 0 })).toEqual({
+      count: 0,
+      min: 0,
+      max: 0,
+    })
+  })
+
   it("selects every varying slide-count boundary and ignores the legacy count", () => {
     const input = {
       mode: "varying" as const,
