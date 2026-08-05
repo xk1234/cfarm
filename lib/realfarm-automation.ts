@@ -32,7 +32,8 @@ export type AutomationStatus = "paused" | "live"
 // the enum. This is the single source of truth for automation status shared by
 // the stored record and the UI summary view.
 export type AutomationLifecycleStatus = AutomationStatus | "unknown"
-export type AutomationAspectRatio = "9:16" | "4:5" | "3:4" | "3:2" | "1:1"
+export type AutomationAspectRatio =
+  "9:16" | "4:5" | "3:4" | "4:3" | "3:2" | "1:1"
 export type AutomationImageFit = "cover" | "contain" | "fit"
 export type AutomationImageGrid = "none" | "2x2" | "1x2" | "1x3" | "oval-icons"
 export type AutomationImageMode = "collection" | "single_image"
@@ -92,10 +93,12 @@ export type TextItem = {
   textAlign: AutomationTextAlign
   textAnchor: AutomationTextAnchor
   textVerticalAnchor?: AutomationTextAnchor
+  positionX?: number
+  positionY?: number
+  fontWeight?: number
+  backgroundMode?: "line" | "block"
+  backgroundRadius?: number
 }
-
-/** @deprecated Use TextItem; kept as a source-compatible alias. */
-export type AutomationTextItem = TextItem
 
 export type AutomationFormatSectionId = "hook" | "body" | "cta"
 
@@ -111,7 +114,7 @@ export type AutomationImageOverride = {
 
 export type AutomationFormatSection = {
   id: AutomationFormatSectionId
-  textItems: AutomationTextItem[]
+  textItems: TextItem[]
   aspect_ratio: AutomationAspectRatio
   imageGrid: AutomationImageGrid
   slideCount: number
@@ -129,6 +132,7 @@ export type AutomationFormatSection = {
   slideOverrides?: AutomationSlideOverride[]
   imageOverrides?: AutomationImageOverride[]
   imageMode?: AutomationImageMode
+  visualPresetId?: string
 }
 
 export type AutomationToneSection = {
@@ -215,8 +219,18 @@ export type AutomationHookItem = {
   enabled: boolean
   bodySlideCount?: number
   tone?: string
+  contentDirection?: string
+  content?: string
   createdAt: string
   updatedAt?: string
+  source?: {
+    provider: "lumenlab"
+    projectId: string
+    projectTitle: string
+    hookId?: string
+    scriptId?: string
+    importedAt: string
+  }
 }
 
 export type AutomationContentFormat =
@@ -248,6 +262,9 @@ export type AutomationVideoTemplateId =
   | "aesthetic"
   | "story_over_broll"
   | "faceless_reel"
+  | "split_screen"
+  | "fake_text"
+  | "faceless_short"
 
 export const automationVideoTemplateIds: AutomationVideoTemplateId[] = [
   "ugc_ad",
@@ -260,6 +277,9 @@ export const automationVideoTemplateIds: AutomationVideoTemplateId[] = [
   "aesthetic",
   "story_over_broll",
   "faceless_reel",
+  "split_screen",
+  "fake_text",
+  "faceless_short",
 ]
 
 export type AutomationVideoTransition = "cut" | "fade"
@@ -277,13 +297,13 @@ export type AutomationVideoSegment = {
   clipDurationMs: number
   playFullVideo?: boolean
   transition: AutomationVideoTransition
-  textItems: AutomationTextItem[]
+  textItems: TextItem[]
 }
 
 export type AutomationVideoFormat = {
   template: AutomationVideoTemplateId
   hookPlacement: "global" | "first_segment"
-  globalTextItems: AutomationTextItem[]
+  globalTextItems: TextItem[]
   segments: AutomationVideoSegment[]
 }
 
@@ -359,6 +379,7 @@ export const automationAspectRatios: AutomationAspectRatio[] = [
   "9:16",
   "4:5",
   "3:4",
+  "4:3",
   "3:2",
   "1:1",
 ]
@@ -378,24 +399,44 @@ export const automationAlignments: AutomationTextAlign[] = [
 export const automationAnchors: AutomationTextAnchor[] = ["padded", "flush"]
 
 export function defaultAutomationTextItem(
-  overrides: Partial<AutomationTextItem> = {}
-): AutomationTextItem {
+  overrides: Partial<TextItem> = {}
+): TextItem {
+  const textPosition = overrides.textPosition ?? "center"
+  const textAlign = overrides.textAlign ?? "center"
+  const textAnchor = overrides.textAnchor ?? "padded"
   return {
     id: `text-${Math.random().toString(36).slice(2, 10)}`,
     text: "",
     fontSize: "8px",
     textStyle: "whiteText",
     font: "TikTok Display Medium",
-    textPosition: "center",
+    textPosition,
     textItemWidth: "60%",
     wordLengthMin: 5,
     wordLengthMax: 10,
     contentDirection: "",
     textMode: "prompt",
     staticText: "",
-    textAlign: "center",
-    textAnchor: "padded",
+    textAlign,
+    textAnchor,
     textVerticalAnchor: "padded",
+    positionX:
+      overrides.positionX ??
+      (textAlign === "left"
+        ? textAnchor === "flush"
+          ? 1.5
+          : 10
+        : textAlign === "right"
+          ? textAnchor === "flush"
+            ? 98.5
+            : 90
+          : 50),
+    positionY:
+      overrides.positionY ??
+      (textPosition === "bottom" ? 82 : textPosition === "top" ? 16 : 45),
+    fontWeight: 800,
+    backgroundMode: "line",
+    backgroundRadius: 6,
     ...overrides,
   }
 }
@@ -1054,6 +1095,27 @@ function normalizeAutomationHookItems(
     if (!isRecord(raw)) return []
     const text = clean(raw.text)
     if (!text || isAutomationHookInstruction(text)) return []
+    const rawSource = isRecord(raw.source) ? raw.source : null
+    const source =
+      rawSource?.provider === "lumenlab" &&
+      clean(rawSource.projectId) &&
+      (clean(rawSource.hookId) || clean(rawSource.scriptId))
+        ? {
+            provider: "lumenlab" as const,
+            projectId: clean(rawSource.projectId),
+            projectTitle: clean(rawSource.projectTitle) || "LumenLab project",
+            ...(clean(rawSource.hookId)
+              ? { hookId: clean(rawSource.hookId) }
+              : {}),
+            ...(clean(rawSource.scriptId)
+              ? { scriptId: clean(rawSource.scriptId) }
+              : {}),
+            importedAt:
+              clean(rawSource.importedAt) ||
+              clean(raw.createdAt) ||
+              new Date(0).toISOString(),
+          }
+        : undefined
     return [
       {
         id: clean(raw.id) || automationHookId(text),
@@ -1063,8 +1125,15 @@ function normalizeAutomationHookItems(
           ? { bodySlideCount: hookBodySlideCount(raw.bodySlideCount) }
           : {}),
         ...(clean(raw.tone) ? { tone: clean(raw.tone) } : {}),
+        ...(clean(raw.contentDirection)
+          ? { contentDirection: clean(raw.contentDirection).slice(0, 5_000) }
+          : {}),
+        ...(clean(raw.content)
+          ? { content: clean(raw.content).slice(0, 20_000) }
+          : {}),
         createdAt: clean(raw.createdAt) || new Date(0).toISOString(),
         ...(clean(raw.updatedAt) ? { updatedAt: clean(raw.updatedAt) } : {}),
+        ...(source ? { source } : {}),
       } satisfies AutomationHookItem,
     ]
   })
@@ -1746,6 +1815,7 @@ function normalizeFormattingItem(value: unknown): AutomationFormattingItem[] {
           : record.imageMode === "collection"
             ? "collection"
             : defaultAutomationSection(id).imageMode,
+      visualPresetId: clean(record.visualPresetId) || undefined,
     },
   ]
 }
@@ -1832,7 +1902,7 @@ function normalizeOverlayImage(
   }
 }
 
-function normalizeTextItem(value: unknown): AutomationTextItem {
+function normalizeTextItem(value: unknown): TextItem {
   const record = isRecord(value) ? value : {}
   return defaultAutomationTextItem({
     id: clean(record.id) || undefined,
@@ -1861,7 +1931,31 @@ function normalizeTextItem(value: unknown): AutomationTextItem {
     textAnchor: record.textAnchor === "flush" ? "flush" : "padded",
     textVerticalAnchor:
       record.textVerticalAnchor === "flush" ? "flush" : "padded",
+    positionX: numberValue(record.positionX, textPositionXFallback(record)),
+    positionY: numberValue(record.positionY, textPositionYFallback(record)),
+    fontWeight: Math.max(
+      100,
+      Math.min(900, numberValue(record.fontWeight, 800))
+    ),
+    backgroundMode: record.backgroundMode === "block" ? "block" : "line",
+    backgroundRadius: Math.max(
+      0,
+      Math.min(48, numberValue(record.backgroundRadius, 6))
+    ),
   })
+}
+
+function textPositionXFallback(record: Record<string, unknown>) {
+  const flush = record.textAnchor === "flush"
+  if (record.textAlign === "left") return flush ? 1.5 : 10
+  if (record.textAlign === "right") return flush ? 98.5 : 90
+  return 50
+}
+
+function textPositionYFallback(record: Record<string, unknown>) {
+  if (record.textPosition === "bottom") return 82
+  if (record.textPosition === "top") return 16
+  return 45
 }
 
 function normalizeTikTokPostSettings(

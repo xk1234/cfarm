@@ -94,7 +94,7 @@ import type {
   AutomationHookItem,
   AutomationSchedule,
   AutomationSchema,
-  AutomationTextItem,
+  TextItem,
   AutomationUgcConfig,
 } from "@/lib/realfarm-automation"
 import {
@@ -6300,7 +6300,7 @@ function patchFormattingTextItem(
   if (wordLengthMin > wordLengthMax) {
     throw new Error("wordLengthMin cannot be greater than wordLengthMax")
   }
-  const updated: AutomationTextItem = { ...textItem, ...patch }
+  const updated: TextItem = { ...textItem, ...patch }
   return formatting.map((block) =>
     block.id === blockId
       ? {

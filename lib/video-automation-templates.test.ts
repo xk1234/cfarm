@@ -135,3 +135,55 @@ describe.each(["story_over_broll", "faceless_reel"] as const)(
     })
   }
 )
+
+describe("VidAI-inspired video templates", () => {
+  it("builds split screen from two full video sources", () => {
+    const format = videoAutomationTemplatePreset("split_screen").buildFormat()
+
+    expect(format.hookPlacement).toBe("global")
+    expect(format.segments).toMatchObject([
+      {
+        id: "split-primary",
+        mediaKind: "video",
+        clipCount: 1,
+        playFullVideo: true,
+      },
+      {
+        id: "split-secondary",
+        mediaKind: "video",
+        clipCount: 1,
+        playFullVideo: true,
+      },
+    ])
+    expect(normalizeVideoFormat(format)?.template).toBe("split_screen")
+  })
+
+  it("builds a four-message fake text story over one video", () => {
+    const format = videoAutomationTemplatePreset("fake_text").buildFormat()
+
+    expect(format.globalTextItems).toHaveLength(4)
+    expect(format.segments).toMatchObject([
+      {
+        id: "fake-text-background",
+        mediaKind: "video",
+        clipCount: 1,
+        playFullVideo: true,
+      },
+    ])
+    expect(normalizeVideoFormat(format)?.template).toBe("fake_text")
+  })
+
+  it("builds faceless shorts as hook, story beats, and payoff", () => {
+    const format = videoAutomationTemplatePreset("faceless_short").buildFormat()
+
+    expect(format.segments.map((segment) => segment.id)).toEqual([
+      "faceless-hook",
+      "faceless-story",
+      "faceless-payoff",
+    ])
+    expect(
+      format.segments.reduce((count, segment) => count + segment.clipCount, 0)
+    ).toBe(6)
+    expect(normalizeVideoFormat(format)?.template).toBe("faceless_short")
+  })
+})

@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react"
 
-import type { AutomationTextItem } from "@/lib/realfarm-automation"
+import type { TextItem } from "@/lib/realfarm-automation"
 import {
   editorFontSizeToCanvasPx,
   textFillColor,
@@ -13,7 +13,7 @@ const VIDEO_CANVAS_WIDTH = 720
 const VIDEO_CANVAS_HEIGHT = 1280
 
 export function textPlacementFromItem(
-  textItem: Pick<AutomationTextItem, "textPosition">
+  textItem: Pick<TextItem, "textPosition">
 ): "top" | "middle" | "bottom" {
   if (textItem.textPosition === "top") {
     return "top"
@@ -31,7 +31,7 @@ export function pickRandomHook(hooks: string[], fallback: string) {
   return hooks[Math.floor(Math.random() * hooks.length)]
 }
 
-export function videoAutomationPreviewTextStyle(textItem: AutomationTextItem) {
+export function videoAutomationPreviewTextStyle(textItem: TextItem) {
   const canvasY =
     textItem.textPosition === "bottom"
       ? 930
@@ -73,9 +73,7 @@ export function videoAutomationPreviewTextStyle(textItem: AutomationTextItem) {
   } satisfies CSSProperties
 }
 
-export function videoAutomationPreviewTextHighlightStyle(
-  textItem: AutomationTextItem
-) {
+export function videoAutomationPreviewTextHighlightStyle(textItem: TextItem) {
   const editorColor = textStyleToEditorColor(textItem.textStyle || "outline")
   const backgroundColor =
     editorColor === "Black Background"

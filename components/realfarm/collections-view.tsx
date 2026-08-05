@@ -61,6 +61,7 @@ type CollectionTableRow = {
   createdAt: string
   pinned: boolean
   virtual: boolean
+  source: CreatedImageCollection["source"]
 }
 
 type CollectionDeletePreview = {
@@ -162,6 +163,7 @@ export function CollectionsView({
         createdAt: collection.createdAt,
         pinned: collection.pinned === true,
         virtual: collection.virtual === true,
+        source: collection.source,
       })),
     [filteredCollections]
   )
@@ -193,6 +195,11 @@ export function CollectionsView({
               <span className="min-w-0 truncate font-medium text-app-text">
                 {data.name}
               </span>
+              {data.source === "influlab" ? (
+                <span className="shrink-0 rounded-full border border-violet-300 bg-violet-50 px-2 py-0.5 text-[9px] font-bold tracking-wide text-violet-700 uppercase">
+                  InfluLab
+                </span>
+              ) : null}
             </div>
           ) : null,
       },
@@ -552,7 +559,11 @@ export function CollectionsView({
                       {visibleCollections.map((collection, index) => (
                         <MediaCardShell
                           key={collection.id}
-                          className="group relative min-w-0 text-left"
+                          className={cn(
+                            "group relative min-w-0 text-left",
+                            collection.source === "influlab" &&
+                              "ring-2 ring-violet-400 ring-offset-2"
+                          )}
                         >
                           {!collection.virtual && (
                             <>
@@ -620,6 +631,11 @@ export function CollectionsView({
                               collection={collection}
                               index={index}
                             />
+                            {collection.source === "influlab" ? (
+                              <span className="absolute top-2 left-2 z-10 rounded-full bg-violet-600 px-2 py-1 text-[9px] font-bold tracking-wide text-white uppercase shadow-sm">
+                                InfluLab
+                              </span>
+                            ) : null}
                             <div className="bg-app-surface px-4 py-4">
                               <div className="flex min-w-0 items-center gap-1.5">
                                 {collection.mediaType === "video" ? (

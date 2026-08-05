@@ -431,7 +431,8 @@ overlays, hook text, word-timed ASS captions, and thumbnail; render at 1080×192
   "...output": "stage-8 output",
   "run": {
     "id": "ugc-run-123",
-    "automationId": "ugc-automation-123"
+    "automationId": "ugc-automation-123",
+    "scheduledFor": "2026-08-01T09:00:00.000Z"
   }
 }
 ```
@@ -442,40 +443,66 @@ overlays, hook text, word-timed ASS captions, and thumbnail; render at 1080×192
 {
   "output": {
     "id": "ugc-output-123",
-    "kind": "ugc_ad",
-    "runId": "ugc-run-123",
-    "automationId": "ugc-automation-123",
-    "videoPath": "runs/ugc-run-123/final.mp4",
-    "thumbnailPath": "runs/ugc-run-123/thumbnail.jpg",
-    "hook": "Your weekly product report should not take all morning.",
+    "type": "ugc_ad",
+    "status": "ready",
+    "title": "Your weekly product report should not take all morning.",
+    "description": "A faster way to see what drives activation.",
     "caption": "A faster way to see what drives activation.",
-    "hashtags": ["saas", "productanalytics"],
-    "segments": "stage-2 plan.segments",
-    "checkpoints": "stage-1 through stage-9 checkpoint map",
-    "providerUsage": [
-      {
-        "provider": "OpenRouter",
-        "model": "openai/gpt-5.4-mini",
-        "stage": "analysis"
-      },
-      {
-        "provider": "OpenRouter",
-        "model": "anthropic/claude-sonnet-5",
-        "stage": "script"
-      },
-      { "provider": "fal.ai", "model": "fal-ai/flux-2-pro", "stage": "actor" },
-      {
-        "provider": "ElevenLabs",
-        "model": "eleven_multilingual_v2",
-        "stage": "voice"
+    "hashtags": ["#saas", "#productanalytics"],
+    "sourceAutomationId": "ugc-automation-123",
+    "sourceRunId": "ugc-run-123",
+    "videoUrl": "/api/assets/ugc_avatar_videos/owner-123/ugc-run-123/video.mp4",
+    "previewUrl": "/api/assets/ugc_avatar_videos/owner-123/ugc-run-123/thumbnail.jpg",
+    "sourceConfig": {
+      "automationId": "ugc-automation-123",
+      "runId": "ugc-run-123",
+      "scheduledFor": "2026-08-01T09:00:00.000Z",
+      "script": "stage-2 plan",
+      "providers": {
+        "actor": {
+          "provider": "fal",
+          "model": "fal-ai/flux-2-pro",
+          "requestId": "fal-actor-request"
+        },
+        "voice": {},
+        "motion": {
+          "model": "fal-ai/minimax/hailuo-2.3-fast/standard/image-to-video",
+          "requestId": "fal-motion-request"
+        },
+        "lipsync": {
+          "model": "veed/lipsync",
+          "requestId": "fal-lipsync-request"
+        },
+        "broll": {},
+        "composite": {
+          "requestId": "rendi-request"
+        }
       }
-    ]
-  }
+    }
+  },
+  "outputMedia": [
+    {
+      "role": "rendered_video",
+      "kind": "video",
+      "storageBucket": "ugc_videos",
+      "storagePath": "ugc_avatar_videos/owner-123/ugc-run-123/video.mp4",
+      "url": "/api/assets/ugc_avatar_videos/owner-123/ugc-run-123/video.mp4"
+    },
+    {
+      "role": "thumbnail",
+      "kind": "image",
+      "storageBucket": "ugc_videos",
+      "storagePath": "ugc_avatar_videos/owner-123/ugc-run-123/thumbnail.jpg",
+      "url": "/api/assets/ugc_avatar_videos/owner-123/ugc-run-123/thumbnail.jpg"
+    }
+  ]
 }
 ```
 
-**Processing:** persist the final video, thumbnail, script plan, model/provider provenance,
-checkpoint map, usage ledger, and output/media records.
+**Processing:** upsert the canonical generated-video output, then replace its output-media rows
+with the rendered video and thumbnail references. The full script and checkpoint-derived provider
+provenance live under `sourceConfig`; the resumable checkpoint map stays on the run record, while
+provider usage remains in the stage-level usage ledger.
 
 **Model/provider:** none; Appwrite storage and database.
 

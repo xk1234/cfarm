@@ -1,6 +1,6 @@
 ---
 title: Automation settings
-description: General generation language, video export, sound, transition, duration, and web search settings.
+description: Configure generation language, video export, sound, transition, duration, and web search for an automation.
 ---
 
 Route: `/app?view=automations&automation=<id>`

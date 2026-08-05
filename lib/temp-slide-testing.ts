@@ -16,7 +16,7 @@ import {
   automationTone,
   type AutomationFormatSection,
   type AutomationSchema,
-  type AutomationTextItem,
+  type TextItem,
 } from "@/lib/realfarm-automation"
 import {
   type TempSlideImageCollection,
@@ -394,7 +394,7 @@ function buildAutomationSlideSpec(input: {
 }
 
 function automationTextItemToPlaceholder(input: {
-  textItem: AutomationTextItem
+  textItem: TextItem
   slideId: string
   section: TempSlideSectionId
   index: number
@@ -420,5 +420,10 @@ function automationTextItemToPlaceholder(input: {
     textAlign: input.textItem.textAlign,
     textAnchor: input.textItem.textAnchor,
     textVerticalAnchor: input.textItem.textVerticalAnchor ?? "padded",
+    positionX: input.textItem.positionX,
+    positionY: input.textItem.positionY,
+    fontWeight: input.textItem.fontWeight,
+    backgroundMode: input.textItem.backgroundMode,
+    backgroundRadius: input.textItem.backgroundRadius,
   }
 }

@@ -54,7 +54,7 @@ export default function RootLayout({
         geistHeading.variable
       )}
     >
-      <body className="flex min-h-screen flex-col">
+      <body suppressHydrationWarning className="flex min-h-screen flex-col">
         <ThemeProvider defaultTheme="light" enableSystem={false}>
           <RootProvider theme={{ enabled: false }}>{children}</RootProvider>
           <AppToaster />

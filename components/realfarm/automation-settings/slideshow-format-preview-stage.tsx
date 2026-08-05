@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { IconFocusCentered, IconMinus, IconPlus } from "@tabler/icons-react"
 
-import type { AutomationTextItem } from "@/lib/realfarm-automation"
+import type { TextItem } from "@/lib/realfarm-automation"
 import { cn } from "@/lib/utils"
 
 import { AutomationFormatPreviewCard } from "./format-preview-card"
@@ -37,12 +37,13 @@ export function SlideshowFormatPreviewStage({
   updateTextItem,
   onDeleteTextItem,
   onAddTextItem,
+  visualControlsLocked = false,
 }: {
   className?: string
   onExitPreview: () => void
   previewItems: AutomationFormatPreviewItem[]
   activeTab: SlideshowFormatTab
-  activeTextItem: AutomationTextItem
+  activeTextItem: TextItem
   selectedTextIndex: number | null
   activePreviewIndex: number
   previewSlotWidths: number[]
@@ -57,9 +58,10 @@ export function SlideshowFormatPreviewStage({
     tab: SlideshowFormatTab,
     textIndex: number
   ) => void
-  updateTextItem: (patch: Partial<AutomationTextItem>) => void
+  updateTextItem: (patch: Partial<TextItem>) => void
   onDeleteTextItem: () => void
   onAddTextItem: () => void
+  visualControlsLocked?: boolean
 }) {
   const stageRef = useRef<HTMLElement>(null)
   const dragRef = useRef<{
@@ -308,7 +310,9 @@ export function SlideshowFormatPreviewStage({
                 onSelectPreviewText(index, item.tab, textIndex)
               }
               onAddText={
-                activePreviewIndex === index ? onAddTextItem : undefined
+                activePreviewIndex === index && !visualControlsLocked
+                  ? onAddTextItem
+                  : undefined
               }
             />
           ))}
@@ -339,6 +343,7 @@ export function SlideshowFormatPreviewStage({
           updateTextItem={updateTextItem}
           onDelete={onDeleteTextItem}
           onAdd={onAddTextItem}
+          locked={visualControlsLocked}
         />
       )}
     </main>

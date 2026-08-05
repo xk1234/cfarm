@@ -33,7 +33,7 @@ Legend:
 - **Current** — used by a current UI or worker flow.
 - **Internal** — operational/debug surface; not a normal product API.
 - **Legacy** — retained compatibility path with a newer canonical replacement.
-- **Broken** — route exists but cannot currently compile or execute as written.
+- **Broken** — route exists but cannot compile or execute as written.
 
 ## Authentication
 
@@ -112,9 +112,9 @@ endpoint.
 | `POST /api/local-assets/upload`              | Multipart MP3/WAV `file`                                                        | Stores audio and registers a media-library entry                | Current            |
 | `GET /api/local-assets/[...assetPath]`       | Asset path; optional HTTP Range header                                          | Streams deterministic Appwrite Storage object                   | Current            |
 
-The former `/api/assets/reference-import` and `/api/characters/**` families were
-removed with the character/UGC workspace. They are intentionally absent from
-the current inventory.
+The `/api/assets/reference-import` and `/api/characters/**` families are
+intentionally absent from this inventory. They were removed with the
+character/UGC workspace.
 
 ## Discovery and media proxying
 

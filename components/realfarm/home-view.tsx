@@ -34,6 +34,7 @@ import {
   GeneratedSlideshowViewerModal,
   automationRunViewerImageUrls,
 } from "@/components/realfarm/automation-settings/generated-slideshow-viewer"
+import { AutomationRecentRunCard } from "@/components/realfarm/automation-settings/automation-recent-run-card"
 import type { AutomationRunApiRecord } from "@/components/realfarm/automation-settings/types"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -324,9 +325,10 @@ export function HomeView({
         {activeTab === "slideshows" && pagedGeneratedSlideshows.length > 0 ? (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
             {pagedGeneratedSlideshows.map((item) => (
-              <GeneratedSlideshowCard
+              <AutomationRecentRunCard
                 key={item.slideshow.id}
-                item={item}
+                run={item.run as unknown as AutomationRunApiRecord}
+                mediaKind="slideshow"
                 shared={Boolean(item.ownerId && item.ownerId !== currentUserId)}
                 onOpen={() =>
                   setSelectedGeneratedSlideshow({
@@ -492,7 +494,7 @@ function HomeLoadError({
 
 type GeneratedHomeSlideshowCard = {
   ownerId?: string
-  title: string
+  run: GeneratedShowcaseRun
   runs: GeneratedShowcaseRun[]
   slideshow: TemplateExampleSlideshow
 }
@@ -507,78 +509,6 @@ function HomeCardSkeletonRow() {
           aria-hidden="true"
         />
       ))}
-    </div>
-  )
-}
-
-function GeneratedSlideshowCard({
-  item,
-  shared,
-  onOpen,
-}: {
-  item: GeneratedHomeSlideshowCard
-  shared: boolean
-  onOpen: () => void
-}) {
-  const firstSlide = item.slideshow.slides[0]
-  const failed = item.slideshow.status === "failed"
-
-  return (
-    <div
-      className={cn(
-        "relative rounded-[10px]",
-        shared && "ring-2 ring-[#6d28d9]/45 ring-offset-2"
-      )}
-    >
-      {shared ? (
-        <span className="absolute top-2 left-2 z-20 rounded-full bg-app-action px-2 py-1 text-[10px] font-semibold text-white">
-          Shared
-        </span>
-      ) : null}
-      <span
-        className={cn(
-          "absolute top-2 right-2 z-20 rounded-full px-2 py-1 text-[10px] font-semibold text-white",
-          failed ? "bg-app-danger" : "bg-black/75"
-        )}
-      >
-        {failed
-          ? "Generation failed"
-          : item.slideshow.status === "generating"
-            ? "Generating"
-            : "Not published"}
-      </span>
-      <MediaCardShell danger={failed}>
-        {failed ? (
-          <MediaFrame>
-            <GenerationFailurePlaceholder
-              message={
-                item.slideshow.error || "This slideshow could not be generated."
-              }
-            />
-          </MediaFrame>
-        ) : (
-          <button
-            type="button"
-            className="block w-full text-left"
-            onClick={onOpen}
-            aria-label={`Open ${item.title} generated slideshow`}
-          >
-            <MediaFrame>
-              {firstSlide ? (
-                /* eslint-disable-next-line @next/next/no-img-element -- Generated slides are already rendered image artifacts. */
-                <img
-                  src={firstSlide.imageUrl}
-                  alt={firstSlide.text || `${item.title} first slide`}
-                  className="absolute inset-0 h-full w-full object-cover"
-                  draggable={false}
-                />
-              ) : (
-                <div className="app-media-poster-fallback absolute inset-0" />
-              )}
-            </MediaFrame>
-          </button>
-        )}
-      </MediaCardShell>
     </div>
   )
 }
@@ -634,15 +564,18 @@ function generatedHomeSlideshowCards(
       const slideshows = generatedExampleSlideshows(runs, {
         includeFailed: true,
       })
-      return slideshows.map((slideshow) => ({
-        ownerId: runs.find((run) => run.id === slideshow.id)?.ownerId,
-        title:
-          runs
-            .find((run) => run.id === slideshow.id)
-            ?.automationTitle?.trim() || slideshow.title,
-        runs,
-        slideshow,
-      }))
+      return slideshows.flatMap<GeneratedHomeSlideshowCard>((slideshow) => {
+        const run = runs.find((candidate) => candidate.id === slideshow.id)
+        if (!run) return []
+        return [
+          {
+            ownerId: run.ownerId,
+            run,
+            runs,
+            slideshow,
+          },
+        ]
+      })
     })
     .sort(
       (first, second) =>

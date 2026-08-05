@@ -1,6 +1,6 @@
 ---
 title: Media viewers
-description: Modal review and editing surfaces for collection images, generated slideshows, and generated videos.
+description: Review and edit collection images, generated slideshows, and generated videos in a modal.
 ---
 
 Route: Modal state from `/app?view=home`, `/app?view=automations`, and `/app/collections/[id]`.
@@ -19,7 +19,7 @@ panel switches between prompt-based editing and 2x or 4x upscaling and includes
 the registered image-model choices from the application model registry.
 
 On desktop, the slideshow viewer is a large modal with a header, one centered
-slide stage, position dots, and a Publishing details panel below the stage. The
+slide stage, a dedicated position-dot row below it, and a Publishing details panel below the stage. The
 header contains Close, the output title, caller-supplied publication status and
 actions, PNG export, and optional generation-debug and whole-output deletion
 controls. The details panel can show creation date, post date, language, title,
@@ -39,7 +39,7 @@ running export shows its current render stage instead of the player, and a run
 without a video shows an empty state. On mobile the columns become one scrolling
 flow with the player before the details. The persisted-export viewer uses the
 same player and copy-field pattern with fewer run details. No mobile screenshot
-is currently available for these viewer states.
+is available for these viewer states.
 
 ## Interactions
 
@@ -50,9 +50,13 @@ selected factor; either successful action replaces the displayed collection
 image with the returned asset.
 
 The slideshow viewer moves with the previous and next buttons or any position
-dot. The stage supports wheel and button zoom, double-click zoom, pointer drag,
+dot. Zoom scales the complete slide frame from 50% to 500% rather than scaling
+the image inside a fixed clipping frame. The centered zoom toolbar appears on
+hover or keyboard focus on desktop and stays touch-accessible on mobile. The
+stage supports wheel and button zoom, double-click zoom, pointer drag,
 two-pointer pinch, keyboard plus and minus zoom, arrow-key panning, and reset
-with `0` or Escape. Export downloads the rendered slides as a PNG ZIP, and copy
+with `0` or Escape. Slide-image edit and slide-delete actions use persistent,
+high-contrast blue and red controls with text labels on mobile. Export downloads the rendered slides as a PNG ZIP, and copy
 actions place the title or combined description and hashtags on the clipboard.
 
 For an editable generated slideshow, the user can save title, description, and

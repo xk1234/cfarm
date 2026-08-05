@@ -1,6 +1,6 @@
 ---
 title: Automation hooks
-description: Per-automation hook catalog, variable references, tone, and shared slide style controls.
+description: Manage an automation's hook catalog, variable references, tone, and shared slide style.
 ---
 
 Route: `/app?view=automations&automation=<id>`

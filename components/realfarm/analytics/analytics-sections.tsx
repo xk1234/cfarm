@@ -196,15 +196,13 @@ export function AnalyticsOverview({
 
   return (
     <div className="space-y-8">
-      <AccountSelectorRail
+      <AccountPerformanceTable
         integrations={integrations}
-        selectedIds={selectedIds}
-        allSelected={selectedAccountId === "all"}
-        multi={false}
-        onToggle={onSelectAccount}
-        onSelectAll={() => {
-          if (selectedAccountId !== "all") onSelectAccount(selectedAccountId)
-        }}
+        posts={posts}
+        followers={followerSnapshots}
+        selectedAccountId={selectedAccountId}
+        onSelectAccount={onSelectAccount}
+        onOpenPlatform={onOpenPlatform}
       />
 
       <section className="grid gap-3 lg:grid-cols-3">
@@ -239,15 +237,6 @@ export function AnalyticsOverview({
         posts={recent}
         integrations={integrations}
         onSelect={onSelectPost}
-      />
-
-      <AccountPerformanceTable
-        integrations={integrations}
-        posts={posts}
-        followers={followerSnapshots}
-        selectedAccountId={selectedAccountId}
-        onSelectAccount={onSelectAccount}
-        onOpenPlatform={onOpenPlatform}
       />
     </div>
   )

@@ -20,12 +20,10 @@ export function UgcAutomationFormatPanel({
   config,
   onConfigChange,
   onBack,
-  onSave,
 }: {
   config: AutomationSchema
   onConfigChange: (config: AutomationSchema) => void
   onBack: () => void
-  onSave: () => void
 }) {
   const ugc = normalizeUgcConfig(config.ugc)
   const [estimate, setEstimate] = useState<UgcCostBreakdown | null>(null)
@@ -40,11 +38,13 @@ export function UgcAutomationFormatPanel({
   const voiceMissing = validationErrors.some((error) =>
     error.includes("voice id")
   )
+  const ugcEstimateJson = JSON.stringify(ugc)
 
   useEffect(() => {
+    const estimateInput = JSON.parse(ugcEstimateJson) as AutomationUgcConfig
     const controller = new AbortController()
     const timer = window.setTimeout(() => {
-      void requestUgcEstimate(ugc, controller.signal)
+      void requestUgcEstimate(estimateInput, controller.signal)
         .then((nextEstimate) => {
           setEstimate(nextEstimate)
           setEstimateError("")
@@ -63,26 +63,23 @@ export function UgcAutomationFormatPanel({
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [
-    ugc.actorAssetUrl,
-    ugc.actorSource,
-    ugc.brollCount,
-    ugc.lipSyncTier,
-    ugc.targetDurationSeconds,
-    ugc.voiceModel,
-  ])
+  }, [ugcEstimateJson])
 
   function update(patch: Partial<AutomationUgcConfig>) {
     onConfigChange({ ...config, ugc: { ...ugc, ...patch } })
   }
 
-  function save() {
-    if (validationErrors.length) return
-    onSave()
-  }
-
   return (
     <div className="min-h-full bg-app-surface px-9 py-8 pr-12">
+      <Button
+        type="button"
+        variant="softControl"
+        size="appDefault"
+        className="mb-5"
+        onClick={onBack}
+      >
+        Back
+      </Button>
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-3xl leading-tight font-bold text-app-text">
@@ -348,19 +345,6 @@ export function UgcAutomationFormatPanel({
           {validationErrors.join(". ")}.
         </div>
       ) : null}
-      <div className="mt-8 flex justify-end gap-3 border-t border-app-panel-border pt-5">
-        <Button type="button" variant="softControl" onClick={onBack}>
-          Cancel
-        </Button>
-        <Button
-          type="button"
-          variant="action"
-          disabled={validationErrors.length > 0}
-          onClick={save}
-        >
-          Save changes
-        </Button>
-      </div>
     </div>
   )
 }

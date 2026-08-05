@@ -4,12 +4,11 @@ import { IconChevronLeft, IconVideo } from "@tabler/icons-react"
 import { CollectionSelector } from "@/components/realfarm/collection-selector"
 import { SoundSelector } from "@/components/realfarm/creator-ui"
 import { PinterestPreviewTile } from "@/components/realfarm/shared-media"
-import { Button } from "@/components/ui/button"
 import { SelectControl } from "@/components/ui/form-controls"
 import {
   defaultAutomationTextItem,
   type AutomationSchema,
-  type AutomationTextItem,
+  type TextItem,
   type AutomationVideoFormat,
   type AutomationVideoSegment,
   type AutomationVideoTemplateId,
@@ -50,7 +49,6 @@ export function VideoTemplateFormatPanel({
   onCreateCollection,
   onConfigChange,
   onBack,
-  onSave,
 }: {
   automation: Automation
   config: AutomationSchema
@@ -61,7 +59,6 @@ export function VideoTemplateFormatPanel({
   onCreateCollection: (collection: CreatedImageCollection) => void
   onConfigChange: (config: AutomationSchema) => void
   onBack: () => void
-  onSave: () => void
 }) {
   const format =
     config.video_format ?? videoAutomationTemplatePreset("ugc_ad").buildFormat()
@@ -184,7 +181,7 @@ export function VideoTemplateFormatPanel({
     })
   }
 
-  function updateActiveTextItem(patch: Partial<AutomationTextItem>) {
+  function updateActiveTextItem(patch: Partial<TextItem>) {
     const textIndex = Math.min(
       selectedTextIndex ?? 0,
       Math.max(0, activeTextItems.length - 1)
@@ -215,7 +212,7 @@ export function VideoTemplateFormatPanel({
     setSelectedTextIndex((index) => Math.max(0, (index ?? 0) - 1))
   }
 
-  function applyActiveTextItems(items: AutomationTextItem[]) {
+  function applyActiveTextItems(items: TextItem[]) {
     if (selectedSegment) {
       updateSegment(selectedSegment.id, { textItems: items })
       return
@@ -331,7 +328,10 @@ export function VideoTemplateFormatPanel({
                 collections={collections}
                 demoVideos={demoVideos}
                 onSelect={() => {
-                  setSelectedTarget({ scope: "segment", segmentId: segment.id })
+                  setSelectedTarget({
+                    scope: "segment",
+                    segmentId: segment.id,
+                  })
                   setSelectedTextIndex(null)
                 }}
                 onCreateCollection={onCreateCollection}
@@ -339,16 +339,6 @@ export function VideoTemplateFormatPanel({
               />
             ))}
           </div>
-        </div>
-        <div className="border-t border-app-panel-border p-3">
-          <Button
-            variant="action"
-            size="appDefault"
-            className="w-full"
-            onClick={onSave}
-          >
-            Save Changes
-          </Button>
         </div>
       </aside>
 
@@ -691,7 +681,7 @@ function TemplatePreviewText({
   active,
   onClick,
 }: {
-  textItem: AutomationTextItem
+  textItem: TextItem
   text: string
   active: boolean
   onClick?: () => void

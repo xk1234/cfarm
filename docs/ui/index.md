@@ -1,10 +1,10 @@
 ---
 title: UI field guide
-description: Current CFarm destinations, interaction states, and shared interface rules.
+description: Find the destination, interaction state, and shared interface rule that governs any LumenClip surface.
 ---
 
-This section documents the current CFarm interface contract. It is organized by
-destination and visible interaction state rather than by source file.
+This section is the LumenClip interface contract. It is organized by destination
+and visible interaction state rather than by source file.
 
 Production screenshots were captured at 1440 x 900 for desktop and 390 x 844
 for mobile on 29 July 2026. The remaining imagery was exported from the
@@ -12,7 +12,7 @@ LumenClip Paper design file on 1 August 2026 from boards traced against the
 shipped UI. Screenshots are reference imagery, and the written behavior takes
 precedence where they disagree.
 
-## Current workspace layout contract
+## Workspace layout contract
 
 - `/app` is one authenticated, tabbed workspace. Its visible destination is
   addressed by the `view` query parameter rather than by a route per
@@ -84,8 +84,9 @@ precedence where they disagree.
 
 ### Public and system
 
-- [Landing](/docs/ui/public/landing)
-- [Authentication](/docs/ui/public/auth)
+- [Public pages](/docs/ui/public) — route map for every logged-out surface
+- [Marketing pages](/docs/ui/public/landing)
+- [Authentication and invitations](/docs/ui/public/auth)
 - [Shared slideshow](/docs/ui/public/public-slideshow)
 - [Documentation shell](/docs/ui/public/docs)
 - [Legal and system](/docs/ui/public/legal)

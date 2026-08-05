@@ -1,7 +1,7 @@
 "use client"
 
 import { LuCheck, LuChevronDown, LuSearch } from "react-icons/lu"
-import type { ComponentProps } from "react"
+import type { ComponentProps, ReactNode } from "react"
 import { Select, Switch } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
@@ -76,21 +76,29 @@ export function SelectLike({
   options,
   onChange,
   placement = "top",
+  renderValue,
+  renderOption,
+  disabled = false,
 }: {
   value: string
   options: string[]
   onChange?: (value: string) => void
   placement?: "top" | "bottom"
+  renderValue?: (value: string) => ReactNode
+  renderOption?: (option: string) => ReactNode
+  disabled?: boolean
 }) {
   return (
-    <Select.Root value={value} onValueChange={onChange}>
+    <Select.Root value={value} onValueChange={onChange} disabled={disabled}>
       <Select.Trigger asChild>
         <Button
           variant="softControl"
           size="appDefault"
-          className="w-full max-w-full min-w-0 justify-start overflow-hidden text-left"
+          className="w-full max-w-full min-w-0 justify-start overflow-hidden text-left disabled:cursor-not-allowed disabled:opacity-55"
         >
-          <Select.Value className="min-w-0 truncate" />
+          <Select.Value className="min-w-0 truncate">
+            {renderValue ? renderValue(value) : value}
+          </Select.Value>
         </Button>
       </Select.Trigger>
       <Select.Portal>
@@ -108,7 +116,9 @@ export function SelectLike({
                 value={option}
                 className="cursor-default rounded-md px-2 py-1.5 outline-none data-[highlighted]:bg-app-control-hover"
               >
-                <Select.ItemText>{option}</Select.ItemText>
+                <Select.ItemText>
+                  {renderOption ? renderOption(option) : option}
+                </Select.ItemText>
               </Select.Item>
             ))}
           </Select.Viewport>
@@ -196,10 +206,7 @@ export function SelectControl({
 }: ComponentProps<"select">) {
   return (
     <select
-      className={cn(
-        "app-control px-4 text-sm font-medium",
-        className
-      )}
+      className={cn("app-control px-4 text-sm font-medium", className)}
       {...props}
     />
   )
@@ -213,12 +220,7 @@ export function SearchControl({
   inputClassName?: string
 }) {
   return (
-    <label
-      className={cn(
-        "app-control relative block",
-        className
-      )}
-    >
+    <label className={cn("app-control relative block", className)}>
       <LuSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-app-muted-text" />
       <input
         className={cn(
@@ -267,9 +269,7 @@ export function FormatLabeledSelect({
 }) {
   return (
     <label>
-      <div className="app-field-label mb-1 text-[11px]">
-        {label}
-      </div>
+      <div className="app-field-label mb-1 text-[11px]">{label}</div>
       <FormatSelect value={value} options={options} onChange={onChange} />
     </label>
   )

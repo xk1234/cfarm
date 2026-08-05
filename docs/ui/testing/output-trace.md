@@ -1,6 +1,6 @@
 ---
 title: Output trace
-description: Reference state for inspecting the inputs and outputs of one automation experiment cell.
+description: Inspect the inputs and outputs of one automation experiment cell. Reference state only; no shipped surface renders it.
 ---
 
 Route: `/app/testing` (panel state; no separate route)
@@ -11,24 +11,24 @@ Route: `/app/testing` (panel state; no separate route)
 
 ## Layout
 
-No current CFarm component owns this panel. The owning route is
+No LumenClip component owns this panel. The nominal route is
 `app/app/testing/page.tsx`, which redirects to LumenLab without rendering a
 local result grid or trace.
 
-The images above are August 1 Paper design-file exports traced from the removed
-CFarm testing UI, not captures of a currently shipped CFarm surface. They depict
+The images above are Paper design-file exports from 1 August 2026, traced from
+the removed testing UI rather than captured from a shipped surface. They depict
 a Generation trace dialog with Resolve hook, Generate slide text, Choose
 pictures, and Validate output steps. The desktop reference places the step list
 beside prompt and output panes; the mobile reference stacks the step list above
-those panes. This visual description does not assert that the external LumenLab
+those panes. This description does not assert that the external LumenLab
 destination implements the panel.
 
 ## Interactions
 
-There is no current local result cell to select and no CFarm trace dialog to
-open, close, or step through. The retained experiment operation still returns a
-plan and QA report for each successful cell, plus per-cell warnings or errors,
-but `/app/testing` does not present those fields before redirecting.
+There is no local result cell to select and no trace dialog to open, close, or
+step through. The retained experiment operation returns a plan and QA report for
+each successful cell, plus per-cell warnings or errors, but `/app/testing`
+redirects without presenting those fields.
 
 ## MCP coverage
 

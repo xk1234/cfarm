@@ -1,6 +1,6 @@
 ---
 title: Navigation
-description: Desktop and mobile access to the six CFarm workspace destinations.
+description: Move between the six LumenClip workspace destinations on desktop and mobile.
 ---
 
 Route: `/app?view=<destination>`
@@ -30,7 +30,7 @@ the workspace view state.
 
 ## Interactions
 
-The current destination is visually selected and exposed with
+The active destination is visually selected and exposed with
 `aria-current="page"`. A plain desktop or mobile click updates the workspace in
 place; modified clicks retain normal link behavior. The LumenClip mark in the
 mobile header links to `/app`.

@@ -102,6 +102,8 @@ export type SlideshowHookSelection = {
   hookId: string
   bodySlideCount?: number
   tone?: string
+  contentDirection?: string
+  content?: string
 }
 
 /**
@@ -114,6 +116,8 @@ export function selectSlideshowHook(input: {
     text: string
     bodySlideCount?: number
     tone?: string
+    contentDirection?: string
+    content?: string
   }>
   hookSlots?: Record<string, string>
   wordCollections: WordCollectionRecord[]
@@ -153,6 +157,8 @@ export function selectSlideshowHook(input: {
           hookId: hookItem.id,
           bodySlideCount: hookItem.bodySlideCount,
           tone: hookItem.tone,
+          contentDirection: hookItem.contentDirection,
+          content: hookItem.content,
         }))
       )
     } catch (error) {
@@ -194,6 +200,22 @@ export function selectSlideshowHook(input: {
         ) * available.length
       )
   return available[Math.min(available.length - 1, Math.max(0, selectedIndex))]
+}
+
+export function slideshowHookSourcePrompt(
+  selection: Pick<SlideshowHookSelection, "contentDirection" | "content">
+) {
+  const direction = selection.contentDirection?.trim()
+  const content = selection.content?.trim()
+  if (!direction && !content) return ""
+  return [
+    "Hook-specific LumenLab source brief:",
+    direction ? `Content direction: ${direction}` : "",
+    content ? `Source content: ${content}` : "",
+    "Develop the selected hook using this brief. Preserve the source's factual claims and intended payoff; do not switch to a generic topic or invent unsupported facts.",
+  ]
+    .filter(Boolean)
+    .join("\n")
 }
 
 export function slideshowHookUsageKey(hook: string) {

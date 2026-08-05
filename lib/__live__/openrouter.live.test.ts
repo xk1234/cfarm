@@ -3,7 +3,7 @@ import { resolve } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { generateSlideshowText } from "@/lib/slideshow-text-generation"
+import { generateSlideshowText } from "@/lib/slideshow-generation-engine"
 import {
   automationTemplateToTempSlideTestingAutomation,
   getTempSlidePromptPlaceholders,
@@ -85,7 +85,8 @@ const templateRecord: any = {
             text_item_width: "80%",
             word_length_min: 4,
             word_length_max: 8,
-            content_direction: "one specific numbered tip about the hook's subject",
+            content_direction:
+              "one specific numbered tip about the hook's subject",
             text_mode: "prompt",
             static_text: "",
             text_align: "center",
@@ -126,80 +127,92 @@ const templateRecord: any = {
 
 const apiKey = loadEnvKey("OPENROUTER_API_KEY")
 
-describe.skipIf(!process.env.RUN_LIVE)("LIVE OpenRouter — slideshow text generation (A3/A7/B3 backbone)", () => {
-  it("returns a schema-valid structured completion from the real API", async () => {
-    expect(apiKey, "OPENROUTER_API_KEY must be present").toBeTruthy()
+describe.skipIf(!process.env.RUN_LIVE)(
+  "LIVE OpenRouter — slideshow text generation (A3/A7/B3 backbone)",
+  () => {
+    it("returns a schema-valid structured completion from the real API", async () => {
+      expect(apiKey, "OPENROUTER_API_KEY must be present").toBeTruthy()
 
-    const automation =
-      automationTemplateToTempSlideTestingAutomation(templateRecord)
-    const placeholders = getTempSlidePromptPlaceholders(automation)
+      const automation =
+        automationTemplateToTempSlideTestingAutomation(templateRecord)
+      const placeholders = getTempSlidePromptPlaceholders(automation)
 
-    // Use a model confirmed to honor the full nested schema. The configured
-    // DEFAULT model (google/gemini-3.1-flash-lite) is validated separately in
-    // the DIAGNOSTIC test, where it reproducibly returns empty hashtags.
-    const res = await generateSlideshowText({
-      automation,
-      apiKey,
-      model: "google/gemini-2.5-flash",
-      selectedHook: "3 ways to keep a small kitchen tidy",
-    })
-
-    console.log("\nLIVE OpenRouter raw result:", JSON.stringify(res.result, null, 2))
-
-    // Real network path exercised (not the skip branch).
-    expect(res.skippedOpenRouter).toBe(false)
-    expect(res.model).toBeTruthy()
-
-    // Metadata fields present and non-empty.
-    expect(res.result.title.trim().length).toBeGreaterThan(0)
-    expect(res.result.caption.trim().length).toBeGreaterThan(0)
-    expect(res.result.hashtags.trim().length).toBeGreaterThan(0)
-
-    // Strict json_schema must fill EVERY model-fillable placeholder key.
-    for (const p of placeholders) {
-      expect(
-        Object.prototype.hasOwnProperty.call(res.result.text, p.id),
-        `missing placeholder ${p.id}`
-      ).toBe(true)
-      expect(res.result.text[p.id].trim().length).toBeGreaterThan(0)
-    }
-
-    // Hook must not be rewritten into a body placeholder verbatim.
-    console.log("\nLIVE OpenRouter result:", JSON.stringify(res.result, null, 2))
-  }, 45_000)
-
-  it("DIAGNOSTIC: full-pipeline hashtags across models", async () => {
-    expect(apiKey).toBeTruthy()
-    const automation =
-      automationTemplateToTempSlideTestingAutomation(templateRecord)
-    for (const model of [
-      "google/gemini-3.1-flash-lite",
-      "google/gemini-2.5-flash",
-      "openai/gpt-4o-mini",
-    ]) {
+      // Use a model confirmed to honor the full nested schema. The configured
+      // DEFAULT model (google/gemini-3.1-flash-lite) is validated separately in
+      // the DIAGNOSTIC test, where it reproducibly returns empty hashtags.
       const res = await generateSlideshowText({
         automation,
         apiKey,
-        model,
+        model: "google/gemini-2.5-flash",
         selectedHook: "3 ways to keep a small kitchen tidy",
       })
-      console.log(
-        `\n[${model}] hashtags=${JSON.stringify(res.result.hashtags)} title=${JSON.stringify(res.result.title)}`
-      )
-    }
-  }, 90_000)
 
-  it("respects avoidSimilarOutputs without erroring", async () => {
-    expect(apiKey).toBeTruthy()
-    const automation =
-      automationTemplateToTempSlideTestingAutomation(templateRecord)
-    const res = await generateSlideshowText({
-      automation,
-      apiKey,
-      selectedHook: "3 ways to keep a small kitchen tidy",
-      avoidSimilarOutputs: ["Three simple testing tricks", "Test smarter today"],
-    })
-    expect(res.skippedOpenRouter).toBe(false)
-    expect(res.result.title.trim().length).toBeGreaterThan(0)
-  }, 45_000)
-})
+      console.log(
+        "\nLIVE OpenRouter raw result:",
+        JSON.stringify(res.result, null, 2)
+      )
+
+      // Real network path exercised (not the skip branch).
+      expect(res.skippedOpenRouter).toBe(false)
+      expect(res.model).toBeTruthy()
+
+      // Metadata fields present and non-empty.
+      expect(res.result.title.trim().length).toBeGreaterThan(0)
+      expect(res.result.caption.trim().length).toBeGreaterThan(0)
+      expect(res.result.hashtags.trim().length).toBeGreaterThan(0)
+
+      // Strict json_schema must fill EVERY model-fillable placeholder key.
+      for (const p of placeholders) {
+        expect(
+          Object.prototype.hasOwnProperty.call(res.result.text, p.id),
+          `missing placeholder ${p.id}`
+        ).toBe(true)
+        expect(res.result.text[p.id].trim().length).toBeGreaterThan(0)
+      }
+
+      // Hook must not be rewritten into a body placeholder verbatim.
+      console.log(
+        "\nLIVE OpenRouter result:",
+        JSON.stringify(res.result, null, 2)
+      )
+    }, 45_000)
+
+    it("DIAGNOSTIC: full-pipeline hashtags across models", async () => {
+      expect(apiKey).toBeTruthy()
+      const automation =
+        automationTemplateToTempSlideTestingAutomation(templateRecord)
+      for (const model of [
+        "google/gemini-3.1-flash-lite",
+        "google/gemini-2.5-flash",
+        "openai/gpt-4o-mini",
+      ]) {
+        const res = await generateSlideshowText({
+          automation,
+          apiKey,
+          model,
+          selectedHook: "3 ways to keep a small kitchen tidy",
+        })
+        console.log(
+          `\n[${model}] hashtags=${JSON.stringify(res.result.hashtags)} title=${JSON.stringify(res.result.title)}`
+        )
+      }
+    }, 90_000)
+
+    it("respects avoidSimilarOutputs without erroring", async () => {
+      expect(apiKey).toBeTruthy()
+      const automation =
+        automationTemplateToTempSlideTestingAutomation(templateRecord)
+      const res = await generateSlideshowText({
+        automation,
+        apiKey,
+        selectedHook: "3 ways to keep a small kitchen tidy",
+        avoidSimilarOutputs: [
+          "Three simple testing tricks",
+          "Test smarter today",
+        ],
+      })
+      expect(res.skippedOpenRouter).toBe(false)
+      expect(res.result.title.trim().length).toBeGreaterThan(0)
+    }, 45_000)
+  }
+)
