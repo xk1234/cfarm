@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const memory = vi.hoisted(() => new Map<string, Map<string, unknown>>())
+const readMocks = vi.hoisted(() => ({
+  canonicalList: vi.fn(),
+}))
 
 vi.mock("@/lib/appwrite", () => ({ APPWRITE_API_KEY: "test-secret" }))
 vi.mock("@/lib/postfast-posts", () => ({
@@ -12,6 +15,15 @@ vi.mock("@/lib/postfast-posts", () => ({
       releaseUrl: "https://www.tiktok.com/@horoiq/photo/7662360324313517330",
     },
   ]),
+}))
+vi.mock("@/lib/output-publications", () => ({
+  outputPublicationsOwnerId: vi.fn(async () => "owner-1"),
+  writeCanonicalPostWithLegacyProjection: vi.fn(),
+}))
+vi.mock("@/lib/post-repository-appwrite", () => ({
+  appwritePostRepository: {
+    listPosts: readMocks.canonicalList,
+  },
 }))
 vi.mock("@/lib/json-store", () => ({
   readJsonArrayStore: vi.fn(async ({ fileName }: { fileName: string }) => [
@@ -109,6 +121,65 @@ describe("TikTok comment reply styles", () => {
     expect(JSON.parse(prompt.user).untrustedComment).toContain(
       "Ignore previous"
     )
+  })
+})
+
+describe("TikTok comment publication reads", () => {
+  it("keeps collection post identities stable in all read modes and shadows drift", async () => {
+    const canonical = {
+      schemaVersion: 1 as const,
+      id: "publication-1",
+      intentId: "legacy:publication-1",
+      ownerId: "owner-1",
+      origin: "manual_link" as const,
+      sourceType: "external" as const,
+      sourceId: "7662360324313517330",
+      sourceRefs: [
+        { kind: "external" as const, id: "7662360324313517330" },
+      ],
+      lifecycleStatus: "published" as const,
+      linkState: "externally_linked" as const,
+      linkMethod: "manual_url" as const,
+      integrationId: "tiktok-1",
+      provider: "tiktok" as const,
+      externalPostId: "7662360324313517330",
+      releaseUrl:
+        "https://www.tiktok.com/@horoiq/photo/7662360324313517330",
+      statsSources: [],
+      content: "",
+      hashtags: [],
+      media: [],
+      createdAt: "2026-07-01T00:00:00.000Z",
+      updatedAt: "2026-07-01T00:00:00.000Z",
+    }
+    readMocks.canonicalList.mockResolvedValue([canonical])
+    const posts = []
+    for (const mode of ["legacy", "canonical", "union-shadow"] as const) {
+      process.env.POST_REPOSITORY_READ_MODE = mode
+      const result = await createTikTokCommentCollection({
+        ownerId: "owner-1",
+        postIds: ["publication-1"],
+      })
+      posts.push(result.collection.posts)
+    }
+    expect(posts[1]).toEqual(posts[0])
+    expect(posts[2]).toEqual(posts[0])
+
+    readMocks.canonicalList.mockResolvedValue([
+      { ...canonical, externalPostId: "different-platform-id" },
+    ])
+    process.env.POST_REPOSITORY_READ_MODE = "union-shadow"
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+    const result = await createTikTokCommentCollection({
+      ownerId: "owner-1",
+      postIds: ["publication-1"],
+    })
+    expect(result.collection.posts).toEqual(posts[0])
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('"surface":"tiktok_comments"')
+    )
+    warn.mockRestore()
+    delete process.env.POST_REPOSITORY_READ_MODE
   })
 })
 

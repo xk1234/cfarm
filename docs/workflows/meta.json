@@ -1,19 +1,10 @@
 {
-  "title": "Workflows",
+  "title": "Output generation",
   "pages": [
     "index",
-    "signing-in",
-    "create-collection",
-    "create-slideshow-automation",
-    "analyze-slideshow-tone",
-    "testing-facility",
-    "schedule-posts",
-    "connect-telegram-notifications",
-    "link-tiktok-account",
-    "import-tiktok-studio-data",
-    "review-unlinked-tiktoks",
-    "answer-tiktok-comments",
-    "analytics-report",
-    "create-ugc-video"
+    "slideshow-generation",
+    "x-threads-generation",
+    "linkedin-generation",
+    "ugc-video-generation"
   ]
 }

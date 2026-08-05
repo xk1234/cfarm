@@ -14,11 +14,12 @@ let warnedMissing = false;
  */
 export function bundledFontDir() {
     const candidates = [
-        path.join(process.cwd(), "assets", "fonts"),
-        path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "assets", "fonts"),
+        path.join(/* turbopackIgnore: true */ process.cwd(), "assets", "fonts"),
+        path.resolve(
+        /* turbopackIgnore: true */
+        path.dirname(fileURLToPath(import.meta.url)), "..", "assets", "fonts"),
     ];
-    return (candidates.find((dir) => existsSync(path.join(dir, BUNDLED_FONT_FILE))) ??
-        null);
+    return (candidates.find((dir) => existsSync(/* turbopackIgnore: true */ path.join(dir, BUNDLED_FONT_FILE))) ?? null);
 }
 /**
  * Ensure fontconfig can find the bundled TTF in environments that ship no
@@ -42,22 +43,23 @@ export function configureFontconfig(fontDir) {
         }
         return false;
     }
-    const absoluteDir = path.resolve(resolved);
-    if (!existsSync(absoluteDir)) {
+    const absoluteDir = path.resolve(/* turbopackIgnore: true */ resolved);
+    if (!existsSync(/* turbopackIgnore: true */ absoluteDir)) {
         if (!warnedMissing) {
             warnedMissing = true;
             console.warn(`configureFontconfig: bundled font directory not found: ${absoluteDir}; falling back to host fonts.`);
         }
         return false;
     }
-    const cacheDir = path.join(os.tmpdir(), "cfarm-fontconfig");
+    const cacheDir = path.join(
+    /* turbopackIgnore: true */ os.tmpdir(), "cfarm-fontconfig");
     try {
-        mkdirSync(cacheDir, { recursive: true });
+        mkdirSync(/* turbopackIgnore: true */ cacheDir, { recursive: true });
     }
     catch {
         /* already present */
     }
-    const confPath = path.join(cacheDir, "fonts.conf");
+    const confPath = path.join(/* turbopackIgnore: true */ cacheDir, "fonts.conf");
     const conf = `<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig>
@@ -65,8 +67,9 @@ export function configureFontconfig(fontDir) {
   <cachedir>${cacheDir}</cachedir>
 </fontconfig>
 `;
-    if (!existsSync(confPath) || readFileSync(confPath, "utf8") !== conf) {
-        writeFileSync(confPath, conf);
+    if (!existsSync(/* turbopackIgnore: true */ confPath) ||
+        readFileSync(/* turbopackIgnore: true */ confPath, "utf8") !== conf) {
+        writeFileSync(/* turbopackIgnore: true */ confPath, conf);
     }
     if (process.env.FONTCONFIG_FILE !== confPath) {
         process.env.FONTCONFIG_FILE = confPath;

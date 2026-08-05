@@ -149,9 +149,11 @@ Input: `{ "automation_id": "auto_123" }`.
 
 Output: `automation` containing the complete normalized editor `schema`,
 `schedule`, `publishing_policy`, `linked_collections`, safe `linked_accounts`,
-canonical `hookPool`, `last_run`, and `resource_uri`. Returns `NOT_FOUND` for
-inaccessible IDs. X/Threads automations instead include their safe complete
-policy `configuration`.
+canonical `hookPool`, `configurationWarnings`, `last_run`, and `resource_uri`.
+Returns `NOT_FOUND` for inaccessible IDs. X/Threads automations instead include
+their safe complete policy `configuration`. Standard automation reads flag
+collapsed heading/paragraph layers and voice rules stored in structural style,
+with patch-ready repairs in `nextSteps`.
 
 Complete standard schemas are patched by default with
 `lumenclip_automation_schema_update` using optimistic `expectedUpdatedAt`;
@@ -217,6 +219,20 @@ whether metrics exist, aggregates the latest snapshot per publication, reports
 followers gained, and names the appropriate detailed report tool.
 `publication_state=published_unlinked` means the output carries a manual
 published timestamp without a canonical publication record.
+
+`analytics.captureAttempts` contains one row per publication with a status of
+`not_started`, `pending`, `capturing`, `ready`, `captured`, `failed`, or
+`expired`. Failure and expiry rows include a human-readable reason; reported
+companion failures also retain their Studio section.
+
+### `lumenclip_output_slide_text_update`
+
+Non-destructive write for unpublished slideshow stills. Input requires
+`outputId`, one-based `slideIndex`, complete text replacements addressed by
+`textItemId`, and optimistic-lock `expectedUpdatedAt` from `output_get`. It
+rerenders only the changed still, synchronizes the stored generation plan, and
+returns fresh QA and `nextSteps`. Published, scheduled, non-slideshow, and
+video-export outputs are rejected.
 
 ### `lumenclip_operations_list`
 

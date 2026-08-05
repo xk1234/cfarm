@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   authorize: vi.fn(),
+  ensurePost: vi.fn(),
+  metricSnapshotId: vi.fn(),
   ownerId: vi.fn(),
-  patchPublication: vi.fn(),
   upsertSnapshot: vi.fn(),
   withOwner: vi.fn(
     async (_ownerId: string, task: () => unknown) => await task()
@@ -11,10 +12,11 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock("@/lib/postfast-metric-snapshots", () => ({
+  metricSnapshotId: mocks.metricSnapshotId,
   upsertMetricSnapshot: mocks.upsertSnapshot,
 }))
-vi.mock("@/lib/postfast-posts", () => ({
-  patchPostFastPostRecord: mocks.patchPublication,
+vi.mock("@/lib/post-repository", () => ({
+  ensurePostForSnapshot: mocks.ensurePost,
 }))
 vi.mock("@/lib/system-owner-context", () => ({
   withSystemOwner: mocks.withOwner,
@@ -30,12 +32,13 @@ describe("TikTok Studio cloud snapshot sync", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.authorize.mockReturnValue(true)
+    mocks.ensurePost.mockResolvedValue({ id: "publication-1" })
+    mocks.metricSnapshotId.mockReturnValue("canonical-snapshot-id")
     mocks.ownerId.mockReturnValue("owner-1")
     mocks.upsertSnapshot.mockImplementation(async (snapshot) => snapshot)
-    mocks.patchPublication.mockResolvedValue({ id: "publication-1" })
   })
 
-  it("persists the canonical public URL on the cloud publication", async () => {
+  it("ensures the post before storing the Studio snapshot", async () => {
     const releaseUrl =
       "https://www.tiktok.com/@horoiq/photo/7662360324313517330"
     const response = await POST(
@@ -77,13 +80,18 @@ describe("TikTok Studio cloud snapshot sync", () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mocks.upsertSnapshot).toHaveBeenCalledWith(
+    expect(mocks.ensurePost).toHaveBeenCalledWith(
       expect.objectContaining({ releaseUrl })
     )
-    expect(mocks.patchPublication).toHaveBeenCalledWith({
-      id: "publication-1",
-      releaseUrl,
-    })
+    expect(mocks.upsertSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        postId: "publication-1",
+        releaseUrl,
+      })
+    )
+    expect(mocks.ensurePost.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.upsertSnapshot.mock.invocationCallOrder[0]
+    )
     await expect(response.json()).resolves.toMatchObject({
       synced: true,
       snapshotId: "snapshot-1",

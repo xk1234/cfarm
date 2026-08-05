@@ -18,6 +18,7 @@ import {
   schemaWithAutomationCollectionId,
   schemaWithAutomationHookItems,
   schemaWithAutomationContentDirection,
+  schemaWithAutomationSlideContentDirection,
   schemaWithAutomationTone,
   type AutomationSchema,
 } from "@/lib/realfarm-automation"
@@ -38,12 +39,14 @@ export type AutomationExperimentDimension =
 export type AutomationExperimentVariation = {
   dimension: AutomationExperimentDimension
   name?: string
+  slideIndex?: number
   values: string[]
 }
 
 export type AutomationExperimentAvailableDimension = {
   dimension: "contentDirection" | "tone" | "model"
   name?: string
+  slideIndex?: number
   label: string
   currentValue: string
   sampleValues: string[]
@@ -55,6 +58,7 @@ export type AutomationExperimentInput = {
   allHooks?: boolean
   repeats?: number
   seed?: number
+  textOnly?: boolean
 }
 
 export type AutomationExperimentVariant = Record<string, string>
@@ -90,17 +94,36 @@ export async function getAutomationExperimentDimensions(automationId: string) {
   return {
     automationId,
     automationDimensions: [
-      ...automation.schema.formatting.map(
-        (block): AutomationExperimentAvailableDimension => ({
+      ...automation.schema.formatting.flatMap((block) => {
+        const currentValue =
+          block.textItems.find((item) => item.contentDirection.trim())
+            ?.contentDirection ?? ""
+        const blockDimension: AutomationExperimentAvailableDimension = {
           dimension: "contentDirection",
           name: block.id,
           label: `${formattingBlockLabel(block.id)} content direction`,
-          currentValue:
-            block.textItems.find((item) => item.contentDirection.trim())
-              ?.contentDirection ?? "",
+          currentValue,
           sampleValues: [],
-        })
-      ),
+        }
+        if (block.id !== "body") return [blockDimension]
+
+        return [
+          blockDimension,
+          ...contentSlideIndices(automation.schema, block).map(
+            (slideIndex): AutomationExperimentAvailableDimension => ({
+              dimension: "contentDirection",
+              name: block.id,
+              slideIndex,
+              label: `Body slide ${slideIndex} content direction`,
+              currentValue:
+                block.slideOverrides?.find(
+                  (override) => override.slideIndex === slideIndex
+                )?.contentDirection ?? currentValue,
+              sampleValues: [],
+            })
+          ),
+        ]
+      }),
       {
         dimension: "tone",
         label: "Tone",
@@ -150,6 +173,35 @@ export async function getAutomationExperimentDimensions(automationId: string) {
 function formattingBlockLabel(blockId: string) {
   if (blockId === "cta") return "CTA"
   return `${blockId.charAt(0).toUpperCase()}${blockId.slice(1)}`
+}
+
+function contentSlideIndices(
+  schema: AutomationSchema,
+  block: AutomationSchema["formatting"][number]
+) {
+  const configuredCount =
+    block.slideCountMode === "varying"
+      ? Math.max(block.slideCountMin ?? 1, block.slideCountMax ?? 1)
+      : Math.max(1, block.slideCount || 1)
+  const hookCount = automationHookItems(schema)
+    .filter((hook) => hook.enabled)
+    .reduce((maximum, hook) => {
+      const impliedCount = Number(hook.text.match(/^(\d{1,2})\s+[a-z]/i)?.[1])
+      const runCount =
+        impliedCount >= 1 && impliedCount <= 10
+          ? impliedCount
+          : (hook.bodySlideCount ?? 0)
+      return Math.max(maximum, runCount)
+    }, 0)
+  const overrideCount = (block.slideOverrides ?? []).reduce(
+    (maximum, override) => Math.max(maximum, override.slideIndex),
+    0
+  )
+  const count = Math.min(
+    100,
+    Math.max(configuredCount, hookCount, overrideCount)
+  )
+  return Array.from({ length: count }, (_, index) => index + 1)
 }
 
 export async function runAutomationExperiment(
@@ -210,6 +262,7 @@ export async function runAutomationExperiment(
         automationId,
         textModel,
         includeTextGenerationResult: true,
+        textOnly: input.textOnly,
         random: mulberry32(normalizeSeed(seed + (index % repeats))),
       })
       const plan = {
@@ -289,6 +342,26 @@ function normalizeVariations(
   if (variations.some((variation) => variation.values.length === 0)) {
     throw new Error("Every varied dimension requires at least one value")
   }
+  for (const variation of variations) {
+    if (variation.slideIndex === undefined) continue
+    if (
+      variation.dimension !== "contentDirection" ||
+      blockIdForVariation(variation) !== "body"
+    ) {
+      throw new Error(
+        "A slide index can only target a body content-direction variation"
+      )
+    }
+    if (
+      !Number.isInteger(variation.slideIndex) ||
+      variation.slideIndex < 1 ||
+      variation.slideIndex > 100
+    ) {
+      throw new Error(
+        "Content-direction slide indexes must be between 1 and 100"
+      )
+    }
+  }
   if (allHooks && !variations.some((item) => item.dimension === "hook")) {
     variations.unshift({
       dimension: "hook",
@@ -349,10 +422,13 @@ function variantKey(variation: AutomationExperimentVariation) {
   if (variation.dimension === "variable") {
     return `variable:${hookVariableNameFromLabel(variation.name)}`
   }
-  // Keyed by block so a sweep can vary the body and CTA directions at once
-  // without the two collapsing into one column.
+  // Keyed by block and optional slide so independent content-direction axes do
+  // not collapse into one result column.
   if (variation.dimension === "contentDirection") {
-    return `contentDirection:${blockIdForVariation(variation)}`
+    const blockId = blockIdForVariation(variation)
+    return variation.slideIndex === undefined
+      ? `contentDirection:${blockId}`
+      : `contentDirection:${blockId}:slide:${variation.slideIndex}`
   }
   return variation.dimension
 }
@@ -402,13 +478,20 @@ function applyVariant(
     } else if (variation.dimension === "model") {
       textModel = value
     } else if (variation.dimension === "contentDirection") {
-      // `name` selects the block (hook / body / cta). Only that block's
-      // direction changes, so the cell isolates the instruction being tested.
-      schema = schemaWithAutomationContentDirection(
-        schema,
-        blockIdForVariation(variation),
-        value
-      )
+      // A slide target uses the planner's existing body-slide override model;
+      // without one, `name` continues to vary the whole formatting block.
+      schema =
+        variation.slideIndex === undefined
+          ? schemaWithAutomationContentDirection(
+              schema,
+              blockIdForVariation(variation),
+              value
+            )
+          : schemaWithAutomationSlideContentDirection(
+              schema,
+              variation.slideIndex,
+              value
+            )
     } else if (variation.dimension === "collection") {
       schema = schemaWithAutomationCollectionId(schema, "hook", value)
       schema = schemaWithAutomationCollectionId(schema, "content", value)

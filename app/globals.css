@@ -5,6 +5,32 @@
 @import "shadcn/tailwind.css";
 @import "jsoneditor/dist/jsoneditor.min.css";
 
+@media (min-width: 768px) {
+  .docs-body > p:has(> img[alt^="Desktop" i]):has(+ p > img[alt^="Mobile" i]) {
+    display: inline-block;
+    width: 72%;
+    margin-right: 2%;
+    vertical-align: top;
+  }
+
+  .docs-body > p:has(> img[alt^="Desktop" i]) + p:has(> img[alt^="Mobile" i]) {
+    display: inline-block;
+    width: 24%;
+    vertical-align: top;
+  }
+
+  .docs-body
+    > p:has(> img[alt^="Desktop" i]):has(+ p > img[alt^="Mobile" i])
+    img,
+  .docs-body
+    > p:has(> img[alt^="Desktop" i])
+    + p:has(> img[alt^="Mobile" i])
+    img {
+    width: 100%;
+    margin-block: 0;
+  }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 :root {

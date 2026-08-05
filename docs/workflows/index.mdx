@@ -1,49 +1,68 @@
 ---
-title: "Workflows"
-description: "The LumenClip user journey end to end — from signing in to a published, measured post — with the agent call and the UI equivalent for each step."
+title: "Output generation"
+description: "The generation pipelines that transform application inputs into content outputs."
 ---
 
-Each page covers one step of the journey twice: what an agent calls over MCP, and what a person
-clicks in the app. Both surfaces hit the same domain services, so they diverge in places — where
-they do, the page says so rather than describing an average.
+# Output generation
 
-Every page follows the same shape: the tool call with its real input and output, the UI
-equivalent as a numbered table, then the failures worth checking. Tool schemas, labels, and
-error strings are quoted from the code, not paraphrased.
+This section documents generation code paths, not user journeys, setup tasks, scheduling,
+analytics, authentication, or account management.
 
-## The journey
+A workflow is an ordered sequence of transformations. Each stage accepts an input and emits an
+output.
 
-| Step | Workflow                                                                            | Outcome                                                                                    |
-| ---- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| 1    | [Signing in](/docs/workflows/signing-in)                                            | An account and a session. Agents cannot log in — read this for what they get instead.      |
-| 2    | [Creating a collection](/docs/workflows/create-collection)                          | An image pool an automation can draw slides from.                                          |
-| 3    | [Creating a slideshow automation](/docs/workflows/create-slideshow-automation)      | A configured automation and one draft generated on demand.                                 |
-| —    | [Analysing a slideshow's tone](/docs/workflows/analyze-slideshow-tone)              | Transcribe a TikTok, describe how it sounds, pre-fill an automation. **Not run live yet.** |
-| —    | [The testing facility](/docs/workflows/testing-facility)                            | Open the cross-app experiment workbench in LumenLab; cfarm supplies preview execution.     |
-| 4    | [Scheduling posts](/docs/workflows/schedule-posts)                                  | Recurring posting times, and automatic publishing when you want it.                        |
-| —    | [Connecting Telegram notifications](/docs/workflows/connect-telegram-notifications) | Generation and publishing updates delivered to a private chat or channel.                  |
-| 5    | [Linking a TikTok account](/docs/workflows/link-tiktok-account)                     | A publishing destination, connected through PostFast.                                      |
-| 6    | [Importing TikTok Studio data](/docs/workflows/import-tiktok-studio-data)           | Private Studio metrics that no API exposes, via the Chrome companion.                      |
-| —    | [Reviewing unlinked TikToks](/docs/workflows/review-unlinked-tiktoks)               | Link state per post, at a glance. **Migration not yet applied.**                           |
-| —    | [Answering TikTok comments](/docs/workflows/answer-tiktok-comments)                 | Extension-owned collection, drafting, approval, and paced sending. **Built.**              |
-| 7    | [Reading analytics](/docs/workflows/analytics-report)                               | Performance attributed back to the automation that produced it.                            |
-| 8    | [Creating a UGC video automation](/docs/workflows/create-ugc-video)                 | A talking-actor product video. **Currently gated off.**                                    |
+<StageShorthand />
 
-Steps 1–8 describe shipped behaviour. Rows marked **Proposed** describe a workflow that does
-not exist yet; they name the specific gaps rather than implying the feature is available. Rows
-marked otherwise are built but not yet exercised against real data — each page says exactly what
-remains.
+## Generation workflows
 
-## Before you start
+| Workflow                                                         | Initial input                                                  | Final output                               | Availability                                                      |
+| ---------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------- |
+| [Slideshow generation](/docs/workflows/slideshow-generation)     | Automation schema, hooks, collections, and generation context  | Rendered slideshow images and optional MP4 | Shipped                                                           |
+| [X and Threads generation](/docs/workflows/x-threads-generation) | Persisted social automation, niche brief, optional topic/trend | Validated X post/thread or Threads post    | Shipped                                                           |
+| [LinkedIn generation](/docs/workflows/linkedin-generation)       | Niche, persona, proof, optional brief, and model selection     | One to four validated LinkedIn posts       | Generation endpoint shipped; persistence/scheduling are not wired |
+| [UGC video generation](/docs/workflows/ugc-video-generation)     | Product source, actor, voice, duration, and media settings     | Talking-actor MP4 and thumbnail            | Implemented; gated by `ENABLE_UGC_AUTOMATION=true`                |
 
-**The agent surface has no per-caller identity.** `/mcp` resolves a single owner from
-`LUMENCLIP_MCP_OWNER_ID` or `LUMENCLIP_SYSTEM_OWNER_ID` and runs every tool as that owner.
-There is no token or scope check on the transport. The `lumenclip:read` / `lumenclip:write`
-scopes described elsewhere under `mcp/` are not implemented. Read
-[Signing in](/docs/workflows/signing-in) before exposing that endpoint.
+<Callout type="warn" title="Two workflows are not fully available">
+  UGC video generation is implemented, but execution is gated. Unless
+  `ENABLE_UGC_AUTOMATION` is exactly `true`, the scheduler skips UGC jobs, the
+  job worker refuses them, and the UGC run endpoints reject the request. The
+  `FAL_KEY` and `ELEVENLABS_API_KEY` provider keys must also be present.
+  LinkedIn generation exposes a shipped generation endpoint, but its persistence
+  and scheduling are not wired, so a generated LinkedIn post cannot yet be
+  stored or queued the way slideshow and X/Threads output is. Do not treat
+  either pipeline as an end-to-end shipped path.
+</Callout>
 
-**Mutating tools take a `requestId`, not an `idempotency_key`.** How strong that guarantee is
-varies by tool, and each page says which kind it is.
+## Documentation contract
 
-**Two tools reach outside the app**: `lumenclip_output_publish` publishes, and
-`lumenclip_ugc_generate` spends money at four providers. Both are called out where they appear.
+Every workflow page contains only:
+
+1. the initial input contract;
+2. ordered processing stages;
+3. valid JSON input and valid JSON output for every stage;
+4. the exact model and API provider for generative stages;
+5. branches, validation, retries, persistence, and the final output contract.
+
+Supporting processes such as authentication, collection management, notification delivery,
+account connection, scheduling, analytics import, and analytics reporting are documented outside
+this section because they do not generate a content output.
+
+## Model summary
+
+| Pipeline stage                                    | Model                                                        | API provider                         |
+| ------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------ |
+| Slideshow research                                | `openai/gpt-5.4-mini`                                        | OpenRouter, using the Exa web plugin |
+| Slideshow text, visual concepts, and image choice | Configurable; default `openai/gpt-5.6-luna`                  | OpenRouter                           |
+| X/Threads strategy and draft                      | Configurable; default `anthropic/claude-sonnet-5`            | OpenRouter                           |
+| X/Threads strategy fallback                       | `google/gemini-3.1-flash-lite`                               | OpenRouter                           |
+| Optional social-content humanization              | `google/gemini-3.1-flash-lite`                               | OpenRouter                           |
+| Optional social-content review                    | `openai/gpt-5.4-mini`                                        | OpenRouter                           |
+| Optional X/Threads image                          | `nano-banana-pro`                                            | KIE.ai                               |
+| LinkedIn brief                                    | Configurable; default `google/gemini-3.1-flash-lite`         | OpenRouter                           |
+| LinkedIn post                                     | Configurable; default `openai/gpt-5.6-luna`                  | OpenRouter                           |
+| UGC product analysis                              | `openai/gpt-5.4-mini`                                        | OpenRouter                           |
+| UGC script                                        | `anthropic/claude-sonnet-5`                                  | OpenRouter                           |
+| UGC actor and b-roll                              | `fal-ai/flux-2-pro`                                          | fal.ai                               |
+| UGC motion                                        | `fal-ai/minimax/hailuo-2.3-fast/standard/image-to-video`     | fal.ai                               |
+| UGC lip sync                                      | `veed/lipsync` or `fal-ai/kling-video/ai-avatar/v2/standard` | fal.ai                               |
+| UGC voice                                         | Configurable; default `eleven_multilingual_v2`               | ElevenLabs                           |

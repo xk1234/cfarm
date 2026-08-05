@@ -5,7 +5,7 @@ import type {
 import {
   automationFormatSection,
   type AutomationSchema,
-  type AutomationTextItem,
+  type TextItem,
 } from "@/lib/realfarm-automation"
 import { isRuntimeHookVariable } from "@/lib/hook-variables"
 import { wordRangeViolation } from "@/lib/temp-slide-testing-shared"
@@ -249,7 +249,7 @@ function slideTextFindings(
 
 function wordLengthFindings(
   text: string,
-  configured: AutomationTextItem,
+  configured: TextItem,
   slideIndex: number,
   textItemId: string
 ): AutomationOutputQaFinding[] {

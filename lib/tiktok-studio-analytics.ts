@@ -20,12 +20,16 @@ import {
   type TikTokStudioSearchTerm,
   type TikTokStudioSlideMetric,
 } from "@/lib/postfast-metric-snapshots"
+import { type PostFastPostRecord } from "@/lib/postfast-posts"
+import { listPublicationRecordsForRead } from "@/lib/post-repository"
 import {
-  getPostFastPostRecord,
-  listPostFastPostRecords,
-  patchPostFastPostRecord,
-  type PostFastPostRecord,
-} from "@/lib/postfast-posts"
+  getPost,
+  resolveOrCreateExternalPost,
+  type ExternalPostSeed,
+} from "@/lib/post-repository"
+import { outputPublicationsOwnerId } from "@/lib/output-publications"
+import { postToPostFastRecord, type Post } from "@/lib/posts"
+import { autoReconcileTikTokPublicationOutput } from "@/lib/publication-output-reconciliation"
 import { APPWRITE_API_KEY } from "@/lib/appwrite"
 
 const rootDir = path.join(process.cwd(), "data")
@@ -110,6 +114,7 @@ export type TikTokStudioBatchItem = Pick<
   | "status"
   | "targetPostId"
   | "externalPostId"
+  | "integrationId"
   | "studioUrl"
   | "capturedSections"
   | "linkedSnapshotId"
@@ -174,16 +179,43 @@ export function createTikTokStudioDeviceAuthorization(input: {
 
 export async function createTikTokStudioAnalyticsImport(input: {
   ownerId: string
-  postId: string
+  postId?: string
+  integrationId?: string
+  externalPostId?: string
+  releaseUrl?: string
   now?: Date
 }) {
-  const publication = await requireTikTokPublication(input.postId)
-  const externalPostId = publicationExternalId(publication)
+  const postId = clean(input.postId)
+  const existing = postId ? await getPost(postId) : null
+  if (postId && !existing) {
+    throw new Error("Published LumenClip post was not found")
+  }
+  if (existing && !isTikTokPost(existing)) {
+    throw new Error(
+      "TikTok Studio analytics can only be linked to TikTok posts"
+    )
+  }
+  const externalPostId =
+    clean(input.externalPostId) ||
+    (existing ? publicationExternalId(existing) : "")
   if (!externalPostId) {
     throw new Error(
       "This TikTok publication has no platform post ID. Link its public TikTok URL first."
     )
   }
+  const publication = await resolveOrCreateTikTokPost({
+    ownerId: input.ownerId,
+    postId: postId || undefined,
+    integrationId: clean(input.integrationId) || clean(existing?.integrationId),
+    externalPostId,
+    releaseUrl: clean(input.releaseUrl) || existing?.releaseUrl,
+    sourceType: existing?.sourceType,
+    sourceId: existing?.sourceId,
+    publishedAt: existing?.publishedAt,
+    content: existing?.content,
+    origin: "tiktok_studio_import",
+    linkMethod: "tiktok_studio",
+  })
   const now = input.now ?? new Date()
   const expiresAt = new Date(now.getTime() + TOKEN_TTL_MS)
   const record: TikTokStudioImportRecord = {
@@ -191,7 +223,7 @@ export async function createTikTokStudioAnalyticsImport(input: {
     status: "waiting",
     targetPostId: publication.id,
     externalPostId,
-    integrationId: publication.integrationId,
+    integrationId: publication.integrationId!,
     studioUrl: tiktokStudioUrl(externalPostId),
     createdAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
@@ -224,10 +256,37 @@ export async function createTikTokStudioAnalyticsBatch(input: {
   if (integrationIds.length === 0) {
     throw new Error("Select at least one TikTok account")
   }
-  const [publications, snapshots] = await Promise.all([
-    listPostFastPostRecords(),
+  const [storedPublications, snapshots] = await Promise.all([
+    listPublicationRecordsForRead({
+      surface: "tiktok_studio_batch_publication_lookup",
+    }),
     listMetricSnapshots(),
   ])
+  const publications: PostFastPostRecord[] = []
+  for (const candidate of storedPublications) {
+    const externalPostId = publicationExternalId(candidate)
+    if (
+      !integrationIds.includes(candidate.integrationId) ||
+      !isTikTokPost(candidate) ||
+      !externalPostId
+    ) {
+      continue
+    }
+    const post = await resolveOrCreateTikTokPost({
+      ownerId: input.ownerId,
+      postId: candidate.id,
+      integrationId: candidate.integrationId,
+      externalPostId,
+      releaseUrl: candidate.releaseUrl,
+      sourceType: candidate.sourceType,
+      sourceId: candidate.sourceId,
+      publishedAt: candidate.publishedAt,
+      content: candidate.content,
+      origin: "tiktok_studio_import",
+      linkMethod: "tiktok_studio",
+    })
+    publications.push(postToPostFastRecord(post))
+  }
   const selected = selectTikTokStudioBatchPublications({
     publications,
     snapshots,
@@ -244,9 +303,66 @@ export async function createTikTokStudioAnalyticsBatch(input: {
     )
   }
 
+  return createBatchSession({
+    ownerId: input.ownerId,
+    integrationIds,
+    mode: input.mode,
+    recentDays: input.recentDays,
+    publications: selected,
+    now: input.now,
+  })
+}
+
+export async function createTikTokStudioAnalyticsSeedBatch(input: {
+  ownerId: string
+  integrationId: string
+  postReferences: string
+  now?: Date
+}) {
+  const integrationId = clean(input.integrationId)
+  if (!integrationId) throw new Error("Choose a TikTok account")
+  const seeds = parseTikTokPostReferences(input.postReferences)
+  const publications: PostFastPostRecord[] = []
+  for (const seed of seeds) {
+    const post = await resolveOrCreateTikTokPost({
+      ownerId: input.ownerId,
+      integrationId,
+      externalPostId: seed.externalPostId,
+      releaseUrl: seed.releaseUrl,
+      origin: "tiktok_studio_import",
+      linkMethod: "tiktok_studio",
+    })
+    publications.push(postToPostFastRecord(post))
+  }
+  return createBatchSession({
+    ownerId: input.ownerId,
+    integrationIds: [integrationId],
+    mode: "all",
+    publications,
+    now: input.now,
+  })
+}
+
+async function createBatchSession(input: {
+  ownerId: string
+  integrationIds: string[]
+  mode: TikTokStudioBatchMode
+  recentDays?: number
+  publications: PostFastPostRecord[]
+  now?: Date
+}) {
   const now = input.now ?? new Date()
   const expiresAt = new Date(now.getTime() + BATCH_TOKEN_TTL_MS)
-  const imports = selected.map((publication) => {
+  const byIdentity = new Map<string, PostFastPostRecord>()
+  for (const publication of input.publications) {
+    const externalPostId = publicationExternalId(publication)
+    if (!externalPostId) continue
+    byIdentity.set(
+      tikTokExternalIdentity(publication.integrationId, externalPostId),
+      publication
+    )
+  }
+  const imports = [...byIdentity.values()].map((publication) => {
     const externalPostId = publicationExternalId(publication)
     return {
       id: randomUUID(),
@@ -261,12 +377,15 @@ export async function createTikTokStudioAnalyticsBatch(input: {
       capturedSections: [],
     } satisfies TikTokStudioImportRecord
   })
+  if (imports.length === 0) {
+    throw new Error("Add at least one TikTok post URL or external ID")
+  }
   await Promise.all(imports.map(saveImport))
 
   const batch: TikTokStudioBatchRecord = {
     id: randomUUID(),
     status: "waiting",
-    integrationIds,
+    integrationIds: input.integrationIds,
     mode: input.mode,
     recentDays:
       input.mode === "recent"
@@ -300,19 +419,28 @@ export function selectTikTokStudioBatchPublications(input: {
   const integrationIds = new Set(
     input.integrationIds.map(clean).filter(Boolean)
   )
+  const studioSnapshots = input.snapshots.filter(
+    (snapshot) => snapshot.source === "tiktok_studio"
+  )
   const studioPostIds = new Set(
-    input.snapshots
-      .filter((snapshot) => snapshot.source === "tiktok_studio")
-      .flatMap((snapshot) => [
-        clean(snapshot.postId),
-        clean(snapshot.platformPostId),
-      ])
+    studioSnapshots.map((snapshot) => clean(snapshot.postId)).filter(Boolean)
+  )
+  const studioExternalIdentities = new Set(
+    studioSnapshots
+      .map((snapshot) =>
+        clean(snapshot.platformPostId)
+          ? tikTokExternalIdentity(
+              snapshot.integrationId,
+              clean(snapshot.platformPostId)
+            )
+          : ""
+      )
       .filter(Boolean)
   )
   const cutoff =
     (input.now ?? new Date()).getTime() -
     normalizeRecentDays(input.recentDays) * 24 * 60 * 60 * 1000
-  const byExternalId = new Map<string, PostFastPostRecord>()
+  const byExternalIdentity = new Map<string, PostFastPostRecord>()
 
   for (const publication of input.publications) {
     const externalPostId = publicationExternalId(publication)
@@ -326,22 +454,28 @@ export function selectTikTokStudioBatchPublications(input: {
       (publication.status !== "published" && !publication.publishedAt) ||
       (input.mode === "new" &&
         (studioPostIds.has(publication.id) ||
-          studioPostIds.has(externalPostId))) ||
+          studioExternalIdentities.has(
+            tikTokExternalIdentity(publication.integrationId, externalPostId)
+          ))) ||
       (input.mode === "recent" &&
         (!Number.isFinite(publishedAt) || publishedAt < cutoff))
     ) {
       continue
     }
-    const existing = byExternalId.get(externalPostId)
+    const identity = tikTokExternalIdentity(
+      publication.integrationId,
+      externalPostId
+    )
+    const existing = byExternalIdentity.get(identity)
     if (
       !existing ||
       Date.parse(publication.updatedAt) > Date.parse(existing.updatedAt)
     ) {
-      byExternalId.set(externalPostId, publication)
+      byExternalIdentity.set(identity, publication)
     }
   }
 
-  return [...byExternalId.values()].sort(
+  return [...byExternalIdentity.values()].sort(
     (left, right) =>
       Date.parse(right.publishedAt || right.createdAt) -
       Date.parse(left.publishedAt || left.createdAt)
@@ -528,24 +662,26 @@ export async function linkTikTokStudioAnalyticsImport(input: {
   ) {
     throw new Error("Open or refresh the TikTok Studio Overview tab first")
   }
-  const publication = await requireTikTokPublication(record.targetPostId)
-  if (publicationExternalId(publication) !== record.externalPostId) {
-    throw new Error(
-      "The selected LumenClip post no longer matches this TikTok post"
-    )
-  }
   const canonicalReleaseUrl = canonicalTikTokPostUrl({
     externalPostId: record.externalPostId,
     authorUsername: record.capture.overview.authorUsername,
     photoCount: record.capture.overview.photoCount,
   })
-  const linkedPublication =
-    canonicalReleaseUrl && publication.releaseUrl !== canonicalReleaseUrl
-      ? ((await patchPostFastPostRecord({
-          id: publication.id,
-          releaseUrl: canonicalReleaseUrl,
-        })) ?? publication)
-      : publication
+  const publication = await autoReconcileTikTokPublicationOutput(
+    await resolveOrCreateTikTokPost({
+      ownerId: await outputPublicationsOwnerId(),
+      postId: record.targetPostId,
+      integrationId: record.integrationId,
+      externalPostId: record.externalPostId,
+      releaseUrl: canonicalReleaseUrl,
+      publishedAt: record.capture.overview.publishedAt,
+      content: record.capture.overview.caption,
+      origin: "tiktok_studio_import",
+      linkMethod: "tiktok_studio",
+      statsSources: ["tiktok_studio"],
+    })
+  )
+  const linkedPublication = postToPostFastRecord(publication)
   const now = input.now ?? new Date()
   const linkedSnapshot = record.linkedSnapshotId
     ? await getMetricSnapshot(record.linkedSnapshotId)
@@ -571,6 +707,177 @@ export async function linkTikTokStudioAnalyticsImport(input: {
   }
   await saveImport(linked)
   return { import: linked, snapshot }
+}
+
+export async function resolveOrCreateTikTokPost(
+  input: Omit<ExternalPostSeed, "provider">
+) {
+  const integrationId = clean(input.integrationId)
+  const externalPostId = clean(input.externalPostId)
+  if (!integrationId || !externalPostId) {
+    throw new Error("A TikTok account and external post ID are required")
+  }
+  return resolveOrCreateExternalPost({
+    ...input,
+    integrationId,
+    externalPostId,
+    provider: "tiktok",
+  })
+}
+
+export type TikTokPostReference = {
+  externalPostId: string
+  releaseUrl?: string
+}
+
+export type TikTokStudioDiscoveredPost = {
+  externalPostId: string
+  releaseUrl: string
+  content?: string
+  publishedAt?: string
+}
+
+export async function createTikTokStudioAnalyticsDiscoveredBatch(input: {
+  ownerId: string
+  integrationId: string
+  posts: TikTokStudioDiscoveredPost[]
+  now?: Date
+}) {
+  const integrationId = clean(input.integrationId)
+  if (!integrationId) throw new Error("Choose a TikTok account")
+  const discovered = normalizeDiscoveredTikTokPosts(input.posts)
+  const { listAutomationRuns } = await import("@/lib/automation-runner")
+  const runs = await listAutomationRuns({ limit: 2_000, postRecords: [] })
+  const publications: PostFastPostRecord[] = []
+  for (const seed of discovered) {
+    const post = await autoReconcileTikTokPublicationOutput(
+      await resolveOrCreateTikTokPost({
+        ownerId: input.ownerId,
+        integrationId,
+        externalPostId: seed.externalPostId,
+        releaseUrl: seed.releaseUrl,
+        content: seed.content,
+        publishedAt: seed.publishedAt,
+        origin: "tiktok_studio_import",
+        linkMethod: "tiktok_studio",
+      }),
+      runs
+    )
+    publications.push(postToPostFastRecord(post))
+  }
+  return createBatchSession({
+    ownerId: input.ownerId,
+    integrationIds: [integrationId],
+    mode: "all",
+    publications,
+    now: input.now,
+  })
+}
+
+export function parseTikTokPostReferences(
+  value: string
+): TikTokPostReference[] {
+  const references = clean(value)
+    .split(/[\s,]+/)
+    .map(clean)
+    .filter(Boolean)
+  if (references.length === 0) {
+    throw new Error("Add at least one TikTok post URL or external ID")
+  }
+  if (references.length > 50) {
+    throw new Error("Import at most 50 TikTok posts at once")
+  }
+  const byExternalPostId = new Map<string, TikTokPostReference>()
+  for (const reference of references) {
+    const parsed = parseTikTokPostReference(reference)
+    if (!byExternalPostId.has(parsed.externalPostId)) {
+      byExternalPostId.set(parsed.externalPostId, parsed)
+    }
+  }
+  return [...byExternalPostId.values()]
+}
+
+export function normalizeDiscoveredTikTokPosts(
+  value: TikTokStudioDiscoveredPost[]
+) {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(
+      "No TikTok posts were found. Keep TikTok Studio Content open and try again."
+    )
+  }
+  if (value.length > 1_000) {
+    throw new Error("Import at most 1,000 TikTok Studio posts at once")
+  }
+  const byExternalPostId = new Map<string, TikTokStudioDiscoveredPost>()
+  for (const item of value) {
+    const parsed = parseTikTokPostReference(item?.releaseUrl)
+    const suppliedId = clean(item?.externalPostId)
+    if (suppliedId && suppliedId !== parsed.externalPostId) {
+      throw new Error("A discovered TikTok post ID did not match its URL")
+    }
+    if (byExternalPostId.has(parsed.externalPostId)) continue
+    const publishedAt = normalizedIsoDate(item?.publishedAt)
+    byExternalPostId.set(parsed.externalPostId, {
+      externalPostId: parsed.externalPostId,
+      releaseUrl: parsed.releaseUrl!,
+      content: clean(item?.content).slice(0, 10_000) || undefined,
+      publishedAt,
+    })
+  }
+  return [...byExternalPostId.values()]
+}
+
+function normalizedIsoDate(value: string | undefined) {
+  const timestamp = Date.parse(clean(value))
+  return Number.isFinite(timestamp)
+    ? new Date(timestamp).toISOString()
+    : undefined
+}
+
+export function parseTikTokPostReference(value: string): TikTokPostReference {
+  const reference = clean(value)
+  if (/^\d{10,25}$/.test(reference)) {
+    return { externalPostId: reference }
+  }
+  let url: URL
+  try {
+    url = new URL(reference)
+  } catch {
+    throw new Error(
+      `"${reference}" is not a valid TikTok post URL or external ID`
+    )
+  }
+  const hostname = url.hostname.toLowerCase().replace(/\.$/, "")
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error(`"${reference}" is not a valid TikTok web URL`)
+  }
+  if (hostname === "vm.tiktok.com" || hostname === "vt.tiktok.com") {
+    throw new Error(
+      "TikTok vm.tiktok.com and vt.tiktok.com short links are unsupported because they require online expansion"
+    )
+  }
+  if (
+    hostname !== "www.tiktok.com" &&
+    hostname !== "m.tiktok.com" &&
+    hostname !== "tiktok.com"
+  ) {
+    throw new Error(`"${reference}" is not a TikTok post URL`)
+  }
+  if (/^\/t\//i.test(url.pathname)) {
+    throw new Error(
+      "TikTok short links are unsupported because they require online expansion"
+    )
+  }
+  const match = url.pathname.match(/^\/@[^/]+\/(video|photo)\/(\d{10,25})\/?$/i)
+  if (!match?.[2]) {
+    throw new Error(
+      "Use a full TikTok post URL like https://www.tiktok.com/@user/video/123… or paste the raw external ID"
+    )
+  }
+  return {
+    externalPostId: match[2],
+    releaseUrl: `https://www.tiktok.com${url.pathname.replace(/\/$/, "")}`,
+  }
 }
 
 export function canonicalTikTokPostUrl(input: {
@@ -640,6 +947,7 @@ export async function getTikTokStudioCaptureManifest(tokenValue: string) {
         {
           importId: record.id,
           postId: record.externalPostId,
+          integrationId: record.integrationId,
           studioUrl: record.studioUrl,
         },
       ],
@@ -652,6 +960,7 @@ export async function getTikTokStudioCaptureManifest(tokenValue: string) {
     posts: batch.items.map((item) => ({
       importId: item.id,
       postId: item.externalPostId,
+      integrationId: item.integrationId,
       studioUrl: item.studioUrl,
     })),
   }
@@ -681,6 +990,7 @@ async function getPendingDeviceCaptureManifest() {
       posts: view.items.map((item) => ({
         importId: item.id,
         postId: item.externalPostId,
+        integrationId: item.integrationId,
         studioUrl: item.studioUrl,
       })),
     }
@@ -710,6 +1020,7 @@ async function getPendingDeviceCaptureManifest() {
           {
             importId: record.id,
             postId: record.externalPostId,
+            integrationId: record.integrationId,
             studioUrl: record.studioUrl,
           },
         ]
@@ -1144,7 +1455,9 @@ function countryPercentMap(value: unknown) {
   )
 }
 
-function publicationExternalId(publication: PostFastPostRecord) {
+function publicationExternalId(
+  publication: Pick<PostFastPostRecord, "externalPostId" | "releaseUrl">
+) {
   if (clean(publication.externalPostId))
     return clean(publication.externalPostId)
   if (!publication.releaseUrl) return ""
@@ -1158,15 +1471,14 @@ function publicationExternalId(publication: PostFastPostRecord) {
   }
 }
 
-async function requireTikTokPublication(postId: string) {
-  const publication = await getPostFastPostRecord(clean(postId))
-  if (!publication) throw new Error("Published LumenClip post was not found")
-  if (!publication.provider.toLowerCase().startsWith("tiktok")) {
-    throw new Error(
-      "TikTok Studio analytics can only be linked to TikTok posts"
-    )
-  }
-  return publication
+function isTikTokPost(
+  post: Pick<PostFastPostRecord, "provider"> | Pick<Post, "provider">
+) {
+  return clean(post.provider).toLowerCase().startsWith("tiktok")
+}
+
+function tikTokExternalIdentity(integrationId: string, externalPostId: string) {
+  return JSON.stringify(["tiktok", clean(integrationId), clean(externalPostId)])
 }
 
 async function latestSnapshotForPost(postId: string) {
@@ -1398,6 +1710,7 @@ function batchView(
     status: record.status,
     targetPostId: record.targetPostId,
     externalPostId: record.externalPostId,
+    integrationId: record.integrationId,
     studioUrl: record.studioUrl,
     capturedSections: record.capturedSections,
     linkedSnapshotId: record.linkedSnapshotId,

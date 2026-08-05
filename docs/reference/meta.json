@@ -1,14 +1,10 @@
 {
-  "title": "Reference",
+  "title": "Contributing",
   "pages": [
-    "libraries",
-    "deployment",
-    "backend-architecture",
-    "backend-endpoints",
-    "data-objects",
-    "auth-and-multitenancy",
-    "local-appwrite",
-    "automation-templates",
-    "browser-test-workflows"
+    "index",
+    "documentation-rules",
+    "agent-github-publishing",
+    "ui-audit-framework",
+    "paper-audit-2026-08-01"
   ]
 }

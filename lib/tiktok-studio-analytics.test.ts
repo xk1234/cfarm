@@ -5,6 +5,8 @@ import {
   captureOwnerId,
   createTikTokStudioDeviceAuthorization,
   mergeTikTokStudioParsedCaptures,
+  parseTikTokPostReference,
+  parseTikTokPostReferences,
   parseTikTokStudioInsightPayload,
   selectTikTokStudioBatchPublications,
 } from "@/lib/tiktok-studio-analytics"
@@ -12,6 +14,42 @@ import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
 import type { PostFastPostRecord } from "@/lib/postfast-posts"
 
 describe("TikTok Studio analytics parser", () => {
+  it("parses and deduplicates full TikTok post URLs and raw IDs", () => {
+    expect(
+      parseTikTokPostReferences(`
+        https://www.tiktok.com/@horoiq/video/7662360324313517330?share=1
+        7662360324313517330
+        https://m.tiktok.com/@horoiq/photo/7662468104336755975/
+      `)
+    ).toEqual([
+      {
+        externalPostId: "7662360324313517330",
+        releaseUrl: "https://www.tiktok.com/@horoiq/video/7662360324313517330",
+      },
+      {
+        externalPostId: "7662468104336755975",
+        releaseUrl: "https://www.tiktok.com/@horoiq/photo/7662468104336755975",
+      },
+    ])
+  })
+
+  it("rejects short links, foreign hosts, malformed URLs, and short IDs", () => {
+    expect(() =>
+      parseTikTokPostReference("https://vm.tiktok.com/ZM123abc/")
+    ).toThrow(/short links are unsupported/)
+    expect(() =>
+      parseTikTokPostReference(
+        "https://example.com/@user/video/7662360324313517330"
+      )
+    ).toThrow(/not a TikTok post URL/)
+    expect(() =>
+      parseTikTokPostReference("https://www.tiktok.com/t/ZM123abc/")
+    ).toThrow(/short links are unsupported/)
+    expect(() => parseTikTokPostReference("12345")).toThrow(
+      /not a valid TikTok post URL or external ID/
+    )
+  })
+
   it("builds canonical public post URLs from captured Studio metadata", () => {
     expect(
       canonicalTikTokPostUrl({
@@ -284,6 +322,32 @@ describe("TikTok Studio account sync selection", () => {
       now,
     })
     expect(selected.map((item) => item.id)).toEqual(["post-new", "post-synced"])
+  })
+
+  it("deduplicates by account-scoped external identity", () => {
+    const sameExternalId = "7662360324313517330"
+    const selected = selectTikTokStudioBatchPublications({
+      publications: [
+        publication(
+          "main-post",
+          sameExternalId,
+          "2026-07-20T00:00:00.000Z",
+          "tiktok-main"
+        ),
+        publication(
+          "other-post",
+          sameExternalId,
+          "2026-07-21T00:00:00.000Z",
+          "tiktok-other"
+        ),
+      ],
+      snapshots: [],
+      integrationIds: ["tiktok-main", "tiktok-other"],
+      mode: "all",
+      now,
+    })
+
+    expect(selected.map((item) => item.id)).toEqual(["other-post", "main-post"])
   })
 })
 

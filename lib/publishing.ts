@@ -9,11 +9,12 @@ import { defaultPostFastProviderControls } from "@/lib/postfast-provider-control
 import { getReminderSettings } from "@/lib/reminder-settings"
 import { enqueueReminder } from "@/lib/reminders"
 import {
-  upsertPostFastPostRecord,
   type PostFastPostRecord,
   type PostFastPostStatus,
   type PostFastSourceType,
 } from "@/lib/postfast-posts"
+import { upsertPublicationPost } from "@/lib/post-writer"
+import type { PostOrigin } from "@/lib/posts"
 
 export {
   effectivePostingMode,
@@ -44,6 +45,13 @@ export type PublishPostInput = {
   settings?: Record<string, unknown>
   sourceType: PostFastSourceType
   sourceId: string
+  postId?: string
+  intentId?: string
+  outputId?: string
+  automationId?: string
+  runId?: string
+  sourceEntityId?: string
+  origin?: PostOrigin
   rootDir?: string
   request?: PublishRequest
   now?: Date
@@ -151,8 +159,7 @@ export async function publishPost(
     })
     const postIds = postFastPostIds(postfastPosts)
     const releaseUrl = postFastReleaseUrl(postfastPosts)
-    const record = await upsertPostFastPostRecord({
-      rootDir: input.rootDir,
+    const record = await upsertPublicationPost({
       sourceType: input.sourceType,
       sourceId: input.sourceId,
       postfastPostId: postIds[0],
@@ -164,6 +171,13 @@ export async function publishPost(
       scheduledAt: type === "schedule" ? input.date : undefined,
       content: input.content,
       media: input.media ?? [],
+      postId: input.postId,
+      intentId: input.intentId,
+      outputId: input.outputId,
+      automationId: input.automationId,
+      runId: input.runId,
+      sourceEntityId: input.sourceEntityId,
+      origin: input.origin,
     })
     if (type === "schedule") {
       await enqueueReminder({
@@ -194,8 +208,7 @@ export async function publishPost(
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "PostFast post creation failed"
-    const record = await upsertPostFastPostRecord({
-      rootDir: input.rootDir,
+    const record = await upsertPublicationPost({
       sourceType: input.sourceType,
       sourceId: input.sourceId,
       integrationId: input.integrationId,
@@ -205,6 +218,13 @@ export async function publishPost(
       content: input.content,
       media: input.media ?? [],
       error: message,
+      postId: input.postId,
+      intentId: input.intentId,
+      outputId: input.outputId,
+      automationId: input.automationId,
+      runId: input.runId,
+      sourceEntityId: input.sourceEntityId,
+      origin: input.origin,
     })
     return { ok: false, record, error: message, rawError: error }
   }
@@ -212,6 +232,8 @@ export async function publishPost(
 
 export type PublishAutomationRunInput = {
   runId: string
+  outputId?: string
+  automationId?: string
   scheduledFor: string
   integrations: PostFastSocialIntegration[]
   content: string
@@ -238,8 +260,9 @@ export async function reschedulePost(input: {
     throw new Error("Choose a future time for the post")
   }
   if (!input.record.postfastPostId) {
-    return upsertPostFastPostRecord({
+    return upsertPublicationPost({
       ...input.record,
+      postId: input.record.id,
       status: input.record.status,
       scheduledAt: new Date(timestamp).toISOString(),
     })
@@ -265,8 +288,9 @@ export async function reschedulePost(input: {
       method: "DELETE",
     }
   )
-  return upsertPostFastPostRecord({
+  return upsertPublicationPost({
     ...input.record,
+    postId: input.record.id,
     postfastPostId: replacementId,
     status: "scheduled",
     scheduledAt: new Date(timestamp).toISOString(),
@@ -301,6 +325,9 @@ export async function publishAutomationRun(
       media: input.media,
       sourceType: "automation",
       sourceId: input.runId,
+      outputId: input.outputId,
+      automationId: input.automationId,
+      runId: input.runId,
       rootDir: input.postfastRootDir,
       request: input.request,
     })
@@ -323,8 +350,7 @@ export async function recordAwaitingManualAutomationRun(
   )
   const records = await Promise.all(
     integrations.map((integration) =>
-      upsertPostFastPostRecord({
-        rootDir: input.postfastRootDir,
+      upsertPublicationPost({
         sourceType: "automation",
         sourceId: input.runId,
         integrationId: integration.integration_id,
@@ -333,6 +359,10 @@ export async function recordAwaitingManualAutomationRun(
         scheduledAt: input.scheduledFor,
         content: input.content,
         media: input.media ?? [],
+        outputId: input.outputId,
+        automationId: input.automationId,
+        runId: input.runId,
+        origin: "automation_generation",
       })
     )
   )
@@ -347,8 +377,7 @@ export async function recordReadyForReviewAutomationRun(
   )
   const records = await Promise.all(
     integrations.map((integration) =>
-      upsertPostFastPostRecord({
-        rootDir: input.postfastRootDir,
+      upsertPublicationPost({
         sourceType: "automation",
         sourceId: input.runId,
         integrationId: integration.integration_id,
@@ -357,6 +386,10 @@ export async function recordReadyForReviewAutomationRun(
         scheduledAt: input.scheduledFor,
         content: input.content,
         media: input.media ?? [],
+        outputId: input.outputId,
+        automationId: input.automationId,
+        runId: input.runId,
+        origin: "automation_generation",
       })
     )
   )
@@ -371,8 +404,7 @@ export async function recordFailedAutomationRun(
   )
   const records = await Promise.all(
     integrations.map((integration) =>
-      upsertPostFastPostRecord({
-        rootDir: input.postfastRootDir,
+      upsertPublicationPost({
         sourceType: "automation",
         sourceId: input.runId,
         integrationId: integration.integration_id,
@@ -382,6 +414,10 @@ export async function recordFailedAutomationRun(
         content: input.content,
         media: input.media ?? [],
         error: input.error,
+        outputId: input.outputId,
+        automationId: input.automationId,
+        runId: input.runId,
+        origin: "automation_generation",
       })
     )
   )

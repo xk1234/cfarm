@@ -1,10 +1,12 @@
 "use client"
 
-import Image from "next/image"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ComponentType } from "react"
 import {
+  IconAlertCircle,
+  IconBolt,
   IconChevronLeft,
   IconChevronRight,
+  IconClock,
   IconPhoto,
   IconPlayerPlay,
   IconPlus,
@@ -13,6 +15,7 @@ import {
   IconVideo,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
+import useSWR from "swr"
 
 import {
   TemplateGeneratedPreview,
@@ -31,10 +34,14 @@ import {
   GeneratedSlideshowViewerModal,
   automationRunViewerImageUrls,
 } from "@/components/realfarm/automation-settings/generated-slideshow-viewer"
+import { AutomationRecentRunCard } from "@/components/realfarm/automation-settings/automation-recent-run-card"
 import type { AutomationRunApiRecord } from "@/components/realfarm/automation-settings/types"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
+import { clientSWRFetcher } from "@/lib/client-swr"
+import { nextUpcomingAutomationPost } from "@/lib/automation-upcoming-posts"
+import type { CalendarAlertSummary } from "@/lib/calendar-summary"
 import type { GeneratedVideoExport } from "@/lib/generated-video-types"
 import type { Automation } from "@/lib/realfarm-data"
 import { PostFrequencyGraph } from "@/components/realfarm/post-frequency-graph"
@@ -47,6 +54,8 @@ const QUICK_START_ITEMS_PER_PAGE = 6
 
 export function HomeView({
   currentUserId,
+  automations,
+  automationsLoading,
   publishedPostDates,
   templates,
   recentRunsByAutomationId,
@@ -60,6 +69,8 @@ export function HomeView({
   onGenerationRunRemove,
 }: {
   currentUserId: string
+  automations: Automation[]
+  automationsLoading?: boolean
   /** When each LINKED post went out. Generated drafts are not posts. */
   publishedPostDates: string[]
   templates: Automation[]
@@ -82,6 +93,13 @@ export function HomeView({
   const [videosError, setVideosError] = useState("")
   const [page, setPage] = useState(1)
   const [quickStartPage, setQuickStartPage] = useState(1)
+  const { data: calendarStatus } = useSWR<{
+    summary: CalendarAlertSummary
+  }>("/api/calendar/summary", clientSWRFetcher, {
+    refreshInterval: 10 * 60_000,
+    refreshWhenHidden: false,
+    refreshWhenOffline: false,
+  })
   const [selectedExample, setSelectedExample] = useState<{
     automation: Automation
     slideshowId?: string
@@ -91,6 +109,17 @@ export function HomeView({
     runId: string
   } | null>(null)
   const quickStartTemplates = templates
+  const activeAutomationCount = automations.filter(
+    (automation) =>
+      automation.status === "live" && automation.schedule?.paused !== true
+  ).length
+  const nextPost = useMemo(
+    () => nextUpcomingAutomationPost(automations),
+    [automations]
+  )
+  const outstandingActionCount = calendarStatus
+    ? calendarStatus.summary.needsAction + calendarStatus.summary.failed
+    : null
   const generatedSlideshowCards = useMemo(
     () => generatedHomeSlideshowCards(generatedRunsByAutomationId),
     [generatedRunsByAutomationId]
@@ -188,25 +217,42 @@ export function HomeView({
 
   return (
     <div className="mx-auto max-w-[1280px] pb-16">
-      <div className="flex items-center gap-2.5 py-2 md:hidden">
-        <span className="flex size-8 items-center justify-center overflow-hidden rounded-[9px]">
-          <Image
-            src="/brand/lumenclip-mark.png"
-            alt=""
-            width={32}
-            height={32}
-            className="size-8 object-contain"
-          />
-        </span>
-        <span className="text-[16px] font-semibold tracking-[-0.03em] text-app-text">
-          LumenClip
-        </span>
-      </div>
-      <section className="py-6 text-center sm:py-10 lg:py-14">
-        <div className="mx-auto max-w-[980px]">
+      <h1 className="pt-5 text-[30px] leading-none font-semibold tracking-[-0.04em] text-app-text sm:pt-7">
+        Home
+      </h1>
+      <section className="py-7 text-center sm:py-10 lg:py-14">
+        <div className="mx-auto max-w-[1100px]">
           <div className="lc-spectrum mx-auto mb-5 h-1 w-14 rounded-full" />
-          {/* Cadence, not a tagline: the gaps are the useful signal here. */}
-          <PostFrequencyGraph dates={publishedPostDates} />
+          <div className="grid items-stretch gap-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-10">
+            {/* Cadence, not a tagline: the gaps are the useful signal here. */}
+            <PostFrequencyGraph
+              dates={publishedPostDates}
+              className="min-w-0 lg:mx-0"
+            />
+            <div className="grid grid-cols-2 gap-2 text-left sm:grid-cols-3 lg:grid-cols-1">
+              <DashboardMetric
+                className="col-span-2 sm:col-span-1"
+                icon={IconClock}
+                label="Next expected post"
+                value={
+                  automationsLoading
+                    ? null
+                    : (nextPost?.label ?? "Nothing scheduled")
+                }
+                title={nextPost?.scheduledAt}
+              />
+              <DashboardMetric
+                icon={IconBolt}
+                label="Active automations"
+                value={automationsLoading ? null : activeAutomationCount}
+              />
+              <DashboardMetric
+                icon={IconAlertCircle}
+                label="Outstanding actions"
+                value={outstandingActionCount}
+              />
+            </div>
+          </div>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             <Button variant="action" size="appDefault" onClick={onCreate}>
               <IconPlus className="size-5" />
@@ -251,35 +297,38 @@ export function HomeView({
               Videos ({videos.length})
             </button>
           </div>
-          <div className="flex items-center gap-2 text-[13px] font-semibold text-[#6f7888] sm:gap-3 sm:text-[14px]">
-            <Button
-              variant="iconControl"
-              size="icon-control"
-              aria-label="Previous page"
-              disabled={safePage <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              <IconChevronLeft className="size-4" />
-            </Button>
-            Page {safePage} of {totalPages}
-            <Button
-              variant="iconControl"
-              size="icon-control"
-              aria-label="Next page"
-              disabled={safePage >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
-              <IconChevronRight className="size-4" />
-            </Button>
-          </div>
+          {totalPages > 1 ? (
+            <div className="flex items-center gap-2 text-[13px] font-semibold text-[#6f7888] sm:gap-3 sm:text-[14px]">
+              <Button
+                variant="iconControl"
+                size="icon-control"
+                aria-label="Previous page"
+                disabled={safePage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                <IconChevronLeft className="size-4" />
+              </Button>
+              Page {safePage} of {totalPages}
+              <Button
+                variant="iconControl"
+                size="icon-control"
+                aria-label="Next page"
+                disabled={safePage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                <IconChevronRight className="size-4" />
+              </Button>
+            </div>
+          ) : null}
         </div>
 
         {activeTab === "slideshows" && pagedGeneratedSlideshows.length > 0 ? (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
             {pagedGeneratedSlideshows.map((item) => (
-              <GeneratedSlideshowCard
+              <AutomationRecentRunCard
                 key={item.slideshow.id}
-                item={item}
+                run={item.run as unknown as AutomationRunApiRecord}
+                mediaKind="slideshow"
                 shared={Boolean(item.ownerId && item.ownerId !== currentUserId)}
                 onOpen={() =>
                   setSelectedGeneratedSlideshow({
@@ -340,29 +389,33 @@ export function HomeView({
           <h2 className="text-[18px] font-semibold tracking-[-0.025em] text-app-text sm:text-[20px]">
             Start from a proven workflow
           </h2>
-          <div className="flex items-center gap-2 text-[13px] font-semibold text-[#6f7888] sm:gap-3 sm:text-[14px]">
-            <Button
-              variant="iconControl"
-              size="icon-control"
-              aria-label="Previous quick start page"
-              disabled={safeQuickStartPage <= 1}
-              onClick={() => setQuickStartPage((p) => Math.max(1, p - 1))}
-            >
-              <IconChevronLeft className="size-4" />
-            </Button>
-            Page {safeQuickStartPage} of {quickStartTotalPages}
-            <Button
-              variant="iconControl"
-              size="icon-control"
-              aria-label="Next quick start page"
-              disabled={safeQuickStartPage >= quickStartTotalPages}
-              onClick={() =>
-                setQuickStartPage((p) => Math.min(quickStartTotalPages, p + 1))
-              }
-            >
-              <IconChevronRight className="size-4" />
-            </Button>
-          </div>
+          {quickStartTotalPages > 1 ? (
+            <div className="flex items-center gap-2 text-[13px] font-semibold text-[#6f7888] sm:gap-3 sm:text-[14px]">
+              <Button
+                variant="iconControl"
+                size="icon-control"
+                aria-label="Previous quick start page"
+                disabled={safeQuickStartPage <= 1}
+                onClick={() => setQuickStartPage((p) => Math.max(1, p - 1))}
+              >
+                <IconChevronLeft className="size-4" />
+              </Button>
+              Page {safeQuickStartPage} of {quickStartTotalPages}
+              <Button
+                variant="iconControl"
+                size="icon-control"
+                aria-label="Next quick start page"
+                disabled={safeQuickStartPage >= quickStartTotalPages}
+                onClick={() =>
+                  setQuickStartPage((p) =>
+                    Math.min(quickStartTotalPages, p + 1)
+                  )
+                }
+              >
+                <IconChevronRight className="size-4" />
+              </Button>
+            </div>
+          ) : null}
         </div>
         {quickStartTemplates.length > 0 ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -441,7 +494,7 @@ function HomeLoadError({
 
 type GeneratedHomeSlideshowCard = {
   ownerId?: string
-  title: string
+  run: GeneratedShowcaseRun
   runs: GeneratedShowcaseRun[]
   slideshow: TemplateExampleSlideshow
 }
@@ -460,74 +513,45 @@ function HomeCardSkeletonRow() {
   )
 }
 
-function GeneratedSlideshowCard({
-  item,
-  shared,
-  onOpen,
+function DashboardMetric({
+  className,
+  icon: Icon,
+  label,
+  value,
+  title,
 }: {
-  item: GeneratedHomeSlideshowCard
-  shared: boolean
-  onOpen: () => void
+  className?: string
+  icon: ComponentType<{ className?: string }>
+  label: string
+  value: string | number | null
+  title?: string
 }) {
-  const firstSlide = item.slideshow.slides[0]
-  const failed = item.slideshow.status === "failed"
-
   return (
     <div
       className={cn(
-        "relative rounded-[10px]",
-        shared && "ring-2 ring-[#6d28d9]/45 ring-offset-2"
+        "flex min-h-[86px] items-center gap-3 rounded-[12px] border border-app-panel-border bg-app-surface px-4 py-3 shadow-sm",
+        className
       )}
+      title={title}
     >
-      {shared ? (
-        <span className="absolute top-2 left-2 z-20 rounded-full bg-app-action px-2 py-1 text-[10px] font-semibold text-white">
-          Shared
-        </span>
-      ) : null}
-      <span
-        className={cn(
-          "absolute top-2 right-2 z-20 rounded-full px-2 py-1 text-[10px] font-semibold text-white",
-          failed ? "bg-app-danger" : "bg-black/75"
-        )}
-      >
-        {failed
-          ? "Generation failed"
-          : item.slideshow.status === "generating"
-            ? "Generating"
-            : "Not published"}
+      <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-app-strong/10 text-app-strong">
+        <Icon className="size-[18px]" />
       </span>
-      <MediaCardShell danger={failed}>
-        {failed ? (
-          <MediaFrame>
-            <GenerationFailurePlaceholder
-              message={
-                item.slideshow.error || "This slideshow could not be generated."
-              }
+      <span className="min-w-0">
+        <span className="block text-[11px] leading-4 font-semibold tracking-[0.08em] text-app-text-faint uppercase">
+          {label}
+        </span>
+        <span className="mt-0.5 block truncate text-[17px] leading-6 font-semibold tracking-[-0.025em] text-app-text">
+          {value === null ? (
+            <span
+              className="inline-block h-4 w-16 animate-pulse rounded bg-app-control-hover"
+              aria-label={`${label} loading`}
             />
-          </MediaFrame>
-        ) : (
-          <button
-            type="button"
-            className="block w-full text-left"
-            onClick={onOpen}
-            aria-label={`Open ${item.title} generated slideshow`}
-          >
-            <MediaFrame>
-              {firstSlide ? (
-                /* eslint-disable-next-line @next/next/no-img-element -- Generated slides are already rendered image artifacts. */
-                <img
-                  src={firstSlide.imageUrl}
-                  alt={firstSlide.text || `${item.title} first slide`}
-                  className="absolute inset-0 h-full w-full object-cover"
-                  draggable={false}
-                />
-              ) : (
-                <div className="app-media-poster-fallback absolute inset-0" />
-              )}
-            </MediaFrame>
-          </button>
-        )}
-      </MediaCardShell>
+          ) : (
+            value
+          )}
+        </span>
+      </span>
     </div>
   )
 }
@@ -540,15 +564,18 @@ function generatedHomeSlideshowCards(
       const slideshows = generatedExampleSlideshows(runs, {
         includeFailed: true,
       })
-      return slideshows.map((slideshow) => ({
-        ownerId: runs.find((run) => run.id === slideshow.id)?.ownerId,
-        title:
-          runs
-            .find((run) => run.id === slideshow.id)
-            ?.automationTitle?.trim() || slideshow.title,
-        runs,
-        slideshow,
-      }))
+      return slideshows.flatMap<GeneratedHomeSlideshowCard>((slideshow) => {
+        const run = runs.find((candidate) => candidate.id === slideshow.id)
+        if (!run) return []
+        return [
+          {
+            ownerId: run.ownerId,
+            run,
+            runs,
+            slideshow,
+          },
+        ]
+      })
     })
     .sort(
       (first, second) =>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { IconRoute } from "@tabler/icons-react"
 
 import {
   SlideshowViewerModal,
@@ -20,7 +21,7 @@ import {
   slideshowTitle,
 } from "./run-helpers"
 import type { AutomationRunApiRecord, AutomationRunApiSlide } from "./types"
-import { RunPublicationStatusSelect } from "./run-publication-status-select"
+import { RunPublicationStatusBadge } from "./run-publication-status-badge"
 import { SlideshowPublicationActions } from "./slideshow-publication-actions"
 
 export function GeneratedSlideshowViewerModal({
@@ -204,12 +205,22 @@ export function GeneratedSlideshowViewerModal({
       slideshows={slideshows}
       initialSlideshowId={run.id}
       details={resolvedDetails}
-      publicationStatusControl={
-        <div className="flex flex-wrap items-center gap-2">
-          <RunPublicationStatusSelect
-            run={currentRun}
-            onRunChanged={applyRunChanged}
-          />
+      publicationStatusControl={<RunPublicationStatusBadge run={currentRun} />}
+      publicationActions={
+        <div className="flex items-center gap-1 sm:gap-2">
+          {currentRun.workflowUrl ? (
+            <a
+              href={currentRun.workflowUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex h-10 items-center gap-1.5 rounded-[7px] border border-app-panel-border bg-app-surface px-3 text-[12px] font-semibold text-app-text shadow-sm transition hover:bg-app-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-app-action sm:h-9 sm:rounded-[5px]"
+              aria-label="View workflow"
+              title="View workflow"
+            >
+              <IconRoute className="size-4" />
+              <span className="hidden sm:inline">Workflow</span>
+            </a>
+          ) : null}
           <SlideshowPublicationActions
             run={currentRun}
             onRunChanged={applyRunChanged}

@@ -21,18 +21,16 @@ import {
 } from "./run-helpers"
 import type { AutomationRunApiRecord } from "./types"
 import { VideoCopyFields } from "./video-copy-fields"
-import { RunPublicationStatusSelect } from "./run-publication-status-select"
+import { RunPublicationStatusBadge } from "./run-publication-status-badge"
 
 export function GeneratedAutomationVideoViewer({
   run,
   onClose,
   onDelete,
-  onRunChanged,
 }: {
   run: AutomationRunApiRecord
   onClose: () => void
   onDelete?: () => Promise<void>
-  onRunChanged?: (run: AutomationRunApiRecord) => void
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [videoDurationSeconds, setVideoDurationSeconds] = useState<
@@ -112,11 +110,7 @@ export function GeneratedAutomationVideoViewer({
                   <div className="text-[11px] font-bold tracking-[0.06em] text-app-text-faint uppercase">
                     Status
                   </div>
-                  <RunPublicationStatusSelect
-                    run={run}
-                    onRunChanged={onRunChanged}
-                    className="mt-1"
-                  />
+                  <RunPublicationStatusBadge run={run} className="mt-1" />
                 </div>
                 <VideoRunDetail
                   label="Post timing"

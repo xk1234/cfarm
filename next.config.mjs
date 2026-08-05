@@ -4,9 +4,22 @@ const withMDX = createMDX({
   configPath: "source.config.ts",
 })
 
+const allowedDevOrigins = (process.env.ALLOWED_DEV_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+
 /** @type {import("next").NextConfig} */
 const nextConfig = {
+  ...(allowedDevOrigins.length > 0 ? { allowedDevOrigins } : {}),
   poweredByHeader: false,
+  experimental: {
+    optimizePackageImports: ["radix-ui"],
+  },
+  outputFileTracingIncludes: {
+    "/*": ["assets/fonts/Inter-Variable.ttf"],
+  },
+  serverExternalPackages: ["node-appwrite"],
   async headers() {
     return [
       {

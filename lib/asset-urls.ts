@@ -30,7 +30,7 @@ export function absoluteAssetUrl(path: string): string {
 export function slideshowDeliveryLinks(input: {
   ownerId: string
   outputId: string
-}): { previewUrl: string; downloadUrl: string } | null {
+}): { previewUrl: string; workflowUrl: string; downloadUrl: string } | null {
   if (!slideshowShareConfigured()) return null
   const base = configuredBaseUrl()
   return base

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { internalToolsEnabled } from "@/lib/internal-tools"
-
+import { getCurrentUser } from "@/lib/auth"
 import { filterOpenRouterTextStructuredModels } from "@/lib/openrouter-models"
 
 export const dynamic = "force-dynamic"
@@ -11,8 +10,11 @@ type OpenRouterModelsResponse = {
 }
 
 export async function GET() {
-  if (!internalToolsEnabled()) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
+  if (!(await getCurrentUser())) {
+    return NextResponse.json(
+      { error: "Authentication required" },
+      { status: 401 }
+    )
   }
 
   try {

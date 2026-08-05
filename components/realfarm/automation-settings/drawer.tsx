@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { flushSync } from "react-dom"
 import { toast } from "sonner"
 import {
@@ -11,7 +11,6 @@ import {
   IconHome,
   IconMenu2,
   IconMessage,
-  IconLink,
   IconPlus,
   IconSettings,
   IconTrash,
@@ -21,7 +20,6 @@ import {
 import { LuCopy } from "react-icons/lu"
 
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
-import { useDirtyGuard } from "@/components/ui/use-dirty-guard"
 import { useAutomationGeneratedVideoExports } from "@/components/realfarm/generated-video-workflow"
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
@@ -49,7 +47,6 @@ import { SchedulePanel } from "./schedule-settings"
 import { AutomationFormatPanel } from "./slideshow-format-panel"
 import { SocialMediaSettingsPanel } from "./social-settings"
 import { AutomationSettingsNavButton } from "./settings-nav"
-import { TikTokPublicationImportPanel } from "./tiktok-publication-import-panel"
 import {
   automationVideoGenerationIssue,
   generateAutomationVideo,
@@ -98,6 +95,9 @@ export function AutomationSettingsDrawer({
     cloneAutomationSchema(config)
   )
   const [savingConfig, setSavingConfig] = useState(false)
+  const autosaveQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const latestDraftConfigJsonRef = useRef("")
+  const onConfigChangeRef = useRef(onConfigChange)
   const [activeGenerationCount, setActiveGenerationCount] = useState(0)
   const generating = activeGenerationCount > 0
   const [duplicating, setDuplicating] = useState(false)
@@ -109,20 +109,83 @@ export function AutomationSettingsDrawer({
   >(null)
   const recentRunsLoading = loadedRunsAutomationId !== automation.id
   const automationKind = draftConfig.automationKind
-  const effectiveDraftConfig = {
-    ...draftConfig,
-    social_integrations: config.social_integrations,
-  }
-  const configChanged =
-    JSON.stringify(effectiveDraftConfig) !== JSON.stringify(config)
-  const nameChanged = editingName && draftName.trim() !== automation.name
-  const dirtyGuard = useDirtyGuard(configChanged || nameChanged)
+  const effectiveDraftConfig = useMemo(
+    () => ({
+      ...draftConfig,
+      social_integrations: config.social_integrations,
+    }),
+    [config.social_integrations, draftConfig]
+  )
+  const effectiveDraftConfigJson = JSON.stringify(effectiveDraftConfig)
+  const configChanged = effectiveDraftConfigJson !== JSON.stringify(config)
   const hookCount = automationHookItems(draftConfig).length
   const [videoExports, setVideoExports, videoExportsLoading] =
     useAutomationGeneratedVideoExports(
       automation.id,
       "Failed to load generated automation videos"
     )
+
+  useEffect(() => {
+    onConfigChangeRef.current = onConfigChange
+  }, [onConfigChange])
+
+  useEffect(() => {
+    latestDraftConfigJsonRef.current = effectiveDraftConfigJson
+  }, [effectiveDraftConfigJson])
+
+  const queueConfigSave = useCallback(
+    (nextConfig: AutomationSchema) => {
+      const nextConfigJson = JSON.stringify(nextConfig)
+      const save = autosaveQueueRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          await persistDraftConfig(automation.id, nextConfig)
+          if (latestDraftConfigJsonRef.current !== nextConfigJson) return
+
+          onConfigChangeRef.current(nextConfig)
+          setDraftConfig((current) => {
+            const currentJson = JSON.stringify({
+              ...current,
+              social_integrations: nextConfig.social_integrations,
+            })
+            return currentJson === nextConfigJson
+              ? cloneAutomationSchema(nextConfig)
+              : current
+          })
+        })
+      autosaveQueueRef.current = save
+      return save
+    },
+    [automation.id]
+  )
+
+  useEffect(() => {
+    if (!configChanged) return
+
+    const nextConfig = JSON.parse(effectiveDraftConfigJson) as AutomationSchema
+    const timer = window.setTimeout(() => {
+      setSavingConfig(true)
+      void queueConfigSave(nextConfig)
+        .then(() => {
+          if (latestDraftConfigJsonRef.current === effectiveDraftConfigJson) {
+            setSavingConfig(false)
+          }
+        })
+        .catch((error) => {
+          if (latestDraftConfigJsonRef.current === effectiveDraftConfigJson) {
+            setSavingConfig(false)
+            toast.error(
+              getApiErrorMessage(
+                error,
+                "Failed to autosave automation settings"
+              )
+            )
+          }
+        })
+    }, 500)
+
+    return () => window.clearTimeout(timer)
+  }, [configChanged, effectiveDraftConfigJson, queueConfigSave])
 
   useEffect(() => {
     let active = true
@@ -218,7 +281,7 @@ export function AutomationSettingsDrawer({
 
   async function generateAutomation() {
     if (configChanged) {
-      toast.error("Save or cancel your settings changes before generating")
+      toast.error("Wait for your changes to finish autosaving")
       return
     }
     const preflightError =
@@ -308,12 +371,10 @@ export function AutomationSettingsDrawer({
     flushSync(() => {
       setActiveGenerationCount((count) => count + 1)
       setActiveTab("overview")
-      setRecentRuns((current) =>
-        [
-          placeholderRun,
-          ...current.filter((item) => item.id !== placeholderRun.id),
-        ].slice(0, 6)
-      )
+      setRecentRuns((current) => [
+        placeholderRun,
+        ...current.filter((item) => item.id !== placeholderRun.id),
+      ])
     })
     onGenerationRunUpdate(placeholderRun)
     function settleGeneration(run?: AutomationRunApiRecord) {
@@ -324,7 +385,7 @@ export function AutomationSettingsDrawer({
               ...current.filter(
                 (item) => item.id !== run.id && item.id !== placeholderRun.id
               ),
-            ].slice(0, 6)
+            ]
           : current.filter((item) => item.id !== placeholderRun.id)
       )
       onGenerationRunRemove(placeholderRun.id)
@@ -389,28 +450,23 @@ export function AutomationSettingsDrawer({
     }
   }
 
-  async function saveConfigChanges() {
-    if (savingConfig) return
-    const nextConfig = cloneAutomationSchema(effectiveDraftConfig)
+  async function closeAfterAutosave() {
+    if (!configChanged) {
+      onClose()
+      return
+    }
+
+    const nextConfig = JSON.parse(effectiveDraftConfigJson) as AutomationSchema
     setSavingConfig(true)
     try {
-      await persistDraftConfig(automation.id, nextConfig)
-      onConfigChange(nextConfig)
-      setDraftConfig(cloneAutomationSchema(nextConfig))
-      setActiveTab("overview")
-      toast.success("Automation settings saved")
+      await queueConfigSave(nextConfig)
+      onClose()
     } catch (error) {
-      toast.error(
-        getApiErrorMessage(error, "Failed to save automation settings")
-      )
-    } finally {
       setSavingConfig(false)
+      toast.error(
+        getApiErrorMessage(error, "Failed to autosave automation settings")
+      )
     }
-  }
-
-  function cancelConfigChanges() {
-    setDraftConfig(cloneAutomationSchema(config))
-    setActiveTab("overview")
   }
 
   async function deleteGeneratedSlideshow(run: AutomationRunApiRecord) {
@@ -455,11 +511,9 @@ export function AutomationSettingsDrawer({
             ? "Schedule"
             : activeTab === "tiktok"
               ? "Social Media"
-              : activeTab === "published-posts"
-                ? "Published Posts"
-                : activeTab === "settings"
-                  ? "Settings"
-                  : formatTabLabel
+              : activeTab === "settings"
+                ? "Settings"
+                : formatTabLabel
 
   const navigation = (
     <>
@@ -501,14 +555,6 @@ export function AutomationSettingsDrawer({
           active={activeTab === "tiktok"}
           onClick={() => navigate("tiktok")}
         />
-        {automationKind === "slideshow" && (
-          <AutomationSettingsNavButton
-            label="Published Posts"
-            icon={IconLink}
-            active={activeTab === "published-posts"}
-            onClick={() => navigate("published-posts")}
-          />
-        )}
         <AutomationSettingsNavButton
           label="Settings"
           icon={IconSettings}
@@ -544,7 +590,7 @@ export function AutomationSettingsDrawer({
   const generateButton = (
     <button
       className="flex h-10 items-center justify-center gap-2 rounded-[8px] border border-app-panel-border bg-app-surface px-3 text-[14px] font-semibold text-app-text shadow-sm disabled:cursor-not-allowed disabled:opacity-55"
-      disabled={generating || savingConfig}
+      disabled={generating || savingConfig || configChanged}
       onClick={generateAutomation}
       aria-busy={generating}
     >
@@ -556,7 +602,7 @@ export function AutomationSettingsDrawer({
   return (
     <div
       className={cn(
-        "grid min-h-svh overflow-hidden bg-app-surface",
+        "grid min-h-[calc(100svh-3.5rem)] overflow-hidden bg-app-surface md:min-h-svh",
         activeTab !== "format" && "md:grid-cols-[246px_1fr]"
       )}
     >
@@ -576,7 +622,7 @@ export function AutomationSettingsDrawer({
               <button
                 type="button"
                 className="flex shrink-0 items-center gap-2 text-[13px] font-semibold text-[#5d5c56]"
-                onClick={() => dirtyGuard.run(onClose)}
+                onClick={() => void closeAfterAutosave()}
                 aria-label="Back to automations"
               >
                 <IconChevronLeft className="size-4" />
@@ -596,7 +642,7 @@ export function AutomationSettingsDrawer({
             </div>
             <button
               className="absolute top-4 right-4 z-10 hidden h-8 items-center gap-1 rounded-[6px] px-2 text-[12px] font-semibold text-app-text-soft hover:bg-app-surface-subtle hover:text-app-text md:inline-flex"
-              onClick={() => dirtyGuard.run(onClose)}
+              onClick={() => void closeAfterAutosave()}
               aria-label="Back to automations"
             >
               <IconChevronLeft className="size-4" />
@@ -653,7 +699,6 @@ export function AutomationSettingsDrawer({
             onCreateCollection={onCreateCollection}
             onConfigChange={setDraftConfig}
             onBack={() => setActiveTab("overview")}
-            onSave={saveConfigChanges}
           />
         )}
         {activeTab === "hooks" && (
@@ -661,8 +706,7 @@ export function AutomationSettingsDrawer({
             automation={automation}
             config={draftConfig}
             onConfigChange={setDraftConfig}
-            onCancel={cancelConfigChanges}
-            onSave={saveConfigChanges}
+            hideFooter
           />
         )}
         {activeTab === "analytics" && (
@@ -673,8 +717,7 @@ export function AutomationSettingsDrawer({
             config={draftConfig}
             onEditSocialAccounts={onEditSocialAccounts}
             onConfigChange={setDraftConfig}
-            onCancel={cancelConfigChanges}
-            onSave={saveConfigChanges}
+            hideFooter
           />
         )}
         {activeTab === "settings" && (
@@ -683,25 +726,13 @@ export function AutomationSettingsDrawer({
             selectedSound={selectedSound}
             music={music}
             onConfigChange={setDraftConfig}
-            onCancel={cancelConfigChanges}
-            onSave={saveConfigChanges}
-          />
-        )}
-        {activeTab === "published-posts" && (
-          <TikTokPublicationImportPanel
-            automationId={automation.id}
-            onRunsImported={(runs) => {
-              setRecentRuns(runs)
-              runs.forEach(onGenerationRunUpdate)
-            }}
           />
         )}
         {activeTab === "schedule" && (
           <SchedulePanel
             config={draftConfig}
             onConfigChange={setDraftConfig}
-            onCancel={cancelConfigChanges}
-            onSave={saveConfigChanges}
+            hideFooter
           />
         )}
       </div>
@@ -737,7 +768,6 @@ export function AutomationSettingsDrawer({
           </section>
         </div>
       ) : null}
-      {dirtyGuard.confirmation}
     </div>
   )
 }

@@ -9,7 +9,7 @@ import {
   type GeneratedVideoStatus,
 } from "@/lib/generated-videos"
 import { generatedVideoDeletionBlockReason } from "@/lib/generated-video-deletion"
-import { listPostFastPostRecords } from "@/lib/postfast-posts"
+import { listPublicationRecordsForRead } from "@/lib/post-repository"
 import { enqueueReminder } from "@/lib/reminders"
 
 export const dynamic = "force-dynamic"
@@ -26,7 +26,9 @@ export const GET = withHandler(async (request: Request) => {
       automationId,
       limit,
     }),
-    listPostFastPostRecords(),
+    listPublicationRecordsForRead({
+      surface: "generated_video_list_deletion_guards",
+    }),
   ])
 
   return NextResponse.json({

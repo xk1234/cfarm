@@ -2,6 +2,9 @@ import "server-only"
 
 import crypto from "node:crypto"
 
+import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
+import { getAutomationRunForSlideshow } from "@/lib/automation-runner"
+import { getAutomationRecord } from "@/lib/automations"
 import { clean } from "@/lib/guards"
 import { listSlideshowRecords, type SlideshowRecord } from "@/lib/slideshows"
 import { withSystemOwner } from "@/lib/system-owner-context"
@@ -77,6 +80,28 @@ export async function loadSharedSlideshow(
   })
 }
 
+export async function loadSharedSlideshowWorkflow(
+  outputId: string,
+  token: string
+) {
+  const claims = verifySlideshowShareToken(token, outputId)
+  if (!claims) return null
+  return withSystemOwner(claims.ownerId, async () => {
+    const [slideshows, run] = await Promise.all([
+      listSlideshowRecords({ id: outputId, limit: 1 }),
+      getAutomationRunForSlideshow({ slideshowId: outputId }),
+    ])
+    const slideshow = slideshows[0]
+    if (!slideshow || !run) return null
+    const automation = await getAutomationRecord(run.automationId)
+    const qa = validateAutomationRunOutput({
+      run,
+      schema: automation?.schema,
+    })
+    return { slideshow, run, automation, qa }
+  })
+}
+
 export function slideshowDeliveryPaths(input: {
   ownerId: string
   outputId: string
@@ -87,6 +112,7 @@ export function slideshowDeliveryPaths(input: {
   const encodedToken = encodeURIComponent(token)
   return {
     previewUrl: `/share/slideshows/${encodedOutputId}?token=${encodedToken}`,
+    workflowUrl: `/share/workflows/${encodedOutputId}?token=${encodedToken}`,
     downloadUrl: `/api/public/slideshows/${encodedOutputId}/download?token=${encodedToken}`,
   }
 }
@@ -100,6 +126,7 @@ export function slideshowDeliveryUrls(input: {
   const paths = slideshowDeliveryPaths(input)
   return {
     previewUrl: `${baseUrl}${paths.previewUrl}`,
+    workflowUrl: `${baseUrl}${paths.workflowUrl}`,
     downloadUrl: `${baseUrl}${paths.downloadUrl}`,
   }
 }

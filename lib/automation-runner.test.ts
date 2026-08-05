@@ -31,6 +31,7 @@ import {
 } from "@/lib/automations"
 import {
   imagesForSlideSection,
+  previewAutomationHookVariants,
   previewAutomationRunPlan,
   runDueAutomations,
 } from "@/lib/automation-runner"
@@ -158,6 +159,117 @@ afterEach(async () => {
 afterAll(clearAll)
 
 describe("runDueAutomations", () => {
+  it("previews text without requiring image collections", async () => {
+    const automation = createLocalAutomationRecord({
+      name: "Text-only preview",
+      overrides: { status: "paused" },
+    })
+    automation.schema.hooks = [
+      {
+        id: "fixed-hook",
+        text: "one clear astrology hook",
+        enabled: true,
+        createdAt: "2026-07-28T00:00:00.000Z",
+      },
+    ]
+    automation.schema.formatting = automation.schema.formatting.map(
+      (section) =>
+        section.id === "body"
+          ? { ...section, slideCount: 1 }
+          : section.id === "cta"
+            ? { ...section, slideCount: 0 }
+            : section
+    )
+
+    const preview = await previewAutomationRunPlan(automation.schema, {
+      textOnly: true,
+      random: () => 0,
+    })
+
+    expect(preview.status).toBe("succeeded")
+    expect(preview.plan.slides).toHaveLength(2)
+    expect(
+      preview.plan.slides.every((slide) => slide.imageUrl === "about:blank")
+    ).toBe(true)
+    expect(preview.plan.slides.every((slide) => slide.text.length > 0)).toBe(
+      true
+    )
+  })
+
+  it("uses an exact caller-supplied hook in a text-only preview", async () => {
+    const automation = createLocalAutomationRecord({
+      name: "Exact hook preview",
+      overrides: { status: "paused" },
+    })
+    automation.schema.hooks = []
+    automation.schema.formatting = automation.schema.formatting.map(
+      (section) =>
+        section.id === "body"
+          ? { ...section, slideCount: 1 }
+          : section.id === "cta"
+            ? { ...section, slideCount: 0 }
+            : section
+    )
+
+    const preview = await previewAutomationRunPlan(automation.schema, {
+      hook: "My exact custom hook",
+      textOnly: true,
+      random: () => 0,
+    })
+
+    expect(preview.status).toBe("succeeded")
+    expect(preview.plan.hook).toBe("My exact custom hook")
+    expect(preview.plan.hookId).toBeUndefined()
+    expect(preview.plan.debug?.selectedHookIndex).toBeUndefined()
+    expect(preview.plan.slides[0].text).toBe("My exact custom hook")
+  })
+
+  it("generates distinct text-only hook variants with slide text", async () => {
+    const automation = createLocalAutomationRecord({
+      name: "Hook variants",
+      overrides: { status: "paused" },
+    })
+    automation.schema.hooks = [
+      {
+        id: "hook-one",
+        text: "First saved hook",
+        enabled: true,
+        createdAt: "2026-08-01T00:00:00.000Z",
+      },
+      {
+        id: "hook-two",
+        text: "Second saved hook",
+        enabled: true,
+        createdAt: "2026-08-01T00:00:00.000Z",
+      },
+    ]
+    automation.schema.formatting = automation.schema.formatting.map(
+      (section) =>
+        section.id === "body"
+          ? { ...section, slideCount: 1 }
+          : section.id === "cta"
+            ? { ...section, slideCount: 0 }
+            : section
+    )
+
+    const variants = await previewAutomationHookVariants(automation.schema, {
+      automationId: automation.id,
+      automationTitle: automation.name,
+      count: 2,
+      random: () => 0,
+    })
+
+    expect(variants).toHaveLength(2)
+    expect(new Set(variants.map((variant) => variant.hook)).size).toBe(2)
+    expect(
+      variants.every(
+        (variant) =>
+          variant.slides.length === 2 &&
+          variant.slides.every((slide) => slide.text.length > 0)
+      )
+    ).toBe(true)
+  })
+
   it("reserves caption-tagged hook and CTA assets for their slide sections", () => {
     const images = [
       { id: "hook", imageCaption: "Hook asset: polar bear cutouts" },
@@ -1430,6 +1542,8 @@ describe("runDueAutomations", () => {
       },
     ]
     automation.schema.prompt_formatting.num_of_slides = 2
+    automation.schema.prompt_formatting.style =
+      "Use a short heading followed by one supporting paragraph."
     automation.schema.image_collection_ids = {
       ...automation.schema.image_collection_ids,
       first_slide: {
@@ -1486,6 +1600,12 @@ describe("runDueAutomations", () => {
     )
     expect(JSON.stringify(request.messages)).not.toContain(
       "Automation: Automation"
+    )
+    expect(JSON.stringify(request.messages)).toContain(
+      "Structural style rules (govern organization and format only; Tone still controls register, diction, rhythm, and casing)"
+    )
+    expect(JSON.stringify(request.messages)).toContain(
+      "Use a short heading followed by one supporting paragraph."
     )
     expect(result.created[0].plan.debug?.selectedHookIndex).toBe(1)
     expect(result.created[0].plan.slides[0].text).toBe("second hook")

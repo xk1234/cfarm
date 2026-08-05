@@ -6,7 +6,6 @@ import { internalToolsEnabled } from "@/lib/internal-tools"
 const INTERNAL_PATH_PREFIXES = [
   "/debug",
   "/api/debug",
-  "/api/temp/testing-center",
 ] as const
 
 export async function proxy(request: NextRequest) {

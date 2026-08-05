@@ -1,13 +1,12 @@
 import { clean } from "@/lib/guards"
 import { NextResponse } from "next/server"
 
-import { internalToolsEnabled } from "@/lib/internal-tools"
-
 import { previewAutomationRunPlan } from "@/lib/automation-runner"
 import {
   automationTemplateSchemaToRuntime,
   listAutomationTemplateRecords,
 } from "@/lib/automation-templates"
+import { getCurrentUser } from "@/lib/auth"
 import {
   defaultTempSlideSystemPrompt,
   defaultTempSlideUserInstructions,
@@ -23,8 +22,11 @@ type GenerateRequestBody = {
 }
 
 export async function POST(request: Request) {
-  if (!internalToolsEnabled()) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
+  if (!(await getCurrentUser())) {
+    return NextResponse.json(
+      { error: "Authentication required" },
+      { status: 401 }
+    )
   }
 
   try {

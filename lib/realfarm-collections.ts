@@ -20,8 +20,11 @@ export type CreatedImageCollection = {
     | "virtual"
     | "fallback"
     | "pexels-fallback"
+    | "influlab"
     | "empty"
   virtual?: boolean
+  readOnly?: boolean
+  externalId?: string
   payload?: PinterestCollectionCreatePayload
 }
 
@@ -130,12 +133,15 @@ export function storedToCollection(
   collection: StoredImageCollection
 ): CreatedImageCollection {
   return {
-    id: storedCollectionId(collection),
+    id: collection.id || storedCollectionId(collection),
     title: collection.name,
     mediaType: collection.mediaType === "video" ? "video" : "image",
     createdAt: normalizedCollectionDate(collection.created_at),
     pinned: collection.pinned === true,
-    source: "pinterest",
+    source: collection.source === "influlab" ? "influlab" : "pinterest",
+    virtual: collection.source === "influlab",
+    readOnly: collection.readOnly === true,
+    externalId: collection.externalId,
     images: collection.images.map((image, index) => ({
       id: image.hash || `stored-${slugify(collection.name)}-${index}`,
       title: image.caption || collection.name,

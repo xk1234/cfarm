@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import type { ReactNode } from "react"
 import {
   IconAlertTriangle,
   IconBrandTiktok,
@@ -31,9 +32,11 @@ const acceptsTikTok = (provider: string) => provider.startsWith("tiktok")
 export function TikTokPublicationImportPanel({
   automationId,
   onRunsImported,
+  action,
 }: {
   automationId: string
   onRunsImported: (runs: AutomationRunApiRecord[]) => void
+  action?: ReactNode
 }) {
   const [urls, setUrls] = useState("")
   const [operationId, setOperationId] = useState("")
@@ -52,7 +55,7 @@ export function TikTokPublicationImportPanel({
         const payload = await fetchJsonWithTimeout<{
           preview: TikTokImportPreview
         }>(
-          `/api/tiktok-publications?operationId=${encodeURIComponent(id)}&automationId=${encodeURIComponent(automationId)}`,
+          `/api/tiktok-publications?operationId=${encodeURIComponent(id)}&automationId=${encodeURIComponent(automationId)}&integrationId=${encodeURIComponent(selectedIntegrationId)}`,
           { timeoutMs: 120_000, toastOnError: false }
         )
         setPreview(payload.preview)
@@ -72,7 +75,7 @@ export function TikTokPublicationImportPanel({
         toast.error(getApiErrorMessage(error, "Could not inspect TikTok posts"))
       }
     },
-    [automationId]
+    [automationId, selectedIntegrationId]
   )
 
   useEffect(() => {
@@ -176,7 +179,7 @@ export function TikTokPublicationImportPanel({
     preview && ["FAILED", "ABORTED", "TIMED-OUT"].includes(preview.status)
 
   return (
-    <SettingsPage title="Published TikTok posts">
+    <SettingsPage title="Published TikTok posts" action={action}>
       <section className="py-6">
         <label className="block text-sm font-semibold text-app-text">
           TikTok photo URLs

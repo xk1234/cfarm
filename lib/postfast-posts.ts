@@ -8,6 +8,10 @@ import {
 } from "@/lib/output-publications"
 import type { PostFastMedia } from "@/lib/postfast-client"
 import type { PublicationLinkState } from "@/lib/publication-link-state"
+import {
+  buildPublicationRecord,
+  normalizePublicationRecord,
+} from "@/lib/publication-record"
 
 export type PostFastPostStatus =
   | "awaiting_manual_post"
@@ -122,7 +126,7 @@ export async function upsertPostFastPostRecord(
       record.sourceId === input.sourceId &&
       record.integrationId === input.integrationId
   )
-  const record: PostFastPostRecord = {
+  const record = buildPublicationRecord({
     id: existing?.id ?? randomUUID(),
     sourceType: input.sourceType,
     sourceId: input.sourceId,
@@ -151,9 +155,25 @@ export async function upsertPostFastPostRecord(
     error: clean(input.error) || undefined,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
-  }
+  })
 
   await writePostFastPostRecords(rootDir, [
+    record,
+    ...records.filter((item) => item.id !== record.id),
+  ])
+  await recordHookPublication(record)
+  return record
+}
+
+export async function putPostFastPostRecord(
+  input: PostFastPostRecord
+): Promise<PostFastPostRecord> {
+  const record = normalizeRecord(input)
+  if (!record) {
+    throw new Error("A valid legacy publication record is required.")
+  }
+  const records = await readPostFastPostRecords()
+  await writePostFastPostRecords(undefined, [
     record,
     ...records.filter((item) => item.id !== record.id),
   ])
@@ -372,23 +392,13 @@ function normalizeRecord(
   ) {
     return null
   }
-  return {
+  const now = new Date().toISOString()
+  return normalizePublicationRecord({
     ...record,
-    status: isStatus(record.status) ? record.status : "draft",
     content: clean(record.content),
-    media: Array.isArray(record.media) ? record.media : [],
-    linkState:
-      record.linkState === "postfast_published" ||
-      record.linkState === "manually_linked"
-        ? record.linkState
-        : "unlinked",
-    statsSources: normalizeStatsSources(record.statsSources),
-    createdAt: clean(record.createdAt) || new Date().toISOString(),
-    updatedAt:
-      clean(record.updatedAt) ||
-      clean(record.createdAt) ||
-      new Date().toISOString(),
-  }
+    createdAt: clean(record.createdAt) || now,
+    updatedAt: clean(record.updatedAt) || clean(record.createdAt) || now,
+  })
 }
 
 function normalizeStatsSources(
@@ -397,17 +407,6 @@ function normalizeStatsSources(
   const sources = new Set(values ?? [])
   return (["postfast", "tiktok_studio"] as const).filter((source) =>
     sources.has(source)
-  )
-}
-
-function isStatus(value: unknown): value is PostFastPostStatus {
-  return (
-    value === "awaiting_manual_post" ||
-    value === "ready_for_review" ||
-    value === "draft" ||
-    value === "scheduled" ||
-    value === "published" ||
-    value === "failed"
   )
 }
 

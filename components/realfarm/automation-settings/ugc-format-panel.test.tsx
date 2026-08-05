@@ -36,7 +36,11 @@ function schema(patch: Partial<AutomationSchema["ugc"]> = {}) {
       lipSyncTier: "standard" as const,
       targetDurationSeconds: 40,
       brollCount: 3,
-      captions: { enabled: true, style: "karaoke", fallback: "drawtext" as const },
+      captions: {
+        enabled: true,
+        style: "karaoke",
+        fallback: "drawtext" as const,
+      },
       hookOverlay: { enabled: true, durationMs: 3000, style: "bold" },
       ...patch,
     },
@@ -44,23 +48,25 @@ function schema(patch: Partial<AutomationSchema["ugc"]> = {}) {
 }
 
 describe("UgcAutomationFormatPanel", () => {
-  it("blocks saving a live automation without product input or voice", () => {
-    const save = vi.fn()
+  it("shows live validation without manual save controls", () => {
     const html = renderToStaticMarkup(
       <UgcAutomationFormatPanel
         config={{
           ...schema({ voiceId: "" }),
-          ugc: { ...schema({ voiceId: "" }).ugc, productUrl: "", productBrief: "" },
+          ugc: {
+            ...schema({ voiceId: "" }).ugc,
+            productUrl: "",
+            productBrief: "",
+          },
         }}
         onConfigChange={vi.fn()}
         onBack={vi.fn()}
-        onSave={save}
       />
     )
 
     expect(html).toContain("Add a product URL or product brief")
     expect(html).toContain("Choose a voice before going live")
-    expect(html).toContain("disabled=\"\"")
-    expect(save).not.toHaveBeenCalled()
+    expect(html).not.toContain("Save changes")
+    expect(html).toContain("Back")
   })
 })

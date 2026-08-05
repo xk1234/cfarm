@@ -316,7 +316,7 @@ function GeneratedVideoCard({
               <IconTrash className="size-4" />
             </MediaCardAction>
           </MediaCardActions>
-          <GeneratedVideoPublicationStatusSelect item={item} />
+          <GeneratedVideoPublicationStatusBadge item={item} />
         </MediaCardPreview>
       </MediaCard>
       {deleteOpen ? (
@@ -333,51 +333,21 @@ function GeneratedVideoCard({
   )
 }
 
-function GeneratedVideoPublicationStatusSelect({
+function GeneratedVideoPublicationStatusBadge({
   item,
 }: {
   item: GeneratedVideoExport
 }) {
-  const [publishedAt, setPublishedAt] = useState(item.manuallyPublishedAt)
-  const [marking, setMarking] = useState(false)
   const published =
-    Boolean(publishedAt) || item.deletionBlockedBy === "published"
+    Boolean(item.manuallyPublishedAt) || item.deletionBlockedBy === "published"
   const scheduled = !published && item.deletionBlockedBy === "scheduled"
-
-  async function markPublished() {
-    if (marking) return
-    setMarking(true)
-    try {
-      const payload = await fetchJsonWithTimeout<{
-        export?: GeneratedVideoExport
-      }>(`/api/generated-videos/${encodeURIComponent(item.id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "markPublished" }),
-        toastOnError: false,
-      })
-      if (!payload.export?.manuallyPublishedAt) {
-        throw new Error("The generated post was not updated.")
-      }
-      setPublishedAt(payload.export.manuallyPublishedAt)
-      toast.success("Marked as published")
-    } catch (error) {
-      toast.error(
-        getApiErrorMessage(error, "The post could not be marked as published.")
-      )
-    } finally {
-      setMarking(false)
-    }
-  }
 
   return (
     <PublicationStatusControl
       status={
         published ? "published" : scheduled ? "scheduled" : "not_published"
       }
-      marking={marking}
       className="absolute top-2 left-2 z-20"
-      onMarkPublished={markPublished}
     />
   )
 }

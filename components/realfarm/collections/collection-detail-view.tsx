@@ -406,7 +406,7 @@ export function CollectionDetailView({
               }}
             />
           ) : (
-            <h1 className="min-w-0 flex-1 truncate text-[22px] font-semibold">
+            <h1 className="flex h-10 min-w-0 flex-1 items-center truncate text-[22px] leading-none font-semibold sm:h-8">
               {collection.title}
             </h1>
           )}
@@ -450,7 +450,7 @@ export function CollectionDetailView({
             </Button>
           )}
         </div>
-        <div className="flex w-full items-center gap-2 overflow-x-auto pb-1 sm:w-auto">
+        <div className="flex w-full items-center gap-2 overflow-x-auto sm:w-auto">
           <Button
             variant="softControl"
             size="compact"
@@ -1025,10 +1025,7 @@ function CreateAutomationDialog({
   return (
     <AppModal layer="absolute" className="z-50" onClose={onCancel}>
       <AppModalPanel className="max-w-[430px] rounded-[8px] shadow-2xl">
-        <AppModalHeader
-          title="Create Automation"
-          onClose={onCancel}
-        />
+        <AppModalHeader title="Create Automation" onClose={onCancel} />
         <div className="p-5">
           <label className="mt-5 block text-[12px] font-semibold">
             Automation name

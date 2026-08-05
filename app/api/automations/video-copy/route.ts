@@ -130,8 +130,6 @@ export const POST = withHandler(async (request: Request) => {
     substitutions,
     title: generated?.title || fallback.title,
     caption: generated?.caption || fallback.caption,
-    // Temporary compatibility alias for clients created before `caption`.
-    description: generated?.caption || fallback.caption,
     hashtags: generated?.hashtags.length
       ? generated.hashtags
       : fallback.hashtags,

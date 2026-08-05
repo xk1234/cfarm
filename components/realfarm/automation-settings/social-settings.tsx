@@ -106,8 +106,8 @@ export function SocialMediaSettingsPanel({
   config: AutomationSchema
   onEditSocialAccounts: () => void
   onConfigChange: (config: AutomationSchema) => void
-  onCancel: () => void
-  onSave: () => void
+  onCancel?: () => void
+  onSave?: () => void
   hideFooter?: boolean
 }) {
   const [activeProvider, setActiveProvider] =
@@ -326,7 +326,7 @@ export function SocialMediaSettingsPanel({
           />
         </div>
       </div>
-      {hideFooter ? null : (
+      {hideFooter || !onCancel || !onSave ? null : (
         <SettingsFooter
           saveLabel="Save Settings"
           onCancel={onCancel}

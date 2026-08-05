@@ -21,6 +21,7 @@ export const BUNDLED_FONT_FILE = "Inter-Variable.ttf"
 const FONT_REPLACEMENTS: Record<string, string> = {
   "TikTok Display Medium": BUNDLED_FONT_FAMILY,
   "TikTok Display": BUNDLED_FONT_FAMILY,
+  Serif: "serif",
 }
 
 // CSS generic-family keywords are honoured by fontconfig directly and must

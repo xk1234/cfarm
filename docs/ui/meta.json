@@ -1,0 +1,17 @@
+{
+  "title": "UI",
+  "pages": [
+    "index",
+    "routes",
+    "workspace",
+    "home",
+    "automations",
+    "compose",
+    "schedule",
+    "analytics",
+    "collections",
+    "testing",
+    "settings",
+    "public"
+  ]
+}

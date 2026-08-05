@@ -156,32 +156,78 @@ export function ComposeDemo({
           </h1>
         </div>
         {accounts.length > 0 ? (
-          <div aria-label="Connected accounts" className="flex flex-wrap gap-2">
-            {accounts.map((account) => {
-              const selected = selectedIds.has(account.integrationId)
-              return (
-                <button
-                  aria-pressed={selected}
-                  className={cn(
-                    "lc-focus-ring flex items-center gap-2 rounded-app-control border px-3 py-2 text-caption font-semibold transition",
-                    selected
-                      ? "border-brand-accent bg-brand-accent-soft text-brand-accent"
-                      : "border-app-panel-border bg-app-surface text-app-muted-text hover:bg-app-control-hover"
-                  )}
-                  key={account.integrationId}
-                  onClick={() => toggleAccount(account.integrationId)}
-                  type="button"
-                >
-                  <SocialPlatformIcon
-                    provider={account.platformKey}
-                    className="size-4"
-                  />
-                  <span>{account.accountName}</span>
-                  {selected ? <IconCheck className="size-3.5" /> : null}
-                </button>
-              )
-            })}
-          </div>
+          <>
+            <details className="relative w-full sm:hidden">
+              <summary className="lc-focus-ring flex h-11 cursor-pointer list-none items-center justify-between rounded-app-control border border-app-panel-border bg-app-surface px-3 text-label font-semibold text-app-text shadow-app-control">
+                <span>
+                  {selectedIds.size} of {accounts.length} accounts selected
+                </span>
+                <span className="text-caption text-app-muted-text">Change</span>
+              </summary>
+              <div
+                aria-label="Connected accounts"
+                className="mt-2 grid gap-2 rounded-app-panel border border-app-panel-border bg-app-surface p-2 shadow-app-card"
+              >
+                {accounts.map((account) => {
+                  const selected = selectedIds.has(account.integrationId)
+                  return (
+                    <button
+                      aria-pressed={selected}
+                      className={cn(
+                        "lc-focus-ring flex min-h-10 items-center gap-2 rounded-app-control border px-3 py-2 text-left text-caption font-semibold transition",
+                        selected
+                          ? "border-brand-accent bg-brand-accent-soft text-brand-accent"
+                          : "border-app-panel-border bg-app-surface text-app-muted-text"
+                      )}
+                      key={account.integrationId}
+                      onClick={() => toggleAccount(account.integrationId)}
+                      type="button"
+                    >
+                      <SocialPlatformIcon
+                        provider={account.platformKey}
+                        className="size-4 shrink-0"
+                      />
+                      <span className="min-w-0 flex-1 truncate">
+                        {account.accountName}
+                      </span>
+                      {selected ? (
+                        <IconCheck className="size-3.5 shrink-0" />
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </div>
+            </details>
+            <div
+              aria-label="Connected accounts"
+              className="hidden flex-wrap gap-2 sm:flex"
+            >
+              {accounts.map((account) => {
+                const selected = selectedIds.has(account.integrationId)
+                return (
+                  <button
+                    aria-pressed={selected}
+                    className={cn(
+                      "lc-focus-ring flex items-center gap-2 rounded-app-control border px-3 py-2 text-caption font-semibold transition",
+                      selected
+                        ? "border-brand-accent bg-brand-accent-soft text-brand-accent"
+                        : "border-app-panel-border bg-app-surface text-app-muted-text hover:bg-app-control-hover"
+                    )}
+                    key={account.integrationId}
+                    onClick={() => toggleAccount(account.integrationId)}
+                    type="button"
+                  >
+                    <SocialPlatformIcon
+                      provider={account.platformKey}
+                      className="size-4"
+                    />
+                    <span>{account.accountName}</span>
+                    {selected ? <IconCheck className="size-3.5" /> : null}
+                  </button>
+                )
+              })}
+            </div>
+          </>
         ) : null}
       </header>
 
@@ -201,13 +247,13 @@ export function ComposeDemo({
           </div>
         </section>
       ) : (
-        <>
+        <div className="pb-32 sm:pb-20">
           <PostComposer
             accounts={selectedAccounts.length > 0 ? selectedAccounts : accounts}
             onChange={setValue}
             value={value}
           />
-          <footer className="sticky bottom-3 z-20 mt-4 flex flex-col gap-3 rounded-app-panel border border-app-panel-border bg-app-surface p-3 shadow-app-card sm:flex-row sm:items-center sm:justify-between">
+          <footer className="sticky bottom-2 z-20 mt-4 flex flex-col gap-3 rounded-app-panel border border-app-panel-border bg-app-surface p-3 shadow-app-card sm:bottom-3 sm:flex-row sm:items-center sm:justify-between">
             <label className="flex min-w-0 items-center gap-2 text-label font-semibold text-app-text">
               <IconCalendarEvent className="size-4 shrink-0 text-app-muted-text" />
               <span className="sr-only">Schedule date and time</span>
@@ -219,7 +265,7 @@ export function ComposeDemo({
                 value={scheduledAt}
               />
             </label>
-            <div className="flex gap-2 sm:justify-end">
+            <div className="flex gap-2 sm:justify-end [&>button]:flex-1 sm:[&>button]:flex-none">
               <Button
                 disabled={publishing || limitErrors.length > 0}
                 onClick={() => void publish("schedule")}
@@ -236,7 +282,7 @@ export function ComposeDemo({
               </Button>
             </div>
           </footer>
-        </>
+        </div>
       )}
     </div>
   )

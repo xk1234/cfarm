@@ -1,6 +1,6 @@
 # LumenClip MCP tool reference
 
-> Status: partially implemented. Forty-five tools are callable through the
+> Status: partially implemented. Sixty-one tools are callable through the
 > public `/mcp` Streamable HTTP route and local stdio transport. The
 > tool index is the source of truth for which contracts are implemented,
 > proposed, or deferred.
@@ -11,6 +11,7 @@ may link to a shared tool but do not invent a second incompatible schema.
 
 | App use case            | Reference                                        | What it covers                                                                                                               |
 | ----------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| Workflows               | [workflows/README.md](workflows/README.md)       | Named production generation pipelines and independently callable deterministic, provider, and storage stages.                |
 | Workspace               | [workspace/README.md](workspace/README.md)       | Workspace defaults, limits, locale, and capabilities.                                                                        |
 | Templates               | [templates/README.md](templates/README.md)       | Catalog search, template detail, versions, examples, and allowed overrides.                                                  |
 | Automations             | [automations/README.md](automations/README.md)   | Automation discovery, preview, create, update, and manual generation runs.                                                   |
@@ -28,6 +29,9 @@ may link to a shared tool but do not invent a second incompatible schema.
 ## Callable tools
 
 <!-- BEGIN:callable-tools -->
+- `lumenclip_pipeline_catalog`
+- `lumenclip_pipeline_stage_run`
+- `lumenclip_pipeline_run`
 - `lumenclip_automations_list`
 - `lumenclip_automation_templates_list`
 - `lumenclip_automation_create`
@@ -46,6 +50,8 @@ may link to a shared tool but do not invent a second incompatible schema.
 - `lumenclip_automation_hook_set_enabled`
 - `lumenclip_automation_hook_delete`
 - `lumenclip_hook_performance`
+- `lumenclip_hook_variants_generate`
+- `lumenclip_hook_variant_select`
 - `lumenclip_run_plan_get`
 - `lumenclip_automation_run`
 - `lumenclip_schedule_get`
@@ -66,6 +72,7 @@ may link to a shared tool but do not invent a second incompatible schema.
 - `lumenclip_outputs_list`
 - `lumenclip_output_get`
 - `lumenclip_output_validate`
+- `lumenclip_output_slide_text_update`
 - `lumenclip_output_delete`
 - `lumenclip_operations_list`
 - `lumenclip_operation_get`

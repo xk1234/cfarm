@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { upcomingAutomationPosts } from "@/lib/automation-upcoming-posts"
+import {
+  nextUpcomingAutomationPost,
+  upcomingAutomationPosts,
+} from "@/lib/automation-upcoming-posts"
 import type { Automation } from "@/lib/realfarm-data"
 
 describe("upcoming automation posts", () => {
@@ -43,6 +46,31 @@ describe("upcoming automation posts", () => {
         new Date("2026-07-11T04:00:00.000Z")
       ).map((post) => post.label)
     ).toEqual(["Today, 6:00 PM", "Tomorrow, 10:00 AM"])
+  })
+
+  it("selects the earliest post across live automations", () => {
+    const later = scheduledAutomation([{ time: "6:00 PM", days: ["Sat"] }])
+    const earlier = {
+      ...scheduledAutomation([{ time: "3:00 PM", days: ["Sat"] }]),
+      id: "automation-2",
+      name: "Earlier automation",
+    }
+    const paused = {
+      ...scheduledAutomation([{ time: "1:00 PM", days: ["Sat"] }]),
+      id: "automation-3",
+      status: "paused" as const,
+    }
+
+    expect(
+      nextUpcomingAutomationPost(
+        [later, paused, earlier],
+        new Date("2026-07-11T04:00:00.000Z")
+      )
+    ).toMatchObject({
+      automationId: "automation-2",
+      automationName: "Earlier automation",
+      label: "Today, 3:00 PM",
+    })
   })
 })
 

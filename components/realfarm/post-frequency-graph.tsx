@@ -18,8 +18,18 @@ const levelClass = [
 ]
 
 const monthLabels = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
 ]
 
 function describe(day: ActivityDay) {
@@ -82,36 +92,39 @@ export function PostFrequencyGraph({
 
       <div className="mt-5 overflow-x-auto pb-1">
         <div className="mx-auto w-fit">
-          <div className="flex gap-[3px] pl-[26px]">
+          <div className="flex gap-[2px] pl-[21px] sm:gap-[4px] sm:pl-[29px]">
             {columnMonths.map((label, index) => (
               <span
                 key={`${label}-${index}`}
-                className="w-[11px] text-[9px] leading-4 font-medium text-app-muted-text"
+                className="w-2 text-[8px] leading-3 font-medium text-app-muted-text sm:w-[13px] sm:text-[10px] sm:leading-4"
               >
                 {label}
               </span>
             ))}
           </div>
-          <div className="flex gap-[3px]">
-            <div className="flex w-[23px] shrink-0 flex-col gap-[3px] pr-1 text-right">
+          <div className="flex gap-[2px] sm:gap-[4px]">
+            <div className="flex w-[19px] shrink-0 flex-col gap-[2px] pr-1 text-right sm:w-[25px] sm:gap-[4px]">
               {["", "Mon", "", "Wed", "", "Fri", ""].map((label, index) => (
                 <span
                   key={index}
-                  className="h-[11px] text-[9px] leading-[11px] font-medium text-app-muted-text"
+                  className="h-2 text-[7px] leading-2 font-medium text-app-muted-text sm:h-[13px] sm:text-[9px] sm:leading-[13px]"
                 >
                   {label}
                 </span>
               ))}
             </div>
             {grid.weeks.map((week, weekIndex) => (
-              <div key={weekIndex} className="flex flex-col gap-[3px]">
+              <div
+                key={weekIndex}
+                className="flex flex-col gap-[2px] sm:gap-[4px]"
+              >
                 {week.map((day) => (
                   <span
                     key={day.date}
                     title={describe(day)}
                     aria-label={describe(day)}
                     className={cn(
-                      "size-[11px] rounded-[2px]",
+                      "size-2 rounded-[2px] sm:size-[13px] sm:rounded-[3px]",
                       levelClass[day.level]
                     )}
                   />
@@ -125,7 +138,10 @@ export function PostFrequencyGraph({
       <div className="mt-3 flex items-center justify-center gap-1.5 text-[11px] font-medium text-app-muted-text">
         <span>Less</span>
         {levelClass.map((cls, index) => (
-          <span key={index} className={cn("size-[11px] rounded-[2px]", cls)} />
+          <span
+            key={index}
+            className={cn("size-2 rounded-[2px] sm:size-[11px]", cls)}
+          />
         ))}
         <span>More</span>
       </div>

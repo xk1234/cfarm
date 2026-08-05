@@ -14,8 +14,8 @@ export function SettingsPage({
 }) {
   return (
     <div className="min-h-full px-4 py-6 sm:px-6 md:px-9 md:py-8 md:pr-12">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <h2 className="text-[22px] leading-tight font-bold text-app-text md:text-[28px]">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="flex min-h-9 items-center text-[22px] leading-none font-bold text-app-text md:text-[28px]">
           {title}
         </h2>
         {action}

@@ -46,6 +46,7 @@ import { cn } from "@/lib/utils"
 import { hookStyles, voicePresets } from "@/lib/x-post-presets"
 
 type StudioTab = "overview" | "schedule" | "social" | "settings"
+type MobileStage = "setup" | "draft" | "preview"
 
 type StrategyRequestError = {
   message: string
@@ -70,6 +71,7 @@ export function XAutomationStudio({
   const [runs, setRuns] = useState(initialRuns)
   const [topic, setTopic] = useState("")
   const [tab, setTab] = useState<StudioTab>("overview")
+  const [mobileStage, setMobileStage] = useState<MobileStage>("setup")
   const [busy, setBusy] = useState<
     | "create"
     | "save"
@@ -200,6 +202,7 @@ export function XAutomationStudio({
       }
     }
     setTab("overview")
+    setMobileStage("draft")
   }
 
   async function saveSettings() {
@@ -235,6 +238,7 @@ export function XAutomationStudio({
       )
       setRuns((items) => [payload.run, ...items])
       setTab("overview")
+      setMobileStage("preview")
       toast.success("Draft generated with inferred strategy and AI review")
     } catch (error) {
       toast.error(message(error))
@@ -394,7 +398,7 @@ export function XAutomationStudio({
       )}
     >
       {!embedded ? (
-        <header className="flex h-16 items-center justify-between border-b border-app-panel-border bg-app-surface px-5">
+        <header className="hidden h-16 items-center justify-between border-b border-app-panel-border bg-app-surface px-5 md:flex">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
@@ -415,16 +419,97 @@ export function XAutomationStudio({
         </header>
       ) : null}
 
+      <nav
+        aria-label="Automation workflow"
+        className={cn(
+          "sticky z-20 grid grid-cols-3 gap-1 border-b border-app-panel-border bg-app-surface p-2 xl:hidden",
+          embedded ? "top-0" : "top-14 md:top-0"
+        )}
+      >
+        {(["setup", "draft", "preview"] as const).map((stage) => {
+          const disabled = stage === "preview" && !showNativePreview
+          return (
+            <button
+              key={stage}
+              type="button"
+              disabled={disabled}
+              aria-current={mobileStage === stage ? "step" : undefined}
+              onClick={() => setMobileStage(stage)}
+              className={cn(
+                "lc-focus-ring h-10 rounded-[8px] text-[13px] font-semibold capitalize transition disabled:cursor-not-allowed disabled:opacity-40",
+                mobileStage === stage
+                  ? "bg-app-strong text-white"
+                  : "text-app-muted-text"
+              )}
+            >
+              {stage[0].toUpperCase() + stage.slice(1)}
+            </button>
+          )
+        })}
+      </nav>
+
       <div
         className={cn(
           "grid",
           showNativePreview
-            ? "grid-cols-[246px_minmax(460px,1fr)_minmax(360px,0.82fr)]"
-            : "grid-cols-[246px_minmax(0,1fr)]",
-          embedded ? "min-h-[calc(100svh-2rem)]" : "min-h-[calc(100svh-4rem)]"
+            ? "grid-cols-1 xl:grid-cols-[246px_minmax(460px,1fr)_minmax(360px,0.82fr)]"
+            : "grid-cols-1 xl:grid-cols-[246px_minmax(0,1fr)]",
+          embedded
+            ? "min-h-[calc(100svh-3.5rem)] xl:min-h-[calc(100svh-2rem)]"
+            : "min-h-[calc(100svh-7rem)] xl:min-h-[calc(100svh-4rem)]"
         )}
       >
-        <aside className="flex min-h-0 flex-col border-r border-app-panel-border bg-app-surface-subtle p-2">
+        <aside
+          className={cn(
+            "min-h-0 flex-col bg-app-surface-subtle p-3 xl:flex xl:border-r xl:border-app-panel-border xl:p-2",
+            mobileStage === "setup" ? "flex" : "hidden"
+          )}
+        >
+          {!selected ? (
+            <div className="mb-3 rounded-[10px] border border-brand-accent/25 bg-brand-accent-soft p-3 xl:hidden">
+              <div className="text-[11px] font-bold tracking-[0.1em] text-brand-accent uppercase">
+                Start here
+              </div>
+              <p className="mt-1 text-sm font-semibold text-app-text">
+                Create the automation you want to set up.
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <Button
+                  variant="action"
+                  size="compact"
+                  onClick={() => void createAutomation("x")}
+                  disabled={busy === "create"}
+                >
+                  New X
+                </Button>
+                <Button
+                  variant="softControl"
+                  size="compact"
+                  onClick={() => void createAutomation("threads")}
+                  disabled={busy === "create"}
+                >
+                  New Threads
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="lc-focus-ring mb-3 rounded-[10px] border border-brand-accent/25 bg-brand-accent-soft p-3 text-left xl:hidden"
+              onClick={() => setMobileStage("draft")}
+            >
+              <span className="block text-[11px] font-bold tracking-[0.1em] text-brand-accent uppercase">
+                Next step
+              </span>
+              <span className="mt-1 block text-sm font-semibold text-app-text">
+                {selected.niche.label
+                  ? selected.brief
+                    ? "Review the draft controls, then generate."
+                    : "Generate a content strategy in Draft."
+                  : "Add your niche in Draft."}
+              </span>
+            </button>
+          )}
           <Button
             variant="action"
             className="mb-3 w-full"
@@ -443,14 +528,20 @@ export function XAutomationStudio({
               label="Overview"
               icon={LuSparkles}
               active={tab === "overview"}
-              onClick={() => setTab("overview")}
+              onClick={() => {
+                setTab("overview")
+                setMobileStage("draft")
+              }}
             />
             <div className="my-2 h-px bg-[#e1e0d8]" />
             <AutomationSettingsNavButton
               label="Schedule"
               icon={LuCalendarDays}
               active={tab === "schedule"}
-              onClick={() => setTab("schedule")}
+              onClick={() => {
+                setTab("schedule")
+                setMobileStage("draft")
+              }}
             />
             <AutomationSettingsNavButton
               label="Social Media Settings"
@@ -458,6 +549,7 @@ export function XAutomationStudio({
               active={tab === "social"}
               onClick={() => {
                 setTab("social")
+                setMobileStage("draft")
                 void loadAccounts()
               }}
             />
@@ -465,7 +557,10 @@ export function XAutomationStudio({
               label="Settings"
               icon={LuSettings}
               active={tab === "settings"}
-              onClick={() => setTab("settings")}
+              onClick={() => {
+                setTab("settings")
+                setMobileStage("draft")
+              }}
             />
           </div>
           {selected && (
@@ -480,7 +575,12 @@ export function XAutomationStudio({
           )}
         </aside>
 
-        <section className="border-r border-app-panel-border bg-app-surface p-5">
+        <section
+          className={cn(
+            "min-w-0 bg-app-surface p-4 xl:block xl:border-r xl:border-app-panel-border xl:p-5",
+            mobileStage === "draft" ? "block" : "hidden"
+          )}
+        >
           {embedded && onClose ? (
             <div className="mb-5 flex items-center justify-between border-b border-app-panel-border pb-4">
               <div>
@@ -501,7 +601,7 @@ export function XAutomationStudio({
             <EmptyState onCreate={createAutomation} />
           ) : (
             <>
-              <div className="mb-5 flex items-center gap-3">
+              <div className="mb-5 flex flex-wrap items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="text-[11px] font-bold tracking-[0.12em] text-app-text-faint uppercase">
                     {selected.platform === "threads" ? "Threads" : "X"}
@@ -592,8 +692,13 @@ export function XAutomationStudio({
         </section>
 
         {showNativePreview ? (
-          <aside className="bg-app-surface-subtle p-5">
-            <div className="mb-4 flex items-center justify-between">
+          <aside
+            className={cn(
+              "min-w-0 bg-app-surface-subtle p-4 xl:block xl:p-5",
+              mobileStage === "preview" ? "block" : "hidden"
+            )}
+          >
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="text-xs font-bold tracking-[0.12em] text-app-text-faint uppercase">
                   Native preview
@@ -671,7 +776,7 @@ function ComposePanel({
   return (
     <div className="space-y-4">
       <Panel title="Content strategy">
-        <div className="flex items-end gap-3">
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-end">
           <div className="min-w-0 flex-1">
             <Field label="Niche">
               <input
@@ -691,7 +796,11 @@ function ComposePanel({
             onClick={onDerive}
             disabled={deriving || !automation.niche.label.trim()}
           >
-            {deriving ? <LuLoaderCircle className="animate-spin" /> : <LuRefreshCw />}
+            {deriving ? (
+              <LuLoaderCircle className="animate-spin" />
+            ) : (
+              <LuRefreshCw />
+            )}
             {automation.brief ? "Regenerate strategy" : "Generate strategy"}
           </Button>
         </div>
@@ -846,7 +955,7 @@ function DiscoveryPanel({
   return (
     <div className="space-y-4">
       <Panel title="Trend radar">
-        <div className="grid grid-cols-[1fr_180px] gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_180px]">
           <input
             className="min-w-0"
             value={query}
@@ -867,7 +976,7 @@ function DiscoveryPanel({
             }
           />
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
           <Field label="Lookback hours">
             <input
               type="number"
@@ -954,7 +1063,9 @@ function DiscoveryPanel({
             </span>
           </div>
           <p className="line-clamp-4 text-sm leading-6">{candidate.text}</p>
-          <div className="mt-2 text-xs text-app-muted-text">{candidate.reason}</div>
+          <div className="mt-2 text-xs text-app-muted-text">
+            {candidate.reason}
+          </div>
           {selectedCandidate?.id === candidate.id && (
             <div className="mt-3 flex justify-end">
               <Button

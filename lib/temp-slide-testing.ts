@@ -16,7 +16,7 @@ import {
   automationTone,
   type AutomationFormatSection,
   type AutomationSchema,
-  type AutomationTextItem,
+  type TextItem,
 } from "@/lib/realfarm-automation"
 import {
   type TempSlideImageCollection,
@@ -107,8 +107,11 @@ export function automationSchemaToTempSlideTestingAutomation(
   const hook = automationFormatSection(schema, "hook")
   const content = automationFormatSection(schema, "content")
   const cta = automationFormatSection(schema, "cta")
+  const hookCount = Math.max(0, Math.round(hook.slideCount))
+  const contentCount = Math.max(0, Math.round(content.slideCount))
   const ctaEnabled =
     cta.slideCount > 0 || schema.image_collection_ids.cta_slide.check
+  const ctaCount = ctaEnabled ? Math.max(1, Math.round(cta.slideCount || 1)) : 0
 
   return {
     id: metadata.id,
@@ -122,17 +125,19 @@ export function automationSchemaToTempSlideTestingAutomation(
       cta: automationCollectionId(schema, "cta"),
     },
     slides: [
-      buildAutomationSlideSpec({
-        section: "hook",
-        index: 0,
-        title: "Hook",
-        collectionId: automationCollectionId(schema, "hook"),
-        formatSection: hook,
-      }),
-      ...Array.from({ length: Math.max(1, content.slideCount) }, (_, index) =>
+      ...Array.from({ length: hookCount }, (_, index) =>
+        buildAutomationSlideSpec({
+          section: "hook",
+          index,
+          title: hookCount === 1 ? "Hook" : `Hook ${index + 1}`,
+          collectionId: automationCollectionId(schema, "hook"),
+          formatSection: hook,
+        })
+      ),
+      ...Array.from({ length: contentCount }, (_, index) =>
         buildAutomationSlideSpec({
           section: "content",
-          index: index + 1,
+          index: hookCount + index,
           title: `Content ${index + 1}`,
           collectionId:
             content.imageOverrides?.find(
@@ -141,11 +146,11 @@ export function automationSchemaToTempSlideTestingAutomation(
           formatSection: contentSectionForSlide(content, index + 1),
         })
       ),
-      ...(ctaEnabled
-        ? Array.from({ length: Math.max(1, cta.slideCount || 1) }, (_, index) =>
+      ...(ctaCount
+        ? Array.from({ length: ctaCount }, (_, index) =>
             buildAutomationSlideSpec({
               section: "cta",
-              index: Math.max(1, content.slideCount) + index + 1,
+              index: hookCount + contentCount + index,
               title: `CTA ${index + 1}`,
               collectionId: automationCollectionId(schema, "cta"),
               formatSection: cta,
@@ -394,7 +399,7 @@ function buildAutomationSlideSpec(input: {
 }
 
 function automationTextItemToPlaceholder(input: {
-  textItem: AutomationTextItem
+  textItem: TextItem
   slideId: string
   section: TempSlideSectionId
   index: number
@@ -420,5 +425,10 @@ function automationTextItemToPlaceholder(input: {
     textAlign: input.textItem.textAlign,
     textAnchor: input.textItem.textAnchor,
     textVerticalAnchor: input.textItem.textVerticalAnchor ?? "padded",
+    positionX: input.textItem.positionX,
+    positionY: input.textItem.positionY,
+    fontWeight: input.textItem.fontWeight,
+    backgroundMode: input.textItem.backgroundMode,
+    backgroundRadius: input.textItem.backgroundRadius,
   }
 }

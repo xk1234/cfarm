@@ -1,15 +1,21 @@
 import type { ReactNode } from "react"
-import { LuAlignCenter, LuAlignLeft, LuAlignRight, LuMapPin, LuPlus } from "react-icons/lu"
+import {
+  LuAlignCenter,
+  LuAlignLeft,
+  LuAlignRight,
+  LuPlus,
+} from "react-icons/lu"
 
 import { SelectLike } from "@/components/ui/form-controls"
 import {
+  AUTOMATION_FONT_OPTIONS,
+  automationFontPreviewFamily,
+} from "@/lib/automation-font-options"
+import {
   alignmentLabel,
-  anchorLabel,
   automationAlignments,
-  automationAnchors,
   labelToAlignment,
-  labelToAnchor,
-  type AutomationTextItem,
+  type TextItem,
 } from "@/lib/realfarm-automation"
 import { cn } from "@/lib/utils"
 
@@ -20,13 +26,15 @@ export function AutomationFormatTextToolbar({
   onDelete,
   onAdd,
   layout = "floating",
+  locked = false,
 }: {
   mode: "Hook" | "Content" | "CTA"
-  textItem: AutomationTextItem
-  updateTextItem: (patch: Partial<AutomationTextItem>) => void
+  textItem: TextItem
+  updateTextItem: (patch: Partial<TextItem>) => void
   onDelete: () => void
   onAdd: () => void
   layout?: "floating" | "inline"
+  locked?: boolean
 }) {
   return (
     <div
@@ -40,78 +48,120 @@ export function AutomationFormatTextToolbar({
           : "relative border-t border-app-panel-border shadow-sm"
       )}
     >
+      {locked ? (
+        <div className="rounded-lg border border-[#dddcd4] bg-white/70 px-2.5 py-2 text-[11px] font-medium text-app-muted-text">
+          Preset layout is locked. Content direction stays editable.
+        </div>
+      ) : null}
       <div className="space-y-2.5">
         <div className="space-y-2">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <CompactTextSelect
               label="Style"
-              value={textStyleLabel(textItem.textStyle)}
+              value={textStyleLabel(
+                textItem.textStyle,
+                textItem.backgroundMode
+              )}
               options={automationTextStyleLabels}
+              renderValue={textStylePreview}
+              renderOption={textStylePreview}
+              disabled={locked}
+              onChange={(value) => updateTextItem(textStylePatch(value))}
+            />
+            <CompactTextSelect
+              label="Font"
+              value={textItem.font || AUTOMATION_FONT_OPTIONS[0]}
+              options={[...AUTOMATION_FONT_OPTIONS]}
+              renderValue={fontPreview}
+              renderOption={fontPreview}
+              disabled={locked}
+              onChange={(value) => updateTextItem({ font: value })}
+            />
+            <CompactTextSelect
+              label="Weight"
+              value={`${textItem.fontWeight ?? 800}`}
+              options={automationFontWeights}
+              renderValue={fontWeightPreview}
+              renderOption={fontWeightPreview}
+              disabled={locked}
               onChange={(value) =>
-                updateTextItem({ textStyle: labelToTextStyle(value) })
+                updateTextItem({ fontWeight: Number(value) || 800 })
               }
             />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
             <CompactTextSelect
               label="Size"
               value={textItem.fontSize || "8px"}
               options={automationFontSizes}
+              renderValue={fontSizePreview}
+              renderOption={fontSizePreview}
+              disabled={locked}
               onChange={(value) => updateTextItem({ fontSize: value })}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <CompactTextSelect
-              label="Position"
-              value={textPositionLabel(textItem.textPosition)}
-              options={automationTextPositionLabels}
-              icon={<LuMapPin className="size-3.5" />}
-              onChange={(value) =>
-                updateTextItem({ textPosition: labelToTextPosition(value) })
-              }
             />
             <CompactTextSelect
               label="Width"
               value={textItem.textItemWidth || "60%"}
               options={automationTextWidths}
+              renderValue={textWidthPreview}
+              renderOption={textWidthPreview}
+              disabled={locked}
               onChange={(value) => updateTextItem({ textItemWidth: value })}
             />
-          </div>
-          <div className="flex items-start gap-2">
             <CompactTextSelect
-              label="Word length"
+              label="Words"
               value={wordRangeLabel(textItem)}
               options={automationWordRanges.map(wordRangeLabelFromTuple)}
+              renderValue={wordDensityPreview}
+              renderOption={wordDensityPreview}
+              disabled={locked}
               onChange={(value) => {
                 const [wordLengthMin, wordLengthMax] = parseWordRange(value)
                 updateTextItem({ wordLengthMin, wordLengthMax })
+              }}
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <CompactTextSelect
+              label="X position"
+              value={positionPercentLabel(textItem.positionX ?? 50)}
+              options={positionPercentOptions(textItem.positionX ?? 50, "x")}
+              renderValue={(value) => positionPreview(value, "horizontal")}
+              renderOption={(value) => positionPreview(value, "horizontal")}
+              disabled={locked}
+              onChange={(value) =>
+                updateTextItem({ positionX: parsePositionPercent(value) })
+              }
+            />
+            <CompactTextSelect
+              label="Y position"
+              value={positionPercentLabel(textItem.positionY ?? 45)}
+              options={positionPercentOptions(textItem.positionY ?? 45, "y")}
+              renderValue={(value) => positionPreview(value, "vertical")}
+              renderOption={(value) => positionPreview(value, "vertical")}
+              disabled={locked}
+              onChange={(value) => {
+                const positionY = parsePositionPercent(value)
+                updateTextItem({
+                  positionY,
+                  textPosition:
+                    positionY <= 25
+                      ? "top"
+                      : positionY >= 70
+                        ? "bottom"
+                        : "center",
+                })
               }}
             />
             <CompactTextSelect
               label="Alignment"
               value={alignmentLabel(textItem.textAlign)}
               options={automationAlignments.map(alignmentLabel)}
-              icon={alignmentIcon(textItem.textAlign)}
+              renderValue={alignmentPreview}
+              renderOption={alignmentPreview}
+              disabled={locked}
               onChange={(value) =>
                 updateTextItem({ textAlign: labelToAlignment(value) })
-              }
-            />
-          </div>
-          <div className="flex gap-2">
-            <CompactTextSelect
-              label="Left/Right Padding"
-              value={anchorLabel(textItem.textAnchor ?? "padded")}
-              options={automationAnchors.map(anchorLabel)}
-              icon={<LuMapPin className="size-3.5" />}
-              onChange={(value) =>
-                updateTextItem({ textAnchor: labelToAnchor(value) })
-              }
-            />
-            <CompactTextSelect
-              label="Top/Bottom Padding"
-              value={anchorLabel(textItem.textVerticalAnchor ?? "padded")}
-              options={automationAnchors.map(anchorLabel)}
-              icon={<LuMapPin className="size-3.5" />}
-              onChange={(value) =>
-                updateTextItem({ textVerticalAnchor: labelToAnchor(value) })
               }
             />
           </div>
@@ -134,21 +184,23 @@ export function AutomationFormatTextToolbar({
             />
           </label>
         </div>
-        <div className="flex items-center justify-end gap-1.5">
-          <button
-            className="flex items-center gap-1 rounded-md p-1.5 text-xs font-medium text-blue-500 transition-colors hover:bg-blue-50"
-            onClick={onAdd}
-          >
-            <LuPlus className="size-3.5 stroke-[2.5]" />
-            Add text
-          </button>
-          <button
-            className="rounded-md p-1.5 text-xs font-medium text-[#e65656] transition-colors hover:bg-red-50"
-            onClick={onDelete}
-          >
-            Delete
-          </button>
-        </div>
+        {!locked ? (
+          <div className="flex items-center justify-end gap-1.5">
+            <button
+              className="flex items-center gap-1 rounded-md p-1.5 text-xs font-medium text-blue-500 transition-colors hover:bg-blue-50"
+              onClick={onAdd}
+            >
+              <LuPlus className="size-3.5 stroke-[2.5]" />
+              Add text
+            </button>
+            <button
+              className="rounded-md p-1.5 text-xs font-medium text-[#e65656] transition-colors hover:bg-red-50"
+              onClick={onDelete}
+            >
+              Delete
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   )
@@ -165,6 +217,7 @@ const automationFontSizes = [
   "22px",
   "24px",
 ]
+const automationFontWeights = ["400", "500", "600", "700", "800", "900"]
 const automationWordRanges: Array<[number, number]> = [
   [2, 3],
   [5, 10],
@@ -173,27 +226,25 @@ const automationWordRanges: Array<[number, number]> = [
   [20, 25],
   [25, 30],
 ]
-const automationTextStyleOptions = [
+const automationTextStyleOptions: Array<{
+  label: string
+  value: string
+  backgroundMode?: TextItem["backgroundMode"]
+}> = [
   { label: "White Text", value: "whiteText" },
   { label: "Yellow Text", value: "yellowText" },
   { label: "Black Text", value: "blackText" },
-  { label: "Background", value: "background" },
+  { label: "Background", value: "background", backgroundMode: "line" },
+  { label: "White card", value: "background", backgroundMode: "block" },
   { label: "Dark Background", value: "black50Background" },
   { label: "Outline", value: "outline" },
 ]
 const automationTextStyleLabels = automationTextStyleOptions.map(
   (option) => option.label
 )
-const automationTextPositions: AutomationTextItem["textPosition"][] = [
-  "top",
-  "center",
-  "bottom",
-]
-const automationTextPositionLabels =
-  automationTextPositions.map(textPositionLabel)
 const automationTextWidths = ["40%", "50%", "60%", "70%", "80%", "90%", "100%"]
 
-function wordRangeLabel(textItem: AutomationTextItem) {
+function wordRangeLabel(textItem: TextItem) {
   return `${textItem.wordLengthMin}-${textItem.wordLengthMax} words`
 }
 
@@ -206,69 +257,218 @@ function parseWordRange(value: string): [number, number] {
   return [minimum || 5, maximum || minimum || 10]
 }
 
-function textStyleLabel(value: string) {
+function textStyleLabel(
+  value: string,
+  backgroundMode: TextItem["backgroundMode"]
+) {
   return (
-    automationTextStyleOptions.find((option) => option.value === value)
-      ?.label ?? "White Text"
+    automationTextStyleOptions.find(
+      (option) =>
+        option.value === value &&
+        (option.backgroundMode === undefined ||
+          option.backgroundMode === backgroundMode)
+    )?.label ?? "White Text"
   )
 }
 
-function labelToTextStyle(value: string) {
-  return (
-    automationTextStyleOptions.find((option) => option.label === value)
-      ?.value ?? "whiteText"
+function textStylePatch(value: string): Partial<TextItem> {
+  const option = automationTextStyleOptions.find(
+    (candidate) => candidate.label === value
   )
-}
-
-function textPositionLabel(value: AutomationTextItem["textPosition"]) {
-  return value[0].toUpperCase() + value.slice(1)
-}
-
-function labelToTextPosition(
-  value: string
-): AutomationTextItem["textPosition"] {
-  const normalized = value.toLowerCase()
-  return normalized === "top" || normalized === "bottom" ? normalized : "center"
+  return {
+    textStyle: option?.value ?? "whiteText",
+    backgroundMode: option?.backgroundMode ?? "line",
+    ...(option?.backgroundMode === "block" ? { backgroundRadius: 14 } : {}),
+  }
 }
 
 function CompactTextSelect({
   label,
   value,
   options,
-  icon,
+  renderValue,
+  renderOption,
+  disabled = false,
   onChange,
 }: {
   label: string
   value: string
   options: string[]
-  icon?: ReactNode
+  renderValue?: (value: string) => ReactNode
+  renderOption?: (value: string) => ReactNode
+  disabled?: boolean
   onChange: (value: string) => void
 }) {
   return (
     <label className="flex-1 space-y-1">
       <span className="block text-xs font-medium text-app-text">{label}</span>
-      <span className="flex items-center gap-2">
-        {icon && <span className="shrink-0 text-app-text">{icon}</span>}
-        <span className="min-w-0 flex-1">
-          <SelectLike
-            value={value}
-            options={options}
-            onChange={onChange}
-            placement="bottom"
-          />
-        </span>
-      </span>
+      <SelectLike
+        value={value}
+        options={options}
+        onChange={onChange}
+        placement="bottom"
+        renderValue={renderValue}
+        renderOption={renderOption}
+        disabled={disabled}
+      />
     </label>
   )
 }
 
-function alignmentIcon(alignment: AutomationTextItem["textAlign"]) {
+function fontPreview(value: string) {
+  const fontFamily = automationFontPreviewFamily(value)
+  return <span style={{ fontFamily }}>{value}</span>
+}
+
+function fontSizePreview(value: string) {
+  const configuredSize = Number.parseInt(value, 10)
+  const fontSize = `${Math.max(11, Math.min(18, configuredSize))}px`
+  return <span style={{ fontSize }}>{value}</span>
+}
+
+function fontWeightPreview(value: string) {
+  return <span style={{ fontWeight: Number(value) }}>{value}</span>
+}
+
+function textStylePreview(label: string) {
+  const style = textStylePatch(label).textStyle
+  return (
+    <OptionPreview label={label}>
+      <span
+        className={cn(
+          "inline-flex h-5 w-8 items-center justify-center overflow-hidden rounded text-[10px] font-black",
+          style === "whiteText" && "bg-neutral-700 text-white",
+          style === "yellowText" && "bg-neutral-700 text-yellow-300",
+          style === "blackText" &&
+            "border border-neutral-300 bg-white text-black",
+          style === "background" && "bg-neutral-300 text-black",
+          style === "black50Background" && "bg-neutral-300 text-white",
+          style === "outline" &&
+            "bg-gradient-to-br from-fuchsia-400 to-indigo-500 text-white"
+        )}
+      >
+        {style === "background" ? (
+          <span className="bg-white px-0.5 text-black">Aa</span>
+        ) : style === "black50Background" ? (
+          <span className="bg-black/60 px-0.5 text-white">Aa</span>
+        ) : (
+          <span
+            style={
+              style === "outline"
+                ? {
+                    WebkitTextStroke: "0.6px #111",
+                    textShadow: "0 1px 1px rgb(0 0 0 / 0.65)",
+                  }
+                : undefined
+            }
+          >
+            Aa
+          </span>
+        )}
+      </span>
+    </OptionPreview>
+  )
+}
+
+function textWidthPreview(value: string) {
+  return (
+    <OptionPreview label={value}>
+      <span className="flex h-5 w-8 items-center rounded border border-app-panel-border-strong px-0.5">
+        <span
+          className="mx-auto h-1 rounded-full bg-app-text"
+          style={{ width: value }}
+        />
+      </span>
+    </OptionPreview>
+  )
+}
+
+function wordDensityPreview(value: string) {
+  const maximum = Number(value.match(/\d+/g)?.at(-1) ?? 10)
+  const lines = maximum <= 3 ? 1 : maximum <= 10 ? 2 : 3
+  return (
+    <OptionPreview label={value}>
+      <span className="flex h-5 w-8 flex-col justify-center gap-0.5 rounded border border-app-panel-border-strong px-1">
+        {Array.from({ length: lines }, (_, index) => (
+          <span
+            key={index}
+            className="h-0.5 rounded-full bg-app-text"
+            style={{ width: index === lines - 1 && lines > 1 ? "68%" : "100%" }}
+          />
+        ))}
+      </span>
+    </OptionPreview>
+  )
+}
+
+function positionPercentLabel(value: number) {
+  return `${Math.round(value)}%`
+}
+
+function parsePositionPercent(value: string) {
+  return Math.max(0, Math.min(100, Number.parseFloat(value) || 0))
+}
+
+function positionPercentOptions(current: number, axis: "x" | "y"): string[] {
+  const presetValues =
+    axis === "x"
+      ? [10, 20, 25, 29, 35, 50, 62, 75, 90]
+      : [10, 16, 20, 29, 38, 45, 47, 51, 62, 65, 75, 82, 90]
+  return [...new Set([...presetValues, Math.round(current)])]
+    .sort((a, b) => a - b)
+    .map(positionPercentLabel)
+}
+
+function positionPreview(value: string, axis: "horizontal" | "vertical") {
+  const position = parsePositionPercent(value)
+  return (
+    <OptionPreview label={value}>
+      <span className="relative h-5 w-7 rounded border border-app-panel-border-strong">
+        <span
+          className={cn(
+            "absolute size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-app-text",
+            axis === "horizontal" ? "top-1/2" : "left-1/2"
+          )}
+          style={
+            axis === "horizontal"
+              ? { left: `${position}%` }
+              : { top: `${position}%` }
+          }
+        />
+      </span>
+    </OptionPreview>
+  )
+}
+
+function alignmentPreview(value: string) {
+  const alignment = labelToAlignment(value)
+  return <OptionPreview label={value}>{alignmentIcon(alignment)}</OptionPreview>
+}
+
+function OptionPreview({
+  children,
+  label,
+}: {
+  children: ReactNode
+  label: string
+}) {
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <span aria-hidden="true" className="shrink-0">
+        {children}
+      </span>
+      <span className="truncate">{label}</span>
+    </span>
+  )
+}
+
+function alignmentIcon(alignment: TextItem["textAlign"]) {
   switch (alignment) {
     case "left":
-      return <LuAlignLeft className="size-3.5" />
+      return <LuAlignLeft className="size-4" />
     case "right":
-      return <LuAlignRight className="size-3.5" />
+      return <LuAlignRight className="size-4" />
     default:
-      return <LuAlignCenter className="size-3.5" />
+      return <LuAlignCenter className="size-4" />
   }
 }

@@ -23,29 +23,71 @@ export function latestPublicationsByPost(
 ): LatestPost[] {
   const groups = new Map<string, PostFastMetricSnapshot[]>()
   for (const snapshot of snapshots) {
-    const key = `${snapshot.integrationId}:${snapshot.postId}`
+    const key = analyticsPostIdentity(snapshot)
     groups.set(key, [...(groups.get(key) ?? []), snapshot])
   }
   const publicationsById = new Map(
     publications.map((publication) => [publication.id, publication])
   )
+  const publicationsByPlatformIdentity = new Map<string, PostFastPostRecord>()
+  for (const publication of publications) {
+    const identity = platformPostIdentity(publication)
+    if (!identity) continue
+    const current = publicationsByPlatformIdentity.get(identity)
+    if (
+      !current ||
+      Date.parse(publication.updatedAt) > Date.parse(current.updatedAt)
+    ) {
+      publicationsByPlatformIdentity.set(identity, publication)
+    }
+  }
   const posts: LatestPost[] = [...groups.values()].map((group) => {
     const sorted = group.sort(
       (a, b) => Date.parse(a.capturedAt) - Date.parse(b.capturedAt)
     )
     const latest = sorted[sorted.length - 1]
+    const publication =
+      publicationsById.get(latest.postId) ??
+      publicationsByPlatformIdentity.get(platformPostIdentity(latest) ?? "")
     return {
       ...latest,
-      publication: publicationsById.get(latest.postId),
+      postId: publication?.id ?? latest.postId,
+      publication,
       previous: sorted.at(-2),
     }
   })
-  const represented = new Set(posts.map((post) => post.postId))
+  const represented = new Set(
+    posts.map((post) => post.publication?.id ?? post.postId)
+  )
   for (const publication of publications) {
     if (represented.has(publication.id)) continue
     posts.push(snapshotlessPublication(publication))
   }
   return posts
+}
+
+function analyticsPostIdentity(snapshot: PostFastMetricSnapshot) {
+  return (
+    platformPostIdentity(snapshot) ??
+    JSON.stringify([
+      "post",
+      snapshot.integrationId.trim(),
+      snapshot.postId.trim(),
+    ])
+  )
+}
+
+function platformPostIdentity(value: {
+  provider: string
+  integrationId: string
+  platformPostId?: string
+  externalPostId?: string
+}) {
+  const provider = value.provider.trim().toLowerCase()
+  const integrationId = value.integrationId.trim()
+  const platformPostId = (value.platformPostId ?? value.externalPostId)?.trim()
+  if (!provider || !integrationId || !platformPostId) return undefined
+  return JSON.stringify(["platform", provider, integrationId, platformPostId])
 }
 
 export function latestSnapshotsByPost(
@@ -54,7 +96,9 @@ export function latestSnapshotsByPost(
   return latestPublicationsByPost([], snapshots)
 }
 
-function snapshotlessPublication(publication: PostFastPostRecord): LatestPost {
+export function snapshotlessPublication(
+  publication: PostFastPostRecord
+): LatestPost {
   return {
     id: `publication:${publication.id}`,
     postId: publication.id,
@@ -76,6 +120,33 @@ function snapshotlessPublication(publication: PostFastPostRecord): LatestPost {
     rawMetrics: {},
     observedKeys: [],
     publication,
+  }
+}
+
+export function findTikTokPostByPlatformId(
+  posts: LatestPost[],
+  platformPostId: string
+) {
+  const id = platformPostId.trim()
+  if (!id) return undefined
+  return posts.find(
+    (post) =>
+      post.provider.toLowerCase().startsWith("tiktok") &&
+      (post.platformPostId?.trim() === id ||
+        post.publication?.externalPostId?.trim() === id ||
+        tiktokPostId(post.releaseUrl) === id ||
+        tiktokPostId(post.publication?.releaseUrl) === id)
+  )
+}
+
+function tiktokPostId(value: string | undefined) {
+  if (!value) return undefined
+  try {
+    return new URL(value).pathname.match(
+      /^\/@[^/]+\/(?:video|photo)\/(\d+)\/?$/
+    )?.[1]
+  } catch {
+    return undefined
   }
 }
 

@@ -27,9 +27,9 @@ import {
 import { clean, isRecord } from "@/lib/guards"
 import { postfastRequest } from "@/lib/postfast-client"
 import {
-  listPostFastPostRecords,
   type PostFastPostRecord,
 } from "@/lib/postfast-posts"
+import { listPublicationRecordsForRead } from "@/lib/post-repository"
 import { listJobs, type Job } from "@/lib/queue"
 import type { Automation } from "@/lib/realfarm-data"
 import { listResultRecords, type ResultRecord } from "@/lib/results"
@@ -89,7 +89,7 @@ export async function GET(request: Request) {
     listAutomationRuns({ limit: 500 }),
     listXAutomationRuns(),
     listResultRecords({ limit: 500 }),
-    listPostFastPostRecords(),
+    listPublicationRecordsForRead({ surface: "calendar" }),
     listJobs({ limit: 500 }).catch(() => []),
   ])
   const automations = [
@@ -144,8 +144,11 @@ function projectionItems(
   to: Date,
   now: Date
 ) {
-  return automations.flatMap((automation) =>
-    automationSlotsInRange(automation, from, to).flatMap<CalendarItem>(
+  return automations.flatMap((automation) => {
+    if (automation.status !== "live" || automation.schedule?.paused === true) {
+      return []
+    }
+    return automationSlotsInRange(automation, from, to).flatMap<CalendarItem>(
       (slot) => {
         if (Date.parse(slot.scheduledFor) < now.getTime()) return []
         const targets = automationTargets(automation, "planned")
@@ -162,10 +165,7 @@ function projectionItems(
             source: "projection",
             sourceType: "automation",
             sourceId: slot.automationId,
-            title: slot.paused
-              ? "Paused automation slot"
-              : "Planned content slot",
-            paused: slot.paused,
+            title: "Planned content slot",
             links: {
               automation: automationLink(slot.automationId),
             },
@@ -181,7 +181,7 @@ function projectionItems(
         ]
       }
     )
-  )
+  })
 }
 
 function jobCalendarItem(
@@ -259,12 +259,21 @@ function localPostCalendarItem(
 ): CalendarItem[] {
   const status = calendarLifecycleForLocalPost(post.status)
   if (!status) return []
+  // Posts that PostFast scheduled/published also come back through the remote
+  // /social-posts feed. Only surface local publications the remote feed omits
+  // (e.g. manually linked posts) so published posts are not double-counted.
+  if (status === "published" && post.postfastPostId) return []
   const context = runContexts.get(post.sourceId)
   const automationId =
     context?.automationId ||
     (automationById.has(post.sourceId) ? post.sourceId : undefined)
   const automation = automationId ? automationById.get(automationId) : undefined
-  const datetime = context?.slot || clean(post.scheduledAt || post.createdAt)
+  const datetime =
+    status === "published"
+      ? clean(post.publishedAt) ||
+        context?.slot ||
+        clean(post.scheduledAt || post.createdAt)
+      : context?.slot || clean(post.scheduledAt || post.createdAt)
   if (!inRange(datetime, from, to)) return []
   const target = postTarget(post, status, automation)
   return [
@@ -289,6 +298,7 @@ function localPostCalendarItem(
         content: automationId
           ? contentLink(automationId, post.sourceId)
           : undefined,
+        live: clean(post.releaseUrl),
       },
       timestamps: {
         createdAt: post.createdAt,
@@ -538,6 +548,7 @@ function localPostTitle(status: PostFastPostRecord["status"]) {
   if (status === "awaiting_manual_post") return "Manual post due"
   if (status === "ready_for_review") return "Post needs review"
   if (status === "failed") return "Publish failed"
+  if (status === "published") return "Published post"
   return "Draft post"
 }
 

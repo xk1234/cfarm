@@ -11,10 +11,7 @@ import {
   type AccountFollowerSnapshot,
   type PostFastMetricSnapshot,
 } from "@/lib/postfast-metric-snapshots"
-import {
-  listPostFastPostRecords,
-  patchPostFastPostRecord,
-} from "@/lib/postfast-posts"
+import { ensurePostForSnapshot } from "@/lib/post-repository"
 import { inferPostContentType } from "@/lib/post-content-type"
 
 export async function listAnalyticsIntegrations() {
@@ -36,13 +33,6 @@ export async function syncPostFastAnalytics(input: {
   const days = Math.max(1, Math.min(365, input.days ?? 30))
   const endDate = input.capturedAt ?? new Date()
   const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000)
-  const localPosts = await listPostFastPostRecords()
-  const localByRemoteId = new Map<string, (typeof localPosts)[number]>()
-  for (const post of localPosts) {
-    for (const id of [post.postfastPostId, post.externalPostId]) {
-      if (id) localByRemoteId.set(id, post)
-    }
-  }
   const capturedAt = endDate.toISOString()
   const metricSnapshots: Omit<PostFastMetricSnapshot, "id">[] = []
   const followerSnapshots: Omit<AccountFollowerSnapshot, "id">[] = []
@@ -62,14 +52,8 @@ export async function syncPostFastAnalytics(input: {
         const post = isRecord(value) ? value : {}
         const remotePostId = clean(post.id || post.postId)
         const platformPostId = clean(post.platformPostId || post.externalPostId)
-        const local =
-          localByRemoteId.get(remotePostId) ??
-          localByRemoteId.get(platformPostId)
-        // Locally-published posts keep their durable local id. Remote-only
-        // posts use the platform-native id so they remain first-class series
-        // instead of being counted and discarded.
-        const postId = local?.id || platformPostId || remotePostId
-        if (!postId) continue
+        const proposedPostId = platformPostId || remotePostId
+        if (!proposedPostId) continue
         const latestMetric = isRecord(post.latestMetric)
           ? post.latestMetric
           : {}
@@ -82,23 +66,43 @@ export async function syncPostFastAnalytics(input: {
           integration.provider
         )
         const remoteMedia = postMedia(post)
-        const media = local?.media?.length ? local.media : remoteMedia
-        metricSnapshots.push({
-          postId,
+        const content = clean(post.content || post.text || post.caption)
+        const releaseUrl = clean(post.releaseURL || post.releaseUrl)
+        const publishedAt = clean(post.publishedAt)
+        const ensuredPost = await ensurePostForSnapshot({
+          postId: proposedPostId,
+          postfastPostId: remotePostId || undefined,
           platformPostId: platformPostId || undefined,
           integrationId: integration.integration_id,
           provider: integration.provider,
           capturedAt,
-          publishedAt: clean(post.publishedAt) || undefined,
-          content:
-            clean(post.content || post.text || post.caption) || local?.content,
+          publishedAt: publishedAt || undefined,
+          content: content || undefined,
           thumbnailUrl: firstMediaUrl(post),
-          releaseUrl:
-            clean(post.releaseURL || post.releaseUrl) || local?.releaseUrl,
-          sourceType: local?.sourceType || "external",
-          sourceId: local?.sourceId,
+          releaseUrl: releaseUrl || undefined,
+          sourceType: "external",
           contentType: inferPostContentType({
-            sourceType: local?.sourceType || "external",
+            sourceType: "external",
+            media: remoteMedia,
+            metrics: rawMetric,
+          }),
+          source: "postfast",
+        })
+        const media = ensuredPost.media.length ? ensuredPost.media : remoteMedia
+        metricSnapshots.push({
+          postId: ensuredPost.id,
+          platformPostId: platformPostId || undefined,
+          integrationId: integration.integration_id,
+          provider: integration.provider,
+          capturedAt,
+          publishedAt: publishedAt || ensuredPost.publishedAt,
+          content: content || ensuredPost.content,
+          thumbnailUrl: firstMediaUrl(post),
+          releaseUrl: releaseUrl || ensuredPost.releaseUrl,
+          sourceType: ensuredPost.sourceType || "external",
+          sourceId: ensuredPost.sourceId,
+          contentType: inferPostContentType({
+            sourceType: ensuredPost.sourceType || "external",
             media,
             metrics: rawMetric,
           }),
@@ -107,18 +111,8 @@ export async function syncPostFastAnalytics(input: {
           latestMetric,
           rawMetrics: rawMetric,
           observedKeys,
+          source: "postfast",
         })
-        const publishedAt = clean(post.publishedAt)
-        if (local && publishedAt && local.status !== "published") {
-          await patchPostFastPostRecord({
-            id: local.id,
-            status: "published",
-            publishedAt,
-            postfastPostId: remotePostId || local.postfastPostId,
-            releaseUrl:
-              clean(post.releaseURL || post.releaseUrl) || local.releaseUrl,
-          })
-        }
       }
     } catch (error) {
       errors.push({

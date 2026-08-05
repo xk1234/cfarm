@@ -1,9 +1,13 @@
-const APP_ORIGIN = "https://cfarm-eight.vercel.app"
-const CONNECT_URL = `${APP_ORIGIN}/app/analytics`
+import {
+  classifyTikTokContext,
+  commentReviewMatchesPost,
+  companionConnectUrl,
+} from "./popup-context.js"
 
-// Which feature the popup is about is decided by the tab you opened it on:
-// a Studio analytics page means analytics, any other TikTok page means
-// comments. Showing both at once produced two Connect buttons for one account.
+const APP_ORIGIN = "https://cfarm-eight.vercel.app"
+
+// The active tab is the source of truth: Studio content/analytics pages expose
+// analytics import, while one exact TikTok video exposes comment collection.
 const FEATURES = {
   studio: {
     label: "Studio analytics",
@@ -22,13 +26,17 @@ const FEATURES = {
 }
 
 const contextLabel = document.querySelector("#context")
+const pageIdentity = document.querySelector("#pageIdentity")
+const screenTitle = document.querySelector("#screenTitle")
+const screenDescription = document.querySelector("#screenDescription")
+const stepsElement = document.querySelector("#steps")
 const statusElement = document.querySelector("#status")
 const statusText = document.querySelector("#statusText")
 const connectButton = document.querySelector("#connect")
 const syncButton = document.querySelector("#sync")
 const reconnectButton = document.querySelector("#reconnect")
 const clearButton = document.querySelector("#clear")
-const switchButton = document.querySelector("#switch")
+const openSupportedButton = document.querySelector("#openSupported")
 const commentsReview = document.querySelector("#commentsReview")
 const reviewCount = document.querySelector("#reviewCount")
 const reviewSummary = document.querySelector("#reviewSummary")
@@ -38,6 +46,7 @@ const approveAllButton = document.querySelector("#approveAll")
 const sendApprovedButton = document.querySelector("#sendApproved")
 
 let feature = "studio"
+let pageContext = classifyTikTokContext("")
 let currentReview = null
 
 void init()
@@ -53,9 +62,12 @@ clearButton.addEventListener("click", async () => {
   await chrome.runtime.sendMessage({ type: FEATURES[feature].clear })
   await refresh()
 })
-switchButton.addEventListener("click", async () => {
-  feature = feature === "studio" ? "comments" : "studio"
-  await refresh()
+openSupportedButton.addEventListener("click", async () => {
+  await chrome.tabs.create({
+    url: "https://www.tiktok.com/tiktokstudio/content",
+    active: true,
+  })
+  window.close()
 })
 
 syncButton.addEventListener("click", async () => {
@@ -117,49 +129,99 @@ sendApprovedButton.addEventListener("click", () => {
 })
 
 async function init() {
-  feature = await detectFeature()
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  pageContext = classifyTikTokContext(tab?.url || "")
+  feature = pageContext.feature || "studio"
+  renderContext()
   await refresh()
 }
 
-async function detectFeature() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-  const url = tab?.url || ""
-  if (/^https:\/\/www\.tiktok\.com\/tiktokstudio\/analytics\//.test(url)) {
-    return "studio"
-  }
-  if (/^https:\/\/www\.tiktok\.com\/@/.test(url)) return "comments"
-  return "studio"
+function renderContext() {
+  document.body.classList.toggle(
+    "comments-mode",
+    pageContext.feature === "comments"
+  )
+  document.body.classList.toggle(
+    "unsupported-mode",
+    pageContext.kind === "unsupported"
+  )
+  contextLabel.textContent = pageContext.label
+  pageIdentity.textContent = pageContext.identity
+  screenTitle.textContent = pageContext.title
+  screenDescription.textContent = pageContext.description
+  stepsElement.replaceChildren(
+    ...pageContext.steps.map((step, index) => {
+      const item = element("li", "step")
+      item.append(
+        element("span", "step-number", String(index + 1)),
+        element("span", "step-text", step)
+      )
+      return item
+    })
+  )
 }
 
 async function openLumenClip() {
-  await chrome.tabs.create({ url: CONNECT_URL, active: true })
+  await chrome.tabs.create({
+    url: companionConnectUrl(APP_ORIGIN, pageContext),
+    active: true,
+  })
   window.close()
 }
 
 async function refresh(overrideMessage) {
+  if (!pageContext.feature) {
+    connectButton.hidden = true
+    syncButton.hidden = true
+    reconnectButton.hidden = true
+    clearButton.hidden = true
+    openSupportedButton.hidden = false
+    commentsReview.hidden = true
+    statusElement.hidden = true
+    return
+  }
   const config = FEATURES[feature]
-  document.body.classList.toggle("comments-mode", feature === "comments")
-  contextLabel.textContent = config.label
+  openSupportedButton.hidden = true
+  statusElement.hidden = false
+  connectButton.textContent = pageContext.connectLabel
   syncButton.textContent =
     feature === "comments" ? "Sync comment work" : "Sync now"
   const state = await chrome.runtime.sendMessage({ type: config.statusMessage })
-  const paired = Boolean(state?.config)
-  const message = overrideMessage || state?.status?.message
-  const kind = overrideMessage ? "error" : state?.status?.kind
+  let paired = Boolean(state?.config)
+  let reviewResponse = null
+  if (feature === "comments" && paired) {
+    reviewResponse = await chrome.runtime.sendMessage({
+      type: "GET_COMMENTS_REVIEW",
+    })
+    paired = Boolean(
+      reviewResponse?.ok &&
+      commentReviewMatchesPost(
+        reviewResponse.review,
+        pageContext.platformPostId
+      )
+    )
+  }
+  const message =
+    overrideMessage ||
+    (!paired && state?.config && feature === "comments"
+      ? "This video is not connected yet. Connect it in LumenClip to start a new comment collection."
+      : state?.status?.message)
+  const kind = overrideMessage
+    ? "error"
+    : !paired && state?.config && feature === "comments"
+      ? undefined
+      : state?.status?.kind
 
   connectButton.hidden = paired
   syncButton.hidden = !paired
   reconnectButton.hidden = !paired
   clearButton.hidden = !paired
 
-  const other = feature === "studio" ? FEATURES.comments : FEATURES.studio
-  switchButton.hidden = false
-  switchButton.textContent = `${other.label} settings`
-
   showStatus(message || (paired ? "Connected" : "Not connected"), kind)
   commentsReview.hidden = feature !== "comments" || !paired
   if (feature === "comments" && paired) {
-    await refreshReview()
+    currentReview = reviewResponse.review
+    renderReview(currentReview)
   } else {
     currentReview = null
     commentList.replaceChildren()
@@ -443,7 +505,7 @@ function setBusy(busy, message) {
     syncButton,
     reconnectButton,
     clearButton,
-    switchButton,
+    openSupportedButton,
     draftRepliesButton,
     approveAllButton,
     sendApprovedButton,

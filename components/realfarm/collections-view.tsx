@@ -61,6 +61,7 @@ type CollectionTableRow = {
   createdAt: string
   pinned: boolean
   virtual: boolean
+  source: CreatedImageCollection["source"]
 }
 
 type CollectionDeletePreview = {
@@ -162,6 +163,7 @@ export function CollectionsView({
         createdAt: collection.createdAt,
         pinned: collection.pinned === true,
         virtual: collection.virtual === true,
+        source: collection.source,
       })),
     [filteredCollections]
   )
@@ -193,6 +195,11 @@ export function CollectionsView({
               <span className="min-w-0 truncate font-medium text-app-text">
                 {data.name}
               </span>
+              {data.source === "influlab" ? (
+                <span className="shrink-0 rounded-full border border-violet-300 bg-violet-50 px-2 py-0.5 text-[9px] font-bold tracking-wide text-violet-700 uppercase">
+                  InfluLab
+                </span>
+              ) : null}
             </div>
           ) : null,
       },
@@ -344,7 +351,7 @@ export function CollectionsView({
   return (
     <div className="mx-auto max-w-[1540px]">
       <div className="mb-6 flex flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
-        <h1 className="flex items-center gap-2 text-[24px] font-semibold tracking-normal">
+        <h1 className="flex h-10 items-center gap-2 text-[24px] leading-none font-semibold tracking-normal md:h-9">
           Collections
           <button
             type="button"
@@ -364,7 +371,7 @@ export function CollectionsView({
           </button>
         </h1>
         {activeTab !== "variables" && selectedIds.length > 0 ? (
-          <div className="flex w-full items-center gap-2 overflow-x-auto pb-1 md:w-auto">
+          <div className="flex w-full items-center gap-2 overflow-x-auto md:w-auto">
             <Button
               variant="softControl"
               size="appDefault"
@@ -385,7 +392,7 @@ export function CollectionsView({
             </Button>
           </div>
         ) : activeTab === "images" ? (
-          <div className="flex w-full items-center gap-2 overflow-x-auto pb-1 md:w-auto">
+          <div className="flex w-full items-center gap-2 overflow-x-auto md:w-auto">
             <Button
               variant="softControl"
               size="appDefault"
@@ -401,7 +408,7 @@ export function CollectionsView({
               }
             >
               <IconPhotoPlus className="size-4" />
-              Create empty collection
+              New collection
             </Button>
             <Button
               variant="action"
@@ -410,7 +417,7 @@ export function CollectionsView({
               onClick={() => setSearchOpen(true)}
             >
               <IconPlus className="size-4" />
-              Add
+              Import images
             </Button>
           </div>
         ) : null}
@@ -420,7 +427,18 @@ export function CollectionsView({
         onValueChange={(value) => selectTab(value as typeof activeTab)}
       >
         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="max-w-full overflow-x-auto pb-1">
+          <SelectControl
+            aria-label="Collection type"
+            value={activeTab}
+            onChange={(event) => selectTab(event.target.value as CollectionTab)}
+            className="h-11 w-full md:hidden"
+          >
+            <option value="images">Images</option>
+            <option value="videos">Videos</option>
+            <option value="products">Products</option>
+            <option value="variables">Variables</option>
+          </SelectControl>
+          <div className="hidden max-w-full overflow-x-auto pb-1 md:block">
             <Tabs.List
               className="flex w-max rounded-[7px] border border-app-panel-border bg-app-surface-subtle p-1"
               aria-label="Collection types"
@@ -541,7 +559,11 @@ export function CollectionsView({
                       {visibleCollections.map((collection, index) => (
                         <MediaCardShell
                           key={collection.id}
-                          className="group relative min-w-0 text-left"
+                          className={cn(
+                            "group relative min-w-0 text-left",
+                            collection.source === "influlab" &&
+                              "ring-2 ring-violet-400 ring-offset-2"
+                          )}
                         >
                           {!collection.virtual && (
                             <>
@@ -609,6 +631,11 @@ export function CollectionsView({
                               collection={collection}
                               index={index}
                             />
+                            {collection.source === "influlab" ? (
+                              <span className="absolute top-2 left-2 z-10 rounded-full bg-violet-600 px-2 py-1 text-[9px] font-bold tracking-wide text-white uppercase shadow-sm">
+                                InfluLab
+                              </span>
+                            ) : null}
                             <div className="bg-app-surface px-4 py-4">
                               <div className="flex min-w-0 items-center gap-1.5">
                                 {collection.mediaType === "video" ? (

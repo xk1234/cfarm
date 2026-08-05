@@ -36,11 +36,40 @@ export function automationHookItems(schema) {
                     ? { bodySlideCount: validBodySlideCount(item.bodySlideCount) }
                     : {}),
                 ...(clean(item.tone) ? { tone: clean(item.tone) } : {}),
+                ...(clean(item.contentDirection)
+                    ? { contentDirection: clean(item.contentDirection).slice(0, 5_000) }
+                    : {}),
+                ...(clean(item.content)
+                    ? { content: clean(item.content).slice(0, 20_000) }
+                    : {}),
+                ...(normalizeHookSource(item.source)
+                    ? { source: normalizeHookSource(item.source) }
+                    : {}),
                 createdAt: clean(item.createdAt) || new Date(0).toISOString(),
                 ...(clean(item.updatedAt) ? { updatedAt: clean(item.updatedAt) } : {}),
             },
         ];
     });
+}
+function normalizeHookSource(value) {
+    if (!value || typeof value !== "object")
+        return undefined;
+    const source = value;
+    const provider = clean(source.provider);
+    if (!provider)
+        return undefined;
+    return {
+        provider,
+        ...(clean(source.projectId) ? { projectId: clean(source.projectId) } : {}),
+        ...(clean(source.projectTitle)
+            ? { projectTitle: clean(source.projectTitle) }
+            : {}),
+        ...(clean(source.hookId) ? { hookId: clean(source.hookId) } : {}),
+        ...(clean(source.scriptId) ? { scriptId: clean(source.scriptId) } : {}),
+        ...(clean(source.importedAt)
+            ? { importedAt: clean(source.importedAt) }
+            : {}),
+    };
 }
 function validBodySlideCount(value) {
     const count = Number(value);
@@ -58,13 +87,19 @@ export function slideshowMetadataPromptInstructions(schema) {
         .filter(Boolean)
         .join("\n");
 }
+export function slideshowStructurePromptInstructions(schema) {
+    const style = clean(schema.prompt_formatting?.style);
+    return style
+        ? `Structural style rules (govern organization and format only; Tone still controls register, diction, rhythm, and casing):\n${style}`
+        : "";
+}
 export function resolveSlideshowCaption(input) {
     const setting = input.setting;
     if (setting?.mode === "static") {
         return clean(setting.static_text) || clean(input.generated);
     }
     const prompt = clean(setting?.prompt_text);
-    let caption = /same exact text as (?:the )?(?:first text item|hook)/i.test(prompt)
+    let caption = captionUsesHook(setting)
         ? clean(input.hook)
         : clean(input.generated);
     if (/lower\s*case|all\s*lowercase/i.test(prompt)) {
@@ -83,16 +118,20 @@ function postTextPromptLine(label, setting) {
     const value = setting.mode === "static"
         ? clean(setting.static_text)
         : clean(setting.prompt_text);
-    if (!value)
-        return "";
     if (label === "Caption" &&
         setting.mode !== "static" &&
-        /same exact text as (?:the )?(?:first text item|hook)/i.test(value)) {
+        captionUsesHook(setting)) {
         return "Caption requirement: return exactly the selected Hook text above; this policy is also enforced deterministically after generation.";
     }
+    if (!value)
+        return "";
     return setting.mode === "static"
         ? `${label} requirement: return exactly ${JSON.stringify(value)}.`
         : `${label} requirement: ${value}`;
+}
+export function captionUsesHook(setting) {
+    return (setting?.resolution === "hook" ||
+        /same exact text as (?:the )?(?:first text item|hook)/i.test(clean(setting?.prompt_text)));
 }
 export function isHookInstruction(value) {
     const normalized = value.trim().toLowerCase();
@@ -128,15 +167,17 @@ export function slideSpecs(schema, hook, bodySlideCount) {
     const hookSection = formatSection(schema, "hook");
     const content = formatSection(schema, "content");
     const cta = formatSection(schema, "cta");
+    const hookCount = Math.max(0, Math.round(Number(hookSection.slideCount) || 0));
+    const configuredContentCount = Math.max(0, Math.round(Number(bodySlideCount) || Number(content.slideCount) || 0));
     const implied = Number(clean(hook).match(/^(\d{1,2})\s+[a-z]/i)?.[1]);
-    const contentCount = implied >= 1 && implied <= 10
+    const contentCount = configuredContentCount > 0 && implied >= 1 && implied <= 10
         ? implied
-        : Math.max(1, bodySlideCount || content.slideCount || 1);
+        : configuredContentCount;
     const ctaCount = Number(cta.slideCount) > 0 || schema.image_collection_ids?.cta_slide?.check
         ? Math.max(1, Number(cta.slideCount) || 1)
         : 0;
     return [
-        specForSection(schema, hookSection, "hook", 0),
+        ...Array.from({ length: hookCount }, (_, index) => specForSection(schema, hookSection, "hook", index)),
         ...Array.from({ length: contentCount }, (_, index) => {
             const override = content.slideOverrides?.find((item) => Number(item.slideIndex) === index + 1);
             const imageOverride = content.imageOverrides?.find((item) => Number(item.slideIndex) === index + 1);
@@ -149,15 +190,15 @@ export function slideSpecs(schema, hook, bodySlideCount) {
                             : item),
                     }
                     : {}),
-            }, "content", index + 1, imageOverride?.collectionId);
+            }, "content", hookCount + index, imageOverride?.collectionId);
         }),
-        ...Array.from({ length: ctaCount }, (_, index) => specForSection(schema, cta, "cta", contentCount + index + 1)),
+        ...Array.from({ length: ctaCount }, (_, index) => specForSection(schema, cta, "cta", hookCount + contentCount + index)),
     ];
 }
 export function selectedBodySlideCount(schema, seedValue) {
     const content = formatSection(schema, "content");
     if (content.slideCountMode !== "varying") {
-        return Math.max(1, Number(content.slideCount) || 1);
+        return Math.max(0, Math.round(Number(content.slideCount) || 0));
     }
     const min = Math.max(1, Math.round(Number(content.slideCountMin) || Number(content.slideCount) || 1));
     const max = Math.max(min, Math.round(Number(content.slideCountMax) || Number(content.slideCount) || min));
@@ -195,9 +236,12 @@ export function textItemsForSpec(input) {
     if (!spec.displayText)
         return [];
     if (spec.section === "hook") {
-        return [
-            slideshowTextItem(spec.textItems[0] || {}, hook, schema, spec.section),
-        ];
+        const hookItems = spec.textItems.length ? spec.textItems : [{}];
+        return hookItems.map((item, index) => slideshowTextItem(item, index === 0
+            ? hook
+            : item.textMode === "static"
+                ? clean(item.staticText) || hook
+                : clean(item.id ? generated.text?.[item.id] : "") || hook, schema, spec.section));
     }
     if (!spec.textItems.length) {
         throw new Error(`${spec.id} displays text but has no configured text items`);
@@ -221,6 +265,8 @@ export function slideshowTextItem(item, text, schema, role) {
         : "center";
     const textAnchor = item.textAnchor || "padded";
     const y = placement === "bottom" ? 82 : placement === "center" ? 45 : 16;
+    const positionX = numericPercent(item.positionX);
+    const positionY = numericPercent(item.positionY);
     return {
         id: clean(item.itemId) ||
             clean(item.id) ||
@@ -235,13 +281,28 @@ export function slideshowTextItem(item, text, schema, role) {
         textAlign,
         textAnchor,
         textVerticalAnchor: item.textVerticalAnchor || "padded",
-        textPlacement: placement,
+        textPlacement: positionX === undefined || positionY === undefined
+            ? placement
+            : undefined,
         textPosition: {
-            x: textPositionX(textAlign, textAnchor),
-            y: role === "hook" && placement === "center" ? 45 : y,
+            x: positionX ?? textPositionX(textAlign, textAnchor),
+            y: positionY ?? (role === "hook" && placement === "center" ? 45 : y),
         },
         font: item.font || schema.font,
+        fontWeight: numericValue(item.fontWeight, 800),
+        backgroundMode: item.backgroundMode === "block" ? "block" : "line",
+        backgroundRadius: numericValue(item.backgroundRadius, 6),
     };
+}
+function numericPercent(value) {
+    const number = Number(value);
+    return Number.isFinite(number)
+        ? Math.max(0, Math.min(100, number))
+        : undefined;
+}
+function numericValue(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
 }
 export function automationFormatSection(schema, role) {
     const id = role === "content" ? "body" : role;

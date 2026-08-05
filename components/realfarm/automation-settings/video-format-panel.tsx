@@ -4,7 +4,6 @@ import { IconChevronLeft, IconVideo } from "@tabler/icons-react"
 import { CollectionSelector } from "@/components/realfarm/collection-selector"
 import { SoundSelector } from "@/components/realfarm/creator-ui"
 import { PinterestPreviewTile } from "@/components/realfarm/shared-media"
-import { Button } from "@/components/ui/button"
 import { SelectControl } from "@/components/ui/form-controls"
 import {
   automationCollectionId,
@@ -14,7 +13,7 @@ import {
   schemaWithAutomationCollectionId,
   updateAutomationFormatSection,
   type AutomationSchema,
-  type AutomationTextItem,
+  type TextItem,
   type AutomationVideoTemplateId,
 } from "@/lib/realfarm-automation"
 import {
@@ -45,7 +44,6 @@ export function VideoAutomationFormatPanel({
   onCreateCollection,
   onConfigChange,
   onBack,
-  onSave,
 }: {
   automation: Automation
   config: AutomationSchema
@@ -56,7 +54,6 @@ export function VideoAutomationFormatPanel({
   onCreateCollection: (collection: CreatedImageCollection) => void
   onConfigChange: (config: AutomationSchema) => void
   onBack: () => void
-  onSave: () => void
 }) {
   const [selectedVideoTextIndex, setSelectedVideoTextIndex] = useState<
     number | null
@@ -129,7 +126,7 @@ export function VideoAutomationFormatPanel({
     })
   }
 
-  function updateVideoTextItem(patch: Partial<AutomationTextItem>) {
+  function updateVideoTextItem(patch: Partial<TextItem>) {
     const textIndex = selectedVideoTextIndex ?? 0
     onConfigChange(
       updateAutomationFormatSection(config, "hook", {
@@ -174,7 +171,7 @@ export function VideoAutomationFormatPanel({
   }
 
   return (
-    <div className="grid min-h-svh bg-app-surface md:grid-cols-[360px_1fr]">
+    <div className="grid min-h-[calc(100svh-3.5rem)] bg-app-surface md:min-h-svh md:grid-cols-[360px_1fr]">
       <aside className="flex min-h-0 flex-col border-r border-app-panel-border bg-app-surface-subtle">
         <div className="flex h-12 items-center justify-between border-b border-app-panel-border px-3">
           <button
@@ -265,16 +262,6 @@ export function VideoAutomationFormatPanel({
             </section>
           </div>
         </div>
-        <div className="border-t border-app-panel-border p-3">
-          <Button
-            variant="action"
-            size="appDefault"
-            className="w-full"
-            onClick={onSave}
-          >
-            Save Changes
-          </Button>
-        </div>
       </aside>
 
       <main className="relative isolate grid min-h-0 place-items-center overflow-y-auto bg-[#b9b9b6] p-8">
@@ -331,7 +318,7 @@ function VideoAutomationPreviewText({
   active,
   onClick,
 }: {
-  textItem: AutomationTextItem
+  textItem: TextItem
   text: string
   active: boolean
   onClick?: () => void

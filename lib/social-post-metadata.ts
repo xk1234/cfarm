@@ -6,15 +6,27 @@ export type GeneratedSocialPostMetadata = {
   hashtags: string[]
 }
 
-export function socialPostMetadataPromptLines(subject: string) {
+type CaptionPolicy = "generated" | "exact_hook"
+
+export function socialPostMetadataPromptLines(
+  subject: string,
+  options: { captionPolicy?: CaptionPolicy } = {}
+) {
+  const captionLine =
+    options.captionPolicy === "exact_hook"
+      ? "- caption: return exactly the selected Hook text; do not rewrite, extend, or punctuate it."
+      : `- caption: write a short TikTok/Instagram-style post caption for the ${subject}, one sentence, specific to the hook/topic, no hashtags.`
   return [
     `- title: write an AI-generated title for the ${subject}, 3-8 words, specific to the hook/topic.`,
-    `- caption: write a short TikTok/Instagram-style post caption for the ${subject}, one sentence, specific to the hook/topic, no hashtags.`,
+    captionLine,
     "- hashtags: return an array of 3-5 broad lowercase hashtags related to the topic or niche.",
   ]
 }
 
-export function socialPostMetadataSchemaProperties(subject: string) {
+export function socialPostMetadataSchemaProperties(
+  subject: string,
+  options: { captionPolicy?: CaptionPolicy } = {}
+) {
   return {
     title: {
       type: "string",
@@ -24,7 +36,10 @@ export function socialPostMetadataSchemaProperties(subject: string) {
     caption: {
       type: "string",
       minLength: 1,
-      description: `Short TikTok/Instagram-style post caption for the ${subject}, one sentence, specific to the hook/topic, no hashtags.`,
+      description:
+        options.captionPolicy === "exact_hook"
+          ? "Exact selected Hook text, without rewriting or additional punctuation."
+          : `Short TikTok/Instagram-style post caption for the ${subject}, one sentence, specific to the hook/topic, no hashtags.`,
     },
     hashtags: {
       type: "array",

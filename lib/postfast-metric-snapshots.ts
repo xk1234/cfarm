@@ -156,8 +156,8 @@ async function syncPublicationStatsSources(
       source,
     ])
   }
-  const { addPostFastPostStatsSources } = await import("@/lib/postfast-posts")
-  await addPostFastPostStatsSources(sourcesByPostId)
+  const { addPostStatsSources } = await import("@/lib/post-repository")
+  await addPostStatsSources(sourcesByPostId)
 }
 
 export function listFollowerSnapshots() {

@@ -7,7 +7,7 @@ import {
   markGeneratedVideoExportPublished,
 } from "@/lib/generated-videos"
 import { generatedVideoDeletionBlockReason } from "@/lib/generated-video-deletion"
-import { listPostFastPostRecords } from "@/lib/postfast-posts"
+import { listPublicationRecordsForRead } from "@/lib/post-repository"
 
 export const dynamic = "force-dynamic"
 
@@ -44,7 +44,10 @@ export const DELETE = withHandler<{ params: Promise<{ id: string }> }>(
 
     const [existingExport, posts] = await Promise.all([
       getGeneratedVideoExport(id),
-      listPostFastPostRecords(),
+      listPublicationRecordsForRead({
+        surface: "generated_video_deletion_guard",
+        filters: { sourceIds: [id] },
+      }),
     ])
     if (!existingExport) {
       return NextResponse.json(

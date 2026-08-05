@@ -7,10 +7,10 @@ import {
 } from "@/lib/postfast-client"
 import {
   listPostFastPostRecords,
-  upsertPostFastPostRecord,
   type PostFastPostRecord,
   type PostFastSourceType,
 } from "@/lib/postfast-posts"
+import { upsertPublicationPost } from "@/lib/post-writer"
 import { postfastRouteError } from "@/lib/postfast-route"
 import { publishPost } from "@/lib/publishing"
 import { enqueueReminder } from "@/lib/reminders"
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
         throw error
       }
     }
-    const record = await upsertPostFastPostRecord({
+    const record = await upsertPublicationPost({
       sourceType,
       sourceId,
       integrationId,
@@ -128,6 +128,8 @@ export async function POST(request: Request) {
       linkState: "manually_linked",
       content,
       media,
+      outputId: sourceId,
+      origin: "automation_generation",
     })
     if (!posted && record.scheduledAt) {
       await enqueueReminder({

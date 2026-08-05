@@ -22,6 +22,7 @@ import type {
 } from "@/lib/postfast-metric-snapshots"
 import { schemaWithAutomationCollectionId } from "@/lib/realfarm-automation"
 import { verifySlideshowShareToken } from "@/lib/slideshow-share"
+import type { SlideshowRecord } from "@/lib/slideshows"
 import { defaultXAutomation } from "@/lib/x-automation"
 import type { WordCollectionRecord } from "@/lib/word-collections"
 
@@ -85,6 +86,101 @@ describe("LumenClip MCP server", () => {
     )
   })
 
+  it("runs a named production workflow or one exact registered stage", async () => {
+    const client = await connectClient()
+    const stageInput = {
+      niche: "B2B SaaS onboarding",
+      persona: "practitioner",
+      proof: ["Reduced activation time from 9 days to 3 days"],
+      count: 2,
+    }
+
+    const catalog = await client.callTool({
+      name: "lumenclip_pipeline_catalog",
+      arguments: {},
+    })
+    expect(catalog.structuredContent).toMatchObject({
+      workflows: expect.arrayContaining([
+        expect.objectContaining({
+          id: "slideshow-generation",
+          stages: expect.arrayContaining([
+            expect.objectContaining({
+              id: "slideshow-generation.select-one-slide-image",
+              granularity: "atomic",
+              sideEffect: "network",
+              operation: "conditional OpenRouter image choice",
+              maxExternalCalls: 1,
+              workflowStep: false,
+            }),
+          ]),
+        }),
+        expect.objectContaining({ id: "ugc-video-generation" }),
+        expect.objectContaining({ id: "linkedin-generation" }),
+        expect.objectContaining({ id: "x-threads-generation" }),
+      ]),
+    })
+
+    const single = await client.callTool({
+      name: "lumenclip_pipeline_stage_run",
+      arguments: {
+        stageId: "linkedin-generation.validate-input",
+        input: stageInput,
+        requestId: "linkedin-stage-test",
+      },
+    })
+    const workflow = await client.callTool({
+      name: "lumenclip_pipeline_run",
+      arguments: {
+        workflowId: "linkedin-generation",
+        input: stageInput,
+        requestId: "linkedin-stage-test",
+        stopAfter: "linkedin-generation.validate-input",
+      },
+    })
+    const selectedImage = await client.callTool({
+      name: "lumenclip_pipeline_stage_run",
+      arguments: {
+        stageId: "slideshow-generation.select-one-slide-image",
+        input: {
+          shortlist: {
+            slideId: "content-1",
+            slideText: "A supplied shortlist",
+            aiImageSelection: false,
+            candidates: [
+              {
+                id: "image-1",
+                imageUrl: "/api/assets/image-1.jpg",
+                caption: "One candidate",
+              },
+            ],
+          },
+        },
+      },
+    })
+
+    expect(single.structuredContent).toMatchObject({
+      stage: { id: "linkedin-generation.validate-input" },
+      status: "succeeded",
+      output: { normalizedInput: { niche: "B2B SaaS onboarding", count: 2 } },
+    })
+    expect(workflow.structuredContent).toMatchObject({
+      workflowId: "linkedin-generation",
+      status: "succeeded",
+      completedStages: 1,
+      output: (single.structuredContent as { output: unknown }).output,
+    })
+    expect(selectedImage.structuredContent).toMatchObject({
+      stage: { id: "slideshow-generation.select-one-slide-image" },
+      externalCalls: 0,
+      output: {
+        selectedImage: {
+          slideId: "content-1",
+          id: "image-1",
+        },
+      },
+    })
+  })
+
   it("inspects and runs read-only automation experiments through injected services", async () => {
     const dimensions = {
       automationId: "automation-1",
@@ -140,12 +236,14 @@ describe("LumenClip MCP server", () => {
           {
             dimension: "contentDirection",
             name: "body",
+            slideIndex: 2,
             values: ["One concrete tip", "One surprising stat"],
           },
         ],
         allHooks: true,
         repeats: 2,
         seed: 42,
+        textOnly: true,
       },
     })
 
@@ -157,12 +255,14 @@ describe("LumenClip MCP server", () => {
         {
           dimension: "contentDirection",
           name: "body",
+          slideIndex: 2,
           values: ["One concrete tip", "One surprising stat"],
         },
       ],
       allHooks: true,
       repeats: 2,
       seed: 42,
+      textOnly: true,
     })
   })
 
@@ -548,6 +648,138 @@ describe("LumenClip MCP server", () => {
     expect(deleted.structuredContent).toMatchObject({
       deletedHookIds: ["hook-new"],
       total: 2,
+    })
+  })
+
+  it("surfaces dangling media references and a run-blocking next step on read", async () => {
+    const current = automationRecord()
+    current.schema.image_collection_ids.all_slides =
+      "collection-mystical-pictures-deleted"
+    const body = current.schema.formatting.find((block) => block.id === "body")!
+    body.imageOverrides = [
+      { slideIndex: 2, collectionId: "collection-deleted-override" },
+    ]
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      listAutomationRuns: vi.fn(async () => []),
+      listWordCollections: vi.fn(async () => []),
+      listImageCollections: vi.fn(async () => []),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_automation_get",
+      arguments: { automationId: current.id },
+    })
+
+    expect(result.structuredContent).toMatchObject({
+      automation: {
+        unresolvedCollectionReferences: [
+          "collection-mystical-pictures-deleted",
+          "collection-deleted-override",
+        ],
+      },
+      nextSteps: [
+        expect.objectContaining({
+          id: "replace-missing-collection-references",
+          severity: "required",
+          tool: "lumenclip_collections_list",
+          blocks: ["lumenclip_automation_run"],
+        }),
+      ],
+    })
+  })
+
+  it("surfaces repair actions for collapsed body layers and voice rules in style", async () => {
+    const current = automationRecord()
+    current.schema.tone = {
+      value: "Educational & Informative",
+      preset: "educational",
+    }
+    current.schema.prompt_formatting.style =
+      "Use 2-3 word headings followed by one paragraph. Write in a witty, conversational voice with all lowercase text."
+    const body = current.schema.formatting.find((block) => block.id === "body")!
+    const base = body.textItems[0]!
+    body.textItems = [
+      {
+        ...base,
+        id: "body-heading",
+        contentDirection:
+          "Write the complete personal explanation for this slide.",
+        wordLengthMin: 20,
+        wordLengthMax: 30,
+      },
+      {
+        ...base,
+        id: "body-paragraph",
+        contentDirection: "",
+        textMode: "static",
+        staticText: "",
+      },
+    ]
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      listAutomationRuns: vi.fn(async () => []),
+      listWordCollections: vi.fn(async () => []),
+      listImageCollections: vi.fn(async () => []),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_automation_get",
+      arguments: { automationId: current.id },
+    })
+
+    expect(result.structuredContent).toMatchObject({
+      automation: {
+        configurationWarnings: expect.arrayContaining([
+          expect.objectContaining({
+            code: "BODY_TEXT_LAYERS_COLLAPSED",
+            path: "formatting.body.textItems",
+          }),
+          expect.objectContaining({
+            code: "STYLE_CONTAINS_VOICE_RULES",
+            path: "prompt_formatting.style",
+          }),
+        ]),
+      },
+      nextSteps: expect.arrayContaining([
+        expect.objectContaining({
+          id: "restore-body-heading-and-paragraph-layers",
+          tool: "lumenclip_automation_schema_update",
+          args: expect.objectContaining({
+            mode: "patch",
+            schema: {
+              formatting: expect.arrayContaining([
+                expect.objectContaining({
+                  id: "body",
+                  textItems: expect.arrayContaining([
+                    expect.objectContaining({
+                      id: "body-heading",
+                      wordLengthMin: 2,
+                      wordLengthMax: 3,
+                    }),
+                    expect.objectContaining({
+                      id: "body-paragraph",
+                      textMode: "prompt",
+                      contentDirection:
+                        "Write the complete personal explanation for this slide.",
+                    }),
+                  ]),
+                }),
+              ]),
+            },
+          }),
+        }),
+        expect.objectContaining({
+          id: "move-voice-rules-out-of-structural-style",
+          args: expect.objectContaining({
+            schema: {
+              prompt_formatting: {
+                style: "Use 2-3 word headings followed by one paragraph.",
+              },
+            },
+          }),
+        }),
+      ]),
     })
   })
 
@@ -1160,6 +1392,26 @@ describe("LumenClip MCP server", () => {
         awaitingPublication,
       ]),
       listMetricSnapshots: vi.fn(async () => [snapshot]),
+      listTikTokStudioAnalyticsImports: vi.fn(async () => [
+        {
+          id: "studio-import-failed",
+          status: "failed" as const,
+          targetPostId: awaitingPublication.id,
+          externalPostId: "7355555555555555555",
+          integrationId: awaitingPublication.integrationId,
+          studioUrl:
+            "https://www.tiktok.com/tiktokstudio/analytics/7355555555555555555/overview",
+          createdAt: "2026-07-21T00:00:00.000Z",
+          expiresAt: "2026-07-21T01:00:00.000Z",
+          updatedAt: "2026-07-21T00:05:00.000Z",
+          capturedSections: [],
+          failure: {
+            section: "overview" as const,
+            reason: "Overview did not load after retry",
+            failedAt: "2026-07-21T00:05:00.000Z",
+          },
+        },
+      ]),
     })
 
     const result = await client.callTool({
@@ -1185,6 +1437,14 @@ describe("LumenClip MCP server", () => {
               "lumenclip_analytics_report",
               "lumenclip_tiktok_studio_analytics_report",
             ],
+            captureAttempts: expect.arrayContaining([
+              expect.objectContaining({
+                publicationId: awaitingPublication.id,
+                status: "failed",
+                reason: "Overview did not load after retry",
+                section: "overview",
+              }),
+            ]),
           }),
         }),
       ],
@@ -1263,6 +1523,9 @@ describe("LumenClip MCP server", () => {
       previewUrl: expect.stringMatching(
         /^https:\/\/studio\.example\.com\/share\/slideshows\//
       ),
+      workflowUrl: expect.stringMatching(
+        /^https:\/\/studio\.example\.com\/share\/workflows\//
+      ),
       downloadUrl: expect.stringMatching(
         /^https:\/\/studio\.example\.com\/api\/public\/slideshows\/.+\/download\?token=/
       ),
@@ -1296,23 +1559,234 @@ describe("LumenClip MCP server", () => {
     })
   })
 
+  it("exposes a complete workflow trace and every addressed stage", async () => {
+    vi.stubEnv("BASE_URL", "https://studio.example.com")
+    vi.stubEnv("SLIDESHOW_SHARE_SECRET", "test-secret")
+    const automation = automationRecord()
+    const run = generatedRun(automation.id)
+    run.plan.debug = {
+      textModelPrompt: {
+        messages: [{ role: "user", content: "Generate the slideshow" }],
+      } as never,
+    }
+    const slideshow = generatedSlideshow(run)
+    const client = await connectClient({
+      listAutomationRuns: vi.fn(async () => [run]),
+      getAutomationRecord: vi.fn(async () => automation),
+      listSlideshowRecords: vi.fn(async () => [slideshow]),
+    })
+
+    const trace = await client.callTool({
+      name: "lumenclip_workflow_trace_get",
+      arguments: { outputId: run.slideshowId },
+    })
+    const traceContent = trace.structuredContent as {
+      workflowId: string
+      runId: string
+      outputId: string
+      workflowUrl: string
+      stages: Array<{
+        id: string
+        input: unknown
+        output: unknown
+      }>
+    }
+    expect(traceContent.workflowId).toBe("slideshow-generation")
+    expect(traceContent.runId).toBe(run.id)
+    expect(traceContent.outputId).toBe(run.slideshowId)
+    expect(traceContent.workflowUrl).toMatch(
+      /^https:\/\/studio\.example\.com\/share\/workflows\//
+    )
+    expect(traceContent.stages).toHaveLength(16)
+    expect(
+      traceContent.stages.find(
+        (candidate) => candidate.id === "slideshow-generation.build-text-prompt"
+      )
+    ).toMatchObject({
+      id: "slideshow-generation.build-text-prompt",
+      input: expect.any(Object),
+      output: {
+        promptPayload: {
+          messages: [{ role: "user", content: "Generate the slideshow" }],
+        },
+      },
+    })
+
+    const stage = await client.callTool({
+      name: "lumenclip_workflow_stage_get",
+      arguments: {
+        outputId: run.slideshowId,
+        stageId: "slideshow-generation.generate-slide-text",
+      },
+    })
+    expect(stage.structuredContent).toMatchObject({
+      runId: run.id,
+      outputId: run.slideshowId,
+      stage: {
+        id: "slideshow-generation.generate-slide-text",
+        input: expect.any(Object),
+        output: expect.objectContaining({ title: run.plan.title }),
+      },
+    })
+  })
+
+  it("edits addressed slide text with an optimistic lock and returns fresh QA", async () => {
+    const automation = automationRecord()
+    let run = generatedRun(automation.id)
+    run.plan.slides[0].textItems = [
+      {
+        id: "hook-heading",
+        text: "facts about capricorn",
+        fontSize: "12px",
+        textSize: { width: 80, height: 18 },
+        textStyle: "outline",
+        textAlign: "center",
+        textAnchor: "padded",
+        textPosition: { x: 50, y: 45 },
+      },
+    ]
+    run.plan.slides[0].text = "facts about capricorn"
+    run.plan.hook = "facts about capricorn"
+    let slideshow = generatedSlideshow(run, "facts about capricorn")
+    const updateSlide = vi.fn(
+      async ({
+        edits,
+      }: {
+        edits: Array<{ textItemId: string; text: string }>
+      }) => {
+        slideshow = {
+          ...slideshow,
+          updated_at: "2026-07-28T12:00:00.000Z",
+          images: slideshow.images.map((slide) => ({
+            ...slide,
+            textItems: slide.textItems.map((item) => ({
+              ...item,
+              text:
+                edits.find(
+                  (edit: { textItemId: string }) => edit.textItemId === item.id
+                )?.text ?? item.text,
+            })),
+          })),
+        }
+        return slideshow
+      }
+    )
+    const updateRun = vi.fn(async () => {
+      const text = slideshow.images[0].textItems[0].text
+      run = {
+        ...run,
+        updatedAt: "2026-07-28T12:00:01.000Z",
+        plan: {
+          ...run.plan,
+          hook: text,
+          slides: run.plan.slides.map((slide) => ({
+            ...slide,
+            text,
+            textItems: slideshow.images[0].textItems,
+          })),
+        },
+      }
+      return run
+    })
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => automation),
+      listAutomationRecords: vi.fn(async () => [automation]),
+      listAutomationRuns: vi.fn(async () => [run]),
+      listGeneratedVideoExports: vi.fn(async () => []),
+      listXAutomationRuns: vi.fn(async () => []),
+      listPostFastPostRecords: vi.fn(async () => []),
+      listMetricSnapshots: vi.fn(async () => []),
+      listSlideshowRecords: vi.fn(async () => [slideshow]),
+      updateSlideshowSlideText:
+        updateSlide as LumenClipMcpServices["updateSlideshowSlideText"],
+      updateAutomationRunSlideText:
+        updateRun as LumenClipMcpServices["updateAutomationRunSlideText"],
+    })
+
+    const edited = await client.callTool({
+      name: "lumenclip_output_slide_text_update",
+      arguments: {
+        outputId: run.slideshowId,
+        slideIndex: 1,
+        edits: [
+          {
+            textItemId: "hook-heading",
+            text: "capricorn behavior nobody warns you about",
+          },
+        ],
+        expectedUpdatedAt: run.updatedAt,
+      },
+    })
+
+    expect(updateSlide).toHaveBeenCalledWith({
+      id: run.slideshowId,
+      slideIndex: 0,
+      edits: [
+        {
+          textItemId: "hook-heading",
+          text: "capricorn behavior nobody warns you about",
+        },
+      ],
+    })
+    expect(edited.structuredContent).toMatchObject({
+      output: {
+        updatedAt: "2026-07-28T12:00:01.000Z",
+        resolvedHookText: "capricorn behavior nobody warns you about",
+        slides: [
+          expect.objectContaining({
+            index: 1,
+            heading: "capricorn behavior nobody warns you about",
+          }),
+        ],
+      },
+      editedSlide: expect.objectContaining({
+        heading: "capricorn behavior nobody warns you about",
+      }),
+    })
+
+    const stale = await client.callTool({
+      name: "lumenclip_output_slide_text_update",
+      arguments: {
+        outputId: run.slideshowId,
+        slideIndex: 1,
+        edits: [{ textItemId: "hook-heading", text: "another hook" }],
+        expectedUpdatedAt: "2026-07-18T01:01:00.000Z",
+      },
+    })
+    expect(stale.isError).toBe(true)
+    expect(updateSlide).toHaveBeenCalledTimes(1)
+  })
+
   it("absolutises per-slide and delivery URLs in slideshow_generate against BASE_URL", async () => {
     vi.stubEnv("BASE_URL", "https://studio.example.com/")
     vi.stubEnv("SLIDESHOW_SHARE_SECRET", "test-secret")
     const current = automationRecord()
     const run = relativeRun(current.id)
+    const generate = vi.fn(async () => ({
+      created: [run],
+      results: [],
+      skipped: [],
+    }))
     const client = await connectClient({
       getAutomationRecord: vi.fn(async () => current),
-      runDueAutomations: vi.fn(async () => ({
-        created: [run],
-        results: [],
-        skipped: [],
-      })) as unknown as LumenClipMcpServices["runDueAutomations"],
+      runDueAutomations:
+        generate as unknown as LumenClipMcpServices["runDueAutomations"],
     })
 
     const result = await client.callTool({
       name: "lumenclip_slideshow_generate",
-      arguments: { automationId: current.id, requestId: "request-1" },
+      arguments: {
+        automationId: current.id,
+        requestId: "request-1",
+        hook: "My exact slideshow hook",
+      },
+    })
+
+    expect(generate).toHaveBeenCalledWith({
+      automationId: current.id,
+      force: true,
+      requestId: "request-1",
+      hook: "My exact slideshow hook",
     })
 
     const summary = (
@@ -1325,6 +1799,7 @@ describe("LumenClip MCP server", () => {
       {
         index: 1,
         role: "hook",
+        text: run.plan.slides[0].text,
         renderedImageUrl:
           "https://studio.example.com/api/local-assets/slideshows/outputs/slideshow-1/slide-001.png",
         sourceImageUrl:
@@ -1372,6 +1847,7 @@ describe("LumenClip MCP server", () => {
       {
         index: 1,
         role: "hook",
+        text: run.plan.slides[0].text,
         renderedImageUrl:
           "/api/local-assets/slideshows/outputs/slideshow-1/slide-001.png",
         sourceImageUrl: "/api/local-assets/slideshows/sources/img-1.png",
@@ -1478,6 +1954,7 @@ describe("LumenClip MCP server", () => {
       arguments: {
         automationId: current.id,
         requestId: "general-run-1",
+        hook: "My exact MCP hook",
       },
     })
 
@@ -1485,6 +1962,7 @@ describe("LumenClip MCP server", () => {
       automationId: current.id,
       force: true,
       requestId: "general-run-1",
+      hook: "My exact MCP hook",
     })
     expect(result.structuredContent).toMatchObject({
       operation: { id: run.id, status: "succeeded" },
@@ -1504,6 +1982,121 @@ describe("LumenClip MCP server", () => {
           tool: "lumenclip_automation_run",
           blocks: ["lumenclip_output_publish"],
         }),
+      ],
+    })
+  })
+
+  it("generates 2-10 hook variants with the text of every slide", async () => {
+    const current = automationRecord()
+    const variants = [
+      {
+        index: 1,
+        hook: "First random hook",
+        hookId: "hook-1",
+        title: "First title",
+        caption: "First caption",
+        hashtags: "#first",
+        slides: [
+          { index: 1, role: "hook" as const, text: "First random hook" },
+          { index: 2, role: "content" as const, text: "First body" },
+        ],
+      },
+      {
+        index: 2,
+        hook: "Second random hook",
+        hookId: "hook-2",
+        title: "Second title",
+        caption: "Second caption",
+        hashtags: "#second",
+        slides: [
+          { index: 1, role: "hook" as const, text: "Second random hook" },
+          { index: 2, role: "content" as const, text: "Second body" },
+        ],
+      },
+    ]
+    const generateVariants = vi.fn(async () => variants)
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      previewAutomationHookVariants:
+        generateVariants as LumenClipMcpServices["previewAutomationHookVariants"],
+      now: () => new Date("2026-08-01T12:00:00.000Z"),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_hook_variants_generate",
+      arguments: { automationId: current.id, count: 2 },
+    })
+
+    expect(generateVariants).toHaveBeenCalledWith(current.schema, {
+      automationId: current.id,
+      automationTitle: current.name,
+      count: 2,
+      now: new Date("2026-08-01T12:00:00.000Z"),
+    })
+    expect(result.structuredContent).toMatchObject({
+      automationId: current.id,
+      count: 2,
+      variants,
+      nextAction: { tool: "lumenclip_hook_variant_select" },
+    })
+
+    const invalid = await client.callTool({
+      name: "lumenclip_hook_variants_generate",
+      arguments: { automationId: current.id, count: 1 },
+    })
+    expect(invalid.isError).toBe(true)
+
+    const tooMany = await client.callTool({
+      name: "lumenclip_hook_variants_generate",
+      arguments: { automationId: current.id, count: 11 },
+    })
+    expect(tooMany.isError).toBe(true)
+    expect(generateVariants).toHaveBeenCalledTimes(1)
+  })
+
+  it("persists the selected hook variant and returns its slide text", async () => {
+    const current = automationRecord()
+    const run = generatedRun(current.id)
+    run.plan.hook = "Selected exact hook"
+    run.plan.slides[0].text = "Selected exact hook"
+    const generate = vi.fn(async () => ({
+      created: [run],
+      results: [],
+      skipped: [],
+    }))
+    const client = await connectClient({
+      getAutomationRecord: vi.fn(async () => current),
+      listAutomationRuns: vi.fn(async () => []),
+      runDueAutomations: generate,
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_hook_variant_select",
+      arguments: {
+        automationId: current.id,
+        selectedHook: "Selected exact hook",
+        requestId: "selected-hook-1",
+      },
+    })
+
+    expect(generate).toHaveBeenCalledWith({
+      automationId: current.id,
+      force: true,
+      requestId: "selected-hook-1",
+      hook: "Selected exact hook",
+    })
+    expect(result.structuredContent).toMatchObject({
+      outputs: [
+        {
+          hook: "Selected exact hook",
+          slides: [
+            {
+              index: 1,
+              role: "hook",
+              text: "Selected exact hook",
+            },
+          ],
+        },
       ],
     })
   })
@@ -1691,6 +2284,68 @@ describe("LumenClip MCP server", () => {
         progress: 30,
       },
       outputs: [],
+    })
+  })
+
+  it("reports a completed UGC checkpoint as a successful stage operation", async () => {
+    const current = ugcAutomationRecord()
+    const baseJob = ugcJob(current.id)
+    const job = {
+      ...baseJob,
+      status: "completed" as const,
+      payload: {
+        ...(baseJob.payload as Record<string, unknown>),
+        stopAfter: "voice",
+      },
+    }
+    const client = await connectClient({
+      getJob: vi.fn(async () => job),
+      getUgcRunStatus: vi.fn(async (): Promise<UgcRunStatus> => ({
+        id: "ugcrun-voice",
+        automationId: current.id,
+        scheduledFor: String(
+          (job.payload as Record<string, unknown>).scheduledFor
+        ),
+        status: "voice",
+        error: null,
+        checkpoints: { voice: { storagePath: "ugc/voice.wav" } },
+        stages: [
+          { name: "analysis", status: "done", assetPaths: [] },
+          { name: "script", status: "done", assetPaths: [] },
+          { name: "actor", status: "done", assetPaths: [] },
+          {
+            name: "voice",
+            status: "done",
+            assetPaths: ["ugc/voice.wav"],
+          },
+          { name: "motion", status: "pending", assetPaths: [] },
+          { name: "lipsync", status: "pending", assetPaths: [] },
+          { name: "broll", status: "pending", assetPaths: [] },
+          { name: "composite", status: "pending", assetPaths: [] },
+          { name: "store", status: "pending", assetPaths: [] },
+          { name: "publish", status: "pending", assetPaths: [] },
+        ],
+        createdAt: "2026-07-22T12:00:01.000Z",
+        updatedAt: "2026-07-22T12:00:10.000Z",
+      })),
+      getGeneratedVideoExport: vi.fn(async () => null),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_operation_get",
+      arguments: { operationId: job.id },
+    })
+
+    expect(result.structuredContent).toMatchObject({
+      operation: {
+        id: job.id,
+        kind: "ugc.stage.voice",
+        status: "succeeded",
+        stage: "voice",
+        progress: 100,
+      },
+      outputs: [],
+      errors: [],
     })
   })
 
@@ -1977,6 +2632,61 @@ describe("LumenClip MCP server", () => {
       outputType: "slideshow",
       deleted: true,
       recoverable: false,
+    })
+  })
+
+  it("routes a manual link through the shared writer and advances the same stamp intent", async () => {
+    const run = generatedRun("automation-1")
+    const publication = {
+      id: "publication-manual-1",
+      sourceType: "slideshow" as const,
+      sourceId: run.slideshowId!,
+      integrationId: "manual-tiktok",
+      provider: "tiktok",
+      status: "published" as const,
+      publishedAt: "2026-07-30T12:00:00.000Z",
+      releaseUrl: "https://www.tiktok.com/@creator/photo/7662360324313517330",
+      externalPostId: "7662360324313517330",
+      linkState: "manually_linked" as const,
+      statsSources: [],
+      content: "Generated caption",
+      media: [],
+      createdAt: "2026-07-30T12:00:00.000Z",
+      updatedAt: "2026-07-30T12:00:00.000Z",
+    }
+    const link = vi.fn(async () => publication)
+    const stamp = vi.fn(async () => run)
+    const client = await connectClient({
+      listAutomationRuns: vi.fn(async () => [run]),
+      linkPublishedOutput: link,
+      markAutomationRunPublished: stamp,
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_output_mark_published",
+      arguments: {
+        outputId: run.slideshowId,
+        platform: "tiktok",
+        publishedUrl: publication.releaseUrl,
+        publishedAt: publication.publishedAt,
+        requestId: "manual-link-1",
+        confirmLink: true,
+      },
+    })
+
+    expect(result.isError).not.toBe(true)
+    expect(link).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceType: "slideshow",
+        sourceId: run.slideshowId,
+        integrationId: "manual-tiktok",
+      })
+    )
+    expect(stamp).toHaveBeenCalledWith({
+      slideshowId: run.slideshowId,
+      runId: run.id,
+      publishedAt: new Date(publication.publishedAt),
+      publication,
     })
   })
 
@@ -2307,6 +3017,26 @@ describe("MCP analytics report", () => {
       snapshots: [captured],
       followerSnapshots: [],
       publications,
+      captureImports: [
+        {
+          id: "capture-publication-2",
+          status: "failed",
+          targetPostId: "publication-2",
+          externalPostId: "7000000000000000002",
+          integrationId: "integration-1",
+          studioUrl:
+            "https://www.tiktok.com/tiktokstudio/analytics/7000000000000000002/overview",
+          createdAt: "2026-07-15T00:00:00.000Z",
+          expiresAt: "2026-07-15T01:00:00.000Z",
+          updatedAt: "2026-07-15T00:05:00.000Z",
+          capturedSections: [],
+          failure: {
+            section: "overview",
+            reason: "Studio returned an empty overview",
+            failedAt: "2026-07-15T00:05:00.000Z",
+          },
+        },
+      ],
       now: new Date("2026-07-18T12:00:00.000Z"),
       days: 30,
       postLimit: 10,
@@ -2329,6 +3059,19 @@ describe("MCP analytics report", () => {
     expect(
       report.posts.filter((post) => post.metricsStatus === "awaiting_capture")
     ).toHaveLength(3)
+    expect(
+      report.posts.find((post) => post.postId === "publication-2")?.capture
+    ).toMatchObject({
+      status: "failed",
+      reason: "Studio returned an empty overview",
+      section: "overview",
+    })
+    expect(
+      report.posts.find((post) => post.postId === "publication-3")?.capture
+    ).toMatchObject({
+      status: "not_started",
+      reason: "No TikTok Studio capture attempt has been recorded.",
+    })
   })
 })
 
@@ -2337,6 +3080,7 @@ async function connectClient(overrides: Partial<LumenClipMcpServices> = {}) {
     getAutomationRecord: vi.fn(async () => null),
     listAutomationRecords: vi.fn(async () => []),
     listAutomationRuns: vi.fn(async () => []),
+    listTikTokStudioAnalyticsImports: vi.fn(async () => []),
     ...overrides,
   })
   const client = new Client({ name: "lumenclip-test", version: "1.0.0" })
@@ -2453,6 +3197,60 @@ function generatedRun(automationId: string): AutomationRunRecord {
     outputImages: ["https://example.com/output.jpg"],
     createdAt: "2026-07-18T01:00:00.000Z",
     updatedAt: "2026-07-18T01:01:00.000Z",
+  }
+}
+
+function generatedSlideshow(
+  run: AutomationRunRecord,
+  text = "Generated hook"
+): SlideshowRecord {
+  return {
+    id: run.slideshowId!,
+    runId: run.id,
+    automationId: run.automationId,
+    title: run.plan.title,
+    caption: run.plan.caption,
+    hashtags: run.plan.hashtags,
+    prompt: "",
+    image_collection: "collection-1",
+    slideshow_type: "automation",
+    created_at: run.createdAt,
+    updated_at: run.updatedAt,
+    status: "exported",
+    output_dir: `/api/local-assets/slideshows/outputs/${run.slideshowId}`,
+    output_images: [
+      `/api/local-assets/slideshows/outputs/${run.slideshowId}/slide-001.png`,
+    ],
+    settings: {
+      duration: 4,
+      aspect_ratio: "9:16",
+      font: "Inter",
+      background_color: "#000000",
+      transition_style: "cut",
+      export_as_video: false,
+      sound_id: "",
+      sound_name: "",
+      sound_url: "",
+    },
+    images: [
+      {
+        id: "slide-1",
+        image_url: `/api/local-assets/slideshows/outputs/${run.slideshowId}/slide-001.png`,
+        source_image_url: "https://example.com/image.jpg",
+        textItems: [
+          {
+            id: "hook-heading",
+            text,
+            fontSize: "12px",
+            textSize: { width: 80, height: 18 },
+            textStyle: "outline",
+            textAlign: "center",
+            textAnchor: "padded",
+            textPosition: { x: 50, y: 45 },
+          },
+        ],
+      },
+    ],
   }
 }
 

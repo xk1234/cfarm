@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DateTime } from "luxon"
 import {
@@ -56,12 +56,14 @@ export function PostAnalyticsPage({
   contentType,
   publicationPlatformPostId,
   slides = [],
+  autoCollectComments = false,
 }: {
   snapshots: PostFastMetricSnapshot[]
   integration: SocialIntegration
   contentType: PostContentType
   publicationPlatformPostId?: string
   slides?: AnalyticsSlide[]
+  autoCollectComments?: boolean
 }) {
   const router = useRouter()
   const ordered = useMemo(
@@ -76,7 +78,12 @@ export function PostAnalyticsPage({
   const metrics = availableMetrics(ordered)
   const [metric, setMetric] = useState<CanonicalMetric>(defaultMetric(metrics))
   const [syncing, setSyncing] = useState(false)
-  const [collectingComments, setCollectingComments] = useState(false)
+  const [collectingComments, setCollectingComments] =
+    useState(autoCollectComments)
+  const [companionStatus, setCompanionStatus] = useState<
+    "" | "connecting" | "connected" | "error"
+  >(autoCollectComments ? "connecting" : "")
+  const autoCollectionStarted = useRef(false)
   const [studioImportOpen, setStudioImportOpen] = useState(false)
   const activeMetric = metrics.includes(metric)
     ? metric
@@ -128,6 +135,38 @@ export function PostAnalyticsPage({
       setCollectingComments(false)
     }
   }
+
+  useEffect(() => {
+    if (
+      !autoCollectComments ||
+      autoCollectionStarted.current ||
+      !isTikTok ||
+      !platformPostId
+    ) {
+      return
+    }
+    autoCollectionStarted.current = true
+    void collectTikTokCommentsForPublication({
+      id: latest.postId,
+      platformPostId,
+    })
+      .then(() => {
+        toast.success("Comment collection sent to the TikTok extension")
+        setCompanionStatus("connected")
+      })
+      .catch((error) => {
+        toast.error(
+          getApiErrorMessage(error, "TikTok comments could not be collected")
+        )
+        setCompanionStatus("error")
+      })
+      .finally(() => {
+        setCollectingComments(false)
+        router.replace(
+          `/app/analytics/posts/${encodeURIComponent(latest.postId)}`
+        )
+      })
+  }, [autoCollectComments, isTikTok, latest.postId, platformPostId, router])
 
   return (
     <main className="min-h-screen bg-[#f8f7fb] px-4 py-6 sm:px-7 lg:px-10 lg:py-9">
@@ -187,6 +226,26 @@ export function PostAnalyticsPage({
             </Button>
           </div>
         </header>
+
+        {companionStatus ? (
+          <div
+            role="status"
+            className={cn(
+              "mt-5 rounded-[10px] border px-4 py-3 text-[12px] leading-5 font-semibold",
+              companionStatus === "error"
+                ? "border-app-danger/25 bg-app-danger-surface text-app-danger"
+                : companionStatus === "connected"
+                  ? "border-app-success/25 bg-app-success-surface text-app-success"
+                  : "border-app-panel-border bg-app-surface text-app-muted-text"
+            )}
+          >
+            {companionStatus === "connecting"
+              ? "Connecting this video to the Chrome companion and starting comment capture…"
+              : companionStatus === "connected"
+                ? "This video is connected. Keep TikTok open while the companion captures its comments."
+                : "The Chrome companion could not be reached. Reload or reinstall the extension, then try Collect in extension."}
+          </div>
+        ) : null}
 
         <section className="mt-6 grid gap-5 rounded-[20px] border border-app-panel-border bg-app-surface p-5 shadow-[0_18px_55px_rgba(35,24,67,0.06)] lg:grid-cols-[minmax(0,1fr)_300px] lg:p-7">
           <div className="min-w-0">

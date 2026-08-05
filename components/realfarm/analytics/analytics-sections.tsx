@@ -19,7 +19,6 @@ import {
   IconArrowLeft,
   IconArrowUpRight,
   IconBrandTiktok,
-  IconChartBar,
   IconLink,
   IconLinkOff,
   IconRefresh,
@@ -105,34 +104,31 @@ export function AnalyticsHeader({
   onTikTokStudioSync?: () => void
 }) {
   return (
-    <header className="mb-7 flex flex-wrap items-end justify-between gap-5">
-      <div>
+    <header className="mb-7 flex min-w-0 flex-wrap items-center justify-between gap-5">
+      <div className="flex min-w-0 items-center gap-2">
         {platform ? (
           <button
             type="button"
             onClick={onBack}
-            className="lc-focus-ring mb-3 inline-flex items-center gap-1.5 rounded-[7px] text-[12px] font-semibold text-app-muted-text transition hover:text-app-text"
+            className="lc-focus-ring inline-flex h-9 items-center gap-1.5 rounded-[7px] px-2 text-[12px] font-semibold text-app-muted-text transition hover:bg-app-surface-subtle hover:text-app-text"
           >
             <IconArrowLeft className="size-4" /> Back to overview
           </button>
-        ) : (
-          <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-app-muted-text">
-            <IconChartBar className="size-4" /> Cross-platform reporting
-          </div>
-        )}
-        <h1 className="text-[30px] leading-none font-semibold tracking-[-0.04em] text-app-text">
+        ) : null}
+        <h1 className="flex min-h-9 min-w-0 items-center text-[28px] leading-tight font-semibold tracking-[-0.04em] text-app-text sm:text-[30px]">
           {platform ? `${providerName(platform)} analytics` : "Analytics"}
         </h1>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
         {onTikTokStudioSync ? (
           <Button
             variant="softControl"
             size="compact"
+            className="h-9"
             onClick={onTikTokStudioSync}
           >
             <IconBrandTiktok className="size-4" />
-            Sync TikTok Studio
+            Import TikTok posts
           </Button>
         ) : null}
         <SelectControl
@@ -149,6 +145,7 @@ export function AnalyticsHeader({
         <Button
           variant="softControl"
           size="compact"
+          className="h-9"
           onClick={onRefresh}
           disabled={refreshing || loading}
         >
@@ -199,15 +196,13 @@ export function AnalyticsOverview({
 
   return (
     <div className="space-y-8">
-      <AccountSelectorRail
+      <AccountPerformanceTable
         integrations={integrations}
-        selectedIds={selectedIds}
-        allSelected={selectedAccountId === "all"}
-        multi={false}
-        onToggle={onSelectAccount}
-        onSelectAll={() => {
-          if (selectedAccountId !== "all") onSelectAccount(selectedAccountId)
-        }}
+        posts={posts}
+        followers={followerSnapshots}
+        selectedAccountId={selectedAccountId}
+        onSelectAccount={onSelectAccount}
+        onOpenPlatform={onOpenPlatform}
       />
 
       <section className="grid gap-3 lg:grid-cols-3">
@@ -242,15 +237,6 @@ export function AnalyticsOverview({
         posts={recent}
         integrations={integrations}
         onSelect={onSelectPost}
-      />
-
-      <AccountPerformanceTable
-        integrations={integrations}
-        posts={posts}
-        followers={followerSnapshots}
-        selectedAccountId={selectedAccountId}
-        onSelectAccount={onSelectAccount}
-        onOpenPlatform={onOpenPlatform}
       />
     </div>
   )
@@ -449,7 +435,7 @@ export function RecentPosts({
           label="recent posts"
         />
       </div>
-      <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {visiblePosts.map((post) => {
           const account =
             accounts.get(post.integrationId) ?? fallbackIntegration(post)
@@ -479,7 +465,7 @@ export function RecentPosts({
               type="button"
               onClick={() => onSelect(post)}
               className={cn(
-                "lc-focus-ring group min-w-[220px] flex-1 basis-0 overflow-hidden rounded-card border bg-app-surface text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(35,24,67,0.09)] active:translate-y-0",
+                "lc-focus-ring group overflow-hidden rounded-card border bg-app-surface text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(35,24,67,0.09)] active:translate-y-0",
                 link.state === "unlinked"
                   ? "border-2 border-dashed border-app-danger"
                   : link.state === "manually_linked"
@@ -862,7 +848,6 @@ export function PlatformAnalytics({
           </section>
 
           <ComparisonChart
-            platform={platform}
             accounts={selectedAccounts}
             data={comparison}
             metric={metric}
@@ -891,14 +876,12 @@ export function PlatformAnalytics({
 }
 
 export function ComparisonChart({
-  platform,
   accounts,
   data,
   metric,
   mode,
   onModeChange,
 }: {
-  platform: string
   accounts: SocialIntegration[]
   data: Array<Record<string, string | number | undefined>>
   metric: CanonicalMetric
@@ -1273,19 +1256,25 @@ export function AnalyticsState({
 
 export function AnalyticsSkeleton() {
   return (
-    <div className="space-y-6">
-      <SkeletonBlock className="h-20 rounded-xl" />
-      <div className="grid gap-3 sm:grid-cols-3">
+    <div className="max-w-full min-w-0 space-y-6 overflow-hidden">
+      <SkeletonBlock className="h-20 max-w-full rounded-xl" />
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
         {Array.from({ length: 3 }, (_, index) => (
-          <SkeletonBlock key={index} className="h-48 rounded-xl" />
+          <SkeletonBlock
+            key={index}
+            className="h-48 max-w-full min-w-0 rounded-xl"
+          />
         ))}
       </div>
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-4">
         {Array.from({ length: 4 }, (_, index) => (
-          <SkeletonBlock key={index} className="h-64 rounded-xl" />
+          <SkeletonBlock
+            key={index}
+            className="h-64 max-w-full min-w-0 rounded-xl"
+          />
         ))}
       </div>
-      <SkeletonBlock className="h-[320px] rounded-xl" />
+      <SkeletonBlock className="h-[320px] max-w-full rounded-xl" />
     </div>
   )
 }

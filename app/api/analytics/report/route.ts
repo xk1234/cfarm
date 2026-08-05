@@ -17,7 +17,8 @@ import {
   listAnalyticsIntegrations,
   syncPostFastAnalytics,
 } from "@/lib/postfast-analytics"
-import { listPostFastPostRecords } from "@/lib/postfast-posts"
+import { listPublicationRecordsForRead } from "@/lib/post-repository"
+import type { PostFastPostRecord } from "@/lib/postfast-posts"
 import { postfastRouteError } from "@/lib/postfast-route"
 
 export const dynamic = "force-dynamic"
@@ -45,7 +46,9 @@ export async function GET(request: Request) {
           })),
         listMetricSnapshots().catch(() => []),
         listFollowerSnapshots().catch(() => []),
-        listPostFastPostRecords().catch(() => []),
+        listPublicationRecordsForRead({
+          surface: "analytics_report",
+        }).catch(() => []),
       ])
     const integrations = mergeAnalyticsIntegrations(
       integrationResult.integrations,
@@ -112,7 +115,7 @@ export async function GET(request: Request) {
 function inferredIntegrations(
   snapshots: Awaited<ReturnType<typeof listMetricSnapshots>>,
   followers: Awaited<ReturnType<typeof listFollowerSnapshots>>,
-  publications: Awaited<ReturnType<typeof listPostFastPostRecords>>
+  publications: PostFastPostRecord[]
 ) {
   const byId = new Map<string, PostFastSocialIntegration>()
   for (const item of [...snapshots, ...followers, ...publications]) {

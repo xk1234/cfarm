@@ -19,22 +19,18 @@ import {
 } from "@/lib/slideshow-publishing-config"
 import { cn } from "@/lib/utils"
 
-import { SettingsFooter, SettingsPage, SettingsRow } from "./settings-layout"
+import { SettingsPage, SettingsRow } from "./settings-layout"
 
 export function AutomationGeneralSettingsPanel({
   config,
   selectedSound,
   music,
   onConfigChange,
-  onCancel,
-  onSave,
 }: {
   config: AutomationSchema
   selectedSound: LocalAsset | null
   music: LocalAsset[]
   onConfigChange: (config: AutomationSchema) => void
-  onCancel: () => void
-  onSave: () => void
 }) {
   const language = config.language || defaultAutomationLanguage
   const isVideoAutomation = config.automationKind === "video"
@@ -208,7 +204,6 @@ export function AutomationGeneralSettingsPanel({
           />
         }
       />
-      <SettingsFooter onCancel={onCancel} onSave={onSave} />
     </SettingsPage>
   )
 }

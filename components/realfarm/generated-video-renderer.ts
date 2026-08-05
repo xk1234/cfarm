@@ -203,6 +203,13 @@ type TemplateTimelineClip = {
 export async function renderAndUploadTemplateVideo(
   input: TemplateVideoRenderInput
 ) {
+  if (input.templateId === "split_screen") {
+    return renderSplitScreenTemplateVideo(input)
+  }
+  if (input.templateId === "fake_text") {
+    return renderFakeTextTemplateVideo(input)
+  }
+
   const sound = input.soundUrl ? await loadAudio(input.soundUrl) : null
   const pendingClips = input.segments.flatMap((segment) =>
     segment.clips.map((clip) => ({
@@ -335,6 +342,282 @@ export async function renderAndUploadTemplateVideo(
     prefix,
     "global"
   )
+}
+
+type TemplateVisual = {
+  media: HTMLVideoElement | HTMLImageElement
+  kind: "video" | "image"
+}
+
+async function renderSplitScreenTemplateVideo(input: TemplateVideoRenderInput) {
+  const [primary, secondary, sound] = await Promise.all([
+    loadTemplateVisual(input.segments[0]?.clips[0]),
+    loadTemplateVisual(input.segments[1]?.clips[0]),
+    input.soundUrl ? loadAudio(input.soundUrl) : null,
+  ])
+  if (!primary || !secondary) {
+    throw new Error("Split Screen needs one top video and one bottom video")
+  }
+
+  const primaryDurationMs = templateVisualDurationMs(
+    primary,
+    input.segments[0]?.clipDurationMs ?? 9000
+  )
+  const durationMs = Math.min(
+    TEMPLATE_MAX_DURATION_MS,
+    Math.max(1200, primaryDurationMs)
+  )
+  const visuals = [primary, secondary]
+
+  const recording = await recordCanvasVideo(
+    async ({ context }) => {
+      startTemplateVisuals(visuals)
+      return () => {
+        drawTemplateVisual(
+          context,
+          primary,
+          0,
+          0,
+          CANVAS_WIDTH,
+          CANVAS_HEIGHT / 2
+        )
+        drawTemplateVisual(
+          context,
+          secondary,
+          0,
+          CANVAS_HEIGHT / 2,
+          CANVAS_WIDTH,
+          CANVAS_HEIGHT / 2
+        )
+        context.fillStyle = "rgba(255,255,255,0.92)"
+        context.fillRect(0, CANVAS_HEIGHT / 2 - 3, CANVAS_WIDTH, 6)
+        drawVignette(context)
+        input.globalTexts.forEach((text) => drawUgcAdTextItem(context, text))
+      }
+    },
+    durationMs,
+    sound
+  )
+
+  pauseTemplateVisuals(visuals)
+  sound?.pause()
+  return uploadGeneratedVideo(
+    recording.videoBlob,
+    recording.thumbnailBlob,
+    "split-screen",
+    "global"
+  )
+}
+
+async function renderFakeTextTemplateVideo(input: TemplateVideoRenderInput) {
+  const [background, sound] = await Promise.all([
+    loadTemplateVisual(input.segments[0]?.clips[0]),
+    input.soundUrl ? loadAudio(input.soundUrl) : null,
+  ])
+  if (!background) {
+    throw new Error("Fake Text Story needs a background video")
+  }
+
+  const messages = input.globalTexts
+    .map((item) => ({ ...item, text: ugcTextValue(item) }))
+    .filter((item) => item.text.trim())
+  if (messages.length === 0) {
+    throw new Error("Fake Text Story needs at least one message")
+  }
+
+  const revealIntervalMs = 1250
+  const durationMs = Math.min(
+    TEMPLATE_MAX_DURATION_MS,
+    Math.max(
+      6500,
+      messages.length * revealIntervalMs + 1600,
+      templateVisualDurationMs(
+        background,
+        input.segments[0]?.clipDurationMs ?? 9000
+      )
+    )
+  )
+
+  const recording = await recordCanvasVideo(
+    async ({ context }) => {
+      startTemplateVisuals([background])
+      return (elapsedMs) => {
+        drawTemplateVisual(
+          context,
+          background,
+          0,
+          0,
+          CANVAS_WIDTH,
+          CANVAS_HEIGHT
+        )
+        context.fillStyle = "rgba(0,0,0,0.48)"
+        context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
+        drawChatHeader(context)
+        const visibleCount = Math.min(
+          messages.length,
+          Math.max(1, Math.floor(elapsedMs / revealIntervalMs) + 1)
+        )
+        drawChatMessages(context, messages.slice(0, visibleCount))
+      }
+    },
+    durationMs,
+    sound
+  )
+
+  pauseTemplateVisuals([background])
+  sound?.pause()
+  return uploadGeneratedVideo(
+    recording.videoBlob,
+    recording.thumbnailBlob,
+    "fake-text-story",
+    "global"
+  )
+}
+
+async function loadTemplateVisual(
+  clip:
+    | { url: string; kind: "video" | "image"; texts?: TemplateVideoText[] }
+    | undefined
+): Promise<TemplateVisual | null> {
+  if (!clip?.url) return null
+  const media =
+    clip.kind === "video"
+      ? await loadVideo(clip.url, TEMPLATE_CLIP_LOAD_TIMEOUT_MS)
+      : await loadSafeImage(clip.url)
+  return media ? { media, kind: clip.kind } : null
+}
+
+function templateVisualDurationMs(visual: TemplateVisual, fallbackMs: number) {
+  if (visual.kind !== "video") return fallbackMs
+  const duration = (visual.media as HTMLVideoElement).duration
+  return Number.isFinite(duration) && duration > 0
+    ? Math.round(duration * 1000)
+    : fallbackMs
+}
+
+function startTemplateVisuals(visuals: TemplateVisual[]) {
+  visuals.forEach((visual) => {
+    if (visual.kind !== "video") return
+    const video = visual.media as HTMLVideoElement
+    video.currentTime = 0
+    video.loop = true
+    void video.play().catch(() => undefined)
+  })
+}
+
+function pauseTemplateVisuals(visuals: TemplateVisual[]) {
+  visuals.forEach((visual) => {
+    if (visual.kind === "video") {
+      ;(visual.media as HTMLVideoElement).pause()
+    }
+  })
+}
+
+function drawTemplateVisual(
+  context: CanvasRenderingContext2D,
+  visual: TemplateVisual,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+) {
+  if (
+    visual.kind === "video" &&
+    (visual.media as HTMLVideoElement).readyState <
+      HTMLMediaElement.HAVE_CURRENT_DATA
+  ) {
+    context.fillStyle = "#151515"
+    context.fillRect(x, y, width, height)
+    return
+  }
+  drawCoverImage(context, visual.media, x, y, width, height)
+}
+
+function drawChatHeader(context: CanvasRenderingContext2D) {
+  context.fillStyle = "rgba(12,12,14,0.9)"
+  context.fillRect(0, 0, CANVAS_WIDTH, 145)
+  context.fillStyle = "#4f7df3"
+  context.beginPath()
+  context.arc(72, 76, 38, 0, Math.PI * 2)
+  context.fill()
+  context.fillStyle = "white"
+  context.font = "800 26px sans-serif"
+  context.textAlign = "center"
+  context.fillText("FT", 72, 85)
+  context.font = "800 30px sans-serif"
+  context.textAlign = "left"
+  context.fillText("Messages", 126, 72)
+  context.fillStyle = "rgba(255,255,255,0.62)"
+  context.font = "500 21px sans-serif"
+  context.fillText("online", 126, 104)
+}
+
+function drawChatMessages(
+  context: CanvasRenderingContext2D,
+  messages: TemplateVideoText[]
+) {
+  const visible = messages.slice(-6)
+  let y = 188
+  visible.forEach((message, index) => {
+    const sender = (messages.length - visible.length + index) % 2 === 1
+    const font = "700 29px sans-serif"
+    const lines = wrapText(context, message.text, 430, font, 3)
+    const lineHeight = 38
+    const bubbleWidth = Math.min(
+      500,
+      Math.max(180, ...lines.map((line) => context.measureText(line).width)) +
+        52
+    )
+    const bubbleHeight = lines.length * lineHeight + 34
+    const x = sender ? CANVAS_WIDTH - bubbleWidth - 32 : 32
+
+    drawRoundedRect(
+      context,
+      x,
+      y,
+      bubbleWidth,
+      bubbleHeight,
+      28,
+      sender ? "#3978f6" : "rgba(42,42,47,0.96)"
+    )
+    context.font = font
+    context.textAlign = "left"
+    context.fillStyle = "white"
+    lines.forEach((line, lineIndex) => {
+      context.fillText(line, x + 26, y + 42 + lineIndex * lineHeight)
+    })
+    y += bubbleHeight + 22
+  })
+}
+
+function drawRoundedRect(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+  fill: string
+) {
+  const boundedRadius = Math.min(radius, width / 2, height / 2)
+  context.beginPath()
+  context.moveTo(x + boundedRadius, y)
+  context.lineTo(x + width - boundedRadius, y)
+  context.quadraticCurveTo(x + width, y, x + width, y + boundedRadius)
+  context.lineTo(x + width, y + height - boundedRadius)
+  context.quadraticCurveTo(
+    x + width,
+    y + height,
+    x + width - boundedRadius,
+    y + height
+  )
+  context.lineTo(x + boundedRadius, y + height)
+  context.quadraticCurveTo(x, y + height, x, y + height - boundedRadius)
+  context.lineTo(x, y + boundedRadius)
+  context.quadraticCurveTo(x, y, x + boundedRadius, y)
+  context.closePath()
+  context.fillStyle = fill
+  context.fill()
 }
 
 export async function renderAndUploadGreenscreenVideo(
