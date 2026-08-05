@@ -60,6 +60,27 @@ describe("temp slide testing helpers", () => {
     ).toHaveLength(1)
   })
 
+  it("supports a one-photo automation with no content or CTA slides", () => {
+    const base = defaultAutomationSchema({
+      id: "one-photo",
+      name: "One photo",
+      status: "paused",
+      account: "",
+      handle: "",
+      times: [],
+      favorite: false,
+      theme: "default",
+      socialIntegrations: [],
+    })
+    const withoutContent = updateAutomationFormatSection(base, "content", {
+      slideCount: 0,
+    })
+
+    const result = automationSchemaToTempSlideTestingAutomation(withoutContent)
+
+    expect(result.slides.map((slide) => slide.section)).toEqual(["hook"])
+  })
+
   it("applies content direction and image overrides to the exact generated slide", () => {
     const base = defaultAutomationSchema({
       id: "1",
