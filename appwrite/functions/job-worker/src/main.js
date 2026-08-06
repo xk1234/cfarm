@@ -145,7 +145,10 @@ async function failOrRetry(t, job, err) {
 }
 
 async function sendTelegram(text, chatIdOverride, options = {}) {
-  const token = cleanString(options.botToken) || process.env.TELEGRAM_BOT_TOKEN
+  const configuredToken = cleanString(options.botToken)
+  const token = telegramBotToken(configuredToken)
+    ? configuredToken
+    : cleanString(process.env.TELEGRAM_BOT_TOKEN)
   const chatId = cleanString(chatIdOverride) || process.env.TELEGRAM_CHAT_ID
   if (!token || !chatId) return { sent: false, reason: "not_configured" }
   const buttons = []
@@ -194,6 +197,10 @@ async function sendTelegram(text, chatIdOverride, options = {}) {
   if (!response.ok)
     throw new Error(`Telegram notification failed (${response.status})`)
   return { sent: true }
+}
+
+function telegramBotToken(value) {
+  return /^\d{6,}:[A-Za-z0-9_-]{20,}$/.test(value)
 }
 
 async function reminderSettings(t, ownerId) {
