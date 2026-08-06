@@ -13,12 +13,18 @@ import {
   ugcGenerationLeadMinutes,
 } from "./automation-slots.js"
 
+const railwayDataBackend = process.env.LUMENCLIP_DATA_BACKEND === "railway"
+let RailwayTablesCompat
+if (railwayDataBackend) {
+  ;({ RailwayTablesCompat } =
+    await import("../../../../lib/railway/appwrite-compat.ts"))
+}
+
 // Self-hosted Appwrite injects APPWRITE_FUNCTION_API_ENDPOINT from _APP_DOMAIN,
 // which is not guaranteed to be routable from inside the function container.
 // An explicitly configured endpoint always wins.
 const API_ENDPOINT =
   process.env.APPWRITE_ENDPOINT || process.env.APPWRITE_FUNCTION_API_ENDPOINT
-
 
 export {
   dueAutomationSlots as dueSlots,
@@ -31,6 +37,7 @@ const LOOKBACK = Number(process.env.LOOKBACK_MINUTES || 10)
 // slot so PostFast can hold the finished post until the exact scheduled time.
 // This is product behavior, not deployment configuration.
 function client() {
+  if (railwayDataBackend) return new RailwayTablesCompat()
   return new TablesDB(
     new Client()
       .setEndpoint(API_ENDPOINT)
@@ -115,13 +122,16 @@ async function automationScheduler({ log, error }) {
       considered = 0
     for (const a of automations) {
       considered++
-      const isUgc = a.schema?.automationKind === "ugc" && a.schema?.ugc?.enabled === true
+      const isUgc =
+        a.schema?.automationKind === "ugc" && a.schema?.ugc?.enabled === true
       if (isUgc && process.env.ENABLE_UGC_AUTOMATION !== "true") continue
       for (const slot of dueAutomationSlots(
         a.schema,
         now,
         LOOKBACK,
-        isUgc ? ugcGenerationLeadMinutes(a.schema) : slideshowGenerationLeadMinutes(a.schema)
+        isUgc
+          ? ugcGenerationLeadMinutes(a.schema)
+          : slideshowGenerationLeadMinutes(a.schema)
       )) {
         const res = await enqueue(db, {
           type: isUgc ? "run-ugc-automation" : "run-automation",
