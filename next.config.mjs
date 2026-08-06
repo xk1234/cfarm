@@ -20,6 +20,21 @@ const nextConfig = {
     "/*": ["assets/fonts/Inter-Variable.ttf"],
   },
   serverExternalPackages: ["node-appwrite"],
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [
+          {
+            type: "host",
+            value: "cfarm-eight.vercel.app",
+          },
+        ],
+        destination: "https://web-production-bd480.up.railway.app/:path*",
+        permanent: false,
+      },
+    ]
+  },
   async headers() {
     return [
       {
