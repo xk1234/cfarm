@@ -17,14 +17,14 @@ function backendValue<T extends string>(
 }
 
 /**
- * Runtime cutover switches. Appwrite remains the default until the Railway
- * migration audit reports row and object parity.
+ * Railway is the default runtime. Appwrite can only be selected explicitly
+ * during the rollback window or by one-time migration tooling.
  */
 export function dataBackend(): DataBackend {
   return backendValue(
     process.env.LUMENCLIP_DATA_BACKEND,
     ["appwrite", "railway"] as const,
-    "appwrite",
+    "railway",
     "LUMENCLIP_DATA_BACKEND"
   )
 }
@@ -33,7 +33,7 @@ export function assetBackend(): AssetBackend {
   return backendValue(
     process.env.LUMENCLIP_ASSET_BACKEND,
     ["appwrite", "railway"] as const,
-    "appwrite",
+    "railway",
     "LUMENCLIP_ASSET_BACKEND"
   )
 }

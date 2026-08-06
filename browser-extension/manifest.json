@@ -1,13 +1,13 @@
 {
   "manifest_version": 3,
   "name": "LumenClip companion",
-  "version": "2.3.2",
+  "version": "2.3.3",
   "description": "Imports TikTok Studio analytics and reviews, approves, and sends drafted comment replies through your logged-in TikTok session.",
   "permissions": ["storage", "tabs", "alarms"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
   "host_permissions": [
     "https://www.tiktok.com/*",
-    "https://cfarm-eight.vercel.app/*",
+    "https://web-production-bd480.up.railway.app/*",
     "http://localhost/*"
   ],
   "background": {
@@ -42,7 +42,10 @@
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://cfarm-eight.vercel.app/*", "http://localhost/*"],
+      "matches": [
+        "https://web-production-bd480.up.railway.app/*",
+        "http://localhost/*"
+      ],
       "js": ["lumenclip-bridge.js"],
       "run_at": "document_start"
     }

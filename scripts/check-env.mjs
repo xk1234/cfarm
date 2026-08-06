@@ -10,13 +10,7 @@ import path from "node:path"
 const root = process.cwd()
 const verbose = process.argv.includes("--verbose")
 const pruneUnused = process.argv.includes("--prune-unused")
-const requiredLocal = new Set([
-  "APPWRITE_ENDPOINT",
-  "APPWRITE_PROJECT_ID",
-  "APPWRITE_API_KEY",
-  "APPWRITE_DATABASE_ID",
-  "OPENROUTER_API_KEY",
-])
+const requiredLocal = new Set(["OPENROUTER_API_KEY"])
 const runtimeProvided = new Set([
   "NODE_ENV",
   "NEXT_PHASE",

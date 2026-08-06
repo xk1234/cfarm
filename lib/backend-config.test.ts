@@ -15,12 +15,12 @@ afterEach(() => {
 })
 
 describe("backend configuration", () => {
-  it("keeps Appwrite as the default during migration", () => {
+  it("uses Railway by default after the runtime cutover", () => {
     delete process.env.LUMENCLIP_DATA_BACKEND
     delete process.env.LUMENCLIP_ASSET_BACKEND
-    expect(dataBackend()).toBe("appwrite")
-    expect(assetBackend()).toBe("appwrite")
-    expect(railwayCutoverEnabled()).toBe(false)
+    expect(dataBackend()).toBe("railway")
+    expect(assetBackend()).toBe("railway")
+    expect(railwayCutoverEnabled()).toBe(true)
   })
 
   it("allows storage to move independently before the data cutover", () => {

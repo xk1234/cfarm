@@ -54,14 +54,11 @@ const buckets = onlyBuckets
 const inventory: Array<{ bucket: string; name: string; files: number }> = []
 
 for (const bucket of buckets) {
-  const page = await retrySource(() =>
-    storage.listFiles({
-      bucketId: bucket.$id,
-      queries: [Query.limit(1)],
-      total: true,
-    })
-  )
-  inventory.push({ bucket: bucket.$id, name: bucket.name, files: page.total })
+  inventory.push({
+    bucket: bucket.$id,
+    name: bucket.name,
+    files: await countBucketFiles(bucket.$id),
+  })
 }
 
 if (!apply) {
@@ -143,7 +140,13 @@ try {
   }
 
   const verification = await verifyCounts(sql)
-  const status = failedCount === 0 ? "succeeded" : "completed_with_failures"
+  const sourceCovered = verification.every((item) => item.sourceCovered)
+  const status =
+    failedCount > 0
+      ? "completed_with_failures"
+      : sourceCovered
+        ? "succeeded"
+        : "completed_with_mismatch"
   await sql`
     UPDATE migration_runs
     SET status = ${status}, completed_at = now(),
@@ -159,7 +162,7 @@ try {
       2
     )
   )
-  if (failedCount > 0) process.exitCode = 1
+  if (failedCount > 0 || !sourceCovered) process.exitCode = 1
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error)
   await sql`
@@ -402,6 +405,7 @@ async function verifyCounts(sqlClient: Sql) {
     source: item.files,
     target: targets.get(item.bucket) ?? 0,
     matches: item.files === (targets.get(item.bucket) ?? 0),
+    sourceCovered: item.files <= (targets.get(item.bucket) ?? 0),
   }))
 }
 
@@ -430,6 +434,22 @@ async function listBuckets() {
     cursor = page.buckets.at(-1)?.$id ?? null
   }
   return output
+}
+
+async function countBucketFiles(bucketId: string) {
+  let count = 0
+  let cursor: string | null = null
+  for (;;) {
+    const queries = [Query.limit(batchSize)]
+    if (cursor) queries.push(Query.cursorAfter(cursor))
+    const page = await retrySource(() =>
+      storage.listFiles({ bucketId, queries, total: false })
+    )
+    count += page.files.length
+    if (page.files.length < batchSize) return count
+    cursor = page.files.at(-1)?.$id ?? null
+    if (!cursor) return count
+  }
 }
 
 function objectKey(bucketId: string, fileId: string) {

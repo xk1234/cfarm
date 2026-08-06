@@ -4,7 +4,7 @@ import crypto from "node:crypto"
 
 import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
 
-const DEFAULT_CLOUD_ORIGIN = "https://cfarm-eight.vercel.app"
+const DEFAULT_CLOUD_ORIGIN = "https://web-production-bd480.up.railway.app"
 const CLOUD_SYNC_PATH = "/api/tiktok-studio-analytics/cloud-sync"
 
 export async function syncTikTokStudioSnapshotToCloud(input: {
