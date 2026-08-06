@@ -81,7 +81,7 @@ export function videoAutomationPreviewTextHighlightStyle(textItem: TextItem) {
       : editorColor === "Black 50% Background"
         ? "#00000080"
         : editorColor === "White Background"
-          ? "#ffffffeb"
+          ? "#ffffff"
           : editorColor === "White 50% Background"
             ? "#ffffff8c"
             : undefined

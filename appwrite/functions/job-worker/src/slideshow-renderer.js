@@ -226,7 +226,7 @@ function renderedTextBackgroundSvg(rendered) {
     const paddingY = rendered.fontSize * 0.1;
     const height = rendered.fontSize * 1.1 + paddingY * 2;
     const fill = color.startsWith("White") ? "#ffffff" : "#111111";
-    const opacity = color.includes("50%") ? 0.56 : 0.9;
+    const opacity = color === "White Background" ? 1 : color.includes("50%") ? 0.56 : 0.9;
     const radius = Math.max(0, rendered.item.backgroundRadius ?? Math.max(3, rendered.fontSize * 0.06));
     if (rendered.item.backgroundMode === "block") {
         const textWidth = Math.max(rendered.fontSize * 0.55, ...rendered.lines.map((line) => textDisplayUnits(line) * rendered.fontSize));
