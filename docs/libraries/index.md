@@ -68,30 +68,35 @@ Native `fetch`, `URL`, and `AbortSignal` are used for HTTP plumbing. Provider
 clients such as OpenRouter and PostFast are local modules under `lib/`, not
 third-party SDK dependencies.
 
-## Appwrite persistence
+## Persistence and object storage
 
-| Library         | Declared version | Role in LumenClip                                                                               | Representative usage                                                              |
-| --------------- | ---------------: | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `node-appwrite` |        `^26.2.0` | Server-side Appwrite sessions, TablesDB rows, Storage files, functions, and deployment scripts. | `lib/appwrite.ts`, `lib/json-store.ts`, `appwrite/functions/`, deployment scripts |
+| Library                         | Declared version | Role in LumenClip                                                                                  | Representative usage                                                             |
+| ------------------------------- | ---------------: | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `postgres`                      |         `^3.4.9` | Railway PostgreSQL migrations, resumable imports, and the new server-side persistence adapter.     | `lib/railway/`, `scripts/railway-migrate.mts`, Appwrite import tooling           |
+| `@aws-sdk/client-s3`            |      `^3.1104.0` | Reads and writes Railway's private S3-compatible object bucket.                                    | `lib/railway/object-storage.ts`, asset importer, local-asset response            |
+| `@aws-sdk/s3-request-presigner` |      `^3.1104.0` | Produces short-lived direct download URLs for private Railway objects.                             | `lib/railway/object-storage.ts`                                                  |
+| `node-appwrite`                 |        `^26.2.0` | Temporary source adapter for Appwrite sessions, TablesDB rows, Storage files, and migration reads. | `lib/appwrite.ts`, `lib/json-store.ts`, `appwrite/functions/`, migration scripts |
 
-The local and deployed application use the same Appwrite API contract. Local
-development points at the shared machine stack described in
-[Local Appwrite](/docs/data/local-appwrite).
+Appwrite remains the runtime default during the additive migration. The target
+topology, parity gates, and removal sequence are in
+[Railway migration](/docs/data/railway-migration). Local Appwrite behavior is
+documented in [Local Appwrite](/docs/data/local-appwrite) and remains available
+until the cutover is complete.
 
 ## Calendar, tables, and charts
 
-| Library                     | Declared version | Role in LumenClip                                                                                                                                    | Representative usage                                             |
-| --------------------------- | ---------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `@fullcalendar/core`        |         `6.1.21` | FullCalendar event and view types.                                                                                                                   | `components/realfarm/content-calendar/content-calendar-view.tsx` |
-| `@fullcalendar/react`       |         `6.1.21` | React renderer for the publishing calendar.                                                                                                          | `content-calendar-view.tsx`                                      |
-| `@fullcalendar/daygrid`     |         `6.1.21` | Month/day-grid calendar view.                                                                                                                        | `content-calendar-view.tsx`                                      |
-| `@fullcalendar/timegrid`    |         `6.1.21` | Week/day time-grid calendar views.                                                                                                                   | `content-calendar-view.tsx`                                      |
-| `@fullcalendar/interaction` |         `6.1.21` | Calendar selection, drag, and event interaction support.                                                                                             | `content-calendar-view.tsx`                                      |
-| `ag-grid-community`         |        `^36.0.0` | Grid engine, column definitions, styling, and table APIs.                                                                                            | `components/ui/ag-data-table.tsx`, collection tables             |
-| `ag-grid-react`             |        `^36.0.0` | React integration for AG Grid.                                                                                                                       | `components/ui/ag-data-table.tsx`                                |
-| `ag-charts-types`           |        `^14.0.0` | Shared AG chart type declarations used by the grid/chart toolchain.                                                                                  | Type-level dependency                                            |
+| Library                     | Declared version | Role in LumenClip                                                                                                                      | Representative usage                                             |
+| --------------------------- | ---------------: | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `@fullcalendar/core`        |         `6.1.21` | FullCalendar event and view types.                                                                                                     | `components/realfarm/content-calendar/content-calendar-view.tsx` |
+| `@fullcalendar/react`       |         `6.1.21` | React renderer for the publishing calendar.                                                                                            | `content-calendar-view.tsx`                                      |
+| `@fullcalendar/daygrid`     |         `6.1.21` | Month/day-grid calendar view.                                                                                                          | `content-calendar-view.tsx`                                      |
+| `@fullcalendar/timegrid`    |         `6.1.21` | Week/day time-grid calendar views.                                                                                                     | `content-calendar-view.tsx`                                      |
+| `@fullcalendar/interaction` |         `6.1.21` | Calendar selection, drag, and event interaction support.                                                                               | `content-calendar-view.tsx`                                      |
+| `ag-grid-community`         |        `^36.0.0` | Grid engine, column definitions, styling, and table APIs.                                                                              | `components/ui/ag-data-table.tsx`, collection tables             |
+| `ag-grid-react`             |        `^36.0.0` | React integration for AG Grid.                                                                                                         | `components/ui/ag-data-table.tsx`                                |
+| `ag-charts-types`           |        `^14.0.0` | Shared AG chart type declarations used by the grid/chart toolchain.                                                                    | Type-level dependency                                            |
 | `ag-stack`                  |        `^36.0.0` | Declared AG toolchain package. No direct source import exists; verify whether it is still required before the next dependency cleanup. | `package.json` only                                              |
-| `recharts`                  |         `^3.9.1` | Analytics charts and visual reporting.                                                                                                               | `components/realfarm/analytics/analytics-view.tsx`               |
+| `recharts`                  |         `^3.9.1` | Analytics charts and visual reporting.                                                                                                 | `components/realfarm/analytics/analytics-view.tsx`               |
 
 Keep every FullCalendar package on the same exact version to avoid plugin/core
 contract mismatches. AG Grid and its related packages should likewise move as a

@@ -30,5 +30,6 @@ Architecture, routes, and local infrastructure remain separate because they desc
 behavior rather than object fields:
 
 - [Backend architecture](backend-architecture.md)
+- [Railway migration](railway-migration.md)
 - [Backend endpoints](backend-endpoints.md)
 - [Local Appwrite](local-appwrite.md)

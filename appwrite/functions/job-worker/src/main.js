@@ -20,6 +20,15 @@ import {
   publicationRecordSummary,
 } from "./publishing-core.js"
 
+const railwayDataBackend = process.env.LUMENCLIP_DATA_BACKEND === "railway"
+const railwayAssetBackend = process.env.LUMENCLIP_ASSET_BACKEND === "railway"
+let RailwayTablesCompat
+let RailwayStorageCompat
+if (railwayDataBackend || railwayAssetBackend) {
+  ;({ RailwayTablesCompat, RailwayStorageCompat } =
+    await import("../../../../lib/railway/appwrite-compat.ts"))
+}
+
 // Self-hosted Appwrite injects APPWRITE_FUNCTION_API_ENDPOINT from _APP_DOMAIN,
 // which is not guaranteed to be routable from inside the function container.
 // An explicitly configured endpoint always wins.
@@ -36,6 +45,7 @@ const LEASE_MS = Number(process.env.LEASE_MS || 960000)
 const WID = `worker-${crypto.randomBytes(4).toString("hex")}`
 
 function db() {
+  if (railwayDataBackend) return new RailwayTablesCompat()
   return new TablesDB(
     new Client()
       .setEndpoint(API_ENDPOINT)
@@ -44,6 +54,7 @@ function db() {
   )
 }
 function storage() {
+  if (railwayAssetBackend) return new RailwayStorageCompat()
   return new Storage(
     new Client()
       .setEndpoint(API_ENDPOINT)
@@ -134,7 +145,10 @@ async function failOrRetry(t, job, err) {
 }
 
 async function sendTelegram(text, chatIdOverride, options = {}) {
-  const token = cleanString(options.botToken) || process.env.TELEGRAM_BOT_TOKEN
+  const configuredToken = cleanString(options.botToken)
+  const token = telegramBotToken(configuredToken)
+    ? configuredToken
+    : cleanString(process.env.TELEGRAM_BOT_TOKEN)
   const chatId = cleanString(chatIdOverride) || process.env.TELEGRAM_CHAT_ID
   if (!token || !chatId) return { sent: false, reason: "not_configured" }
   const buttons = []
@@ -183,6 +197,10 @@ async function sendTelegram(text, chatIdOverride, options = {}) {
   if (!response.ok)
     throw new Error(`Telegram notification failed (${response.status})`)
   return { sent: true }
+}
+
+function telegramBotToken(value) {
+  return /^\d{6,}:[A-Za-z0-9_-]{20,}$/.test(value)
 }
 
 async function reminderSettings(t, ownerId) {
@@ -641,31 +659,33 @@ async function publishScheduledXDraft(automation, record) {
     const status = response.ok ? "scheduled" : "failed"
     if (response.ok) published += 1
     else failed += 1
-    records.push(buildPublicationRecord({
-      id:
-        "pf" +
-        crypto
-          .createHash("sha256")
-          .update(`${record.id}:${integration.integration_id}`)
-          .digest("hex")
-          .slice(0, 32),
-      sourceType: "x_automation",
-      sourceId: record.id,
-      postfastPostId:
-        payload?.postIds?.[0] || payload?.data?.postIds?.[0] || undefined,
-      integrationId: integration.integration_id,
-      provider: integration.provider,
-      status,
-      scheduledAt,
-      content: record.posts[0].text,
-      media: [],
-      error: response.ok
-        ? undefined
-        : payload?.message || `PostFast failed (${response.status})`,
-      createdAt: now,
-      updatedAt: now,
-      lastSyncedAt: now,
-    }))
+    records.push(
+      buildPublicationRecord({
+        id:
+          "pf" +
+          crypto
+            .createHash("sha256")
+            .update(`${record.id}:${integration.integration_id}`)
+            .digest("hex")
+            .slice(0, 32),
+        sourceType: "x_automation",
+        sourceId: record.id,
+        postfastPostId:
+          payload?.postIds?.[0] || payload?.data?.postIds?.[0] || undefined,
+        integrationId: integration.integration_id,
+        provider: integration.provider,
+        status,
+        scheduledAt,
+        content: record.posts[0].text,
+        media: [],
+        error: response.ok
+          ? undefined
+          : payload?.message || `PostFast failed (${response.status})`,
+        createdAt: now,
+        updatedAt: now,
+        lastSyncedAt: now,
+      })
+    )
   }
   return { attemptedAt: nowIso(), published, failed, records }
 }

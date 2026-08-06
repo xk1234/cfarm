@@ -1,5 +1,5 @@
-// Central helper for persisting binary assets. Appwrite Storage is the only
-// backend: assets are uploaded to the deterministic id the read route derives.
+// Central helper for persisting binary assets. Both backends use the same
+// deterministic bucket/file identity so cutover does not change public paths.
 // Pipelines that need a real local file stage it back out via stageAssetToTmp.
 import { randomUUID } from "node:crypto"
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises"
@@ -10,6 +10,14 @@ import { InputFile } from "node-appwrite/file"
 
 import { getAppwrite } from "@/lib/appwrite"
 import { bucketForPath, dataRoot, fileIdForPath } from "@/lib/appwrite-stores"
+import { assetBackend } from "@/lib/backend-config"
+import {
+  deleteRailwayObject,
+  putRailwayObject,
+  railwayObjectExists,
+  railwayObjectKey,
+  readRailwayObject,
+} from "@/lib/railway/object-storage"
 
 type Bytes = Buffer | Uint8Array | ArrayBuffer | string
 
@@ -31,10 +39,6 @@ export async function mirrorAssetToAppwrite(
   absPath: string,
   bytes?: Bytes
 ): Promise<void> {
-  const aw = getAppwrite()
-  if (!aw) {
-    throw new Error("Appwrite is not configured; cannot persist asset bytes.")
-  }
   const relPath = relForAppwrite(absPath)
   if (!relPath) {
     throw new Error(`Asset path is outside the data tree: ${absPath}`)
@@ -42,6 +46,17 @@ export async function mirrorAssetToAppwrite(
   const bucket = bucketForPath(relPath)
   const fileId = fileIdForPath(relPath)
   const buf = bytes != null ? toBuffer(bytes) : await readFile(absPath)
+  if (assetBackend() === "railway") {
+    await putRailwayObject({
+      key: railwayObjectKey(bucket, fileId),
+      body: buf,
+    })
+    return
+  }
+  const aw = getAppwrite()
+  if (!aw) {
+    throw new Error("Appwrite is not configured; cannot persist asset bytes.")
+  }
   const input = InputFile.fromBuffer(buf, path.basename(relPath))
   try {
     await aw.storage.createFile(bucket, fileId, input, [])
@@ -65,33 +80,41 @@ export async function mirrorAssetToAppwrite(
 
 /** Read a data-tree asset's bytes from Appwrite Storage. Throws if unconfigured, outside data/, or missing. */
 export async function readAssetBytes(absPath: string): Promise<Buffer> {
-  const aw = getAppwrite()
-  if (!aw) {
-    throw new Error("Appwrite is not configured; cannot read asset bytes.")
-  }
   const relPath = relForAppwrite(absPath)
   if (!relPath) {
     throw new Error(`Asset path is outside the data tree: ${absPath}`)
   }
-  const view = await aw.storage.getFileView(
-    bucketForPath(relPath),
-    fileIdForPath(relPath)
-  )
+  const bucket = bucketForPath(relPath)
+  const fileId = fileIdForPath(relPath)
+  if (assetBackend() === "railway") {
+    return readRailwayObject(railwayObjectKey(bucket, fileId))
+  }
+  const aw = getAppwrite()
+  if (!aw) {
+    throw new Error("Appwrite is not configured; cannot read asset bytes.")
+  }
+  const view = await aw.storage.getFileView(bucket, fileId)
   return Buffer.from(view as ArrayBuffer)
 }
 
 /** Delete a data-tree file from Appwrite Storage. Missing files are already deleted. */
 export async function deleteAssetFromAppwrite(absPath: string): Promise<void> {
-  const aw = getAppwrite()
-  if (!aw) {
-    throw new Error("Appwrite is not configured; cannot delete asset bytes.")
-  }
   const relPath = relForAppwrite(absPath)
   if (!relPath) {
     throw new Error(`Asset path is outside the data tree: ${absPath}`)
   }
+  const bucket = bucketForPath(relPath)
+  const fileId = fileIdForPath(relPath)
+  if (assetBackend() === "railway") {
+    await deleteRailwayObject(railwayObjectKey(bucket, fileId))
+    return
+  }
+  const aw = getAppwrite()
+  if (!aw) {
+    throw new Error("Appwrite is not configured; cannot delete asset bytes.")
+  }
   try {
-    await aw.storage.deleteFile(bucketForPath(relPath), fileIdForPath(relPath))
+    await aw.storage.deleteFile(bucket, fileId)
   } catch (error) {
     if ((error as { code?: number }).code !== 404) {
       throw error
@@ -112,18 +135,30 @@ export async function createAssetOnce(
   absPath: string,
   bytes: Bytes
 ): Promise<void> {
-  const aw = getAppwrite()
-  if (!aw) {
-    throw new Error("Appwrite is not configured; cannot persist asset bytes.")
-  }
   const relPath = relForAppwrite(absPath)
   if (!relPath) {
     throw new Error(`Asset path is outside the data tree: ${absPath}`)
   }
   const buffer = toBuffer(bytes)
+  const bucket = bucketForPath(relPath)
+  const fileId = fileIdForPath(relPath)
+  if (assetBackend() === "railway") {
+    const key = railwayObjectKey(bucket, fileId)
+    if (await railwayObjectExists(key)) {
+      throw Object.assign(new Error(`Asset already exists: ${relPath}`), {
+        code: 409,
+      })
+    }
+    await putRailwayObject({ key, body: buffer })
+    return
+  }
+  const aw = getAppwrite()
+  if (!aw) {
+    throw new Error("Appwrite is not configured; cannot persist asset bytes.")
+  }
   await aw.storage.createFile(
-    bucketForPath(relPath),
-    fileIdForPath(relPath),
+    bucket,
+    fileId,
     InputFile.fromBuffer(buffer, path.basename(relPath)),
     []
   )
