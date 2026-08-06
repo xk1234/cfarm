@@ -88,7 +88,7 @@ describe("slideshow renderer", () => {
     )
 
     expect(svg).toContain('data-text-background="text-background"')
-    expect(svg).toContain('fill="#ffffff"')
+    expect(svg).toContain('fill="#ffffff" fill-opacity="1"')
     expect(svg).toContain('id="text-background"')
     expect(svg).toContain('fill="#111111"')
     expect(svg).not.toContain('stroke="#000000"')

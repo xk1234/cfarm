@@ -1114,7 +1114,7 @@ async function primeVideoClip(clip: TemplateTimelineClip | undefined) {
 function textBackgroundFill(editorColor: string) {
   switch (editorColor) {
     case "White Background":
-      return "rgba(255,255,255,0.92)"
+      return "rgba(255,255,255,1)"
     case "White 50% Background":
       return "rgba(255,255,255,0.55)"
     case "Black Background":

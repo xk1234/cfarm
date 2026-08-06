@@ -47,7 +47,7 @@ describe("video automation preview text", () => {
       videoAutomationPreviewTextHighlightStyle(
         defaultAutomationTextItem({ textStyle: "whiteBackground" })
       )?.backgroundColor
-    ).toBe("#ffffffeb")
+    ).toBe("#ffffff")
   })
 
   it("uses cloned inline decoration so every wrapped line fits its text", () => {
