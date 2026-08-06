@@ -77,6 +77,8 @@ pnpm railway:migrate:records -- --source-env=.env
 pnpm railway:migrate:records -- --apply --source-env=.env
 pnpm railway:migrate:assets -- --source-env=.env
 pnpm railway:migrate:assets -- --apply --source-env=.env --concurrency=8
+pnpm railway:cutover:queue
+pnpm railway:cutover:queue -- --apply
 pnpm railway:smoke
 pnpm railway:worker
 pnpm railway:scheduler
@@ -95,6 +97,12 @@ Useful controls:
 
 Never print the output of `railway variables --json` or
 `railway bucket credentials --json`; both contain secrets.
+
+Run the queue cutover after the final record copy and before starting the
+Railway worker. It inventories first, then marks copied `queued` or `processing`
+jobs as `dead` with a cutover reason when `--apply` is supplied. This preserves
+history while preventing notifications, generations, or publications from
+being replayed merely because their queue rows were migrated.
 
 ## Cutover sequence
 
