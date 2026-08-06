@@ -49,8 +49,9 @@ As of 2026-08-06:
 - Production and development both contain all 13,703 inventoried objects with
   zero migration failures. The final production refresh copied 5,067 objects
   that the capped inventory had previously missed.
-- The Vercel deployment is legacy. The production and development public app,
-  MCP, media, and extension origins move to their Railway web services.
+- The Vercel deployment is legacy. Its public hostname redirects to Railway;
+  the production and development public app, MCP, media, and extension origins
+  use their Railway web services.
 - Appwrite scheduler and worker functions must remain disabled after the final
   Railway refresh.
 
