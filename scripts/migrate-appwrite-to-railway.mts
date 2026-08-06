@@ -116,9 +116,11 @@ try {
   }
 
   const verification = await verifyCounts(sql, inventory)
+  const sourceCovered = verification.every((item) => item.sourceCovered)
+  const status = sourceCovered ? "succeeded" : "completed_with_mismatch"
   await sql`
     UPDATE migration_runs
-    SET status = 'succeeded', completed_at = now(),
+    SET status = ${status}, completed_at = now(),
         migrated_count = ${migratedCount}, failed_count = ${failedCount},
         details = details || ${sql.json({ verification })}
     WHERE id = ${runId}
@@ -126,7 +128,7 @@ try {
   console.log(
     JSON.stringify(
       {
-        status: "succeeded",
+        status,
         runId,
         migratedCount,
         failedCount,
@@ -136,6 +138,7 @@ try {
       2
     )
   )
+  if (!sourceCovered) process.exitCode = 1
 } catch (error) {
   failedCount += 1
   const message = error instanceof Error ? error.message : String(error)
@@ -331,6 +334,7 @@ async function verifyCounts(
     source: item.rows,
     target: targetCounts.get(item.table) ?? 0,
     matches: item.rows === (targetCounts.get(item.table) ?? 0),
+    sourceCovered: item.rows <= (targetCounts.get(item.table) ?? 0),
   }))
 }
 

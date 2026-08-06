@@ -30,7 +30,8 @@ const ENDPOINT = process.env.APPWRITE_ENDPOINT
 const PROJECT_ID = process.env.APPWRITE_PROJECT_ID
 const API_KEY = process.env.APPWRITE_API_KEY
 const DATABASE_ID = process.env.APPWRITE_DATABASE_ID || "cfarm"
-const PUBLIC_BASE_URL = process.env.BASE_URL || "https://cfarm-eight.vercel.app"
+const PUBLIC_BASE_URL =
+  process.env.BASE_URL || "https://web-production-bd480.up.railway.app"
 if (!ENDPOINT || !PROJECT_ID || !API_KEY) {
   throw new Error(
     "APPWRITE_ENDPOINT/PROJECT_ID/API_KEY required in the process environment or repo-root .env"

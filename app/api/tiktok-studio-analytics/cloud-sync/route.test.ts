@@ -43,7 +43,7 @@ describe("TikTok Studio cloud snapshot sync", () => {
       "https://www.tiktok.com/@horoiq/photo/7662360324313517330"
     const response = await POST(
       new Request(
-        "https://cfarm-eight.vercel.app/api/tiktok-studio-analytics/cloud-sync",
+        "https://cloud.example.com/api/tiktok-studio-analytics/cloud-sync",
         {
           method: "POST",
           headers: {

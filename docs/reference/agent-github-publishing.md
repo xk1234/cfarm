@@ -1,6 +1,6 @@
 ---
 title: "Agent GitHub publishing"
-description: "Safe commit, pull request, merge, and Vercel deployment workflow for agents sharing the LumenClip checkout."
+description: "Safe commit, pull request, merge, and Railway deployment workflow for agents sharing the LumenClip checkout."
 ---
 
 # Agent GitHub publishing
@@ -192,42 +192,47 @@ gh pr checks PR_NUMBER --watch
 Do not merge a pending or stale head merely because an earlier deployment
 passed.
 
-## 7. Verify Vercel production
+## 7. Verify Railway production
 
-Git integration creates a preview for the PR branch and a production
-deployment after the merge reaches `main`.
+Railway is the application runtime. Vercel is a legacy deployment and must not
+be used as proof that a release reached production.
 
 Required sequence:
 
-1. Wait for the final PR-head preview to become `READY`.
-2. Merge the PR.
-3. Find the production deployment whose Git SHA equals the merge commit.
-4. Wait until that deployment's target is `production` and state is `READY`.
-5. Check recent production runtime errors.
+1. Deploy the PR head to the Railway `development` web service.
+2. Run the focused smoke tests against the development Railway URL.
+3. Merge the PR only after checks pass for the exact head SHA.
+4. Deploy the merge commit to Railway production `web`, `worker`, and
+   `scheduler` as required by the change.
+5. Confirm each required service reaches `SUCCESS`, then inspect recent Railway
+   error logs and run production web, MCP, data, and asset smoke tests.
 
 Record:
 
 - PR URL and merge commit;
-- production deployment ID and URL;
+- Railway deployment IDs and production URL;
 - deployment state;
 - framework;
 - validation results;
 - production runtime-error scan.
 
-A `READY` preview URL is not proof that production was updated.
+A successful legacy Vercel deployment is not proof that production was updated.
 
-## 8. Appwrite function changes
+## 8. Worker and scheduler changes
 
-Vercel deploys only the Next.js application. When a change touches Appwrite
-Functions or their synchronized shared modules:
+The worker and scheduler still reuse source files under `appwrite/functions/`
+while the directory is being renamed. That path does not authorize an Appwrite
+deployment. Validate shared modules, then deploy the affected Railway services:
 
 ```bash
 pnpm appwrite:check-shared
-node appwrite/functions/deploy.mjs
+railway up --environment production --service worker
+railway up --environment production --service scheduler
 ```
 
-Follow the deployment order in [Deployment](deployment.md). Do not claim a
-complete release if required function changes were not deployed.
+`node appwrite/functions/deploy.mjs` is rollback-only and must not be run during
+a normal release. Do not claim a complete release if required Railway services
+were not deployed and verified.
 
 ## Handoff checklist
 
@@ -238,6 +243,6 @@ complete release if required function changes were not deployed.
 - [ ] Remote branch contains the intended content.
 - [ ] PR checks passed on the final head SHA.
 - [ ] PR merged with an expected head SHA.
-- [ ] Production deployment matches the merge commit and is `READY`.
+- [ ] Railway production services contain the merge commit and are successful.
 - [ ] Recent production runtime errors checked.
 - [ ] Unrelated local work called out in the handoff.

@@ -4,7 +4,7 @@ import {
   companionConnectUrl,
 } from "./popup-context.js"
 
-const APP_ORIGIN = "https://cfarm-eight.vercel.app"
+const APP_ORIGIN = "https://web-production-bd480.up.railway.app"
 
 // The active tab is the source of truth: Studio content/analytics pages expose
 // analytics import, while one exact TikTok video exposes comment collection.

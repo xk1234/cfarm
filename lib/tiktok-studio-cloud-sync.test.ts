@@ -3,28 +3,39 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   authorizeTikTokStudioCloudSync,
   syncTikTokStudioSnapshotToCloud,
+  tiktokStudioCloudOrigin,
 } from "@/lib/tiktok-studio-cloud-sync"
 import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
 
 const previousOrigin = process.env.TIKTOK_STUDIO_CLOUD_ORIGIN
 const previousSecret = process.env.TIKTOK_STUDIO_CAPTURE_SECRET
+const previousBaseUrl = process.env.BASE_URL
 
 afterEach(() => {
   process.env.TIKTOK_STUDIO_CLOUD_ORIGIN = previousOrigin
   process.env.TIKTOK_STUDIO_CAPTURE_SECRET = previousSecret
+  process.env.BASE_URL = previousBaseUrl
 })
 
 describe("TikTok Studio cloud sync", () => {
+  it("defaults cloud capture traffic to Railway", () => {
+    delete process.env.TIKTOK_STUDIO_CLOUD_ORIGIN
+    delete process.env.BASE_URL
+
+    expect(tiktokStudioCloudOrigin()).toBe(
+      "https://web-production-bd480.up.railway.app"
+    )
+  })
+
   it("does not mirror a capture already received by the cloud deployment", async () => {
-    process.env.TIKTOK_STUDIO_CLOUD_ORIGIN =
-      "https://cfarm-eight.vercel.app"
+    process.env.TIKTOK_STUDIO_CLOUD_ORIGIN = "https://cloud.example.com"
     process.env.TIKTOK_STUDIO_CAPTURE_SECRET = "cloud-secret"
     const fetchImpl = vi.fn()
 
     const result = await syncTikTokStudioSnapshotToCloud({
       snapshot: snapshot(),
       requestUrl:
-        "https://cfarm-eight.vercel.app/api/tiktok-studio-analytics/capture",
+        "https://cloud.example.com/api/tiktok-studio-analytics/capture",
       fetchImpl,
     })
 
@@ -33,8 +44,7 @@ describe("TikTok Studio cloud sync", () => {
   })
 
   it("mirrors local captures to the protected cloud endpoint", async () => {
-    process.env.TIKTOK_STUDIO_CLOUD_ORIGIN =
-      "https://cfarm-eight.vercel.app"
+    process.env.TIKTOK_STUDIO_CLOUD_ORIGIN = "https://cloud.example.com"
     process.env.TIKTOK_STUDIO_CAPTURE_SECRET = "cloud-secret"
     const fetchImpl = vi.fn(async () =>
       Response.json({ synced: true, snapshotId: "snapshot-1" })
@@ -42,15 +52,14 @@ describe("TikTok Studio cloud sync", () => {
 
     const result = await syncTikTokStudioSnapshotToCloud({
       snapshot: snapshot(),
-      requestUrl:
-        "http://localhost:3000/api/tiktok-studio-analytics/capture",
+      requestUrl: "http://localhost:3000/api/tiktok-studio-analytics/capture",
       fetchImpl,
     })
 
     expect(result).toEqual({ synced: true, snapshotId: "snapshot-1" })
     expect(fetchImpl).toHaveBeenCalledWith(
       new URL(
-        "https://cfarm-eight.vercel.app/api/tiktok-studio-analytics/cloud-sync"
+        "https://cloud.example.com/api/tiktok-studio-analytics/cloud-sync"
       ),
       expect.objectContaining({
         method: "POST",

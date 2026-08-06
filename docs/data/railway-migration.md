@@ -2,10 +2,9 @@
 title: "Railway migration"
 ---
 
-This page is the operational contract for replacing Appwrite with Railway. The
-migration is additive until the final cutover: Appwrite remains the production
-source of truth while Railway is populated, verified, and exercised in shadow
-mode.
+This page is the operational contract for replacing Appwrite with Railway.
+Railway is now the default runtime; Appwrite is retained only as a read-only
+migration source, rollback source, and temporary authentication bridge.
 
 ## Target topology
 
@@ -35,6 +34,25 @@ Railway buckets are private. Application routes continue to be the stable
 public media boundary; direct downloads use short-lived presigned URLs.
 
 ## Current migration state
+
+As of 2026-08-06:
+
+- Railway production has online `web`, `worker`, `scheduler`, Postgres, and
+  private-bucket resources with both backend flags set to `railway`.
+- The persistent `development` environment has isolated Postgres and bucket
+  resources. Its public web service is deployed separately; its copied worker
+  and scheduler stay stopped so development cannot publish production content.
+- A complete cursor inventory found 5,499 Appwrite domain rows plus five users
+  and 13,703 files. Appwrite's reported slideshow-bucket total stops at 5,000;
+  cursor traversal found the real 10,287 files. Never use the reported total as
+  an acceptance gate.
+- Production and development both contain all 13,703 inventoried objects with
+  zero migration failures. The final production refresh copied 5,067 objects
+  that the capped inventory had previously missed.
+- The Vercel deployment is legacy. The production and development public app,
+  MCP, media, and extension origins move to their Railway web services.
+- Appwrite scheduler and worker functions must remain disabled after the final
+  Railway refresh.
 
 The foundation migration preserves Appwrite identities instead of translating
 them during the copy:
@@ -107,8 +125,10 @@ being replayed merely because their queue rows were migrated.
 ## Cutover sequence
 
 1. Apply the PostgreSQL schema and complete the initial records and object copy.
-2. Compare source and target counts for every table and bucket. Resolve every
-   migration failure before proceeding.
+2. Traverse every source table and bucket with cursors. Confirm every source
+   row and object exists in Railway and resolve every migration failure. Railway
+   may legitimately contain additional records created after its worker became
+   active, so target counts can exceed Appwrite counts.
 3. Exercise the TablesDB-compatible PostgreSQL adapter and the S3-compatible
    asset adapter behind `LUMENCLIP_DATA_BACKEND` and
    `LUMENCLIP_ASSET_BACKEND`.
@@ -116,20 +136,23 @@ being replayed merely because their queue rows were migrated.
    promoted on their first valid session or password login.
 5. Deploy `web`, `worker`, and `scheduler` with Railway private-network
    references to Postgres and the bucket.
-6. Run shadow reads and dual writes long enough to prove row, object, queue, and
-   generated-output parity.
-7. Pause Appwrite schedulers and workers, run both importers with `--restart`
-   for a final idempotent refresh, switch both backend flags to `railway`, and
-   perform generation, publishing,
-   analytics, public-preview, download, Telegram, and MCP smoke tests.
+6. Pause Appwrite schedulers and workers, run both importers with `--restart`
+   for a final idempotent refresh, and perform generation, publishing,
+   analytics, public-preview, download, Telegram, and MCP smoke tests against
+   Railway.
+7. Move the companion extension, capture origin, MCP clients, and user-facing
+   links to the Railway production domain. Keep the development scheduler and
+   worker stopped.
 8. Keep Appwrite read-only through the rollback window. Remove its SDK,
-   functions, schema scripts, auth bridge, and infrastructure only after the
-   window closes and transactional email is configured.
+   functions, schema scripts, auth bridge, and infrastructure after imported
+   accounts have moved to the replacement auth provider.
 
 ## Acceptance gates
 
-- Every Appwrite table count equals its Railway `domain_records` count.
-- Every Appwrite bucket count equals its verified `object_manifest` count.
+- Every Appwrite row ID exists in Railway `domain_records`; target-only rows are
+  retained as Railway-native writes.
+- Every Appwrite file found by full cursor traversal exists in the Railway
+  bucket and verified `object_manifest`; target-only files are retained.
 - No migration run has unresolved failures.
 - Existing owner IDs still resolve to the same automations, collections,
   outputs, publications, and analytics.
