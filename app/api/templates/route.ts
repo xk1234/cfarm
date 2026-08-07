@@ -44,7 +44,7 @@ export const GET = withHandler(async () => {
 
 export const POST = withHandler(async (request: Request) => {
   const payload = await request.json().catch(() => null)
-  const rawTemplates = Array.isArray(payload?.templates)
+  const rawTemplates: unknown[] = Array.isArray(payload?.templates)
     ? payload.templates
     : Array.isArray(payload)
       ? payload
