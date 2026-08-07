@@ -32,6 +32,7 @@ import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { useCollectionsData } from "@/components/realfarm/collections/use-collections-data"
 import { isSlideshowSocialProvider } from "@/lib/slideshow-social-platforms"
 import type { ConnectedComposerAccount } from "@/components/realfarm/composer/composer-types"
+import { composerSourcesFromRuns } from "@/components/realfarm/composer/compose-sources"
 import { AppModal, AppModalPanel } from "@/components/ui/modal"
 
 const HomeView = dynamic(() =>
@@ -120,6 +121,8 @@ export type AutomationRunSummary = {
   }[]
   plan?: {
     title?: string
+    caption?: string
+    hashtags?: string
     hook?: string
     publishType?: string
     language?: string
@@ -226,6 +229,14 @@ export function RealFarmWorkspace({
   const [recentAutomationRuns, setRecentAutomationRuns] = useState<
     AutomationRunSummary[]
   >([])
+  const composeSourceOutputs = useMemo(
+    () =>
+      composerSourcesFromRuns({
+        templateRuns: recentAutomationRuns,
+        socialRuns: xAutomationRuns,
+      }),
+    [recentAutomationRuns, xAutomationRuns]
+  )
   const recentRunsRevisionRef = useRef(0)
   const [editingAutomation, setEditingAutomation] = useState<Automation | null>(
     null
@@ -355,7 +366,11 @@ export function RealFarmWorkspace({
   ])
 
   useEffect(() => {
-    if ((view !== "home" && view !== "templates") || xAutomationsLoaded) return
+    if (
+      (view !== "home" && view !== "templates" && view !== "compose") ||
+      xAutomationsLoaded
+    )
+      return
     let active = true
     void fetchJsonWithTimeout<{ templates?: XAutomationRecord[] }>(
       "/api/social-templates"
@@ -379,7 +394,8 @@ export function RealFarmWorkspace({
   }, [linkedAutomationId, view, xAutomationsLoaded])
 
   useEffect(() => {
-    if (view !== "templates" || xAutomationRunsLoaded) return
+    if ((view !== "templates" && view !== "compose") || xAutomationRunsLoaded)
+      return
     let active = true
     void fetchJsonWithTimeout<{ runs?: XAutomationRun[] }>(
       "/api/social-templates/generate"
@@ -866,6 +882,8 @@ export function RealFarmWorkspace({
             <ComposeDemo
               accounts={composeAccounts}
               onOpenSettings={() => setSettingsOpen(true)}
+              onOpenTemplates={() => setView("templates")}
+              sourceOutputs={composeSourceOutputs}
             />
           )}
           {view === "analytics" && (

@@ -1,12 +1,12 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { IconLink, IconPhoto, IconVideo } from "@tabler/icons-react"
+import { IconChevronDown, IconRefresh, IconSparkles } from "@tabler/icons-react"
+import { Accordion, Tabs } from "radix-ui"
 
 import { PlatformPreview } from "@/components/realfarm/previews/platform-preview"
-import { Button } from "@/components/ui/button"
-import { MediaCard, MediaCardPreview } from "@/components/ui/media-card"
 import { SocialPlatformIcon } from "@/components/realfarm/social-platform"
+import { Button } from "@/components/ui/button"
 import { getSocialProvider } from "@/lib/social/registry"
 import { cn } from "@/lib/utils"
 
@@ -16,6 +16,7 @@ import {
   updateNetworkValue,
 } from "./composer-types"
 import type {
+  ComposerSourceOutput,
   ComposerValue,
   ConnectedComposerAccount,
   NetworkComposerValue,
@@ -26,10 +27,16 @@ export type { ComposerValue, ConnectedComposerAccount } from "./composer-types"
 export function PostComposer({
   accounts,
   onChange,
+  onRepurpose,
+  repurposing,
+  sources,
   value,
 }: {
   accounts: readonly ConnectedComposerAccount[]
   onChange: (value: ComposerValue) => void
+  onRepurpose: () => void
+  repurposing: boolean
+  sources: readonly ComposerSourceOutput[]
   value: ComposerValue
 }) {
   const availableAccounts = useMemo(
@@ -37,7 +44,7 @@ export function PostComposer({
     [accounts]
   )
   const [activeKey, setActiveKey] = useState(
-    availableAccounts[0]?.integrationId
+    availableAccounts[0]?.integrationId ?? ""
   )
   const activeAccount =
     availableAccounts.find((account) => account.integrationId === activeKey) ??
@@ -59,321 +66,211 @@ export function PostComposer({
     onChange(updateNetworkValue(value, activeAccount.platformKey, update))
   }
 
-  if (!activeAccount || !provider || !network) {
-    return (
-      <section className="rounded-app-panel border border-app-panel-border bg-app-surface p-8 text-center">
-        <h2 className="text-heading font-semibold text-app-text">
-          No connected networks
-        </h2>
-        <p className="mt-2 text-label text-app-muted-text">
-          Connect a publishable account to start composing.
-        </p>
-      </section>
-    )
-  }
-
-  const effectiveMedia = network.media.length ? network.media : value.base.media
+  if (!activeAccount || !provider || !network) return null
 
   return (
     <section
       aria-label="Post composer"
-      className="overflow-hidden rounded-app-panel border border-app-panel-border bg-app-surface shadow-app-card"
+      className="grid min-h-[620px] overflow-hidden rounded-app-panel border border-app-panel-border bg-app-surface shadow-app-card xl:grid-cols-[minmax(0,1fr)_420px]"
     >
-      <div className="min-w-0 border-b border-app-panel-border p-4 sm:p-5">
-        <p className="text-caption font-semibold tracking-wide text-app-muted-text uppercase">
-          Write once
-        </p>
-        <div className="mt-2 flex items-end justify-between gap-4">
-          <label className="flex-1">
-            <span className="text-heading font-semibold text-app-text">
-              Master message
+      <div className="min-w-0 bg-app-surface-subtle p-4 sm:p-6 xl:border-r xl:border-app-panel-border">
+        <div className="mx-auto max-w-[680px]">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-heading font-semibold text-app-text">
+              {provider.name} preview
+            </h2>
+            <span className="rounded-full bg-app-control-bg px-3 py-1 text-caption font-semibold text-app-muted-text">
+              {sources.length} source{sources.length === 1 ? "" : "s"}
             </span>
-            <span className="mt-1 block text-caption text-app-muted-text">
-              Every network inherits this message until you add an override.
-            </span>
-            <textarea
-              aria-label="Master message"
-              className="lc-focus-ring mt-4 min-h-36 w-full resize-y rounded-app-control border border-app-panel-border bg-app-surface-subtle p-4 text-label text-app-text outline-none placeholder:text-app-text-faint"
-              onChange={(event) =>
-                onChange({
-                  ...value,
-                  base: { ...value.base, text: event.target.value },
-                })
-              }
-              placeholder="What do you want to share?"
-              value={value.base.text}
-            />
-          </label>
+          </div>
+          <PlatformPreview
+            accountName={activeAccount.accountName}
+            avatarUrl={activeAccount.avatarUrl}
+            fields={network.fields}
+            handle={activeAccount.handle}
+            media={value.base.media}
+            platformKey={activeAccount.platformKey}
+            text={effectiveText}
+          />
         </div>
-        <MediaUrlEditor
-          label="Shared media URL"
-          media={value.base.media}
-          onChange={(media) =>
-            onChange({ ...value, base: { ...value.base, media } })
-          }
-        />
       </div>
 
-      <div className="min-w-0 border-b border-app-panel-border bg-app-surface-subtle px-4 pt-4 sm:px-5">
-        <p className="text-caption font-semibold text-app-muted-text">
-          Customize by network
-        </p>
-        <label className="mt-3 block pb-4 sm:hidden">
-          <span className="sr-only">Network to customize</span>
-          <select
-            aria-label="Network to customize"
-            className="lc-focus-ring h-11 w-full rounded-app-control border border-app-panel-border bg-app-surface px-3 text-label font-semibold text-app-text"
-            onChange={(event) => setActiveKey(event.target.value)}
-            value={activeAccount.integrationId}
-          >
-            {availableAccounts.map((account) => {
-              const item = getSocialProvider(account.platformKey)
-              return (
-                <option
-                  key={account.integrationId}
-                  value={account.integrationId}
-                >
-                  {item?.name} · {account.handle}
-                </option>
-              )
-            })}
-          </select>
-        </label>
-        <div
-          aria-label="Connected networks"
-          className="mt-3 hidden gap-1 overflow-x-auto sm:flex"
-          role="tablist"
+      <aside className="flex min-h-0 min-w-0 flex-col bg-app-surface">
+        <Tabs.Root
+          className="flex min-h-0 flex-1 flex-col"
+          onValueChange={setActiveKey}
+          value={activeAccount.integrationId}
         >
-          {availableAccounts.map((account) => {
-            const item = getSocialProvider(account.platformKey)
-            const selected =
-              account.integrationId === activeAccount.integrationId
-            const accountText = effectiveNetworkText(value, account.platformKey)
-            const tabId = safeId(account.integrationId)
-            return (
-              <button
-                aria-controls={`network-panel-${tabId}`}
-                aria-selected={selected}
-                className={cn(
-                  "lc-focus-ring -mb-px flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-label font-semibold transition-colors",
-                  selected
-                    ? "border-brand-accent text-brand-accent"
-                    : "border-transparent text-app-muted-text hover:text-app-text"
-                )}
-                id={`network-tab-${tabId}`}
-                key={account.integrationId}
-                onClick={() => setActiveKey(account.integrationId)}
-                role="tab"
-                type="button"
-              >
-                <span className="grid size-6 place-items-center overflow-hidden rounded-app-control bg-app-control-bg">
-                  {account.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      alt=""
-                      className="size-full object-cover"
-                      src={account.avatarUrl}
-                    />
-                  ) : (
+          <div className="border-b border-app-panel-border px-4 pt-4">
+            <Tabs.List
+              aria-label="Network to customize"
+              className="flex gap-1 overflow-x-auto"
+            >
+              {availableAccounts.map((account) => {
+                const selected =
+                  account.integrationId === activeAccount.integrationId
+                const item = getSocialProvider(account.platformKey)
+                const accountText = effectiveNetworkText(
+                  value,
+                  account.platformKey
+                )
+                return (
+                  <Tabs.Trigger
+                    className={cn(
+                      "lc-focus-ring -mb-px flex min-w-0 shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-label font-semibold transition-colors",
+                      selected
+                        ? "border-brand-accent text-app-text"
+                        : "border-transparent text-app-muted-text hover:text-app-text"
+                    )}
+                    key={account.integrationId}
+                    value={account.integrationId}
+                  >
                     <SocialPlatformIcon
-                      className="size-3.5"
+                      className="size-4"
                       provider={account.platformKey}
                     />
-                  )}
-                </span>
-                <span>{item?.name}</span>
-                <span className="font-mono text-caption font-medium text-app-muted-text tabular-nums">
-                  {accountText.length.toLocaleString()} /{" "}
-                  {item?.limits.maxTextLength.toLocaleString()}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,0.8fr)]">
-        <div
-          aria-labelledby={`network-tab-${safeId(activeAccount.integrationId)}`}
-          className="min-w-0 space-y-5 p-4 sm:p-5 lg:border-r lg:border-app-panel-border"
-          id={`network-panel-${safeId(activeAccount.integrationId)}`}
-          role="tabpanel"
-        >
-          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-            <div>
-              <h2 className="text-heading font-semibold text-app-text">
-                {provider.name} override
-              </h2>
-              <p className="text-caption text-app-muted-text">
-                Posting as {activeAccount.handle}
-              </p>
-            </div>
-            <Button
-              aria-pressed={network.useTextOverride}
-              onClick={() =>
-                updateNetwork({ useTextOverride: !network.useTextOverride })
-              }
-              size="appDefault"
-              variant={network.useTextOverride ? "action" : "softControl"}
-            >
-              {network.useTextOverride ? "Using override" : "Use custom text"}
-            </Button>
+                    <span>{item?.name}</span>
+                    <span className="font-mono text-caption font-medium tabular-nums">
+                      {accountText.length}
+                    </span>
+                  </Tabs.Trigger>
+                )
+              })}
+            </Tabs.List>
           </div>
 
-          <label className="block">
-            <span className="text-label font-semibold text-app-text">
-              Post text
-            </span>
-            <textarea
-              aria-describedby={`character-count-${activeAccount.platformKey}`}
-              aria-invalid={overLimit}
-              aria-label={`${provider.name} post text`}
-              className={cn(
-                "lc-focus-ring mt-2 min-h-40 w-full resize-y rounded-app-control border bg-app-surface p-4 text-label text-app-text outline-none disabled:cursor-not-allowed disabled:bg-app-surface-subtle disabled:text-app-muted-text",
-                overLimit ? "border-app-danger" : "border-app-panel-border"
-              )}
-              disabled={!network.useTextOverride}
-              onChange={(event) => updateNetwork({ text: event.target.value })}
-              value={network.useTextOverride ? network.text : value.base.text}
-            />
-            <span
-              className={cn(
-                "mt-2 flex justify-end text-caption font-semibold",
-                overLimit ? "text-app-danger" : "text-app-muted-text"
-              )}
-              id={`character-count-${activeAccount.platformKey}`}
-              role={overLimit ? "alert" : undefined}
-            >
-              {textCount.toLocaleString()} /{" "}
-              {provider.limits.maxTextLength.toLocaleString()}
-              {overLimit
-                ? ` — ${textCount - provider.limits.maxTextLength} over limit`
-                : ""}
-            </span>
-          </label>
-
-          <MediaUrlEditor
-            label={`${provider.name} media override`}
-            media={network.media}
-            onChange={(media) => updateNetwork({ media })}
-          />
-
-          <PlatformFields
-            fields={network.fields}
-            previewKind={provider.previewKind}
-            update={(fields) => updateNetwork({ fields })}
-          />
-        </div>
-
-        <aside className="min-w-0 bg-app-surface-subtle p-4 sm:p-5">
-          <div className="sticky top-5">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="text-label font-semibold text-app-text">
-                  Live preview
+          <Tabs.Content
+            className="flex min-h-0 flex-1 flex-col p-4 sm:p-5"
+            value={activeAccount.integrationId}
+          >
+            <div className="mb-4 flex items-center gap-3">
+              <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full bg-app-control-bg">
+                {activeAccount.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    alt=""
+                    className="size-full object-cover"
+                    src={activeAccount.avatarUrl}
+                  />
+                ) : (
+                  <SocialPlatformIcon
+                    className="size-4"
+                    provider={activeAccount.platformKey}
+                  />
+                )}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-label font-semibold text-app-text">
+                  {activeAccount.accountName}
                 </p>
-                <p className="text-caption text-app-muted-text">
-                  {provider.name} post chrome
+                <p className="truncate text-caption text-app-muted-text">
+                  {activeAccount.handle}
                 </p>
               </div>
-              <span className="rounded-full bg-brand-accent-soft px-3 py-1 text-caption font-semibold text-brand-accent">
-                Inherited + overrides
-              </span>
             </div>
-            <PlatformPreview
-              accountName={activeAccount.accountName}
-              avatarUrl={activeAccount.avatarUrl}
-              fields={network.fields}
-              handle={activeAccount.handle}
-              media={effectiveMedia}
-              platformKey={activeAccount.platformKey}
-              text={effectiveText}
-            />
-          </div>
-        </aside>
-      </div>
+
+            <label className="block">
+              <span className="sr-only">{provider.name} post text</span>
+              <textarea
+                aria-describedby={`character-count-${activeAccount.platformKey}`}
+                aria-invalid={overLimit}
+                aria-label={`${provider.name} post text`}
+                className={cn(
+                  "lc-focus-ring min-h-56 w-full resize-y border-0 bg-transparent p-0 text-[15px] leading-6 text-app-text outline-none placeholder:text-app-text-faint",
+                  overLimit && "text-app-danger"
+                )}
+                onChange={(event) =>
+                  updateNetwork({
+                    useTextOverride: true,
+                    text: event.target.value,
+                  })
+                }
+                value={effectiveText}
+              />
+            </label>
+
+            <div className="mt-3 flex items-center justify-between gap-3 border-t border-app-panel-border pt-3">
+              <span
+                className={cn(
+                  "text-caption font-semibold tabular-nums",
+                  overLimit ? "text-app-danger" : "text-app-muted-text"
+                )}
+                id={`character-count-${activeAccount.platformKey}`}
+                role={overLimit ? "alert" : undefined}
+              >
+                {textCount.toLocaleString()} /{" "}
+                {provider.limits.maxTextLength.toLocaleString()}
+                {overLimit
+                  ? ` — ${textCount - provider.limits.maxTextLength} over limit`
+                  : ""}
+              </span>
+              <Button
+                disabled={repurposing}
+                onClick={onRepurpose}
+                size="appDefault"
+                type="button"
+                variant="softControl"
+              >
+                {repurposing ? (
+                  <IconRefresh className="animate-spin" />
+                ) : (
+                  <IconSparkles />
+                )}
+                Repurpose
+              </Button>
+            </div>
+
+            <Accordion.Root
+              className="mt-5 border-t border-app-panel-border"
+              collapsible
+              type="single"
+            >
+              <Accordion.Item value="source">
+                <Accordion.Header>
+                  <Accordion.Trigger className="group lc-focus-ring flex w-full items-center justify-between py-4 text-left text-label font-semibold text-app-text">
+                    Source material
+                    <IconChevronDown className="size-4 text-app-muted-text transition-transform group-data-[state=open]:rotate-180" />
+                  </Accordion.Trigger>
+                </Accordion.Header>
+                <Accordion.Content className="pb-4 text-caption text-app-muted-text">
+                  <div className="max-h-48 space-y-3 overflow-y-auto rounded-app-control bg-app-surface-subtle p-3">
+                    {sources.map((source) => (
+                      <div key={source.id}>
+                        <p className="font-semibold text-app-text">
+                          {source.title}
+                        </p>
+                        <p className="mt-1 whitespace-pre-wrap">
+                          {source.text}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </Accordion.Content>
+              </Accordion.Item>
+              <Accordion.Item
+                className="border-t border-app-panel-border"
+                value="settings"
+              >
+                <Accordion.Header>
+                  <Accordion.Trigger className="group lc-focus-ring flex w-full items-center justify-between py-4 text-left text-label font-semibold text-app-text">
+                    Advanced settings
+                    <IconChevronDown className="size-4 text-app-muted-text transition-transform group-data-[state=open]:rotate-180" />
+                  </Accordion.Trigger>
+                </Accordion.Header>
+                <Accordion.Content className="pb-4">
+                  <PlatformFields
+                    fields={network.fields}
+                    previewKind={provider.previewKind}
+                    update={(fields) => updateNetwork({ fields })}
+                  />
+                </Accordion.Content>
+              </Accordion.Item>
+            </Accordion.Root>
+          </Tabs.Content>
+        </Tabs.Root>
+      </aside>
     </section>
   )
-}
-
-function MediaUrlEditor({
-  label,
-  media,
-  onChange,
-}: {
-  label: string
-  media: NetworkComposerValue["media"]
-  onChange: (media: NetworkComposerValue["media"]) => void
-}) {
-  const item = media[0]
-  return (
-    <div className="mt-4">
-      <label
-        className="text-label font-semibold text-app-text"
-        htmlFor={`${label.replaceAll(" ", "-")}-url`}
-      >
-        {label}
-      </label>
-      <div className="mt-2 flex min-w-0 gap-2">
-        <span className="grid size-10 shrink-0 place-items-center rounded-app-control bg-app-control-bg text-app-muted-text">
-          <IconLink className="size-4" aria-hidden />
-        </span>
-        <input
-          className="lc-focus-ring h-10 min-w-0 flex-1 rounded-app-control border border-app-panel-border bg-app-surface px-3 text-label text-app-text outline-none placeholder:text-app-text-faint"
-          id={`${label.replaceAll(" ", "-")}-url`}
-          onChange={(event) =>
-            onChange(
-              event.target.value
-                ? [
-                    {
-                      id: "media-1",
-                      kind: item?.kind ?? "image",
-                      url: event.target.value,
-                      alt: "Post media",
-                    },
-                  ]
-                : []
-            )
-          }
-          placeholder="https://…"
-          type="url"
-          value={item?.url ?? ""}
-        />
-        <Button
-          aria-label={`Use image for ${label}`}
-          onClick={() => item && onChange([{ ...item, kind: "image" }])}
-          size="icon"
-          type="button"
-          variant={item?.kind !== "video" ? "action" : "softControl"}
-        >
-          <IconPhoto />
-        </Button>
-        <Button
-          aria-label={`Use video for ${label}`}
-          onClick={() => item && onChange([{ ...item, kind: "video" }])}
-          size="icon"
-          type="button"
-          variant={item?.kind === "video" ? "action" : "softControl"}
-        >
-          <IconVideo />
-        </Button>
-      </div>
-      {item?.url ? (
-        <MediaCard className="mt-3 max-w-44" radius="media" surface="flat">
-          <MediaCardPreview
-            alt={item.alt ?? "Post media"}
-            aspect="wide"
-            imageSrc={item.kind === "image" ? item.url : undefined}
-            videoSrc={item.kind === "video" ? item.url : undefined}
-          />
-        </MediaCard>
-      ) : null}
-    </div>
-  )
-}
-
-function safeId(value: string) {
-  return value.replace(/[^a-zA-Z0-9_-]/g, "-")
 }
 
 function PlatformFields({
@@ -407,9 +304,7 @@ function PlatformFields({
             ]
   return (
     <fieldset className="space-y-3">
-      <legend className="text-label font-semibold text-app-text">
-        Platform settings
-      </legend>
+      <legend className="sr-only">Platform settings</legend>
       {specs.map((spec) => (
         <label className="block" key={spec.key}>
           <span className="text-caption text-app-muted-text">{spec.label}</span>

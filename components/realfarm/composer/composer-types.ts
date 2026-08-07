@@ -14,8 +14,22 @@ export interface NetworkComposerValue {
 }
 
 export interface ComposerValue {
+  sourceOutputIds: string[]
   base: ComposerBaseValue
   perNetwork: Partial<Record<SocialPlatformKey, NetworkComposerValue>>
+}
+
+export interface ComposerSourceOutput {
+  id: string
+  templateId: string
+  templateName: string
+  title: string
+  createdAt: string
+  kind: "slideshow" | "video" | "text"
+  platform?: string
+  text: string
+  media: PreviewMedia[]
+  thumbnailUrl?: string
 }
 
 export interface ConnectedComposerAccount {
@@ -27,6 +41,7 @@ export interface ConnectedComposerAccount {
 }
 
 export const EMPTY_COMPOSER_VALUE: ComposerValue = {
+  sourceOutputIds: [],
   base: { text: "", media: [] },
   perNetwork: {},
 }

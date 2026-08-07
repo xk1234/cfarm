@@ -7,7 +7,11 @@ import { describe, expect, it, vi } from "vitest"
 
 import { getSocialProvider, listSocialProviders } from "@/lib/social/registry"
 
-import type { ComposerValue, ConnectedComposerAccount } from "./composer-types"
+import type {
+  ComposerSourceOutput,
+  ComposerValue,
+  ConnectedComposerAccount,
+} from "./composer-types"
 import { PostComposer } from "./post-composer"
 import {
   composeLimitErrors,
@@ -26,8 +30,29 @@ const accounts: ConnectedComposerAccount[] = listSocialProviders()
   }))
 
 const value: ComposerValue = {
+  sourceOutputIds: ["run-1"],
   base: { text: "One master message", media: [] },
   perNetwork: {},
+}
+
+const sources: ComposerSourceOutput[] = [
+  {
+    id: "run-1",
+    templateId: "template-1",
+    templateName: "Demo template",
+    title: "Generated output",
+    createdAt: "2026-08-07T00:00:00.000Z",
+    kind: "text",
+    text: "One master message",
+    media: [],
+  },
+]
+
+const composerProps = {
+  onChange: vi.fn(),
+  onRepurpose: vi.fn(),
+  repurposing: false,
+  sources,
 }
 
 describe("PostComposer", () => {
@@ -44,7 +69,7 @@ describe("PostComposer", () => {
     const markup = renderToStaticMarkup(
       <PostComposer
         accounts={[xAccount]}
-        onChange={vi.fn()}
+        {...composerProps}
         value={overLimitValue}
       />
     )
@@ -54,15 +79,26 @@ describe("PostComposer", () => {
     expect(markup).toContain(provider.limits.maxTextLength.toString())
   })
 
-  it("offers a compact network switcher for narrow screens", () => {
+  it("offers an accessible compact network switcher", () => {
     const markup = renderToStaticMarkup(
-      <PostComposer accounts={accounts} onChange={vi.fn()} value={value} />
+      <PostComposer accounts={accounts} {...composerProps} value={value} />
     )
 
     expect(markup).toContain('aria-label="Network to customize"')
-    expect(markup).toContain("X · @x")
-    expect(markup).toContain("Instagram · @instagram")
-    expect(markup).toContain("LinkedIn · @linkedin")
+    expect(markup).toContain(">X<")
+    expect(markup).toContain(">Instagram<")
+    expect(markup).toContain(">LinkedIn<")
+  })
+
+  it("keeps source material read-only and removes arbitrary media inputs", () => {
+    const markup = renderToStaticMarkup(
+      <PostComposer accounts={accounts} {...composerProps} value={value} />
+    )
+
+    expect(markup).toContain("Source material")
+    expect(markup).not.toContain("Master message")
+    expect(markup).not.toContain("Shared media URL")
+    expect(markup).not.toContain('type="url"')
   })
 
   it("maps overrides, media, and schedule into PostFast payloads", async () => {
@@ -73,6 +109,7 @@ describe("PostComposer", () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), "cfarm-compose-"))
     const scheduledAt = new Date(Date.now() + 3_600_000).toISOString()
     const composerValue: ComposerValue = {
+      sourceOutputIds: ["run-1"],
       base: {
         text: "Master copy",
         media: [
@@ -127,7 +164,11 @@ describe("PostComposer", () => {
     const limit = getSocialProvider("x")!.limits.maxTextLength
     expect(
       composeLimitErrors(
-        { base: { text: "x".repeat(limit + 1), media: [] }, perNetwork: {} },
+        {
+          sourceOutputIds: ["run-1"],
+          base: { text: "x".repeat(limit + 1), media: [] },
+          perNetwork: {},
+        },
         [xAccount]
       )
     ).toEqual(["X is 1 characters over its limit"])
