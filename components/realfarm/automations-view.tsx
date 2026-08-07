@@ -3,7 +3,6 @@
 import { useState } from "react"
 import {
   IconAlertTriangle,
-  IconPlayerPlay,
   IconPlus,
   IconSlideshow,
   IconStar,
@@ -151,27 +150,6 @@ function TemplateGridCard({
         automationCardBorderClass(blocked)
       )}
     >
-      <div className="flex h-11 items-center gap-2 border-b border-[#eeeeee] bg-app-surface px-2.5">
-        <span className="shrink-0 rounded-[5px] bg-app-surface-subtle px-2 py-1 text-[11px] font-semibold text-app-text-soft">
-          {templateKindLabel(automation)}
-        </span>
-        <AutomationCardTitle automation={automation} onRename={onRename} />
-        <button
-          className="ml-auto grid size-8 shrink-0 place-items-center rounded-[6px] text-app-muted-text transition hover:bg-app-surface-subtle"
-          onClick={() => onToggleFavorite(automation)}
-          aria-label={
-            automation.favorite
-              ? `Unfavorite ${automation.name}`
-              : `Favorite ${automation.name}`
-          }
-        >
-          {automation.favorite ? (
-            <IconStarFilled className="size-4 text-[#f7c846]" />
-          ) : (
-            <IconStar className="size-4" />
-          )}
-        </button>
-      </div>
       <TemplateDefinitionPreview
         automation={automation}
         config={config}
@@ -180,19 +158,43 @@ function TemplateGridCard({
         xTemplate={xTemplate}
         onOpen={() => onEdit(automation)}
       />
-      {blocked ? (
-        <div
-          role="alert"
-          className="flex items-start gap-2 border-t border-destructive/25 bg-destructive/10 px-3 py-2 text-[12px] font-semibold text-destructive"
-          title={blockers.join("\n")}
-        >
-          <IconAlertTriangle className="mt-0.5 size-4 shrink-0" />
-          <span className="line-clamp-2">
-            {blockers[0]}
-            {blockers.length > 1 ? ` +${blockers.length - 1} more` : ""}
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/78 via-black/22 to-transparent" />
+
+      <div className="pointer-events-none absolute top-3 left-3 flex items-center gap-1.5">
+        <span className="rounded-[5px] bg-black/55 px-2 py-1 text-[10px] font-semibold text-white/90 backdrop-blur-sm">
+          {templateKindLabel(automation)}
+        </span>
+        {blocked ? (
+          <span
+            className="grid size-7 place-items-center rounded-[5px] bg-destructive text-white shadow-sm"
+            title={blockers.join("\n")}
+            aria-label={blockers.join(". ")}
+          >
+            <IconAlertTriangle className="size-4" />
           </span>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
+
+      <button
+        className="absolute top-3 right-3 grid size-8 place-items-center rounded-[6px] bg-black/55 text-white/90 backdrop-blur-sm transition hover:bg-black/70 hover:text-white focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none active:scale-95"
+        onClick={() => onToggleFavorite(automation)}
+        aria-label={
+          automation.favorite
+            ? `Unfavorite ${automation.name}`
+            : `Favorite ${automation.name}`
+        }
+      >
+        {automation.favorite ? (
+          <IconStarFilled className="size-4 text-[#f7c846]" />
+        ) : (
+          <IconStar className="size-4" />
+        )}
+      </button>
+
+      <div className="pointer-events-none absolute inset-x-3 bottom-3">
+        <AutomationCardTitle automation={automation} onRename={onRename} />
+      </div>
     </article>
   )
 }
@@ -268,7 +270,7 @@ function AutomationCardTitle({
   if (editing) {
     return (
       <input
-        className="h-7 min-w-0 flex-1 rounded-[5px] border border-app-panel-border bg-app-surface px-2 text-[12px] font-semibold ring-2 ring-app-action/20 outline-none"
+        className="pointer-events-auto h-9 w-full rounded-[6px] border border-white/45 bg-white px-2.5 text-[13px] font-semibold text-app-text shadow-sm ring-2 ring-app-action/25 outline-none"
         value={draftName}
         autoFocus
         onChange={(event) => setDraftName(event.target.value)}
@@ -288,17 +290,12 @@ function AutomationCardTitle({
   }
 
   return (
-    <div className="flex min-w-0 items-center justify-center gap-1">
-      {automation.automationKind === "video" ? (
-        <IconPlayerPlay className="size-3.5 shrink-0 text-app-muted-text" />
-      ) : (
-        <IconSlideshow className="size-3.5 shrink-0 text-app-muted-text" />
-      )}
-      <span className="truncate text-[12px] font-medium text-app-text">
+    <div className="flex min-w-0 items-center gap-1.5">
+      <span className="truncate text-[15px] font-semibold text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.5)]">
         {automation.name}
       </span>
       <button
-        className="grid size-5 shrink-0 place-items-center rounded-full text-[#b8b8b8] hover:bg-app-surface-subtle hover:text-[#388eff]"
+        className="pointer-events-auto grid size-7 shrink-0 place-items-center rounded-[6px] bg-black/40 text-white/80 backdrop-blur-sm transition hover:bg-black/60 hover:text-white focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none active:scale-95"
         onClick={() => setEditing(true)}
         aria-label={`Edit ${automation.name} name`}
       >
