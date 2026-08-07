@@ -249,8 +249,8 @@ export default function LandingPage() {
                 Templates with visible inputs.
               </h3>
               <p className="mt-4 text-sm leading-6 text-brand-muted">
-                Choose collections, templates, and schedules. Every run saves
-                its artifacts and status.
+                Choose collections, text direction, and slide designs. Every run
+                saves its artifacts and status.
               </p>
             </article>
             <article className="rounded-2xl bg-brand-surface p-7 shadow-app-card lg:col-span-5">

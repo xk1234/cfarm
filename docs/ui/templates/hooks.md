@@ -1,64 +1,43 @@
 ---
-title: Template hooks
-description: Manage an template's hook catalog, variable references, tone, and shared slide style.
+title: Template text
+description: Configure the text agent, optional hooks, variables, and slide-count range.
 ---
 
 Route: `/app?view=templates&template=<id>`
-
-![Desktop automations hooks Paper export](../assets/screenshots/desktop-automations-hooks.png)
-
-![Mobile automations hooks Paper export](../assets/screenshots/mobile-automations-hooks.png)
 
 ## Layout
 
 Owner: `components/realfarm/automation-settings/prompt-settings.tsx`.
 
-The Hooks and Style section contains Hooks, Style, and, for slideshow
-templates, Slide Settings tabs. Video templates label the section Hooks and
-Voice and omit Slide Settings. The Hooks tab presents one enabled or disabled
-row per stable hook, a copy-all action, a casing selector, runtime and word
-collection variable badges, and a control that prevents repeated variables from
-drawing the same value within one hook.
+Text is one of the three top-level template tabs. It contains text instructions,
+sequence-planning instructions, the permitted minimum and maximum slide count,
+tone, variables, and an optional hook pool. A template with no enabled hooks is
+valid: the text agent creates an original topic and opening from its saved
+instructions.
 
-Published hooks display their usage count and are locked against editing or
-deletion so historical attribution remains stable. If usage cannot be loaded,
-existing rows are safety-locked and the panel offers a retry. Style controls the
-saved tone and video writing style. Slideshow Slide Settings applies one aspect
-ratio, font, centered cover crop, and dark-overlay setting across Hook, Content,
-and CTA slides.
+When hooks are present, each keeps a stable ID and enabled state. Published hooks
+show their usage and are locked so historical attribution stays intact. If usage
+cannot be loaded, existing rows are safety-locked and the panel offers a retry.
 
-On mobile, the editor replaces the desktop navigation rail with a sticky bar.
-Its section button opens the template navigation in a bottom sheet, while the
-panel content remains vertically scrollable.
+## Generation behavior
 
-## Interactions
+The text model first plans the sequence. It chooses the final number of slides
+within the saved range and assigns one Editor slide-design ID to every planned
+slide. It then generates the text boxes for that planned sequence. The plan can
+reuse a design, and every planned slide includes a purpose so adjacent slides
+develop the topic instead of repeating it.
 
-Users can add a row, press Enter to insert after a row, toggle an unused hook,
-edit it, or delete it. Pasting multiple lines expands them into rows and skips
-case-insensitive duplicates. A published hook can instead be duplicated into an
-editable variation. Copy all writes non-empty hook text to the clipboard.
-
-Changing casing rewrites only unused hooks. Variable tokens are normalized and
-resolved from runtime values or word collections during generation. Cancel
-restores the saved schema and returns to Overview; Save Changes persists the
-draft and returns to Overview.
+An enabled hook supplies the topic seed when available. An exact hook supplied to
+a manual run overrides the pool for that run. With no hook, the text agent uses
+the template name, text instructions, and sequence instructions. All changes
+autosave.
 
 ## MCP coverage
 
-Yes. `lumenclip_template_hooks_get`, `lumenclip_template_hooks_update`,
-`lumenclip_template_hook_upsert`,
-`lumenclip_template_hook_set_enabled`, and
-`lumenclip_template_hook_delete` cover the canonical hook pool.
-`lumenclip_template_schema_update` covers casing, variable bindings, tone, and
-shared style fields. `lumenclip_template_run` and
-`lumenclip_slideshow_generate` accept an optional exact `hook`, bypassing random
-selection for that draft without changing the saved pool.
-
-Variant generation is a two-stage MCP flow. Call
-`lumenclip_hook_variants_generate` with `count` from 2 through 10 to randomly
-resolve distinct unused hooks and generate a text-only slideshow draft for
-each. Every variant returns its hook and every slide's `index`, `role`, and
-`text`. Choose one hook, then call `lumenclip_hook_variant_select` with that
-exact `selectedHook` and a new `requestId`; stage 2 persists the unpublished
-draft and returns its chosen hook, slide text, and rendered media URLs.
-Clipboard copying and section navigation are UI-only.
+`lumenclip_template_get` returns text rules, optional hooks, slide designs, and
+the most recent draft. `lumenclip_template_hooks_get`,
+`lumenclip_template_hooks_update`, `lumenclip_template_hook_upsert`,
+`lumenclip_template_hook_set_enabled`, and `lumenclip_template_hook_delete`
+manage the optional pool. `lumenclip_template_run` and
+`lumenclip_slideshow_generate` generate unpublished drafts and accept an optional
+exact hook.

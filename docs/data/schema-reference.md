@@ -265,43 +265,64 @@ continue to resolve.
 
 ### `AutomationSchema`
 
-| Field                     | Type                          | Required | Allowed values / format                      | Meaning                                       |
-| ------------------------- | ----------------------------- | -------- | -------------------------------------------- | --------------------------------------------- |
-| `automationKind`          | string enum                   | Yes      | `slideshow`, `video`, `ugc`                  | Generation family.                            |
-| `aspect_ratio`            | string enum                   | Yes      | `9:16`, `4:5`, `3:4`, `3:2`, `1:1`           | Global output aspect ratio.                   |
-| `font`                    | string                        | Yes      | Registered/font-family string                | Global font.                                  |
-| `image_fit`               | string enum                   | Yes      | `cover`, `contain`, `fit`                    | Image fit policy.                             |
-| `language`                | string                        | Yes      | Language label/code                          | Generation language.                          |
-| `created_at`              | Date/ISO on serialization     | Yes      | Valid datetime                               | Definition creation time.                     |
-| `social_integrations`     | `PostFastSocialIntegration[]` | Yes      | Array                                        | Publication targets.                          |
-| `prompt_formatting`       | `PromptFormatting`            | Yes      | See below                                    | Text-generation direction.                    |
-| `hooks`                   | `AutomationHookItem[]`        | Yes      | Array                                        | Canonical hook catalog.                       |
-| `image_collection_ids`    | `ImageCollectionConfig`       | Yes      | See below                                    | Media source selection.                       |
-| `tone`                    | `AutomationToneSection`       | Yes      | See below                                    | Tone selection/custom direction.              |
-| `formatting`              | `AutomationFormatSection[]`   | Yes      | IDs `hook`, `body`, `cta`                    | Slide/text layout.                            |
-| `tiktok_post_settings`    | object                        | Yes      | See `TikTokPostSettings`                     | Compatibility publishing policy.              |
-| `social_post_settings`    | object                        | Yes      | Provider-keyed controls                      | Provider-specific PostFast controls.          |
-| `social_publish_as`       | object                        | Yes      | Provider keys; values `slideshow` or `video` | Per-provider media mode.                      |
-| `schedule`                | `AutomationSchedule`          | Yes      | See below                                    | Posting schedule.                             |
-| `posting_mode`            | string enum                   | No       | `manual`, `review`, `auto`                   | Publication workflow.                         |
-| `generation_lead_minutes` | number                        | No       | Non-negative number                          | Generate before scheduled publication.        |
-| `hook_slots`              | object                        | No       | `{ token: collectionId }`                    | Explicit variable-collection overrides.       |
-| `hook_no_duplicate_slots` | boolean                       | No       | `true`, `false`                              | Avoid duplicate hook slot selections.         |
-| `distinct_variable_draws` | boolean                       | No       | `true`, `false`                              | Draw different values for repeated variables. |
-| `web_search_enabled`      | boolean                       | No       | `true`, `false`                              | Allow provider web-search generation.         |
-| `reuse_policy`            | `AutomationReusePolicy`       | No       | See below                                    | Recent-content exclusion settings.            |
-| `content_strategy`        | `AutomationContentStrategy`   | No       | See below                                    | Route-based content strategy.                 |
-| `video_format`            | `AutomationVideoFormat`       | No       | Required by video flows                      | Segment/template configuration.               |
-| `ugc`                     | `AutomationUgcConfig`         | No       | Required by UGC flows                        | UGC actor/voice/caption configuration.        |
+| Field                     | Type                          | Required | Allowed values / format            | Meaning                                       |
+| ------------------------- | ----------------------------- | -------- | ---------------------------------- | --------------------------------------------- |
+| `automationKind`          | string enum                   | Yes      | `slideshow`, `video`, `ugc`        | Generation family.                            |
+| `aspect_ratio`            | string enum                   | Yes      | `9:16`, `4:5`, `3:4`, `3:2`, `1:1` | Global output aspect ratio.                   |
+| `font`                    | string                        | Yes      | Registered/font-family string      | Global font.                                  |
+| `image_fit`               | string enum                   | Yes      | `cover`, `contain`, `fit`          | Image fit policy.                             |
+| `language`                | string                        | Yes      | Language label/code                | Generation language.                          |
+| `created_at`              | Date/ISO on serialization     | Yes      | Valid datetime                     | Definition creation time.                     |
+| `social_integrations`     | `PostFastSocialIntegration[]` | Yes      | Compatibility array                | Legacy only; template runs ignore it.         |
+| `prompt_formatting`       | `PromptFormatting`            | Yes      | See below                          | Text-generation direction.                    |
+| `hooks`                   | `AutomationHookItem[]`        | Yes      | Array                              | Optional canonical hook catalog.              |
+| `image_collection_ids`    | `ImageCollectionConfig`       | Yes      | See below                          | Media source selection.                       |
+| `tone`                    | `AutomationToneSection`       | Yes      | See below                          | Tone selection/custom direction.              |
+| `formatting`              | `AutomationFormatSection[]`   | Yes      | IDs `hook`, `body`, `cta`          | Legacy migration source.                      |
+| `slide_designs`           | `AutomationSlideDesign[]`     | Yes      | Non-empty ordered array            | Agent-selectable slide layouts.               |
+| `tiktok_post_settings`    | object                        | Yes      | See `TikTokPostSettings`           | Compatibility publishing policy.              |
+| `social_post_settings`    | object                        | Yes      | Compatibility object               | Legacy only; publication is post-processing.  |
+| `social_publish_as`       | object                        | Yes      | Compatibility object               | Legacy only; publication is post-processing.  |
+| `schedule`                | `AutomationSchedule`          | Yes      | Compatibility object               | Ignored; no timed template generation.        |
+| `posting_mode`            | string enum                   | No       | Normalized to `manual`             | Compatibility field.                          |
+| `generation_lead_minutes` | number                        | No       | Compatibility number               | Ignored by template generation.               |
+| `hook_slots`              | object                        | No       | `{ token: collectionId }`          | Explicit variable-collection overrides.       |
+| `hook_no_duplicate_slots` | boolean                       | No       | `true`, `false`                    | Avoid duplicate hook slot selections.         |
+| `distinct_variable_draws` | boolean                       | No       | `true`, `false`                    | Draw different values for repeated variables. |
+| `web_search_enabled`      | boolean                       | No       | `true`, `false`                    | Allow provider web-search generation.         |
+| `reuse_policy`            | `AutomationReusePolicy`       | No       | See below                          | Recent-content exclusion settings.            |
+| `content_strategy`        | `AutomationContentStrategy`   | No       | See below                          | Route-based content strategy.                 |
+| `video_format`            | `AutomationVideoFormat`       | No       | Required by video flows            | Segment/template configuration.               |
+| `ugc`                     | `AutomationUgcConfig`         | No       | Required by UGC flows              | UGC actor/voice/caption configuration.        |
 
 ### `PromptFormatting`
 
-| Field           | Type   | Required | Allowed values / format                            | Meaning                        |
-| --------------- | ------ | -------- | -------------------------------------------------- | ------------------------------ |
-| `style`         | string | Yes      | Free string                                        | Style direction.               |
-| `narrative`     | string | Yes      | Free string                                        | Narrative/writing direction.   |
-| `num_of_slides` | number | Yes      | Positive integer                                   | Default slide count.           |
-| `hook_case`     | string | No       | Hook-case modes registered in `lib/hook-casing.ts` | Hook capitalization transform. |
+| Field                   | Type   | Required | Allowed values / format                            | Meaning                                 |
+| ----------------------- | ------ | -------- | -------------------------------------------------- | --------------------------------------- |
+| `style`                 | string | Yes      | Free string                                        | Slide-copy direction.                   |
+| `narrative`             | string | Yes      | Compatibility string                               | Legacy narrative input.                 |
+| `num_of_slides`         | number | Yes      | Positive integer                                   | Legacy/migration count hint.            |
+| `slide_count_min`       | number | No       | Positive integer                                   | Agent-planned sequence lower bound.     |
+| `slide_count_max`       | number | No       | Positive integer                                   | Agent-planned sequence upper bound.     |
+| `slide_planning_prompt` | string | No       | Free string                                        | Sequence-planner direction.             |
+| `hook_case`             | string | No       | Hook-case modes registered in `lib/hook-casing.ts` | Optional hook capitalization transform. |
+
+### `AutomationSlideDesign`
+
+| Field              | Type         | Required | Meaning                                             |
+| ------------------ | ------------ | -------- | --------------------------------------------------- |
+| `id`               | string       | Yes      | Stable design ID returned by the sequence planner.  |
+| `name`             | string       | Yes      | Editor label.                                       |
+| `instructions`     | string       | Yes      | Tells the text agent when this design fits a slide. |
+| `collectionId`     | string       | Yes      | Primary image collection for this design.           |
+| `textItems`        | `TextItem[]` | Yes      | Independently styled text boxes.                    |
+| `aspect_ratio`     | string enum  | Yes      | Frame ratio.                                        |
+| `imageGrid`        | string enum  | Yes      | Image layout.                                       |
+| `noText`           | boolean      | Yes      | Hides all text boxes when true.                     |
+| `overlay`          | boolean      | Yes      | Applies the dark readability overlay.               |
+| `aiImageSelection` | boolean      | No       | Enables caption-aware image matching.               |
+| `overlayImage`     | object       | No       | Optional cutout/overlay collection and padding.     |
+| `visualPresetId`   | string       | No       | Applied visual preset.                              |
 
 ### `ImageCollectionConfig`
 

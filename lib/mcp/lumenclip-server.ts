@@ -101,12 +101,10 @@ import { publishPost } from "@/lib/publishing"
 import { enqueueJob, getJob, listJobs, type Job } from "@/lib/queue"
 import type { Automation } from "@/lib/realfarm-data"
 import type {
-  AutomationDay,
-  AutomationFormatSection,
-  AutomationFormatSectionId,
   AutomationHookItem,
   AutomationSchedule,
   AutomationSchema,
+  AutomationSlideDesign,
   TextItem,
   AutomationUgcConfig,
 } from "@/lib/realfarm-automation"
@@ -115,9 +113,11 @@ import {
   automationFormatSection,
   automationHookId,
   automationHookItems,
+  automationSlideDesigns,
   normalizeAutomationSchema,
   normalizeUgcConfig,
   schemaWithAutomationHookItems,
+  schemaWithAutomationSlideDesigns,
   ugcLiveConfigurationErrors,
 } from "@/lib/realfarm-automation"
 import {
@@ -189,84 +189,17 @@ import { getUgcRunStatus, type UgcRunStatus } from "@/lib/ugc-run-status"
 import { hookAnalyticsReport } from "@/lib/hook-publications"
 import { listWorkspaceMembers } from "@/lib/workspace-members"
 
-const automationDays = [
-  "Mon",
-  "Tue",
-  "Wed",
-  "Thu",
-  "Fri",
-  "Sat",
-  "Sun",
-] as const satisfies readonly AutomationDay[]
-
-const postingTimeSchema = z.object({
-  time: z
-    .string()
-    .trim()
-    .regex(
-      /^(?:(?:1[0-2]|0?[1-9]):[0-5]\d\s*(?:AM|PM)|(?:[01]?\d|2[0-3]):[0-5]\d)$/i,
-      "Use h:mm AM/PM or 24-hour H:mm format"
-    )
-    .describe(
-      'Posting time in "h:mm AM/PM" or 24-hour "H:mm" format, e.g. "8:30 AM".'
-    ),
-  days: z
-    .array(z.enum(automationDays))
-    .min(1)
-    .max(7)
-    .describe('Weekdays when this time is active, e.g. ["Mon", "Wed", "Fri"].'),
-  enabled: z
-    .boolean()
-    .optional()
-    .describe(
-      "Whether this posting time is active; omit to keep the app default."
-    ),
-})
-
-const schedulePatchSchema = z.object({
-  timezone: z
-    .string()
-    .trim()
-    .min(1)
-    .max(100)
-    .optional()
-    .describe(
-      'IANA timezone for schedule calculations, e.g. "Asia/Singapore".'
-    ),
-  postingTimes: z
-    .array(postingTimeSchema)
-    .min(1)
-    .max(20)
-    .optional()
-    .describe(
-      'Complete replacement list of posting times, e.g. [{"time":"8:00 AM","days":["Mon","Tue"],"enabled":true}].'
-    ),
-  jitterMinutes: z
-    .number()
-    .int()
-    .min(0)
-    .max(720)
-    .optional()
-    .describe("Maximum random schedule offset in minutes, e.g. 10."),
-})
-
 const overlayImagePatchSchema = z.object({
   enabled: z.boolean().optional(),
   collectionId: z.string().trim().max(500).optional(),
   padding: z.number().int().min(0).max(2_000).optional(),
 })
 
-const formattingBlockPatchSchema = z
+const slideDesignPatchSchema = z
   .object({
-    slideCount: z.number().int().min(0).max(100).optional(),
-    slideCountMode: z
-      .enum(["static", "varying", "dynamic"])
-      .optional()
-      .describe(
-        '"dynamic" is accepted as a readable alias for the persisted "varying" mode.'
-      ),
-    slideCountMin: z.number().int().min(1).max(100).optional(),
-    slideCountMax: z.number().int().min(1).max(100).optional(),
+    name: z.string().trim().min(1).max(200).optional(),
+    instructions: z.string().trim().max(5_000).optional(),
+    collectionId: z.string().trim().max(500).optional(),
     aspect_ratio: z.enum(["9:16", "4:5", "3:4", "3:2", "1:1"]).optional(),
     imageGrid: z.enum(["none", "2x2", "1x2", "1x3", "oval-icons"]).optional(),
     overlay: z.boolean().optional(),
@@ -274,27 +207,10 @@ const formattingBlockPatchSchema = z
     noText: z.boolean().optional(),
     imageMode: z.enum(["collection", "single_image"]).optional(),
     overlayImage: overlayImagePatchSchema.optional(),
-    slideOverrides: z
-      .array(
-        z.object({
-          slideIndex: z.number().int().min(1).max(100),
-          contentDirection: z.string().trim().min(1).max(5_000),
-        })
-      )
-      .max(100)
-      .optional(),
-    imageOverrides: z
-      .array(
-        z.object({
-          slideIndex: z.number().int().min(1).max(100),
-          collectionId: z.string().trim().min(1).max(500),
-        })
-      )
-      .max(100)
-      .optional(),
+    visualPresetId: z.string().trim().max(200).nullable().optional(),
   })
   .refine((patch) => Object.keys(patch).length > 0, {
-    message: "Provide at least one formatting field to update.",
+    message: "Provide at least one slide-design field to update.",
   })
 
 const textItemPatchSchema = z
@@ -504,109 +420,6 @@ export function createLumenClipMcpServer(
   registerAutomationReadAndRunTools(server, ownerId, services)
   registerCollectionTools(server, ownerId, services)
   registerOutputAndPublishingTools(server, ownerId, services)
-
-  server.registerTool(
-    "lumenclip_schedule_get",
-    {
-      title: "Check template schedule",
-      description:
-        "Returns saved schedule settings and projected upcoming slots for slideshow, video, AI UGC, X, and Threads templates. This never generates or publishes content.",
-      inputSchema: {
-        templateId: z
-          .string()
-          .trim()
-          .min(1)
-          .optional()
-          .describe(
-            "Optional saved template ID to inspect. Omit to list projected slots across templates."
-          ),
-        from: z
-          .string()
-          .datetime({ offset: true })
-          .optional()
-          .describe(
-            'Inclusive ISO datetime with timezone offset for the projection start, e.g. "2026-07-23T09:00:00+08:00".'
-          ),
-        days: z
-          .number()
-          .int()
-          .min(1)
-          .max(90)
-          .default(14)
-          .describe(
-            "Number of calendar days to project from the start time, e.g. 14."
-          ),
-        includePaused: z
-          .boolean()
-          .default(true)
-          .describe(
-            "Whether paused templates should appear in the schedule report, e.g. false."
-          ),
-        limit: z
-          .number()
-          .int()
-          .min(1)
-          .max(200)
-          .default(100)
-          .describe("Maximum number of schedule entries to return, e.g. 50."),
-      },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: true,
-      },
-    },
-    async (input) =>
-      mcpResult(
-        await owned(async () => {
-          const [automations, socialAutomations, jobs, publications, remote] =
-            await Promise.all([
-              services.listAutomationRecords(),
-              services.listXAutomations(),
-              services.listJobs({ limit: 500 }),
-              readMcpPublications(services, "schedule"),
-              services
-                .postfastRequest("/social-posts", {
-                  query: {
-                    from: input.from ?? services.now().toISOString(),
-                    to: new Date(
-                      (input.from
-                        ? Date.parse(input.from)
-                        : services.now().getTime()) +
-                        input.days * 24 * 60 * 60 * 1000
-                    ).toISOString(),
-                    page: 0,
-                    limit: 200,
-                  },
-                })
-                .catch(() => []),
-            ])
-          const report = buildScheduleReport({
-            automations,
-            socialAutomations,
-            automationId: input.templateId,
-            from: input.from ? new Date(input.from) : services.now(),
-            days: input.days,
-            includePaused: input.includePaused,
-            limit: input.limit,
-          })
-          return {
-            ...report,
-            calendarItems: buildCalendarLifecycleItems({
-              projections: report.slots,
-              jobs,
-              publications,
-              remote,
-              automationId: input.templateId,
-              from: new Date(report.from),
-              to: new Date(report.to),
-              limit: input.limit,
-            }),
-          }
-        })
-      )
-  )
 
   server.registerTool(
     "lumenclip_slideshow_generate",
@@ -833,9 +646,9 @@ export function createLumenClipMcpServer(
   server.registerTool(
     "lumenclip_template_update",
     {
-      title: "Update or pause a template",
+      title: "Update a template",
       description:
-        "Updates safe common template settings and returns the updated template summary plus changed fields. Use action pause or resume to stop or restart scheduled runs; schedule changes preserve all generation and publishing configuration.",
+        "Updates a template's display name or favorite state. Template generation is always an explicit manual action.",
       inputSchema: {
         templateId: z
           .string()
@@ -848,12 +661,6 @@ export function createLumenClipMcpServer(
           .optional()
           .describe(
             'Optional optimistic-lock timestamp from template_get.updatedAt, e.g. "2026-07-23T01:15:00.000Z".'
-          ),
-        action: z
-          .enum(["pause", "resume"])
-          .optional()
-          .describe(
-            'Lifecycle action to apply; use "pause" to stop scheduled runs or "resume" to restart them.'
           ),
         name: z
           .string()
@@ -869,11 +676,6 @@ export function createLumenClipMcpServer(
           .optional()
           .describe(
             "Whether the template should be pinned/favorited in the app, e.g. true."
-          ),
-        schedule: schedulePatchSchema
-          .optional()
-          .describe(
-            'Schedule patch to apply, e.g. {"timezone":"Asia/Singapore","postingTimes":[{"time":"8:00 AM","days":["Mon"],"enabled":true}],"jitterMinutes":10}.'
           ),
       },
       annotations: {
@@ -1349,7 +1151,7 @@ function registerAutomationReadAndRunTools(
     {
       title: "Clone a template",
       description:
-        "Deep-copies one caller-owned template's normalized schema, hook pool, collection bindings, publishing configuration, and schedule into a new paused template. Run history and outputs are not copied.",
+        "Deep-copies one caller-owned template's slide designs, text-agent settings, optional hook pool, and collection bindings into a new template. Run history and outputs are not copied.",
       inputSchema: {
         sourceTemplateId: z.string().trim().min(1),
         name: z.string().trim().min(1).max(200),
@@ -1426,7 +1228,7 @@ function registerAutomationReadAndRunTools(
     {
       title: "Get template",
       description:
-        "Returns one caller-owned template's normalized schedule, linked collections/accounts, publishing policy, and most recent run.",
+        "Returns one caller-owned template's text rules, optional hooks, slide designs, linked media collections, and most recent draft run.",
       inputSchema: {
         templateId: z
           .string()
@@ -1495,17 +1297,6 @@ function registerAutomationReadAndRunTools(
                   standard.schema.automationKind === "ugc",
                 linkedCollections: collectionReferences.ids,
                 unresolvedCollectionReferences: collectionReferences.unresolved,
-                linkedAccounts:
-                  standard.schema.social_integrations.map(safeAccount),
-                publishingPolicy: {
-                  postingMode: standard.schema.posting_mode ?? "auto",
-                  autoPost: standard.schema.tiktok_post_settings.auto_post,
-                  publishType:
-                    standard.schema.tiktok_post_settings.publish_type ??
-                    (["video", "ugc"].includes(standard.schema.automationKind)
-                      ? "video"
-                      : "slideshow"),
-                },
                 lastRun: lastRun ? generatedRunSummary(lastRun, ownerId) : null,
                 resourceUri: `lumenclip://templates/${encodeURIComponent(standard.id)}`,
               },
@@ -1525,10 +1316,6 @@ function registerAutomationReadAndRunTools(
               niche: social.niche.label,
               strategyReady: Boolean(social.brief),
               linkedCollections: [],
-              linkedAccounts: social.publishing.integrations.map(safeAccount),
-              publishingPolicy: {
-                autoPost: social.publishing.autoPost,
-              },
               lastRun: lastRun ? socialRunSummary(lastRun) : null,
               resourceUri: `lumenclip://templates/${encodeURIComponent(social.id)}`,
             },
@@ -1763,15 +1550,15 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
-    "lumenclip_template_formatting_update",
+    "lumenclip_template_slide_design_update",
     {
-      title: "Patch one template formatting block",
+      title: "Patch one template slide design",
       description:
-        "Updates only the requested hook, body, or CTA formatting block. Omitted fields, all other blocks, the hook pool, publishing settings, and schedule remain unchanged. Dynamic is accepted as an alias for the persisted varying slide-count mode; slideOverrides and imageOverrides are active renderer inputs.",
+        "Updates one independent slide design used by the text agent when planning a slideshow. Omitted fields and every other design remain unchanged.",
       inputSchema: {
         templateId: z.string().trim().min(1),
-        blockId: z.enum(["hook", "body", "cta"]),
-        patch: formattingBlockPatchSchema,
+        designId: z.string().trim().min(1),
+        patch: slideDesignPatchSchema,
         expectedUpdatedAt: z.string().datetime({ offset: true }),
       },
       annotations: {
@@ -1787,14 +1574,18 @@ function registerAutomationReadAndRunTools(
           const record = await services.getAutomationRecord(input.templateId)
           if (!record) throw new Error("Template not found")
           assertExpectedVersion(record.updatedAt, input.expectedUpdatedAt)
-          const formatting = patchFormattingBlock(
-            record.schema.formatting,
-            input.blockId,
+          const slideDesigns = patchSlideDesign(
+            automationSlideDesigns(record.schema),
+            input.designId,
             input.patch
+          )
+          const schema = schemaWithAutomationSlideDesigns(
+            record.schema,
+            slideDesigns
           )
           const updated = await services.patchAutomationRecord({
             id: record.id,
-            schema: { ...record.schema, formatting },
+            schema,
             expectedUpdatedAt: input.expectedUpdatedAt,
             now: services.now(),
           })
@@ -1802,8 +1593,8 @@ function registerAutomationReadAndRunTools(
           return {
             templateId: updated.id,
             updatedAt: updated.updatedAt,
-            block: updated.schema.formatting.find(
-              (block) => block.id === input.blockId
+            slideDesign: automationSlideDesigns(updated.schema).find(
+              (design) => design.id === input.designId
             ),
           }
         })
@@ -1811,14 +1602,14 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
-    "lumenclip_template_text_item_update",
+    "lumenclip_template_slide_text_item_update",
     {
       title: "Patch one template text item",
       description:
-        "Updates one existing text item inside the requested hook, body, or CTA block. Omitted text and style fields remain unchanged; this tool intentionally does not create or delete renderer items.",
+        "Updates one existing text item inside one slide design. Omitted text and style fields remain unchanged; this tool intentionally does not create or delete renderer items.",
       inputSchema: {
         templateId: z.string().trim().min(1),
-        blockId: z.enum(["hook", "body", "cta"]),
+        designId: z.string().trim().min(1),
         textItemId: z.string().trim().min(1),
         patch: textItemPatchSchema,
         expectedUpdatedAt: z.string().datetime({ offset: true }),
@@ -1836,27 +1627,31 @@ function registerAutomationReadAndRunTools(
           const record = await services.getAutomationRecord(input.templateId)
           if (!record) throw new Error("Template not found")
           assertExpectedVersion(record.updatedAt, input.expectedUpdatedAt)
-          const formatting = patchFormattingTextItem(
-            record.schema.formatting,
-            input.blockId,
+          const slideDesigns = patchSlideDesignTextItem(
+            automationSlideDesigns(record.schema),
+            input.designId,
             input.textItemId,
             input.patch
           )
+          const schema = schemaWithAutomationSlideDesigns(
+            record.schema,
+            slideDesigns
+          )
           const updated = await services.patchAutomationRecord({
             id: record.id,
-            schema: { ...record.schema, formatting },
+            schema,
             expectedUpdatedAt: input.expectedUpdatedAt,
             now: services.now(),
           })
           if (!updated) throw new Error("Template not found")
-          const block = updated.schema.formatting.find(
-            (item) => item.id === input.blockId
+          const slideDesign = automationSlideDesigns(updated.schema).find(
+            (item) => item.id === input.designId
           )
           return {
             templateId: updated.id,
             updatedAt: updated.updatedAt,
-            blockId: input.blockId,
-            textItem: block?.textItems.find(
+            designId: input.designId,
+            textItem: slideDesign?.textItems.find(
               (item) => item.id === input.textItemId
             ),
           }
@@ -4320,9 +4115,7 @@ function automationListItem(
     nextSteps: missingCollectionReferenceNextSteps(
       collectionReferences.unresolved
     ),
-    platforms: record.schema.social_integrations.map(
-      (integration) => integration.provider
-    ),
+    platforms: [] as string[],
     manualRunSupported:
       record.schema.automationKind === "slideshow" ||
       record.schema.automationKind === "ugc",
@@ -4399,22 +4192,6 @@ function socialRunSummary(run: XAutomationRun) {
     createdAt: run.createdAt,
     updatedAt: run.updatedAt,
     error: run.error,
-  }
-}
-
-function safeAccount(account: {
-  integration_id: string
-  provider: string
-  name: string
-  profile?: string
-  disabled?: boolean
-}) {
-  return {
-    id: account.integration_id,
-    provider: account.provider,
-    name: account.name,
-    profile: account.profile,
-    disabled: account.disabled === true,
   }
 }
 
@@ -6362,55 +6139,25 @@ function registerTikTokCommentTools(
 type UpdateAutomationInput = {
   automationId: string
   expectedUpdatedAt?: string
-  action?: "pause" | "resume"
   name?: string
   favorite?: boolean
-  schedule?: {
-    timezone?: string
-    postingTimes?: Array<{
-      time: string
-      days: AutomationDay[]
-      enabled?: boolean
-    }>
-    jitterMinutes?: number
-  }
 }
 
 async function updateAutomation(
   services: LumenClipMcpServices,
   input: UpdateAutomationInput
 ) {
-  if (
-    !input.action &&
-    input.name === undefined &&
-    input.favorite === undefined &&
-    input.schedule === undefined
-  ) {
-    throw new Error("Provide at least one automation change")
+  if (input.name === undefined && input.favorite === undefined) {
+    throw new Error("Provide a template name or favorite state")
   }
-  if (input.schedule?.timezone) assertTimeZone(input.schedule.timezone)
 
   const standard = await services.getAutomationRecord(input.automationId)
   if (standard) {
     assertExpectedVersion(standard.updatedAt, input.expectedUpdatedAt)
-    const status = statusForAction(input.action)
-    const schemaChanged = Boolean(input.action || input.schedule)
-    const schema = schemaChanged
-      ? {
-          ...standard.schema,
-          schedule: applySchedulePatch(
-            standard.schema.schedule,
-            input.schedule,
-            input.action
-          ),
-        }
-      : undefined
     const updated = await services.patchAutomationRecord({
       id: standard.id,
       name: input.name,
       favorite: input.favorite,
-      status,
-      schema,
       expectedUpdatedAt: input.expectedUpdatedAt,
       now: services.now(),
     })
@@ -6427,39 +6174,8 @@ async function updateAutomation(
   const updated = await services.upsertXAutomation({
     ...social,
     name: input.name ?? social.name,
-    status: statusForAction(input.action) ?? social.status,
-    schedule: applySchedulePatch(social.schedule, input.schedule, input.action),
   })
   return serializeSocialAutomation(updated)
-}
-
-function applySchedulePatch(
-  current: AutomationSchedule,
-  patch: UpdateAutomationInput["schedule"],
-  action: UpdateAutomationInput["action"]
-): AutomationSchedule {
-  return {
-    ...current,
-    timezone: patch?.timezone ?? current.timezone,
-    posting_times: patch?.postingTimes
-      ? patch.postingTimes.map((row) => ({
-          time: row.time as AutomationSchedule["posting_times"][number]["time"],
-          days: row.days,
-          enabled: row.enabled,
-        }))
-      : current.posting_times,
-    paused:
-      action === "pause" ? true : action === "resume" ? false : current.paused,
-    jitter_minutes: patch?.jitterMinutes ?? current.jitter_minutes,
-  }
-}
-
-function statusForAction(action: UpdateAutomationInput["action"]) {
-  return action === "pause"
-    ? ("paused" as const)
-    : action === "resume"
-      ? ("live" as const)
-      : undefined
 }
 
 function assertExpectedVersion(actual: string, expected?: string) {
@@ -6470,33 +6186,19 @@ function assertExpectedVersion(actual: string, expected?: string) {
   }
 }
 
-function patchFormattingBlock(
-  formatting: AutomationFormatSection[],
-  blockId: AutomationFormatSectionId,
-  patch: z.infer<typeof formattingBlockPatchSchema>
+function patchSlideDesign(
+  designs: AutomationSlideDesign[],
+  designId: string,
+  patch: z.infer<typeof slideDesignPatchSchema>
 ) {
-  const current = formatting.find((block) => block.id === blockId)
-  if (!current) throw new Error(`Formatting block not found: ${blockId}`)
-  const slideCountMin = patch.slideCountMin ?? current.slideCountMin
-  const slideCountMax = patch.slideCountMax ?? current.slideCountMax
-  if (
-    slideCountMin !== undefined &&
-    slideCountMax !== undefined &&
-    slideCountMin > slideCountMax
-  ) {
-    throw new Error("slideCountMin cannot be greater than slideCountMax")
-  }
-  const { slideCountMode, overlayImage, ...fields } = patch
-  const updated: AutomationFormatSection = {
+  const current = designs.find((design) => design.id === designId)
+  if (!current) throw new Error(`Slide design not found: ${designId}`)
+  const { overlayImage, visualPresetId, ...fields } = patch
+  const updated: AutomationSlideDesign = {
     ...current,
     ...fields,
-    ...(slideCountMode
-      ? {
-          slideCountMode:
-            slideCountMode === "dynamic"
-              ? ("varying" as const)
-              : slideCountMode,
-        }
+    ...(visualPresetId !== undefined
+      ? { visualPresetId: visualPresetId || undefined }
       : {}),
     ...(overlayImage
       ? {
@@ -6513,20 +6215,20 @@ function patchFormattingBlock(
         }
       : {}),
   }
-  return formatting.map((block) => (block.id === blockId ? updated : block))
+  return designs.map((design) => (design.id === designId ? updated : design))
 }
 
-function patchFormattingTextItem(
-  formatting: AutomationFormatSection[],
-  blockId: AutomationFormatSectionId,
+function patchSlideDesignTextItem(
+  designs: AutomationSlideDesign[],
+  designId: string,
   textItemId: string,
   patch: z.infer<typeof textItemPatchSchema>
 ) {
-  const current = formatting.find((block) => block.id === blockId)
-  if (!current) throw new Error(`Formatting block not found: ${blockId}`)
+  const current = designs.find((design) => design.id === designId)
+  if (!current) throw new Error(`Slide design not found: ${designId}`)
   const textItem = current.textItems.find((item) => item.id === textItemId)
   if (!textItem) {
-    throw new Error(`Text item not found in ${blockId}: ${textItemId}`)
+    throw new Error(`Text item not found in ${designId}: ${textItemId}`)
   }
   const wordLengthMin = patch.wordLengthMin ?? textItem.wordLengthMin
   const wordLengthMax = patch.wordLengthMax ?? textItem.wordLengthMax
@@ -6534,24 +6236,16 @@ function patchFormattingTextItem(
     throw new Error("wordLengthMin cannot be greater than wordLengthMax")
   }
   const updated: TextItem = { ...textItem, ...patch }
-  return formatting.map((block) =>
-    block.id === blockId
+  return designs.map((design) =>
+    design.id === designId
       ? {
-          ...block,
-          textItems: block.textItems.map((item) =>
+          ...design,
+          textItems: design.textItems.map((item) =>
             item.id === textItemId ? updated : item
           ),
         }
-      : block
+      : design
   )
-}
-
-function assertTimeZone(value: string) {
-  try {
-    new Intl.DateTimeFormat("en", { timeZone: value }).format()
-  } catch {
-    throw new Error(`Invalid timezone: ${value}`)
-  }
 }
 
 export function buildScheduleReport(input: {
@@ -6621,7 +6315,7 @@ export function buildScheduleReport(input: {
   }
 }
 
-function buildCalendarLifecycleItems(input: {
+export function buildCalendarLifecycleItems(input: {
   projections: Array<{
     automationId: string
     automationName: string
@@ -6939,7 +6633,6 @@ function socialAutomationAsScheduleAutomation(
 }
 
 function serializeStandardAutomation(record: AutomationRecord) {
-  const summary = automationRecordToSummary(record)
   return {
     id: record.id,
     name: record.name,
@@ -6947,12 +6640,18 @@ function serializeStandardAutomation(record: AutomationRecord) {
     status: record.status,
     favorite: record.favorite,
     updatedAt: record.updatedAt,
-    schedule: serializeSchedule(summary.schedule),
   }
 }
 
 function serializeAutomationSchema(schema: AutomationRecord["schema"]) {
-  return JSON.parse(JSON.stringify(schema)) as Record<string, unknown>
+  const stored = JSON.parse(JSON.stringify(schema)) as Record<string, unknown>
+  delete stored.schedule
+  delete stored.social_integrations
+  delete stored.social_post_settings
+  delete stored.social_publish_as
+  delete stored.posting_mode
+  delete stored.generation_lead_minutes
+  return stored
 }
 
 function serializeAutomationTemplate(
@@ -7166,37 +6865,6 @@ function automationConfigurationNextSteps(input: {
         expectedUpdatedAt: input.automation.updatedAt,
         mode: "patch",
         schema: { prompt_formatting: { narrative: "" } },
-      },
-      blocks: [],
-    })
-  }
-
-  const hookTextItem = automationFormatSection(input.automation.schema, "hook")
-    .textItems[0]
-  const hookDirectionLines = clean(hookTextItem?.contentDirection)
-    .split(/\r?\n/)
-    .map((line) => clean(line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "")))
-    .filter(Boolean)
-  const matchingDirectionLines = hookDirectionLines.filter((line) =>
-    enabledHookSet.has(line.toLocaleLowerCase())
-  )
-  if (
-    hookTextItem &&
-    hookDirectionLines.length >= 3 &&
-    matchingDirectionLines.length / hookDirectionLines.length >= 0.6
-  ) {
-    steps.push({
-      id: "remove-hook-catalog-from-text-direction",
-      severity: "recommended",
-      reason:
-        "The hook text item's contentDirection contains a duplicate hook catalog. Keep this field as rendering guidance; hooks[] owns hook content.",
-      tool: "lumenclip_template_text_item_update",
-      args: {
-        templateId: input.automation.id,
-        blockId: "hook",
-        textItemId: hookTextItem.id,
-        expectedUpdatedAt: input.automation.updatedAt,
-        patch: { contentDirection: "Hook text" },
       },
       blocks: [],
     })
@@ -7580,11 +7248,6 @@ function serializeSocialAutomationConfiguration(record: XAutomationRecord) {
     media: record.media,
     discovery: record.discovery,
     benchmarks: record.benchmarks,
-    publishing: {
-      autoPost: record.publishing.autoPost,
-      integrations: record.publishing.integrations.map(safeAccount),
-    },
-    schedule: serializeSchedule(record.schedule),
     usage: record.usage,
     operations: record.operations,
   }
@@ -7597,7 +7260,6 @@ function serializeSocialAutomation(record: XAutomationRecord) {
     kind: record.platform,
     status: record.status,
     updatedAt: record.updatedAt,
-    schedule: serializeSchedule(record.schedule),
   }
 }
 

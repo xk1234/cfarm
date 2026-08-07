@@ -28,11 +28,11 @@ const groups = [
   {
     icon: IconRoute,
     title: "Workflows with visible inputs",
-    body: "Build a reusable template from named collections, schedules, and destination settings.",
+    body: "Build a reusable template from named collections, text direction, and independent slide designs.",
     bullets: [
       "Inspect every input before a run",
       "Persist run history and generated artifacts",
-      "Pause or revise without rebuilding the workflow",
+      "Revise the text or visuals without rebuilding the workflow",
     ],
   },
   {

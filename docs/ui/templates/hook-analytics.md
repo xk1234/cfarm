@@ -27,8 +27,8 @@ its public post.
 ## Interactions
 
 Refresh reloads the current template's attribution and metrics and disables
-itself while the request is running. This panel is read-only; hook changes occur
-in Hooks and Style, and publication linking occurs in the output or Published
+itself while the request is running. This panel is read-only; optional hook changes occur
+in Text, and publication linking occurs in the output or Published
 Posts flows.
 
 ## MCP coverage

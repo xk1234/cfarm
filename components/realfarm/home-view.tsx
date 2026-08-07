@@ -5,7 +5,6 @@ import {
   IconAlertCircle,
   IconChevronLeft,
   IconChevronRight,
-  IconClock,
   IconPhoto,
   IconPlayerPlay,
   IconPlus,
@@ -40,7 +39,6 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { clientSWRFetcher } from "@/lib/client-swr"
-import { nextUpcomingAutomationPost } from "@/lib/automation-upcoming-posts"
 import type { CalendarAlertSummary } from "@/lib/calendar-summary"
 import type { GeneratedVideoExport } from "@/lib/generated-video-types"
 import type { Automation } from "@/lib/realfarm-data"
@@ -109,14 +107,6 @@ export function HomeView({
     runId: string
   } | null>(null)
   const quickStartTemplates = templates
-  const activeAutomationCount = automations.filter(
-    (automation) =>
-      automation.status === "live" && automation.schedule?.paused !== true
-  ).length
-  const nextPost = useMemo(
-    () => nextUpcomingAutomationPost(automations),
-    [automations]
-  )
   const outstandingActionCount = calendarStatus
     ? calendarStatus.summary.needsAction + calendarStatus.summary.failed
     : null
@@ -232,19 +222,14 @@ export function HomeView({
             <div className="grid grid-cols-2 gap-2 text-left sm:grid-cols-3 lg:grid-cols-1">
               <DashboardMetric
                 className="col-span-2 sm:col-span-1"
-                icon={IconClock}
-                label="Next expected post"
-                value={
-                  automationsLoading
-                    ? null
-                    : (nextPost?.label ?? "Nothing scheduled")
-                }
-                title={nextPost?.scheduledAt}
+                icon={IconTemplate}
+                label="Saved templates"
+                value={automationsLoading ? null : automations.length}
               />
               <DashboardMetric
-                icon={IconTemplate}
-                label="Scheduled templates"
-                value={automationsLoading ? null : activeAutomationCount}
+                icon={IconSlideshow}
+                label="Recent generations"
+                value={generatedSlideshowCards.length}
               />
               <DashboardMetric
                 icon={IconAlertCircle}

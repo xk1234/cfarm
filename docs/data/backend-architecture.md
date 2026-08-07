@@ -21,7 +21,7 @@ flowchart LR
 
     Routes --> Domain["lib domain modules"]
     Pages --> Domain
-    Scheduler["template-scheduler"] --> Jobs["jobs table"]
+    ManualRun["Generate now / MCP run"] --> Jobs["jobs table"]
     Jobs --> Worker["job-worker / local worker"]
     Worker --> Domain
 
@@ -36,8 +36,8 @@ flowchart LR
 ```
 
 The HTTP layer is an adapter, not a separate backend. Most route handlers call
-modules under `lib/`; scheduled work calls the same domain modules where
-possible. The scheduled slideshow worker still contains a parallel JavaScript
+modules under `lib/`; queued work calls the same domain modules where
+possible. The slideshow worker still contains a parallel JavaScript
 pipeline that must be kept aligned with the main generation path.
 
 ## Request and ownership boundary
@@ -128,17 +128,17 @@ Storage and is not duplicated in this join table.
 
 High-churn or operational records keep dedicated tables:
 
-| Table                        | Record                                        | Access path              |
-| ---------------------------- | --------------------------------------------- | ------------------------ |
-| `templates`                  | Slideshow/video template definitions          | JSON-store               |
-| `template_runs`              | Interactive and scheduled template executions | JSON-store               |
-| `social_templates`           | X/Threads template definitions                | JSON-store               |
-| `usage_ledger`               | Hook/image reuse events                       | JSON-store append/delete |
-| `postfast_metric_snapshots`  | Per-post analytics snapshots                  | JSON-store append        |
-| `account_follower_snapshots` | Per-account follower snapshots                | JSON-store               |
-| `jobs`                       | Scheduler/worker queue                        | Direct TablesDB queries  |
-| `workspace_members`          | Team invitation and access records            | Direct TablesDB queries  |
-| `demos`                      | Settings demo-video metadata                  | Direct TablesDB queries  |
+| Table                        | Record                               | Access path              |
+| ---------------------------- | ------------------------------------ | ------------------------ |
+| `templates`                  | Slideshow/video template definitions | JSON-store               |
+| `template_runs`              | Interactive template executions      | JSON-store               |
+| `social_templates`           | X/Threads template definitions       | JSON-store               |
+| `usage_ledger`               | Hook/image reuse events              | JSON-store append/delete |
+| `postfast_metric_snapshots`  | Per-post analytics snapshots         | JSON-store append        |
+| `account_follower_snapshots` | Per-account follower snapshots       | JSON-store               |
+| `jobs`                       | Scheduler/worker queue               | Direct TablesDB queries  |
+| `workspace_members`          | Team invitation and access records   | Direct TablesDB queries  |
+| `demos`                      | Settings demo-video metadata         | Direct TablesDB queries  |
 
 Pre-consolidation tables are not part of the maintained schema. Run
 `pnpm appwrite:prune-schema -- --env=<environment file>` to audit them and add

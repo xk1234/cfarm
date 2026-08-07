@@ -244,6 +244,7 @@ export function automationTemplateRecordToRuntimeTemplate(
     image_collection_ids: schema.image_collection_ids,
     tone: schema.tone,
     formatting: schema.formatting,
+    slide_designs: schema.slide_designs,
     tiktok_post_settings: schema.tiktok_post_settings,
     web_search_enabled: schema.web_search_enabled,
     video_format: schema.video_format,

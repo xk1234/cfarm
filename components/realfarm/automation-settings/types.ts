@@ -4,14 +4,7 @@ import type {
   AutomationRunStatus,
 } from "@/lib/automation-run-contract"
 
-export type AutomationDrawerTab =
-  | "overview"
-  | "format"
-  | "hooks"
-  | "analytics"
-  | "schedule"
-  | "tiktok"
-  | "settings"
+export type AutomationDrawerTab = "editor" | "text" | "settings"
 
 export type AutomationRunApiPayload = {
   created?: AutomationRunApiRecord[]

@@ -3,27 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { flushSync } from "react-dom"
 import { toast } from "sonner"
-import {
-  IconBrandTiktok,
-  IconChartBar,
-  IconCalendar,
-  IconChevronLeft,
-  IconHome,
-  IconMenu2,
-  IconMessage,
-  IconPlus,
-  IconSettings,
-  IconTrash,
-  IconWand,
-  IconX,
-} from "@tabler/icons-react"
+import { IconChevronLeft, IconPlus, IconTrash } from "@tabler/icons-react"
 import { LuCopy } from "react-icons/lu"
 
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { useAutomationGeneratedVideoExports } from "@/components/realfarm/generated-video-workflow"
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
-import { automationHookItems } from "@/lib/realfarm-automation"
 import type { AutomationSchema } from "@/lib/realfarm-automation"
 import { cn } from "@/lib/utils"
 
@@ -40,13 +26,9 @@ import type {
   AutomationRunApiRecord,
 } from "./types"
 import { AutomationGeneralSettingsPanel } from "./general-settings"
-import { AutomationOverviewPanel } from "./overview-panel"
 import { PromptConfigPanel } from "./prompt-settings"
-import { HookAnalyticsPanel } from "./hook-analytics-panel"
-import { SchedulePanel } from "./schedule-settings"
 import { AutomationFormatPanel } from "./slideshow-format-panel"
-import { SocialMediaSettingsPanel } from "./social-settings"
-import { AutomationSettingsNavButton } from "./settings-nav"
+import { SlideSequencePanel } from "./slide-sequence-panel"
 import {
   automationVideoGenerationIssue,
   generateAutomationVideo,
@@ -55,7 +37,6 @@ import {
 export function AutomationSettingsDrawer({
   modal = false,
   automation,
-  initialRunId,
   config,
   collections,
   selectedSound,
@@ -66,7 +47,6 @@ export function AutomationSettingsDrawer({
   onConfigChange,
   onGenerationRunUpdate,
   onGenerationRunRemove,
-  onEditSocialAccounts,
   onDuplicate,
   onDelete,
   onClose,
@@ -89,8 +69,7 @@ export function AutomationSettingsDrawer({
   onDelete: () => void
   onClose: () => void
 }) {
-  const [activeTab, setActiveTab] = useState<AutomationDrawerTab>("overview")
-  const [navOpen, setNavOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<AutomationDrawerTab>("editor")
   const [editingName, setEditingName] = useState(false)
   const [draftName, setDraftName] = useState(automation.name)
   const [draftConfig, setDraftConfig] = useState(() =>
@@ -103,29 +82,27 @@ export function AutomationSettingsDrawer({
   const [activeGenerationCount, setActiveGenerationCount] = useState(0)
   const generating = activeGenerationCount > 0
   const [duplicating, setDuplicating] = useState(false)
-  const [recentRuns, setRecentRuns] = useState<AutomationRunApiRecord[]>([])
-  const [recentRunsError, setRecentRunsError] = useState("")
-  const [runLoadRevision, setRunLoadRevision] = useState(0)
-  const [loadedRunsAutomationId, setLoadedRunsAutomationId] = useState<
-    string | null
-  >(null)
-  const recentRunsLoading = loadedRunsAutomationId !== automation.id
+  const [, setRecentRuns] = useState<AutomationRunApiRecord[]>([])
   const automationKind = draftConfig.automationKind
   const effectiveDraftConfig = useMemo(
     () => ({
       ...draftConfig,
-      social_integrations: config.social_integrations,
+      social_integrations: [],
+      social_publish_as: {},
+      posting_mode: "manual" as const,
+      tiktok_post_settings: {
+        ...draftConfig.tiktok_post_settings,
+        auto_post: false,
+      },
     }),
-    [config.social_integrations, draftConfig]
+    [draftConfig]
   )
   const effectiveDraftConfigJson = JSON.stringify(effectiveDraftConfig)
   const configChanged = effectiveDraftConfigJson !== JSON.stringify(config)
-  const hookCount = automationHookItems(draftConfig).length
-  const [videoExports, setVideoExports, videoExportsLoading] =
-    useAutomationGeneratedVideoExports(
-      automation.id,
-      "Failed to load generated template videos"
-    )
+  const [, setVideoExports] = useAutomationGeneratedVideoExports(
+    automation.id,
+    "Failed to load generated template videos"
+  )
 
   useEffect(() => {
     onConfigChangeRef.current = onConfigChange
@@ -146,10 +123,7 @@ export function AutomationSettingsDrawer({
 
           onConfigChangeRef.current(nextConfig)
           setDraftConfig((current) => {
-            const currentJson = JSON.stringify({
-              ...current,
-              social_integrations: nextConfig.social_integrations,
-            })
+            const currentJson = JSON.stringify(current)
             return currentJson === nextConfigJson
               ? cloneAutomationSchema(nextConfig)
               : current
@@ -224,20 +198,12 @@ export function AutomationSettingsDrawer({
             generating,
           })
         })
-        setLoadedRunsAutomationId(automation.id)
-        setRecentRunsError("")
         // While anything is generating (including a run discovered after a
         // page reload), keep polling so the live progress stage updates.
         if (hasInFlight || generating) {
           scheduleRunRefresh(15_000)
         }
-      } catch (error) {
-        if (active) {
-          setLoadedRunsAutomationId(automation.id)
-          setRecentRunsError(
-            getApiErrorMessage(error, "Failed to load generated slideshows")
-          )
-        }
+      } catch {
         if (active && generating) {
           scheduleRunRefresh(30_000)
         }
@@ -252,21 +218,7 @@ export function AutomationSettingsDrawer({
         clearTimeout(timer)
       }
     }
-  }, [automation.id, generating, runLoadRevision])
-
-  useEffect(() => {
-    if (!navOpen) return
-    const previous = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setNavOpen(false)
-    }
-    window.addEventListener("keydown", onKeyDown)
-    return () => {
-      document.body.style.overflow = previous
-      window.removeEventListener("keydown", onKeyDown)
-    }
-  }, [navOpen])
+  }, [automation.id, generating])
 
   function saveName() {
     const nextName = draftName.trim()
@@ -292,7 +244,7 @@ export function AutomationSettingsDrawer({
           )
         : automationGenerationIssue(effectiveDraftConfig, collections)
     if (preflightError) {
-      setActiveTab("overview")
+      setActiveTab("editor")
       showGenerationError(preflightError)
       return
     }
@@ -309,7 +261,7 @@ export function AutomationSettingsDrawer({
             : ("template_video" as const)
       const placeholderCreatedAt = new Date().toISOString()
       setActiveGenerationCount((count) => count + 1)
-      setActiveTab("overview")
+      setActiveTab("editor")
       setVideoExports((current) => [
         {
           id: placeholderId,
@@ -369,7 +321,7 @@ export function AutomationSettingsDrawer({
     })
     flushSync(() => {
       setActiveGenerationCount((count) => count + 1)
-      setActiveTab("overview")
+      setActiveTab("editor")
       setRecentRuns((current) => [
         placeholderRun,
         ...current.filter((item) => item.id !== placeholderRun.id),
@@ -430,7 +382,7 @@ export function AutomationSettingsDrawer({
       }
 
       settleGeneration(run)
-      setActiveTab("overview")
+      setActiveTab("editor")
     } catch (error) {
       const failedRun = await loadFailedRunForRequest(
         automation.id,
@@ -468,306 +420,154 @@ export function AutomationSettingsDrawer({
     }
   }
 
-  async function deleteGeneratedSlideshow(run: AutomationRunApiRecord) {
-    if (!run.slideshowId) {
-      throw new Error("This slideshow does not have a persisted slideshow id.")
-    }
-    const payload = await fetchJsonWithTimeout<{ deletedRunIds?: string[] }>(
-      `/api/slideshows/${encodeURIComponent(run.slideshowId)}`,
-      {
-        method: "DELETE",
-      }
-    )
-    const deletedRunIds = new Set(payload.deletedRunIds ?? [run.id])
-    setRecentRuns((current) =>
-      current.filter((item) => !deletedRunIds.has(item.id))
-    )
-    deletedRunIds.forEach(onGenerationRunRemove)
-  }
-
-  function navigate(tab: AutomationDrawerTab) {
-    setActiveTab(tab)
-    setNavOpen(false)
-  }
-
-  const formatTabLabel =
-    automationKind === "ugc"
-      ? "AI actor format"
-      : automationKind === "video"
-        ? "Video Format"
-        : "Slideshow Format"
-  const hooksTabLabel = `Hooks (${hookCount}) & ${
-    automationKind === "video" || automationKind === "ugc" ? "Voice" : "Style"
-  }`
-  const activeTabLabel =
-    activeTab === "overview"
-      ? "Overview"
-      : activeTab === "hooks"
-        ? hooksTabLabel
-        : activeTab === "analytics"
-          ? "Analytics"
-          : activeTab === "schedule"
-            ? "Schedule"
-            : activeTab === "tiktok"
-              ? "Social Media"
-              : activeTab === "settings"
-                ? "Settings"
-                : formatTabLabel
-
-  const navigation = (
-    <>
-      <div className="space-y-1">
-        <AutomationSettingsNavButton
-          label="Overview"
-          icon={IconHome}
-          active={activeTab === "overview"}
-          onClick={() => navigate("overview")}
-        />
-        <div className="my-2 h-px bg-[#e1e0d8]" />
-        <AutomationSettingsNavButton
-          label={formatTabLabel}
-          icon={IconWand}
-          onClick={() => navigate("format")}
-        />
-        <AutomationSettingsNavButton
-          label={hooksTabLabel}
-          icon={IconMessage}
-          active={activeTab === "hooks"}
-          onClick={() => navigate("hooks")}
-        />
-        <AutomationSettingsNavButton
-          label="Analytics"
-          icon={IconChartBar}
-          active={activeTab === "analytics"}
-          onClick={() => navigate("analytics")}
-        />
-        <div className="my-2 h-px bg-[#e1e0d8]" />
-        <AutomationSettingsNavButton
-          label="Schedule"
-          icon={IconCalendar}
-          active={activeTab === "schedule"}
-          onClick={() => navigate("schedule")}
-        />
-        <AutomationSettingsNavButton
-          label="Social Media Settings"
-          icon={IconBrandTiktok}
-          active={activeTab === "tiktok"}
-          onClick={() => navigate("tiktok")}
-        />
-        <AutomationSettingsNavButton
-          label="Settings"
-          icon={IconSettings}
-          active={activeTab === "settings"}
-          onClick={() => navigate("settings")}
-        />
-      </div>
-      <div className="mt-auto space-y-4 pt-6 pb-4 pl-3 text-[15px] font-semibold md:pt-0">
-        <button
-          type="button"
-          className="flex items-center gap-2 text-app-text-faint disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={duplicating}
-          onClick={() => {
-            if (duplicating) return
-            setDuplicating(true)
-            void onDuplicate().finally(() => setDuplicating(false))
-          }}
-        >
-          <LuCopy className="size-4" />
-          {duplicating ? "Duplicating..." : "Duplicate"}
-        </button>
-        <button
-          className="flex items-center gap-2 text-[#c54b4b]"
-          onClick={onDelete}
-        >
-          <IconTrash className="size-4" />
-          Delete automation
-        </button>
-      </div>
-    </>
-  )
-
-  const generateButton = (
-    <button
-      className="flex h-10 items-center justify-center gap-2 rounded-[8px] border border-app-panel-border bg-app-surface px-3 text-[14px] font-semibold text-app-text shadow-sm disabled:cursor-not-allowed disabled:opacity-55"
-      disabled={generating || savingConfig || configChanged}
-      onClick={generateAutomation}
-      aria-busy={generating}
-    >
-      <IconPlus className="size-4" />
-      {generating ? "Generating…" : "Generate"}
-    </button>
-  )
+  const tabs: Array<{ id: AutomationDrawerTab; label: string }> = [
+    { id: "editor", label: "Editor" },
+    { id: "text", label: "Text" },
+    { id: "settings", label: "Settings" },
+  ]
 
   return (
     <div
       className={cn(
-        "grid overflow-hidden bg-app-surface",
-        modal ? "h-full min-h-0" : "min-h-[calc(100svh-3.5rem)] md:min-h-svh",
-        activeTab !== "format" && "md:grid-cols-[246px_1fr]"
+        "flex min-h-0 flex-col overflow-hidden bg-app-surface",
+        modal ? "h-full" : "min-h-[calc(100svh-3.5rem)] md:min-h-svh"
       )}
     >
-      {activeTab !== "format" && (
-        <aside className="hidden min-h-0 flex-col border-r border-app-panel-border bg-app-surface-subtle p-2 md:flex">
-          <div className="mb-2 grid">{generateButton}</div>
-          {navigation}
-        </aside>
-      )}
-      <div className="relative min-h-0 overflow-y-auto bg-app-surface">
-        {activeTab !== "format" && (
-          <>
-            {/* Below md the sidebar became a full-width block of links above
-                every panel, so it moves into a sheet behind this bar. */}
-            <div className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-app-panel-border bg-app-surface px-3 md:hidden">
-              {/* Back leads, matching the format editor's own header bar. */}
-              <button
-                type="button"
-                className="flex shrink-0 items-center gap-2 text-[13px] font-semibold text-[#5d5c56]"
-                onClick={() => void closeAfterAutosave()}
-                aria-label="Back to templates"
-              >
-                <IconChevronLeft className="size-4" />
-                Back
-              </button>
-              <button
-                type="button"
-                className="lc-focus-ring flex h-10 min-w-0 items-center gap-2 rounded-[8px] border border-app-panel-border px-3 text-[13px] font-semibold text-app-text"
-                aria-expanded={navOpen}
-                aria-controls="automation-settings-nav"
-                onClick={() => setNavOpen(true)}
-              >
-                <IconMenu2 className="size-4 shrink-0" />
-                <span className="truncate">{activeTabLabel}</span>
-              </button>
-              <div className="ml-auto shrink-0">{generateButton}</div>
-            </div>
+      <header className="z-30 border-b border-app-panel-border bg-app-surface">
+        <div className="flex min-h-14 items-center gap-2 px-3 sm:px-4">
+          <button
+            type="button"
+            className="flex shrink-0 items-center gap-1 text-[13px] font-semibold text-app-text-soft"
+            onClick={() => void closeAfterAutosave()}
+            aria-label="Back to templates"
+          >
+            <IconChevronLeft className="size-4" />
+            <span className="hidden sm:inline">Back</span>
+          </button>
+
+          {editingName ? (
+            <input
+              autoFocus
+              className="h-9 max-w-56 min-w-0 rounded-lg border border-app-panel-border px-2 text-[14px] font-bold outline-none"
+              value={draftName}
+              onChange={(event) => setDraftName(event.target.value)}
+              onBlur={saveName}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") saveName()
+                if (event.key === "Escape") {
+                  setDraftName(automation.name)
+                  setEditingName(false)
+                }
+              }}
+            />
+          ) : (
             <button
-              className="absolute top-4 right-4 z-10 hidden h-8 items-center gap-1 rounded-[6px] px-2 text-[12px] font-semibold text-app-text-soft hover:bg-app-surface-subtle hover:text-app-text md:inline-flex"
-              onClick={() => void closeAfterAutosave()}
-              aria-label="Back to templates"
+              type="button"
+              className="max-w-48 min-w-0 truncate text-left text-[14px] font-bold text-app-text"
+              onClick={() => setEditingName(true)}
             >
-              <IconChevronLeft className="size-4" />
-              Back
+              {automation.name}
             </button>
-          </>
-        )}
-        {activeTab === "overview" && (
-          <AutomationOverviewPanel
-            automation={automation}
-            initialRunId={initialRunId}
-            config={draftConfig}
-            editingName={editingName}
-            draftName={draftName}
-            onDraftNameChange={setDraftName}
-            onStartNameEdit={() => setEditingName(true)}
-            onSaveName={saveName}
-            onCancelNameEdit={() => {
-              setDraftName(automation.name)
-              setEditingName(false)
-            }}
-            recentRuns={recentRuns}
-            recentRunsLoading={recentRunsLoading}
-            recentRunsError={recentRunsError}
-            onRetryRecentRuns={() => {
-              setLoadedRunsAutomationId(null)
-              setRecentRunsError("")
-              setRunLoadRevision((revision) => revision + 1)
-            }}
-            videoExports={videoExports}
-            videoExportsLoading={videoExportsLoading}
-            onVideoDeleted={(id) =>
-              setVideoExports((current) =>
-                current.filter((item) => item.id !== id)
-              )
-            }
-            onDeleteRun={deleteGeneratedSlideshow}
-            onRunChanged={(run) => {
-              setRecentRuns((current) =>
-                current.map((item) => (item.id === run.id ? run : item))
-              )
-              onGenerationRunUpdate(run)
-            }}
-          />
-        )}
-        {activeTab === "format" && (
-          <AutomationFormatPanel
-            automation={automation}
-            config={draftConfig}
-            collections={collections}
-            selectedSound={selectedSound}
-            music={music}
-            demoVideos={demoVideos}
-            onCreateCollection={onCreateCollection}
-            onConfigChange={setDraftConfig}
-            onBack={() => setActiveTab("overview")}
-          />
-        )}
-        {activeTab === "hooks" && (
+          )}
+
+          <div className="ml-auto flex items-center gap-1">
+            <span className="hidden text-[11px] font-semibold text-app-text-faint sm:inline">
+              {savingConfig || configChanged ? "Saving…" : "Saved"}
+            </span>
+            <button
+              type="button"
+              className="grid size-9 place-items-center rounded-lg text-app-text-soft hover:bg-app-surface-subtle disabled:opacity-40"
+              disabled={duplicating}
+              onClick={() => {
+                setDuplicating(true)
+                void onDuplicate().finally(() => setDuplicating(false))
+              }}
+              aria-label="Duplicate template"
+            >
+              <LuCopy className="size-4" />
+            </button>
+            <button
+              type="button"
+              className="grid size-9 place-items-center rounded-lg text-[#c54b4b] hover:bg-red-50"
+              onClick={onDelete}
+              aria-label="Delete template"
+            >
+              <IconTrash className="size-4" />
+            </button>
+            <button
+              className="flex h-9 items-center justify-center gap-1.5 rounded-lg bg-app-strong px-3 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-55"
+              disabled={generating || savingConfig || configChanged}
+              onClick={generateAutomation}
+              aria-busy={generating}
+            >
+              <IconPlus className="size-4" />
+              {generating ? "Generating…" : "Generate"}
+            </button>
+          </div>
+        </div>
+
+        <nav
+          className="flex h-12 items-end justify-center gap-6 px-3"
+          aria-label="Template editor"
+        >
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={cn(
+                "h-12 border-b-2 px-2 text-[13px] font-semibold",
+                activeTab === tab.id
+                  ? "border-app-strong text-app-text"
+                  : "border-transparent text-app-text-faint"
+              )}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {activeTab === "editor" ? (
+          automationKind === "slideshow" ? (
+            <SlideSequencePanel
+              config={draftConfig}
+              collections={collections}
+              onCreateCollection={onCreateCollection}
+              onConfigChange={setDraftConfig}
+            />
+          ) : (
+            <AutomationFormatPanel
+              automation={automation}
+              config={draftConfig}
+              collections={collections}
+              selectedSound={selectedSound}
+              music={music}
+              demoVideos={demoVideos}
+              onCreateCollection={onCreateCollection}
+              onConfigChange={setDraftConfig}
+              onBack={() => void closeAfterAutosave()}
+            />
+          )
+        ) : null}
+        {activeTab === "text" ? (
           <PromptConfigPanel
             automation={automation}
             config={draftConfig}
             onConfigChange={setDraftConfig}
             hideFooter
           />
-        )}
-        {activeTab === "analytics" && (
-          <HookAnalyticsPanel automation={automation} />
-        )}
-        {activeTab === "tiktok" && (
-          <SocialMediaSettingsPanel
-            config={draftConfig}
-            onEditSocialAccounts={onEditSocialAccounts}
-            onConfigChange={setDraftConfig}
-            hideFooter
-          />
-        )}
-        {activeTab === "settings" && (
+        ) : null}
+        {activeTab === "settings" ? (
           <AutomationGeneralSettingsPanel
             config={draftConfig}
             selectedSound={selectedSound}
             music={music}
             onConfigChange={setDraftConfig}
           />
-        )}
-        {activeTab === "schedule" && (
-          <SchedulePanel
-            config={draftConfig}
-            onConfigChange={setDraftConfig}
-            hideFooter
-          />
-        )}
+        ) : null}
       </div>
-      {navOpen && activeTab !== "format" ? (
-        <div className="fixed inset-0 z-[70] md:hidden">
-          <button
-            type="button"
-            aria-label="Close template menu"
-            className="absolute inset-0 bg-black/35"
-            onClick={() => setNavOpen(false)}
-          />
-          <section
-            id="automation-settings-nav"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Template sections"
-            className="absolute inset-x-0 bottom-0 flex max-h-[85dvh] flex-col overflow-y-auto rounded-t-[18px] bg-app-surface-subtle p-3 shadow-[0_-16px_40px_rgba(25,18,45,0.18)]"
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <span className="pl-1 text-[15px] font-semibold text-app-text">
-                {automation.name}
-              </span>
-              <button
-                type="button"
-                aria-label="Close template menu"
-                className="lc-focus-ring flex size-10 items-center justify-center rounded-[10px] text-app-text active:bg-app-control-hover"
-                onClick={() => setNavOpen(false)}
-              >
-                <IconX className="size-5" />
-              </button>
-            </div>
-            {navigation}
-          </section>
-        </div>
-      ) : null}
     </div>
   )
 }

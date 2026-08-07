@@ -1,18 +1,9 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import {
-  IconCalendar,
-  IconPhoto,
-  IconSend,
-  IconSparkles,
-} from "@tabler/icons-react"
-
-import { PostingSchedulePanel } from "@/components/realfarm/automation-settings/schedule-settings"
+import { AutomationGeneralSettingsPanel } from "@/components/realfarm/automation-settings/general-settings"
 import { PromptConfigPanel } from "@/components/realfarm/automation-settings/prompt-settings"
-import { SocialMediaSettingsPanel } from "@/components/realfarm/automation-settings/social-settings"
 import { CollectionSelector } from "@/components/realfarm/collection-selector"
-import { SocialAccountPickerModal } from "@/components/realfarm/social-account-picker"
 import { Button } from "@/components/ui/button"
 import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import { useDirtyGuard } from "@/components/ui/use-dirty-guard"
@@ -26,19 +17,13 @@ import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import type { Automation } from "@/lib/realfarm-data"
 import { videoAutomationTemplatePreset } from "@/lib/video-automation-templates"
 import { generationModelRegistry } from "@/lib/realfarm-generation-model-registry"
-import { cn } from "@/lib/utils"
 
-type SetupTab = "media" | "hooks" | "schedule" | "publishing"
+type SetupTab = "editor" | "text" | "settings"
 
-const setupTabs: Array<{
-  id: SetupTab
-  label: string
-  icon: typeof IconPhoto
-}> = [
-  { id: "media", label: "Setup", icon: IconPhoto },
-  { id: "hooks", label: "Hooks", icon: IconSparkles },
-  { id: "schedule", label: "Schedule", icon: IconCalendar },
-  { id: "publishing", label: "Publishing", icon: IconSend },
+const setupTabs: Array<{ id: SetupTab; label: string }> = [
+  { id: "editor", label: "Editor" },
+  { id: "text", label: "Text" },
+  { id: "settings", label: "Settings" },
 ]
 
 export function VideoAutomationCreateDialog({
@@ -64,12 +49,20 @@ export function VideoAutomationCreateDialog({
     initialVideoSchema(initialAutomation, templateId, collections)
   )
   const [config, setConfig] = useState<AutomationSchema>(initialConfig)
-  const [activeTab, setActiveTab] = useState<SetupTab>("media")
-  const [accountPickerOpen, setAccountPickerOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<SetupTab>("editor")
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState("")
   const effectiveConfig = useMemo(
-    () => withDefaultGreenscreenCollections(config, collections),
+    () => ({
+      ...withDefaultGreenscreenCollections(config, collections),
+      social_integrations: [],
+      social_publish_as: {},
+      posting_mode: "manual" as const,
+      tiktok_post_settings: {
+        ...config.tiktok_post_settings,
+        auto_post: false,
+      },
+    }),
     [collections, config]
   )
   const automation = useMemo(
@@ -98,12 +91,12 @@ export function VideoAutomationCreateDialog({
     const trimmedName = name.trim()
     if (!trimmedName) {
       setError("Give the template a name before creating it.")
-      setActiveTab("media")
+      setActiveTab("editor")
       return
     }
     if (mediaIssue) {
       setError(mediaIssue)
-      setActiveTab("media")
+      setActiveTab("editor")
       return
     }
 
@@ -134,75 +127,56 @@ export function VideoAutomationCreateDialog({
             closeLabel="Back to templates"
           />
 
-          <div className="grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)]">
-            <aside className="border-r border-app-panel-border bg-app-surface-subtle p-3">
-              <div className="space-y-1">
-                {setupTabs.map((tab) => {
-                  const Icon = tab.icon
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      className={cn(
-                        "flex h-10 w-full items-center gap-2 rounded-[8px] px-3 text-left text-[13px] font-semibold transition",
-                        activeTab === tab.id
-                          ? "bg-app-strong text-white"
-                          : "text-app-muted-text hover:bg-app-control-hover hover:text-app-text"
-                      )}
-                      onClick={() => setActiveTab(tab.id)}
-                    >
-                      <Icon className="size-4" />
-                      {tab.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </aside>
+          <nav
+            className="flex h-12 shrink-0 items-end justify-center gap-6 border-b border-app-panel-border px-3"
+            aria-label="Template editor"
+          >
+            {setupTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`h-12 border-b-2 px-2 text-[13px] font-semibold ${
+                  activeTab === tab.id
+                    ? "border-app-strong text-app-text"
+                    : "border-transparent text-app-text-faint"
+                }`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
 
-            <div className="min-h-0 overflow-y-auto">
-              {activeTab === "media" ? (
-                <MediaSetup
-                  name={name}
-                  templateId={templateId}
-                  config={effectiveConfig}
-                  collections={collections}
-                  onNameChange={updateName}
-                  onConfigChange={setConfig}
-                  onCreateCollection={onCreateCollection}
-                />
-              ) : null}
-              {activeTab === "hooks" ? (
-                <PromptConfigPanel
-                  automation={automation}
-                  config={config}
-                  onConfigChange={setConfig}
-                  onCancel={requestBack}
-                  onSave={() => undefined}
-                  hideFooter
-                />
-              ) : null}
-              {activeTab === "schedule" ? (
-                <PostingSchedulePanel
-                  schedule={config.schedule}
-                  onScheduleChange={(schedule) =>
-                    setConfig((current) => ({ ...current, schedule }))
-                  }
-                  onCancel={requestBack}
-                  onSave={() => undefined}
-                  hideFooter
-                />
-              ) : null}
-              {activeTab === "publishing" ? (
-                <SocialMediaSettingsPanel
-                  config={config}
-                  onEditSocialAccounts={() => setAccountPickerOpen(true)}
-                  onConfigChange={setConfig}
-                  onCancel={requestBack}
-                  onSave={() => undefined}
-                  hideFooter
-                />
-              ) : null}
-            </div>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {activeTab === "editor" ? (
+              <MediaSetup
+                name={name}
+                templateId={templateId}
+                config={effectiveConfig}
+                collections={collections}
+                onNameChange={updateName}
+                onConfigChange={setConfig}
+                onCreateCollection={onCreateCollection}
+              />
+            ) : null}
+            {activeTab === "text" ? (
+              <PromptConfigPanel
+                automation={automation}
+                config={config}
+                onConfigChange={setConfig}
+                onCancel={requestBack}
+                onSave={() => undefined}
+                hideFooter
+              />
+            ) : null}
+            {activeTab === "settings" ? (
+              <AutomationGeneralSettingsPanel
+                config={config}
+                selectedSound={null}
+                music={[]}
+                onConfigChange={setConfig}
+              />
+            ) : null}
           </div>
 
           <div className="flex items-center justify-between gap-4 border-t border-app-panel-border bg-app-surface px-5 py-4">
@@ -231,18 +205,6 @@ export function VideoAutomationCreateDialog({
         </AppModalPanel>
       </AppModal>
 
-      {accountPickerOpen ? (
-        <SocialAccountPickerModal
-          selectedIntegrations={config.social_integrations}
-          onSelect={(socialIntegrations) =>
-            setConfig((current) => ({
-              ...current,
-              social_integrations: socialIntegrations,
-            }))
-          }
-          onClose={() => setAccountPickerOpen(false)}
-        />
-      ) : null}
       {dirtyGuard.confirmation}
     </>
   )
