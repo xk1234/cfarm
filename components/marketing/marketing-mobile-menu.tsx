@@ -104,7 +104,7 @@ export function MarketingMobileMenu() {
 
                   <div className="mt-auto grid gap-3 pt-8">
                     <Link
-                      href="/login?mode=register"
+                      href="/sign-up"
                       onClick={() => setOpen(false)}
                       className="brand-button brand-button-primary justify-center"
                     >

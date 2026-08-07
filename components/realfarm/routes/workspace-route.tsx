@@ -56,7 +56,6 @@ export async function WorkspaceRoute({
       user={{
         id: user.$id,
         email: user.email,
-        emailVerified: user.emailVerification,
       }}
     />
   )

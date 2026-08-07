@@ -94,7 +94,7 @@ export default function SolutionsPage() {
                   ))}
                 </div>
                 <Link
-                  href="/login?mode=register"
+                  href="/sign-up"
                   className="mt-7 inline-flex items-center gap-1 text-sm font-semibold text-brand-accent"
                 >
                   Build this workflow <IconArrowRight className="size-4" />

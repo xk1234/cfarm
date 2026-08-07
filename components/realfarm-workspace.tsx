@@ -181,7 +181,7 @@ export function RealFarmWorkspace({
   composeAccounts?: ConnectedComposerAccount[]
   /** When each linked post went out, for the dashboard activity graph. */
   publishedPostDates?: string[]
-  user: { id: string; email: string; emailVerified: boolean }
+  user: { id: string; email: string }
 }) {
   const [view, setView] = useState<ViewKey>(initialNavigation?.view ?? "home")
   const [selectedCollectionId, setSelectedCollectionId] = useState(
@@ -832,9 +832,6 @@ export function RealFarmWorkspace({
 
   return (
     <main className="relative h-svh overflow-hidden bg-[#f7f7fa] text-app-text">
-      {view === "home" && !user.emailVerified ? (
-        <EmailVerificationNotice />
-      ) : null}
       <div className="flex h-svh">
         <Sidebar
           data={data}
@@ -1364,52 +1361,6 @@ export function RealFarmWorkspace({
 function pushWorkspaceUrl(href: string) {
   const current = `${window.location.pathname}${window.location.search}`
   if (current !== href) window.history.pushState(null, "", href)
-}
-
-function EmailVerificationNotice() {
-  useEffect(() => {
-    const toastId = toast.warning("Verify your email", {
-      id: "email-verification",
-      duration: 8_000,
-      action: {
-        label: "Send email",
-        onClick: () => {
-          const pendingToastId = toast.loading("Sending verification email…")
-          void fetchJsonWithTimeout<{
-            alreadyVerified?: boolean
-          }>("/api/auth/verification/resend", {
-            method: "POST",
-            toastOnError: false,
-          })
-            .then((payload) => {
-              if (payload.alreadyVerified) {
-                window.location.reload()
-                return
-              }
-              toast.success("Verification email sent", {
-                id: pendingToastId,
-                description: "Check your inbox for the verification link.",
-              })
-            })
-            .catch((error) => {
-              toast.error("Couldn’t send the verification email", {
-                id: pendingToastId,
-                description: getApiErrorMessage(
-                  error,
-                  "Please try again in a moment."
-                ),
-              })
-            })
-        },
-      },
-    })
-
-    return () => {
-      toast.dismiss(toastId)
-    }
-  }, [])
-
-  return null
 }
 
 function reviveAutomationSchema(schema: AutomationSchema): AutomationSchema {

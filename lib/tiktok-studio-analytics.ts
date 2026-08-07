@@ -30,7 +30,6 @@ import {
 import { outputPublicationsOwnerId } from "@/lib/output-publications"
 import { postToPostFastRecord, type Post } from "@/lib/posts"
 import { autoReconcileTikTokPublicationOutput } from "@/lib/publication-output-reconciliation"
-import { APPWRITE_API_KEY } from "@/lib/appwrite"
 
 const rootDir = path.join(process.cwd(), "data")
 const storeFile = "tiktok-studio-analytics/imports.json"
@@ -1549,10 +1548,9 @@ function tokenSecret() {
 }
 
 function tokenSecrets() {
-  return [
-    clean(process.env.TIKTOK_STUDIO_CAPTURE_SECRET),
-    clean(APPWRITE_API_KEY),
-  ].filter((value, index, values) => value && values.indexOf(value) === index)
+  return [clean(process.env.TIKTOK_STUDIO_CAPTURE_SECRET)].filter(
+    (value, index, values) => value && values.indexOf(value) === index
+  )
 }
 
 function assertStudioUrl(value: string, postId: string) {

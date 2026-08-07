@@ -9,10 +9,7 @@ export function TeamInviteCard({ authenticated }: { authenticated: boolean }) {
   const query = params.toString()
   const fields = useMemo(
     () => ({
-      teamId: params.get("teamId"),
-      membershipId: params.get("membershipId"),
-      userId: params.get("userId"),
-      secret: params.get("secret"),
+      inviteToken: params.get("invite"),
     }),
     [params]
   )
@@ -84,7 +81,7 @@ export function TeamInviteCard({ authenticated }: { authenticated: boolean }) {
             Log in
           </a>
           <a
-            href={`/login?mode=register&next=${encodeURIComponent(next)}`}
+            href={`/sign-up?next=${encodeURIComponent(next)}`}
             className="flex h-11 items-center justify-center rounded-[10px] border border-[#d8d8e2] text-sm font-semibold"
           >
             Create account

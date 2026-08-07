@@ -63,7 +63,7 @@ export default function PricingPage() {
               ))}
             </ul>
             <Link
-              href="/login?mode=register"
+              href="/sign-up"
               className="mt-9 inline-flex rounded-app-control bg-brand-accent px-5 py-3 text-sm font-semibold text-white"
             >
               Create account
@@ -97,7 +97,7 @@ export default function PricingPage() {
               ))}
             </ul>
             <Link
-              href="/login?mode=register"
+              href="/sign-up"
               className="mt-9 inline-flex rounded-app-control bg-white px-5 py-3 text-sm font-semibold text-brand-ink"
             >
               Join the beta

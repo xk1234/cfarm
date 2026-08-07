@@ -39,8 +39,5 @@ export function slideshowDeliveryLinks(input: {
 }
 
 function slideshowShareConfigured(): boolean {
-  return Boolean(
-    clean(process.env.SLIDESHOW_SHARE_SECRET) ||
-    clean(process.env.APPWRITE_API_KEY)
-  )
+  return Boolean(clean(process.env.SLIDESHOW_SHARE_SECRET))
 }

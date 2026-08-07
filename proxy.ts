@@ -1,50 +1,46 @@
-import { NextResponse, type NextRequest } from "next/server"
+import { clerkMiddleware } from "@clerk/nextjs/server"
+import { NextResponse } from "next/server"
 
-import { getUserFromSession, SESSION_COOKIE } from "@/lib/auth"
 import { internalToolsEnabled } from "@/lib/internal-tools"
 
-const INTERNAL_PATH_PREFIXES = [
-  "/debug",
-  "/api/debug",
-] as const
+const INTERNAL_PATH_PREFIXES = ["/debug", "/api/debug"] as const
 
-export async function proxy(request: NextRequest) {
+function isPublicApi(pathname: string) {
+  return (
+    pathname === "/api/search" ||
+    pathname.startsWith("/api/public/") ||
+    pathname === "/api/telegram/webhook" ||
+    pathname === "/api/tiktok-studio-analytics/capture" ||
+    pathname === "/api/tiktok-studio-analytics/cloud-sync"
+  )
+}
+
+export default clerkMiddleware(async (auth, request) => {
+  const pathname = request.nextUrl.pathname
+
   if (
     !internalToolsEnabled() &&
     INTERNAL_PATH_PREFIXES.some(
-      (prefix) =>
-        request.nextUrl.pathname === prefix ||
-        request.nextUrl.pathname.startsWith(`${prefix}/`)
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
     )
   ) {
     return new NextResponse(null, { status: 404 })
   }
 
-  if (
-    request.nextUrl.pathname === "/api/search" ||
-    request.nextUrl.pathname.startsWith("/api/public/") ||
-    request.nextUrl.pathname === "/api/telegram/webhook" ||
-    request.nextUrl.pathname === "/api/tiktok-studio-analytics/capture" ||
-    request.nextUrl.pathname === "/api/tiktok-studio-analytics/cloud-sync"
-  ) {
-    return NextResponse.next()
-  }
+  if (isPublicApi(pathname)) return NextResponse.next()
 
-  const user = await getUserFromSession(
-    request.cookies.get(SESSION_COOKIE)?.value
-  )
-  if (user) {
-    if (request.nextUrl.pathname === "/login") {
-      return NextResponse.redirect(new URL("/app", request.url))
-    }
-    return NextResponse.next()
-  }
+  const protectedPage =
+    pathname === "/app" ||
+    pathname.startsWith("/app/") ||
+    pathname === "/debug" ||
+    pathname.startsWith("/debug/")
+  const protectedApi = pathname.startsWith("/api/")
+  if (!protectedPage && !protectedApi) return NextResponse.next()
 
-  if (request.nextUrl.pathname === "/login") {
-    return NextResponse.next()
-  }
+  const { userId } = await auth()
+  if (userId) return NextResponse.next()
 
-  if (request.nextUrl.pathname.startsWith("/api/")) {
+  if (protectedApi) {
     return NextResponse.json(
       { error: "Authentication required" },
       { status: 401 }
@@ -52,10 +48,14 @@ export async function proxy(request: NextRequest) {
   }
 
   const login = new URL("/login", request.url)
-  login.searchParams.set("next", request.nextUrl.pathname)
+  login.searchParams.set("next", `${pathname}${request.nextUrl.search}`)
   return NextResponse.redirect(login)
-}
+})
 
 export const config = {
-  matcher: ["/login", "/app/:path*", "/debug/:path*", "/api/((?!auth/).*)"],
+  matcher: [
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/__clerk/:path*",
+    "/(api|trpc)(.*)",
+  ],
 }

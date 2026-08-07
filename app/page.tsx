@@ -87,7 +87,7 @@ export default function LandingPage() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
-                href="/login?mode=register"
+                href="/sign-up"
                 className="inline-flex items-center gap-2 rounded-app-control bg-brand-accent px-5 py-3 text-sm font-semibold text-white hover:bg-brand-accent-hover"
               >
                 Create account <IconArrowRight className="size-4" />
@@ -387,7 +387,7 @@ export default function LandingPage() {
                   ))}
                 </ul>
                 <Link
-                  href="/login?mode=register"
+                  href="/sign-up"
                   className="mt-9 inline-flex rounded-app-control bg-brand-accent px-5 py-3 text-sm font-semibold text-white"
                 >
                   Create account

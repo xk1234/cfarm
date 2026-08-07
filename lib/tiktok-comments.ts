@@ -1,7 +1,6 @@
 import crypto, { randomUUID } from "node:crypto"
 import path from "node:path"
 
-import { APPWRITE_API_KEY } from "@/lib/appwrite"
 import { clean } from "@/lib/guards"
 import {
   readJsonArrayRecord,
@@ -456,7 +455,6 @@ function tokenSecrets() {
   return [
     clean(process.env.TIKTOK_COMMENTS_CAPTURE_SECRET),
     clean(process.env.TIKTOK_STUDIO_CAPTURE_SECRET),
-    clean(APPWRITE_API_KEY),
   ].filter((value, index, values) => value && values.indexOf(value) === index)
 }
 async function list<T>(key: keyof typeof stores): Promise<T[]> {

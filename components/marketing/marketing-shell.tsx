@@ -1,5 +1,6 @@
 import Image from "next/image"
 import Link from "next/link"
+import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs"
 
 import { MarketingMobileMenu } from "@/components/marketing/marketing-mobile-menu"
 
@@ -42,18 +43,27 @@ export function MarketingNav() {
           ))}
         </div>
         <div className="hidden items-center gap-2 md:flex">
-          <Link
-            href="/login"
-            className="rounded-app-control px-3 py-2 text-sm font-medium hover:bg-brand-surface sm:px-4"
-          >
-            Log in
-          </Link>
-          <Link
-            href="/login?mode=register"
-            className="brand-button brand-button-primary min-h-0 px-3 py-2 sm:px-4"
-          >
-            Create account
-          </Link>
+          <Show when="signed-out">
+            <SignInButton mode="redirect" forceRedirectUrl="/app">
+              <button className="rounded-app-control px-3 py-2 text-sm font-medium hover:bg-brand-surface sm:px-4">
+                Log in
+              </button>
+            </SignInButton>
+            <SignUpButton mode="redirect" forceRedirectUrl="/app">
+              <button className="brand-button brand-button-primary min-h-0 px-3 py-2 sm:px-4">
+                Create account
+              </button>
+            </SignUpButton>
+          </Show>
+          <Show when="signed-in">
+            <Link
+              href="/app"
+              className="rounded-app-control px-3 py-2 text-sm font-medium hover:bg-brand-surface sm:px-4"
+            >
+              Open app
+            </Link>
+            <UserButton />
+          </Show>
         </div>
         <MarketingMobileMenu />
       </div>
@@ -119,10 +129,7 @@ export function PageHero({
       </p>
       {action ? (
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link
-            href="/login?mode=register"
-            className="brand-button brand-button-primary"
-          >
+          <Link href="/sign-up" className="brand-button brand-button-primary">
             Create account
           </Link>
           <Link href="/product" className="brand-button brand-button-secondary">
@@ -147,7 +154,7 @@ export function CTASection({ title, body }: { title: string; body: string }) {
             {body}
           </p>
           <Link
-            href="/login?mode=register"
+            href="/sign-up"
             className="brand-button brand-button-secondary mt-8"
           >
             Create account

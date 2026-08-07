@@ -139,9 +139,7 @@ function signature(payload: string) {
 }
 
 function slideshowShareSecret() {
-  const secret =
-    clean(process.env.SLIDESHOW_SHARE_SECRET) ||
-    clean(process.env.APPWRITE_API_KEY)
+  const secret = clean(process.env.SLIDESHOW_SHARE_SECRET)
   if (!secret) throw new Error("Slideshow public sharing is not configured.")
   return secret
 }

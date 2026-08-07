@@ -5,10 +5,7 @@ import { getCurrentUser } from "@/lib/auth"
 import { acceptWorkspaceInvitation } from "@/lib/workspace-members"
 
 const schema = z.object({
-  teamId: z.string().min(1).max(64),
-  membershipId: z.string().min(1).max(64),
-  userId: z.string().min(1).max(64),
-  secret: z.string().min(1).max(512),
+  inviteToken: z.string().min(1).max(128),
 })
 
 export async function POST(request: Request) {

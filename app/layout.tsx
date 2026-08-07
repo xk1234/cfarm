@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { ClerkProvider } from "@clerk/nextjs"
 import { Geist, Geist_Mono } from "next/font/google"
 import { RootProvider } from "fumadocs-ui/provider/next"
 import "react-loading-skeleton/dist/skeleton.css"
@@ -55,10 +56,12 @@ export default function RootLayout({
       )}
     >
       <body suppressHydrationWarning className="flex min-h-screen flex-col">
-        <ThemeProvider defaultTheme="light" enableSystem={false}>
-          <RootProvider theme={{ enabled: false }}>{children}</RootProvider>
-          <AppToaster />
-        </ThemeProvider>
+        <ClerkProvider dynamic>
+          <ThemeProvider defaultTheme="light" enableSystem={false}>
+            <RootProvider theme={{ enabled: false }}>{children}</RootProvider>
+            <AppToaster />
+          </ThemeProvider>
+        </ClerkProvider>
       </body>
     </html>
   )

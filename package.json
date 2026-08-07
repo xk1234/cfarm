@@ -45,12 +45,14 @@
     "railway:scheduler": "NODE_OPTIONS='--conditions=react-server' tsx scripts/run-railway-function.mts automation-scheduler 300000",
     "railway:start": "tsx scripts/start-railway-service.mts",
     "railway:smoke": "NODE_OPTIONS='--conditions=react-server' tsx scripts/railway-smoke.mts",
+    "auth:migrate:clerk": "tsx scripts/migrate-railway-users-to-clerk.mts",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1104.0",
     "@aws-sdk/s3-request-presigner": "^3.1104.0",
+    "@clerk/nextjs": "7.7.0",
     "@fullcalendar/core": "6.1.21",
     "@fullcalendar/daygrid": "6.1.21",
     "@fullcalendar/interaction": "6.1.21",
