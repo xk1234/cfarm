@@ -15,8 +15,10 @@ import { renderedSlideSvg } from "@/lib/slideshow-renderer"
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import { findCollectionByIdOrAlias } from "@/lib/realfarm-collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
-import type { AutomationSchema } from "@/lib/realfarm-automation"
-import { previewTextForTextItem } from "@/lib/realfarm-preview-text"
+import type {
+  AutomationSchema,
+  AutomationTextItem,
+} from "@/lib/realfarm-automation"
 import type { XAutomationRecord } from "@/lib/x-automation"
 
 const TEMPLATE_PLACEHOLDER_IMAGE = `data:image/svg+xml,${encodeURIComponent(
@@ -98,12 +100,24 @@ function SlideshowDefinitionPreview({
   }
 
   const slide = previewSlideshowSlide(item, 0)
+  const previewSlide = {
+    ...slide,
+    textItems: slide.textItems.map((textItem, index) => ({
+      ...textItem,
+      text: templateTextPreview(
+        item.textItems[index],
+        `${item.tab} text${index > 0 ? ` ${index + 1}` : ""}`
+      ),
+    })),
+  }
   const sourceUrl = item.image?.imageUrl || TEMPLATE_PLACEHOLDER_IMAGE
-  const overlayUrl = slide.overlayImage?.image_url
-  const previewSvg = renderedSlideSvg(slide, sourceUrl, overlayUrl, {
+  const overlayUrl = previewSlide.overlayImage?.image_url
+  const previewSvg = renderedSlideSvg(previewSlide, sourceUrl, overlayUrl, {
     aspectRatio: previewSlideshowAspectRatio(item),
     font: previewSlideshowFont(item),
-    iconUrls: slide.iconLayout?.surrounding.map((icon) => icon.image_url),
+    iconUrls: previewSlide.iconLayout?.surrounding.map(
+      (icon) => icon.image_url
+    ),
   })
 
   return (
@@ -143,7 +157,7 @@ function VideoDefinitionPreview({
   const textItem =
     config.video_format?.segments[0]?.textItems[0] ??
     config.video_format?.globalTextItems[0]
-  const overlayText = previewTextForTextItem(textItem)
+  const overlayText = templateTextPreview(textItem, "Hook text")
 
   return (
     <div className="relative h-full overflow-hidden bg-[#252523]">
@@ -274,4 +288,15 @@ function videoTemplateLabel(config: AutomationSchema) {
 
 function isVideoUrl(url: string) {
   return /\.(mp4|mov|m4v|webm)(\?|#|$)/i.test(url)
+}
+
+function templateTextPreview(
+  textItem: AutomationTextItem | undefined,
+  fallback: string
+) {
+  if (textItem?.textMode === "static") {
+    const staticText = (textItem.staticText || textItem.text || "").trim()
+    if (staticText) return staticText
+  }
+  return fallback
 }
