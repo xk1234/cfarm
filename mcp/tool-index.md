@@ -57,9 +57,6 @@ several workflows, but its input/output contract has one obvious owner.
 | `lumenclip_workspace_members_list`               | [Accounts and publishing](publishing/README.md) | Implemented        |
 | `lumenclip_output_publish`                       | [Accounts and publishing](publishing/README.md) | Implemented        |
 | `lumenclip_output_mark_published`                | [Accounts and publishing](publishing/README.md) | Implemented        |
-| `lumenclip_tiktok_import_start`                  | [Accounts and publishing](publishing/README.md) | Implemented        |
-| `lumenclip_tiktok_import_preview`                | [Accounts and publishing](publishing/README.md) | Implemented        |
-| `lumenclip_tiktok_publications_link`             | [Accounts and publishing](publishing/README.md) | Implemented        |
 | `lumenclip_schedule_get`                         | [Scheduling](scheduling/README.md)              | Implemented        |
 | `lumenclip_analytics_report`                     | [Analytics](analytics/README.md)                | Implemented        |
 | `lumenclip_tiktok_studio_analytics_import_start` | [Analytics](analytics/README.md)                | Implemented        |

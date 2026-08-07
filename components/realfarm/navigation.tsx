@@ -9,7 +9,6 @@ import { useClerk } from "@clerk/nextjs"
 
 import {
   IconBook,
-  IconBrandTiktok,
   IconChartHistogram,
   IconCalendar,
   IconHome,
@@ -50,11 +49,6 @@ const topNav: NavItem[] = [
 const creationNav: NavItem[] = [
   { key: "templates", label: "Templates", icon: IconTemplate },
   { key: "collections", label: "Collections", icon: IconPhoto },
-  {
-    key: "published-posts",
-    label: "Published posts",
-    icon: IconBrandTiktok,
-  },
 ]
 
 export function Sidebar({

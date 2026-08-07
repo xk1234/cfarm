@@ -31,7 +31,6 @@ function initialView(value: string): ViewKey {
     "analytics",
     "collections",
     "templates",
-    "published-posts",
   ].includes(value)
     ? (value as ViewKey)
     : "home"
