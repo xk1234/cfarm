@@ -1857,12 +1857,11 @@ function fileId(relativePath) {
 }
 
 function ownedRowId(table, ownerId, rid) {
-  const namespace = table === "template_runs" ? "automation_runs" : table
   return (
     "u" +
     crypto
       .createHash("sha256")
-      .update(`${namespace}:${ownerId}:${rid}`)
+      .update(`${table}:${ownerId}:${rid}`)
       .digest("hex")
       .slice(0, 35)
   )

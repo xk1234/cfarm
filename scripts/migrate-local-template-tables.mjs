@@ -1,7 +1,8 @@
 /**
  * Move existing local Appwrite rows from the retired automation tables into
- * their canonical template tables, then remove the retired tables. The schema
- * clone creates the canonical destinations before this script runs.
+ * their canonical template tables, re-key every canonical row with its final
+ * table namespace, then remove the retired tables. Appwrite row ids are
+ * immutable, so re-keying is a create-before-delete operation.
  */
 import crypto from "node:crypto"
 
@@ -65,20 +66,77 @@ for (const [legacyTableId, templateTableId] of moves) {
   )
 }
 
+for (const [, templateTableId] of moves) {
+  if (await tableExists(templateTableId)) await rekeyTable(templateTableId)
+}
+
 function canonicalRowId(tableId, row) {
   const ownerId = String(row.owner_id ?? "").trim()
   const rid = String(row.rid ?? "").trim()
+  if (!rid) {
+    throw new Error(`Cannot re-key ${tableId}/${row.$id}: rid is missing.`)
+  }
   if (!ownerId && /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,35}$/.test(rid)) return rid
-  const stableNamespace =
-    {
-      templates: "automations",
-      template_runs: "automation_runs",
-      social_templates: "x_automations",
-    }[tableId] ?? tableId
-  const basis = ownerId
-    ? `${stableNamespace}:${ownerId}:${rid || row.$id}`
-    : `${stableNamespace}:${rid || row.$id}`
+  const basis = ownerId ? `${tableId}:${ownerId}:${rid}` : `${tableId}:${rid}`
   return `${ownerId ? "u" : "r"}${crypto.createHash("sha256").update(basis).digest("hex").slice(0, 35)}`
+}
+
+async function rekeyTable(tableId) {
+  const rows = await listAllRows(tableId)
+  let rekeyed = 0
+  for (const row of rows) {
+    const rowId = canonicalRowId(tableId, row)
+    if (rowId === row.$id) continue
+    const data = rowData(row)
+    try {
+      await tables.createRow({
+        databaseId,
+        tableId,
+        rowId,
+        data,
+        permissions: row.$permissions ?? [],
+      })
+    } catch (error) {
+      if (Number(error?.code) !== 409) throw error
+      const existing = await tables.getRow({ databaseId, tableId, rowId })
+      if (stableJson(rowData(existing)) !== stableJson(data)) {
+        throw new Error(
+          `Cannot re-key ${tableId}/${row.$id}: ${rowId} contains different data.`
+        )
+      }
+    }
+    await tables.deleteRow({ databaseId, tableId, rowId: row.$id })
+    rekeyed += 1
+  }
+  console.log(`Re-keyed ${rekeyed} rows in ${tableId}.`)
+}
+
+function listAllRows(tableId) {
+  return listAll("rows", (queries) =>
+    tables.listRows({
+      databaseId,
+      tableId,
+      queries,
+      total: false,
+    })
+  )
+}
+
+function rowData(row) {
+  return Object.fromEntries(
+    Object.entries(row).filter(([key]) => !key.startsWith("$"))
+  )
+}
+
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, child]) => `${JSON.stringify(key)}:${stableJson(child)}`)
+      .join(",")}}`
+  }
+  return JSON.stringify(value)
 }
 
 async function tableExists(tableId) {

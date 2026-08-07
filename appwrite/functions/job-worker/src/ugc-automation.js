@@ -1055,8 +1055,7 @@ function publicationRecordId(sourceId, integrationId) {
   return `pf${crypto.createHash("sha256").update(`${sourceId}:${integrationId}`).digest("hex").slice(0, 32)}`
 }
 function ownedRowId(table, ownerId, rid) {
-  const namespace = table === "template_runs" ? "automation_runs" : table
-  return `u${crypto.createHash("sha256").update(`${namespace}:${ownerId}:${rid}`).digest("hex").slice(0, 35)}`
+  return `u${crypto.createHash("sha256").update(`${table}:${ownerId}:${rid}`).digest("hex").slice(0, 35)}`
 }
 function consolidatedRowId(table, sourceKey, ownerId, rid) {
   return `u${crypto.createHash("sha256").update(`${table}:${sourceKey}:${ownerId}:${rid}`).digest("hex").slice(0, 35)}`

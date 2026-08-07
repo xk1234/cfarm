@@ -53,6 +53,9 @@ Ownership rules:
 - Serialized domain records normally also contain `ownerId` after persistence.
 - Deterministic private row IDs hash physical table, `source_key` where
   applicable, owner ID, and domain record ID.
+- Template and template-run rows use only their canonical physical table names
+  (`templates`, `template_runs`, and `social_templates`) as hash namespaces;
+  retired automation table names are not retained as compatibility aliases.
 - Worker requests use `systemOwnerId()` so queued work remains attributed to the
   user who owns the automation.
 - Shareable output categories may be read by accepted workspace collaborators;
