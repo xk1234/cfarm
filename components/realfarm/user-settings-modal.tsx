@@ -991,7 +991,7 @@ function AccountsPanel({
       {disconnectingAccount ? (
         <ConfirmDialog
           title={`Disconnect ${disconnectingAccount.name || disconnectingAccount.profile || disconnectingAccount.provider}?`}
-          description="This removes the account from every LumenClip automation. Its PostFast authorization is not revoked."
+          description="This removes the account from every LumenClip template. Its PostFast authorization is not revoked."
           confirmLabel="Disconnect account"
           pendingLabel="Disconnecting…"
           onCancel={() => setDisconnectingAccount(null)}

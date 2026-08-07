@@ -101,7 +101,7 @@ export function createLocalAutomationRecord(
 ): AutomationRecord {
   const now = new Date().toISOString()
   const id = `automation-local-${randomUUID()}`
-  const name = clean(input.name) || "Untitled automation"
+  const name = clean(input.name) || "Untitled template"
   const summary = automationSummary({
     id,
     name,
@@ -221,7 +221,7 @@ export function normalizeReelfarmAutomation(raw: unknown): AutomationRecord {
   const sourceAutomationId = clean(
     record.id ?? record._id ?? record.uuid ?? record.automationId
   )
-  const name = clean(record.name ?? record.title) || "Untitled automation"
+  const name = clean(record.name ?? record.title) || "Untitled template"
   const status = normalizeStatus(record.status)
   const account =
     clean(record.account ?? record.tiktokAccount ?? record.pageName) ||

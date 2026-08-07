@@ -26,9 +26,7 @@ import {
 } from "@/lib/calendar-items"
 import { clean, isRecord } from "@/lib/guards"
 import { postfastRequest } from "@/lib/postfast-client"
-import {
-  type PostFastPostRecord,
-} from "@/lib/postfast-posts"
+import { type PostFastPostRecord } from "@/lib/postfast-posts"
 import { listPublicationRecordsForRead } from "@/lib/post-repository"
 import { listJobs, type Job } from "@/lib/queue"
 import type { Automation } from "@/lib/realfarm-data"
@@ -190,7 +188,11 @@ function jobCalendarItem(
   from: Date,
   to: Date
 ): CalendarItem[] {
-  if (job.type !== "run-automation" && job.type !== "run-x-automation" && job.type !== "run-ugc-automation") {
+  if (
+    job.type !== "run-automation" &&
+    job.type !== "run-x-automation" &&
+    job.type !== "run-ugc-automation"
+  ) {
     return []
   }
   const status = calendarLifecycleForJob(job.status)
@@ -553,7 +555,7 @@ function localPostTitle(status: PostFastPostRecord["status"]) {
 }
 
 function automationLink(automationId: string) {
-  return `/?view=automations&automation=${encodeURIComponent(automationId)}`
+  return `/app?view=templates&template=${encodeURIComponent(automationId)}`
 }
 
 function contentLink(automationId: string, runId: string) {

@@ -139,8 +139,8 @@ export function XAutomationStudio({
           body: JSON.stringify({
             name:
               platform === "threads"
-                ? "New Threads automation"
-                : "New X automation",
+                ? "New Threads template"
+                : "New X template",
             platform,
           }),
         }
@@ -181,7 +181,7 @@ export function XAutomationStudio({
         items.map((item) => (item.id === selected.id ? saved : item))
       )
       toast.success(
-        `${saved.platform === "threads" ? "Threads" : "X"} automation saved`
+        `${saved.platform === "threads" ? "Threads" : "X"} template saved`
       )
       return saved
     } catch (error) {
@@ -411,16 +411,14 @@ export function XAutomationStudio({
               <div className="text-[11px] font-bold tracking-[0.14em] text-app-text-faint uppercase">
                 Separate content engine
               </div>
-              <h1 className="text-lg font-semibold">
-                X and Threads Automations
-              </h1>
+              <h1 className="text-lg font-semibold">X and Threads templates</h1>
             </div>
           </div>
         </header>
       ) : null}
 
       <nav
-        aria-label="Automation workflow"
+        aria-label="Template workflow"
         className={cn(
           "sticky z-20 grid grid-cols-3 gap-1 border-b border-app-panel-border bg-app-surface p-2 xl:hidden",
           embedded ? "top-0" : "top-14 md:top-0"
@@ -471,7 +469,7 @@ export function XAutomationStudio({
                 Start here
               </div>
               <p className="mt-1 text-sm font-semibold text-app-text">
-                Create the automation you want to set up.
+                Create the template you want to set up.
               </p>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <Button
@@ -566,7 +564,7 @@ export function XAutomationStudio({
           {selected && (
             <div className="mt-auto rounded-lg border border-app-panel-border bg-app-surface p-3">
               <div className="text-[10px] font-bold tracking-[0.12em] text-app-text-faint uppercase">
-                {selected.platform === "threads" ? "Threads" : "X"} automation
+                {selected.platform === "threads" ? "Threads" : "X"} template
               </div>
               <div className="mt-1 text-sm font-bold">
                 {selected.niche.label || "Set a niche"}
@@ -585,7 +583,7 @@ export function XAutomationStudio({
             <div className="mb-5 flex items-center justify-between border-b border-app-panel-border pb-4">
               <div>
                 <div className="text-[10px] font-bold tracking-[0.14em] text-app-text-faint uppercase">
-                  Automation
+                  Template
                 </div>
                 <div className="text-[15px] font-semibold">
                   {selected?.platform === "threads" ? "Threads" : "X"} Content
@@ -1493,7 +1491,7 @@ function XPreview({
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-sm">
-                <span className="font-bold">Automation</span>{" "}
+                <span className="font-bold">LumenClip</span>{" "}
                 <span className="text-app-muted-text">
                   @operator · now · {post.platform ?? "x"}
                 </span>
@@ -1735,10 +1733,10 @@ function EmptyState({
         </p>
         <div className="mt-4 flex justify-center gap-3">
           <Button variant="action" onClick={() => onCreate("x")}>
-            <LuPlus /> New X automation
+            <LuPlus /> New X template
           </Button>
           <Button variant="softControl" onClick={() => onCreate("threads")}>
-            <LuPlus /> New Threads automation
+            <LuPlus /> New Threads template
           </Button>
         </div>
       </div>

@@ -57,7 +57,10 @@ export const POST = withHandler(async (request: Request) => {
 
   const record = createLocalAutomationRecord({
     name: typeof payload?.name === "string" ? payload.name : undefined,
-    automationKind: payload?.automationKind === "video" || payload?.automationKind === "ugc" ? payload.automationKind : undefined,
+    automationKind:
+      payload?.automationKind === "video" || payload?.automationKind === "ugc"
+        ? payload.automationKind
+        : undefined,
     schema: isRecord(payload?.schema)
       ? (payload.schema as AutomationSchema)
       : undefined,
@@ -75,8 +78,7 @@ export const POST = withHandler(async (request: Request) => {
   const next = await upsertAutomationRecords({ records: [record] })
   const readyRecords = await reconcileAutomationReadiness(next)
   const created =
-    readyRecords.find((item) => item.record.id === record.id) ??
-    readyRecords[0]
+    readyRecords.find((item) => item.record.id === record.id) ?? readyRecords[0]
 
   return NextResponse.json(
     {
@@ -95,7 +97,7 @@ export const PATCH = withHandler(async (request: Request) => {
 
   if (!id) {
     return NextResponse.json(
-      { error: "An automation id is required" },
+      { error: "A template id is required" },
       { status: 400 }
     )
   }
@@ -103,10 +105,7 @@ export const PATCH = withHandler(async (request: Request) => {
   if (isRecord(payload.schema)) {
     const current = await getAutomationRecord(id)
     if (!current) {
-      return NextResponse.json(
-        { error: "Automation not found" },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: "Template not found" }, { status: 404 })
     }
     const currentItems = new Map(
       automationHookItems(current.schema).map((item) => [item.id, item])
@@ -145,7 +144,8 @@ export const PATCH = withHandler(async (request: Request) => {
       payload.status === "paused" ? "paused" : "live",
       payload.schema as AutomationSchema
     )
-    if (errors.length) return NextResponse.json({ error: errors[0], errors }, { status: 400 })
+    if (errors.length)
+      return NextResponse.json({ error: errors[0], errors }, { status: 400 })
   }
 
   const record = await patchAutomationRecord({
@@ -163,7 +163,7 @@ export const PATCH = withHandler(async (request: Request) => {
   })
 
   if (!record) {
-    return NextResponse.json({ error: "Automation not found" }, { status: 404 })
+    return NextResponse.json({ error: "Template not found" }, { status: 404 })
   }
 
   const [ready] = await reconcileAutomationReadiness([record])

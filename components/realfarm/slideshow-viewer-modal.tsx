@@ -1056,7 +1056,7 @@ function SlideImagePickerModal({
             <div
               className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5"
               role="status"
-              aria-label="Loading automation images"
+              aria-label="Loading template images"
             >
               {Array.from({ length: 15 }, (_, index) => (
                 <div

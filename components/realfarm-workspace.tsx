@@ -15,7 +15,6 @@ import {
 } from "@/components/realfarm/workspace-navigation"
 import {
   mergeAutomationSchema,
-  ugcLiveConfigurationErrors,
   type AutomationSchedule,
   type AutomationSchema,
   type AutomationSocialIntegration,
@@ -66,9 +65,9 @@ const CollectionDetailView = dynamic(() =>
     (module) => module.CollectionDetailView
   )
 )
-const AutomationsView = dynamic(() =>
+const TemplatesView = dynamic(() =>
   import("@/components/realfarm/automations-view").then(
-    (module) => module.AutomationsView
+    (module) => module.TemplatesView
   )
 )
 const AutomationSettingsDrawer = dynamic(() =>
@@ -286,7 +285,7 @@ export function RealFarmWorkspace({
   } = useCollectionsData({
     assets: workspaceAssets,
     enabled:
-      view === "collections" || view === "automations" || templateFolderOpen,
+      view === "collections" || view === "templates" || templateFolderOpen,
   })
   const selectedCollection =
     visibleCollections.find(
@@ -338,7 +337,7 @@ export function RealFarmWorkspace({
     const needsAssets =
       templateFolderOpen ||
       view === "collections" ||
-      (view === "automations" &&
+      (view === "templates" &&
         Boolean(editingAutomation?.id) &&
         editingAutomation?.automationKind !== "x_threads")
     if (!needsAssets || workspaceAssetsLoaded) return
@@ -365,8 +364,7 @@ export function RealFarmWorkspace({
   ])
 
   useEffect(() => {
-    if ((view !== "home" && view !== "automations") || xAutomationsLoaded)
-      return
+    if ((view !== "home" && view !== "templates") || xAutomationsLoaded) return
     let active = true
     void fetchJsonWithTimeout<{ automations?: XAutomationRecord[] }>(
       "/api/x-automations"
@@ -390,7 +388,7 @@ export function RealFarmWorkspace({
   }, [linkedAutomationId, view, xAutomationsLoaded])
 
   useEffect(() => {
-    if (view !== "automations" || xAutomationRunsLoaded) return
+    if (view !== "templates" || xAutomationRunsLoaded) return
     let active = true
     void fetchJsonWithTimeout<{ runs?: XAutomationRun[] }>(
       "/api/x-automations/generate"
@@ -412,7 +410,7 @@ export function RealFarmWorkspace({
     void fetchJsonWithTimeout<{
       automations?: Automation[]
       records?: AutomationRecord[]
-    }>("/api/automations")
+    }>("/api/templates")
       .then((payload) => {
         if (!active || !payload?.automations) {
           return
@@ -496,7 +494,7 @@ export function RealFarmWorkspace({
     void fetchJsonWithTimeout<{
       record: AutomationRecord
       automation: Automation
-    }>("/api/automations", {
+    }>("/api/templates", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, ...patch }),
@@ -514,7 +512,7 @@ export function RealFarmWorkspace({
         )
       })
       .catch((error) => {
-        toast.error(getApiErrorMessage(error, "Failed to update automation"))
+        toast.error(getApiErrorMessage(error, "Failed to update template"))
       })
   }
 
@@ -540,7 +538,7 @@ export function RealFarmWorkspace({
     })
     setEditingAutomation(null)
 
-    void fetchJsonWithTimeout(`/api/automations/${encodeURIComponent(id)}`, {
+    void fetchJsonWithTimeout(`/api/templates/${encodeURIComponent(id)}`, {
       method: "DELETE",
       timeoutMs: 15_000,
       toastOnError: false,
@@ -557,7 +555,7 @@ export function RealFarmWorkspace({
           [id]: deletedConfig,
         }))
       }
-      toast.error(getApiErrorMessage(error, "Failed to delete automation"))
+      toast.error(getApiErrorMessage(error, "Failed to delete template"))
     })
   }
 
@@ -577,99 +575,6 @@ export function RealFarmWorkspace({
       [automation.id]: reviveAutomationSchema(record.schema),
     }))
     return automation
-  }
-
-  function toggleAutomationStatus(automation: Automation) {
-    if (automation.automationKind === "x_threads") {
-      const engine = xAutomations.find((item) => item.id === automation.id)
-      if (!engine) return
-      const nextEngine = {
-        ...engine,
-        status:
-          engine.status === "paused" ? ("live" as const) : ("paused" as const),
-      }
-      setXAutomations((items) =>
-        items.map((item) => (item.id === engine.id ? nextEngine : item))
-      )
-      void fetchJsonWithTimeout<{ automation: XAutomationRecord }>(
-        "/api/x-automations",
-        {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ automation: nextEngine }),
-        }
-      )
-        .then(({ automation: savedAutomation }) => {
-          setXAutomations((items) =>
-            items.map((item) =>
-              item.id === savedAutomation.id ? savedAutomation : item
-            )
-          )
-        })
-        .catch((error) => {
-          setXAutomations((items) =>
-            items.map((item) => (item.id === engine.id ? engine : item))
-          )
-          toast.error(
-            getApiErrorMessage(error, "Failed to update automation status")
-          )
-        })
-      return
-    }
-    const currentConfig = mergeAutomationSchema(
-      automation,
-      automationConfigEdits[automation.id]
-    )
-    const nextStatus: AutomationStatus =
-      automation.status === "paused" ? "live" : "paused"
-    if (
-      nextStatus === "live" &&
-      (automation.generationBlockers?.length ?? 0) > 0
-    ) {
-      toast.error("Automation cannot be resumed", {
-        description: automation.generationBlockers!.join(". "),
-      })
-      setEditingAutomation(automation)
-      return
-    }
-    const nextConfig = {
-      ...currentConfig,
-      status: nextStatus,
-      schedule: {
-        ...currentConfig.schedule,
-        paused: nextStatus === "paused",
-      },
-    }
-    const ugcErrors = ugcLiveConfigurationErrors(nextStatus, nextConfig)
-    if (ugcErrors.length) {
-      toast.error("UGC automation is not ready to go live", {
-        description: ugcErrors.join(". "),
-      })
-      setEditingAutomation(automation)
-      return
-    }
-    const nextAutomation = {
-      ...automation,
-      status: nextStatus,
-    }
-
-    setAutomationConfigEdits((current) => ({
-      ...current,
-      [automation.id]: nextConfig,
-    }))
-    setPersistedAutomations((current) =>
-      current.map((item) => (item.id === automation.id ? nextAutomation : item))
-    )
-    setCreatedAutomations((current) =>
-      current.map((item) => (item.id === automation.id ? nextAutomation : item))
-    )
-    setEditingAutomation((current) =>
-      current?.id === automation.id ? nextAutomation : current
-    )
-    persistAutomationPatch(automation.id, {
-      status: nextStatus,
-      schema: nextConfig,
-    })
   }
 
   function onSocialIntegrationsChange(
@@ -762,7 +667,7 @@ export function RealFarmWorkspace({
     const payload = await fetchJsonWithTimeout<{
       automation?: Automation
       record?: AutomationRecord
-    }>("/api/automations", {
+    }>("/api/templates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -770,19 +675,22 @@ export function RealFarmWorkspace({
         automationKind: input.automationKind,
         schema: input.schema,
         template: input.template,
-        overrides: input.overrides,
+        overrides: {
+          ...input.overrides,
+          status: input.overrides?.status ?? "paused",
+        },
       }),
     })
 
     if (!payload.automation || !payload.record) {
-      throw new Error("Failed to create automation")
+      throw new Error("Failed to create template")
     }
 
     return applyAutomationRecord(payload.record, payload.automation)
   }
 
   function changeView(nextView: ViewKey) {
-    if (nextView === "automations") {
+    if (nextView === "templates") {
       setEditingAutomation(null)
       refreshRecentAutomationRuns()
     }
@@ -793,8 +701,8 @@ export function RealFarmWorkspace({
 
   function showAutomationList() {
     setEditingAutomation(null)
-    setView("automations")
-    pushWorkspaceUrl(workspaceViewHref("automations"))
+    setView("templates")
+    pushWorkspaceUrl(workspaceViewHref("templates"))
     refreshRecentAutomationRuns()
   }
 
@@ -828,7 +736,7 @@ export function RealFarmWorkspace({
       .finally(() => setRecentRunsLoaded(true))
   }
 
-  const fillsWorkspace = view === "automations" && Boolean(editingAutomation)
+  const fillsWorkspace = view === "templates" && Boolean(editingAutomation)
 
   return (
     <main className="relative h-svh overflow-hidden bg-[#f7f7fa] text-app-text">
@@ -837,13 +745,13 @@ export function RealFarmWorkspace({
           data={data}
           view={view}
           onViewChange={changeView}
-          onNewAutomation={() => setTemplateFolderOpen(true)}
+          onNewTemplate={() => setTemplateFolderOpen(true)}
           onSettings={() => setSettingsOpen(true)}
         />
         <MobileNavigation
           view={view}
           onViewChange={changeView}
-          onNewAutomation={() => setTemplateFolderOpen(true)}
+          onNewTemplate={() => setTemplateFolderOpen(true)}
           onSettings={() => setSettingsOpen(true)}
         />
         <section
@@ -894,7 +802,7 @@ export function RealFarmWorkspace({
                 })
                   .then((createdAutomation) => {
                     toast.success(`Created “${createdAutomation.name}”`)
-                    setView("automations")
+                    setView("templates")
                     setEditingAutomation(createdAutomation)
                   })
                   .catch(() => undefined)
@@ -991,9 +899,9 @@ export function RealFarmWorkspace({
                   void createLocalAutomation({ name })
                     .then((automation) => {
                       setEditingAutomation(automation)
-                      setView("automations")
+                      setView("templates")
                       pushWorkspaceUrl(
-                        `/app?view=automations&automation=${encodeURIComponent(automation.id)}`
+                        `/app?view=templates&template=${encodeURIComponent(automation.id)}`
                       )
                     })
                     .catch(() => undefined)
@@ -1016,7 +924,7 @@ export function RealFarmWorkspace({
                 onToggleCollectionPin={toggleCollectionPin}
               />
             ))}
-          {view === "automations" &&
+          {view === "templates" &&
             (editingAutomation ? (
               editingAutomation.automationKind === "x_threads" ? (
                 <XAutomationStudio
@@ -1134,7 +1042,7 @@ export function RealFarmWorkspace({
                 />
               )
             ) : (
-              <AutomationsView
+              <TemplatesView
                 automations={automations}
                 automationsLoading={
                   !persistedAutomationsLoaded || !xAutomationsLoaded
@@ -1151,7 +1059,7 @@ export function RealFarmWorkspace({
                     name: "Matched TikTok slideshow",
                     schema: fields as AutomationSchema,
                   })
-                  setView("automations")
+                  setView("templates")
                   setEditingAutomation(automation)
                 }}
                 onRename={(automation, name) => {
@@ -1202,8 +1110,6 @@ export function RealFarmWorkspace({
                     favorite: nextFavorite,
                   })
                 }}
-                onToggleStatus={toggleAutomationStatus}
-                onEditSocialAccounts={setSocialAccountAutomation}
                 onGenerationRunRemove={removeRecentAutomationRun}
                 onEdit={setEditingAutomation}
               />
@@ -1243,7 +1149,7 @@ export function RealFarmWorkspace({
               schema,
             })
             setTemplateFolderOpen(false)
-            setView("automations")
+            setView("templates")
             setEditingAutomation(automation)
           }}
           onCreateCollection={(collection) => {
@@ -1262,8 +1168,8 @@ export function RealFarmWorkspace({
                 body: JSON.stringify({
                   name:
                     selectedPlatform === "threads"
-                      ? "New Threads automation"
-                      : "New X automation",
+                      ? "New Threads template"
+                      : "New X template",
                   platform: selectedPlatform,
                 }),
               })
@@ -1279,7 +1185,7 @@ export function RealFarmWorkspace({
                 .then(({ automation }) => {
                   setXAutomations((items) => [automation, ...items])
                   setTemplateFolderOpen(false)
-                  setView("automations")
+                  setView("templates")
                   setEditingAutomation({
                     id: automation.id,
                     name: automation.name,
@@ -1308,12 +1214,12 @@ export function RealFarmWorkspace({
             void createLocalAutomation({ automationKind })
               .then((automation) => {
                 setTemplateFolderOpen(false)
-                setView("automations")
+                setView("templates")
                 setEditingAutomation(automation)
               })
               .catch((error) => {
                 toast.error(
-                  getApiErrorMessage(error, "Could not create automation")
+                  getApiErrorMessage(error, "Could not create template")
                 )
               })
           }}
@@ -1343,12 +1249,12 @@ export function RealFarmWorkspace({
               .then((createdAutomation) => {
                 toast.success(`Created “${createdAutomation.name}”`)
                 setTemplateFolderOpen(false)
-                setView("automations")
+                setView("templates")
                 setEditingAutomation(createdAutomation)
               })
               .catch((error) => {
                 toast.error(
-                  getApiErrorMessage(error, "Could not create automation")
+                  getApiErrorMessage(error, "Could not create template")
                 )
               })
           }}

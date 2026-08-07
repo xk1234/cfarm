@@ -136,7 +136,7 @@ export function TemplateFolderModal({
       <AppModalPanel className="flex h-[calc(100svh-1rem)] max-h-[calc(100svh-1rem)] max-w-[840px] flex-col overflow-hidden rounded-[10px] sm:h-auto sm:max-h-[86vh]">
         <div className="shrink-0 bg-app-surface">
           <AppModalHeader
-            title="Automation templates"
+            title="Templates"
             closeLabel="Close templates"
             onClose={onClose}
           />
@@ -152,7 +152,7 @@ export function TemplateFolderModal({
                   setVisibleCount(TEMPLATE_BATCH_SIZE)
                 }}
                 autoFocus
-                aria-label="Search automation templates"
+                aria-label="Search templates"
               />
             </label>
           </div>
@@ -206,7 +206,7 @@ export function TemplateFolderModal({
                     onClick={() => onCreateBlank("x_threads", "x")}
                   >
                     <XThreadsBrandIcon platform="x" className="size-4" />
-                    New X automation
+                    New X template
                   </Button>
                   <Button
                     type="button"
@@ -215,7 +215,7 @@ export function TemplateFolderModal({
                     onClick={() => onCreateBlank("x_threads", "threads")}
                   >
                     <XThreadsBrandIcon platform="threads" className="size-4" />
-                    New Threads automation
+                    New Threads template
                   </Button>
                 </>
               ) : (
@@ -230,7 +230,7 @@ export function TemplateFolderModal({
                   ) : (
                     <IconSlideshow className="size-4" />
                   )}
-                  New {selectedKindLabel.toLowerCase()} automation
+                  New {selectedKindLabel.toLowerCase()} template
                 </Button>
               )}
             </div>
@@ -272,7 +272,7 @@ export function TemplateFolderModal({
           {templateAutomations.length === 0 ? (
             <TemplateEmptyState
               title="No templates available"
-              description="Create a blank automation to start from scratch."
+              description="Create a blank template to start from scratch."
             />
           ) : templates.length === 0 ? (
             <TemplateEmptyState
@@ -410,7 +410,7 @@ function TemplateCard({
           <button
             className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-app-action px-3 text-[13px] font-bold text-white shadow-sm md:h-10 md:flex-none md:px-4 md:text-[15px]"
             onClick={onAdd}
-            aria-label={`Create automation from ${automation.name}`}
+            aria-label={`Create template from ${automation.name}`}
           >
             <IconPlus className="size-4 md:size-5" />
             Create
@@ -424,7 +424,7 @@ function TemplateCard({
 function automationKindLabel(automation: Automation) {
   const kind = templateKind(automation)
   if (kind === "x_threads") return "Other social media"
-  return kind === "video" ? "Video automation" : "Slideshow automation"
+  return kind === "video" ? "Video template" : "Slideshow template"
 }
 
 function templateKindLabel(kind: TemplateKindFilter) {

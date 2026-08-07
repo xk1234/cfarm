@@ -792,7 +792,7 @@ function CollectionAutomationEditor({
   return (
     <AppModal className="z-40 bg-[#24251f]/48" onClose={onClose}>
       <AppModalPanel
-        accessibleTitle="Automation editor"
+        accessibleTitle="Template editor"
         className="relative grid max-w-[760px] rounded-[10px] bg-[#d0d0cc] md:grid-cols-[255px_1fr]"
       >
         <div className="flex min-h-[520px] flex-col bg-app-surface p-4">
@@ -882,7 +882,7 @@ function CollectionAutomationEditor({
               }
             }}
           >
-            {activeTab === "CTA" ? "Save Changes" : "Create automation"}
+            {activeTab === "CTA" ? "Save Changes" : "Create template"}
           </Button>
         </div>
 
@@ -999,7 +999,7 @@ function CollectionAutomationEditor({
       </AppModalPanel>
       {createOpen && (
         <CreateAutomationDialog
-          defaultName="Custom Automation"
+          defaultName="Custom template"
           onCancel={() => setCreateOpen(false)}
           onCreate={(name) => {
             setCreateOpen(false)
@@ -1025,7 +1025,7 @@ function CreateAutomationDialog({
   return (
     <AppModal layer="absolute" className="z-50" onClose={onCancel}>
       <AppModalPanel className="max-w-[430px] rounded-[8px] shadow-2xl">
-        <AppModalHeader title="Create Automation" onClose={onCancel} />
+        <AppModalHeader title="Create template" onClose={onCancel} />
         <div className="p-5">
           <label className="mt-5 block text-[12px] font-semibold">
             Automation name

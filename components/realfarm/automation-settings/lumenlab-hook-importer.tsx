@@ -326,7 +326,7 @@ export function LumenLabHookImporter({
                   ) : (
                     <p className="p-5 text-sm text-app-text-soft">
                       {hooks.length > 0
-                        ? "All matching hooks already exist in this automation."
+                        ? "All matching hooks already exist in this template."
                         : "This project has no saved hooks. Analyze its scripts to create hooks with content direction and source content."}
                     </p>
                   )}

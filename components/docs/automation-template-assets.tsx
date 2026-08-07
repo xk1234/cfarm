@@ -38,7 +38,7 @@ export async function SlideshowAutomationTemplateAssets() {
   return (
     <AutomationTemplateCatalog
       items={result.items}
-      emptyMessage="No slideshow automation templates are available in the catalog."
+      emptyMessage="No slideshow templates are available in the catalog."
     />
   )
 }

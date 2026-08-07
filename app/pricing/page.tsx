@@ -52,7 +52,7 @@ export default function PricingPage() {
             <ul className="mt-8 space-y-3 text-sm">
               {[
                 "Private source and asset library",
-                "Automations and saved runs",
+                "Templates and saved runs",
                 "Creator records and collections",
                 "Review gates and output history",
               ].map((item) => (
@@ -87,7 +87,7 @@ export default function PricingPage() {
               {[
                 "Shared asset and template libraries",
                 "Roles and collaborative review",
-                "Higher automation and generation volume",
+                "Higher scheduled generation volume",
                 "Assisted workflow migration",
               ].map((item) => (
                 <li key={item} className="flex gap-2">

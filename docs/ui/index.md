@@ -18,10 +18,11 @@ precedence where they disagree.
   addressed by the `view` query parameter rather than by a route per
   destination.
 - The six workspace destinations are Home, Compose, Schedule, Analytics,
-  Collections, and Automations. Their query values are `home`, `compose`,
-  `schedule`, `analytics`, `collections`, and `automations`.
-- Automation deep links keep the Automations destination selected and add
-  `automation=<id>` or `run=<id>` to the workspace query.
+  Collections, Templates, and Published posts. Their query values are `home`,
+  `compose`, `schedule`, `analytics`, `collections`, `templates`, and
+  `published-posts`.
+- Template deep links keep the Templates destination selected and add
+  `template=<id>` or `run=<id>` to the workspace query.
 - Collection detail at `/app/collections/[id]`, post analytics at
   `/app/analytics/posts/[id]`, the testing facility at `/app/testing`, X and
   Threads automations at `/app/x-automations`, UGC run status at
@@ -50,16 +51,16 @@ precedence where they disagree.
 - [Home](/docs/ui/home/home)
 - [Published posts](/docs/ui/home/published-posts)
 
-### Automations
+### Templates
 
-- [Automations overview](/docs/ui/automations/overview)
+- [Templates overview](/docs/ui/automations/overview)
 - [Templates](/docs/ui/automations/templates)
 - [Hooks](/docs/ui/automations/hooks)
 - [Hook analytics](/docs/ui/automations/hook-analytics)
-- [Automation schedule](/docs/ui/automations/schedule)
-- [Automation settings](/docs/ui/automations/settings)
+- [Template schedule](/docs/ui/automations/schedule)
+- [Template settings](/docs/ui/automations/settings)
 - [Social settings](/docs/ui/automations/social-settings)
-- [X automations](/docs/ui/automations/x-automations)
+- [X and Threads templates](/docs/ui/automations/x-automations)
 - [UGC video](/docs/ui/automations/ugc)
 
 ### Compose, Schedule, Analytics

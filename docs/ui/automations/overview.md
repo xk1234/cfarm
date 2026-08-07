@@ -1,67 +1,54 @@
 ---
-title: Automations overview
-description: Review automation cards, recent output, account summaries, and schedules, and open the editor.
+title: Templates overview
+description: Review reusable content configurations and their recent output, then open the editor.
 ---
 
-Route: `/app?view=automations`
+Route: `/app?view=templates`
 
-![Desktop automations production capture](../assets/screenshots/desktop-automations.png)
+![Desktop templates production capture](../assets/screenshots/desktop-automations.png)
 
-![Mobile automations production capture](../assets/screenshots/mobile-automations.png)
-
-![Desktop automations overview Paper export](../assets/screenshots/desktop-automations-overview.png)
-
-![Mobile automations overview Paper export](../assets/screenshots/mobile-automations-overview.png)
+![Mobile templates production capture](../assets/screenshots/mobile-automations.png)
 
 ## Layout
 
 Owner: `components/realfarm/automations-view.tsx`.
 
-The destination places Match slideshow and New automation beside the Automations
+The destination places Match slideshow and New template beside the Templates
 heading, followed by a responsive card grid. The grid is one column by default,
 two columns from the medium breakpoint, and three columns from the large
-breakpoint. The three-column desktop layout therefore collapses to one card per
-row on phones.
+breakpoint.
 
-Slideshow and video cards show live or paused state, favorite state, an editable
-name, and three recent-generation slots. A slideshow slot prefers the newest
-run's exported thumbnail, then its rendered first slide, then its planned first
-slide. A video run with a video URL renders a video thumbnail. Failed runs
-remain visible as failures, while missing slots say that there is no recent
-generation. A generation blocker adds a destructive border and shows its first
-message. Each card also summarizes selected account statuses, projected
-upcoming posts, and Pause or Resume plus Edit actions.
+Slideshow and video cards show their type, favorite state, editable name, and
+three recent-generation slots. A slideshow slot prefers the newest run's
+exported thumbnail, then its rendered first slide, then its planned first slide.
+A video run with a video URL renders a video thumbnail. Failed runs remain
+visible, while missing slots say that there is no recent generation. A
+generation blocker adds a destructive border and shows its first message.
 
-X and Threads cards use the same grid but replace media thumbnails with up to
-three recent post excerpts, platform, content type, and benchmark score. The
-empty destination renders a single dashed No automations yet panel.
+X and Threads templates use the same grid but replace media thumbnails with up
+to three recent post excerpts, platform, content type, and benchmark score. The
+empty destination renders a single dashed No templates yet panel.
 
-Slideshow and video records persist in the `automations` table and their recent
-generations in `automation_runs`. X and Threads records use `x_automations`,
-while their runs are owner-scoped `outputs` rows with
-`source_key=x_automation_run`. Shared template definitions and examples remain
-separate `permanent_assets`; using a template creates a user-owned automation
-instead of changing the shared record.
+Historical records keep their `automations`, `automation_runs`, and
+`x_automations` persistence names. That preserves schedules, publications,
+analytics joins, and existing MCP clients while the authoring surface uses the
+Templates vocabulary.
 
 ## Interactions
 
-Match slideshow opens the tone analyzer, while New automation opens the template
-browser. A slideshow or video card can be renamed inline, favorited, paused or
-resumed, and opened in the shared automation editor. Selecting its Accounts area
-opens the account picker. An automation with generation blockers cannot be
-resumed and opens in the editor so the configuration can be corrected.
+Match slideshow opens the tone analyzer, while New template opens the template
+browser. A slideshow or video template can be renamed inline, favorited, and
+opened in the shared editor. Schedule lifecycle and account selection belong in
+the editor rather than on the reusable-template card.
 
-Selecting a successful preview opens the generated slideshow or video viewer;
-failed and empty slots do not open a viewer. The editor can also be addressed at
-`/app?view=automations&automation=<id>`, and a specific persisted run can be
-requested with `&run=<id>`. Opening a card, viewer, or editor is UI navigation.
+Selecting a successful preview opens the generated slideshow or video viewer.
+The editor is addressable at `/app?view=templates&template=<id>`, and a specific
+persisted run can be requested with `&run=<id>`. The legacy
+`view=automations&automation=<id>` URL is normalized to the template route.
 
 ## MCP coverage
 
 Yes. `lumenclip_automations_list`, `lumenclip_automation_get`,
 `lumenclip_automation_templates_list`, and `lumenclip_outputs_list` read the
-card, template, and recent-output data. `lumenclip_automation_create` and
-`lumenclip_automation_clone` create user-owned records,
-`lumenclip_automation_update` changes names, favorites, lifecycle state, and
-schedules, and `lumenclip_automation_run` starts supported manual runs. Opening
-the destination, card, or viewer is UI-only navigation.
+template and recent-output data. Existing MCP names retain the automation prefix
+for backwards compatibility.

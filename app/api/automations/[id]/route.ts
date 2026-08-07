@@ -11,7 +11,7 @@ export const DELETE = withHandler<{ params: Promise<{ id: string }> }>(
 
     if (!id) {
       return NextResponse.json(
-        { error: "An automation id is required" },
+        { error: "A template id is required" },
         { status: 400 }
       )
     }
@@ -24,10 +24,7 @@ export const DELETE = withHandler<{ params: Promise<{ id: string }> }>(
       result.deletedJobsCount === 0 &&
       result.deletedPostFastPostsCount === 0
     ) {
-      return NextResponse.json(
-        { error: "Automation not found" },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: "Template not found" }, { status: 404 })
     }
     return NextResponse.json(result)
   }

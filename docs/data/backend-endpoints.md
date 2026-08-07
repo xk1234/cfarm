@@ -46,12 +46,16 @@ The app has no custom authentication API routes.
 | ----------------- | ------------- | ------------------------------------------------------- | ------- |
 | `GET /api/search` | Query `query` | Public read-only Orama index generated from `docs/**/*` | Current |
 
-## Automations and templates
+## Templates and execution compatibility
 
 | Method and path                            | Input                                                                                | Response / behavior                                                           | State   |
 | ------------------------------------------ | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | ------- |
 | `GET /api/automation-templates`            | None                                                                                 | Template records, summaries, example runs, and schema map                     | Current |
 | `POST /api/automation-templates`           | JSON array or `{ templates }` / `{ automations }` containing ReelFarm-shaped exports | Imports normalized templates; `201`                                           | Current |
+| `GET /api/templates`                       | None                                                                                 | User-owned template records and summaries                                     | Current |
+| `POST /api/templates`                      | JSON `{ name?, automationKind?, schema?, template?, overrides? }`                    | Creates a user-owned template; `201`                                          | Current |
+| `PATCH /api/templates`                     | JSON `{ id, name?, status?, favorite?, schema? }`                                    | Updates a user-owned template                                                 | Current |
+| `DELETE /api/templates/[id]`               | Path ID                                                                              | Cascades through runs, slideshow results, and local publication records       | Current |
 | `GET /api/automations`                     | None                                                                                 | `{ records, automations }`                                                    | Current |
 | `POST /api/automations`                    | JSON `{ name?, automationKind?, schema?, template?, overrides? }`                    | Creates a local automation; raw imports are rejected; `201`                   | Current |
 | `PATCH /api/automations`                   | JSON `{ id, name?, status?, favorite?, schema? }`                                    | `{ record, automation }`; `409` when a published hook is removed or renamed   | Current |
@@ -61,6 +65,10 @@ The app has no custom authentication API routes.
 | `POST /api/automations/run`                | JSON `{ automationId, force: true, now?, requestId? }`                               | Runs one interactive generation and returns created/results/skipped           | Current |
 | `GET /api/automations/runs`                | Query `automationId?`, `limit?`                                                      | Unified run views, including generated-video-backed runs                      | Current |
 | `GET /api/automations/[id]/hook-analytics` | Path automation ID                                                                   | Published hook lock state and aggregated metric rows                          | Current |
+
+The `/api/automations` definition routes remain compatibility aliases for MCP,
+workers, and older clients. New app authoring uses `/api/templates`; execution
+routes retain automation IDs so historical joins remain stable.
 
 An interactive `/automations/run` call is the manual generation path. Scheduled
 execution is driven by the scheduler/worker and is not exposed as a browser

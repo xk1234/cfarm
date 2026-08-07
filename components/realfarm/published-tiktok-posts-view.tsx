@@ -45,9 +45,9 @@ export function PublishedTikTokPostsView({
       automationId={selectedAutomationId}
       action={
         <label className="min-w-52 text-xs font-semibold text-app-muted-text">
-          <span className="sr-only">Automation</span>
+          <span className="sr-only">Template</span>
           <SelectControl
-            aria-label="Automation"
+            aria-label="Template"
             className="w-full bg-app-surface text-app-text"
             value={selectedAutomationId}
             onChange={(event) => setRequestedAutomationId(event.target.value)}
