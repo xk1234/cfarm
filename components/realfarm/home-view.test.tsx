@@ -20,8 +20,9 @@ describe("HomeView", () => {
 
     expect(markup).toContain("<h1")
     expect(markup).toContain(">Home</h1>")
-    expect(markup).toContain("Saved templates")
-    expect(markup).toContain("Recent generations")
+    expect(markup).toContain("Next expected post")
+    expect(markup).toContain("Nothing scheduled")
+    expect(markup).toContain("Scheduled templates")
     expect(markup).toContain("Outstanding actions")
     expect(markup).not.toContain("New template")
     expect(markup).not.toContain("Start from a proven workflow")
