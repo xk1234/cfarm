@@ -16,17 +16,18 @@ The active TikTok tab determines the task shown in the popup:
 - Other pages explain the two supported locations and link back to TikTok
   Studio Content.
 
-The popup includes the full next-step sequence for the detected task. Continue
-in LumenClip carries the task and video ID in the URL. A Studio deep link opens
-the import dialog and starts discovery automatically. The companion scrolls
+The popup includes the full next-step sequence for the detected task. A Studio
+deep link opens the LumenClip pairing flow and starts discovery automatically.
+The companion scrolls
 the virtualized Studio Content list, collects every post URL exposed by the
 logged-in account, and restores the user's scroll position. LumenClip creates
 missing publication records under the matching connected account before the
 existing private analytics capture begins. No post URLs or IDs need to be
-entered manually. A video deep link finds the
-matching published or user-linked LumenClip post, opens it, and starts comment
-collection. If the account or linked post is missing, Analytics shows the exact
-prerequisite instead of dropping the user on the generic overview.
+entered manually. On an exact TikTok post, the paired extension finds the
+matching published or user-linked LumenClip post and starts comment collection
+directly. It does not open Analytics or require a per-post connection in the
+web app. If the post is not linked, the extension shows the missing
+prerequisite in place.
 
 An analytics sync owns one Studio tab only while it is running. Closing that
 tab, closing Chrome, or restarting Chrome cancels the local sync instead of
@@ -35,10 +36,9 @@ chooses **Sync now** again.
 
 ## Comment review
 
-Open the extension on an exact TikTok post and choose **Connect this post**,
-or start **Collect in extension** from a TikTok post in LumenClip Analytics.
-The signed collection is handed to the extension and capture starts
-immediately.
+Open the extension on an exact TikTok post and choose **Load comments**. The
+existing device pairing authorizes a collection for that post and capture
+starts without opening LumenClip.
 Open the extension in **Comments** mode to see every captured comment beside
 its drafted response.
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LumenClip companion",
-  "version": "2.3.3",
+  "version": "2.3.4",
   "description": "Imports TikTok Studio analytics and reviews, approves, and sends drafted comment replies through your logged-in TikTok session.",
   "permissions": ["storage", "tabs", "alarms"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],

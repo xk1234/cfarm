@@ -25,7 +25,7 @@ of its fixture accounts selected. No workspace or PostFast data is read.
 ## Interactions
 
 Account selection, metric selection, pagination, and chart-mode controls operate
-against the in-memory fixtures. Sync analytics is intentionally a no-op when
+against the in-memory fixtures. Automatic PostFast refresh is disabled when
 preview data is supplied. Selecting a fixture post still targets the normal
 `/app/analytics/posts/[id]` detail route; the preview does not persist those
 fixture posts.

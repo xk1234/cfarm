@@ -138,6 +138,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true
   }
 
+  if (message?.type === "START_COMMENTS_FOR_POST") {
+    void startCommentsForPlatformPost(message.platformPostId)
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Comments could not be loaded",
+        })
+      )
+    return true
+  }
+
   if (message?.type === "DRAFT_COMMENT_REPLIES") {
     void commentCompanionAction("draft")
       .then((result) => sendResponse({ ok: true, result }))
@@ -852,6 +867,38 @@ async function configureComments(config) {
   void runPendingComments().catch(() => undefined)
 }
 
+async function startCommentsForPlatformPost(value) {
+  const platformPostId = String(value || "").trim()
+  if (!/^\d{10,25}$/.test(platformPostId)) {
+    throw new Error("Open an exact TikTok post first")
+  }
+  const { studioDeviceConfig } =
+    await chrome.storage.local.get("studioDeviceConfig")
+  if (!studioDeviceConfig?.endpoint || !studioDeviceConfig?.token) {
+    throw new Error(
+      "Pair the companion once from TikTok Studio in LumenClip, then try again."
+    )
+  }
+  const endpoint = new URL(
+    "/api/tiktok-comments/device",
+    studioDeviceConfig.endpoint
+  )
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${studioDeviceConfig.token}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ platformPostId }),
+  })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok || !body.companion) {
+    throw new Error(body.error || "Comments could not be loaded")
+  }
+  await configureComments(body.companion)
+  return { collectionId: body.collection?.id }
+}
+
 async function runPendingComments() {
   const { commentsConfig, commentsRun } = await chrome.storage.local.get([
     "commentsConfig",
@@ -931,7 +978,7 @@ async function runPendingComments() {
 
 async function commentsManifest() {
   const { commentsConfig } = await chrome.storage.local.get("commentsConfig")
-  if (!commentsConfig) throw new Error("Connect comments from LumenClip first")
+  if (!commentsConfig) throw new Error("Load comments for this post first")
   const response = await fetch(commentsConfig.endpoint, {
     headers: { authorization: `Bearer ${commentsConfig.token}` },
   })
@@ -944,7 +991,7 @@ async function commentsManifest() {
 
 async function commentCompanionAction(action, payload = {}) {
   const { commentsConfig } = await chrome.storage.local.get("commentsConfig")
-  if (!commentsConfig) throw new Error("Connect comments from LumenClip first")
+  if (!commentsConfig) throw new Error("Load comments for this post first")
   return commentCompanionActionWithConfig(commentsConfig, action, payload)
 }
 

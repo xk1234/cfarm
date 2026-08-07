@@ -11,11 +11,11 @@ Owner: `components/realfarm/analytics/post-analytics-page.tsx`.
 
 This authenticated standalone page loads the publication identified by `id`,
 its dated metric snapshots, the connected account, and any source automation
-run. The header returns to `/app?view=analytics` and provides account sync plus
-TikTok-only actions when applicable. The lead card shows content type,
-platform, publication date, caption, account, last capture time, live-post link,
-and a thumbnail or text fallback. Slideshow and automation sources can add a
-strip of rendered slides.
+run. The header only returns to `/app?view=analytics`; data-ingestion controls
+do not compete with the report. The lead card shows content type, platform,
+publication date, account, last capture time, live-post link, and the shared
+interactive slideshow viewer when rendered slides exist. Other formats retain
+their thumbnail or text fallback.
 
 Four summary cards adapt to the content type. Video uses exposure, average
 watch time, completion rate, and engagement rate. Slideshow uses exposure,
@@ -31,24 +31,20 @@ areas stack; a standalone mobile navigation bar remains available.
 
 ## Interactions
 
-Sync this account requests a 90 day PostFast refresh for the post's connected
-account and refreshes the route. Metric buttons change the performance curve,
-and Open live post opens the provider URL in a new tab. For TikTok, Import from
-TikTok Studio starts a linked Chrome companion capture. Collect in extension is
-available only when a platform post ID exists and sends comment collection to
-the companion.
+PostFast refreshes automatically when the newest provider capture is at least
+15 minutes old. Metric buttons change the performance curve, and Open live post
+opens the provider URL in a new tab. TikTok Studio capture and comment drafting
+belong to the extension rather than this page.
 
-The companion's **Connect this post** action includes the post's native TikTok
-ID. Both `/video/` and slideshow `/photo/` URLs are supported. Analytics
-resolves the ID against published or manually linked posts,
-opens the matching post analytics page, and starts collection automatically.
-An inline status confirms the handoff; an unmatched video returns a specific
-linking prerequisite on the Analytics page.
+The companion's **Load comments** action uses the native TikTok ID from the
+open `/video/` or `/photo/` URL. Its existing device credential resolves that
+ID against published or manually linked posts and starts collection directly.
+It does not navigate through Analytics or require a per-post web connection.
 
 ## MCP coverage
 
 Partial. `lumenclip_analytics_report` returns stored per-post analytics entries.
 `lumenclip_tiktok_studio_analytics_import_start` and
 `lumenclip_tiktok_studio_analytics_report` cover the linked Studio capture, and
-`lumenclip_tiktok_comments_collect_start` covers comment collection. The
-PostFast account refresh behind Sync this account has no registered MCP tool.
+`lumenclip_tiktok_comments_collect_start` covers agent-initiated comment
+collection. The normal UI refreshes PostFast automatically.

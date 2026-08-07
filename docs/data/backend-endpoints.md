@@ -131,6 +131,7 @@ character/UGC workspace.
 | `POST /api/tiktok-studio-analytics`        | `start`, linked-post batch input, or `start_discovered_batch` with one connected account and companion-discovered Studio posts | Creates missing publications, queues private analytics capture, and returns a device connection payload | Current                                                                      |
 | `GET /api/tiktok-studio-analytics/capture` | Bearer device credential                                                                                                       | Returns the newest pending, explicitly allowlisted capture manifest                                     | Current                                                                      |
 | `OPTIONS                                   | POST /api/tiktok-studio-analytics/capture`                                                                                     | Bearer device credential plus `{ captureId, studioUrl, payload }`; maximum 2.5 MB                       | Chrome-companion CORS intake; job allowlist, URL, and returned ID must match | Current |
+| `POST /api/tiktok-comments/device`         | Bearer TikTok companion device credential plus `{ platformPostId }`                                                            | Starts comment capture for the exact TikTok open in the extension without a web-app handoff             | Current                                                                      |
 
 ## PostFast accounts and publishing
 

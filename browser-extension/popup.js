@@ -51,7 +51,13 @@ let currentReview = null
 
 void init()
 
-connectButton.addEventListener("click", openLumenClip)
+connectButton.addEventListener("click", () => {
+  if (feature === "comments") {
+    void loadCurrentPostComments()
+    return
+  }
+  void openLumenClip()
+})
 reconnectButton.addEventListener("click", async () => {
   // Reconnecting must drop the stored pairing first, otherwise LumenClip hands
   // back a config that gets merged onto a dead token.
@@ -163,10 +169,31 @@ function renderContext() {
 
 async function openLumenClip() {
   await chrome.tabs.create({
-    url: companionConnectUrl(APP_ORIGIN, pageContext),
+    url: companionConnectUrl(APP_ORIGIN),
     active: true,
   })
   window.close()
+}
+
+async function loadCurrentPostComments() {
+  setBusy(true, "Loading comments…")
+  try {
+    const result = await chrome.runtime.sendMessage({
+      type: "START_COMMENTS_FOR_POST",
+      platformPostId: pageContext.platformPostId,
+    })
+    if (!result?.ok) {
+      throw new Error(result?.error || "Comments could not be loaded")
+    }
+    await refresh()
+  } catch (error) {
+    showStatus(
+      error instanceof Error ? error.message : "Comments could not be loaded",
+      "error"
+    )
+  } finally {
+    setBusy(false)
+  }
 }
 
 async function refresh(overrideMessage) {

@@ -18,8 +18,8 @@ with deterministic initials when no picture is available. A smaller provider
 badge overlaps the avatar so the account remains the primary object and the
 platform remains secondary context.
 
-The overview header contains a 7, 30, 60, or 90 day range and one Sync
-analytics action. Three cards show total audience from the latest follower
+The overview header contains a 7, 30, 60, or 90 day range. Three cards show
+total audience from the latest follower
 snapshot for every account, total impressions from recent posts, and total
 engagement from their canonical interaction totals. Each card shows data
 coverage and a trend when more than one dated point is available.
@@ -49,18 +49,18 @@ snapshot, not the raw TikTok response or signed media URLs.
 
 The current loading layout constrains every skeleton with `min-w-0` and
 `max-w-full`, hides overflow at the wrapper, and uses one column on narrow
-screens. The general header has only one Sync analytics control. A distinct
-Import TikTok posts control appears only inside the TikTok platform drill-down.
-No-account and no-snapshot states direct the user to connect accounts or run
-the first sync. If a PostFast integration refresh fails temporarily, stored
-analytics remain visible with an inline warning.
+screens. Analytics has no manual import or sync controls. No-account and
+no-snapshot states direct the user to connect accounts and wait for the first
+automatic refresh. If a PostFast integration refresh fails temporarily,
+stored analytics remain visible with an inline warning.
 
 ## Interactions
 
-Changing the range reloads stored report data. Sync analytics requests fresh
-PostFast analytics for all accounts in the overview or the selected accounts in
-a platform drill-down, then reloads the report. Recent-post cards open the
-per-post analytics route, where the full persisted slide strip is available.
+Changing the range reloads stored report data. When the newest PostFast capture
+is missing or at least 15 minutes old, Analytics requests fresh metrics for all
+connected accounts in the background and reloads the report. Recent-post cards
+open the per-post analytics route, where the shared interactive slideshow
+viewer displays the persisted deck.
 
 Compare platform opens an in-place platform drill-down. There the user can
 select multiple accounts, choose any metric exposed for those accounts, switch
@@ -85,6 +85,5 @@ that prerequisite in an inline alert.
 Partial. `lumenclip_analytics_report` reads the stored account and post report.
 `lumenclip_tiktok_studio_analytics_import_start` starts a single-post Studio
 capture, `lumenclip_tiktok_studio_analytics_batch_start` starts a batch, and
-`lumenclip_tiktok_studio_analytics_report` reads the results. The general
-PostFast provider refresh performed by Sync analytics has no registered MCP
-tool.
+`lumenclip_tiktok_studio_analytics_report` reads the results. The automatic
+PostFast provider refresh has no registered MCP tool.
