@@ -34,7 +34,8 @@ describe("automation template persistence", () => {
       id: "template-reelfarm-33",
       name: "Study Tips",
       automationKind: "slideshow",
-      status: "live",
+      hidden: true,
+      status: "paused",
       account: "",
       times: [],
     })
@@ -107,9 +108,10 @@ describe("automation template persistence", () => {
     })
     const restored = automationTemplateSchemaToRuntime(record)
 
-    expect(record.automationKind).toBe("video")
+    expect(record.schema.automationKind).toBe("video")
+    expect(record.hidden).toBe(true)
     expect(record).not.toHaveProperty("template")
-    expect(record.schema.created_at).toBe(
+    expect(new Date(record.schema.created_at).toISOString()).toBe(
       new Date(schema.created_at).toISOString()
     )
     expect(record.schema.video_format).toMatchObject(schema.video_format!)

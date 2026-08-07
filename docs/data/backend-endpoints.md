@@ -48,22 +48,20 @@ The app has no custom authentication API routes.
 
 ## Templates and execution
 
-| Method and path                          | Input                                                             | Response / behavior                                                           | State   |
-| ---------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------- |
-| `GET /api/starter-templates`             | None                                                              | Template records, summaries, example runs, and schema map                     | Current |
-| `POST /api/starter-templates`            | JSON array or `{ templates }` containing ReelFarm-shaped exports  | Imports normalized templates; `201`                                           | Current |
-| `GET /api/templates`                     | None                                                              | `{ records, templates }`                                                      | Current |
-| `POST /api/templates`                    | JSON `{ name?, automationKind?, schema?, template?, overrides? }` | Creates a user-owned template; `201`                                          | Current |
-| `PATCH /api/templates`                   | JSON `{ id, name?, status?, favorite?, schema? }`                 | `{ record, template }`; `409` when a published hook is removed or renamed     | Current |
-| `DELETE /api/templates/[id]`             | Path template ID                                                  | Cascades through runs, slideshow results, and local publication records       | Current |
-| `POST /api/templates/hooks`              | JSON `{ templateId }`                                             | Generates and persists a fresh hook set; rejects missing/exhausted inputs     | Current |
-| `POST /api/templates/video-copy`         | JSON `{ templateId, template?, hook?, items?, segmentRoles? }`    | Generated/fallback title, caption, hashtags, substitutions, and per-item text | Current |
-| `POST /api/templates/run`                | JSON `{ templateId, force: true, now?, requestId? }`              | Runs one interactive generation and returns created/results/skipped           | Current |
-| `GET /api/templates/runs`                | Query `templateId?`, `limit?`                                     | Unified run views, including generated-video-backed runs                      | Current |
-| `GET /api/templates/[id]/hook-analytics` | Path template ID                                                  | Published hook lock state and aggregated metric rows                          | Current |
+| Method and path                          | Input                                                              | Response / behavior                                                                            | State   |
+| ---------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ------- |
+| `GET /api/templates`                     | None                                                               | `{ records, templates }`                                                                       | Current |
+| `POST /api/templates`                    | A template create object, or a JSON array / `{ templates }` import | Creates or imports user-owned templates; imported starter definitions default to hidden; `201` | Current |
+| `PATCH /api/templates`                   | JSON `{ id, name?, hidden?, status?, favorite?, schema? }`         | `{ record, template }`; `409` when a published hook is removed or renamed                      | Current |
+| `DELETE /api/templates/[id]`             | Path template ID                                                   | Cascades through runs, slideshow results, and local publication records                        | Current |
+| `POST /api/templates/hooks`              | JSON `{ templateId }`                                              | Generates and persists a fresh hook set; rejects missing/exhausted inputs                      | Current |
+| `POST /api/templates/video-copy`         | JSON `{ templateId, template?, hook?, items?, segmentRoles? }`     | Generated/fallback title, caption, hashtags, substitutions, and per-item text                  | Current |
+| `POST /api/templates/run`                | JSON `{ templateId, force: true, now?, requestId? }`               | Runs one interactive generation and returns created/results/skipped                            | Current |
+| `GET /api/templates/runs`                | Query `templateId?`, `limit?`                                      | Unified run views, including generated-video-backed runs                                       | Current |
+| `GET /api/templates/[id]/hook-analytics` | Path template ID                                                   | Published hook lock state and aggregated metric rows                                           | Current |
 
-The old `/api/automations`, `/api/x-automations`, and
-`/api/automation-templates` families have been removed. Existing record IDs are
+The old `/api/automations`, `/api/x-automations`, `/api/automation-templates`,
+and `/api/starter-templates` families have been removed. Existing record IDs are
 not rewritten, so historical output and publication joins remain valid.
 
 ## Slideshows, results, and generated videos

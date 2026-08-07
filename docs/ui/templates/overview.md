@@ -13,10 +13,15 @@ Route: `/app?view=templates`
 
 Owner: `components/realfarm/automations-view.tsx`.
 
-The destination places Match slideshow and New template beside the Templates
-heading, followed by a responsive card grid. The grid is one column by default,
-two columns from the medium breakpoint, and three columns from the large
-breakpoint.
+The destination places Match slideshow beside the Templates heading, followed
+by Active and Hidden tabs and one responsive card grid. The grid is one column
+by default, two columns from the medium breakpoint, and three columns from the
+large breakpoint.
+
+Saved and built-in templates use the same `AutomationRecord` shape. The only
+catalog distinction is `hidden`: user-created templates default to `false`,
+while built-in starter definitions are materialized into the owner's template
+catalog with `hidden: true`. There is no separate starter-template card type.
 
 Slideshow and video cards show their type, favorite state, editable name, and
 three recent-generation slots. A slideshow slot prefers the newest run's
@@ -36,10 +41,10 @@ and analytics joins remain intact.
 
 ## Interactions
 
-Match slideshow opens the tone analyzer, while New template opens the template
-browser. A slideshow or video template can be renamed inline, favorited, and
-opened in the shared editor. A template only defines generation. Publishing a
-completed output to connected accounts is a separate post-processing action.
+Match slideshow opens the tone analyzer. Any template can be moved between
+Active and Hidden, renamed inline, favorited where supported, and opened in the
+same editor. A template only defines generation. Publishing a completed output
+to connected accounts is a separate post-processing action.
 
 Selecting a successful preview opens the generated slideshow or video viewer.
 The editor is addressable at `/app?view=templates&template=<id>`, and a specific
@@ -47,7 +52,8 @@ persisted run can be requested with `&run=<id>`.
 
 ## MCP coverage
 
-Yes. `lumenclip_templates_list`, `lumenclip_template_get`,
-`lumenclip_starter_templates_list`, and `lumenclip_outputs_list` read the
-template and recent-output data. The removed `lumenclip_automation_*` names are
+Yes. `lumenclip_templates_list` accepts `visibility: active | hidden | all`;
+`lumenclip_template_update` mutates `hidden`; and `lumenclip_template_get` plus
+`lumenclip_outputs_list` read template and recent-output data. There is no
+separate starter-template tool. The removed `lumenclip_automation_*` names are
 not advertised or registered.

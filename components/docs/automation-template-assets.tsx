@@ -54,7 +54,7 @@ async function loadSlideshowTemplateItems(): Promise<
     const examplesByTemplate =
       groupAutomationTemplateExampleRunsByTemplateId(exampleRuns)
     const items = records
-      .filter((record) => record.automationKind !== "video")
+      .filter((record) => record.schema.automationKind !== "video")
       .map<AssetTemplateCatalogItem>((record) => {
         const automation =
           automationTemplateToTempSlideTestingAutomation(record)

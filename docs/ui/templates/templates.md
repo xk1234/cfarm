@@ -42,8 +42,9 @@ returns to the template browser and unsaved changes are guarded.
 
 ## MCP coverage
 
-Partial. `lumenclip_starter_templates_list` reads reusable templates and
-`lumenclip_template_create` creates slideshow, video, or UGC templates from
-a template or blank schema. X and Threads creation in this browser has no
+Partial. `lumenclip_templates_list` with `visibility: "hidden"` reads the
+built-in starting points through the same template contract, and
+`lumenclip_template_create` creates slideshow, video, or UGC templates from a
+template or blank schema. X and Threads creation in this browser has no
 matching registered create tool. The MCP prefix remains unchanged for backwards
 compatibility. Search, sort, example previews, and dialogs are UI-only.

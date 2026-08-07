@@ -3,7 +3,6 @@ export const LUMENCLIP_MCP_TOOLS = [
   { name: "lumenclip_pipeline_stage_run", category: "workflows" },
   { name: "lumenclip_pipeline_run", category: "workflows" },
   { name: "lumenclip_templates_list", category: "templates" },
-  { name: "lumenclip_starter_templates_list", category: "templates" },
   { name: "lumenclip_template_create", category: "templates" },
   { name: "lumenclip_template_clone", category: "templates" },
   { name: "lumenclip_template_get", category: "templates" },

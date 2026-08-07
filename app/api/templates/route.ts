@@ -3,6 +3,10 @@ import { NextResponse } from "next/server"
 
 import { withHandler } from "@/lib/api"
 import {
+  listUnifiedTemplateRecords,
+  reelfarmAutomationToTemplateRecord,
+} from "@/lib/automation-templates"
+import {
   automationCollectionInventory,
   automationGenerationBlockers,
 } from "@/lib/automation-readiness"
@@ -11,7 +15,6 @@ import {
   type AutomationRecord,
   createLocalAutomationRecord,
   getAutomationRecord,
-  listAutomationRecords,
   patchAutomationRecord,
   upsertAutomationRecords,
 } from "@/lib/automations"
@@ -31,7 +34,7 @@ import { listWordCollections } from "@/lib/word-collections"
 export const dynamic = "force-dynamic"
 
 export const GET = withHandler(async () => {
-  const records = await listAutomationRecords()
+  const records = await listUnifiedTemplateRecords()
   const readyRecords = await reconcileAutomationReadiness(records)
   return NextResponse.json({
     records: readyRecords.map(({ record }) => record),
@@ -47,11 +50,18 @@ export const POST = withHandler(async (request: Request) => {
       ? payload
       : []
   if (rawTemplates.length > 0) {
+    const imported = rawTemplates
+      .filter(Boolean)
+      .map((raw) => reelfarmAutomationToTemplateRecord(raw))
+    const next = await upsertAutomationRecords({ records: imported })
+    const readyRecords = await reconcileAutomationReadiness(next)
     return NextResponse.json(
       {
-        error: "Raw template imports must use /api/starter-templates",
+        records: readyRecords.map(({ record }) => record),
+        templates: readyRecords.map(automationWithBlockers),
+        imported: imported.length,
       },
-      { status: 400 }
+      { status: 201 }
     )
   }
 
@@ -151,6 +161,7 @@ export const PATCH = withHandler(async (request: Request) => {
   const record = await patchAutomationRecord({
     id,
     name: typeof payload.name === "string" ? payload.name : undefined,
+    hidden: typeof payload.hidden === "boolean" ? payload.hidden : undefined,
     status:
       payload.status === "live" || payload.status === "paused"
         ? payload.status

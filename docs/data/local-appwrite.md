@@ -103,10 +103,12 @@ The command:
 - skips existing rows/files, so rerunning it is safe;
 - never deletes or mutates cloud collections.
 
-Starter templates are local-only Appwrite reference data. Their cloud rows
-were moved into local `permanent_assets` rows with source keys
-`starter_template` and `starter_template_example`; the app reads those
-rows directly from the shared local project.
+Starter definitions are local-only reference seeds. Their cloud rows were
+moved into local `permanent_assets` rows with source keys `starter_template`
+and `starter_template_example`. On first template-catalog read, each missing
+seed is materialized into the owner's normal `templates` table as the same
+record type with `hidden: true`. From then on, the app reads, edits, and moves
+it exactly like any other template.
 
 ## Local functions
 

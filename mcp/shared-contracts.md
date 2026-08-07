@@ -93,17 +93,18 @@ Read-only and idempotent. Scope: `lumenclip:read`.
 
 Input fields:
 
-| Field             | Type                           | Required | Description                                   |
-| ----------------- | ------------------------------ | -------- | --------------------------------------------- |
-| `query`           | string                         | no       | Name, tag, niche, or capability search.       |
-| `kind`            | `slideshow \| video \| social` | no       | Restrict the template family.                 |
-| `platform`        | string                         | no       | For example `tiktok`, `x`, or `threads`.      |
-| `format`          | string                         | no       | Output format or aspect ratio such as `9:16`. |
-| `tags`            | string[]                       | no       | All requested tags must match.                |
-| `capabilities`    | string[]                       | no       | Required workspace/template capabilities.     |
-| `cursor`, `limit` | pagination                     | no       | Cursor pagination.                            |
+| Field             | Type                           | Required | Description                                           |
+| ----------------- | ------------------------------ | -------- | ----------------------------------------------------- |
+| `query`           | string                         | no       | Name, tag, niche, or capability search.               |
+| `kind`            | `slideshow \| video \| social` | no       | Restrict the template family.                         |
+| `platform`        | string                         | no       | For example `tiktok`, `x`, or `threads`.              |
+| `format`          | string                         | no       | Output format or aspect ratio such as `9:16`.         |
+| `tags`            | string[]                       | no       | All requested tags must match.                        |
+| `capabilities`    | string[]                       | no       | Required workspace/template capabilities.             |
+| `visibility`      | `active \| hidden \| all`      | no       | Defaults to `active`; built-in starters begin hidden. |
+| `cursor`, `limit` | pagination                     | no       | Cursor pagination.                                    |
 
-Output: paginated `items`, each containing `id`, `name`, `kind`,
+Output: paginated `items`, each containing `id`, `name`, `hidden`, `kind`,
 `output_types`, `platforms`, `tags`, `version`, `required_capabilities`,
 `resource_uri`, and `examples_resource_uri`.
 
@@ -135,10 +136,10 @@ Errors: `NOT_FOUND`, `TEMPLATE_VERSION_UNAVAILABLE`.
 
 Read-only and idempotent. Scope: `lumenclip:read`.
 
-Input: optional `query`, `kind`, `status`, `platform`,
+Input: optional `query`, `kind`, `status`, `visibility`, `platform`,
 `collection_id`, `cursor`, and `limit`.
 
-Output: paginated summaries with `id`, `name`, `kind`, `status`,
+Output: paginated summaries with `id`, `name`, `hidden`, `kind`, `status`,
 `platforms`, `collection_ids`, `last_run`, `version`, and `resource_uri`.
 
 ### `lumenclip_template_get`

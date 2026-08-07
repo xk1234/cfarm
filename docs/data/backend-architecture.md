@@ -150,25 +150,25 @@ embedded in an output's `publications` field.
 
 This table mirrors `STORE_ROUTES` in `lib/appwrite-stores.ts`.
 
-| Logical store                    | Physical table               | `source_key`               | Visibility               | State  |
-| -------------------------------- | ---------------------------- | -------------------------- | ------------------------ | ------ |
-| Image collections                | `permanent_assets`           | `image_collection`         | Owner-only               | Active |
-| Uploaded/generated asset records | `permanent_assets`           | `uploaded_asset`           | Owner-only               | Active |
-| Word/variable collections        | `permanent_assets`           | `word_collection`          | Owner-only               | Active |
-| Product collections              | `permanent_assets`           | `product_collection`       | Owner-only               | Active |
-| Media-library catalog            | `permanent_assets`           | `media_library_asset`      | Public reference         | Active |
-| Starter templates                | `permanent_assets`           | `starter_template`         | Public local reference   | Active |
-| Template example runs            | `permanent_assets`           | `starter_template_example` | Public local reference   | Active |
-| Results/slideshows               | `outputs`                    | `result`                   | Workspace-shareable read | Active |
-| Generated video exports          | `outputs`                    | `generated_video`          | Workspace-shareable read | Active |
-| X/Threads runs                   | `outputs`                    | `social_template_run`      | Workspace-shareable read | Active |
-| Publication-only wrappers        | `outputs`                    | `publication_wrapper`      | Owner-only               | Active |
-| Slideshow/video templates        | `templates`                  | Not applicable             | Owner-only               | Active |
-| Template runs                    | `template_runs`              | Not applicable             | Owner-only               | Active |
-| X/Threads templates              | `social_templates`           | Not applicable             | Owner-only               | Active |
-| Usage records                    | `usage_ledger`               | Not applicable             | Owner-only               | Active |
-| Post analytics snapshots         | `postfast_metric_snapshots`  | Not applicable             | Owner-only               | Active |
-| Follower snapshots               | `account_follower_snapshots` | Not applicable             | Owner-only               | Active |
+| Logical store                     | Physical table               | `source_key`               | Visibility               | State  |
+| --------------------------------- | ---------------------------- | -------------------------- | ------------------------ | ------ |
+| Image collections                 | `permanent_assets`           | `image_collection`         | Owner-only               | Active |
+| Uploaded/generated asset records  | `permanent_assets`           | `uploaded_asset`           | Owner-only               | Active |
+| Word/variable collections         | `permanent_assets`           | `word_collection`          | Owner-only               | Active |
+| Product collections               | `permanent_assets`           | `product_collection`       | Owner-only               | Active |
+| Media-library catalog             | `permanent_assets`           | `media_library_asset`      | Public reference         | Active |
+| Starter-template seed definitions | `permanent_assets`           | `starter_template`         | Public reference seed    | Active |
+| Template example runs             | `permanent_assets`           | `starter_template_example` | Public local reference   | Active |
+| Results/slideshows                | `outputs`                    | `result`                   | Workspace-shareable read | Active |
+| Generated video exports           | `outputs`                    | `generated_video`          | Workspace-shareable read | Active |
+| X/Threads runs                    | `outputs`                    | `social_template_run`      | Workspace-shareable read | Active |
+| Publication-only wrappers         | `outputs`                    | `publication_wrapper`      | Owner-only               | Active |
+| Slideshow/video templates         | `templates`                  | Not applicable             | Owner-only               | Active |
+| Template runs                     | `template_runs`              | Not applicable             | Owner-only               | Active |
+| X/Threads templates               | `social_templates`           | Not applicable             | Owner-only               | Active |
+| Usage records                     | `usage_ledger`               | Not applicable             | Owner-only               | Active |
+| Post analytics snapshots          | `postfast_metric_snapshots`  | Not applicable             | Owner-only               | Active |
+| Follower snapshots                | `account_follower_snapshots` | Not applicable             | Owner-only               | Active |
 
 Dedicated tables do not carry `source_key`; their table identity is already the
 record discriminator. Snapshot and usage tables store query fields plus the

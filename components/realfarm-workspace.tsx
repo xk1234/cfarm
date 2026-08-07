@@ -132,14 +132,10 @@ export type AutomationRunSummary = {
 }
 
 export type InitialTemplateData = {
-  templates: Automation[]
-  schemas: Record<string, AutomationSchema>
   previewImages: Record<string, string>
 }
 
 const emptyInitialTemplateData: InitialTemplateData = {
-  templates: [],
-  schemas: {},
   previewImages: {},
 }
 
@@ -207,17 +203,6 @@ export function RealFarmWorkspace({
   const [automationConfigEdits, setAutomationConfigEdits] = useState<
     Record<string, AutomationSchema>
   >({})
-  const templateAutomations = initialTemplateData.templates
-  const templateConfigEdits = useMemo<Record<string, AutomationSchema>>(
-    () =>
-      Object.fromEntries(
-        Object.entries(initialTemplateData.schemas).map(([id, schema]) => [
-          id,
-          reviveAutomationSchema(schema),
-        ])
-      ),
-    [initialTemplateData.schemas]
-  )
   const [recentRunsLoaded, setRecentRunsLoaded] = useState(false)
   const [recentRunsError, setRecentRunsError] = useState("")
   const [recentAutomationRuns, setRecentAutomationRuns] = useState<
@@ -479,6 +464,7 @@ export function RealFarmWorkspace({
     id: string,
     patch: {
       name?: string
+      hidden?: boolean
       favorite?: boolean
       status?: AutomationStatus
       schema?: AutomationSchema
@@ -727,51 +713,15 @@ export function RealFarmWorkspace({
       .finally(() => setRecentRunsLoaded(true))
   }
 
-  function useStarterTemplate(automation: Automation) {
-    const templateSource = mergeAutomationSchema(
-      automation,
-      templateConfigEdits[automation.id]
-    )
-    void createLocalAutomation({
-      name: automation.name,
-      automationKind: automation.automationKind,
-      template: {
-        automationKind: templateSource.automationKind,
-        aspect_ratio: templateSource.aspect_ratio,
-        font: templateSource.font,
-        image_fit: templateSource.image_fit,
-        language: templateSource.language,
-        prompt_formatting: templateSource.prompt_formatting,
-        image_collection_ids: templateSource.image_collection_ids,
-        tone: templateSource.tone,
-        formatting: templateSource.formatting,
-        tiktok_post_settings: templateSource.tiktok_post_settings,
-        web_search_enabled: templateSource.web_search_enabled,
-        video_format: templateSource.video_format,
-      },
-    })
-      .then((createdAutomation) => {
-        toast.success(`Created “${createdAutomation.name}”`)
-        setView("templates")
-        setEditingAutomation(createdAutomation)
-      })
-      .catch((error) => {
-        toast.error(getApiErrorMessage(error, "Could not create template"))
-      })
-  }
-
   const renderTemplatesView = () => (
     <TemplatesView
       automations={automations}
       automationsLoading={!persistedAutomationsLoaded || !xAutomationsLoaded}
       schemasByAutomationId={automationConfigEdits}
-      starterTemplates={templateAutomations}
-      starterSchemasByAutomationId={templateConfigEdits}
-      starterPreviewImagesByAutomationId={initialTemplateData.previewImages}
+      previewImagesByAutomationId={initialTemplateData.previewImages}
       collections={visibleCollections}
       demoVideos={workspaceAssets.demoVideos}
       xTemplatesByAutomationId={xTemplatesByAutomationId}
-      onUseStarterTemplate={useStarterTemplate}
       onCreateFromTone={async (fields) => {
         const automation = await createLocalAutomation({
           name: "Matched TikTok slideshow",
@@ -826,6 +776,55 @@ export function RealFarmWorkspace({
         persistAutomationPatch(automation.id, {
           favorite: nextFavorite,
         })
+      }}
+      onToggleHidden={(automation) => {
+        const hidden = !automation.hidden
+        if (automation.automationKind === "x_threads") {
+          const template = xAutomations.find(
+            (item) => item.id === automation.id
+          )
+          if (!template) return
+          const optimistic = { ...template, hidden }
+          setXAutomations((current) =>
+            current.map((item) => (item.id === template.id ? optimistic : item))
+          )
+          void fetchJsonWithTimeout<{ template: XAutomationRecord }>(
+            "/api/social-templates",
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ template: optimistic }),
+              toastOnError: false,
+            }
+          )
+            .then(({ template: saved }) => {
+              setXAutomations((current) =>
+                current.map((item) => (item.id === saved.id ? saved : item))
+              )
+            })
+            .catch((error) => {
+              setXAutomations((current) =>
+                current.map((item) =>
+                  item.id === template.id ? template : item
+                )
+              )
+              toast.error(
+                getApiErrorMessage(error, "Failed to update template")
+              )
+            })
+          return
+        }
+        setPersistedAutomations((current) =>
+          current.map((item) =>
+            item.id === automation.id ? { ...item, hidden } : item
+          )
+        )
+        setCreatedAutomations((current) =>
+          current.map((item) =>
+            item.id === automation.id ? { ...item, hidden } : item
+          )
+        )
+        persistAutomationPatch(automation.id, { hidden })
       }}
       onEdit={setEditingAutomation}
     />

@@ -3,6 +3,8 @@
 import { useState } from "react"
 import {
   IconAlertTriangle,
+  IconEye,
+  IconEyeOff,
   IconSlideshow,
   IconStar,
   IconStarFilled,
@@ -27,39 +29,32 @@ export function TemplatesView({
   automations,
   automationsLoading = false,
   schemasByAutomationId,
-  starterTemplates,
-  starterSchemasByAutomationId,
-  starterPreviewImagesByAutomationId,
+  previewImagesByAutomationId,
   collections,
   demoVideos,
   xTemplatesByAutomationId,
-  onUseStarterTemplate,
   onCreateFromTone,
   onRename,
   onToggleFavorite,
+  onToggleHidden,
   onEdit,
 }: {
   automations: Automation[]
   automationsLoading?: boolean
   schemasByAutomationId: Record<string, AutomationSchema>
-  starterTemplates: Automation[]
-  starterSchemasByAutomationId: Record<string, AutomationSchema>
-  starterPreviewImagesByAutomationId: Record<string, string>
+  previewImagesByAutomationId: Record<string, string>
   collections: CreatedImageCollection[]
   demoVideos: LocalAsset[]
   xTemplatesByAutomationId?: Record<string, XAutomationRecord>
-  onUseStarterTemplate: (automation: Automation) => void
   onCreateFromTone: (fields: Partial<AutomationSchema>) => Promise<void>
   onRename: (automation: Automation, name: string) => void
   onToggleFavorite: (automation: Automation) => void
+  onToggleHidden: (automation: Automation) => void
   onEdit: (automation: Automation) => void
 }) {
   const [toneAnalyzerOpen, setToneAnalyzerOpen] = useState(false)
-  const orderedStarterTemplates = starterTemplates.toSorted(
-    (first, second) =>
-      Number(Boolean(starterPreviewImagesByAutomationId[second.id])) -
-      Number(Boolean(starterPreviewImagesByAutomationId[first.id]))
-  )
+  const [visibility, setVisibility] = useState<"active" | "hidden">("active")
+  const visibleTemplates = templatesForVisibility(automations, visibility)
   return (
     <div className="mx-auto max-w-[1160px]">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -78,38 +73,29 @@ export function TemplatesView({
           </Button>
         </div>
       </div>
-      {starterTemplates.length > 0 ? (
-        <section className="mb-8">
-          <h2 className="mb-4 text-[18px] font-semibold tracking-[-0.025em] text-app-text">
-            Starter templates
-          </h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {orderedStarterTemplates.map((automation) => (
-              <StarterTemplateCard
-                key={automation.id}
-                automation={automation}
-                config={
-                  automation.automationKind === "x_threads"
-                    ? undefined
-                    : mergeAutomationSchema(
-                        automation,
-                        starterSchemasByAutomationId[automation.id]
-                      )
-                }
-                collections={collections}
-                demoVideos={demoVideos}
-                previewImageUrl={
-                  starterPreviewImagesByAutomationId[automation.id]
-                }
-                onUse={() => onUseStarterTemplate(automation)}
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
-      <h2 className="mb-4 text-[18px] font-semibold tracking-[-0.025em] text-app-text">
-        Your templates
-      </h2>
+      <div
+        className="mb-4 flex w-fit items-center gap-1 rounded-[8px] bg-app-control-bg p-1"
+        role="tablist"
+        aria-label="Template visibility"
+      >
+        {(["active", "hidden"] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            role="tab"
+            aria-selected={visibility === tab}
+            className={cn(
+              "lc-focus-ring h-8 rounded-[6px] px-3 text-[12px] font-semibold transition active:translate-y-px",
+              visibility === tab
+                ? "bg-app-surface text-app-text shadow-sm"
+                : "text-app-muted-text hover:text-app-text"
+            )}
+            onClick={() => setVisibility(tab)}
+          >
+            {tab === "active" ? "Active" : "Hidden"}
+          </button>
+        ))}
+      </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {automationsLoading ? (
           <CardGridSkeleton
@@ -118,7 +104,7 @@ export function TemplatesView({
           />
         ) : null}
         {!automationsLoading &&
-          automations.map((automation) => (
+          visibleTemplates.map((automation) => (
             <TemplateGridCard
               key={automation.id}
               automation={automation}
@@ -133,14 +119,18 @@ export function TemplatesView({
               collections={collections}
               demoVideos={demoVideos}
               xTemplate={xTemplatesByAutomationId?.[automation.id]}
+              previewImageUrl={previewImagesByAutomationId[automation.id]}
               onRename={onRename}
               onToggleFavorite={onToggleFavorite}
+              onToggleHidden={onToggleHidden}
               onEdit={onEdit}
             />
           ))}
-        {!automationsLoading && automations.length === 0 && (
+        {!automationsLoading && visibleTemplates.length === 0 && (
           <div className="col-span-full rounded-[8px] border border-dashed border-app-panel-border bg-app-surface px-5 py-10 text-center text-[14px] font-semibold text-app-muted-text">
-            No templates yet.
+            {visibility === "hidden"
+              ? "No hidden templates."
+              : "No active templates."}
           </div>
         )}
       </div>
@@ -154,43 +144,12 @@ export function TemplatesView({
   )
 }
 
-function StarterTemplateCard({
-  automation,
-  config,
-  collections,
-  demoVideos,
-  previewImageUrl,
-  onUse,
-}: {
-  automation: Automation
-  config?: AutomationSchema
-  collections: CreatedImageCollection[]
-  demoVideos: LocalAsset[]
-  previewImageUrl?: string
-  onUse: () => void
-}) {
-  return (
-    <article className="group relative self-start overflow-hidden rounded-[8px] border border-app-panel-border bg-app-surface shadow-sm">
-      <TemplateDefinitionPreview
-        automation={automation}
-        config={config}
-        collections={collections}
-        demoVideos={demoVideos}
-        previewImageUrl={previewImageUrl}
-        showGeneratedPreviewFallback
-        actionLabel={`Use ${automation.name} starter template`}
-        onOpen={onUse}
-      />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/78 via-black/22 to-transparent" />
-      <span className="pointer-events-none absolute top-3 left-3 rounded-[5px] bg-black/55 px-2 py-1 text-[10px] font-semibold text-white/90 backdrop-blur-sm">
-        Starter
-      </span>
-      <div className="pointer-events-none absolute inset-x-3 bottom-3">
-        <p className="truncate text-[15px] font-semibold text-white">
-          {automation.name}
-        </p>
-      </div>
-    </article>
+export function templatesForVisibility(
+  automations: Automation[],
+  visibility: "active" | "hidden"
+) {
+  return automations.filter((automation) =>
+    visibility === "hidden" ? automation.hidden : !automation.hidden
   )
 }
 
@@ -200,8 +159,10 @@ function TemplateGridCard({
   collections,
   demoVideos,
   xTemplate,
+  previewImageUrl,
   onRename,
   onToggleFavorite,
+  onToggleHidden,
   onEdit,
 }: {
   automation: Automation
@@ -209,8 +170,10 @@ function TemplateGridCard({
   collections: CreatedImageCollection[]
   demoVideos: LocalAsset[]
   xTemplate?: XAutomationRecord
+  previewImageUrl?: string
   onRename: (automation: Automation, name: string) => void
   onToggleFavorite: (automation: Automation) => void
+  onToggleHidden: (automation: Automation) => void
   onEdit: (automation: Automation) => void
 }) {
   const blockers = automation.generationBlockers ?? []
@@ -229,6 +192,8 @@ function TemplateGridCard({
         collections={collections}
         demoVideos={demoVideos}
         xTemplate={xTemplate}
+        previewImageUrl={previewImageUrl}
+        showGeneratedPreviewFallback={Boolean(previewImageUrl)}
         onOpen={() => onEdit(automation)}
       />
 
@@ -249,21 +214,38 @@ function TemplateGridCard({
         ) : null}
       </div>
 
-      <button
-        className="absolute top-3 right-3 grid size-8 place-items-center rounded-[6px] bg-black/55 text-white/90 backdrop-blur-sm transition hover:bg-black/70 hover:text-white focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none active:scale-95"
-        onClick={() => onToggleFavorite(automation)}
-        aria-label={
-          automation.favorite
-            ? `Unfavorite ${automation.name}`
-            : `Favorite ${automation.name}`
-        }
-      >
-        {automation.favorite ? (
-          <IconStarFilled className="size-4 text-[#f7c846]" />
-        ) : (
-          <IconStar className="size-4" />
-        )}
-      </button>
+      <div className="absolute top-3 right-3 flex items-center gap-1.5">
+        <button
+          className="grid size-8 place-items-center rounded-[6px] bg-black/55 text-white/90 backdrop-blur-sm transition hover:bg-black/70 hover:text-white focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none active:scale-95"
+          onClick={() => onToggleHidden(automation)}
+          aria-label={
+            automation.hidden
+              ? `Show ${automation.name} in active templates`
+              : `Hide ${automation.name}`
+          }
+        >
+          {automation.hidden ? (
+            <IconEye className="size-4" />
+          ) : (
+            <IconEyeOff className="size-4" />
+          )}
+        </button>
+        <button
+          className="grid size-8 place-items-center rounded-[6px] bg-black/55 text-white/90 backdrop-blur-sm transition hover:bg-black/70 hover:text-white focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none active:scale-95"
+          onClick={() => onToggleFavorite(automation)}
+          aria-label={
+            automation.favorite
+              ? `Unfavorite ${automation.name}`
+              : `Favorite ${automation.name}`
+          }
+        >
+          {automation.favorite ? (
+            <IconStarFilled className="size-4 text-[#f7c846]" />
+          ) : (
+            <IconStar className="size-4" />
+          )}
+        </button>
+      </div>
 
       <div className="pointer-events-none absolute inset-x-3 bottom-3">
         <AutomationCardTitle automation={automation} onRename={onRename} />

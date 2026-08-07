@@ -27,6 +27,7 @@ export type LocalAsset = {
 export type Automation = {
   id: string
   name: string
+  hidden?: boolean
   automationKind?: "slideshow" | "video" | "ugc" | "x_threads"
   postingMode?: AutomationPostingMode
   generationLeadMinutes?: number
