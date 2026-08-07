@@ -29,6 +29,10 @@ import {
   AccountProfileIcon,
   providerName,
 } from "@/components/realfarm/analytics/account-profile-icon"
+import {
+  SlideshowViewer,
+  type SlideshowViewerSlide,
+} from "@/components/realfarm/slideshow-viewer-modal"
 import { Button } from "@/components/ui/button"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import {
@@ -47,8 +51,12 @@ import {
   TIKTOK_PLATFORM_POST_ID_REQUIRED,
 } from "@/lib/tiktok-comment-collection-client"
 import { cn } from "@/lib/utils"
-import { PostSlidesStrip, type AnalyticsSlide } from "./post-slides-strip"
 import { TikTokStudioImportDialog } from "./tiktok-studio-import-dialog"
+
+export type AnalyticsSlide = {
+  index: number
+  imageUrl: string
+}
 
 export function PostAnalyticsPage({
   snapshots,
@@ -85,6 +93,19 @@ export function PostAnalyticsPage({
   >(autoCollectComments ? "connecting" : "")
   const autoCollectionStarted = useRef(false)
   const [studioImportOpen, setStudioImportOpen] = useState(false)
+  const [activeSlideshowSlide, setActiveSlideshowSlide] = useState(0)
+  const viewerSlides = useMemo(
+    () =>
+      slides.map<SlideshowViewerSlide>((slide) => ({
+        id: `${latest.postId}-slide-${slide.index}`,
+        imageUrl: slide.imageUrl,
+        text: "",
+        section: slide.index === 1 ? "hook" : "content",
+      })),
+    [latest.postId, slides]
+  )
+  const hasSlideshowViewer =
+    contentType === "slideshow" && viewerSlides.length > 0
   const activeMetric = metrics.includes(metric)
     ? metric
     : defaultMetric(metrics)
@@ -247,46 +268,88 @@ export function PostAnalyticsPage({
           </div>
         ) : null}
 
-        <section className="mt-6 grid gap-5 rounded-[20px] border border-app-panel-border bg-app-surface p-5 shadow-[0_18px_55px_rgba(35,24,67,0.06)] lg:grid-cols-[minmax(0,1fr)_300px] lg:p-7">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <FormatBadge type={contentType} />
-              <span className="rounded-full bg-app-surface-subtle px-2.5 py-1 text-[10px] font-semibold text-app-muted-text">
-                {providerName(latest.provider)}
-              </span>
-              <span className="text-[10px] font-medium text-app-text-faint">
-                Published {formatDate(latest.publishedAt)}
-              </span>
-            </div>
-            <h1 className="mt-5 max-w-[900px] text-[clamp(25px,3vw,38px)] leading-[1.08] font-semibold tracking-[-0.045em] text-app-text">
-              {latest.content || "Post performance"}
-            </h1>
-            <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-app-panel-border pt-5">
-              <AccountProfileIcon integration={integration} size="md" />
-              <div>
-                <div className="text-[12px] font-semibold text-app-text">
-                  {integration.name}
-                </div>
-                <div className="text-[10px] font-medium text-app-text-faint">
-                  Last captured {formatDateTime(latest.capturedAt)}
+        <section className="mt-6 rounded-[20px] border border-app-panel-border bg-app-surface p-5 shadow-[0_18px_55px_rgba(35,24,67,0.06)] lg:p-7">
+          {hasSlideshowViewer ? (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <FormatBadge type={contentType} />
+                <span className="rounded-full bg-app-surface-subtle px-2.5 py-1 text-[10px] font-semibold text-app-muted-text">
+                  {providerName(latest.provider)}
+                </span>
+                <span className="text-[10px] font-medium text-app-text-faint">
+                  Published {formatDate(latest.publishedAt)}
+                </span>
+                {latest.releaseUrl ? (
+                  <a
+                    href={latest.releaseUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="lc-focus-ring ml-auto inline-flex items-center gap-1.5 rounded-[8px] px-2.5 py-2 text-[11px] font-semibold text-[#6d28d9] transition hover:bg-[#f1eafe]"
+                  >
+                    Open live post <IconExternalLink className="size-3.5" />
+                  </a>
+                ) : null}
+              </div>
+              <SlideshowViewer
+                title="Published slideshow"
+                slides={viewerSlides}
+                activeSlide={activeSlideshowSlide}
+                onActiveSlideChange={setActiveSlideshowSlide}
+                className="mt-4 h-[min(72dvh,720px)] min-h-[440px] overflow-hidden rounded-[14px] bg-[#efefec] sm:min-h-[560px]"
+              />
+              <div className="mt-5 flex items-center gap-3 border-t border-app-panel-border pt-5">
+                <AccountProfileIcon integration={integration} size="md" />
+                <div>
+                  <div className="text-[12px] font-semibold text-app-text">
+                    {integration.name}
+                  </div>
+                  <div className="text-[10px] font-medium text-app-text-faint">
+                    Last captured {formatDateTime(latest.capturedAt)}
+                  </div>
                 </div>
               </div>
-              {latest.releaseUrl ? (
-                <a
-                  href={latest.releaseUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="lc-focus-ring ml-auto inline-flex items-center gap-1.5 rounded-[8px] px-2.5 py-2 text-[11px] font-semibold text-[#6d28d9] transition hover:bg-[#f1eafe]"
-                >
-                  Open live post <IconExternalLink className="size-3.5" />
-                </a>
-              ) : null}
+            </>
+          ) : (
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <FormatBadge type={contentType} />
+                  <span className="rounded-full bg-app-surface-subtle px-2.5 py-1 text-[10px] font-semibold text-app-muted-text">
+                    {providerName(latest.provider)}
+                  </span>
+                  <span className="text-[10px] font-medium text-app-text-faint">
+                    Published {formatDate(latest.publishedAt)}
+                  </span>
+                </div>
+                <h1 className="mt-5 max-w-[900px] text-[clamp(25px,3vw,38px)] leading-[1.08] font-semibold tracking-[-0.045em] text-app-text">
+                  {latest.content || "Post performance"}
+                </h1>
+                <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-app-panel-border pt-5">
+                  <AccountProfileIcon integration={integration} size="md" />
+                  <div>
+                    <div className="text-[12px] font-semibold text-app-text">
+                      {integration.name}
+                    </div>
+                    <div className="text-[10px] font-medium text-app-text-faint">
+                      Last captured {formatDateTime(latest.capturedAt)}
+                    </div>
+                  </div>
+                  {latest.releaseUrl ? (
+                    <a
+                      href={latest.releaseUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="lc-focus-ring ml-auto inline-flex items-center gap-1.5 rounded-[8px] px-2.5 py-2 text-[11px] font-semibold text-[#6d28d9] transition hover:bg-[#f1eafe]"
+                    >
+                      Open live post <IconExternalLink className="size-3.5" />
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+              <PostPreview post={latest} type={contentType} />
             </div>
-          </div>
-          <PostPreview post={latest} type={contentType} />
+          )}
         </section>
-
-        <PostSlidesStrip slides={slides} />
 
         <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {stats.map((stat) => (
