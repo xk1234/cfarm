@@ -41,12 +41,7 @@ export function PublicSlideshowShare({
           <span className="grid size-11 place-items-center rounded-xl bg-app-action text-white shadow-sm">
             <IconPhoto className="size-5" />
           </span>
-          <div>
-            <p className="text-xs font-semibold tracking-[0.14em] text-app-text-faint uppercase">
-              LumenClip delivery
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold">{title}</h1>
-          </div>
+          <h1 className="min-w-0 truncate text-2xl font-semibold">{title}</h1>
         </div>
 
         <section className="grid gap-4 rounded-2xl border border-app-panel-border bg-background p-5 shadow-sm sm:grid-cols-[1fr_auto]">

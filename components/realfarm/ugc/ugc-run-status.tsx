@@ -81,10 +81,7 @@ export function UgcRunStatusPanel({ runId }: { runId: string }) {
     <section className="mx-auto max-w-3xl space-y-6 rounded-2xl border border-border bg-card p-6 text-card-foreground shadow-sm">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
-            UGC generation
-          </p>
-          <h1 className="mt-1 text-xl font-semibold">Honest progress & cost</h1>
+          <h1 className="text-xl font-semibold">UGC generation</h1>
           <p className="mt-1 font-mono text-xs text-muted-foreground">
             {data.run.id}
           </p>

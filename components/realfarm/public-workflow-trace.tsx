@@ -46,14 +46,9 @@ export function PublicWorkflowTrace({
               <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-app-action text-white shadow-sm">
                 <IconRoute className="size-5" />
               </span>
-              <div className="min-w-0">
-                <p className="text-xs font-semibold tracking-[0.14em] text-app-text-faint uppercase">
-                  Slideshow workflow
-                </p>
-                <h1 className="mt-1 truncate text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">
-                  {trace.title}
-                </h1>
-              </div>
+              <h1 className="min-w-0 truncate text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">
+                {trace.title}
+              </h1>
             </div>
             <Button asChild variant="outline">
               <a href={slideshowUrl}>
