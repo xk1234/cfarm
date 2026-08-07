@@ -16,9 +16,9 @@ Owner: `components/realfarm/home-view.tsx`.
 Home begins with a 26-week posting activity grid built from linked publication
 dates and explicit manual-publish dates. It shows the total published posts,
 the current daily streak when one exists, and the relative posting count for
-each day. Beside it, the dashboard shows the next expected scheduled post,
-the number of scheduled templates, and the number of calendar items that
-need action or have failed. Desktop places the graph and metric cards in two
+each day. Beside it, the dashboard shows saved templates, recent slideshow
+generations, and the number of publication items that need action or have
+failed. Desktop places the graph and metric cards in two
 columns. Mobile keeps the graph horizontally scrollable and stacks the metrics
 in a compact grid.
 
@@ -57,9 +57,8 @@ changes the workspace to Templates, and opens the new template for editing.
 ## MCP coverage
 
 Partial. `lumenclip_templates_list`, `lumenclip_starter_templates_list`,
-`lumenclip_template_create`, `lumenclip_schedule_get`,
-`lumenclip_outputs_list`, `lumenclip_output_get`,
+`lumenclip_template_create`, `lumenclip_outputs_list`, `lumenclip_output_get`,
 `lumenclip_output_delete`, and `lumenclip_analytics_report` cover the main
-automation, schedule, output, and publication data operations. No registered
+template, output, and publication data operations. No registered
 tool returns the Home-only outstanding-action aggregate. Opening Home,
 switching output tabs, paging cards, and opening viewers are UI navigation.

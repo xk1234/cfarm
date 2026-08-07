@@ -12,24 +12,15 @@ import {
 } from "@/components/ui/form-controls"
 import { fetchJsonWithTimeout } from "@/lib/client-api"
 import {
-  AUTOMATION_FONT_OPTIONS,
-  automationFontPreviewFamily,
-} from "@/lib/automation-font-options"
-import {
-  aspectRatioLabel,
   automationHookId,
-  automationAspectRatios,
   automationHookItems,
-  automationSharedSlideStyle,
   automationTonePresetOptions,
   automationToneRawValue,
   automationToneSelection,
-  labelToAspectRatio,
   schemaWithAutomationHookSlots,
   schemaWithAutomationHookCase,
   schemaWithAutomationHookItems,
   schemaWithAutomationTone,
-  schemaWithAutomationSharedSlideStyle,
   type AutomationSchema,
   type AutomationHookItem,
 } from "@/lib/realfarm-automation"
@@ -106,15 +97,12 @@ export function PromptConfigPanel({
     WordCollectionRecord[]
   >([])
   const [runtimePreviewDate] = useState(() => new Date())
-  const [activeTab, setActiveTab] = useState<"hooks" | "style" | "slides">(
-    "hooks"
+  const [runtimeTimeZone] = useState(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
   )
   const isVideoAutomation = config.automationKind === "video"
-  const tabs = isVideoAutomation
-    ? (["hooks", "style"] as const)
-    : (["hooks", "style", "slides"] as const)
   const [hookItemsDraft, setHookItemsDraft] = useState<AutomationHookItem[]>(
-    () => (initialHooks.length > 0 ? initialHooks : [emptyHookItem()])
+    () => initialHooks
   )
   const [existingHookIds] = useState(() => initialHooks.map((item) => item.id))
   const [hookUsage, setHookUsage] = useState<HookUsageState[]>([])
@@ -250,319 +238,240 @@ export function PromptConfigPanel({
 
   const rawToneValue = automationToneRawValue(config)
   const selectedTone = automationToneSelection(config)
-  const sharedSlideStyle = automationSharedSlideStyle(config)
 
   return (
-    <SettingsPage title={isVideoAutomation ? "Hooks & Voice" : "Hooks & Style"}>
-      <div
-        className={cn(
-          "mb-6 grid h-11 overflow-hidden rounded-[9px] border border-app-panel-border bg-[#f6f5f0] text-[13px] font-semibold",
-          isVideoAutomation ? "grid-cols-2" : "grid-cols-3"
-        )}
-      >
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            className={cn(
-              "border-r border-app-panel-border last:border-r-0",
-              activeTab === tab
-                ? "bg-app-surface text-app-text shadow-sm"
-                : "text-app-text-faint"
-            )}
-            onClick={() => setActiveTab(tab)}
-          >
-            {tab === "hooks"
-              ? "Hooks"
-              : tab === "style"
-                ? "Style"
-                : "Slide Settings"}
-          </button>
-        ))}
-      </div>
-
-      <div className="space-y-6">
-        {activeTab === "hooks" ? (
-          <>
-            <div className="block">
-              <div className="mb-2 flex items-end justify-between gap-4">
-                <div>
-                  <div className="text-[16px] font-semibold text-app-text">
-                    Hooks
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <LumenLabHookImporter
-                    currentHooks={hookItemsDraft}
-                    onImport={(imported) =>
-                      updateHooks([
-                        ...hookItemsDraft.filter((item) => item.text.trim()),
-                        ...imported,
-                      ])
-                    }
-                  />
-                  <Button
-                    type="button"
-                    variant="iconControl"
-                    size="icon-control-lg"
-                    disabled={!hookItemsDraft.some((item) => item.text.trim())}
-                    aria-label="Copy all hooks"
-                    title="Copy all hooks"
-                    onClick={() => void copyAllHooks()}
-                  >
-                    <IconCopy className="size-4" />
-                  </Button>
-                  <SelectControl
-                    className="w-48 shrink-0"
-                    aria-label="Hook casing"
-                    value={selectedHookCase}
-                    disabled={hookUsageStatus !== "ready"}
-                    onChange={(event) =>
-                      updateHookCase(event.target.value as HookCaseMode)
-                    }
-                  >
-                    {hookCaseModes
-                      .filter(
-                        (mode) =>
-                          mode !== "mixed" || detectedHookCase === "mixed"
-                      )
-                      .map((mode) => (
-                        <option key={mode} value={mode}>
-                          {hookCaseLabel(mode)}
-                        </option>
-                      ))}
-                  </SelectControl>
-                </div>
-              </div>
-              <HookRowsEditor
-                items={hookItemsDraft}
-                usage={hookUsage}
-                safetyLockedIds={
-                  hookUsageStatus === "ready" ? [] : existingHookIds
-                }
-                onChange={updateHooks}
-              />
-              {hookUsageStatus === "error" ? (
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-900">
-                  <span>
-                    Existing hooks are locked because usage could not be
-                    verified.
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="xs"
-                    onClick={() => {
-                      setHookUsageStatus("loading")
-                      setHookUsageRevision((revision) => revision + 1)
-                    }}
-                  >
-                    Try again
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-            <section className="rounded-[9px] border border-app-panel-border bg-app-surface-subtle px-3 py-3">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <h3 className="text-[14px] font-semibold text-app-text">
-                  Variables
-                </h3>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {runtimeHookVariables.map((variable) => (
-                  <VariableBadge
-                    key={`runtime-${variable.name}`}
-                    token={`[[${variable.name.toUpperCase()}]]`}
-                    value={
-                      runtimeHookVariableValue(variable.name, {
-                        now: runtimePreviewDate,
-                        timeZone: config.schedule.timezone,
-                      }) ?? "Unavailable"
-                    }
-                    detail={`${variable.label} · ${variable.description}`}
-                    kind="runtime"
-                  />
-                ))}
-                {wordCollections.map((collection) => (
-                  <VariableBadge
-                    key={`collection-${collection.id}`}
-                    token={`[[${wordCollectionVariableName(collection).toUpperCase()}]]`}
-                    value={collectionValuePreview(collection)}
-                    detail={`${collection.words.length} collection ${collection.words.length === 1 ? "value" : "values"}`}
-                    kind="dynamic"
-                  />
-                ))}
-              </div>
-            </section>
-            <div className="flex items-start justify-between gap-5 rounded-[10px] border border-app-panel-border bg-app-surface-subtle p-4">
-              <div>
-                <div className="text-[15px] font-semibold text-app-text">
-                  No duplicate values per hook
-                </div>
-                <p className="mt-1 max-w-[560px] text-[13px] leading-5 font-medium text-app-muted-text">
-                  Repeated variables draw different values within the same hook.
-                </p>
-              </div>
-              <SwitchPillButton
-                enabled={config.hook_no_duplicate_slots === true}
-                aria-label="Toggle no duplicate values per hook"
-                onClick={() =>
-                  onConfigChange({
-                    ...config,
-                    hook_no_duplicate_slots:
-                      config.hook_no_duplicate_slots !== true,
-                  })
-                }
-              />
-            </div>
-          </>
-        ) : null}
-
-        {activeTab === "style" ? (
-          <>
-            <SettingsRow
-              title="Tone"
-              description={
-                isVideoAutomation
-                  ? "Voice used for generated video copy."
-                  : "Voice used for generated slide text."
-              }
-              control={
-                <SelectControl
-                  value={selectedTone}
-                  onChange={(event) => {
-                    const value = event.target.value
-                    if (value === "Custom")
-                      onConfigChange(
-                        schemaWithAutomationTone(config, "", "custom")
-                      )
-                    else updateTone(value)
-                  }}
-                >
-                  {[...automationTonePresetOptions, "Custom"].map((tone) => (
-                    <option key={tone} value={tone}>
-                      {tone}
-                    </option>
-                  ))}
-                </SelectControl>
-              }
-            />
-            {selectedTone === "Custom" ? (
+    <SettingsPage title="Text">
+      <div className="space-y-8">
+        <section className="space-y-5">
+          <h3 className="text-[16px] font-semibold text-app-text">
+            Text agent
+          </h3>
+          <PromptTextarea
+            title={
+              isVideoAutomation
+                ? "Writing instructions"
+                : "Slide text instructions"
+            }
+            value={config.prompt_formatting.style}
+            large
+            onChange={(value) =>
+              onConfigChange({
+                ...config,
+                prompt_formatting: {
+                  ...config.prompt_formatting,
+                  style: value,
+                },
+              })
+            }
+          />
+          {!isVideoAutomation ? (
+            <>
               <PromptTextarea
-                title="Custom tone"
-                value={rawToneValue}
-                large
-                onChange={(value) =>
-                  onConfigChange(
-                    schemaWithAutomationTone(config, value, "custom")
-                  )
-                }
-              />
-            ) : null}
-            {isVideoAutomation ? (
-              <PromptTextarea
-                title="Video writing style"
-                value={config.prompt_formatting.style}
-                large
+                title="Sequence instructions"
+                value={config.prompt_formatting.slide_planning_prompt ?? ""}
                 onChange={(value) =>
                   onConfigChange({
                     ...config,
                     prompt_formatting: {
                       ...config.prompt_formatting,
-                      style: value,
+                      slide_planning_prompt: value,
                     },
                   })
                 }
               />
-            ) : null}
-          </>
-        ) : null}
-
-        {!isVideoAutomation && activeTab === "slides" ? (
-          <>
-            <div className="rounded-[9px] border border-[#ddd4f3] bg-[#faf8ff] px-4 py-3 text-[13px] font-medium text-[#625879]">
-              These settings apply to Hook, Content, and CTA slides together.
-            </div>
-            <SettingsRow
-              title="Aspect ratio"
-              description="One frame ratio for the entire carousel"
-              control={
-                <SelectControl
-                  value={aspectRatioLabel(sharedSlideStyle.aspectRatio)}
-                  onChange={(event) =>
-                    onConfigChange(
-                      schemaWithAutomationSharedSlideStyle(config, {
-                        aspectRatio: labelToAspectRatio(event.target.value),
-                      })
-                    )
-                  }
-                >
-                  {automationAspectRatios.map((ratio) => (
-                    <option key={ratio} value={aspectRatioLabel(ratio)}>
-                      {aspectRatioLabel(ratio)}
-                    </option>
-                  ))}
-                </SelectControl>
-              }
-            />
-            <SettingsRow
-              title="Font"
-              description="One font family for every text box"
-              control={
-                <SelectControl
-                  value={sharedSlideStyle.font}
-                  style={{
-                    fontFamily: automationFontPreviewFamily(
-                      sharedSlideStyle.font
-                    ),
-                  }}
-                  onChange={(event) =>
-                    onConfigChange(
-                      schemaWithAutomationSharedSlideStyle(config, {
-                        font: event.target.value,
-                      })
-                    )
-                  }
-                >
-                  {AUTOMATION_FONT_OPTIONS.map((font) => (
-                    <option
-                      key={font}
-                      value={font}
-                      style={{ fontFamily: automationFontPreviewFamily(font) }}
-                    >
-                      {font}
-                    </option>
-                  ))}
-                </SelectControl>
-              }
-            />
-            <SettingsRow
-              title="Image fitting"
-              description="Images fill the entire frame; overflow is cropped from the center"
-              control={
-                <SelectControl value="cover" disabled>
-                  <option value="cover">Cover — crop edges</option>
-                </SelectControl>
-              }
-            />
-            <SettingsRow
-              title="Dark overlay"
-              description="Apply the same readability overlay to every slide"
-              control={
-                <SwitchPillButton
-                  enabled={sharedSlideStyle.overlay}
-                  onClick={() =>
-                    onConfigChange(
-                      schemaWithAutomationSharedSlideStyle(config, {
-                        overlay: !sharedSlideStyle.overlay,
-                      })
-                    )
+              <div className="grid grid-cols-2 gap-3 sm:max-w-sm">
+                <SlideCountInput
+                  label="Minimum slides"
+                  value={config.prompt_formatting.slide_count_min ?? 3}
+                  onChange={(value) =>
+                    onConfigChange({
+                      ...config,
+                      prompt_formatting: {
+                        ...config.prompt_formatting,
+                        slide_count_min: value,
+                        slide_count_max: Math.max(
+                          value,
+                          config.prompt_formatting.slide_count_max ?? 12
+                        ),
+                      },
+                    })
                   }
                 />
+                <SlideCountInput
+                  label="Maximum slides"
+                  value={config.prompt_formatting.slide_count_max ?? 12}
+                  onChange={(value) =>
+                    onConfigChange({
+                      ...config,
+                      prompt_formatting: {
+                        ...config.prompt_formatting,
+                        slide_count_min: Math.min(
+                          value,
+                          config.prompt_formatting.slide_count_min ?? 3
+                        ),
+                        slide_count_max: value,
+                      },
+                    })
+                  }
+                />
+              </div>
+            </>
+          ) : null}
+          <SettingsRow
+            title="Tone"
+            control={
+              <SelectControl
+                value={selectedTone}
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (value === "Custom") {
+                    onConfigChange(
+                      schemaWithAutomationTone(config, "", "custom")
+                    )
+                  } else {
+                    updateTone(value)
+                  }
+                }}
+              >
+                {[...automationTonePresetOptions, "Custom"].map((tone) => (
+                  <option key={tone} value={tone}>
+                    {tone}
+                  </option>
+                ))}
+              </SelectControl>
+            }
+          />
+          {selectedTone === "Custom" ? (
+            <PromptTextarea
+              title="Custom tone"
+              value={rawToneValue}
+              large
+              onChange={(value) =>
+                onConfigChange(
+                  schemaWithAutomationTone(config, value, "custom")
+                )
               }
             />
-          </>
-        ) : null}
+          ) : null}
+        </section>
+
+        <section className="space-y-3 border-t border-app-panel-border pt-7">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-[16px] font-semibold text-app-text">
+              Optional hooks
+            </h3>
+            <div className="flex items-center gap-2">
+              <LumenLabHookImporter
+                currentHooks={hookItemsDraft}
+                onImport={(imported) =>
+                  updateHooks([
+                    ...hookItemsDraft.filter((item) => item.text.trim()),
+                    ...imported,
+                  ])
+                }
+              />
+              <Button
+                type="button"
+                variant="iconControl"
+                size="icon-control-lg"
+                disabled={!hookItemsDraft.some((item) => item.text.trim())}
+                aria-label="Copy all hooks"
+                title="Copy all hooks"
+                onClick={() => void copyAllHooks()}
+              >
+                <IconCopy className="size-4" />
+              </Button>
+              <SelectControl
+                className="w-44 shrink-0"
+                aria-label="Hook casing"
+                value={selectedHookCase}
+                disabled={hookUsageStatus !== "ready"}
+                onChange={(event) =>
+                  updateHookCase(event.target.value as HookCaseMode)
+                }
+              >
+                {hookCaseModes
+                  .filter(
+                    (mode) => mode !== "mixed" || detectedHookCase === "mixed"
+                  )
+                  .map((mode) => (
+                    <option key={mode} value={mode}>
+                      {hookCaseLabel(mode)}
+                    </option>
+                  ))}
+              </SelectControl>
+            </div>
+          </div>
+          <HookRowsEditor
+            items={hookItemsDraft}
+            usage={hookUsage}
+            safetyLockedIds={hookUsageStatus === "ready" ? [] : existingHookIds}
+            onChange={updateHooks}
+          />
+          {hookUsageStatus === "error" ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-900">
+              <span>
+                Existing hooks are locked because usage could not be verified.
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={() => {
+                  setHookUsageStatus("loading")
+                  setHookUsageRevision((revision) => revision + 1)
+                }}
+              >
+                Try again
+              </Button>
+            </div>
+          ) : null}
+          <div className="flex items-center justify-between gap-5 rounded-[10px] border border-app-panel-border bg-app-surface-subtle p-4">
+            <span className="text-[14px] font-semibold text-app-text">
+              Use different values for repeated variables
+            </span>
+            <SwitchPillButton
+              enabled={config.hook_no_duplicate_slots === true}
+              aria-label="Toggle no duplicate values per hook"
+              onClick={() =>
+                onConfigChange({
+                  ...config,
+                  hook_no_duplicate_slots:
+                    config.hook_no_duplicate_slots !== true,
+                })
+              }
+            />
+          </div>
+        </section>
+
+        <section className="border-t border-app-panel-border pt-7">
+          <h3 className="text-[14px] font-semibold text-app-text">Variables</h3>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {runtimeHookVariables.map((variable) => (
+              <VariableBadge
+                key={`runtime-${variable.name}`}
+                token={`[[${variable.name.toUpperCase()}]]`}
+                value={
+                  runtimeHookVariableValue(variable.name, {
+                    now: runtimePreviewDate,
+                    timeZone: runtimeTimeZone,
+                  }) ?? "Unavailable"
+                }
+                detail={`${variable.label} · ${variable.description}`}
+                kind="runtime"
+              />
+            ))}
+            {wordCollections.map((collection) => (
+              <VariableBadge
+                key={`collection-${collection.id}`}
+                token={`[[${wordCollectionVariableName(collection).toUpperCase()}]]`}
+                value={collectionValuePreview(collection)}
+                detail={`${collection.words.length} collection ${collection.words.length === 1 ? "value" : "values"}`}
+                kind="dynamic"
+              />
+            ))}
+          </div>
+        </section>
       </div>
       {hideFooter || !onCancel || !onSave ? null : (
         <SettingsFooter onCancel={onCancel} onSave={onSave} />
@@ -594,6 +503,32 @@ function emptyHookItem(): AutomationHookItem {
     enabled: true,
     createdAt,
   }
+}
+
+function SlideCountInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: number
+  onChange: (value: number) => void
+}) {
+  return (
+    <label className="space-y-1.5 text-xs font-semibold text-app-muted-text">
+      <span>{label}</span>
+      <input
+        type="number"
+        min={1}
+        max={30}
+        value={value}
+        className="h-9 w-full rounded-lg border border-app-panel-border bg-app-surface px-3 text-[13px] font-semibold text-app-text outline-none"
+        onChange={(event) =>
+          onChange(Math.max(1, Math.min(30, Number(event.target.value) || 1)))
+        }
+      />
+    </label>
+  )
 }
 
 function VariableBadge({

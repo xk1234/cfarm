@@ -113,7 +113,7 @@ rows directly from the shared local project.
 There is no local Appwrite functions executor. `pnpm dev` runs the checked-in
 function entrypoints through `scripts/run-local-appwrite-function.mjs`:
 
-- `template-scheduler` every five minutes;
+- `template-scheduler` as a disabled compatibility entrypoint that enqueues no work;
 - `job-worker` every minute.
 
 Cloud deployments continue through `appwrite/functions/deploy.mjs`.

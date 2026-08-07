@@ -38,8 +38,8 @@ and analytics joins remain intact.
 
 Match slideshow opens the tone analyzer, while New template opens the template
 browser. A slideshow or video template can be renamed inline, favorited, and
-opened in the shared editor. Schedule lifecycle and account selection belong in
-the editor rather than on the reusable-template card.
+opened in the shared editor. A template only defines generation. Publishing a
+completed output to connected accounts is a separate post-processing action.
 
 Selecting a successful preview opens the generated slideshow or video viewer.
 The editor is addressable at `/app?view=templates&template=<id>`, and a specific

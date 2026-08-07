@@ -17,6 +17,7 @@ import {
   type AutomationRecord,
 } from "@/lib/automations"
 import { listAvailableImageCollections } from "@/lib/available-image-collections"
+import { openRouterJson } from "@/lib/openrouter"
 import { automationGenerationBlockers } from "@/lib/automation-readiness"
 import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
 import {
@@ -46,8 +47,8 @@ import {
   automationHooks,
   automationPostingMode,
   automationPublishType,
+  automationSlideDesigns,
   automationTotalSlideCount,
-  updateAutomationFormatSection,
   type AutomationSchema,
   type AutomationContentRoute,
 } from "@/lib/realfarm-automation"
@@ -837,10 +838,12 @@ async function createAutomationRun(input: {
   }
 
   const postIntent = automationPostIntentOptions(input.record.schema)
-  const activeIntegrations = input.record.schema.social_integrations.filter(
-    (integration) => integration.integration_id && !integration.disabled
-  )
-  const postingMode = postIntent.publishMode
+  // Templates only create drafts. Moving a completed output to a social
+  // platform is an explicit post-processing action in the output viewer.
+  const activeIntegrations: AutomationSchema["social_integrations"] = []
+  const postingMode = postIntent.publishMode as ReturnType<
+    typeof automationPostingMode
+  >
   setAutomationRunProgress(runId, "Rendering slides", plan.hook)
   const { slideshow, result } = await createSlideshowResultRecord({
     rootDir: input.slideshowRootDir,
@@ -1004,16 +1007,10 @@ async function createAutomationRun(input: {
 }
 
 export function automationPostIntentOptions(schema: AutomationSchema) {
+  void schema
   return {
-    publishMode: automationPostingMode(schema),
-    destinations: schema.social_integrations
-      .filter(
-        (integration) => integration.integration_id && !integration.disabled
-      )
-      .map((integration) => ({
-        integrationId: integration.integration_id,
-        provider: integration.provider,
-      })),
+    publishMode: "manual" as const,
+    destinations: [],
   }
 }
 
@@ -1235,34 +1232,15 @@ async function createAutomationRunPlan(
   const publishedUsageRecords = options.automationId
     ? usageRecordsForPublishedRuns(usageRecords, options.automationId)
     : []
-  const configuredContent = automationFormatSection(schema, "content")
-  const slideCountMode = configuredContent.slideCountMode ?? "static"
-  const selectedSlideCount = selectContentSlideCount({
-    mode: slideCountMode,
-    count: configuredContent.slideCount,
-    min: configuredContent.slideCountMin,
-    max: configuredContent.slideCountMax,
-    random: options.random,
-  })
-  let selectedContentSlideCount = selectedSlideCount.count
-  const slideCountMin = selectedSlideCount.min
-  const slideCountMax = selectedSlideCount.max
-  if (selectedContentSlideCount !== configuredContent.slideCount) {
-    const hookCount = automationFormatSection(schema, "hook").slideCount
-    const ctaCount = automationFormatSection(schema, "cta").slideCount
-    schema = {
-      ...updateAutomationFormatSection(schema, "content", {
-        slideCount: selectedContentSlideCount,
-      }),
-      prompt_formatting: {
-        ...schema.prompt_formatting,
-        num_of_slides: Math.max(
-          1,
-          hookCount + selectedContentSlideCount + ctaCount
-        ),
-      },
-    }
-  }
+  const slideCountMode = "agent"
+  const slideCountMin = Math.max(
+    1,
+    Math.round(Number(schema.prompt_formatting.slide_count_min) || 3)
+  )
+  const slideCountMax = Math.max(
+    slideCountMin,
+    Math.round(Number(schema.prompt_formatting.slide_count_max) || 12)
+  )
   progress("Selecting hook")
   const hookItems = automationHookItems(schema).filter((item) => item.enabled)
   const requestedHook = clean(options.hook)
@@ -1278,58 +1256,53 @@ async function createAutomationRunPlan(
         wordCollectionRootDir: options.wordCollectionRootDir,
         now: options.now,
       })
-    : await selectAutomationHook({
-        schema,
-        hookItems,
-        automationId: options.automationId,
-        wordCollectionRootDir: options.wordCollectionRootDir,
-        usageLedgerRootDir: options.usageLedgerRootDir,
-        usedHookKeys: options.usedHookKeys,
-        usedHookCombinationKeys: options.usedHookCombinationKeys,
-        usageRecords,
-        now: options.now,
-        random: options.random,
-      })
-  if (
-    hookSelection.bodySlideCount &&
-    hookSelection.bodySlideCount !== selectedContentSlideCount
-  ) {
-    selectedContentSlideCount = hookSelection.bodySlideCount
-    const hookCount = automationFormatSection(schema, "hook").slideCount
-    const ctaCount = automationFormatSection(schema, "cta").slideCount
-    schema = {
-      ...updateAutomationFormatSection(schema, "content", {
-        slideCount: selectedContentSlideCount,
-        slideCountMode: "static",
-      }),
-      prompt_formatting: {
-        ...schema.prompt_formatting,
-        num_of_slides: Math.max(
-          1,
-          hookCount + selectedContentSlideCount + ctaCount
-        ),
-      },
-    }
-  }
-  const selectedHook = clean(hookSelection.expansion.text)
-  if (!selectedHook) {
-    throw new Error("The automation database record has no usable hook")
-  }
-  const hook = normalizeLlmPunctuation(
-    applyHookTextDirection(
-      selectedHook,
-      automationFormatSection(schema, "hook").textItems[0]?.contentDirection
-    )
+    : hookItems.length > 0
+      ? await selectAutomationHook({
+          schema,
+          hookItems,
+          automationId: options.automationId,
+          wordCollectionRootDir: options.wordCollectionRootDir,
+          usageLedgerRootDir: options.usageLedgerRootDir,
+          usedHookKeys: options.usedHookKeys,
+          usedHookCombinationKeys: options.usedHookCombinationKeys,
+          usageRecords,
+          now: options.now,
+          random: options.random,
+        })
+      : {
+          expansion: {
+            text: `Create an original ${clean(options.automationTitle) || "slideshow"} post.`,
+            template: "",
+            substitutions: {},
+          },
+          index: -1,
+        }
+  let selectedHook = clean(hookSelection.expansion.text)
+  const slidePlan = await planAutomationSlideSequence({
+    schema,
+    topic: selectedHook,
+    automationTitle: clean(options.automationTitle) || "Slideshow",
+    model: textModel,
+    fetchImpl: options.fetchImpl,
+  })
+  const previousSlideCount = clean(
+    hookSelection.expansion.substitutions.SLIDE_COUNT
   )
+  if (previousSlideCount && previousSlideCount !== String(slidePlan.length)) {
+    selectedHook = selectedHook.replace(
+      previousSlideCount,
+      String(slidePlan.length)
+    )
+    hookSelection.expansion.substitutions.SLIDE_COUNT = String(slidePlan.length)
+  }
+  const hook = normalizeLlmPunctuation(selectedHook)
   progress("Writing slide text", hook)
-  const slideCount = automationTotalSlideCount(schema)
   const contentRoute = selectAutomationContentRoute(schema, hook)
-  const collectionIds =
-    contentRoute?.collection_ids ?? automationCollectionIds(schema)
   const baseTextAutomationFromSchema =
     automationSchemaToTempSlideTestingAutomation(schema, {
       id: options.automationId ?? "main-app-automation",
       name: clean(options.automationTitle) || "Automation",
+      slidePlan,
     })
   const baseTextAutomation = clean(hookSelection.tone)
     ? { ...baseTextAutomationFromSchema, tone: clean(hookSelection.tone) }
@@ -1343,6 +1316,12 @@ async function createAutomationRunPlan(
         })),
       }
     : baseTextAutomation
+  const slideCount = textAutomation.slides.length
+  const collectionIds =
+    contentRoute?.collection_ids ??
+    [
+      ...new Set(textAutomation.slides.map((slide) => slide.collectionId)),
+    ].filter(Boolean)
   const promptInstructions = [
     options.promptInstructions,
     slideshowHookSourcePrompt(hookSelection),
@@ -1424,15 +1403,6 @@ async function createAutomationRunPlan(
   const recentImages = new Map(
     recentImageRecords.map((record) => [record.key, record.used_at] as const)
   )
-  const firstSlidePinnedImageId =
-    schema.image_collection_ids.first_slide.mode === "single_image"
-      ? schema.image_collection_ids.first_slide.single_image
-      : null
-  const cta = automationFormatSection(schema, "cta")
-  const ctaPinnedImageId =
-    cta.imageMode === "single_image"
-      ? schema.image_collection_ids.cta_slide.image_id
-      : null
   const slideResult = await createSlides({
     title: options.automationTitle ?? "Automation",
     hook,
@@ -1444,8 +1414,8 @@ async function createAutomationRunPlan(
     generatedText: textGeneration.result,
     random: options.random,
     fetchImpl: options.fetchImpl,
-    firstSlidePinnedImageId,
-    ctaPinnedImageId,
+    firstSlidePinnedImageId: null,
+    ctaPinnedImageId: null,
     selectedImages: options.textOnly
       ? textAutomation.slides.map((slide, index) => ({
           id: `text-only-${index + 1}`,
@@ -1837,6 +1807,98 @@ async function translateAutomationSlides(input: {
   })
 
   return nextSlides
+}
+
+export async function planAutomationSlideSequence(input: {
+  schema: AutomationSchema
+  topic: string
+  automationTitle: string
+  model: string
+  fetchImpl?: typeof fetch
+}) {
+  const apiKey = clean(process.env.OPENROUTER_API_KEY)
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY is not configured")
+  }
+  const designs = automationSlideDesigns(input.schema)
+  if (designs.length === 0) {
+    throw new Error("The template has no slide designs")
+  }
+  const min = Math.max(
+    1,
+    Math.round(Number(input.schema.prompt_formatting.slide_count_min) || 3)
+  )
+  const max = Math.max(
+    min,
+    Math.round(Number(input.schema.prompt_formatting.slide_count_max) || 12)
+  )
+  const result = await openRouterJson({
+    apiKey,
+    model: input.model,
+    fetchImpl: input.fetchImpl,
+    maxTokens: 2_048,
+    temperature: 0.35,
+    plugins: [{ id: "response-healing" }],
+    system:
+      "You are the text-generation director for a slideshow. Decide how many slides the idea needs, then assign one available slide design to every slide. Return only the requested JSON. Do not write the final slide copy yet.",
+    user: [
+      `Template: ${input.automationTitle}`,
+      `Topic or optional hook: ${input.topic}`,
+      `Choose between ${min} and ${max} slides. Use only the listed design IDs. Designs may be reused when the story needs more slides than there are designs.`,
+      clean(input.schema.prompt_formatting.slide_planning_prompt),
+      "Available slide designs:",
+      ...designs.map((design) => {
+        const textDirections = design.textItems
+          .map((item) => clean(item.contentDirection))
+          .filter(Boolean)
+          .join("; ")
+        return `- ${design.id} (${design.name}): ${[design.instructions, textDirections].filter(Boolean).join(" ") || "general-purpose slide"}`
+      }),
+      "For each slide, provide a short purpose that makes the full sequence coherent and non-repetitive.",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    schema: {
+      name: "automation_slide_sequence",
+      strict: true,
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          slides: {
+            type: "array",
+            minItems: min,
+            maxItems: max,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                designId: { type: "string" },
+                purpose: { type: "string", minLength: 1 },
+              },
+              required: ["designId", "purpose"],
+            },
+          },
+        },
+        required: ["slides"],
+      },
+    },
+  })
+  const validIds = new Set(designs.map((design) => design.id))
+  const slides = Array.isArray(result.slides)
+    ? result.slides.flatMap((value) => {
+        if (!isRecord(value)) return []
+        const designId = clean(value.designId)
+        const purpose = clean(value.purpose)
+        return validIds.has(designId) && purpose ? [{ designId, purpose }] : []
+      })
+    : []
+  if (slides.length < min || slides.length > max) {
+    throw new Error(
+      `The text generator planned ${slides.length} slides; expected ${min}-${max}.`
+    )
+  }
+  return slides
 }
 
 async function generateAutomationText(input: {

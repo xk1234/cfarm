@@ -1,26 +1,20 @@
 ---
 title: "Slideshow generation pipeline"
-description: "Transform a slideshow template and its asset collections into rendered slides and an optional MP4."
+description: "Turn a sequence-based template into an unpublished slideshow draft."
 ---
 
 # Slideshow generation pipeline
 
-The pipeline transforms a template snapshot, asset collections, and generation history into a
-stored slideshow. The stage envelopes below make internal values visible even when the
-implementation passes them as function arguments rather than serializing them between stages.
+Templates define text rules and a catalog of independently styled slide designs.
+They do not define a recurring schedule or social destination. Every run is an
+explicit request that produces an unpublished draft; publishing or scheduling
+that completed output happens later in the output viewer or publishing API.
 
 <StageShorthand />
 
-The interactive path is orchestrated by `lib/automation-runner.ts`. Scheduled Appwrite jobs use
-`appwrite/functions/job-worker/src/slideshow-automation.js`. Both delegate hook, text, and image
-decisions to `lib/slideshow-generation-engine.ts` and use the shared slideshow render contract.
-
 ## Run this
 
-Every trigger below generates an unpublished draft against a saved slideshow template. None of
-them publish or schedule anything.
-
-<Tabs items={['MCP', 'HTTP', 'Studio']}>
+<Tabs items={['MCP', 'HTTP', 'App']}>
 
 <Tab value="MCP">
 
@@ -29,20 +23,15 @@ them publish or schedule anything.
   "tool": "lumenclip_slideshow_generate",
   "arguments": {
     "templateId": "template_123",
-    "requestId": "manual-run-2026-08-01-001",
-    "hook": "3 signs that need to hear this"
+    "requestId": "draft-2026-08-07-001",
+    "hook": "optional exact topic seed"
   }
 }
 ```
 
-`templateId` is required; `requestId` and `hook` are optional. A supplied `hook` replaces random
-selection from the saved pool without changing the pool. The tool rejects any template whose kind
-is not `slideshow`.
-
-`lumenclip_template_run` runs the same pipeline and additionally accepts X, Threads, and AI UGC
-templates, but there `requestId` is required. To replay the stage graph directly, call
-`lumenclip_pipeline_run` with `workflowId: "slideshow-generation"`, or a single stage with
-`lumenclip_pipeline_stage_run` and a `stageId` such as `slideshow-generation.validate-input`.
+`templateId` is required. `requestId` and `hook` are optional. Omitting `hook`
+allows the runner to select an enabled saved hook; if the pool is empty, the text
+agent creates an original topic from the template instructions.
 
 </Tab>
 
@@ -54,39 +43,29 @@ curl -X POST https://<your-host>/api/templates/run \
   -d '{
     "templateId": "template_123",
     "force": true,
-    "requestId": "manual-run-2026-08-01-001"
+    "requestId": "draft-2026-08-07-001"
   }'
 ```
 
-`templateId` and `force: true` are both required; the route answers 400 without them. Optional
-`now` takes an ISO timestamp and becomes the run slot. The response carries `created`, `results`,
-and `skipped`; a `skipped` entry with reason `hooks_exhausted` means no unused hook combination
-remains.
+`force: true` means “run this saved template now”; it does not bypass QA and it
+does not opt into automatic publishing.
 
 </Tab>
 
-<Tab value="Studio">
+<Tab value="App">
 
 <Steps>
 
+<Step>Open Templates and select a template.</Step>
+
 <Step>
-
-Open `/app?view=templates` and select the slideshow template, or deep link straight to it with
-`/app?view=templates&template=template_123`.
-
+  Use Editor to add, reorder, duplicate, or style slide designs. Use Text to set
+  the planning range, writing instructions, tone, variables, and optional hooks.
 </Step>
 
 <Step>
-
-Adjust format, hooks, and style in the drawer. Editor state is persisted before the run starts.
-
-</Step>
-
-<Step>
-
-Click **Generate**. The drawer posts to `/api/templates/run` and the finished draft appears under
-the automation's recent runs.
-
+  Click **Generate**. Autosave completes first, then the generated draft appears
+  in the template's recent outputs.
 </Step>
 
 </Steps>
@@ -97,755 +76,39 @@ the automation's recent runs.
 
 ## Stage map
 
-| #   | Stage                       | Adds to the preceding output                                    |
-| --- | --------------------------- | --------------------------------------------------------------- |
-| 1   | Validate generation input   | Normalized automation, collections, history, and model settings |
-| 2   | Resolve slide count         | Hook, body, CTA, and total counts                               |
-| 3   | Select and expand hook      | Concrete hook text, substitutions, and per-hook overrides       |
-| 4   | Optional web research       | Exact-hook facts and source URLs                                |
-| 5   | Build structured prompt     | OpenRouter messages and response schema                         |
-| 6   | Generate slideshow text     | Metadata and non-hook placeholder text                          |
-| 7   | Similarity retry            | Accepted first draft or one rewritten draft                     |
-| 8   | Optional visual concepts    | Concrete visual search concepts per AI-selected slide           |
-| 9   | Build image shortlists      | At most 12 caption-ranked candidates per AI-selected slide      |
-| 10  | Select images               | One pinned, deterministic, or model-selected image per slide    |
-| 11  | Assemble slideshow plan     | Complete hook, content, and CTA slide objects                   |
-| 12  | Optional translation        | Localized displayed text                                        |
-| 13  | Render and store PNG slides | Ordered image artifacts and thumbnail                           |
-| 14  | Optional MP4 render         | Video artifact for video publish type                           |
-| 15  | Validate generated output   | Deterministic QA report                                         |
-| 16  | Finalize generated output   | Result record, run state, and reuse-memory entries              |
-
-## Stage 1 — Validate generation input
-
-**Input**
-
-```json
-{
-  "automationId": "automation-astrology-01",
-  "automationName": "Daily zodiac signs",
-  "scheduledFor": "2026-08-01T03:00:00.000Z",
-  "schema": {
-    "hooks": [
-      {
-        "id": "hook-1",
-        "text": "3 signs that need to hear this",
-        "enabled": true
-      }
-    ],
-    "hook_slots": { "SIGN": "zodiac-signs" },
-    "formatting": [
-      { "id": "hook", "slideCount": 1 },
-      { "id": "content", "slideCount": 3 },
-      { "id": "cta", "slideCount": 1 }
-    ],
-    "image_collection_ids": {
-      "first_slide": { "collection_id": "zodiac-covers", "mode": "collection" },
-      "content_slides": { "collection_id": "zodiac-scenes" },
-      "cta_slide": { "collection_id": "zodiac-cta", "check": true }
-    },
-    "language": "English",
-    "web_search_enabled": true
-  },
-  "collections": [
-    { "id": "zodiac-covers", "assetCount": 20 },
-    { "id": "zodiac-scenes", "assetCount": 80 },
-    { "id": "zodiac-cta", "assetCount": 5 }
-  ],
-  "wordCollections": [
-    { "id": "zodiac-signs", "values": ["Aries", "Cancer", "Pisces"] }
-  ],
-  "usageHistory": [],
-  "generationSettings": { "slideshowTextModel": "openai/gpt-5.6-luna" }
-}
-```
-
-**Processing:** normalize the schema and require enabled hooks, referenced collections, usable
-assets, valid word-collection bindings, slide sections, and an OpenRouter key.
-
-**Output**
-
-```json
-{
-  "automation": {
-    "id": "automation-astrology-01",
-    "name": "Daily zodiac signs"
-  },
-  "scheduledFor": "2026-08-01T03:00:00.000Z",
-  "schema": {
-    "status": "valid",
-    "language": "English",
-    "webSearchEnabled": true
-  },
-  "collectionsById": {
-    "zodiac-covers": { "assetCount": 20 },
-    "zodiac-scenes": { "assetCount": 80 },
-    "zodiac-cta": { "assetCount": 5 }
-  },
-  "wordCollectionsById": { "zodiac-signs": { "valueCount": 3 } },
-  "usageHistory": [],
-  "textModel": "openai/gpt-5.6-luna",
-  "blockers": []
-}
-```
-
-**Model/provider:** none.
-
-## Stage 2 — Resolve slide count
-
-**Input**
-
-```json
-{
-  "...output": "stage-1 output",
-  "formatting": {
-    "hook": { "slideCount": 1 },
-    "content": { "slideCountMode": "static", "slideCount": 3 },
-    "cta": { "slideCount": 1 }
-  }
-}
-```
-
-**Processing:** resolve static or ranged body count. A hook-specific `bodySlideCount` overrides the
-automation default when that hook is later selected.
-
-**Output**
-
-```json
-{
-  "...output": "stage-1 output",
-  "slideCount": {
-    "mode": "static",
-    "hook": 1,
-    "body": 3,
-    "cta": 1,
-    "total": 5,
-    "minimum": 3,
-    "maximum": 3
-  }
-}
-```
-
-**Model/provider:** none.
-
-## Stage 3 — Select and expand hook
-
-**Input**
-
-```json
-{
-  "...output": "stage-2 output",
-  "enabledHooks": [
-    {
-      "id": "hook-1",
-      "text": "3 signs that need to hear this",
-      "enabled": true
-    },
-    { "id": "hook-2", "text": "Why [[SIGN]] goes quiet", "enabled": true }
-  ],
-  "hookSlots": { "SIGN": "zodiac-signs" },
-  "recentPublishedHookKeys": [],
-  "distinctVariableDraws": true
-}
-```
-
-**Processing:** exclude recently published hooks and combinations, choose a hook, draw variable
-values, enforce distinct draws, and apply casing plus hook-specific tone/count overrides.
-
-**Output**
-
-```json
-{
-  "...output": "stage-2 output",
-  "hook": "Why Cancer goes quiet",
-  "hookId": "hook-2",
-  "hookTemplate": "Why [[SIGN]] goes quiet",
-  "hookSubstitutions": { "SIGN": "Cancer" },
-  "hookToneOverride": null,
-  "bodySlideCountOverride": null
-}
-```
-
-**Model/provider:** none.
-
-## Stage 4 — Optional web research
-
-**Input**
-
-```json
-{
-  "...output": "stage-3 output",
-  "enabled": true,
-  "hook": "Why Cancer goes quiet",
-  "automationName": "Daily zodiac signs",
-  "model": "openai/gpt-5.4-mini",
-  "maxResults": 5
-}
-```
-
-**Processing:** research the exact hook and keep concise facts with source URLs. When disabled,
-`research` is `null` and the preceding output passes through.
-
-**Output**
-
-```json
-{
-  "...output": "stage-3 output",
-  "research": {
-    "content": "Concise source-grounded facts relevant to the selected hook.",
-    "sources": [
-      { "title": "Source title", "url": "https://example.com/source" }
-    ]
-  },
-  "webSearchSources": ["https://example.com/source"]
-}
-```
-
-**Model/provider:** `openai/gpt-5.4-mini` via OpenRouter, using the Exa web plugin.
-
-## Stage 5 — Build structured generation prompt
-
-**Input**
-
-```json
-{
-  "...output": "stage-4 output",
-  "tone": "Conversational & Relatable",
-  "promptInstructions": [
-    "Keep every body slide specific to the selected hook.",
-    "Use the selected repeatable content route when one matches."
-  ],
-  "placeholders": [
-    {
-      "id": "content-2__body",
-      "section": "content",
-      "contentDirection": "Explain one concrete behavior",
-      "wordLengthMin": 12,
-      "wordLengthMax": 35
-    }
-  ],
-  "recentTextExclusions": [],
-  "recentHeadingExclusions": []
-}
-```
-
-**Processing:** compile the automation name, fixed hook, tone, metadata requirements, non-hook
-placeholder directions, structure/content-route instructions, reuse exclusions, and optional
-research into a structured OpenRouter request. The hook is context and is not a model-fillable
-placeholder.
-
-**Output**
-
-```json
-{
-  "...output": "stage-4 output",
-  "promptPayload": {
-    "model": "openai/gpt-5.6-luna",
-    "stream": false,
-    "plugins": [{ "id": "response-healing" }],
-    "messages": [
-      {
-        "role": "system",
-        "content": "Slideshow generation rules and JSON contract"
-      },
-      {
-        "role": "user",
-        "content": "Automation, slide, research, and avoidance instructions"
-      }
-    ],
-    "response_format": {
-      "type": "json_schema",
-      "json_schema": { "name": "temp_slide_testing_text", "strict": true }
-    }
-  },
-  "responseSchema": {
-    "name": "temp_slide_testing_text",
-    "required": ["title", "caption", "hashtags", "text"]
-  }
-}
-```
-
-**Model/provider:** none; this stage only constructs the next provider request.
-
-## Stage 6 — Generate slideshow text
-
-**Input**
-
-```json
-{
-  "...output": "stage-5 output",
-  "model": "openai/gpt-5.6-luna",
-  "promptPayload": { "messages": "stage-5 messages" },
-  "responseSchema": { "name": "slideshow_text" }
-}
-```
-
-**Processing:** require complete structured output, normalize punctuation, enforce the configured
-tone casing, validate required fields and word ranges, and retry once with exact repair feedback
-when the provider response is incomplete or invalid. The provider returns hashtags as an array;
-the normalized stage output stores them as one space-separated string.
-
-**Output**
-
-```json
-{
-  "...output": "stage-5 output",
-  "generatedText": {
-    "title": "Why Cancer Goes Quiet",
-    "caption": "Silence is sometimes how Cancer makes room to process.",
-    "hashtags": "#cancer #zodiac #astrology",
-    "text": {
-      "content-2__body": "They notice the emotional shift before anyone names it.",
-      "content-3__body": "Distance gives them time to separate instinct from reaction.",
-      "content-4__body": "They return when their words feel honest instead of defensive.",
-      "cta-5__body": "Save this for the Cancer in your life."
-    }
-  },
-  "textModel": "openai/gpt-5.6-luna",
-  "violations": [],
-  "transformations": []
-}
-```
-
-**Model/provider:** configured `slideshowTextModel`; default `openai/gpt-5.6-luna` via OpenRouter.
-
-## Stage 7 — Similarity retry
-
-**Input**
-
-```json
-{
-  "...output": "stage-6 output",
-  "generatedSignature": "why cancer goes quiet they notice the emotional shift",
-  "recentPublishedSignatures": [
-    "why cancer goes quiet they feel every emotional shift"
-  ],
-  "similarityThreshold": 0.85
-}
-```
-
-**Processing:** compare normalized output with recent published text. When the threshold is met,
-regenerate once with exact text and heading exclusions. Otherwise pass stage 6 through unchanged.
-
-**Output**
-
-```json
-{
-  "...output": "stage-6 output",
-  "generatedText": {
-    "title": "What Cancer's Silence Is Doing",
-    "caption": "Cancer often gets quiet before choosing an honest response.",
-    "hashtags": "#cancer #zodiac #astrology",
-    "text": {
-      "content-2__body": "They register the shift before deciding whether it is safe to respond.",
-      "content-3__body": "Time alone helps them separate the feeling from the first reaction.",
-      "content-4__body": "They speak again once the answer feels honest rather than defensive.",
-      "cta-5__body": "Save this for the Cancer you understand differently now."
-    }
-  },
-  "textSimilarityRetry": true
-}
-```
-
-<Callout type="warn">
-  Similarity rewriting happens at most once. The retry result becomes
-  authoritative; the pipeline does not calculate or expose a second similarity
-  score after rewriting.
-</Callout>
-
-**Model/provider:** same configured slideshow model via OpenRouter.
-
-## Stage 8 — Derive visual concepts
-
-**Input**
-
-```json
-{
-  "...output": "stage-7 output",
-  "enabled": true,
-  "model": "openai/gpt-5.6-luna",
-  "slides": [
-    {
-      "id": "content-1",
-      "text": "They notice the emotional shift before anyone names it."
-    },
-    {
-      "id": "content-2",
-      "text": "Distance gives them time to separate instinct from reaction."
-    }
-  ]
-}
-```
-
-**Processing:** when at least one slide enables AI image selection, convert abstract copy into
-concrete subjects, objects, settings, lighting, and colors suitable for caption matching. Provider
-failure returns an empty concept array for each slide. When no slide enables AI selection, this
-stage passes stage 7 through without calling a model.
-
-**Output**
-
-```json
-{
-  "...output": "stage-7 output",
-  "visualConceptsBySlide": [
-    {
-      "slideId": "content-1",
-      "concepts": ["person noticing a mood change", "dim room", "blue light"]
-    },
-    {
-      "slideId": "content-2",
-      "concepts": ["solitary figure by water", "moonlight", "quiet reflection"]
-    }
-  ]
-}
-```
-
-**Model/provider:** same configured slideshow model via OpenRouter.
-
-## Stage 9 — Build image shortlists
-
-**Input**
-
-```json
-{
-  "...output": "stage-8 output",
-  "collectionBindings": {
-    "hook": "zodiac-covers",
-    "content": "zodiac-scenes",
-    "cta": "zodiac-cta"
-  },
-  "visualConceptsBySlide": "stage-8 concepts",
-  "recentImageUsage": ["image-used-last-week"],
-  "shortlistLimit": 12
-}
-```
-
-**Processing:** load the collection bound to each section, prefer section-tagged captions, honor
-pinned assets, remove duplicates already chosen in the current slideshow, and rank caption/concept
-overlap locally. AI-selected slides retain at most 12 candidates. Recent-use history controls the
-deterministic fresh/least-recently-used path and is recorded as a warning if an AI choice reuses an
-image; it is not a hard exclusion from the AI shortlist.
-
-**Output**
-
-```json
-{
-  "...output": "stage-8 output",
-  "shortlists": [
-    {
-      "slideId": "content-1",
-      "candidates": [
-        {
-          "index": 0,
-          "id": "image-44",
-          "caption": "Person in blue light watching a quiet room"
-        },
-        {
-          "index": 1,
-          "id": "image-12",
-          "caption": "Moonlit portrait near water"
-        }
-      ]
-    }
-  ]
-}
-```
-
-**Model/provider:** none.
-
-## Stage 10 — Select images
-
-**Input**
-
-```json
-{
-  "...output": "stage-9 output",
-  "model": "openai/gpt-5.6-luna",
-  "slideText": "They notice the emotional shift before anyone names it.",
-  "visualConcepts": ["person noticing a mood change", "dim room", "blue light"],
-  "candidates": [
-    {
-      "index": 0,
-      "id": "image-44",
-      "caption": "Person in blue light watching a quiet room"
-    },
-    { "index": 1, "id": "image-12", "caption": "Moonlit portrait near water" }
-  ]
-}
-```
-
-**Processing:** a pinned slide uses its configured image. An AI-selected slide with multiple
-candidates asks the model for one candidate index; a malformed or out-of-range result falls back
-to candidate 0. Every other slide selects a fresh candidate deterministically, then falls back to
-the least recently used candidate when its fresh pool is empty.
-
-**Output**
-
-```json
-{
-  "...output": "stage-9 output",
-  "selectedImages": [
-    {
-      "id": "image-44",
-      "key": "image-44",
-      "imageUrl": "/api/local-assets/image-44.jpg",
-      "imageCaption": "Person in blue light watching a quiet room",
-      "reusedRecently": false
-    }
-  ]
-}
-```
-
-**Model/provider:** same configured slideshow model via OpenRouter.
-
-## Stage 11 — Assemble slideshow plan
-
-**Input**
-
-```json
-{
-  "...output": "stage-10 output",
-  "generatedText": "stage-7 structured text",
-  "selectedImages": "stage-10 selected images",
-  "layout": {
-    "aspectRatio": "9:16",
-    "imageFit": "cover",
-    "font": "Inter",
-    "slideDurationSeconds": 3
-  }
-}
-```
-
-**Processing:** attach each text item to its selected image, role, overlay, icon layout, aspect
-ratio, and placement. Duration is applied later from the slideshow render settings.
-
-**Output**
-
-```json
-{
-  "...output": "stage-10 output",
-  "plan": {
-    "title": "What Cancer's Silence Is Doing",
-    "caption": "Silence is sometimes how Cancer makes room to process.",
-    "hashtags": "#cancer #zodiac #astrology",
-    "hook": "Why Cancer goes quiet",
-    "textModel": "openai/gpt-5.6-luna",
-    "slides": [
-      {
-        "id": "slide-1",
-        "role": "hook",
-        "imageUrl": "/api/local-assets/hook.jpg",
-        "textItems": [{ "id": "hook-text", "text": "Why Cancer goes quiet" }],
-        "aspectRatio": "9:16"
-      }
-    ]
-  }
-}
-```
-
-**Model/provider:** none.
-
-## Stage 12 — Optional translation
-
-**Input**
-
-```json
-{
-  "...output": "stage-11 output",
-  "language": "German",
-  "texts": [
-    "Why Cancer goes quiet",
-    "They notice the emotional shift before anyone names it."
-  ]
-}
-```
-
-**Processing:** translate every displayed text item when the language maps to a DeepL target.
-English and unsupported targets pass through unchanged. Missing translations fail the stage.
-
-**Output**
-
-```json
-{
-  "...output": "stage-11 output",
-  "localizedPlan": {
-    "language": "German",
-    "slides": [
-      {
-        "id": "slide-1",
-        "textItems": [{ "id": "hook-text", "text": "Warum Krebs still wird" }]
-      }
-    ]
-  }
-}
-```
-
-**Model/provider:** DeepL API. LumenClip does not select a DeepL model.
-
-## Stage 13 — Render and store PNG slides
-
-**Input**
-
-```json
-{
-  "...output": "stage-12 output",
-  "slideshowId": "slideshow-run-01",
-  "plan": "localized stage-12 plan",
-  "renderSettings": {
-    "aspectRatio": "9:16",
-    "font": "Inter",
-    "imageFit": "cover"
-  }
-}
-```
-
-**Processing:** load source/overlay/icon bytes, render each slide to SVG, rasterize it with
-`sharp`, and store ordered PNGs. The result/output record is created with these artifacts before
-QA runs; QA controls downstream readiness rather than whether the generated media exists.
-
-**Output**
-
-```json
-{
-  "...output": "stage-12 output",
-  "slideshowId": "slideshow-run-01",
-  "outputImages": [
-    "/api/local-assets/slideshows/outputs/slideshow-run-01/slide-001.png",
-    "/api/local-assets/slideshows/outputs/slideshow-run-01/slide-002.png"
-  ],
-  "thumbnailUrl": "/api/local-assets/slideshows/outputs/slideshow-run-01/slide-001.png",
-  "renderedSlides": [{ "id": "slide-1", "role": "hook", "durationMs": 3000 }]
-}
-```
-
-**Model/provider:** none; local SVG renderer and `sharp`.
-
-## Stage 14 — Optional MP4 render
-
-**Input**
-
-```json
-{
-  "...output": "stage-13 output",
-  "publishType": "video",
-  "frames": ["slide-001.png", "slide-002.png"],
-  "durationSecondsPerFrame": 3,
-  "outputFormat": "mp4"
-}
-```
-
-**Processing:** upload frames to Rendi, build an FFmpeg concat command, render H.264, download the
-video, and persist it. Slideshow publish type skips this stage.
-
-**Output**
-
-```json
-{
-  "...output": "stage-13 output",
-  "videoUrl": "/api/local-assets/slideshows/outputs/slideshow-run-01/slideshow-export.mp4",
-  "videoProvider": "rendi",
-  "videoProcessor": "ffmpeg"
-}
-```
-
-**Model/provider:** no AI model; Rendi executes FFmpeg.
-
-## Stage 15 — Validate generated output
-
-**Input**
-
-```json
-{
-  "...output": "stage-14 output",
-  "expectedSlideCount": 5,
-  "slides": "rendered stage-13 slides",
-  "hookSubstitutions": { "SIGN": "Cancer" },
-  "reusePolicy": { "textSimilarityThreshold": 0.85 }
-}
-```
-
-**Processing:** check count, empty text, unresolved tokens, word ranges, and duplicate variable
-draws. The validator can also emit a near-duplicate warning when a caller supplies prior runs; the
-normal scheduled call performs its text-similarity retry earlier at stage 7 instead.
-
-**Output**
-
-```json
-{
-  "...output": "stage-14 output",
-  "qa": {
-    "valid": true,
-    "actualSlideCount": 5,
-    "bodySlideCount": 3,
-    "findings": []
-  }
-}
-```
-
-**Model/provider:** none.
-
-## Stage 16 — Finalize generated output
-
-**Input**
-
-```json
-{
-  "...output": "stage-15 output",
-  "automationId": "automation-astrology-01",
-  "runId": "run-01",
-  "slideshowId": "slideshow-run-01"
-}
-```
-
-**Processing:** finalize the run with the slideshow/result identifiers and QA state, then append
-generated image, text, and heading reuse-memory entries. The PNGs, optional MP4, and base result
-record were already stored during rendering. Hook and hook-combination exclusion is based only on
-later publication evidence.
-
-**Output**
-
-```json
-{
-  "result": {
-    "id": "result-run-01",
-    "automationId": "automation-astrology-01",
-    "runId": "run-01",
-    "workflowType": "slideshow",
-    "title": "What Cancer's Silence Is Doing",
-    "status": "succeeded",
-    "artifacts": {
-      "slideshowId": "slideshow-run-01",
-      "outputImages": [
-        "/api/local-assets/slideshows/outputs/slideshow-run-01/slide-001.png",
-        "/api/local-assets/slideshows/outputs/slideshow-run-01/slide-002.png"
-      ],
-      "videoUrl": "/api/local-assets/slideshows/outputs/slideshow-run-01/slideshow-export.mp4",
-      "thumbnailUrl": "/api/local-assets/slideshows/outputs/slideshow-run-01/slide-001.png"
-    },
-    "payload": {
-      "type": "slideshow",
-      "caption": "Cancer often gets quiet before choosing an honest response.",
-      "hashtags": "#cancer #zodiac #astrology"
-    }
-  },
-  "run": {
-    "id": "run-01",
-    "status": "succeeded",
-    "slideshowId": "slideshow-run-01",
-    "qa": {
-      "valid": true,
-      "actualSlideCount": 5,
-      "bodySlideCount": 3,
-      "findings": []
-    }
-  },
-  "reuseMemory": {
-    "images": 5,
-    "textSignatures": 1,
-    "headingSignatures": 4
-  }
-}
-```
-
-**Model/provider:** none; the result store and slideshow storage (Appwrite-backed in the scheduled
-worker). Publication consumes this generated output downstream and is not part of this workflow.
+| #   | Stage                        | Output                                                                     |
+| --- | ---------------------------- | -------------------------------------------------------------------------- |
+| 1   | Validate input               | Normalized template, media collections, variables, model settings          |
+| 2   | Select topic                 | Exact hook, an expanded saved hook, or an agent-created topic brief        |
+| 3   | Plan sequence                | Agent-chosen slide count and ordered design IDs with one purpose per slide |
+| 4   | Build text schema            | One structured placeholder set for the planned designs                     |
+| 5   | Generate text                | Title, caption, hashtags, and every visible text item                      |
+| 6   | Similarity and word-range QA | Accepted draft or repaired/retried copy                                    |
+| 7   | Select images                | One pinned, deterministic, or AI-matched image per planned slide           |
+| 8   | Assemble and translate       | Styled slide objects, with optional DeepL translation                      |
+| 9   | Render and store             | PNG slides, thumbnail, preview URL, and downloadable ZIP                   |
+| 10  | Finalize                     | Unpublished result, run record, QA findings, and reuse-memory entries      |
+
+## Sequence contract
+
+The schema stores `slide_designs[]`. Each design has a stable `id`, display
+`name`, agent-facing `instructions`, `collectionId`, text items, aspect ratio,
+image grid, overlay, AI image-matching flag, and optional visual preset. It has
+no Hook/Content/CTA role and no fixed repetition count.
+
+Text settings store `slide_count_min`, `slide_count_max`, and
+`slide_planning_prompt`. The planner must return between those bounds and may
+only choose IDs present in `slide_designs`. Invalid IDs or out-of-range plans
+fail before copy generation.
+
+Legacy `formatting` blocks remain readable only as a migration source. When a
+record has no `slide_designs`, normalization deterministically expands its old
+hook/body/CTA blocks into numbered slide designs. New saves and runs use the
+sequence model.
+
+## Publication boundary
+
+The run stores `publishMode: manual` and no template destinations. It does not
+upload media to a social provider, create a scheduled publication, or enqueue a
+future template run. A user or agent can later publish the completed output with
+the output publication flow, including an immediate or future provider time.

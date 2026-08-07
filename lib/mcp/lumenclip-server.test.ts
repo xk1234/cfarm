@@ -20,7 +20,10 @@ import type {
   AccountFollowerSnapshot,
   PostFastMetricSnapshot,
 } from "@/lib/postfast-metric-snapshots"
-import { schemaWithAutomationCollectionId } from "@/lib/realfarm-automation"
+import {
+  automationSlideDesigns,
+  schemaWithAutomationCollectionId,
+} from "@/lib/realfarm-automation"
 import { verifySlideshowShareToken } from "@/lib/slideshow-share"
 import type { SlideshowRecord } from "@/lib/slideshows"
 import { defaultXAutomation } from "@/lib/x-automation"
@@ -407,11 +410,12 @@ describe("LumenClip MCP server", () => {
     )
   })
 
-  it("pauses a slideshow automation and its schedule", async () => {
+  it("updates template metadata without a schedule mutation surface", async () => {
     const current = automationRecord()
     const patch = vi.fn(
-      async (input: { status?: string; schema?: unknown }) => ({
+      async (input: { name?: string; status?: string; schema?: unknown }) => ({
         ...current,
+        name: input.name ?? current.name,
         status:
           input.status === "paused" ? ("paused" as const) : current.status,
         schema: input.schema
@@ -430,21 +434,17 @@ describe("LumenClip MCP server", () => {
 
     const result = await client.callTool({
       name: "lumenclip_template_update",
-      arguments: { templateId: current.id, action: "pause" },
+      arguments: { templateId: current.id, name: "Renamed template" },
     })
 
     expect(result.structuredContent).toMatchObject({
       id: current.id,
-      status: "paused",
-      schedule: { paused: true },
+      name: "Renamed template",
     })
     expect(patch).toHaveBeenCalledWith(
       expect.objectContaining({
         id: current.id,
-        status: "paused",
-        schema: expect.objectContaining({
-          schedule: expect.objectContaining({ paused: true }),
-        }),
+        name: "Renamed template",
       })
     )
   })
@@ -852,7 +852,7 @@ describe("LumenClip MCP server", () => {
     expect(upsert).toHaveBeenCalledTimes(1)
   })
 
-  it("patches formatting blocks and text items without replacing the schema", async () => {
+  it("patches slide designs and their text items without replacing the schema", async () => {
     let current = automationRecord()
     const initialUpdatedAt = current.updatedAt
     current.schema.hooks = [
@@ -864,13 +864,21 @@ describe("LumenClip MCP server", () => {
       },
     ]
     const originalSocialSettings = current.schema.social_post_settings
-    const body = current.schema.formatting.find((block) => block.id === "body")!
-    body.textItems[0] = {
-      ...body.textItems[0],
-      id: "text-body-paragraph",
-      wordLengthMin: 20,
-      wordLengthMax: 25,
-    }
+    const firstDesign = automationSlideDesigns(current.schema)[0]!
+    const textItemId = firstDesign.textItems[0]!.id
+    current.schema.slide_designs = automationSlideDesigns(current.schema).map(
+      (design) =>
+        design.id === firstDesign.id
+          ? {
+              ...design,
+              textItems: design.textItems.map((item) =>
+                item.id === textItemId
+                  ? { ...item, wordLengthMin: 20, wordLengthMax: 25 }
+                  : item
+              ),
+            }
+          : design
+    )
     const patch = vi.fn(
       async ({
         schema,
@@ -898,54 +906,46 @@ describe("LumenClip MCP server", () => {
       now: () => new Date("2026-07-23T12:00:00.000Z"),
     })
 
-    const blockResult = await client.callTool({
-      name: "lumenclip_template_formatting_update",
+    const designResult = await client.callTool({
+      name: "lumenclip_template_slide_design_update",
       arguments: {
         templateId: current.id,
-        blockId: "body",
+        designId: firstDesign.id,
         expectedUpdatedAt: current.updatedAt,
         patch: {
-          slideCountMode: "dynamic",
-          slideCountMin: 5,
-          slideCountMax: 12,
-          slideOverrides: [
-            { slideIndex: 2, contentDirection: "Compare the second sign" },
-          ],
-          imageOverrides: [
-            { slideIndex: 2, collectionId: "mystical-pictures" },
-          ],
+          name: "Opening claim",
+          instructions: "Use for a concise first claim.",
+          collectionId: "mystical-pictures",
+          overlay: false,
         },
       },
     })
-    expect(blockResult.structuredContent).toMatchObject({
+    expect(designResult.structuredContent).toMatchObject({
       templateId: current.id,
-      block: {
-        id: "body",
-        slideCountMode: "varying",
-        slideCountMin: 5,
-        slideCountMax: 12,
-        slideOverrides: [
-          { slideIndex: 2, contentDirection: "Compare the second sign" },
-        ],
-        imageOverrides: [{ slideIndex: 2, collectionId: "mystical-pictures" }],
+      slideDesign: {
+        id: firstDesign.id,
+        name: "Opening claim",
+        instructions: "Use for a concise first claim.",
+        collectionId: "mystical-pictures",
+        overlay: false,
       },
     })
 
     const textResult = await client.callTool({
-      name: "lumenclip_template_text_item_update",
+      name: "lumenclip_template_slide_text_item_update",
       arguments: {
         templateId: current.id,
-        blockId: "body",
-        textItemId: "text-body-paragraph",
+        designId: firstDesign.id,
+        textItemId,
         expectedUpdatedAt: current.updatedAt,
         patch: { wordLengthMin: 15, wordLengthMax: 18 },
       },
     })
     expect(textResult.structuredContent).toMatchObject({
       templateId: current.id,
-      blockId: "body",
+      designId: firstDesign.id,
       textItem: {
-        id: "text-body-paragraph",
+        id: textItemId,
         wordLengthMin: 15,
         wordLengthMax: 18,
       },
@@ -1305,23 +1305,6 @@ describe("LumenClip MCP server", () => {
         async () => []
       ) as unknown as LumenClipMcpServices["postfastRequest"],
       now: () => new Date("2026-07-18T00:00:00.000Z"),
-    })
-
-    const schedule = await client.callTool({
-      name: "lumenclip_schedule_get",
-      arguments: { from: "2026-07-18T00:00:00.000Z", days: 2, limit: 50 },
-    })
-    expect(schedule.structuredContent).toMatchObject({
-      calendarItems: {
-        items: expect.arrayContaining([
-          expect.objectContaining({ status: "generation_failed" }),
-          expect.objectContaining({ status: "needs_action" }),
-        ]),
-        summary: expect.objectContaining({
-          generation_failed: 1,
-          needs_action: 1,
-        }),
-      },
     })
 
     const assets = await client.callTool({

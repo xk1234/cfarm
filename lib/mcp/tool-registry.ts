@@ -21,11 +21,11 @@ export const LUMENCLIP_MCP_TOOLS = [
   },
   { name: "lumenclip_template_schema_update", category: "templates" },
   {
-    name: "lumenclip_template_formatting_update",
+    name: "lumenclip_template_slide_design_update",
     category: "templates",
   },
   {
-    name: "lumenclip_template_text_item_update",
+    name: "lumenclip_template_slide_text_item_update",
     category: "templates",
   },
   { name: "lumenclip_template_delete", category: "templates" },
@@ -42,7 +42,6 @@ export const LUMENCLIP_MCP_TOOLS = [
   { name: "lumenclip_hook_variant_select", category: "templates" },
   { name: "lumenclip_run_plan_get", category: "templates" },
   { name: "lumenclip_template_run", category: "templates" },
-  { name: "lumenclip_schedule_get", category: "scheduling" },
   { name: "lumenclip_slideshow_generate", category: "slideshows" },
   { name: "lumenclip_slideshow_analyze", category: "slideshows" },
   { name: "lumenclip_ugc_estimate", category: "videos" },

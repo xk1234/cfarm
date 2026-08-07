@@ -59,8 +59,7 @@ export function automationGenerationBlockers(input: {
     return [
       {
         code: "unsupported_runner",
-        message:
-          "Saved video automations do not have a generation runner yet.",
+        message: "Saved video automations do not have a generation runner yet.",
       },
     ]
   }
@@ -74,12 +73,6 @@ export function automationGenerationBlockers(input: {
 
   const blockers: AutomationGenerationBlocker[] = []
   const hooks = automationHooks(schema)
-  if (hooks.length === 0) {
-    blockers.push({
-      code: "missing_hook",
-      message: "Add at least one enabled hook.",
-    })
-  }
 
   const primaryCollectionIds = automationCollectionIds(schema)
   if (primaryCollectionIds.length === 0) {
@@ -98,7 +91,10 @@ export function automationGenerationBlockers(input: {
         code: "missing_collection",
         message: `Collection “${collectionId}” does not exist.`,
       })
-    } else if (collection.mediaType === "video" || collection.assetCount === 0) {
+    } else if (
+      collection.mediaType === "video" ||
+      collection.assetCount === 0
+    ) {
       blockers.push({
         code: "empty_collection",
         message: `Collection “${collection.name}” has no usable images.`,
@@ -111,9 +107,7 @@ export function automationGenerationBlockers(input: {
     contentSection.slideCountMode === "varying"
       ? Math.max(
           1,
-          Math.round(
-            contentSection.slideCountMin ?? contentSection.slideCount
-          )
+          Math.round(contentSection.slideCountMin ?? contentSection.slideCount)
         )
       : Math.max(1, Math.round(contentSection.slideCount))
   const invalidHookMessages: string[] = []
@@ -164,6 +158,11 @@ function referencedCollectionIds(schema: AutomationSchema) {
   for (const section of schema.formatting) {
     if (section.overlayImage?.enabled && section.overlayImage.collectionId) {
       ids.add(section.overlayImage.collectionId)
+    }
+  }
+  for (const design of schema.slide_designs) {
+    if (design.overlayImage?.enabled && design.overlayImage.collectionId) {
+      ids.add(design.overlayImage.collectionId)
     }
   }
 

@@ -5,8 +5,6 @@ import { useState } from "react"
 import {
   LuArrowLeft,
   LuChartColumnIncreasing,
-  LuCalendarDays,
-  LuCheck,
   LuExternalLink,
   LuImagePlus,
   LuLoaderCircle,
@@ -14,18 +12,12 @@ import {
   LuRadar,
   LuRefreshCw,
   LuSave,
-  LuSend,
   LuSettings,
-  LuShare2,
   LuSparkles,
-  LuUserPlus,
 } from "react-icons/lu"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { CardGridSkeleton } from "@/components/ui/loading-skeleton"
-import { XThreadsBrandIcon } from "@/components/realfarm/x-threads-brand-icon"
-import { PostingSchedulePanel } from "@/components/realfarm/automation-settings/schedule-settings"
 import {
   SettingsFooter,
   SettingsPage,
@@ -38,14 +30,10 @@ import {
   type XAutomationRun,
   type XTrendCandidate,
 } from "@/lib/x-automation"
-import {
-  normalizePostFastIntegration,
-  type PostFastSocialIntegration,
-} from "@/lib/postfast-client"
 import { cn } from "@/lib/utils"
 import { hookStyles, voicePresets } from "@/lib/x-post-presets"
 
-type StudioTab = "overview" | "schedule" | "social" | "settings"
+type StudioTab = "overview" | "settings"
 type MobileStage = "setup" | "draft" | "preview"
 
 type StrategyRequestError = {
@@ -75,19 +63,8 @@ export function XAutomationStudio({
   const [tab, setTab] = useState<StudioTab>("overview")
   const [mobileStage, setMobileStage] = useState<MobileStage>("setup")
   const [busy, setBusy] = useState<
-    | "create"
-    | "save"
-    | "generate"
-    | "image"
-    | "connect"
-    | "publish"
-    | "derive"
-    | "discover"
-    | ""
+    "create" | "save" | "generate" | "image" | "derive" | "discover" | ""
   >("")
-  const [accounts, setAccounts] = useState<PostFastSocialIntegration[]>([])
-  const [accountsLoading, setAccountsLoading] = useState(false)
-  const [accountsError, setAccountsError] = useState("")
   const [strategyError, setStrategyError] =
     useState<StrategyRequestError | null>(null)
   const [discoveryQuery, setDiscoveryQuery] = useState("")
@@ -96,31 +73,7 @@ export function XAutomationStudio({
     useState<XTrendCandidate | null>(null)
   const selected = automations.find((item) => item.id === selectedId)
   const preview = runs.find((run) => run.automationId === selectedId)
-  const showNativePreview = !["schedule", "social", "settings"].includes(tab)
-
-  async function loadAccounts() {
-    setAccountsLoading(true)
-    setAccountsError("")
-    try {
-      const payload = await request<{ integrations?: unknown[] }>(
-        "/api/postfast/integrations"
-      )
-      setAccounts(
-        (payload.integrations ?? []).flatMap((value) => {
-          const integration = normalizePostFastIntegration(value)
-          return integration &&
-            selected &&
-            isXAutomationAccount(integration, selected.platform)
-            ? [integration]
-            : []
-        })
-      )
-    } catch (error) {
-      setAccountsError(message(error))
-    } finally {
-      setAccountsLoading(false)
-    }
-  }
+  const showNativePreview = tab === "overview"
 
   function update(patch: Partial<XAutomationRecord>) {
     if (!selected) return
@@ -345,51 +298,6 @@ export function XAutomationStudio({
     }
   }
 
-  async function connectAccount() {
-    setBusy("connect")
-    try {
-      const payload = await request<{ url: string }>(
-        "/api/postfast/connect-url?expiryDays=7"
-      )
-      window.open(payload.url, "_blank", "noopener,noreferrer")
-      toast.success("Connect X or Threads, then refresh the account list")
-    } catch (error) {
-      toast.error(message(error))
-    } finally {
-      setBusy("")
-    }
-  }
-
-  async function publishNow() {
-    if (!preview) return
-    setBusy("publish")
-    try {
-      await saveAutomation()
-      setBusy("publish")
-      const payload = await request<{ run: XAutomationRun }>(
-        "/api/social-templates/publish",
-        {
-          method: "POST",
-          body: JSON.stringify({ runId: preview.id }),
-        }
-      )
-      setRuns((items) =>
-        items.map((item) => (item.id === payload.run.id ? payload.run : item))
-      )
-      if (payload.run.publishing?.skippedReason) {
-        toast.error(payload.run.publishing.skippedReason)
-      } else {
-        toast.success(
-          `Published to ${payload.run.publishing?.published ?? 0} account(s)`
-        )
-      }
-    } catch (error) {
-      toast.error(message(error))
-    } finally {
-      setBusy("")
-    }
-  }
-
   return (
     <main
       className={cn(
@@ -537,26 +445,6 @@ export function XAutomationStudio({
                 setMobileStage("draft")
               }}
             />
-            <div className="my-2 h-px bg-[#e1e0d8]" />
-            <AutomationSettingsNavButton
-              label="Schedule"
-              icon={LuCalendarDays}
-              active={tab === "schedule"}
-              onClick={() => {
-                setTab("schedule")
-                setMobileStage("draft")
-              }}
-            />
-            <AutomationSettingsNavButton
-              label="Social Media Settings"
-              icon={LuShare2}
-              active={tab === "social"}
-              onClick={() => {
-                setTab("social")
-                setMobileStage("draft")
-                void loadAccounts()
-              }}
-            />
             <AutomationSettingsNavButton
               label="Settings"
               icon={LuSettings}
@@ -612,21 +500,6 @@ export function XAutomationStudio({
                   </div>
                   <h2 className="text-2xl font-semibold">Content Engine</h2>
                 </div>
-                <button
-                  onClick={() =>
-                    update({
-                      status: selected.status === "live" ? "paused" : "live",
-                    })
-                  }
-                  className={cn(
-                    "rounded-full px-3 py-1 text-xs font-bold",
-                    selected.status === "live"
-                      ? "bg-[#dff8e8] text-[#187843]"
-                      : "bg-[#e9e8e2] text-app-muted-text"
-                  )}
-                >
-                  {selected.status === "live" ? "Live" : "Paused"}
-                </button>
                 <Button
                   variant="softControl"
                   onClick={() => void saveAutomation()}
@@ -660,28 +533,6 @@ export function XAutomationStudio({
                     busy={busy}
                   />
                 </>
-              )}
-              {tab === "schedule" && (
-                <PostingSchedulePanel
-                  schedule={selected.schedule}
-                  onScheduleChange={(schedule) => update({ schedule })}
-                  onCancel={cancelSettings}
-                  onSave={() => void saveSettings()}
-                />
-              )}
-              {tab === "social" && (
-                <AccountSettingsPanel
-                  automation={selected}
-                  update={update}
-                  accounts={accounts}
-                  loading={accountsLoading}
-                  error={accountsError}
-                  onRefresh={loadAccounts}
-                  onConnect={connectAccount}
-                  busy={busy}
-                  onCancel={cancelSettings}
-                  onSave={() => void saveSettings()}
-                />
               )}
               {tab === "settings" && (
                 <XGeneralSettingsPanel
@@ -729,22 +580,6 @@ export function XAutomationStudio({
                     Picture
                   </Button>
                 )}
-                {preview &&
-                  (selected?.publishing.integrations.length ?? 0) > 0 && (
-                    <Button
-                      variant="action"
-                      size="sm"
-                      onClick={publishNow}
-                      disabled={busy === "publish"}
-                    >
-                      {busy === "publish" ? (
-                        <LuLoaderCircle className="animate-spin" />
-                      ) : (
-                        <LuSend />
-                      )}
-                      Publish
-                    </Button>
-                  )}
               </div>
             </div>
             <XPreview run={preview} platform={selected?.platform} />
@@ -1089,173 +924,6 @@ function DiscoveryPanel({
         </button>
       ))}
     </div>
-  )
-}
-
-function AccountSettingsPanel({
-  automation,
-  update,
-  accounts,
-  loading,
-  error,
-  onRefresh,
-  onConnect,
-  busy,
-  onCancel,
-  onSave,
-}: {
-  automation: XAutomationRecord
-  update: (patch: Partial<XAutomationRecord>) => void
-  accounts: PostFastSocialIntegration[]
-  loading: boolean
-  error: string
-  onRefresh: () => void
-  onConnect: () => void
-  busy: string
-  onCancel: () => void
-  onSave: () => void
-}) {
-  const selectedKeys = new Set(
-    automation.publishing.integrations.map(accountKey)
-  )
-
-  function toggleAccount(account: PostFastSocialIntegration) {
-    const selected = selectedKeys.has(accountKey(account))
-    update({
-      publishing: {
-        ...automation.publishing,
-        integrations: selected
-          ? automation.publishing.integrations.filter(
-              (item) => accountKey(item) !== accountKey(account)
-            )
-          : [...automation.publishing.integrations, account],
-      },
-    })
-  }
-
-  return (
-    <SettingsPage title="Social Media Settings">
-      <div className="space-y-4">
-        <Panel
-          title={`${automation.platform === "threads" ? "Threads" : "X"} accounts`}
-        >
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="action"
-              size="sm"
-              onClick={onConnect}
-              disabled={busy === "connect"}
-            >
-              {busy === "connect" ? (
-                <LuLoaderCircle className="animate-spin" />
-              ) : (
-                <LuUserPlus />
-              )}
-              Add or change account
-            </Button>
-            <Button
-              type="button"
-              variant="softControl"
-              size="sm"
-              onClick={onRefresh}
-              disabled={loading}
-            >
-              <LuRefreshCw className={cn(loading && "animate-spin")} />
-              Refresh
-            </Button>
-          </div>
-          {error && (
-            <div className="rounded-lg border border-[#efcaca] bg-[#fff7f7] px-3 py-2 text-xs font-semibold text-[#9d3434]">
-              {error}
-            </div>
-          )}
-          {loading ? (
-            <CardGridSkeleton
-              count={4}
-              className="grid-cols-2 xl:grid-cols-2"
-            />
-          ) : accounts.length > 0 ? (
-            <div className="grid grid-cols-2 gap-2">
-              {accounts.map((account) => {
-                const selected = selectedKeys.has(accountKey(account))
-                return (
-                  <button
-                    key={accountKey(account)}
-                    type="button"
-                    onClick={() => toggleAccount(account)}
-                    className={cn(
-                      "flex items-center gap-3 rounded-xl border bg-app-surface p-3 text-left",
-                      selected
-                        ? "border-app-strong ring-2 ring-[#171714]/10"
-                        : "border-app-panel-border"
-                    )}
-                  >
-                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-app-strong text-xs font-bold text-white">
-                      <XThreadsBrandIcon
-                        platform={
-                          account.provider === "threads" ? "threads" : "x"
-                        }
-                        className="size-5"
-                      />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-bold">
-                        {account.profile || account.name}
-                      </span>
-                      <span className="block text-xs text-app-muted-text">
-                        {account.provider === "threads" ? "Threads" : "X"}
-                      </span>
-                    </span>
-                    {selected && <LuCheck className="size-4" />}
-                  </button>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="grid min-h-28 place-items-center rounded-lg border border-dashed border-app-panel-border px-6 text-center text-sm text-app-muted-text">
-              No connected {automation.platform === "threads" ? "Threads" : "X"}{" "}
-              accounts found.
-            </div>
-          )}
-        </Panel>
-
-        <Panel title="Auto-publish">
-          <label className="flex items-start gap-3 rounded-xl border border-app-panel-border p-3">
-            <input
-              type="checkbox"
-              className="mt-1"
-              checked={automation.publishing.autoPost}
-              onChange={(event) =>
-                update({
-                  publishing: {
-                    ...automation.publishing,
-                    autoPost: event.target.checked,
-                  },
-                })
-              }
-            />
-            <span>
-              <span className="flex items-center gap-2 text-sm font-bold">
-                <LuSettings className="size-4" /> Auto-publish scheduled posts
-              </span>
-              <span className="mt-1 block text-xs leading-5 text-app-muted-text">
-                Single posts can autopost now. Threads and X Articles remain
-                drafts because the connected provider does not expose a safe
-                reply-chain or Article publishing contract.
-              </span>
-            </span>
-          </label>
-          {automation.publishing.autoPost &&
-            automation.publishing.integrations.length === 0 && (
-              <div className="text-xs font-semibold text-[#9d5f13]">
-                Select at least one account before enabling this automation.
-              </div>
-            )}
-        </Panel>
-      </div>
-      <SettingsFooter onCancel={onCancel} onSave={onSave} />
-    </SettingsPage>
   )
 }
 
@@ -1773,17 +1441,6 @@ function proofEntries(value: string): XAutomationRecord["proofBank"] {
       const [text, source] = body.split(/\s+\|\s+/, 2)
       return { id: `proof-${index}-${text.slice(0, 20)}`, text, kind, source }
     })
-}
-function accountKey(account: PostFastSocialIntegration) {
-  return `${account.provider}:${account.integration_id}`
-}
-function isXAutomationAccount(
-  account: PostFastSocialIntegration,
-  platform: XAutomationRecord["platform"]
-) {
-  return platform === "threads"
-    ? account.provider === "threads"
-    : account.provider === "x" || account.provider === "twitter"
 }
 async function request<T = unknown>(
   url: string,

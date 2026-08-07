@@ -1,10 +1,14 @@
 import {
   automationFormatSection,
   automationPublishType,
+  automationSlideDesigns,
   type AutomationSchema,
 } from "@/lib/realfarm-automation"
 import type { Automation } from "@/lib/realfarm-data"
-import type { CreatedImageCollection } from "@/lib/realfarm-collections"
+import {
+  findCollectionByIdOrAlias,
+  type CreatedImageCollection,
+} from "@/lib/realfarm-collections"
 import { defaultAutomationLanguage } from "@/lib/slideshow-publishing-config"
 import { slideshowStageForRunStatus } from "@/lib/slideshow-lifecycle"
 
@@ -292,9 +296,15 @@ export function automationGenerationIssue(
   config: AutomationSchema,
   collections: CreatedImageCollection[]
 ) {
-  const hookImages = formatCollectionImages(config, collections, "hook")
-  const contentImages = formatCollectionImages(config, collections, "content")
-  if (hookImages.length === 0 && contentImages.length === 0) {
+  const hasSequenceImages = automationSlideDesigns(config).some(
+    (design) =>
+      (findCollectionByIdOrAlias(collections, design.collectionId)?.images
+        .length ?? 0) > 0
+  )
+  const hasLegacyImages =
+    formatCollectionImages(config, collections, "hook").length > 0 ||
+    formatCollectionImages(config, collections, "content").length > 0
+  if (!hasSequenceImages && !hasLegacyImages) {
     return "Choose an image collection with at least one image before generating."
   }
   return undefined
@@ -303,17 +313,19 @@ export function automationGenerationIssue(
 export function generationPlaceholderSlides(
   config: AutomationSchema
 ): AutomationRunApiSlide[] {
-  const hookSection = automationFormatSection(config, "hook")
+  const aspectRatio =
+    automationSlideDesigns(config)[0]?.aspect_ratio ??
+    automationFormatSection(config, "hook").aspect_ratio
 
   return [
     {
       id: "placeholder-generating",
       role: "hook",
-      imageUrl: generatingSlidePlaceholderDataUrl(hookSection.aspect_ratio),
+      imageUrl: generatingSlidePlaceholderDataUrl(aspectRatio),
       imageCaption: "",
       text: "",
       durationMs: 0,
-      aspectRatio: hookSection.aspect_ratio,
+      aspectRatio,
     },
   ]
 }

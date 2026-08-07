@@ -36,9 +36,9 @@ a new user-owned template and opens its editor. Each kind also offers a blank
 template. Other social media provides separate New X template and New Threads
 template actions.
 
-Selecting a built-in video format opens a setup dialog for media, hooks,
-schedule, and publishing before creation. Its Back action returns to the
-template browser and unsaved changes are guarded.
+Selecting a built-in video format opens a setup dialog for its generation
+inputs. Scheduling and publishing are not template settings. Its Back action
+returns to the template browser and unsaved changes are guarded.
 
 ## MCP coverage
 

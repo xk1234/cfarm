@@ -13,7 +13,9 @@ import {
   automationCollectionId,
   automationFormatSection,
   automationHooks,
+  automationSlideDesigns,
   automationTone,
+  type AutomationSlideDesign,
   type AutomationFormatSection,
   type AutomationSchema,
   type TextItem,
@@ -99,11 +101,54 @@ export function automationTemplateToTempSlideTestingAutomation(
 
 export function automationSchemaToTempSlideTestingAutomation(
   schema: AutomationSchema,
-  metadata: { id: string; name: string } = {
+  metadata: {
+    id: string
+    name: string
+    slidePlan?: Array<{ designId: string; purpose?: string }>
+  } = {
     id: "main-app-automation",
     name: "Automation",
   }
 ): TempSlideTestingAutomation {
+  const designs = automationSlideDesigns(schema)
+  if (designs.length > 0) {
+    const byId = new Map(designs.map((design) => [design.id, design]))
+    const planned = (
+      metadata.slidePlan?.length
+        ? metadata.slidePlan
+        : designs.map((design) => ({ designId: design.id, purpose: "" }))
+    ).flatMap((item) => {
+      const design = byId.get(item.designId)
+      return design ? [{ design, purpose: clean(item.purpose) }] : []
+    })
+    const slides = (
+      planned.length > 0
+        ? planned
+        : designs.map((design) => ({ design, purpose: "" }))
+    ).map(({ design, purpose }, index) =>
+      buildAutomationSlideSpec({
+        section: "content",
+        index,
+        title: design.name || `Slide ${index + 1}`,
+        collectionId: design.collectionId,
+        formatSection: slideDesignFormatSection(design, purpose),
+      })
+    )
+    return {
+      id: metadata.id,
+      name: metadata.name,
+      theme: "automation",
+      hooks: automationHooks(schema),
+      tone: automationTone(schema),
+      imageCollectionIds: {
+        hook: designs[0]?.collectionId ?? "",
+        content: designs[0]?.collectionId ?? "",
+        cta: designs.at(-1)?.collectionId ?? "",
+      },
+      slides,
+    }
+  }
+
   const hook = automationFormatSection(schema, "hook")
   const content = automationFormatSection(schema, "content")
   const cta = automationFormatSection(schema, "cta")
@@ -158,6 +203,26 @@ export function automationSchemaToTempSlideTestingAutomation(
           )
         : []),
     ],
+  }
+}
+
+function slideDesignFormatSection(
+  design: AutomationSlideDesign,
+  purpose: string
+): AutomationFormatSection {
+  return {
+    ...design,
+    id: "body",
+    slideCount: 1,
+    textItems: design.textItems.map((item) => ({
+      ...item,
+      contentDirection: [
+        purpose ? `Purpose for this slide: ${purpose}.` : "",
+        item.contentDirection,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    })),
   }
 }
 

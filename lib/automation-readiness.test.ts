@@ -57,6 +57,18 @@ function configuredSchema(): AutomationSchema {
 }
 
 describe("automation generation readiness", () => {
+  it("accepts a populated slideshow without a hook pool", () => {
+    const schema = schemaWithAutomationHookItems(configuredSchema(), [])
+
+    expect(
+      automationGenerationBlockers({
+        schema,
+        collections: [availableCollection],
+        wordCollections: [],
+      })
+    ).toEqual([])
+  })
+
   it("accepts a slideshow with a usable hook and populated collection", () => {
     expect(
       automationGenerationBlockers({

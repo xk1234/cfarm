@@ -1,6 +1,6 @@
 ---
 title: X and Threads templates
-description: Generate, discover, preview, schedule, and publish X and Threads drafts in a separate strategy workspace.
+description: Generate, discover, and preview X and Threads drafts in a separate strategy workspace.
 ---
 
 Route: `/app/social-templates`
@@ -21,7 +21,7 @@ Owner: `app/app/social-templates/page.tsx`, with the workspace in
 This authenticated standalone route loads all saved X and Threads templates
 and runs. Desktop uses a setup rail, a draft workspace, and, when the selected
 section supports it, a native preview and benchmark column. The rail links
-Overview, Schedule, Social Media Settings, and Settings. An empty workspace
+Overview and Settings. An empty workspace
 offers separate New X template and New Threads template actions.
 
 Overview contains content strategy, niche, topic, hook and voice controls, and a
@@ -53,21 +53,15 @@ The platform is fixed when the engine is created. Saving can derive a missing
 strategy from a non-empty niche; generation saves the engine first and moves
 the mobile workflow to Preview when the run completes.
 
-Schedule reuses the per-template cadence editor. Social Media Settings can
-open the provider connection URL in a new tab, refresh connected accounts,
-filter them to the engine's platform, select accounts, and enable
-auto-publishing. Single posts can auto-publish; X reply chains and X Articles
-remain drafts because the provider lacks the required safe publishing contract.
-Publish skips a multi-post X run because PostFast exposes no reply-chain
-publishing, and auto-post generation uses single-post presets only. Settings
-controls language, model, voice override, proof, excluded topics, image
-generation, and discovery defaults.
+Templates only generate drafts. Account selection, scheduling, and publishing
+belong to the downstream publication workflow and are not template settings.
+Settings controls language, model, voice override, proof, excluded topics,
+image generation, and discovery defaults.
 
 ## MCP coverage
 
 Partial. `lumenclip_templates_list`, `lumenclip_template_get`,
-`lumenclip_template_run`, `lumenclip_template_update`, and
-`lumenclip_schedule_get` cover saved X and Threads engines, manual drafts,
-common updates, and schedules. `lumenclip_accounts_list` reads connected
+`lumenclip_template_run`, and `lumenclip_template_update` cover saved X and
+Threads engines, manual drafts, and common updates. `lumenclip_accounts_list` reads connected
 accounts. Creating an X or Threads engine, deriving strategy, trend discovery,
 and the provider connection redirect have no matching registered tools.

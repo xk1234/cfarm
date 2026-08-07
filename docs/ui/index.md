@@ -55,9 +55,7 @@ precedence where they disagree.
 - [Templates](/docs/ui/templates/templates)
 - [Hooks](/docs/ui/templates/hooks)
 - [Hook analytics](/docs/ui/templates/hook-analytics)
-- [Template schedule](/docs/ui/templates/schedule)
 - [Template settings](/docs/ui/templates/settings)
-- [Social settings](/docs/ui/templates/social-settings)
 - [X and Threads templates](/docs/ui/templates/x-automations)
 - [UGC video](/docs/ui/templates/ugc)
 
