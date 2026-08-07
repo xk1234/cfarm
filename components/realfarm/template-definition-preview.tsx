@@ -6,7 +6,6 @@ import { GeneratedVideoThumbnail } from "@/components/realfarm/generated-video-t
 import { XThreadsBrandIcon } from "@/components/realfarm/x-threads-brand-icon"
 import {
   buildFormatPreviewItems,
-  formatAspectRatioCss,
   previewSlideshowAspectRatio,
   previewSlideshowFont,
   previewSlideshowSlide,
@@ -110,27 +109,16 @@ function SlideshowDefinitionPreview({
     iconUrls: previewSlide.iconLayout?.surrounding.map(
       (icon) => icon.image_url
     ),
-  })
+  }).replace("<svg ", '<svg preserveAspectRatio="xMidYMid slice" ')
 
   return (
-    <div className="relative grid h-full place-items-center overflow-hidden bg-[#c8c8c2]">
-      <div
-        className="absolute inset-[-10%] scale-110 bg-cover bg-center opacity-45 blur-xl"
-        style={{ backgroundImage: `url(${sourceUrl})` }}
-      />
-      <div
-        className="relative h-[92%] max-w-[88%] overflow-hidden rounded-[3px] bg-[#777873] shadow-[0_10px_28px_rgba(0,0,0,0.28)] [&>svg]:h-full [&>svg]:w-full"
-        style={{
-          aspectRatio: formatAspectRatioCss(
-            item.section.aspect_ratio,
-            item.image
-          ),
-        }}
-        role="img"
-        aria-label={`${name} current slideshow template`}
-        dangerouslySetInnerHTML={{ __html: previewSvg }}
-      />
-    </div>
+    <div
+      className="h-full w-full overflow-hidden bg-[#111] [&>svg]:block [&>svg]:h-full [&>svg]:w-full"
+      data-template-preview-media="cover"
+      role="img"
+      aria-label={`${name} current slideshow template`}
+      dangerouslySetInnerHTML={{ __html: previewSvg }}
+    />
   )
 }
 
