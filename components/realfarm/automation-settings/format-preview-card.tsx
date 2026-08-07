@@ -41,6 +41,7 @@ export function AutomationFormatPreviewCard({
   slotWidth,
   zoom,
   compact,
+  showLabel = true,
   selectedTextIndex,
   onSelect,
   onSelectText,
@@ -54,6 +55,7 @@ export function AutomationFormatPreviewCard({
   slotWidth: number
   zoom: number
   compact?: boolean
+  showLabel?: boolean
   selectedTextIndex: number | null
   onSelect: () => void
   onSelectText: (index: number) => void
@@ -103,7 +105,7 @@ export function AutomationFormatPreviewCard({
         className="mx-auto"
         style={{
           width: size.width * displayScale,
-          height: (size.height + 28) * displayScale,
+          height: (size.height + (showLabel ? 28 : 0)) * displayScale,
         }}
       >
         <div
@@ -113,12 +115,14 @@ export function AutomationFormatPreviewCard({
             transform: `scale(${displayScale})`,
           }}
         >
-          <div
-            className="mb-2 text-left text-[12px] font-bold text-app-muted-text"
-            style={{ width: size.width }}
-          >
-            {item.label}
-          </div>
+          {showLabel ? (
+            <div
+              className="mb-2 text-left text-[12px] font-bold text-app-muted-text"
+              style={{ width: size.width }}
+            >
+              {item.label}
+            </div>
+          ) : null}
           <div
             className="relative overflow-hidden rounded-[2px] shadow-sm"
             style={{

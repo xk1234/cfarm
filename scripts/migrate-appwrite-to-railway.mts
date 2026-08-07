@@ -93,7 +93,10 @@ let failedCount = 0
 try {
   await assertMigrationSchema(sql)
   if (restart) {
-    const scopes = ["users", ...inventory.map((item) => `table:${item.table}`)]
+    const scopes = [
+      "users",
+      ...inventory.map((item) => `table:${item.table}`),
+    ].map(checkpointScope)
     await sql`
       DELETE FROM migration_checkpoints
       WHERE migration_kind = 'appwrite-records'
@@ -286,10 +289,11 @@ async function checkpoint(
   sqlClient: MigrationSql,
   scope: string
 ): Promise<string | null> {
+  const scopedSource = checkpointScope(scope)
   const [row] = await sqlClient<{ last_source_id: string | null }[]>`
     SELECT last_source_id
     FROM migration_checkpoints
-    WHERE migration_kind = 'appwrite-records' AND source_scope = ${scope}
+    WHERE migration_kind = 'appwrite-records' AND source_scope = ${scopedSource}
   `
   return row?.last_source_id ?? null
 }
@@ -301,12 +305,13 @@ async function writeCheckpoint(
   sourceCount: number,
   migratedCountForRun: number
 ): Promise<void> {
+  const scopedSource = checkpointScope(scope)
   await sqlClient`
     INSERT INTO migration_checkpoints (
       migration_kind, source_scope, last_source_id,
       source_count, migrated_count, updated_at
     ) VALUES (
-      'appwrite-records', ${scope}, ${lastSourceId},
+      'appwrite-records', ${scopedSource}, ${lastSourceId},
       ${sourceCount}, ${migratedCountForRun}, now()
     )
     ON CONFLICT (migration_kind, source_scope) DO UPDATE SET
@@ -315,6 +320,10 @@ async function writeCheckpoint(
       migrated_count = migration_checkpoints.migrated_count + excluded.migrated_count,
       updated_at = now()
   `
+}
+
+function checkpointScope(scope: string) {
+  return `${projectId}:${databaseId}:${scope}`
 }
 
 async function verifyCounts(

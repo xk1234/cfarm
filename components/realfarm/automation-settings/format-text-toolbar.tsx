@@ -33,7 +33,7 @@ export function AutomationFormatTextToolbar({
   updateTextItem: (patch: Partial<TextItem>) => void
   onDelete: () => void
   onAdd: () => void
-  layout?: "floating" | "inline"
+  layout?: "floating" | "inline" | "inspector"
   locked?: boolean
 }) {
   return (
@@ -42,10 +42,12 @@ export function AutomationFormatTextToolbar({
       aria-label={layout === "floating" ? "Text styling" : undefined}
       data-slideshow-text-editor={layout === "floating" ? "toolbar" : undefined}
       className={cn(
-        "flex-shrink-0 space-y-2.5 rounded-xl bg-[#F5F5F5] px-4 py-3 shadow-lg",
+        "flex-shrink-0 space-y-2.5",
         layout === "floating"
-          ? "absolute right-4 bottom-4 left-4 z-30 w-auto border border-app-panel-border"
-          : "relative border-t border-app-panel-border shadow-sm"
+          ? "absolute right-4 bottom-4 left-4 z-30 w-auto rounded-xl border border-app-panel-border bg-[#F5F5F5] px-4 py-3 shadow-lg"
+          : layout === "inline"
+            ? "relative rounded-xl border-t border-app-panel-border bg-[#F5F5F5] px-4 py-3 shadow-sm"
+            : "relative bg-transparent"
       )}
     >
       {locked ? (
@@ -55,7 +57,12 @@ export function AutomationFormatTextToolbar({
       ) : null}
       <div className="space-y-2.5">
         <div className="space-y-2">
-          <div className="grid grid-cols-3 gap-2">
+          <div
+            className={cn(
+              "grid gap-2",
+              layout === "inspector" ? "grid-cols-2" : "grid-cols-3"
+            )}
+          >
             <CompactTextSelect
               label="Style"
               value={textStyleLabel(
@@ -89,7 +96,12 @@ export function AutomationFormatTextToolbar({
               }
             />
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div
+            className={cn(
+              "grid gap-2",
+              layout === "inspector" ? "grid-cols-2" : "grid-cols-3"
+            )}
+          >
             <CompactTextSelect
               label="Size"
               value={textItem.fontSize || "8px"}
@@ -121,7 +133,12 @@ export function AutomationFormatTextToolbar({
               }}
             />
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div
+            className={cn(
+              "grid gap-2",
+              layout === "inspector" ? "grid-cols-2" : "grid-cols-3"
+            )}
+          >
             <CompactTextSelect
               label="X position"
               value={positionPercentLabel(textItem.positionX ?? 50)}

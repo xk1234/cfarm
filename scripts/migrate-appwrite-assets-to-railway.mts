@@ -119,7 +119,7 @@ try {
     await sql`
       DELETE FROM migration_checkpoints
       WHERE migration_kind = 'appwrite-assets'
-        AND source_scope IN ${sql(inventory.map((item) => item.bucket))}
+        AND source_scope IN ${sql(inventory.map((item) => checkpointScope(item.bucket)))}
     `
   }
   await sql`
@@ -359,9 +359,10 @@ async function objectExists(key: string): Promise<boolean> {
 }
 
 async function checkpoint(sqlClient: Sql, scope: string) {
+  const scopedSource = checkpointScope(scope)
   const [row] = await sqlClient<{ last_source_id: string | null }[]>`
     SELECT last_source_id FROM migration_checkpoints
-    WHERE migration_kind = 'appwrite-assets' AND source_scope = ${scope}
+    WHERE migration_kind = 'appwrite-assets' AND source_scope = ${scopedSource}
   `
   return row?.last_source_id ?? null
 }
@@ -373,12 +374,13 @@ async function writeCheckpoint(
   sourceCount: number,
   migratedDelta: number
 ) {
+  const scopedSource = checkpointScope(scope)
   await sqlClient`
     INSERT INTO migration_checkpoints (
       migration_kind, source_scope, last_source_id, source_count,
       migrated_count, updated_at
     ) VALUES (
-      'appwrite-assets', ${scope}, ${cursor}, ${sourceCount},
+      'appwrite-assets', ${scopedSource}, ${cursor}, ${sourceCount},
       ${migratedDelta}, now()
     )
     ON CONFLICT (migration_kind, source_scope) DO UPDATE SET
@@ -387,6 +389,10 @@ async function writeCheckpoint(
       migrated_count = migration_checkpoints.migrated_count + excluded.migrated_count,
       updated_at = now()
   `
+}
+
+function checkpointScope(bucketId: string) {
+  return `${sourceProjectId}:${bucketId}`
 }
 
 async function verifyCounts(sqlClient: Sql) {

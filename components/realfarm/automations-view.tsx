@@ -205,7 +205,7 @@ function TemplateGridCard({
         </span>
         {blocked ? (
           <span
-            className="grid size-7 place-items-center rounded-[5px] bg-destructive text-white shadow-sm"
+            className="grid size-7 place-items-center rounded-[5px] bg-[#8a6300] text-white shadow-sm"
             title={blockers.join("\n")}
             aria-label={blockers.join(". ")}
           >
@@ -262,7 +262,7 @@ export function automationStatusActionLabel(
 
 export function automationCardBorderClass(blocked: boolean) {
   return blocked
-    ? "border-2 border-destructive ring-1 ring-destructive/20"
+    ? "border border-app-panel-border ring-1 ring-[#c7a95a]/35"
     : "border border-app-panel-border"
 }
 
