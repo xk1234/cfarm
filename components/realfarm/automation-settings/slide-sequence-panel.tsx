@@ -351,6 +351,15 @@ export function SlideSequencePanel({
           selectedTextIndex={selectedTextIndex}
           onSelect={() => setSelectedTextIndex(null)}
           onSelectText={setSelectedTextIndex}
+          onClearTextSelection={() => setSelectedTextIndex(null)}
+          onTransformText={(textIndex, patch) => {
+            setSelectedTextIndex(textIndex)
+            updateDesign({
+              textItems: design.textItems.map((item, itemIndex) =>
+                itemIndex === textIndex ? { ...item, ...patch } : item
+              ),
+            })
+          }}
           onAddText={addTextItem}
         />
         {!design.noText ? (
