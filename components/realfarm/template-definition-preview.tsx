@@ -48,7 +48,7 @@ export function TemplateDefinitionPreview({
   return (
     <button
       type="button"
-      className="relative block aspect-[4/5] w-full overflow-hidden bg-app-media-empty text-left transition duration-200 outline-none hover:brightness-[0.98] focus-visible:ring-2 focus-visible:ring-app-action focus-visible:ring-inset active:scale-[0.995]"
+      className="relative block aspect-[9/16] w-full overflow-hidden bg-app-media-empty text-left transition duration-200 outline-none hover:brightness-[0.98] focus-visible:ring-2 focus-visible:ring-app-action focus-visible:ring-inset active:scale-[0.995]"
       onClick={onOpen}
       aria-label={`Edit ${automation.name} template`}
       data-template-preview-kind={kind}

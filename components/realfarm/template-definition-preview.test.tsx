@@ -57,6 +57,7 @@ describe("TemplateDefinitionPreview", () => {
 
     expect(markup).toContain('data-template-preview-kind="slideshow"')
     expect(markup).toContain('aria-label="Edit Astrology slideshow template"')
+    expect(markup).toContain("aspect-[9/16]")
     expect(markup).not.toContain("Current slideshow template")
     expect(markup).not.toContain("Open editor")
     expect(markup).not.toContain("No recent generation")
