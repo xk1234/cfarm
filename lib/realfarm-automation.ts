@@ -1562,8 +1562,11 @@ export function schemaWithAutomationCollectionId(
 
 export function automationSharedSlideStyle(schema: AutomationSchema) {
   const content = automationFormatSection(schema, "content")
+  const firstDesign = automationSlideDesigns(schema)[0]
   return {
-    aspectRatio: schema.aspect_ratio || content.aspect_ratio || "9:16",
+    aspectRatio:
+      firstDesign?.aspect_ratio || schema.aspect_ratio || content.aspect_ratio,
+    imageGrid: firstDesign?.imageGrid || content.imageGrid,
     font: schema.font || content.textItems[0]?.font || "TikTok Display Medium",
     imageFit: schema.image_fit,
     overlay: content.overlay,
@@ -1574,19 +1577,27 @@ export function schemaWithAutomationSharedSlideStyle(
   schema: AutomationSchema,
   patch: Partial<{
     aspectRatio: AutomationAspectRatio
+    imageGrid: AutomationImageGrid
     font: string
     imageFit: AutomationImageFit
     overlay: boolean
   }>
 ): AutomationSchema {
+  const slideDesigns = automationSlideDesigns(schema).map((design) => ({
+    ...design,
+    aspect_ratio: patch.aspectRatio ?? design.aspect_ratio,
+    imageGrid: patch.imageGrid ?? design.imageGrid,
+  }))
   return {
     ...schema,
     aspect_ratio: patch.aspectRatio ?? schema.aspect_ratio,
     font: patch.font ?? schema.font,
     image_fit: patch.imageFit ?? schema.image_fit,
+    slide_designs: slideDesigns,
     formatting: schema.formatting.map((item) => ({
       ...item,
       aspect_ratio: patch.aspectRatio ?? item.aspect_ratio,
+      imageGrid: patch.imageGrid ?? item.imageGrid,
       overlay: patch.overlay ?? item.overlay,
       textItems: item.textItems.map((textItem) => ({
         ...textItem,

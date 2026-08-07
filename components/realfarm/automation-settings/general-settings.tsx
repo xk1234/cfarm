@@ -3,7 +3,15 @@ import { IconLanguage } from "@tabler/icons-react"
 import { SoundSelector } from "@/components/realfarm/creator-ui"
 import { SelectControl, SwitchPillButton } from "@/components/ui/form-controls"
 import {
+  aspectRatioLabel,
+  automationAspectRatios,
+  automationImageGrids,
   automationPublishType,
+  automationSharedSlideStyle,
+  imageGridLabel,
+  labelToAspectRatio,
+  labelToImageGrid,
+  schemaWithAutomationSharedSlideStyle,
   type AutomationSchema,
 } from "@/lib/realfarm-automation"
 import type { LocalAsset } from "@/lib/realfarm-data"
@@ -34,6 +42,8 @@ export function AutomationGeneralSettingsPanel({
 }) {
   const language = config.language || defaultAutomationLanguage
   const isVideoAutomation = config.automationKind === "video"
+  const isSlideshowAutomation = config.automationKind === "slideshow"
+  const sharedSlideStyle = automationSharedSlideStyle(config)
   const exportAsVideo = automationPublishType(config) === "video"
   const slideDuration = slideshowDurationValue(
     config.tiktok_post_settings.slideshow_slide_duration
@@ -122,6 +132,56 @@ export function AutomationGeneralSettingsPanel({
           </div>
         }
       />
+      {isSlideshowAutomation ? (
+        <SettingsRow
+          title="Aspect ratio"
+          description="Applied to every slide in this template"
+          control={
+            <SelectControl
+              aria-label="Slideshow aspect ratio"
+              value={aspectRatioLabel(sharedSlideStyle.aspectRatio)}
+              onChange={(event) =>
+                onConfigChange(
+                  schemaWithAutomationSharedSlideStyle(config, {
+                    aspectRatio: labelToAspectRatio(event.target.value),
+                  })
+                )
+              }
+            >
+              {automationAspectRatios.map((ratio) => (
+                <option key={ratio} value={aspectRatioLabel(ratio)}>
+                  {aspectRatioLabel(ratio)}
+                </option>
+              ))}
+            </SelectControl>
+          }
+        />
+      ) : null}
+      {isSlideshowAutomation ? (
+        <SettingsRow
+          title="Image grid"
+          description="Applied to every slide in this template"
+          control={
+            <SelectControl
+              aria-label="Slideshow image grid"
+              value={imageGridLabel(sharedSlideStyle.imageGrid)}
+              onChange={(event) =>
+                onConfigChange(
+                  schemaWithAutomationSharedSlideStyle(config, {
+                    imageGrid: labelToImageGrid(event.target.value),
+                  })
+                )
+              }
+            >
+              {automationImageGrids.map((grid) => (
+                <option key={grid} value={imageGridLabel(grid)}>
+                  {imageGridLabel(grid)}
+                </option>
+              ))}
+            </SelectControl>
+          }
+        />
+      ) : null}
       {!isVideoAutomation ? (
         <SettingsRow
           title="Export as video"
