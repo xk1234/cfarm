@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 
+import { getAutomationRunForSlideshow } from "@/lib/automation-runner"
+import { absoluteAssetUrl } from "@/lib/asset-urls"
 import { clean, isRecord } from "@/lib/guards"
 import {
   providerMetricCapabilities,
@@ -98,10 +100,13 @@ export async function GET(request: Request) {
         ]
       })
     )
+    const slideshowPreviews =
+      await renderedSlideshowPreviews(visiblePublications)
     return NextResponse.json({
       integrations: selected,
       snapshots: visibleSnapshots,
       publications: visiblePublications,
+      slideshowPreviews,
       followerSnapshots: visibleFollowers,
       capabilities,
       days,
@@ -110,6 +115,41 @@ export async function GET(request: Request) {
   } catch (error) {
     return postfastRouteError(error)
   }
+}
+
+async function renderedSlideshowPreviews(
+  publications: PostFastPostRecord[]
+): Promise<Record<string, string[]>> {
+  const recentSlideshows = [...publications]
+    .filter(
+      (publication) =>
+        publication.sourceType === "slideshow" ||
+        publication.sourceType === "automation"
+    )
+    .sort(
+      (left, right) =>
+        Date.parse(right.publishedAt ?? right.scheduledAt ?? right.updatedAt) -
+        Date.parse(left.publishedAt ?? left.scheduledAt ?? left.updatedAt)
+    )
+    .slice(0, 12)
+
+  const entries = await Promise.all(
+    recentSlideshows.map(async (publication) => {
+      const run = await getAutomationRunForSlideshow({
+        slideshowId: publication.sourceId,
+        runId:
+          publication.sourceType === "automation"
+            ? publication.sourceId
+            : undefined,
+      }).catch(() => null)
+      const images = (run?.outputImages ?? [])
+        .map(absoluteAssetUrl)
+        .filter(Boolean)
+      return [publication.id, images] as const
+    })
+  )
+
+  return Object.fromEntries(entries.filter(([, images]) => images.length > 0))
 }
 
 function inferredIntegrations(

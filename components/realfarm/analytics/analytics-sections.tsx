@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useState } from "react"
 import type * as React from "react"
 import type { AnalyticsPayload } from "./analytics-view"
@@ -19,10 +20,7 @@ import {
   IconArrowLeft,
   IconArrowUpRight,
   IconBrandTiktok,
-  IconLink,
-  IconLinkOff,
   IconRefresh,
-  IconUserCheck,
   IconUsers,
   IconWorld,
 } from "@tabler/icons-react"
@@ -46,7 +44,6 @@ import {
   postContentTypeLabel,
 } from "@/lib/post-content-type"
 import { cn } from "@/lib/utils"
-import { publicationLinkState } from "@/lib/publication-link-state"
 import {
   postMetricSeries,
   audienceSeries,
@@ -159,27 +156,20 @@ export function AnalyticsHeader({
 
 export function AnalyticsOverview({
   integrations,
-  selectedAccountId,
-  onSelectAccount,
-  onOpenPlatform,
   posts,
   snapshots,
   followerSnapshots,
+  slideshowPreviews,
   onSelectPost,
 }: {
   integrations: SocialIntegration[]
-  selectedAccountId: string
-  onSelectAccount: (id: string) => void
-  onOpenPlatform: (platform: string) => void
   posts: LatestPost[]
   snapshots: PostFastMetricSnapshot[]
   followerSnapshots: AccountFollowerSnapshot[]
+  slideshowPreviews: Record<string, string[]>
   onSelectPost: (post: LatestPost) => void
 }) {
-  const selectedIds =
-    selectedAccountId === "all"
-      ? integrations.map((item) => item.integration_id)
-      : [selectedAccountId]
+  const selectedIds = integrations.map((item) => item.integration_id)
   const selectedSet = new Set(selectedIds)
   const visiblePosts = posts.filter((post) =>
     selectedSet.has(post.integrationId)
@@ -196,15 +186,6 @@ export function AnalyticsOverview({
 
   return (
     <div className="space-y-8">
-      <AccountPerformanceTable
-        integrations={integrations}
-        posts={posts}
-        followers={followerSnapshots}
-        selectedAccountId={selectedAccountId}
-        onSelectAccount={onSelectAccount}
-        onOpenPlatform={onOpenPlatform}
-      />
-
       <section className="grid gap-3 lg:grid-cols-3">
         <PortfolioMetricCard
           label="Total audience"
@@ -236,6 +217,7 @@ export function AnalyticsOverview({
         title="Recent posts across platforms"
         posts={recent}
         integrations={integrations}
+        slideshowPreviews={slideshowPreviews}
         onSelect={onSelectPost}
       />
     </div>
@@ -404,12 +386,14 @@ export function RecentPosts({
   title,
   posts,
   integrations,
+  slideshowPreviews = {},
   metric,
   onSelect,
 }: {
   title: string
   posts: LatestPost[]
   integrations: SocialIntegration[]
+  slideshowPreviews?: Record<string, string[]>
   metric?: CanonicalMetric
   onSelect: (post: LatestPost) => void
 }) {
@@ -439,107 +423,54 @@ export function RecentPosts({
         {visiblePosts.map((post) => {
           const account =
             accounts.get(post.integrationId) ?? fallbackIntegration(post)
+          const slideImages =
+            slideshowPreviews[post.postId] ??
+            (post.publication
+              ? slideshowPreviews[post.publication.id]
+              : undefined) ??
+            []
           const primaryMetric =
             metric && metric !== "followers"
               ? metric
               : post.metrics.impressions !== undefined
                 ? "impressions"
                 : "views"
-          const link = publicationLinkState(
-            post.publication ?? {
-              linkState: "unlinked",
-              statsSources: [post.source ?? "postfast"],
-            }
-          )
-          const LinkIcon =
-            link.state === "postfast_published"
-              ? IconLink
-              : link.state === "manually_linked"
-                ? IconUserCheck
-                : IconLinkOff
-          const awaitingStudioImport =
-            link.state === "manually_linked" && !link.hasStudioStats
           return (
             <button
               key={`${post.integrationId}:${post.postId}`}
               type="button"
               onClick={() => onSelect(post)}
-              className={cn(
-                "lc-focus-ring group overflow-hidden rounded-card border bg-app-surface text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(35,24,67,0.09)] active:translate-y-0",
-                link.state === "unlinked"
-                  ? "border-2 border-dashed border-app-danger"
-                  : link.state === "manually_linked"
-                    ? "border-app-warning"
-                    : "border-app-panel-border"
-              )}
+              className="lc-focus-ring group overflow-hidden rounded-card border border-app-panel-border bg-app-surface text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(35,24,67,0.09)] active:translate-y-0"
             >
-              <PostThumbnail post={post} />
+              <PostThumbnail post={post} slideImages={slideImages} />
               <span className="block p-3.5">
-                <span className="mb-3 flex flex-wrap gap-1.5">
-                  <span
-                    title={`${link.label}: ${link.description}`}
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-2 py-1 text-caption font-semibold",
-                      link.state === "unlinked"
-                        ? "bg-app-danger-surface text-app-danger"
-                        : "bg-app-control-hover text-app-text-soft"
-                    )}
-                  >
-                    <LinkIcon className="size-3.5" aria-hidden="true" />
-                    {link.label}
-                  </span>
-                  {link.hasStudioStats ? (
-                    <span
-                      title="Stats imported from TikTok Studio"
-                      className="inline-flex items-center gap-1 rounded-full bg-app-control-hover px-2 py-1 text-caption font-semibold text-app-text-soft"
-                    >
-                      <IconBrandTiktok
-                        className="size-3.5"
-                        aria-hidden="true"
-                      />
-                      Studio stats
-                    </span>
-                  ) : null}
-                </span>
                 <span className="flex items-center justify-between gap-2">
                   <AccountProfileIcon integration={account} size="sm" tooltip />
                   <span className="text-[9px] font-medium text-app-text-faint">
                     {formatPostDate(post)}
                   </span>
                 </span>
-                <span className="mt-3 line-clamp-2 min-h-9 text-[12px] leading-[18px] font-semibold text-app-text">
-                  {post.content || "Untitled post"}
+                <span className="mt-3 flex items-end justify-between gap-3 border-t border-[#eeedf3] pt-2.5">
+                  <span>
+                    <span className="block text-[9px] font-medium text-app-text-faint">
+                      {metricLabel(primaryMetric, post.provider)}
+                    </span>
+                    <span className="mt-0.5 block text-[13px] font-semibold text-app-text tabular-nums">
+                      {formatMetric(primaryMetric, post.metrics[primaryMetric])}
+                    </span>
+                  </span>
+                  <span className="text-right">
+                    <span className="block text-[9px] font-medium text-app-text-faint">
+                      Engagement
+                    </span>
+                    <span className="mt-0.5 block text-[13px] font-semibold text-app-text tabular-nums">
+                      {formatMetric(
+                        "engagementRate",
+                        post.metrics.engagementRate
+                      )}
+                    </span>
+                  </span>
                 </span>
-                {awaitingStudioImport ? (
-                  <span className="mt-3 block border-t border-[#eeedf3] pt-2.5 text-[10px] leading-4 font-semibold text-app-warning">
-                    No imported data yet
-                  </span>
-                ) : (
-                  <span className="mt-3 flex items-end justify-between gap-3 border-t border-[#eeedf3] pt-2.5">
-                    <span>
-                      <span className="block text-[9px] font-medium text-app-text-faint">
-                        {metricLabel(primaryMetric, post.provider)}
-                      </span>
-                      <span className="mt-0.5 block text-[13px] font-semibold text-app-text tabular-nums">
-                        {formatMetric(
-                          primaryMetric,
-                          post.metrics[primaryMetric]
-                        )}
-                      </span>
-                    </span>
-                    <span className="text-right">
-                      <span className="block text-[9px] font-medium text-app-text-faint">
-                        Engagement
-                      </span>
-                      <span className="mt-0.5 block text-[13px] font-semibold text-app-text tabular-nums">
-                        {formatMetric(
-                          "engagementRate",
-                          post.metrics.engagementRate
-                        )}
-                      </span>
-                    </span>
-                  </span>
-                )}
               </span>
             </button>
           )
@@ -1106,31 +1037,56 @@ export function CompactKpi({
   )
 }
 
-export function PostThumbnail({ post }: { post: LatestPost }) {
+export function PostThumbnail({
+  post,
+  slideImages = [],
+}: {
+  post: LatestPost
+  slideImages?: string[]
+}) {
+  const contentType =
+    post.contentType ||
+    inferPostContentType({
+      sourceType: post.sourceType,
+      metrics: post.rawMetrics,
+    })
+  const previewUrl = slideImages[0] || post.thumbnailUrl
+  const isSlideshow = contentType === "slideshow"
   return (
     <span
-      className="relative block aspect-[16/9] overflow-hidden bg-[radial-gradient(circle_at_20%_20%,#e5dbf7,transparent_46%),linear-gradient(135deg,#f4f1f8,#e8e5ed)] bg-cover bg-center"
-      style={
-        post.thumbnailUrl
-          ? {
-              backgroundImage: `url("${post.thumbnailUrl.replace(/"/g, "%22")}")`,
-            }
-          : undefined
-      }
+      className={cn(
+        "relative block overflow-hidden bg-[radial-gradient(circle_at_20%_20%,#e5dbf7,transparent_46%),linear-gradient(135deg,#f4f1f8,#e8e5ed)]",
+        isSlideshow ? "aspect-[4/5]" : "aspect-[16/9]"
+      )}
     >
-      {!post.thumbnailUrl ? (
+      {previewUrl ? (
+        <Image
+          src={previewUrl}
+          alt={
+            isSlideshow
+              ? "First slide from the published slideshow"
+              : "Published post preview"
+          }
+          fill
+          sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+          unoptimized
+          className={cn(
+            "transition duration-300 group-hover:scale-[1.015]",
+            isSlideshow ? "object-contain" : "object-cover"
+          )}
+        />
+      ) : (
         <span className="absolute inset-0 grid place-items-center px-5 text-center text-[13px] leading-5 font-semibold text-[#56476e]">
           {(post.content || "Recent post").slice(0, 74)}
         </span>
+      )}
+      {slideImages.length > 1 ? (
+        <span className="absolute top-2 right-2 rounded-[6px] bg-black/68 px-2 py-1 text-[9px] font-semibold text-white tabular-nums backdrop-blur-sm">
+          1 / {slideImages.length}
+        </span>
       ) : null}
       <span className="absolute right-2 bottom-2 rounded-[5px] bg-black/62 px-1.5 py-1 text-[8px] font-semibold text-white backdrop-blur-sm">
-        {postContentTypeLabel(
-          post.contentType ||
-            inferPostContentType({
-              sourceType: post.sourceType,
-              metrics: post.rawMetrics,
-            })
-        )}
+        {postContentTypeLabel(contentType)}
       </span>
     </span>
   )
