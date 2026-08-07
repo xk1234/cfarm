@@ -15,10 +15,7 @@ import { renderedSlideSvg } from "@/lib/slideshow-renderer"
 import type { CreatedImageCollection } from "@/lib/realfarm-collections"
 import { findCollectionByIdOrAlias } from "@/lib/realfarm-collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
-import type {
-  AutomationSchema,
-  TextItem,
-} from "@/lib/realfarm-automation"
+import type { AutomationSchema, TextItem } from "@/lib/realfarm-automation"
 import type { XAutomationRecord } from "@/lib/x-automation"
 
 const TEMPLATE_PLACEHOLDER_IMAGE = `data:image/svg+xml,${encodeURIComponent(
@@ -51,7 +48,7 @@ export function TemplateDefinitionPreview({
   return (
     <button
       type="button"
-      className="group/preview relative block aspect-[16/10] w-full overflow-hidden bg-app-media-empty text-left transition duration-200 outline-none hover:brightness-[0.98] focus-visible:ring-2 focus-visible:ring-app-action focus-visible:ring-inset active:scale-[0.995]"
+      className="relative block aspect-[4/5] w-full overflow-hidden bg-app-media-empty text-left transition duration-200 outline-none hover:brightness-[0.98] focus-visible:ring-2 focus-visible:ring-app-action focus-visible:ring-inset active:scale-[0.995]"
       onClick={onOpen}
       aria-label={`Edit ${automation.name} template`}
       data-template-preview-kind={kind}
@@ -72,15 +69,6 @@ export function TemplateDefinitionPreview({
       ) : (
         <PostDefinitionPreview automation={automation} template={xTemplate} />
       )}
-
-      <span className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/70 via-black/15 to-transparent px-3 pt-12 pb-3 text-white">
-        <span className="text-[11px] font-semibold text-white/78">
-          Current {kind} template
-        </span>
-        <span className="translate-y-1 rounded-[6px] bg-white px-2.5 py-1.5 text-[12px] font-bold text-[#22221f] opacity-0 shadow-sm transition duration-200 group-hover/preview:translate-y-0 group-hover/preview:opacity-100 group-focus-visible/preview:translate-y-0 group-focus-visible/preview:opacity-100">
-          Open editor
-        </span>
-      </span>
     </button>
   )
 }
@@ -290,10 +278,7 @@ function isVideoUrl(url: string) {
   return /\.(mp4|mov|m4v|webm)(\?|#|$)/i.test(url)
 }
 
-function templateTextPreview(
-  textItem: TextItem | undefined,
-  fallback: string
-) {
+function templateTextPreview(textItem: TextItem | undefined, fallback: string) {
   if (textItem?.textMode === "static") {
     const staticText = (textItem.staticText || textItem.text || "").trim()
     if (staticText) return staticText
