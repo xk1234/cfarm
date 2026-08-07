@@ -15,7 +15,7 @@ flowchart LR
     Clerk --> Web
     Web --> Postgres["Railway Postgres"]
     Web --> Bucket["Railway private bucket"]
-    Scheduler["Railway scheduler service"] --> Postgres
+    Scheduler["Disabled scheduler compatibility service"]
     Postgres --> Worker["Railway worker service"]
     Worker --> Bucket
     Worker --> Providers["Generation and publishing providers"]
@@ -30,7 +30,7 @@ these resources:
 | `lumenclip-assets` | Private S3-compatible object storage for all generated and uploaded media |
 | `web`              | Next.js application and MCP HTTP surface                                  |
 | `worker`           | Continuously claims and runs queued jobs                                  |
-| `scheduler`        | Polls every five minutes and enqueues due automations                     |
+| `scheduler`        | Disabled compatibility service; never enqueues timed template runs        |
 
 Railway buckets are private. Application routes continue to be the stable
 public media boundary; direct downloads use short-lived presigned URLs.
@@ -39,8 +39,9 @@ public media boundary; direct downloads use short-lived presigned URLs.
 
 As of 2026-08-06:
 
-- Railway production has online `web`, `worker`, `scheduler`, Postgres, and
-  private-bucket resources with both backend flags set to `railway`.
+- Railway production has online `web`, `worker`, Postgres, and private-bucket
+  resources with both backend flags set to `railway`. The deployed `scheduler`
+  process is a no-op compatibility service.
 - The persistent `development` environment has isolated Postgres and bucket
   resources. Its public web service is deployed separately; its copied worker
   and scheduler stay stopped so development cannot publish production content.
