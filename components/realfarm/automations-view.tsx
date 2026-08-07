@@ -146,7 +146,7 @@ function TemplateGridCard({
   return (
     <article
       className={cn(
-        "relative overflow-hidden rounded-[8px] bg-app-surface shadow-sm",
+        "relative self-start overflow-hidden rounded-[8px] bg-app-surface shadow-sm",
         automationCardBorderClass(blocked)
       )}
     >

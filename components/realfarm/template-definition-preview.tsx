@@ -17,6 +17,7 @@ import { findCollectionByIdOrAlias } from "@/lib/realfarm-collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
 import type { AutomationSchema, TextItem } from "@/lib/realfarm-automation"
 import type { XAutomationRecord } from "@/lib/x-automation"
+import { cn } from "@/lib/utils"
 
 const TEMPLATE_PLACEHOLDER_IMAGE = `data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920"><rect width="1080" height="1920" fill="#797a76"/><path d="M0 1420 430 930l250 285 400-475v1180H0Z" fill="#92938e"/><circle cx="780" cy="460" r="150" fill="#a9aaa4"/></svg>'
@@ -48,7 +49,10 @@ export function TemplateDefinitionPreview({
   return (
     <button
       type="button"
-      className="relative block aspect-[9/16] w-full overflow-hidden bg-app-media-empty text-left transition duration-200 outline-none hover:brightness-[0.98] focus-visible:ring-2 focus-visible:ring-app-action focus-visible:ring-inset active:scale-[0.995]"
+      className={cn(
+        "relative block w-full overflow-hidden bg-app-media-empty text-left transition duration-200 outline-none hover:brightness-[0.98] focus-visible:ring-2 focus-visible:ring-app-action focus-visible:ring-inset active:scale-[0.995]",
+        kind === "post" ? "aspect-[4/3]" : "aspect-[9/16]"
+      )}
       onClick={onOpen}
       aria-label={`Edit ${automation.name} template`}
       data-template-preview-kind={kind}
