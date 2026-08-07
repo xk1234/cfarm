@@ -31,8 +31,8 @@ import type { AutomationRecord } from "@/lib/automations"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { useCollectionsData } from "@/components/realfarm/collections/use-collections-data"
 import { isSlideshowSocialProvider } from "@/lib/slideshow-social-platforms"
-import { cn } from "@/lib/utils"
 import type { ConnectedComposerAccount } from "@/components/realfarm/composer/composer-types"
+import { AppModal, AppModalPanel } from "@/components/ui/modal"
 
 const HomeView = dynamic(() =>
   import("@/components/realfarm/home-view").then((module) => module.HomeView)
@@ -730,7 +730,73 @@ export function RealFarmWorkspace({
       .finally(() => setRecentRunsLoaded(true))
   }
 
-  const fillsWorkspace = view === "templates" && Boolean(editingAutomation)
+  const renderTemplatesView = () => (
+    <TemplatesView
+      automations={automations}
+      automationsLoading={!persistedAutomationsLoaded || !xAutomationsLoaded}
+      schemasByAutomationId={automationConfigEdits}
+      collections={visibleCollections}
+      demoVideos={workspaceAssets.demoVideos}
+      xTemplatesByAutomationId={xTemplatesByAutomationId}
+      onCreateNew={() => setTemplateFolderOpen(true)}
+      onCreateFromTone={async (fields) => {
+        const automation = await createLocalAutomation({
+          name: "Matched TikTok slideshow",
+          schema: fields as AutomationSchema,
+        })
+        setView("templates")
+        setEditingAutomation(automation)
+      }}
+      onRename={(automation, name) => {
+        setAutomationNameEdits((current) => ({
+          ...current,
+          [automation.id]: name,
+        }))
+        setPersistedAutomations((current) =>
+          current.map((item) =>
+            item.id === automation.id ? { ...item, name } : item
+          )
+        )
+        setCreatedAutomations((current) =>
+          current.map((item) =>
+            item.id === automation.id ? { ...item, name } : item
+          )
+        )
+        persistAutomationPatch(automation.id, { name })
+      }}
+      onToggleFavorite={(automation) => {
+        const nextFavorite = !(
+          automationFavoriteEdits[automation.id] ?? automation.favorite
+        )
+        setAutomationFavoriteEdits((current) => ({
+          ...current,
+          [automation.id]: nextFavorite,
+        }))
+        setAutomationFavoriteRanks((current) => ({
+          ...current,
+          [automation.id]: nextFavorite ? Date.now() : 0,
+        }))
+        setPersistedAutomations((current) =>
+          current.map((item) =>
+            item.id === automation.id
+              ? { ...item, favorite: nextFavorite }
+              : item
+          )
+        )
+        setCreatedAutomations((current) =>
+          current.map((item) =>
+            item.id === automation.id
+              ? { ...item, favorite: nextFavorite }
+              : item
+          )
+        )
+        persistAutomationPatch(automation.id, {
+          favorite: nextFavorite,
+        })
+      }}
+      onEdit={setEditingAutomation}
+    />
+  )
 
   return (
     <main className="relative h-svh overflow-hidden bg-[#f7f7fa] text-app-text">
@@ -748,14 +814,7 @@ export function RealFarmWorkspace({
           onNewTemplate={() => setTemplateFolderOpen(true)}
           onSettings={() => setSettingsOpen(true)}
         />
-        <section
-          className={cn(
-            "min-w-0 flex-1 overflow-y-auto",
-            fillsWorkspace
-              ? "pt-14 md:p-0"
-              : "px-4 pt-[4.5rem] pb-4 sm:px-5 sm:pt-[4.75rem] sm:pb-5 md:py-5 lg:px-7"
-          )}
-        >
+        <section className="min-w-0 flex-1 overflow-y-auto px-4 pt-[4.5rem] pb-4 sm:px-5 sm:pt-[4.75rem] sm:pb-5 md:py-5 lg:px-7">
           {view === "home" && (
             <HomeView
               currentUserId={user.id}
@@ -918,193 +977,141 @@ export function RealFarmWorkspace({
                 onToggleCollectionPin={toggleCollectionPin}
               />
             ))}
-          {view === "templates" &&
-            (editingAutomation ? (
-              editingAutomation.automationKind === "x_threads" ? (
-                <XAutomationStudio
-                  key={editingAutomation.id}
-                  initialAutomations={xAutomations.filter(
-                    (item) => item.id === editingAutomation.id
-                  )}
-                  initialRuns={xAutomationRuns.filter(
-                    (run) => run.automationId === editingAutomation.id
-                  )}
-                  embedded
-                  onClose={() => {
-                    setEditingAutomation(null)
-                    void Promise.all([
-                      fetchJsonWithTimeout<{
-                        templates?: XAutomationRecord[]
-                      }>("/api/social-templates"),
-                      fetchJsonWithTimeout<{ runs?: XAutomationRun[] }>(
-                        "/api/social-templates/generate"
-                      ),
-                    ])
-                      .then(([automationPayload, runPayload]) => {
-                        setXAutomations(automationPayload.templates ?? [])
-                        setXAutomationRuns(runPayload.runs ?? [])
-                      })
-                      .catch(() => undefined)
-                  }}
-                />
-              ) : (
-                <AutomationSettingsDrawer
-                  key={editingAutomation.id}
-                  automation={editingAutomation}
-                  initialRunId={linkedAutomationRunId || undefined}
-                  config={mergeAutomationSchema(
-                    editingAutomation,
-                    automationConfigEdits[editingAutomation.id]
-                  )}
-                  collections={visibleCollections}
-                  selectedSound={selectedSound}
-                  music={workspaceAssets.music}
-                  demoVideos={workspaceAssets.demoVideos}
-                  onCreateCollection={(collection) => {
-                    void commitCollection(
-                      collections.find((item) => item.id === collection.id) ??
-                        null,
-                      collection,
-                      "Failed to save the collection"
-                    )
-                  }}
-                  onRename={(name) => {
-                    setAutomationNameEdits((current) => ({
-                      ...current,
-                      [editingAutomation.id]: name,
-                    }))
-                    setAutomationConfigEdits((current) => {
-                      const nextConfig = mergeAutomationSchema(
-                        editingAutomation,
-                        current[editingAutomation.id]
-                      )
-                      persistAutomationPatch(editingAutomation.id, {
-                        name,
-                        schema: nextConfig,
-                      })
-                      return {
-                        ...current,
-                        [editingAutomation.id]: nextConfig,
-                      }
-                    })
-                    setPersistedAutomations((current) =>
-                      current.map((automation) =>
-                        automation.id === editingAutomation.id
-                          ? { ...automation, name }
-                          : automation
-                      )
-                    )
-                    setCreatedAutomations((current) =>
-                      current.map((automation) =>
-                        automation.id === editingAutomation.id
-                          ? { ...automation, name }
-                          : automation
-                      )
-                    )
-                    setEditingAutomation((current) =>
-                      current ? { ...current, name } : current
-                    )
-                  }}
-                  onConfigChange={(config) => {
-                    setAutomationConfigEdits((current) => ({
-                      ...current,
-                      [editingAutomation.id]: config,
-                    }))
-                  }}
-                  onGenerationRunUpdate={upsertRecentAutomationRun}
-                  onGenerationRunRemove={removeRecentAutomationRun}
-                  onEditSocialAccounts={() =>
-                    setSocialAccountAutomation(editingAutomation)
-                  }
-                  onDuplicate={async () => {
-                    const sourceConfig = mergeAutomationSchema(
-                      editingAutomation,
-                      automationConfigEdits[editingAutomation.id]
-                    )
-                    const duplicated = await createLocalAutomation({
-                      name: `${editingAutomation.name} Copy`,
-                      automationKind: editingAutomation.automationKind,
-                      schema: sourceConfig,
-                    })
-                    setEditingAutomation(duplicated)
-                  }}
-                  onDelete={() => deleteAutomation(editingAutomation.id)}
-                  onClose={() => {
-                    setEditingAutomation(null)
-                    refreshRecentAutomationRuns()
-                  }}
-                />
-              )
-            ) : (
-              <TemplatesView
-                automations={automations}
-                automationsLoading={
-                  !persistedAutomationsLoaded || !xAutomationsLoaded
-                }
-                schemasByAutomationId={automationConfigEdits}
-                collections={visibleCollections}
-                demoVideos={workspaceAssets.demoVideos}
-                xTemplatesByAutomationId={xTemplatesByAutomationId}
-                onCreateNew={() => setTemplateFolderOpen(true)}
-                onCreateFromTone={async (fields) => {
-                  const automation = await createLocalAutomation({
-                    name: "Matched TikTok slideshow",
-                    schema: fields as AutomationSchema,
-                  })
-                  setView("templates")
-                  setEditingAutomation(automation)
-                }}
-                onRename={(automation, name) => {
-                  setAutomationNameEdits((current) => ({
-                    ...current,
-                    [automation.id]: name,
-                  }))
-                  setPersistedAutomations((current) =>
-                    current.map((item) =>
-                      item.id === automation.id ? { ...item, name } : item
-                    )
-                  )
-                  setCreatedAutomations((current) =>
-                    current.map((item) =>
-                      item.id === automation.id ? { ...item, name } : item
-                    )
-                  )
-                  persistAutomationPatch(automation.id, { name })
-                }}
-                onToggleFavorite={(automation) => {
-                  const nextFavorite = !(
-                    automationFavoriteEdits[automation.id] ??
-                    automation.favorite
-                  )
-                  setAutomationFavoriteEdits((current) => ({
-                    ...current,
-                    [automation.id]: nextFavorite,
-                  }))
-                  setAutomationFavoriteRanks((current) => ({
-                    ...current,
-                    [automation.id]: nextFavorite ? Date.now() : 0,
-                  }))
-                  setPersistedAutomations((current) =>
-                    current.map((item) =>
-                      item.id === automation.id
-                        ? { ...item, favorite: nextFavorite }
-                        : item
-                    )
-                  )
-                  setCreatedAutomations((current) =>
-                    current.map((item) =>
-                      item.id === automation.id
-                        ? { ...item, favorite: nextFavorite }
-                        : item
-                    )
-                  )
-                  persistAutomationPatch(automation.id, {
-                    favorite: nextFavorite,
-                  })
-                }}
-                onEdit={setEditingAutomation}
-              />
-            ))}
+          {view === "templates" && (
+            <>
+              {renderTemplatesView()}
+              {editingAutomation ? (
+                <AppModal
+                  className="p-2 sm:p-4"
+                  onClose={() => setEditingAutomation(null)}
+                >
+                  <AppModalPanel
+                    accessibleTitle={`${editingAutomation.name} template editor`}
+                    className="h-[calc(100svh-1rem)] max-h-[900px] max-w-[1320px] overflow-hidden rounded-[12px] sm:h-[calc(100svh-2rem)]"
+                  >
+                    {editingAutomation.automationKind === "x_threads" ? (
+                      <XAutomationStudio
+                        key={editingAutomation.id}
+                        initialAutomations={xAutomations.filter(
+                          (item) => item.id === editingAutomation.id
+                        )}
+                        initialRuns={xAutomationRuns.filter(
+                          (run) => run.automationId === editingAutomation.id
+                        )}
+                        embedded
+                        modal
+                        onClose={() => {
+                          setEditingAutomation(null)
+                          void Promise.all([
+                            fetchJsonWithTimeout<{
+                              templates?: XAutomationRecord[]
+                            }>("/api/social-templates"),
+                            fetchJsonWithTimeout<{ runs?: XAutomationRun[] }>(
+                              "/api/social-templates/generate"
+                            ),
+                          ])
+                            .then(([automationPayload, runPayload]) => {
+                              setXAutomations(automationPayload.templates ?? [])
+                              setXAutomationRuns(runPayload.runs ?? [])
+                            })
+                            .catch(() => undefined)
+                        }}
+                      />
+                    ) : (
+                      <AutomationSettingsDrawer
+                        key={editingAutomation.id}
+                        modal
+                        automation={editingAutomation}
+                        initialRunId={linkedAutomationRunId || undefined}
+                        config={mergeAutomationSchema(
+                          editingAutomation,
+                          automationConfigEdits[editingAutomation.id]
+                        )}
+                        collections={visibleCollections}
+                        selectedSound={selectedSound}
+                        music={workspaceAssets.music}
+                        demoVideos={workspaceAssets.demoVideos}
+                        onCreateCollection={(collection) => {
+                          void commitCollection(
+                            collections.find(
+                              (item) => item.id === collection.id
+                            ) ?? null,
+                            collection,
+                            "Failed to save the collection"
+                          )
+                        }}
+                        onRename={(name) => {
+                          setAutomationNameEdits((current) => ({
+                            ...current,
+                            [editingAutomation.id]: name,
+                          }))
+                          setAutomationConfigEdits((current) => {
+                            const nextConfig = mergeAutomationSchema(
+                              editingAutomation,
+                              current[editingAutomation.id]
+                            )
+                            persistAutomationPatch(editingAutomation.id, {
+                              name,
+                              schema: nextConfig,
+                            })
+                            return {
+                              ...current,
+                              [editingAutomation.id]: nextConfig,
+                            }
+                          })
+                          setPersistedAutomations((current) =>
+                            current.map((automation) =>
+                              automation.id === editingAutomation.id
+                                ? { ...automation, name }
+                                : automation
+                            )
+                          )
+                          setCreatedAutomations((current) =>
+                            current.map((automation) =>
+                              automation.id === editingAutomation.id
+                                ? { ...automation, name }
+                                : automation
+                            )
+                          )
+                          setEditingAutomation((current) =>
+                            current ? { ...current, name } : current
+                          )
+                        }}
+                        onConfigChange={(config) => {
+                          setAutomationConfigEdits((current) => ({
+                            ...current,
+                            [editingAutomation.id]: config,
+                          }))
+                        }}
+                        onGenerationRunUpdate={upsertRecentAutomationRun}
+                        onGenerationRunRemove={removeRecentAutomationRun}
+                        onEditSocialAccounts={() =>
+                          setSocialAccountAutomation(editingAutomation)
+                        }
+                        onDuplicate={async () => {
+                          const sourceConfig = mergeAutomationSchema(
+                            editingAutomation,
+                            automationConfigEdits[editingAutomation.id]
+                          )
+                          const duplicated = await createLocalAutomation({
+                            name: `${editingAutomation.name} Copy`,
+                            automationKind: editingAutomation.automationKind,
+                            schema: sourceConfig,
+                          })
+                          setEditingAutomation(duplicated)
+                        }}
+                        onDelete={() => deleteAutomation(editingAutomation.id)}
+                        onClose={() => {
+                          setEditingAutomation(null)
+                          refreshRecentAutomationRuns()
+                        }}
+                      />
+                    )}
+                  </AppModalPanel>
+                </AppModal>
+              ) : null}
+            </>
+          )}
         </section>
       </div>
       {socialAccountAutomation && (
