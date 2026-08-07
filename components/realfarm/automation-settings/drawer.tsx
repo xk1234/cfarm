@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { flushSync } from "react-dom"
 import { toast } from "sonner"
 import { IconChevronLeft, IconPlus, IconTrash } from "@tabler/icons-react"
-import { LuCopy } from "react-icons/lu"
+import { LuCopy, LuPanelsTopLeft, LuSettings2, LuType } from "react-icons/lu"
 
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { useAutomationGeneratedVideoExports } from "@/components/realfarm/generated-video-workflow"
@@ -420,10 +420,10 @@ export function AutomationSettingsDrawer({
     }
   }
 
-  const tabs: Array<{ id: AutomationDrawerTab; label: string }> = [
-    { id: "editor", label: "Editor" },
-    { id: "text", label: "Text" },
-    { id: "settings", label: "Settings" },
+  const tabs = [
+    { id: "editor" as const, label: "Editor", icon: LuPanelsTopLeft },
+    { id: "text" as const, label: "Text", icon: LuType },
+    { id: "settings" as const, label: "Settings", icon: LuSettings2 },
   ]
 
   return (
@@ -433,7 +433,7 @@ export function AutomationSettingsDrawer({
         modal ? "h-full" : "min-h-[calc(100svh-3.5rem)] md:min-h-svh"
       )}
     >
-      <header className="z-30 border-b border-app-panel-border bg-app-surface">
+      <header className="z-30 shrink-0 border-b border-app-panel-border bg-app-surface">
         <div className="flex min-h-14 items-center gap-2 px-3 sm:px-4">
           <button
             type="button"
@@ -505,68 +505,82 @@ export function AutomationSettingsDrawer({
             </button>
           </div>
         </div>
-
-        <nav
-          className="flex h-12 items-end justify-center gap-6 px-3"
-          aria-label="Template editor"
-        >
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={cn(
-                "h-12 border-b-2 px-2 text-[13px] font-semibold",
-                activeTab === tab.id
-                  ? "border-app-strong text-app-text"
-                  : "border-transparent text-app-text-faint"
-              )}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {activeTab === "editor" ? (
-          automationKind === "slideshow" ? (
-            <SlideSequencePanel
-              config={draftConfig}
-              collections={collections}
-              onCreateCollection={onCreateCollection}
-              onConfigChange={setDraftConfig}
-            />
-          ) : (
-            <AutomationFormatPanel
+      <div className="grid min-h-0 flex-1 grid-rows-[52px_minmax(0,1fr)] md:grid-cols-[68px_minmax(0,1fr)] md:grid-rows-1">
+        <nav
+          className="z-20 flex items-center justify-center gap-1 border-b border-app-panel-border bg-[#f4f4f1] px-2 md:flex-col md:justify-start md:border-r md:border-b-0 md:px-1.5 md:py-2"
+          aria-label="Template editor"
+        >
+          {tabs.map((tab) => {
+            const TabIcon = tab.icon
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                className={cn(
+                  "lc-focus-ring flex h-9 flex-1 items-center justify-center gap-2 rounded-md px-3 text-[11px] font-semibold transition md:h-14 md:w-full md:flex-none md:flex-col md:gap-1 md:px-1",
+                  activeTab === tab.id
+                    ? "bg-white text-[#1b5fab] shadow-sm ring-1 ring-black/7"
+                    : "text-app-text-faint hover:bg-white/70 hover:text-app-text"
+                )}
+                onClick={() => setActiveTab(tab.id)}
+                aria-current={activeTab === tab.id ? "page" : undefined}
+              >
+                <TabIcon className="size-4" />
+                <span>{tab.label}</span>
+              </button>
+            )
+          })}
+        </nav>
+
+        <div
+          className={cn(
+            "min-h-0 min-w-0",
+            activeTab === "editor" && automationKind === "slideshow"
+              ? "overflow-hidden"
+              : "overflow-y-auto"
+          )}
+        >
+          {activeTab === "editor" ? (
+            automationKind === "slideshow" ? (
+              <SlideSequencePanel
+                config={draftConfig}
+                collections={collections}
+                onCreateCollection={onCreateCollection}
+                onConfigChange={setDraftConfig}
+              />
+            ) : (
+              <AutomationFormatPanel
+                automation={automation}
+                config={draftConfig}
+                collections={collections}
+                selectedSound={selectedSound}
+                music={music}
+                demoVideos={demoVideos}
+                onCreateCollection={onCreateCollection}
+                onConfigChange={setDraftConfig}
+                onBack={() => void closeAfterAutosave()}
+              />
+            )
+          ) : null}
+          {activeTab === "text" ? (
+            <PromptConfigPanel
               automation={automation}
               config={draftConfig}
-              collections={collections}
+              onConfigChange={setDraftConfig}
+              hideFooter
+            />
+          ) : null}
+          {activeTab === "settings" ? (
+            <AutomationGeneralSettingsPanel
+              config={draftConfig}
               selectedSound={selectedSound}
               music={music}
-              demoVideos={demoVideos}
-              onCreateCollection={onCreateCollection}
               onConfigChange={setDraftConfig}
-              onBack={() => void closeAfterAutosave()}
             />
-          )
-        ) : null}
-        {activeTab === "text" ? (
-          <PromptConfigPanel
-            automation={automation}
-            config={draftConfig}
-            onConfigChange={setDraftConfig}
-            hideFooter
-          />
-        ) : null}
-        {activeTab === "settings" ? (
-          <AutomationGeneralSettingsPanel
-            config={draftConfig}
-            selectedSound={selectedSound}
-            music={music}
-            onConfigChange={setDraftConfig}
-          />
-        ) : null}
+          ) : null}
+        </div>
       </div>
     </div>
   )

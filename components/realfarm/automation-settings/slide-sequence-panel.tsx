@@ -1,12 +1,17 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import {
+  IconAdjustments,
   IconArrowDown,
   IconArrowUp,
   IconCopy,
+  IconFocusCentered,
+  IconMinus,
+  IconPointer,
   IconPlus,
   IconTrash,
+  IconTypography,
 } from "@tabler/icons-react"
 
 import { CollectionSelector } from "@/components/realfarm/collection-selector"
@@ -55,7 +60,11 @@ export function SlideSequencePanel({
 }) {
   const designs = automationSlideDesigns(config)
   const [selectedId, setSelectedId] = useState(() => designs[0]?.id ?? "")
-  const [selectedTextIndex, setSelectedTextIndex] = useState<number | null>(0)
+  const [selectedTextIndex, setSelectedTextIndex] = useState<number | null>(
+    null
+  )
+  const [inspectorTab, setInspectorTab] = useState<"design" | "text">("design")
+  const [canvasZoom, setCanvasZoom] = useState(1)
   const selectedIndex = Math.max(
     0,
     designs.findIndex((design) => design.id === selectedId)
@@ -103,7 +112,8 @@ export function SlideSequencePanel({
       : newSlideDesign(id, designs.length + 1)
     save([...designs, next])
     setSelectedId(id)
-    setSelectedTextIndex(0)
+    setSelectedTextIndex(null)
+    setInspectorTab("design")
   }
 
   function removeDesign() {
@@ -111,7 +121,8 @@ export function SlideSequencePanel({
     const next = designs.filter((item) => item.id !== design.id)
     save(next)
     setSelectedId(next[Math.min(selectedIndex, next.length - 1)]?.id ?? "")
-    setSelectedTextIndex(0)
+    setSelectedTextIndex(null)
+    setInspectorTab("design")
   }
 
   function moveDesign(offset: -1 | 1) {
@@ -143,6 +154,7 @@ export function SlideSequencePanel({
       ],
     })
     setSelectedTextIndex(design.textItems.length)
+    setInspectorTab("text")
   }
 
   function deleteTextItem() {
@@ -176,37 +188,50 @@ export function SlideSequencePanel({
   if (!design || !previewItem) return null
 
   return (
-    <div className="grid min-h-full bg-[#b9b9b6] lg:grid-cols-[340px_minmax(0,1fr)]">
-      <aside className="min-h-0 border-r border-app-panel-border bg-app-surface-subtle lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-app-panel-border px-4 py-3">
-          <h2 className="text-[15px] font-bold text-app-text">Slide designs</h2>
+    <div className="grid h-full min-h-[680px] min-w-0 bg-[#d7d7d3] lg:min-h-0 lg:grid-cols-[240px_minmax(0,1fr)_320px]">
+      <aside className="flex min-h-0 flex-col border-b border-app-panel-border bg-[#f7f7f5] lg:border-r lg:border-b-0">
+        <div className="flex h-12 shrink-0 items-center justify-between border-b border-app-panel-border px-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-[13px] font-bold text-app-text">Slides</h2>
+            <span className="rounded-md bg-[#e9e9e5] px-1.5 py-0.5 text-[10px] font-bold text-app-muted-text tabular-nums">
+              {designs.length}
+            </span>
+          </div>
           <button
             type="button"
-            className="lc-focus-ring grid size-8 place-items-center rounded-lg border border-app-panel-border bg-app-surface text-app-text"
+            className="lc-focus-ring grid size-8 place-items-center rounded-md text-app-text-soft transition hover:bg-app-control-hover"
             onClick={() => addDesign()}
             aria-label="Add slide design"
+            title="Add slide"
           >
             <IconPlus className="size-4" />
           </button>
         </div>
 
-        <div className="space-y-2 border-b border-app-panel-border p-3">
+        <div className="flex min-h-0 flex-1 gap-2 overflow-x-auto p-2 lg:block lg:space-y-1 lg:overflow-y-auto">
           {designs.map((item, index) => (
             <button
               key={item.id}
               type="button"
               className={cn(
-                "flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left",
+                "flex min-w-40 items-center gap-2.5 rounded-md border px-2.5 py-2 text-left transition lg:w-full lg:min-w-0",
                 item.id === design.id
-                  ? "border-app-strong bg-app-surface shadow-sm"
-                  : "border-transparent text-app-text-soft hover:bg-app-surface"
+                  ? "border-[#9bbcf0] bg-[#edf4ff] text-[#174b91]"
+                  : "border-transparent text-app-text-soft hover:bg-[#ecece9]"
               )}
               onClick={() => {
                 setSelectedId(item.id)
-                setSelectedTextIndex(0)
+                setSelectedTextIndex(null)
+                setInspectorTab("design")
               }}
+              aria-current={item.id === design.id ? "true" : undefined}
             >
-              <span className="grid size-7 shrink-0 place-items-center rounded-md bg-[#ecebe5] text-[12px] font-bold">
+              <span
+                className={cn(
+                  "grid size-7 shrink-0 place-items-center rounded text-[11px] font-bold tabular-nums",
+                  item.id === design.id ? "bg-white" : "bg-[#e8e8e4]"
+                )}
+              >
                 {index + 1}
               </span>
               <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
@@ -216,167 +241,397 @@ export function SlideSequencePanel({
           ))}
         </div>
 
-        <div className="space-y-4 p-4">
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              className="grid size-8 place-items-center rounded-lg border border-app-panel-border bg-app-surface disabled:opacity-35"
-              disabled={selectedIndex === 0}
-              onClick={() => moveDesign(-1)}
-              aria-label="Move slide design up"
-            >
-              <IconArrowUp className="size-4" />
-            </button>
-            <button
-              type="button"
-              className="grid size-8 place-items-center rounded-lg border border-app-panel-border bg-app-surface disabled:opacity-35"
-              disabled={selectedIndex === designs.length - 1}
-              onClick={() => moveDesign(1)}
-              aria-label="Move slide design down"
-            >
-              <IconArrowDown className="size-4" />
-            </button>
-            <button
-              type="button"
-              className="ml-auto grid size-8 place-items-center rounded-lg border border-app-panel-border bg-app-surface"
-              onClick={() => addDesign(design)}
-              aria-label="Duplicate slide design"
-            >
-              <IconCopy className="size-4" />
-            </button>
-            <button
-              type="button"
-              className="grid size-8 place-items-center rounded-lg border border-[#ead1d1] bg-app-surface text-[#c54b4b] disabled:opacity-35"
-              disabled={designs.length <= 1}
-              onClick={removeDesign}
-              aria-label="Delete slide design"
-            >
-              <IconTrash className="size-4" />
-            </button>
-          </div>
-
-          <label className="block space-y-1.5">
-            <span className="text-xs font-semibold text-app-muted-text">
-              Name
-            </span>
-            <input
-              className="h-9 w-full rounded-lg border border-app-panel-border bg-app-surface px-3 text-[13px] font-semibold outline-none"
-              value={design.name}
-              onChange={(event) => updateDesign({ name: event.target.value })}
-            />
-          </label>
-
-          <label className="block space-y-1.5">
-            <span className="text-xs font-semibold text-app-muted-text">
-              When to use this design
-            </span>
-            <textarea
-              className="h-20 w-full resize-none rounded-lg border border-app-panel-border bg-app-surface p-3 text-[12px] font-medium outline-none"
-              value={design.instructions}
-              onChange={(event) =>
-                updateDesign({ instructions: event.target.value })
-              }
-              placeholder="Opening claim, explanation, list item, final thought…"
-            />
-          </label>
-
-          <CollectionSelector
-            label="Image collection"
-            collection={collection}
-            collections={photoCollections}
-            showPictures={false}
-            onChange={(collectionId) => updateDesign({ collectionId })}
-            onCreateCollection={onCreateCollection}
-          />
-
-          <label className="block space-y-1.5">
-            <span className="text-xs font-semibold text-app-muted-text">
-              Visual preset
-            </span>
-            <SelectLike
-              value={activePreset?.name ?? "Custom"}
-              options={[
-                "Custom",
-                ...slideshowVisualPresets.map((preset) => preset.name),
-              ]}
-              onChange={applyPreset}
-            />
-          </label>
-
-          <div className="grid grid-cols-2 gap-2">
-            <SelectLike
-              value={aspectRatioLabel(design.aspect_ratio)}
-              options={automationAspectRatios.map(aspectRatioLabel)}
-              onChange={(value) =>
-                updateDesign({ aspect_ratio: labelToAspectRatio(value) })
-              }
-            />
-            <SelectLike
-              value={imageGridLabel(design.imageGrid)}
-              options={automationImageGrids.map(imageGridLabel)}
-              onChange={(value) =>
-                updateDesign({ imageGrid: labelToImageGrid(value) })
-              }
-            />
-          </div>
-
-          <ControlToggle
-            label="Display text"
-            enabled={!design.noText}
-            onClick={() => updateDesign({ noText: !design.noText })}
-          />
-          <ControlToggle
-            label="Dark overlay"
-            enabled={design.overlay}
-            onClick={() => updateDesign({ overlay: !design.overlay })}
-          />
-          <ControlToggle
-            label="AI image matching"
-            enabled={design.aiImageSelection === true}
-            onClick={() =>
-              updateDesign({ aiImageSelection: !design.aiImageSelection })
-            }
-          />
+        <div className="flex h-12 shrink-0 items-center gap-1 border-t border-app-panel-border px-2">
+          <CanvasIconButton
+            label="Move slide up"
+            disabled={selectedIndex === 0}
+            onClick={() => moveDesign(-1)}
+          >
+            <IconArrowUp className="size-4" />
+          </CanvasIconButton>
+          <CanvasIconButton
+            label="Move slide down"
+            disabled={selectedIndex === designs.length - 1}
+            onClick={() => moveDesign(1)}
+          >
+            <IconArrowDown className="size-4" />
+          </CanvasIconButton>
+          <span className="flex-1" />
+          <CanvasIconButton
+            label="Duplicate slide"
+            onClick={() => addDesign(design)}
+          >
+            <IconCopy className="size-4" />
+          </CanvasIconButton>
+          <CanvasIconButton
+            label="Delete slide"
+            danger
+            disabled={designs.length <= 1}
+            onClick={removeDesign}
+          >
+            <IconTrash className="size-4" />
+          </CanvasIconButton>
         </div>
       </aside>
 
-      <main className="flex min-h-[620px] min-w-0 flex-col items-center justify-center gap-5 overflow-auto p-6 lg:min-h-0">
-        <AutomationFormatPreviewCard
-          item={previewItem}
-          index={selectedIndex}
-          active
-          compact
-          slotWidth={320}
-          zoom={1}
-          selectedTextIndex={selectedTextIndex}
-          onSelect={() => setSelectedTextIndex(null)}
-          onSelectText={setSelectedTextIndex}
-          onClearTextSelection={() => setSelectedTextIndex(null)}
-          onTransformText={(textIndex, patch) => {
-            setSelectedTextIndex(textIndex)
-            updateDesign({
-              textItems: design.textItems.map((item, itemIndex) =>
-                itemIndex === textIndex ? { ...item, ...patch } : item
-              ),
-            })
-          }}
-          onAddText={addTextItem}
-        />
-        {!design.noText ? (
-          <div className="w-full max-w-[640px] overflow-hidden rounded-xl">
-            <AutomationFormatTextToolbar
-              mode="Content"
-              layout="inline"
-              textItem={textItem}
-              updateTextItem={updateTextItem}
-              onDelete={deleteTextItem}
-              onAdd={addTextItem}
-              locked={Boolean(activePreset)}
-            />
+      <main className="relative flex min-h-[580px] min-w-0 flex-col overflow-hidden bg-[#d7d7d3] lg:min-h-0">
+        <div className="flex h-12 shrink-0 items-center gap-2 border-b border-black/10 bg-[#eeeeeb] px-3">
+          <div className="flex h-8 items-center gap-2 rounded-md bg-white px-2.5 text-[12px] font-semibold text-app-text shadow-sm ring-1 ring-black/7">
+            <IconPointer className="size-4 text-[#3478d4]" />
+            Select
           </div>
-        ) : null}
+          <span className="text-[11px] font-semibold text-app-text-faint">
+            {aspectRatioLabel(design.aspect_ratio)}
+          </span>
+          <span className="flex-1" />
+          <CanvasIconButton
+            label="Zoom out"
+            disabled={canvasZoom <= 0.65}
+            onClick={() =>
+              setCanvasZoom((value) => Math.max(0.65, value - 0.1))
+            }
+          >
+            <IconMinus className="size-4" />
+          </CanvasIconButton>
+          <button
+            type="button"
+            className="h-8 min-w-14 rounded-md px-2 text-[11px] font-bold text-app-text-soft tabular-nums hover:bg-white"
+            onClick={() => setCanvasZoom(1)}
+            aria-label="Reset canvas zoom"
+            title="Reset zoom"
+          >
+            {Math.round(canvasZoom * 100)}%
+          </button>
+          <CanvasIconButton
+            label="Zoom in"
+            disabled={canvasZoom >= 1.5}
+            onClick={() => setCanvasZoom((value) => Math.min(1.5, value + 0.1))}
+          >
+            <IconPlus className="size-4" />
+          </CanvasIconButton>
+          <CanvasIconButton label="Fit canvas" onClick={() => setCanvasZoom(1)}>
+            <IconFocusCentered className="size-4" />
+          </CanvasIconButton>
+        </div>
+
+        <div
+          className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-8"
+          onWheel={(event) => {
+            if (!event.ctrlKey && !event.metaKey) return
+            event.preventDefault()
+            setCanvasZoom((value) =>
+              Math.max(0.65, Math.min(1.5, value - event.deltaY * 0.002))
+            )
+          }}
+        >
+          <AutomationFormatPreviewCard
+            item={previewItem}
+            index={selectedIndex}
+            active
+            showLabel={false}
+            slotWidth={430}
+            zoom={canvasZoom}
+            selectedTextIndex={selectedTextIndex}
+            onSelect={() => {
+              setSelectedTextIndex(null)
+              setInspectorTab("design")
+            }}
+            onSelectText={(textIndex) => {
+              setSelectedTextIndex(textIndex)
+              setInspectorTab("text")
+            }}
+            onClearTextSelection={() => {
+              setSelectedTextIndex(null)
+              setInspectorTab("design")
+            }}
+            onTransformText={(textIndex, patch) => {
+              setSelectedTextIndex(textIndex)
+              setInspectorTab("text")
+              updateDesign({
+                textItems: design.textItems.map((item, itemIndex) =>
+                  itemIndex === textIndex ? { ...item, ...patch } : item
+                ),
+              })
+            }}
+            onAddText={addTextItem}
+          />
+        </div>
+
+        <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-md bg-black/68 px-3 py-1.5 text-[10px] font-medium whitespace-nowrap text-white/90 backdrop-blur-sm">
+          Drag text to move · side handles resize · ⌘/Ctrl + scroll zooms
+        </div>
       </main>
+
+      <aside className="flex min-h-0 flex-col border-t border-app-panel-border bg-[#f7f7f5] lg:border-t-0 lg:border-l">
+        <div
+          className="grid h-12 shrink-0 grid-cols-2 border-b border-app-panel-border p-1.5"
+          role="tablist"
+          aria-label="Slide inspector"
+        >
+          <InspectorTab
+            active={inspectorTab === "design"}
+            label="Design"
+            onClick={() => {
+              setInspectorTab("design")
+              setSelectedTextIndex(null)
+            }}
+          >
+            <IconAdjustments className="size-4" />
+          </InspectorTab>
+          <InspectorTab
+            active={inspectorTab === "text"}
+            label="Text"
+            onClick={() => {
+              setInspectorTab("text")
+              setSelectedTextIndex((current) => current ?? 0)
+            }}
+          >
+            <IconTypography className="size-4" />
+          </InspectorTab>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          {inspectorTab === "design" ? (
+            <div className="space-y-5">
+              <InspectorSection title="Slide">
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-semibold text-app-muted-text">
+                    Name
+                  </span>
+                  <input
+                    className="h-9 w-full rounded-md border border-app-panel-border bg-white px-3 text-[13px] font-semibold transition outline-none focus:border-[#6d9fe1] focus:ring-2 focus:ring-[#6d9fe1]/15"
+                    value={design.name}
+                    onChange={(event) =>
+                      updateDesign({ name: event.target.value })
+                    }
+                  />
+                </label>
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-semibold text-app-muted-text">
+                    Usage
+                  </span>
+                  <textarea
+                    className="h-20 w-full resize-none rounded-md border border-app-panel-border bg-white p-3 text-[12px] font-medium transition outline-none placeholder:text-app-text-faint focus:border-[#6d9fe1] focus:ring-2 focus:ring-[#6d9fe1]/15"
+                    value={design.instructions}
+                    onChange={(event) =>
+                      updateDesign({ instructions: event.target.value })
+                    }
+                    placeholder="Opening claim, explanation, list item…"
+                  />
+                </label>
+              </InspectorSection>
+
+              <InspectorSection title="Media">
+                <CollectionSelector
+                  label="Image collection"
+                  collection={collection}
+                  collections={photoCollections}
+                  showPictures={false}
+                  onChange={(collectionId) => updateDesign({ collectionId })}
+                  onCreateCollection={onCreateCollection}
+                />
+                <ControlToggle
+                  label="AI image matching"
+                  enabled={design.aiImageSelection === true}
+                  onClick={() =>
+                    updateDesign({
+                      aiImageSelection: !design.aiImageSelection,
+                    })
+                  }
+                />
+              </InspectorSection>
+
+              <InspectorSection title="Layout">
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-semibold text-app-muted-text">
+                    Visual preset
+                  </span>
+                  <SelectLike
+                    value={activePreset?.name ?? "Custom"}
+                    options={[
+                      "Custom",
+                      ...slideshowVisualPresets.map((preset) => preset.name),
+                    ]}
+                    onChange={applyPreset}
+                  />
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="space-y-1.5">
+                    <span className="text-xs font-semibold text-app-muted-text">
+                      Ratio
+                    </span>
+                    <SelectLike
+                      value={aspectRatioLabel(design.aspect_ratio)}
+                      options={automationAspectRatios.map(aspectRatioLabel)}
+                      onChange={(value) =>
+                        updateDesign({
+                          aspect_ratio: labelToAspectRatio(value),
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-xs font-semibold text-app-muted-text">
+                      Image grid
+                    </span>
+                    <SelectLike
+                      value={imageGridLabel(design.imageGrid)}
+                      options={automationImageGrids.map(imageGridLabel)}
+                      onChange={(value) =>
+                        updateDesign({ imageGrid: labelToImageGrid(value) })
+                      }
+                    />
+                  </label>
+                </div>
+                <ControlToggle
+                  label="Display text"
+                  enabled={!design.noText}
+                  onClick={() => updateDesign({ noText: !design.noText })}
+                />
+                <ControlToggle
+                  label="Dark overlay"
+                  enabled={design.overlay}
+                  onClick={() => updateDesign({ overlay: !design.overlay })}
+                />
+              </InspectorSection>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-1.5">
+                {design.textItems.map((item, index) => (
+                  <button
+                    key={item.id ?? index}
+                    type="button"
+                    className={cn(
+                      "max-w-full truncate rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition",
+                      selectedTextIndex === index
+                        ? "border-[#8bb3ea] bg-[#edf4ff] text-[#174b91]"
+                        : "border-app-panel-border bg-white text-app-text-soft hover:bg-app-control-hover"
+                    )}
+                    onClick={() => setSelectedTextIndex(index)}
+                  >
+                    {item.staticText ||
+                      item.contentDirection ||
+                      `Text ${index + 1}`}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="grid size-7 place-items-center rounded-md border border-app-panel-border bg-white text-app-text-soft hover:bg-app-control-hover"
+                  onClick={addTextItem}
+                  aria-label="Add text layer"
+                  title="Add text layer"
+                >
+                  <IconPlus className="size-3.5" />
+                </button>
+              </div>
+              <div className="rounded-md bg-[#ecece8] px-3 py-2 text-[11px] leading-4 font-medium text-app-muted-text">
+                Select text on the canvas, then drag it or resize it with the
+                side handles.
+              </div>
+              {!design.noText ? (
+                <AutomationFormatTextToolbar
+                  mode="Content"
+                  layout="inspector"
+                  textItem={textItem}
+                  updateTextItem={updateTextItem}
+                  onDelete={deleteTextItem}
+                  onAdd={addTextItem}
+                  locked={Boolean(activePreset)}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="h-9 w-full rounded-md bg-app-strong text-[12px] font-semibold text-white"
+                  onClick={() => updateDesign({ noText: false })}
+                >
+                  Enable text
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </aside>
     </div>
+  )
+}
+
+function CanvasIconButton({
+  children,
+  label,
+  danger = false,
+  disabled = false,
+  onClick,
+}: {
+  children: ReactNode
+  label: string
+  danger?: boolean
+  disabled?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "lc-focus-ring grid size-8 place-items-center rounded-md transition disabled:pointer-events-none disabled:opacity-30",
+        danger
+          ? "text-[#b33f3f] hover:bg-[#f8eaea]"
+          : "text-app-text-soft hover:bg-white"
+      )}
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+    >
+      {children}
+    </button>
+  )
+}
+
+function InspectorTab({
+  active,
+  children,
+  label,
+  onClick,
+}: {
+  active: boolean
+  children: ReactNode
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      className={cn(
+        "flex items-center justify-center gap-1.5 rounded-md text-[12px] font-semibold transition",
+        active
+          ? "bg-white text-app-text shadow-sm ring-1 ring-black/7"
+          : "text-app-text-faint hover:text-app-text"
+      )}
+      onClick={onClick}
+    >
+      {children}
+      {label}
+    </button>
+  )
+}
+
+function InspectorSection({
+  children,
+  title,
+}: {
+  children: ReactNode
+  title: string
+}) {
+  return (
+    <section className="space-y-3 border-b border-app-panel-border pb-5 last:border-b-0 last:pb-0">
+      <h3 className="text-[11px] font-bold tracking-[0.08em] text-app-text-faint uppercase">
+        {title}
+      </h3>
+      {children}
+    </section>
   )
 }
 
