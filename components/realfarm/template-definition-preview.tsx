@@ -17,7 +17,7 @@ import { findCollectionByIdOrAlias } from "@/lib/realfarm-collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
 import type {
   AutomationSchema,
-  AutomationTextItem,
+  TextItem,
 } from "@/lib/realfarm-automation"
 import type { XAutomationRecord } from "@/lib/x-automation"
 
@@ -291,7 +291,7 @@ function isVideoUrl(url: string) {
 }
 
 function templateTextPreview(
-  textItem: AutomationTextItem | undefined,
+  textItem: TextItem | undefined,
   fallback: string
 ) {
   if (textItem?.textMode === "static") {
