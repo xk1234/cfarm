@@ -5,6 +5,7 @@ import {
   automationSlideDesigns,
   defaultAutomationSchema,
   schemaWithAutomationHookItems,
+  schemaWithAutomationSharedSlideStyle,
 } from "@/lib/realfarm-automation"
 import type { Automation } from "@/lib/realfarm-data"
 import { automationSchemaToTempSlideTestingAutomation } from "@/lib/temp-slide-testing"
@@ -62,6 +63,27 @@ describe("sequence-based slideshow templates", () => {
     expect(runtime.slides[0]?.textItems[0]?.contentDirection).toContain(
       "Explain the idea"
     )
+  })
+
+  it("applies global ratio and image grid settings to every slide", () => {
+    const schema = defaultAutomationSchema(automation)
+    const updated = schemaWithAutomationSharedSlideStyle(schema, {
+      aspectRatio: "9:16",
+      imageGrid: "2x2",
+    })
+
+    expect(updated.aspect_ratio).toBe("9:16")
+    expect(
+      automationSlideDesigns(updated).every(
+        (design) => design.aspect_ratio === "9:16" && design.imageGrid === "2x2"
+      )
+    ).toBe(true)
+    expect(
+      updated.formatting.every(
+        (section) =>
+          section.aspect_ratio === "9:16" && section.imageGrid === "2x2"
+      )
+    ).toBe(true)
   })
 
   it("lets the text model choose a valid count and ordered design IDs", async () => {

@@ -18,14 +18,8 @@ import { CollectionSelector } from "@/components/realfarm/collection-selector"
 import { ControlToggle } from "@/components/realfarm/shared-media"
 import { SelectLike } from "@/components/ui/form-controls"
 import {
-  aspectRatioLabel,
-  automationAspectRatios,
-  automationImageGrids,
   automationSlideDesigns,
   defaultAutomationTextItem,
-  imageGridLabel,
-  labelToAspectRatio,
-  labelToImageGrid,
   schemaWithAutomationSlideDesigns,
   type AutomationFormatSection,
   type AutomationSchema,
@@ -77,8 +71,9 @@ export function SlideSequencePanel({
     ? findCollectionByIdOrAlias(photoCollections, design.collectionId)
     : undefined
   const previewItem = useMemo(
-    () => (design ? designPreviewItem(design, collection) : null),
-    [collection, design]
+    () =>
+      design ? designPreviewItem(design, collection, selectedIndex) : null,
+    [collection, design, selectedIndex]
   )
   const textItem =
     design?.textItems[selectedTextIndex ?? 0] ?? defaultAutomationTextItem()
@@ -109,7 +104,10 @@ export function SlideSequencePanel({
             id: `text-${crypto.randomUUID()}`,
           })),
         }
-      : newSlideDesign(id, designs.length + 1)
+      : newSlideDesign(id, designs.length + 1, {
+          aspectRatio: design?.aspect_ratio ?? config.aspect_ratio,
+          imageGrid: design?.imageGrid ?? "none",
+        })
     save([...designs, next])
     setSelectedId(id)
     setSelectedTextIndex(null)
@@ -235,7 +233,7 @@ export function SlideSequencePanel({
                 {index + 1}
               </span>
               <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-                {item.name}
+                Slide {index + 1}
               </span>
             </button>
           ))}
@@ -281,7 +279,7 @@ export function SlideSequencePanel({
             Select
           </div>
           <span className="text-[11px] font-semibold text-app-text-faint">
-            {aspectRatioLabel(design.aspect_ratio)}
+            {design.aspect_ratio}
           </span>
           <span className="flex-1" />
           <CanvasIconButton
@@ -396,18 +394,6 @@ export function SlideSequencePanel({
               <InspectorSection title="Slide">
                 <label className="block space-y-1.5">
                   <span className="text-xs font-semibold text-app-muted-text">
-                    Name
-                  </span>
-                  <input
-                    className="h-9 w-full rounded-md border border-app-panel-border bg-white px-3 text-[13px] font-semibold transition outline-none focus:border-[#6d9fe1] focus:ring-2 focus:ring-[#6d9fe1]/15"
-                    value={design.name}
-                    onChange={(event) =>
-                      updateDesign({ name: event.target.value })
-                    }
-                  />
-                </label>
-                <label className="block space-y-1.5">
-                  <span className="text-xs font-semibold text-app-muted-text">
                     Usage
                   </span>
                   <textarea
@@ -455,39 +441,6 @@ export function SlideSequencePanel({
                     onChange={applyPreset}
                   />
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="space-y-1.5">
-                    <span className="text-xs font-semibold text-app-muted-text">
-                      Ratio
-                    </span>
-                    <SelectLike
-                      value={aspectRatioLabel(design.aspect_ratio)}
-                      options={automationAspectRatios.map(aspectRatioLabel)}
-                      onChange={(value) =>
-                        updateDesign({
-                          aspect_ratio: labelToAspectRatio(value),
-                        })
-                      }
-                    />
-                  </label>
-                  <label className="space-y-1.5">
-                    <span className="text-xs font-semibold text-app-muted-text">
-                      Image grid
-                    </span>
-                    <SelectLike
-                      value={imageGridLabel(design.imageGrid)}
-                      options={automationImageGrids.map(imageGridLabel)}
-                      onChange={(value) =>
-                        updateDesign({ imageGrid: labelToImageGrid(value) })
-                      }
-                    />
-                  </label>
-                </div>
-                <ControlToggle
-                  label="Display text"
-                  enabled={!design.noText}
-                  onClick={() => updateDesign({ noText: !design.noText })}
-                />
                 <ControlToggle
                   label="Dark overlay"
                   enabled={design.overlay}
@@ -529,25 +482,15 @@ export function SlideSequencePanel({
                 Select text on the canvas, then drag it or resize it with the
                 side handles.
               </div>
-              {!design.noText ? (
-                <AutomationFormatTextToolbar
-                  mode="Content"
-                  layout="inspector"
-                  textItem={textItem}
-                  updateTextItem={updateTextItem}
-                  onDelete={deleteTextItem}
-                  onAdd={addTextItem}
-                  locked={Boolean(activePreset)}
-                />
-              ) : (
-                <button
-                  type="button"
-                  className="h-9 w-full rounded-md bg-app-strong text-[12px] font-semibold text-white"
-                  onClick={() => updateDesign({ noText: false })}
-                >
-                  Enable text
-                </button>
-              )}
+              <AutomationFormatTextToolbar
+                mode="Content"
+                layout="inspector"
+                textItem={textItem}
+                updateTextItem={updateTextItem}
+                onDelete={deleteTextItem}
+                onAdd={addTextItem}
+                locked={Boolean(activePreset)}
+              />
             </div>
           )}
         </div>
@@ -635,15 +578,22 @@ function InspectorSection({
   )
 }
 
-function newSlideDesign(id: string, index: number): AutomationSlideDesign {
+function newSlideDesign(
+  id: string,
+  index: number,
+  layout: {
+    aspectRatio: AutomationSlideDesign["aspect_ratio"]
+    imageGrid: AutomationSlideDesign["imageGrid"]
+  }
+): AutomationSlideDesign {
   return {
     id,
     name: `Slide ${index}`,
     instructions: "",
     collectionId: "",
     textItems: [defaultAutomationTextItem()],
-    aspect_ratio: "4:5",
-    imageGrid: "none",
+    aspect_ratio: layout.aspectRatio,
+    imageGrid: layout.imageGrid,
     noText: false,
     overlay: true,
     aiImageSelection: false,
@@ -666,8 +616,6 @@ function designPatchFromSection(
 ): Partial<AutomationSlideDesign> {
   return {
     textItems: section.textItems,
-    aspect_ratio: section.aspect_ratio,
-    imageGrid: section.imageGrid,
     noText: section.noText,
     overlay: section.overlay,
     aiImageSelection: section.aiImageSelection,
@@ -679,18 +627,19 @@ function designPatchFromSection(
 
 function designPreviewItem(
   design: AutomationSlideDesign,
-  collection?: CreatedImageCollection
+  collection: CreatedImageCollection | undefined,
+  index: number
 ): AutomationFormatPreviewItem {
   return {
     id: design.id,
     role: "content",
     tab: "Content",
-    label: design.name,
+    label: `Slide ${index + 1}`,
     section: slideDesignSection(design),
     image: collection?.images[0],
     images: collection?.images ?? [],
     overlayImages: [],
-    text: design.textItems[0]?.staticText || design.name,
+    text: design.textItems[0]?.staticText || "Slide text",
     textItem: design.textItems[0] ?? defaultAutomationTextItem(),
     textItems: design.textItems,
   }

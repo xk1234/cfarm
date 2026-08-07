@@ -19,6 +19,7 @@ import {
   previewSlideshowSlide,
   type AutomationFormatPreviewItem,
 } from "./format-helpers"
+import { clickTargetsSlideshowTextEditor } from "./slide-editor-events"
 
 const KonvaTextOverlay = dynamic(
   () =>
@@ -94,7 +95,10 @@ export function AutomationFormatPreviewCard({
       style={{ width: slotWidth, minWidth: slotWidth, maxWidth: slotWidth }}
       role="button"
       tabIndex={0}
-      onClick={onSelect}
+      onClick={(event) => {
+        if (clickTargetsSlideshowTextEditor(event.target)) return
+        onSelect()
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           onSelect()
