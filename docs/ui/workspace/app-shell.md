@@ -29,9 +29,9 @@ clear it. An open template editor can use the full content region without the
 standard page padding.
 
 The active destination is initialized from the `view` query parameter. Home,
-Compose, Schedule, Analytics, Collections, Templates, and Published posts render
-inside the same shell. A template or run deep link adds `template=<id>` or
-`run=<id>` to the Templates workspace address.
+Compose, Schedule, Analytics, Collections, and Templates render inside the same
+shell. A template or run deep link adds `template=<id>` or `run=<id>` to the
+Templates workspace address.
 
 ## Interactions
 

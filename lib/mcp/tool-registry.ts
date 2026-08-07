@@ -71,9 +71,6 @@ export const LUMENCLIP_MCP_TOOLS = [
   { name: "lumenclip_output_publish", category: "publishing" },
   { name: "lumenclip_output_mark_published", category: "publishing" },
   { name: "lumenclip_analytics_report", category: "analytics" },
-  { name: "lumenclip_tiktok_import_start", category: "publishing" },
-  { name: "lumenclip_tiktok_import_preview", category: "publishing" },
-  { name: "lumenclip_tiktok_publications_link", category: "publishing" },
   {
     name: "lumenclip_tiktok_studio_analytics_import_start",
     category: "analytics",

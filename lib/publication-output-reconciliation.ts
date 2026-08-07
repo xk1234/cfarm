@@ -32,8 +32,8 @@ export type PublicationOutputReconciliation = {
 
 /**
  * Finds only exact, time-bounded matches. A false negative is safer than
- * attaching analytics to the wrong generated output, so fuzzy matches remain
- * available to the existing manual TikTok publication importer instead.
+ * attaching analytics to the wrong generated output. Unmatched publications
+ * remain unlinked; there is no OCR or fuzzy-matching fallback.
  */
 export function matchPublicationToAutomationRun(
   post: Pick<

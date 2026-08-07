@@ -142,11 +142,6 @@ import {
   transcribeTikTokSlideshow,
 } from "@/lib/slideshow-tone-analysis"
 import {
-  inspectTikTokPublicationImport,
-  linkTikTokPublicationImport,
-  startTikTokPublicationImport,
-} from "@/lib/tiktok-publication-import"
-import {
   createTikTokStudioAnalyticsBatch,
   createTikTokStudioAnalyticsImport,
   inspectTikTokStudioAnalyticsBatch,
@@ -382,9 +377,6 @@ export type LumenClipMcpServices = {
   linkPublishedOutput: typeof linkPublishedOutput
   listMetricSnapshots: typeof listMetricSnapshots
   listFollowerSnapshots: typeof listFollowerSnapshots
-  startTikTokPublicationImport: typeof startTikTokPublicationImport
-  inspectTikTokPublicationImport: typeof inspectTikTokPublicationImport
-  linkTikTokPublicationImport: typeof linkTikTokPublicationImport
   transcribeTikTokSlideshow: typeof transcribeTikTokSlideshow
   analyzeSlideshowTone: typeof analyzeSlideshowTone
   slideshowToneToAutomationFields: typeof slideshowToneToAutomationFields
@@ -460,9 +452,6 @@ const defaultServices: LumenClipMcpServices = {
   linkPublishedOutput,
   listMetricSnapshots,
   listFollowerSnapshots,
-  startTikTokPublicationImport,
-  inspectTikTokPublicationImport,
-  linkTikTokPublicationImport,
   transcribeTikTokSlideshow,
   analyzeSlideshowTone,
   slideshowToneToAutomationFields,
@@ -1025,7 +1014,7 @@ export function createLumenClipMcpServer(
       )
   )
 
-  registerTikTokPublicationTools(server, ownerId, services)
+  registerSlideshowAnalysisTools(server, ownerId, services)
   registerTikTokStudioAnalyticsTools(server, ownerId, services)
   registerTikTokCommentTools(server, ownerId, services)
   registerPipelineTools(server, ownerId, pipelineRegistry)
@@ -5869,7 +5858,7 @@ function normalizeProvider(value: unknown) {
   return provider
 }
 
-function registerTikTokPublicationTools(
+function registerSlideshowAnalysisTools(
   server: McpServer,
   ownerId: string,
   services: LumenClipMcpServices
@@ -5879,7 +5868,7 @@ function registerTikTokPublicationTools(
     {
       title: "Analyze a TikTok slideshow tone",
       description:
-        "Transcribes every image in one public TikTok photo slideshow, analyzes its writing voice, and returns fields that can seed a matching LumenClip automation.",
+        "Transcribes one explicitly supplied TikTok photo slideshow, analyzes its writing voice, and returns tone fields that can seed a LumenClip template. It does not match or link publications.",
       inputSchema: {
         url: z
           .string()
@@ -5914,165 +5903,6 @@ function registerTikTokPublicationTools(
           }
         })
       )
-  )
-
-  server.registerTool(
-    "lumenclip_tiktok_import_start",
-    {
-      title: "Inspect TikTok photo posts",
-      description:
-        "Starts a read-only download of TikTok photo slideshows. Returns an operation ID; poll the preview tool with that ID.",
-      inputSchema: {
-        urls: z
-          .array(z.string().url())
-          .min(1)
-          .max(20)
-          .describe(
-            'Public TikTok /photo/ URLs to inspect, e.g. ["https://www.tiktok.com/@horoiq/photo/7662360324313517330"].'
-          ),
-      },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
-      },
-    },
-    async ({ urls }) =>
-      mcpResult(
-        await withSystemOwner(ownerId, () =>
-          services.startTikTokPublicationImport(urls)
-        )
-      )
-  )
-
-  server.registerTool(
-    "lumenclip_tiktok_import_preview",
-    {
-      title: "Preview TikTok slideshow matches",
-      description:
-        "Reads imported TikTok slide text and compares each post with one template's generated slideshows. Returns candidate matches and confidence; this never changes publication data.",
-      inputSchema: {
-        operationId: z
-          .string()
-          .trim()
-          .min(1)
-          .describe(
-            'TikTok import operation ID returned by tiktok_import_start, e.g. "tiktok_import_123".'
-          ),
-        templateId: z
-          .string()
-          .trim()
-          .min(1)
-          .describe(
-            "Template ID whose generated slideshows should be compared."
-          ),
-      },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: true,
-      },
-    },
-    async ({ templateId, ...input }) =>
-      mcpResult(
-        await withSystemOwner(ownerId, () =>
-          services.inspectTikTokPublicationImport({
-            ...input,
-            automationId: templateId,
-          })
-        )
-      )
-  )
-
-  server.registerTool(
-    "lumenclip_tiktok_publications_link",
-    {
-      title: "Link published TikTok slideshows",
-      description:
-        "Records selected TikTok posts as published and attributes them to generated slideshows. Returns linked publication records. Recovery creates a historical output when the local output was lost. Requires explicit confirmation.",
-      inputSchema: {
-        operationId: z
-          .string()
-          .trim()
-          .min(1)
-          .describe(
-            'TikTok import operation ID returned by tiktok_import_start, e.g. "tiktok_import_123".'
-          ),
-        templateId: z
-          .string()
-          .trim()
-          .min(1)
-          .describe("Template ID used for matching and attribution."),
-        integrationId: z
-          .string()
-          .trim()
-          .min(1)
-          .describe(
-            'Connected TikTok account ID to attach to the publications, e.g. "pf_tiktok_123".'
-          ),
-        selections: z
-          .array(
-            z
-              .object({
-                postId: z
-                  .string()
-                  .trim()
-                  .min(1)
-                  .describe(
-                    'Imported TikTok post ID from the preview result, e.g. "7662360324313517330".'
-                  ),
-                runId: z
-                  .string()
-                  .trim()
-                  .min(1)
-                  .optional()
-                  .describe(
-                    'Existing internal run ID to link, e.g. "run_123"; omit when using recover: true.'
-                  ),
-                recover: z
-                  .boolean()
-                  .optional()
-                  .describe(
-                    "Set true to recreate/link a historical output when the internal run was lost; omit when runId is provided."
-                  ),
-              })
-              .refine(
-                (selection) =>
-                  Boolean(selection.runId) !== Boolean(selection.recover),
-                "Choose exactly one runId or recover: true"
-              )
-          )
-          .min(1)
-          .max(20)
-          .describe(
-            'Reviewed link selections, e.g. [{"postId":"7662360324313517330","runId":"run_123"}] or [{"postId":"7662360324313517330","recover":true}].'
-          ),
-        confirm: z
-          .literal(true)
-          .describe(
-            "Must be literal true after the TikTok matches have been reviewed."
-          ),
-      },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: true,
-      },
-    },
-    async ({ confirm, templateId, ...input }) => {
-      void confirm
-      return mcpResult({
-        links: await withSystemOwner(ownerId, () =>
-          services.linkTikTokPublicationImport({
-            ...input,
-            automationId: templateId,
-          })
-        ),
-      })
-    }
   )
 }
 

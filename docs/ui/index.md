@@ -17,10 +17,9 @@ precedence where they disagree.
 - `/app` is one authenticated, tabbed workspace. Its visible destination is
   addressed by the `view` query parameter rather than by a route per
   destination.
-- The six workspace destinations are Home, Compose, Schedule, Analytics,
-  Collections, Templates, and Published posts. Their query values are `home`,
-  `compose`, `schedule`, `analytics`, `collections`, `templates`, and
-  `published-posts`.
+- The workspace destinations are Home, Compose, Schedule, Analytics,
+  Collections, and Templates. Their query values are `home`, `compose`,
+  `schedule`, `analytics`, `collections`, and `templates`.
 - Template deep links keep the Templates destination selected and add
   `template=<id>` or `run=<id>` to the workspace query.
 - Collection detail at `/app/collections/[id]`, post analytics at
@@ -49,7 +48,6 @@ precedence where they disagree.
 ### Home
 
 - [Home](/docs/ui/home/home)
-- [Published posts](/docs/ui/home/published-posts)
 
 ### Templates
 

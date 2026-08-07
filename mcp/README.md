@@ -82,9 +82,6 @@ may link to a shared tool but do not invent a second incompatible schema.
 - `lumenclip_output_publish`
 - `lumenclip_output_mark_published`
 - `lumenclip_analytics_report`
-- `lumenclip_tiktok_import_start`
-- `lumenclip_tiktok_import_preview`
-- `lumenclip_tiktok_publications_link`
 - `lumenclip_tiktok_studio_analytics_import_start`
 - `lumenclip_tiktok_studio_analytics_report`
 - `lumenclip_tiktok_studio_analytics_batch_start`

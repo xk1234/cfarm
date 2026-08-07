@@ -11,7 +11,7 @@ import { openRouterModelForUseCase } from "@/lib/realfarm-generation-model-regis
 import {
   extractTikTokSlideTexts,
   fetchTikTokSlideshowPost,
-} from "@/lib/tiktok-publication-import"
+} from "@/lib/tiktok-slideshow-transcription"
 
 export type TikTokSlideshowTranscript = {
   postId: string
