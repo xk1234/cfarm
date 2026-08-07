@@ -86,11 +86,6 @@ const UserSettingsModal = dynamic(() =>
     (module) => module.UserSettingsModal
   )
 )
-const TemplateFolderModal = dynamic(() =>
-  import("@/components/realfarm/templates").then(
-    (module) => module.TemplateFolderModal
-  )
-)
 
 export type AutomationRunSummary = {
   ownerId?: string
@@ -139,13 +134,11 @@ export type AutomationRunSummary = {
 export type InitialTemplateData = {
   templates: Automation[]
   schemas: Record<string, AutomationSchema>
-  exampleRunsByTemplateId: Record<string, AutomationRunSummary[]>
 }
 
 const emptyInitialTemplateData: InitialTemplateData = {
   templates: [],
   schemas: {},
-  exampleRunsByTemplateId: {},
 }
 
 async function loadRecentAutomationRuns() {
@@ -223,7 +216,6 @@ export function RealFarmWorkspace({
       ),
     [initialTemplateData.schemas]
   )
-  const templateExampleRunsById = initialTemplateData.exampleRunsByTemplateId
   const [recentRunsLoaded, setRecentRunsLoaded] = useState(false)
   const [recentRunsError, setRecentRunsError] = useState("")
   const [recentAutomationRuns, setRecentAutomationRuns] = useState<
@@ -245,7 +237,6 @@ export function RealFarmWorkspace({
   const linkedAutomationRunId = initialNavigation?.runId?.trim() ?? ""
   const [socialAccountAutomation, setSocialAccountAutomation] =
     useState<Automation | null>(null)
-  const [templateFolderOpen, setTemplateFolderOpen] = useState(false)
 
   const automations = useMemo(
     () =>
@@ -290,8 +281,7 @@ export function RealFarmWorkspace({
     toggleCollectionPin,
   } = useCollectionsData({
     assets: workspaceAssets,
-    enabled:
-      view === "collections" || view === "templates" || templateFolderOpen,
+    enabled: view === "collections" || view === "templates",
   })
   const selectedCollection =
     visibleCollections.find(
@@ -308,10 +298,6 @@ export function RealFarmWorkspace({
       {}
     )
   }, [recentAutomationRuns])
-  const showcaseRunsByAutomationId = useMemo(
-    () => ({ ...templateExampleRunsById, ...recentRunsByAutomationId }),
-    [recentRunsByAutomationId, templateExampleRunsById]
-  )
   const xTemplatesByAutomationId = useMemo(
     () =>
       Object.fromEntries(
@@ -337,7 +323,6 @@ export function RealFarmWorkspace({
 
   useEffect(() => {
     const needsAssets =
-      templateFolderOpen ||
       view === "collections" ||
       (view === "templates" &&
         Boolean(editingAutomation?.id) &&
@@ -360,7 +345,6 @@ export function RealFarmWorkspace({
   }, [
     editingAutomation?.automationKind,
     editingAutomation?.id,
-    templateFolderOpen,
     view,
     workspaceAssetsLoaded,
   ])
@@ -741,15 +725,50 @@ export function RealFarmWorkspace({
       .finally(() => setRecentRunsLoaded(true))
   }
 
+  function useStarterTemplate(automation: Automation) {
+    const templateSource = mergeAutomationSchema(
+      automation,
+      templateConfigEdits[automation.id]
+    )
+    void createLocalAutomation({
+      name: automation.name,
+      automationKind: automation.automationKind,
+      template: {
+        automationKind: templateSource.automationKind,
+        aspect_ratio: templateSource.aspect_ratio,
+        font: templateSource.font,
+        image_fit: templateSource.image_fit,
+        language: templateSource.language,
+        prompt_formatting: templateSource.prompt_formatting,
+        image_collection_ids: templateSource.image_collection_ids,
+        tone: templateSource.tone,
+        formatting: templateSource.formatting,
+        tiktok_post_settings: templateSource.tiktok_post_settings,
+        web_search_enabled: templateSource.web_search_enabled,
+        video_format: templateSource.video_format,
+      },
+    })
+      .then((createdAutomation) => {
+        toast.success(`Created “${createdAutomation.name}”`)
+        setView("templates")
+        setEditingAutomation(createdAutomation)
+      })
+      .catch((error) => {
+        toast.error(getApiErrorMessage(error, "Could not create template"))
+      })
+  }
+
   const renderTemplatesView = () => (
     <TemplatesView
       automations={automations}
       automationsLoading={!persistedAutomationsLoaded || !xAutomationsLoaded}
       schemasByAutomationId={automationConfigEdits}
+      starterTemplates={templateAutomations}
+      starterSchemasByAutomationId={templateConfigEdits}
       collections={visibleCollections}
       demoVideos={workspaceAssets.demoVideos}
       xTemplatesByAutomationId={xTemplatesByAutomationId}
-      onCreateNew={() => setTemplateFolderOpen(true)}
+      onUseStarterTemplate={useStarterTemplate}
       onCreateFromTone={async (fields) => {
         const automation = await createLocalAutomation({
           name: "Matched TikTok slideshow",
@@ -816,13 +835,11 @@ export function RealFarmWorkspace({
           data={data}
           view={view}
           onViewChange={changeView}
-          onNewTemplate={() => setTemplateFolderOpen(true)}
           onSettings={() => setSettingsOpen(true)}
         />
         <MobileNavigation
           view={view}
           onViewChange={changeView}
-          onNewTemplate={() => setTemplateFolderOpen(true)}
           onSettings={() => setSettingsOpen(true)}
         />
         <section className="min-w-0 flex-1 overflow-y-auto px-4 pt-[4.5rem] pb-4 sm:px-5 sm:pt-[4.75rem] sm:pb-5 md:py-5 lg:px-7">
@@ -833,8 +850,6 @@ export function RealFarmWorkspace({
               automationsLoading={
                 !persistedAutomationsLoaded || !xAutomationsLoaded
               }
-              templates={templateAutomations}
-              recentRunsByAutomationId={showcaseRunsByAutomationId}
               publishedPostDates={publishedPostDates}
               generatedRunsByAutomationId={recentRunsByAutomationId}
               generatedRunsLoading={!recentRunsLoaded}
@@ -842,34 +857,6 @@ export function RealFarmWorkspace({
               onRetryGeneratedRuns={() => {
                 setRecentRunsLoaded(false)
                 refreshRecentAutomationRuns()
-              }}
-              onCreate={() => setTemplateFolderOpen(true)}
-              onUseTemplate={(automation) => {
-                const templateSource = mergeAutomationSchema(
-                  automation,
-                  templateConfigEdits[automation.id]
-                )
-                void createLocalAutomation({
-                  name: automation.name,
-                  template: {
-                    automationKind: templateSource.automationKind,
-                    aspect_ratio: templateSource.aspect_ratio,
-                    font: templateSource.font,
-                    image_fit: templateSource.image_fit,
-                    language: templateSource.language,
-                    prompt_formatting: templateSource.prompt_formatting,
-                    image_collection_ids: templateSource.image_collection_ids,
-                    tone: templateSource.tone,
-                    formatting: templateSource.formatting,
-                    tiktok_post_settings: templateSource.tiktok_post_settings,
-                  },
-                })
-                  .then((createdAutomation) => {
-                    toast.success(`Created “${createdAutomation.name}”`)
-                    setView("templates")
-                    setEditingAutomation(createdAutomation)
-                  })
-                  .catch(() => undefined)
               }}
               onAutomations={showAutomationList}
               onGenerationRunRemove={removeRecentAutomationRun}
@@ -1135,130 +1122,6 @@ export function RealFarmWorkspace({
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}
-      {templateFolderOpen && (
-        <TemplateFolderModal
-          templates={templateAutomations}
-          collections={visibleCollections}
-          recentRunsByAutomationId={showcaseRunsByAutomationId}
-          onClose={() => setTemplateFolderOpen(false)}
-          onCreateVideoTemplate={async ({ name, schema }) => {
-            const automation = await createLocalAutomation({
-              name,
-              automationKind: schema.automationKind,
-              schema,
-            })
-            setTemplateFolderOpen(false)
-            setView("templates")
-            setEditingAutomation(automation)
-          }}
-          onCreateCollection={(collection) => {
-            void commitCollection(
-              collections.find((item) => item.id === collection.id) ?? null,
-              collection,
-              "Failed to save the collection"
-            )
-          }}
-          onCreateBlank={(automationKind, platform) => {
-            if (automationKind === "x_threads") {
-              const selectedPlatform = platform === "threads" ? "threads" : "x"
-              void fetch("/api/social-templates", {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({
-                  name:
-                    selectedPlatform === "threads"
-                      ? "New Threads template"
-                      : "New X template",
-                  platform: selectedPlatform,
-                }),
-              })
-                .then(async (response) => {
-                  if (!response.ok)
-                    throw new Error(
-                      `Could not create ${selectedPlatform === "threads" ? "Threads" : "X"} template`
-                    )
-                  return response.json() as Promise<{
-                    template: XAutomationRecord
-                  }>
-                })
-                .then(({ template }) => {
-                  setXAutomations((items) => [template, ...items])
-                  setTemplateFolderOpen(false)
-                  setView("templates")
-                  setEditingAutomation({
-                    id: template.id,
-                    name: template.name,
-                    automationKind: "x_threads",
-                    platform: template.platform,
-                    status: template.status,
-                    account: "No social account",
-                    handle: template.platform === "threads" ? "Threads" : "X",
-                    times: [],
-                    favorite: false,
-                    theme: "x_threads",
-                    socialIntegrations: template.publishing.integrations,
-                    created_at: template.createdAt,
-                  })
-                })
-                .catch((error) => {
-                  toast.error(
-                    getApiErrorMessage(
-                      error,
-                      `Could not create ${selectedPlatform === "threads" ? "Threads" : "X"} template`
-                    )
-                  )
-                })
-              return
-            }
-            void createLocalAutomation({ automationKind })
-              .then((automation) => {
-                setTemplateFolderOpen(false)
-                setView("templates")
-                setEditingAutomation(automation)
-              })
-              .catch((error) => {
-                toast.error(
-                  getApiErrorMessage(error, "Could not create template")
-                )
-              })
-          }}
-          onUseTemplate={(automation) => {
-            const templateSource = mergeAutomationSchema(
-              automation,
-              templateConfigEdits[automation.id]
-            )
-            void createLocalAutomation({
-              name: automation.name,
-              automationKind: automation.automationKind,
-              template: {
-                automationKind: templateSource.automationKind,
-                aspect_ratio: templateSource.aspect_ratio,
-                font: templateSource.font,
-                image_fit: templateSource.image_fit,
-                language: templateSource.language,
-                prompt_formatting: templateSource.prompt_formatting,
-                image_collection_ids: templateSource.image_collection_ids,
-                tone: templateSource.tone,
-                formatting: templateSource.formatting,
-                tiktok_post_settings: templateSource.tiktok_post_settings,
-                web_search_enabled: templateSource.web_search_enabled,
-                video_format: templateSource.video_format,
-              },
-            })
-              .then((createdAutomation) => {
-                toast.success(`Created “${createdAutomation.name}”`)
-                setTemplateFolderOpen(false)
-                setView("templates")
-                setEditingAutomation(createdAutomation)
-              })
-              .catch((error) => {
-                toast.error(
-                  getApiErrorMessage(error, "Could not create template")
-                )
-              })
-          }}
-        />
-      )}
     </main>
   )
 }

@@ -11,12 +11,8 @@ describe("HomeView", () => {
         automations={[]}
         automationsLoading={false}
         publishedPostDates={[]}
-        templates={[]}
-        recentRunsByAutomationId={{}}
         generatedRunsByAutomationId={{}}
         onRetryGeneratedRuns={vi.fn()}
-        onCreate={vi.fn()}
-        onUseTemplate={vi.fn()}
         onAutomations={vi.fn()}
         onGenerationRunRemove={vi.fn()}
       />
@@ -27,6 +23,8 @@ describe("HomeView", () => {
     expect(markup).toContain("Saved templates")
     expect(markup).toContain("Recent generations")
     expect(markup).toContain("Outstanding actions")
+    expect(markup).not.toContain("New template")
+    expect(markup).not.toContain("Start from a proven workflow")
     expect(markup).not.toContain("Page 1 of 1")
     expect(markup).not.toContain('aria-label="Previous page"')
   })
@@ -38,8 +36,6 @@ describe("HomeView", () => {
         automations={[]}
         automationsLoading={false}
         publishedPostDates={[]}
-        templates={[]}
-        recentRunsByAutomationId={{}}
         generatedRunsByAutomationId={{
           "automation-1": [
             {
@@ -59,8 +55,6 @@ describe("HomeView", () => {
           ],
         }}
         onRetryGeneratedRuns={vi.fn()}
-        onCreate={vi.fn()}
-        onUseTemplate={vi.fn()}
         onAutomations={vi.fn()}
         onGenerationRunRemove={vi.fn()}
       />

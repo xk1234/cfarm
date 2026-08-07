@@ -29,6 +29,7 @@ export function TemplateDefinitionPreview({
   demoVideos,
   xTemplate,
   onOpen,
+  actionLabel,
 }: {
   automation: Automation
   config?: AutomationSchema
@@ -36,6 +37,7 @@ export function TemplateDefinitionPreview({
   demoVideos: LocalAsset[]
   xTemplate?: XAutomationRecord
   onOpen: () => void
+  actionLabel?: string
 }) {
   const kind =
     automation.automationKind === "x_threads"
@@ -53,7 +55,7 @@ export function TemplateDefinitionPreview({
         kind === "post" ? "aspect-[4/3]" : "aspect-[9/16]"
       )}
       onClick={onOpen}
-      aria-label={`Edit ${automation.name} template`}
+      aria-label={actionLabel || `Edit ${automation.name} template`}
       data-template-preview-kind={kind}
     >
       {kind === "slideshow" && config ? (

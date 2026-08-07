@@ -3,7 +3,6 @@
 import { useState } from "react"
 import {
   IconAlertTriangle,
-  IconPlus,
   IconSlideshow,
   IconStar,
   IconStarFilled,
@@ -28,10 +27,12 @@ export function TemplatesView({
   automations,
   automationsLoading = false,
   schemasByAutomationId,
+  starterTemplates,
+  starterSchemasByAutomationId,
   collections,
   demoVideos,
   xTemplatesByAutomationId,
-  onCreateNew,
+  onUseStarterTemplate,
   onCreateFromTone,
   onRename,
   onToggleFavorite,
@@ -40,10 +41,12 @@ export function TemplatesView({
   automations: Automation[]
   automationsLoading?: boolean
   schemasByAutomationId: Record<string, AutomationSchema>
+  starterTemplates: Automation[]
+  starterSchemasByAutomationId: Record<string, AutomationSchema>
   collections: CreatedImageCollection[]
   demoVideos: LocalAsset[]
   xTemplatesByAutomationId?: Record<string, XAutomationRecord>
-  onCreateNew: () => void
+  onUseStarterTemplate: (automation: Automation) => void
   onCreateFromTone: (fields: Partial<AutomationSchema>) => Promise<void>
   onRename: (automation: Automation, name: string) => void
   onToggleFavorite: (automation: Automation) => void
@@ -66,17 +69,37 @@ export function TemplatesView({
             <IconSlideshow className="size-4" />
             Match slideshow
           </Button>
-          <Button
-            variant="action"
-            size="appDefault"
-            className="h-10 sm:h-9"
-            onClick={onCreateNew}
-          >
-            <IconPlus className="size-4" />
-            New template
-          </Button>
         </div>
       </div>
+      {starterTemplates.length > 0 ? (
+        <section className="mb-8">
+          <h2 className="mb-4 text-[18px] font-semibold tracking-[-0.025em] text-app-text">
+            Starter templates
+          </h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {starterTemplates.map((automation) => (
+              <StarterTemplateCard
+                key={automation.id}
+                automation={automation}
+                config={
+                  automation.automationKind === "x_threads"
+                    ? undefined
+                    : mergeAutomationSchema(
+                        automation,
+                        starterSchemasByAutomationId[automation.id]
+                      )
+                }
+                collections={collections}
+                demoVideos={demoVideos}
+                onUse={() => onUseStarterTemplate(automation)}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
+      <h2 className="mb-4 text-[18px] font-semibold tracking-[-0.025em] text-app-text">
+        Your templates
+      </h2>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {automationsLoading ? (
           <CardGridSkeleton
@@ -118,6 +141,42 @@ export function TemplatesView({
         />
       ) : null}
     </div>
+  )
+}
+
+function StarterTemplateCard({
+  automation,
+  config,
+  collections,
+  demoVideos,
+  onUse,
+}: {
+  automation: Automation
+  config?: AutomationSchema
+  collections: CreatedImageCollection[]
+  demoVideos: LocalAsset[]
+  onUse: () => void
+}) {
+  return (
+    <article className="group relative self-start overflow-hidden rounded-[8px] border border-app-panel-border bg-app-surface shadow-sm">
+      <TemplateDefinitionPreview
+        automation={automation}
+        config={config}
+        collections={collections}
+        demoVideos={demoVideos}
+        actionLabel={`Use ${automation.name} starter template`}
+        onOpen={onUse}
+      />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/78 via-black/22 to-transparent" />
+      <span className="pointer-events-none absolute top-3 left-3 rounded-[5px] bg-black/55 px-2 py-1 text-[10px] font-semibold text-white/90 backdrop-blur-sm">
+        Starter
+      </span>
+      <div className="pointer-events-none absolute inset-x-3 bottom-3">
+        <p className="truncate text-[15px] font-semibold text-white">
+          {automation.name}
+        </p>
+      </div>
+    </article>
   )
 }
 
