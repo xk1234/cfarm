@@ -77,11 +77,11 @@ export function TemplatesView({
           </Button>
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {automationsLoading ? (
           <CardGridSkeleton
             count={6}
-            className="col-span-full md:grid-cols-2 lg:grid-cols-3"
+            className="col-span-full md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
           />
         ) : null}
         {!automationsLoading &&
