@@ -104,7 +104,13 @@ export function groupAutomationTemplateExampleRunsByTemplateId(
   return Object.fromEntries(
     Object.entries(groups).map(([templateId, templateRuns]) => [
       templateId,
-      templateRuns.slice(0, 3),
+      templateRuns
+        .toSorted(
+          (first, second) =>
+            new Date(second.createdAt).getTime() -
+            new Date(first.createdAt).getTime()
+        )
+        .slice(0, 3),
     ])
   )
 }

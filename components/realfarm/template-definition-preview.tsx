@@ -28,6 +28,8 @@ export function TemplateDefinitionPreview({
   collections,
   demoVideos,
   xTemplate,
+  previewImageUrl,
+  showGeneratedPreviewFallback = false,
   onOpen,
   actionLabel,
 }: {
@@ -36,6 +38,8 @@ export function TemplateDefinitionPreview({
   collections: CreatedImageCollection[]
   demoVideos: LocalAsset[]
   xTemplate?: XAutomationRecord
+  previewImageUrl?: string
+  showGeneratedPreviewFallback?: boolean
   onOpen: () => void
   actionLabel?: string
 }) {
@@ -58,7 +62,22 @@ export function TemplateDefinitionPreview({
       aria-label={actionLabel || `Edit ${automation.name} template`}
       data-template-preview-kind={kind}
     >
-      {kind === "slideshow" && config ? (
+      {previewImageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- Starter previews can come from the external generation archive.
+        <img
+          src={previewImageUrl}
+          alt={`${automation.name} latest generated preview`}
+          className="h-full w-full object-cover"
+          draggable={false}
+          data-template-preview-media="generated"
+        />
+      ) : showGeneratedPreviewFallback ? (
+        <TemplatePreviewPlaceholder
+          icon={kind === "slideshow" ? "slideshow" : "video"}
+          name={automation.name}
+          message="No generation yet"
+        />
+      ) : kind === "slideshow" && config ? (
         <SlideshowDefinitionPreview
           config={config}
           collections={collections}
@@ -203,9 +222,11 @@ function PostDefinitionPreview({
 function TemplatePreviewPlaceholder({
   icon,
   name,
+  message = "Add media in the editor",
 }: {
   icon: "slideshow" | "video"
   name: string
+  message?: string
 }) {
   return (
     <div className="grid h-full place-items-center bg-[radial-gradient(circle_at_35%_28%,#777873_0,#4d4e4b_38%,#2d2e2c_100%)] px-8 text-center text-white">
@@ -219,7 +240,7 @@ function TemplatePreviewPlaceholder({
         </span>
         <span className="mt-3 block text-[14px] font-bold">{name}</span>
         <span className="mt-1 block text-[11px] font-medium text-white/55">
-          Add media in the editor
+          {message}
         </span>
       </div>
     </div>
