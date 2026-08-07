@@ -7,6 +7,8 @@ import { IconMenu2, IconX } from "@tabler/icons-react"
 import Image from "next/image"
 import Link from "next/link"
 
+import { ClerkAuthButton } from "@/components/clerk-auth-button"
+
 const navigation = [
   ["Product", "/product"],
   ["Solutions", "/solutions"],
@@ -103,20 +105,20 @@ export function MarketingMobileMenu() {
                   </div>
 
                   <div className="mt-auto grid gap-3 pt-8">
-                    <Link
-                      href="/sign-up"
+                    <ClerkAuthButton
+                      authMode="sign-up"
                       onClick={() => setOpen(false)}
                       className="brand-button brand-button-primary justify-center"
                     >
                       Create account
-                    </Link>
-                    <Link
-                      href="/login"
+                    </ClerkAuthButton>
+                    <ClerkAuthButton
+                      authMode="sign-in"
                       onClick={() => setOpen(false)}
                       className="brand-button brand-button-secondary justify-center"
                     >
                       Log in
-                    </Link>
+                    </ClerkAuthButton>
                   </div>
                 </div>
               </nav>

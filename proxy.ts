@@ -47,9 +47,10 @@ export default clerkMiddleware(async (auth, request) => {
     )
   }
 
-  const login = new URL("/login", request.url)
-  login.searchParams.set("next", `${pathname}${request.nextUrl.search}`)
-  return NextResponse.redirect(login)
+  const entry = new URL("/", request.url)
+  entry.searchParams.set("auth", "sign-in")
+  entry.searchParams.set("next", `${pathname}${request.nextUrl.search}`)
+  return NextResponse.redirect(entry)
 })
 
 export const config = {

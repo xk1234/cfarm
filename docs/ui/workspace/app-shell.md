@@ -15,7 +15,7 @@ Owner: `components/realfarm/routes/workspace-route.tsx` loads the authenticated
 workspace, and `components/realfarm-workspace.tsx` owns the chrome and active
 surface.
 
-`WorkspaceRoute` redirects a signed-out visitor to `/login`, then loads the
+`WorkspaceRoute` sends a signed-out visitor to the global Clerk modal, then loads the
 initial workspace data, automation templates, connected compose accounts, and
 published-post dates before rendering the client workspace. The root layout
 supplies the application theme, the Fumadocs provider used by documentation,

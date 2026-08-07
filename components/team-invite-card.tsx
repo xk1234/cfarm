@@ -3,6 +3,8 @@
 import { useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 
+import { ClerkAuthButton } from "@/components/clerk-auth-button"
+
 export function TeamInviteCard({ authenticated }: { authenticated: boolean }) {
   const params = useSearchParams()
   const started = useRef(false)
@@ -74,18 +76,20 @@ export function TeamInviteCard({ authenticated }: { authenticated: boolean }) {
         </a>
       ) : !authenticated ? (
         <div className="mt-6 grid gap-2">
-          <a
-            href={`/login?next=${encodeURIComponent(next)}`}
+          <ClerkAuthButton
+            authMode="sign-in"
+            redirectUrl={next}
             className="flex h-11 items-center justify-center rounded-[10px] bg-[#6d28d9] text-sm font-semibold text-white"
           >
             Log in
-          </a>
-          <a
-            href={`/sign-up?next=${encodeURIComponent(next)}`}
+          </ClerkAuthButton>
+          <ClerkAuthButton
+            authMode="sign-up"
+            redirectUrl={next}
             className="flex h-11 items-center justify-center rounded-[10px] border border-[#d8d8e2] text-sm font-semibold"
           >
             Create account
-          </a>
+          </ClerkAuthButton>
         </div>
       ) : null}
     </div>

@@ -17,14 +17,11 @@ description: Look up every browser page and the access boundary that guards it.
 
 ## Account flows
 
-| Route             | Source                        | Access | Purpose                    |
-| ----------------- | ----------------------------- | ------ | -------------------------- |
-| `/login`          | `app/login/page.tsx`          | Public | Registration and login     |
-| `/verify-email`   | `app/verify-email/page.tsx`   | Public | Email verification result  |
-| `/reset-password` | `app/reset-password/page.tsx` | Public | Password recovery result   |
-| `/team-invite`    | `app/team-invite/page.tsx`    | Public | Team invitation acceptance |
+| Route          | Source                     | Access | Purpose                    |
+| -------------- | -------------------------- | ------ | -------------------------- |
+| `/team-invite` | `app/team-invite/page.tsx` | Public | Team invitation acceptance |
 
-An authenticated visitor to `/login` is redirected to `/app`.
+Sign-in and sign-up use Clerk modals and do not have standalone routes.
 
 ## Signed generation previews
 

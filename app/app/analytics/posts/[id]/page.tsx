@@ -31,7 +31,7 @@ export default async function PostAnalyticsRoute({
   }>
 }) {
   const user = await getCurrentUser()
-  if (!user) redirect("/login")
+  if (!user) redirect("/?auth=sign-in&next=/app/analytics")
   const [{ id }, query] = await Promise.all([params, searchParams])
   const postId = id.trim()
   const [allSnapshots, publication, integrations] = await Promise.all([

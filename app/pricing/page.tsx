@@ -1,11 +1,11 @@
 import { IconCheck } from "@tabler/icons-react"
-import Link from "next/link"
 
 import {
   MarketingFooter,
   MarketingNav,
   PageHero,
 } from "@/components/marketing/marketing-shell"
+import { ClerkAuthButton } from "@/components/clerk-auth-button"
 
 const questions = [
   [
@@ -14,7 +14,7 @@ const questions = [
   ],
   [
     "Will existing beta users keep their data?",
-    "Yes. Your records remain attached to your Appwrite account as plans evolve.",
+    "Yes. Your Clerk identity keeps the same Railway owner ID as plans evolve.",
   ],
   [
     "What will team pricing include?",
@@ -62,12 +62,12 @@ export default function PricingPage() {
                 </li>
               ))}
             </ul>
-            <Link
-              href="/sign-up"
+            <ClerkAuthButton
+              authMode="sign-up"
               className="mt-9 inline-flex rounded-app-control bg-brand-accent px-5 py-3 text-sm font-semibold text-white"
             >
               Create account
-            </Link>
+            </ClerkAuthButton>
           </article>
           <article className="rounded-2xl bg-brand-ink p-7 text-white lg:p-9">
             <p className="text-sm font-semibold text-brand-muted-on-dark">
@@ -96,12 +96,12 @@ export default function PricingPage() {
                 </li>
               ))}
             </ul>
-            <Link
-              href="/sign-up"
+            <ClerkAuthButton
+              authMode="sign-up"
               className="mt-9 inline-flex rounded-app-control bg-white px-5 py-3 text-sm font-semibold text-brand-ink"
             >
               Join the beta
-            </Link>
+            </ClerkAuthButton>
           </article>
         </div>
       </section>

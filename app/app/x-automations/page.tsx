@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic"
 
 export default async function XAutomationsPage() {
   const user = await getCurrentUser()
-  if (!user) redirect("/login")
+  if (!user) redirect("/?auth=sign-in&next=/app/x-automations")
   const [automations, runs] = await Promise.all([
     listXAutomations(),
     listXAutomationRuns(),

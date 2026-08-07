@@ -10,7 +10,7 @@ Owner: `app/privacy/page.tsx`, `app/terms/page.tsx`, and `app/debug/page.tsx`.
 ## Layout
 
 `/privacy` uses the shared marketing header, hero, narrow reading column, and
-footer. Its sections summarize Appwrite account and session data, owner-scoped
+footer. Its sections summarize Clerk account and session data, owner-scoped
 workspace records, and the private-beta status of the policy. It explicitly says
 the page is not a substitute for final legal terms.
 

@@ -17,8 +17,8 @@ export default function PrivacyPage() {
         <section>
           <h2 className="text-xl font-semibold text-brand-ink">Account data</h2>
           <p className="mt-3">
-            Appwrite stores account identity and authentication sessions.
-            LumenClip uses an HTTP-only session cookie to protect the workspace.
+            Clerk stores account identity and authentication sessions. LumenClip
+            uses an HTTP-only session cookie to protect the workspace.
           </p>
         </section>
         <section>

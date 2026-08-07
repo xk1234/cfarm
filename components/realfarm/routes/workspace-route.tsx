@@ -33,7 +33,7 @@ export async function WorkspaceRoute({
   navigation: WorkspaceNavigation
 }) {
   const user = await getCurrentUser()
-  if (!user) redirect("/login")
+  if (!user) redirect("/?auth=sign-in&next=/app")
 
   const [data, initialTemplateData, composeAccounts, publishedPostDates] =
     await Promise.all([

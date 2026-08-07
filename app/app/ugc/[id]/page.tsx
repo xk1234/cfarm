@@ -11,7 +11,7 @@ export default async function UgcRunPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  if (!(await getCurrentUser())) redirect("/login")
+  if (!(await getCurrentUser())) redirect("/?auth=sign-in&next=/app")
   const { id } = await params
   return (
     <>

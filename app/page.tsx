@@ -19,6 +19,7 @@ import {
   MarketingFooter,
   MarketingNav,
 } from "@/components/marketing/marketing-shell"
+import { ClerkAuthButton } from "@/components/clerk-auth-button"
 
 const steps = [
   {
@@ -58,7 +59,7 @@ const faqs = [
   ],
   [
     "Is each workspace private?",
-    "Yes. Automations, assets, runs, and generations are scoped to the signed-in Appwrite user.",
+    "Yes. Automations, assets, runs, and generations are scoped to the signed-in Clerk user.",
   ],
   [
     "What should I add first?",
@@ -86,12 +87,12 @@ export default function LandingPage() {
               approved content runs.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                href="/sign-up"
+              <ClerkAuthButton
+                authMode="sign-up"
                 className="inline-flex items-center gap-2 rounded-app-control bg-brand-accent px-5 py-3 text-sm font-semibold text-white hover:bg-brand-accent-hover"
               >
                 Create account <IconArrowRight className="size-4" />
-              </Link>
+              </ClerkAuthButton>
               <Link
                 href="/product"
                 className="inline-flex items-center gap-2 rounded-app-control border border-brand-border-strong bg-white px-5 py-3 text-sm font-semibold hover:bg-brand-accent-soft"
@@ -315,9 +316,8 @@ export default function LandingPage() {
               Your creative library belongs to your account.
             </h2>
             <p className="mt-6 max-w-[54ch] text-base leading-7 text-brand-muted">
-              Appwrite authentication protects the workspace. Automations,
-              assets, generations, jobs, and results are scoped to the signed-in
-              user.
+              Clerk authentication protects the workspace. Automations, assets,
+              generations, jobs, and results are scoped to the signed-in user.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -386,12 +386,12 @@ export default function LandingPage() {
                     </li>
                   ))}
                 </ul>
-                <Link
-                  href="/sign-up"
+                <ClerkAuthButton
+                  authMode="sign-up"
                   className="mt-9 inline-flex rounded-app-control bg-brand-accent px-5 py-3 text-sm font-semibold text-white"
                 >
                   Create account
-                </Link>
+                </ClerkAuthButton>
               </div>
               <div className="rounded-app-dialog bg-brand-ink p-7 text-white">
                 <p className="text-sm font-semibold text-brand-muted-on-dark">

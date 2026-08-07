@@ -23,11 +23,13 @@ describe("Clerk authentication cutover", () => {
     )
   })
 
-  it("uses the current App Router and Clerk components", () => {
-    expect(read("app/login/[[...login]]/page.tsx")).toContain("<SignIn")
-    expect(read("app/sign-up/[[...sign-up]]/page.tsx")).toContain("<SignUp")
-    expect(read("components/marketing/marketing-shell.tsx")).toContain(
-      '<Show when="signed-out">'
+  it("uses modal-only Clerk components without auth pages", () => {
+    const button = read("components/clerk-auth-button.tsx")
+    expect(button).toContain('mode="modal"')
+    expect(button).toContain("<SignInButton")
+    expect(button).toContain("<SignUpButton")
+    expect(read("proxy.ts")).toContain(
+      'entry.searchParams.set("auth", "sign-in")'
     )
   })
 
