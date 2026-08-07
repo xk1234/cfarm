@@ -760,6 +760,20 @@ export function AutomationFormatPanel({
           setActiveTab(tab)
           setSelectedTextIndex(textIndex)
         }}
+        onClearTextSelection={() => setSelectedTextIndex(null)}
+        onTransformPreviewText={(index, tab, textIndex, patch) => {
+          setActivePreview(index)
+          setActiveTab(tab)
+          setSelectedTextIndex(textIndex)
+          updateSchema((current) =>
+            updateAutomationTextItemAt(
+              current,
+              tab.toLowerCase() as AutomationFormatRole,
+              textIndex,
+              patch
+            )
+          )
+        }}
         updateTextItem={updateTextItem}
         onDeleteTextItem={deleteSelectedTextItem}
         onAddTextItem={addTextItem}

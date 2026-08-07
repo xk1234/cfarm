@@ -34,6 +34,8 @@ export function SlideshowFormatPreviewStage({
   onZoomChange,
   onSelectPreview,
   onSelectPreviewText,
+  onClearTextSelection,
+  onTransformPreviewText,
   updateTextItem,
   onDeleteTextItem,
   onAddTextItem,
@@ -57,6 +59,13 @@ export function SlideshowFormatPreviewStage({
     index: number,
     tab: SlideshowFormatTab,
     textIndex: number
+  ) => void
+  onClearTextSelection: () => void
+  onTransformPreviewText: (
+    index: number,
+    tab: SlideshowFormatTab,
+    textIndex: number,
+    patch: Partial<TextItem>
   ) => void
   updateTextItem: (patch: Partial<TextItem>) => void
   onDeleteTextItem: () => void
@@ -175,7 +184,9 @@ export function SlideshowFormatPreviewStage({
         if (
           event.button !== 0 ||
           (target instanceof Element &&
-            target.closest("button, input, select, textarea, [role='button']"))
+            target.closest(
+              "button, input, select, textarea, [role='button'], [data-slideshow-text-editor]"
+            ))
         ) {
           return
         }
@@ -211,7 +222,9 @@ export function SlideshowFormatPreviewStage({
         const target = event.target
         if (
           target instanceof Element &&
-          target.closest("button, input, select, textarea, [role='button']")
+          target.closest(
+            "button, input, select, textarea, [role='button'], [data-slideshow-text-editor]"
+          )
         ) {
           return
         }
@@ -237,6 +250,11 @@ export function SlideshowFormatPreviewStage({
       >
         Edit
       </button>
+
+      <div className="absolute top-4 left-4 z-20 hidden items-center gap-2 rounded-[9px] border border-black/10 bg-white/92 px-3 py-2 text-[11px] font-semibold text-[#30303a] shadow-sm backdrop-blur md:flex">
+        <span className="size-1.5 rounded-full bg-[#4f91ff]" />
+        Canvas editor
+      </div>
 
       <div className="absolute top-4 right-4 z-20 flex items-center rounded-[9px] border border-black/10 bg-white/92 p-1 shadow-sm backdrop-blur">
         <button
@@ -309,6 +327,10 @@ export function SlideshowFormatPreviewStage({
               onSelectText={(textIndex) =>
                 onSelectPreviewText(index, item.tab, textIndex)
               }
+              onClearTextSelection={onClearTextSelection}
+              onTransformText={(textIndex, patch) =>
+                onTransformPreviewText(index, item.tab, textIndex, patch)
+              }
               onAddText={
                 activePreviewIndex === index && !visualControlsLocked
                   ? onAddTextItem
@@ -333,7 +355,7 @@ export function SlideshowFormatPreviewStage({
         ))}
       </div>
       <div className="pointer-events-none absolute bottom-5 left-5 hidden rounded-md bg-black/18 px-2.5 py-1.5 text-[10px] font-medium text-white/80 backdrop-blur-sm md:block">
-        drag to pan · pinch to zoom · double-click to reset
+        drag text to move · side handles resize · drag background to pan
       </div>
 
       {selectedTextIndex !== null && (

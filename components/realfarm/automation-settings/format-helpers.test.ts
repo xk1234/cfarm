@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  konvaTextTransformPatch,
   newAutomationTextItemAfter,
   previewSlideshowAspectRatio,
   previewSlideshowFont,
@@ -75,6 +76,38 @@ function previewItem(): AutomationFormatPreviewItem {
 }
 
 describe("slideshow format preview controls", () => {
+  it("converts Konva drag and resize geometry into template percentages", () => {
+    expect(
+      konvaTextTransformPatch({
+        left: 216,
+        top: 384,
+        width: 540,
+        height: 192,
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        textAlign: "center",
+      })
+    ).toEqual({
+      positionX: 45,
+      positionY: 25,
+      textItemWidth: "50%",
+    })
+  })
+
+  it("keeps right-aligned Konva text anchored to the resized right edge", () => {
+    expect(
+      konvaTextTransformPatch({
+        left: 108,
+        top: 0,
+        width: 432,
+        height: 192,
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        textAlign: "right",
+      })
+    ).toMatchObject({ positionX: 50, textItemWidth: "40%" })
+  })
+
   it("creates added text in the same layout region as the previous item", () => {
     const previous = defaultAutomationTextItem({
       fontSize: "22px",

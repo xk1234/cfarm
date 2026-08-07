@@ -137,6 +137,39 @@ export function previewTextItemPosition(textItem: TextItem | undefined) {
   return { x, y }
 }
 
+export function konvaTextTransformPatch(input: {
+  left: number
+  top: number
+  width: number
+  height: number
+  canvasWidth: number
+  canvasHeight: number
+  textAlign?: TextItem["textAlign"]
+}): Partial<TextItem> {
+  const width = Math.max(1, Math.min(input.canvasWidth, input.width))
+  const left = Math.max(0, Math.min(input.canvasWidth - width, input.left))
+  const height = Math.max(1, Math.min(input.canvasHeight, input.height))
+  const top = Math.max(0, Math.min(input.canvasHeight - height, input.top))
+  const x =
+    input.textAlign === "left"
+      ? left
+      : input.textAlign === "right"
+        ? left + width
+        : left + width / 2
+
+  return {
+    positionX: roundEditorPercent((x / input.canvasWidth) * 100),
+    positionY: roundEditorPercent(
+      ((top + height / 2) / input.canvasHeight) * 100
+    ),
+    textItemWidth: `${roundEditorPercent((width / input.canvasWidth) * 100)}%`,
+  }
+}
+
+function roundEditorPercent(value: number) {
+  return Math.round(clampPercent(value) * 10) / 10
+}
+
 export function previewTextItemWidth(value: string | undefined, text: string) {
   const parsed = Number(value?.replace("%", ""))
   if (Number.isFinite(parsed) && parsed > 0) {

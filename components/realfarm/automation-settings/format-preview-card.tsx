@@ -1,3 +1,7 @@
+"use client"
+
+import dynamic from "next/dynamic"
+import type { TextItem } from "@/lib/realfarm-automation"
 import {
   renderedSlideSvg,
   renderedTextItemEditorBounds,
@@ -9,11 +13,18 @@ import { LuPlus } from "react-icons/lu"
 import {
   formatAspectRatioCss,
   formatPreviewCardSize,
+  konvaTextTransformPatch,
   previewSlideshowAspectRatio,
   previewSlideshowFont,
   previewSlideshowSlide,
   type AutomationFormatPreviewItem,
 } from "./format-helpers"
+
+const KonvaTextOverlay = dynamic(
+  () =>
+    import("../konva-text-overlay").then((module) => module.KonvaTextOverlay),
+  { ssr: false }
+)
 
 function FormatEmptyCollectionTile() {
   return (
@@ -33,6 +44,8 @@ export function AutomationFormatPreviewCard({
   selectedTextIndex,
   onSelect,
   onSelectText,
+  onClearTextSelection,
+  onTransformText,
   onAddText,
 }: {
   item: AutomationFormatPreviewItem
@@ -44,6 +57,8 @@ export function AutomationFormatPreviewCard({
   selectedTextIndex: number | null
   onSelect: () => void
   onSelectText: (index: number) => void
+  onClearTextSelection: () => void
+  onTransformText: (index: number, patch: Partial<TextItem>) => void
   onAddText?: () => void
 }) {
   const previewBaseScale = 2.5
@@ -61,7 +76,12 @@ export function AutomationFormatPreviewCard({
       })
     : ""
   const previewTextItems = slide.textItems
-  const selectionBoxes = textSelectionBoxes(slide, aspectRatio)
+  const dimensions = slideDimensions(aspectRatio)
+  const selectionBounds = renderedTextItemEditorBounds(
+    previewTextItems,
+    dimensions.width,
+    dimensions.height
+  )
 
   return (
     <div
@@ -111,54 +131,36 @@ export function AutomationFormatPreviewCard({
             }}
           >
             {item.image ? (
-              <div
-                className="h-full w-full [&>svg]:h-full [&>svg]:w-full"
-                dangerouslySetInnerHTML={{ __html: previewSvg }}
-              />
+              <>
+                <div
+                  className="h-full w-full [&>svg]:h-full [&>svg]:w-full"
+                  dangerouslySetInnerHTML={{ __html: previewSvg }}
+                />
+                {active && !item.section.noText && item.text ? (
+                  <KonvaTextOverlay
+                    bounds={selectionBounds}
+                    canvasWidth={dimensions.width}
+                    canvasHeight={dimensions.height}
+                    displayWidth={size.width}
+                    displayHeight={size.height}
+                    selectedTextIndex={selectedTextIndex}
+                    onSelectText={onSelectText}
+                    onClearTextSelection={onClearTextSelection}
+                    onTextTransform={(textIndex, transform) =>
+                      onTransformText(
+                        textIndex,
+                        konvaTextTransformPatch({
+                          ...transform,
+                          textAlign: item.textItems[textIndex]?.textAlign,
+                        })
+                      )
+                    }
+                  />
+                ) : null}
+              </>
             ) : (
               <FormatEmptyCollectionTile />
             )}
-            {!item.section.noText && item.text
-              ? previewTextItems.map((previewText, textIndex) => {
-                  const textItem = item.textItems[textIndex]
-                  const selected = selectedTextIndex === textIndex
-                  if (!textItem) return null
-                  return (
-                    <button
-                      key={previewText.id}
-                      data-slideshow-text-editor="text-target"
-                      className={cn(
-                        "absolute cursor-text bg-transparent text-transparent",
-                        selected &&
-                          "border-2 border-[#4f91ff] bg-[#4f91ff]/5 shadow-[0_0_0_1px_rgba(255,255,255,0.75)]"
-                      )}
-                      style={selectionBoxes[textIndex]}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        onSelectText(textIndex)
-                      }}
-                      aria-label="Edit text element"
-                    >
-                      {selected
-                        ? [
-                            "-top-1 -left-1",
-                            "-top-1 -right-1",
-                            "-bottom-1 -left-1",
-                            "-right-1 -bottom-1",
-                          ].map((position) => (
-                            <span
-                              key={position}
-                              className={cn(
-                                "absolute size-1.5 rounded-[1px] border border-white bg-[#4f91ff]",
-                                position
-                              )}
-                            />
-                          ))
-                        : null}
-                    </button>
-                  )
-                })
-              : null}
             {!item.section.noText && onAddText ? (
               <button
                 type="button"
@@ -177,21 +179,4 @@ export function AutomationFormatPreviewCard({
       </div>
     </div>
   )
-}
-
-function textSelectionBoxes(
-  slide: ReturnType<typeof previewSlideshowSlide>,
-  aspectRatio: string
-) {
-  const dimensions = slideDimensions(aspectRatio)
-  return renderedTextItemEditorBounds(
-    slide.textItems,
-    dimensions.width,
-    dimensions.height
-  ).map((bounds) => ({
-    left: `${(bounds.left / dimensions.width) * 100}%`,
-    top: `${(bounds.top / dimensions.height) * 100}%`,
-    width: `${(bounds.width / dimensions.width) * 100}%`,
-    height: `${(bounds.height / dimensions.height) * 100}%`,
-  }))
 }
