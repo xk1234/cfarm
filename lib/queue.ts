@@ -172,7 +172,7 @@ export async function deleteAutomationJobs(
 
   const candidates = (
     await Promise.all(
-      ["run-automation", "run-ugc-automation"].map(async (type) => {
+      ["run-template", "run-ugc-template"].map(async (type) => {
         const jobs: Job[] = []
         let offset = 0
         const pageSize = 100
@@ -240,9 +240,9 @@ export async function retryGenerationJob(
   const job = mapJob(row)
   if (job.ownerId !== ownerId) return null
   if (
-    job.type !== "run-automation" &&
-    job.type !== "run-x-automation" &&
-    job.type !== "run-ugc-automation"
+    job.type !== "run-template" &&
+    job.type !== "run-social-template" &&
+    job.type !== "run-ugc-template"
   ) {
     return { job, retried: false, reason: "not_generation" }
   }

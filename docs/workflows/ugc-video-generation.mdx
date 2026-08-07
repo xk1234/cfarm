@@ -18,9 +18,10 @@ every referenced storage file is still durable.
 ## Run this
 
 <Callout type="warn">
-This pipeline is gated. `ENABLE_UGC_AUTOMATION=true` must be set for the job worker and the MCP
-process, or generation refuses to start and the `/api/ugc-runs/*` routes answer 404. The automation
-must also be `live` and pass its UGC configuration checks.
+  This pipeline is gated. `ENABLE_UGC_AUTOMATION=true` must be set for the job
+  worker and the MCP process, or generation refuses to start and the
+  `/api/ugc-runs/*` routes answer 404. The template must also be `live` and pass
+  its UGC configuration checks.
 </Callout>
 
 <Tabs items={['MCP', 'HTTP', 'Studio']}>
@@ -33,7 +34,7 @@ Price the configuration first, then queue the draft.
 {
   "tool": "lumenclip_ugc_estimate",
   "arguments": {
-    "automationId": "automation_ugc_123",
+    "templateId": "template_ugc_123",
     "targetDurationSeconds": 30,
     "brollCount": 3,
     "lipSyncTier": "standard"
@@ -45,7 +46,7 @@ Price the configuration first, then queue the draft.
 {
   "tool": "lumenclip_ugc_generate",
   "arguments": {
-    "automationId": "automation_ugc_123",
+    "templateId": "template_ugc_123",
     "requestId": "ugc-test-001"
   }
 }
@@ -54,7 +55,7 @@ Price the configuration first, then queue the draft.
 Both arguments are required on `lumenclip_ugc_generate`. `requestId` is the idempotency key, so
 reusing it returns the already queued operation. The call returns a running operation, the expected
 output id, and a cost estimate; poll it with `lumenclip_operation_get`. The queued job is allowed
-three attempts. `lumenclip_automation_run` accepts the same UGC automation and forwards to the same
+three attempts. `lumenclip_template_run` accepts the same UGC template and forwards to the same
 queue, but rejects a `hook` argument.
 
 </Tab>
@@ -88,7 +89,7 @@ a new run, use the MCP tool or let the scheduler enqueue the automation's next d
 
 <Step>
 
-Open the automation at `/app?view=automations&automation=automation_ugc_123` and configure it in the
+Open the automation at `/app?view=templates&automation=automation_ugc_123` and configure it in the
 **AI actor format** tab. The panel calls `/api/ugc-runs/estimate` and shows the projected cost.
 
 </Step>

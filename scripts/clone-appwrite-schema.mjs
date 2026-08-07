@@ -33,6 +33,11 @@ for (const file of [".env", ".env.local"]) {
 }
 
 const DB = process.env.APPWRITE_DATABASE_ID || "cfarm"
+const canonicalTableIds = {
+  automations: "templates",
+  automation_runs: "template_runs",
+  x_automations: "social_templates",
+}
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const isConflict = (error) =>
   Number(error?.code) === 409 ||
@@ -264,18 +269,23 @@ async function main() {
   )
   console.log(`\n${tables.length} tables to clone`)
   for (const table of tables) {
+    const targetTableId = canonicalTableIds[table.$id] ?? table.$id
+    const targetTableName =
+      targetTableId === table.$id ? (table.name ?? table.$id) : targetTableId
     await target.tables
       .createTable(
         DB,
-        table.$id,
-        table.name ?? table.$id,
+        targetTableId,
+        targetTableName,
         undefined,
         Boolean(table.rowSecurity)
       )
       .catch((error) => {
         if (!isConflict(error)) throw error
       })
-    console.log(`\ntable ${table.$id}`)
+    console.log(
+      `\ntable ${table.$id}${targetTableId === table.$id ? "" : ` -> ${targetTableId}`}`
+    )
 
     const columns = await listAll("columns", (queries) =>
       source.tables.listColumns({
@@ -287,14 +297,14 @@ async function main() {
     )
     for (const column of columns) {
       try {
-        await createColumn(table.$id, column)
+        await createColumn(targetTableId, column)
         console.log(`  + ${column.key} (${column.type})`)
       } catch (error) {
         if (isConflict(error)) continue
         throw error
       }
     }
-    await waitForColumns(table.$id)
+    await waitForColumns(targetTableId)
 
     const indexes = await listAll("indexes", (queries) =>
       source.tables.listIndexes({
@@ -309,7 +319,7 @@ async function main() {
       try {
         await target.tables.createIndex(
           DB,
-          table.$id,
+          targetTableId,
           index.key,
           index.type,
           cols,

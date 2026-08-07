@@ -1,6 +1,6 @@
 ---
 title: "X and Threads generation pipeline"
-description: "Transform a persisted X/Threads automation and optional trend source into validated social text and optional generated media."
+description: "Transform a persisted X/Threads template and optional trend source into validated social text and optional generated media."
 ---
 
 # X and Threads generation pipeline
@@ -10,9 +10,9 @@ description: "Transform a persisted X/Threads automation and optional trend sour
 ## Run this
 
 <Callout type="warn">
-Every trigger below requires a persisted niche brief on the automation. Without one, generation
+Every trigger below requires a persisted niche brief on the template. Without one, generation
 stops with `Generate the niche strategy before creating a draft`. Derive it first with
-`POST /api/x-automations/<id>/derive-brief`, or with **Generate strategy** in the studio.
+`POST /api/social-templates/<id>/derive-brief`, or with **Generate strategy** in the studio.
 </Callout>
 
 <Tabs items={['MCP', 'HTTP', 'Studio']}>
@@ -21,18 +21,18 @@ stops with `Generate the niche strategy before creating a draft`. Derive it firs
 
 ```json
 {
-  "tool": "lumenclip_automation_run",
+  "tool": "lumenclip_template_run",
   "arguments": {
-    "automationId": "x-auto-01",
+    "templateId": "social-template-01",
     "topic": "activation checklists",
     "requestId": "x-draft-2026-08-01-001"
   }
 }
 ```
 
-`automationId` and `requestId` are both required; `requestId` is the idempotency key, so reusing it
+`templateId` and `requestId` are both required; `requestId` is the idempotency key, so reusing it
 returns the same draft instead of generating a second one. Do not pass `hook`: it is accepted only
-for slideshow automations and otherwise fails with `Explicit hooks are supported only for slideshow
+for slideshow templates and otherwise fails with `Explicit hooks are supported only for slideshow
 runs`.
 
 To drive the stage graph directly, call `lumenclip_pipeline_run` with
@@ -44,18 +44,18 @@ To drive the stage graph directly, call `lumenclip_pipeline_run` with
 <Tab value="HTTP">
 
 ```bash
-curl -X POST https://<your-host>/api/x-automations/generate \
+curl -X POST https://<your-host>/api/social-templates/generate \
   -H 'Content-Type: application/json' \
   -d '{
-    "automationId": "x-auto-01",
+    "templateId": "social-template-01",
     "topic": "activation checklists",
     "sourceCandidate": null
   }'
 ```
 
-Only `automationId` is required. `topic` overrides topic selection and `sourceCandidate` supplies a
+Only `templateId` is required. `topic` overrides topic selection and `sourceCandidate` supplies a
 trend record to react to. A successful call answers 201 with `{ "run": ... }`. The same path also
-serves `GET` for stored runs and `DELETE` to clear an automation's runs and usage memory.
+serves `GET` for stored runs and `DELETE` to clear a template's runs and usage memory.
 
 </Tab>
 
@@ -65,21 +65,21 @@ serves `GET` for stored runs and `DELETE` to clear an automation's runs and usag
 
 <Step>
 
-Open `/app/x-automations`, or open the automation from the workspace with
-`/app?view=automations&automation=x-auto-01`, which embeds the same studio.
+Open `/app/social-templates`, or open the template from the workspace with
+`/app?view=templates&template=social-template-01`, which embeds the same studio.
 
 </Step>
 
 <Step>
 
-Set the niche, then click **Generate strategy** if the automation has no brief yet.
+Set the niche, then click **Generate strategy** if the template has no brief yet.
 
 </Step>
 
 <Step>
 
 Enter an optional topic and click **Generate draft**. The studio saves the automation, posts to
-`/api/x-automations/generate`, and shows the new run in the overview tab.
+`/api/social-templates/generate`, and shows the new run in the overview tab.
 
 </Step>
 

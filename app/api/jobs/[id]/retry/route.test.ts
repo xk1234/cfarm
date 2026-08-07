@@ -22,7 +22,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.getJob.mockResolvedValue({
     id: "job-1",
-    type: "run-automation",
+    type: "run-template",
     status: "dead",
     payload: { automationId: "automation-1" },
   })

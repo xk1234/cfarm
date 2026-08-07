@@ -23,21 +23,21 @@ function stop(signal = "SIGTERM", exitCode = 0) {
 process.on("SIGINT", () => stop("SIGINT", 130))
 process.on("SIGTERM", () => stop("SIGTERM", 143))
 
-const setup = spawnSync(
-  process.execPath,
-  [setupScript, "--ensure"],
-  { cwd: root, env: process.env, stdio: "inherit" }
-)
+const setup = spawnSync(process.execPath, [setupScript, "--ensure"], {
+  cwd: root,
+  env: process.env,
+  stdio: "inherit",
+})
 
 if (setup.status !== 0) {
   stop("SIGTERM", setup.status ?? 1)
 }
 
-const envCheck = spawnSync(
-  "pnpm",
-  ["env:check"],
-  { cwd: root, env: process.env, stdio: "inherit" }
-)
+const envCheck = spawnSync("pnpm", ["env:check"], {
+  cwd: root,
+  env: process.env,
+  stdio: "inherit",
+})
 
 if (envCheck.status !== 0) {
   stop("SIGTERM", envCheck.status ?? 1)
@@ -63,7 +63,7 @@ children = [
     process.execPath,
     [
       path.join(root, "scripts", "run-local-appwrite-function.mjs"),
-      "automation-scheduler",
+      "template-scheduler",
       String(5 * 60_000),
     ],
     { cwd: root, env: process.env, stdio: "inherit" }

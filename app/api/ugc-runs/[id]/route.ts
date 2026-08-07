@@ -20,9 +20,9 @@ export const GET = withHandler<{ params: Promise<{ id: string }> }>(
       automation.schema.automationKind !== "ugc" ||
       automation.schema.ugc?.enabled !== true
     ) {
-      throw new ApiError(404, "UGC automation not found.")
+      throw new ApiError(404, "UGC template not found.")
     }
-  const actual = await actualUgcCostFromLedger(id)
+    const actual = await actualUgcCostFromLedger(id)
     return NextResponse.json({
       run,
       estimate: estimateUgcCost(automation.schema.ugc),
@@ -33,5 +33,5 @@ export const GET = withHandler<{ params: Promise<{ id: string }> }>(
 
 function assertUgcEnabled() {
   if (process.env.ENABLE_UGC_AUTOMATION !== "true")
-    throw new ApiError(404, "UGC automation is not enabled.")
+    throw new ApiError(404, "UGC template is not enabled.")
 }

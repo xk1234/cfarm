@@ -1,7 +1,7 @@
 # Other social media MCP tools
 
-> Saved X and Threads automation discovery, generation, output inspection, and
-> single-post publishing are callable through the common automation/output
+> Saved X and Threads template discovery, generation, output inspection, and
+> single-post publishing are callable through the common template/output
 > model. LinkedIn remains stateless in the app. There are no direct
 > `lumenclip_x_*`, `lumenclip_threads_*`, or `lumenclip_linkedin_*` tools.
 
@@ -11,7 +11,7 @@ Complete shared schemas are in
 [../shared-contracts.md](../shared-contracts.md):
 
 The primary shared-tool references are
-[Automations](../automations/README.md),
+[Templates](../templates/README.md),
 [Outputs and operations](../outputs/README.md), and
 [Accounts and publishing](../publishing/README.md).
 
@@ -19,13 +19,13 @@ The primary shared-tool references are
 - `lumenclip_accounts_list`
 - `lumenclip_templates_list`
 - `lumenclip_template_get`
-- `lumenclip_automations_list`
-- `lumenclip_automation_get`
-- `lumenclip_automation_preview`
-- `lumenclip_automation_create_from_template`
-- `lumenclip_automation_save`
-- `lumenclip_automation_update`
-- `lumenclip_automation_run`
+- `lumenclip_templates_list`
+- `lumenclip_template_get`
+- `lumenclip_template_preview`
+- `lumenclip_template_create_from_template`
+- `lumenclip_template_save`
+- `lumenclip_template_update`
+- `lumenclip_template_run`
 - `lumenclip_operation_get`
 - `lumenclip_outputs_list`
 - `lumenclip_output_publish`
@@ -33,7 +33,7 @@ The primary shared-tool references are
 
 ## Platform discovery
 
-Use `lumenclip_automations_list` with `kind: "x"` or `kind: "threads"`.
+Use `lumenclip_templates_list` with `kind: "x"` or `kind: "threads"`.
 Account output states capabilities rather than assuming them:
 
 ```json
@@ -58,13 +58,13 @@ Account output states capabilities rather than assuming them:
 }
 ```
 
-## Social automation brief
+## Social template brief
 
-`lumenclip_automation_save` or template overrides may include:
+`lumenclip_template_save` or template overrides may include:
 
 | Field               | Type                       | Description                                                                |
 | ------------------- | -------------------------- | -------------------------------------------------------------------------- |
-| `platform`          | `x \| threads \| linkedin` | One platform per automation when formatting rules differ.                  |
+| `platform`          | `x \| threads \| linkedin` | One platform per template when formatting rules differ.                    |
 | `niche`             | string                     | Content domain.                                                            |
 | `audience`          | string                     | Intended reader.                                                           |
 | `promise`           | string                     | Recurring value proposition.                                               |
@@ -73,19 +73,19 @@ Account output states capabilities rather than assuming them:
 | `hook_styles`       | string[]                   | Stable public hook families.                                               |
 | `voice`             | object                     | Preset and optional user-owned override.                                   |
 | `media_policy`      | object                     | None, collection media, or generated media when capability exists.         |
-| `schedule`          | object                     | Optional; saved automations default paused.                                |
+| `schedule`          | object                     | Optional; saved templates default paused.                                  |
 | `publishing_policy` | object                     | Account IDs and auto-post policy where explicitly supported.               |
 
 Preview output must report unsupported combinations, such as a multi-post reply
 chain when the connected account only supports `publish_single`.
 
-## `lumenclip_automation_run` for social drafts
+## `lumenclip_template_run` for social drafts
 
 Input:
 
 ```json
 {
-  "automationId": "auto_astrology_threads",
+  "templateId": "auto_astrology_threads",
   "topic": "Mercury signs and task processing",
   "requestId": "threads-mercury-001"
 }
@@ -97,7 +97,7 @@ Output is a terminal operation plus an output summary:
 {
   "operation": {
     "id": "x-run-123",
-    "kind": "automation.run",
+    "kind": "template.run",
     "status": "succeeded",
     "stage": "complete",
     "progress": 100

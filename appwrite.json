@@ -3,8 +3,8 @@
   "projectName": "LumenClip",
   "functions": [
     {
-      "$id": "automation-scheduler",
-      "name": "automation-scheduler",
+      "$id": "template-scheduler",
+      "name": "template-scheduler",
       "runtime": "node-22",
       "entrypoint": "src/main.js",
       "commands": "npm install",
@@ -21,7 +21,7 @@
         "documents.read",
         "documents.write"
       ],
-      "path": "appwrite/functions/automation-scheduler",
+      "path": "appwrite/functions/template-scheduler",
       "variables": {
         "APPWRITE_DATABASE_ID": "cfarm",
         "LOOKBACK_MINUTES": "10"

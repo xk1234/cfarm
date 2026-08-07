@@ -204,7 +204,7 @@ export function AutomationSettingsDrawer({
         const payload = await fetchJsonWithTimeout<{
           runs?: AutomationRunApiRecord[]
         }>(
-          `/api/automations/runs?automationId=${encodeURIComponent(automation.id)}&limit=100`,
+          `/api/templates/runs?templateId=${encodeURIComponent(automation.id)}&limit=100`,
           {
             toastOnError: false,
           }
@@ -395,14 +395,14 @@ export function AutomationSettingsDrawer({
       // resurrect stale prompt/style fields from a long-open drawer.
       await persistDraftConfig(automation.id, effectiveDraftConfig)
       const payload = await fetchJsonWithTimeout<AutomationRunApiPayload>(
-        "/api/automations/run",
+        "/api/templates/run",
         {
           method: "POST",
           timeoutMs: 10 * 60_000,
           toastOnError: false,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            automationId: automation.id,
+            templateId: automation.id,
             force: true,
             now: new Date().toISOString(),
             requestId,
@@ -776,7 +776,7 @@ async function loadFailedRunForRequest(
   const payload = await fetchJsonWithTimeout<{
     runs?: AutomationRunApiRecord[]
   }>(
-    `/api/automations/runs?automationId=${encodeURIComponent(automationId)}&limit=20`,
+    `/api/templates/runs?templateId=${encodeURIComponent(automationId)}&limit=20`,
     { timeoutMs: 12_000, toastOnError: false }
   )
   return payload.runs?.find(

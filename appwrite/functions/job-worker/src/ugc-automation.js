@@ -52,7 +52,7 @@ export async function runUgcAutomationJob({
   const scheduledFor = String(payload?.scheduledFor || "").trim()
   const ownerId = String(job?.owner_id || "").trim()
   if (!automationId || !scheduledFor || !ownerId)
-    throw new UgcConfigurationError("run-ugc-automation: invalid job identity")
+    throw new UgcConfigurationError("run-ugc-template: invalid job identity")
   const runId = ugcRunId(automationId, scheduledFor)
   const draftOnly = payload?.draftOnly === true
   const stopAfter = [
@@ -72,7 +72,7 @@ export async function runUgcAutomationJob({
   // Kill switch is deliberately checked before any database or provider call.
   if (process.env.ENABLE_UGC_AUTOMATION !== "true")
     return { skipped: true, reason: "feature_disabled", runId }
-  const response = await tables.listRows(databaseId, "automations", [
+  const response = await tables.listRows(databaseId, "templates", [
     `equal(\"rid\",[\"${automationId.replaceAll('"', "")}\"])`,
     `equal(\"owner_id\",[\"${ownerId.replaceAll('"', "")}\"])`,
     "limit(1)",
@@ -80,7 +80,7 @@ export async function runUgcAutomationJob({
   const row = response.rows?.[0]
   const automation = safeJson(row?.data)
   if (!row || !automation)
-    throw new UgcConfigurationError("run-ugc-automation: automation not found")
+    throw new UgcConfigurationError("run-ugc-template: automation not found")
   if (
     row.status !== "live" ||
     automation.status !== "live" ||
@@ -109,7 +109,7 @@ export async function runUgcAutomationJob({
       `AI UGC configuration error\nAutomation: ${automationId}\nRun: ${runId}\nMissing: ${missing.join(", ")}`
     ).catch(() => undefined)
     throw new UgcConfigurationError(
-      `run-ugc-automation: missing ${missing.join(", ")}`,
+      `run-ugc-template: missing ${missing.join(", ")}`,
       { telegramNotified: true }
     )
   }
@@ -478,7 +478,7 @@ export async function runUgcAutomationJob({
 }
 
 async function findRun(tables, databaseId, ownerId, runId) {
-  const response = await tables.listRows(databaseId, "automation_runs", [
+  const response = await tables.listRows(databaseId, "template_runs", [
     `equal(\"rid\",[\"${runId}\"])`,
     `equal(\"owner_id\",[\"${ownerId}\"])`,
     "limit(1)",
@@ -491,10 +491,10 @@ async function upsertRun(tables, databaseId, ownerId, record) {
     "u" +
     crypto
       .createHash("sha256")
-      .update(`automation_runs:${ownerId}:${record.id}`)
+      .update(`template_runs:${ownerId}:${record.id}`)
       .digest("hex")
       .slice(0, 35)
-  await tables.upsertRow(databaseId, "automation_runs", rowId, {
+  await tables.upsertRow(databaseId, "template_runs", rowId, {
     rid: record.id,
     owner_id: ownerId,
     automation_id: record.automationId,
@@ -1055,7 +1055,8 @@ function publicationRecordId(sourceId, integrationId) {
   return `pf${crypto.createHash("sha256").update(`${sourceId}:${integrationId}`).digest("hex").slice(0, 32)}`
 }
 function ownedRowId(table, ownerId, rid) {
-  return `u${crypto.createHash("sha256").update(`${table}:${ownerId}:${rid}`).digest("hex").slice(0, 35)}`
+  const namespace = table === "template_runs" ? "automation_runs" : table
+  return `u${crypto.createHash("sha256").update(`${namespace}:${ownerId}:${rid}`).digest("hex").slice(0, 35)}`
 }
 function consolidatedRowId(table, sourceKey, ownerId, rid) {
   return `u${crypto.createHash("sha256").update(`${table}:${sourceKey}:${ownerId}:${rid}`).digest("hex").slice(0, 35)}`

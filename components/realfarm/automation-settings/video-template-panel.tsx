@@ -83,7 +83,7 @@ export function VideoTemplateFormatPanel({
         name: string
         schema?: { automationKind?: string }
       }>
-    }>("/api/automations", { toastOnError: false })
+    }>("/api/templates", { toastOnError: false })
       .then((payload) =>
         setSlideshowAutomations(
           (payload.records ?? [])

@@ -324,8 +324,8 @@ type RawAutomationRunRecord = Omit<
   checkpoints?: unknown
 }
 
-const defaultAutomationRootDir = path.join(process.cwd(), "data", "automations")
-const defaultRunRootDir = path.join(process.cwd(), "data", "automations")
+const defaultAutomationRootDir = path.join(process.cwd(), "data", "templates")
+const defaultRunRootDir = path.join(process.cwd(), "data", "templates")
 const runsFileName = "runs.json"
 const runningClaimGuardMinutes = 10
 
@@ -3001,7 +3001,7 @@ function pendingAutomationRunPlan(record: AutomationRecord): AutomationRunPlan {
 }
 
 function normalizeRun(run: RawAutomationRunRecord): AutomationRunRecord | null {
-  // UGC workers share the automation_runs table but use a checkpoint-based
+  // UGC workers share the template_runs table but use a checkpoint-based
   // record contract. Never coerce those rows into slideshow outputs.
   if (
     run?.kind === "ugc" ||

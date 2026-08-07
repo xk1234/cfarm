@@ -283,12 +283,12 @@ export function createProductionPipelineHandlers(
   )
   addPageRead(
     "slideshow-generation.list-prior-runs-page",
-    "automation-runs",
+    "template-runs",
     "storagePage"
   )
   addDocumentRead(
     "slideshow-generation.get-automation-document",
-    "automations",
+    "templates",
     "automationId",
     "automationDocument"
   )
@@ -320,13 +320,13 @@ export function createProductionPipelineHandlers(
   )
   addDocumentRead(
     "ugc-video-generation.get-saved-run-document",
-    "automation-runs",
+    "template-runs",
     "runId",
     "savedRunDocument"
   )
   addDocumentRead(
     "ugc-video-generation.get-saved-automation-document",
-    "automations",
+    "templates",
     "automationId",
     "savedAutomationDocument"
   )
@@ -352,34 +352,34 @@ export function createProductionPipelineHandlers(
   )
   addDocumentRead(
     "slideshow-generation.get-automation-run-document",
-    "automation-runs",
+    "template-runs",
     "runId",
     "automationRunDocument"
   )
   addDocumentWrite(
     "slideshow-generation.create-automation-run-document",
-    "automation-runs",
+    "template-runs",
     "create",
     "runToPersist",
     "persistedAutomationRun"
   )
   addDocumentWrite(
     "slideshow-generation.update-automation-run-document",
-    "automation-runs",
+    "template-runs",
     "update",
     "runToPersist",
     "persistedAutomationRun"
   )
   addDocumentWrite(
     "ugc-video-generation.create-saved-run-document",
-    "automation-runs",
+    "template-runs",
     "create",
     "savedRun",
     "persistedSavedRun"
   )
   addDocumentWrite(
     "ugc-video-generation.update-saved-run-document",
-    "automation-runs",
+    "template-runs",
     "update",
     "savedRun",
     "persistedSavedRun"
@@ -406,40 +406,40 @@ export function createProductionPipelineHandlers(
   )
   addDocumentRead(
     "x-threads-generation.get-automation-document",
-    "x-automations",
+    "social-templates",
     "automationId",
     "xAutomationDocument"
   )
   addDocumentWrite(
     "x-threads-generation.create-automation-document",
-    "x-automations",
+    "social-templates",
     "create",
     "automation",
     "persistedAutomation"
   )
   addDocumentWrite(
     "x-threads-generation.update-automation-document",
-    "x-automations",
+    "social-templates",
     "update",
     "automation",
     "persistedAutomation"
   )
   addDocumentRead(
     "x-threads-generation.get-run-document",
-    "x-runs",
+    "social-template-runs",
     "runId",
     "xRunDocument"
   )
   addDocumentWrite(
     "x-threads-generation.create-run-document",
-    "x-runs",
+    "social-template-runs",
     "create",
     "run",
     "persistedRunDocument"
   )
   addDocumentWrite(
     "x-threads-generation.update-run-document",
-    "x-runs",
+    "social-template-runs",
     "update",
     "run",
     "persistedRunDocument"
@@ -454,7 +454,10 @@ export function createProductionPipelineHandlers(
     rowKey: string
     mediaKey: string
     pageKey: string
-    domain: Extract<PipelineStorageDomain, "results" | "ugc-outputs" | "x-runs">
+    domain: Extract<
+      PipelineStorageDomain,
+      "results" | "ugc-outputs" | "social-template-runs"
+    >
     idKey: string
   }) => {
     add(`${input.workflowId}.${input.pageId}`, async (state, context) => {
@@ -549,7 +552,7 @@ export function createProductionPipelineHandlers(
     rowKey: "runRowId",
     mediaKey: "runMedia",
     pageKey: "runMediaPage",
-    domain: "x-runs",
+    domain: "social-template-runs",
     idKey: "runId",
   })
 
@@ -3341,7 +3344,7 @@ export function createProductionPipelineHandlers(
     const stopAfter = requiredString(input.stopAfter, "stopAfter")
     const queued = await context.externalCall("Appwrite job enqueue", () =>
       services.enqueueJob({
-        type: "run-ugc-automation",
+        type: "run-ugc-template",
         payload: {
           automationId,
           scheduledFor,
@@ -4548,7 +4551,7 @@ export function createProductionPipelineHandlers(
   add("x-threads-generation.prepare-run-document", async (input, context) => {
     const run = requiredRecord(input.run, "run")
     const prepared = preparePipelineDomainDocument({
-      domain: "x-runs",
+      domain: "social-template-runs",
       ownerId: context.ownerId,
       record: run,
     })
@@ -4774,7 +4777,7 @@ export function createProductionPipelineHandlers(
     const outputPath = path.join(
       process.cwd(),
       "data",
-      "x-automations",
+      "social-templates",
       "images",
       fileName
     )
@@ -4795,7 +4798,7 @@ export function createProductionPipelineHandlers(
     const outputPath = path.join(
       process.cwd(),
       "data",
-      "x-automations",
+      "social-templates",
       "images",
       fileName
     )

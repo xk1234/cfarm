@@ -21,7 +21,10 @@ executable source of truth.
 - Domain fields use `camelCase` unless the compatibility contract intentionally
   uses `snake_case`. Appwrite projections use `snake_case`.
 
-## Physical Appwrite tables
+## Physical domain tables
+
+Production stores these rows in Railway PostgreSQL. Local development exposes
+the same logical tables through the Appwrite-compatible adapter.
 
 The `data` column stores the complete serialized domain object. Other columns
 are query projections and may be absent when they do not apply to that row's
@@ -30,8 +33,8 @@ are query projections and may be absent when they do not apply to that row's
 ### `permanent_assets`
 
 Reusable inputs and reference material. Current `source_key` values are
-`image_collection`, `uploaded_asset`, `automation_template`,
-`automation_template_example`, `word_collection`,
+`image_collection`, `uploaded_asset`, `starter_template`,
+`starter_template_example`, `word_collection`,
 `tiktok_studio_analytics_import`, `tiktok_studio_analytics_batch`,
 `tiktok_comment_collection`, `tiktok_captured_comment`,
 `tiktok_comment_reply_draft`, `tiktok_comment_reply_approval`,
@@ -73,42 +76,42 @@ Reusable inputs and reference material. Current `source_key` values are
 ### `outputs`
 
 Generated content. Current `source_key` values are `result`,
-`generated_video`, `x_automation_run`, and `publication_wrapper`.
+`generated_video`, `social_template_run`, and `publication_wrapper`.
 
-| Field                  | Storage type  | Required | Allowed values / format                                                | Meaning                               |
-| ---------------------- | ------------- | -------- | ---------------------------------------------------------------------- | ------------------------------------- |
-| `rid`                  | string (1024) | No       | Domain identifier                                                      | Stable logical output ID.             |
-| `owner_id`             | string (36)   | No       | Appwrite user ID                                                       | Output owner.                         |
-| `source_key`           | string (255)  | No       | `result`, `generated_video`, `x_automation_run`, `publication_wrapper` | Output discriminator.                 |
-| `name`                 | string (2048) | No       | Free string                                                            | Projected output name.                |
-| `status`               | string (255)  | No       | Depends on `source_key`                                                | Generation/content lifecycle.         |
-| `created_raw`          | string (64)   | No       | ISO datetime                                                           | Domain creation time.                 |
-| `data`                 | long text     | No       | JSON object string                                                     | Complete output object.               |
-| `ord`                  | integer       | No       | Zero-based integer                                                     | Stable order.                         |
-| `kind`                 | string (255)  | No       | Domain-specific                                                        | Broad content/media kind.             |
-| `subtype`              | string (255)  | No       | Domain-specific                                                        | More specific output class.           |
-| `storage_class`        | string (64)   | No       | Domain-specific                                                        | Storage policy/category.              |
-| `origin`               | string (64)   | No       | Domain-specific                                                        | How the output was created.           |
-| `title`                | string (2048) | No       | Free string                                                            | Display title.                        |
-| `hook`                 | medium text   | No       | Free string                                                            | Generated hook.                       |
-| `caption`              | medium text   | No       | Free string                                                            | Generated/social caption.             |
-| `hashtags`             | long text     | No       | String or JSON string array                                            | Hashtag payload.                      |
-| `text`                 | medium text   | No       | Free string                                                            | Primary generated text.               |
-| `text_data`            | long text     | No       | JSON string                                                            | Structured generated text.            |
-| `source_automation_id` | string (255)  | No       | Domain ID                                                              | Originating automation.               |
-| `source_run_id`        | string (255)  | No       | Domain ID                                                              | Originating run.                      |
-| `source_entity_id`     | string (255)  | No       | Domain ID                                                              | Originating slideshow/content entity. |
-| `has_video`            | boolean       | No       | `true` or `false`                                                      | Fast video-output filter.             |
-| `publication_status`   | string (64)   | No       | Post status values below                                               | Projected primary publication state.  |
-| `scheduled_at`         | string (64)   | No       | ISO datetime                                                           | Projected scheduled time.             |
-| `published_at`         | string (64)   | No       | ISO datetime                                                           | Projected publication time.           |
-| `primary_post_id`      | string (255)  | No       | Provider post ID                                                       | Primary remote post.                  |
-| `primary_release_url`  | medium text   | No       | URL                                                                    | Primary published URL.                |
-| `publications`         | long text     | No       | JSON `PostFastPostRecord[]`                                            | All publication attempts/records.     |
-| `evaluation`           | long text     | No       | JSON object string                                                     | Quality/evaluation payload.           |
-| `error`                | medium text   | No       | Free string                                                            | Output-level failure detail.          |
-| `updated_at`           | string (64)   | No       | ISO datetime                                                           | Domain update time.                   |
-| `migration_source`     | string (255)  | No       | Free string                                                            | Legacy migration provenance.          |
+| Field                  | Storage type  | Required | Allowed values / format                                                   | Meaning                               |
+| ---------------------- | ------------- | -------- | ------------------------------------------------------------------------- | ------------------------------------- |
+| `rid`                  | string (1024) | No       | Domain identifier                                                         | Stable logical output ID.             |
+| `owner_id`             | string (36)   | No       | Appwrite user ID                                                          | Output owner.                         |
+| `source_key`           | string (255)  | No       | `result`, `generated_video`, `social_template_run`, `publication_wrapper` | Output discriminator.                 |
+| `name`                 | string (2048) | No       | Free string                                                               | Projected output name.                |
+| `status`               | string (255)  | No       | Depends on `source_key`                                                   | Generation/content lifecycle.         |
+| `created_raw`          | string (64)   | No       | ISO datetime                                                              | Domain creation time.                 |
+| `data`                 | long text     | No       | JSON object string                                                        | Complete output object.               |
+| `ord`                  | integer       | No       | Zero-based integer                                                        | Stable order.                         |
+| `kind`                 | string (255)  | No       | Domain-specific                                                           | Broad content/media kind.             |
+| `subtype`              | string (255)  | No       | Domain-specific                                                           | More specific output class.           |
+| `storage_class`        | string (64)   | No       | Domain-specific                                                           | Storage policy/category.              |
+| `origin`               | string (64)   | No       | Domain-specific                                                           | How the output was created.           |
+| `title`                | string (2048) | No       | Free string                                                               | Display title.                        |
+| `hook`                 | medium text   | No       | Free string                                                               | Generated hook.                       |
+| `caption`              | medium text   | No       | Free string                                                               | Generated/social caption.             |
+| `hashtags`             | long text     | No       | String or JSON string array                                               | Hashtag payload.                      |
+| `text`                 | medium text   | No       | Free string                                                               | Primary generated text.               |
+| `text_data`            | long text     | No       | JSON string                                                               | Structured generated text.            |
+| `source_automation_id` | string (255)  | No       | Domain ID                                                                 | Originating automation.               |
+| `source_run_id`        | string (255)  | No       | Domain ID                                                                 | Originating run.                      |
+| `source_entity_id`     | string (255)  | No       | Domain ID                                                                 | Originating slideshow/content entity. |
+| `has_video`            | boolean       | No       | `true` or `false`                                                         | Fast video-output filter.             |
+| `publication_status`   | string (64)   | No       | Post status values below                                                  | Projected primary publication state.  |
+| `scheduled_at`         | string (64)   | No       | ISO datetime                                                              | Projected scheduled time.             |
+| `published_at`         | string (64)   | No       | ISO datetime                                                              | Projected publication time.           |
+| `primary_post_id`      | string (255)  | No       | Provider post ID                                                          | Primary remote post.                  |
+| `primary_release_url`  | medium text   | No       | URL                                                                       | Primary published URL.                |
+| `publications`         | long text     | No       | JSON `PostFastPostRecord[]`                                               | All publication attempts/records.     |
+| `evaluation`           | long text     | No       | JSON object string                                                        | Quality/evaluation payload.           |
+| `error`                | medium text   | No       | Free string                                                               | Output-level failure detail.          |
+| `updated_at`           | string (64)   | No       | ISO datetime                                                              | Domain update time.                   |
+| `migration_source`     | string (255)  | No       | Free string                                                               | Legacy migration provenance.          |
 
 ### `output_media`
 
@@ -137,7 +140,7 @@ Normalized media children of an `outputs` row.
 
 ### Dedicated JSON-store row
 
-`automations`, `automation_runs`, `x_automations`, `usage_ledger`,
+`templates`, `template_runs`, `social_templates`, `usage_ledger`,
 `postfast_metric_snapshots`, and `account_follower_snapshots` use the same
 generic row projection. Their serialized `data` shape is documented under the
 matching domain object below.
@@ -237,16 +240,18 @@ Persistence: `permanent_assets`, `source_key=media_library_asset`.
 | `collection` | string enum | Yes      | `music`, `ugc_avatar_videos`, `demo_videos`, `greenscreen_memes`, `ctas` | Catalog partition.   |
 | `text`       | string      | No       | Free string                                                              | Text asset contents. |
 
-## Automation definition
+## Template definition
 
 ### `AutomationRecord`
 
-Persistence: `automations`.
+Persistence: `templates`. The TypeScript domain type remains
+`AutomationRecord`; stored IDs are intentionally unchanged so historical joins
+continue to resolve.
 
 | Field                | Type               | Required | Allowed values / format     | Meaning                                        |
 | -------------------- | ------------------ | -------- | --------------------------- | ---------------------------------------------- |
 | `ownerId`            | string             | No       | Appwrite user ID            | Injected record owner.                         |
-| `id`                 | string             | Yes      | Stable domain ID            | Automation ID.                                 |
+| `id`                 | string             | Yes      | Stable domain ID            | Template ID.                                   |
 | `sourceAutomationId` | string             | No       | External ID                 | Imported automation identity.                  |
 | `sourceUrl`          | string             | No       | URL                         | Import source.                                 |
 | `name`               | string             | Yes      | Free string                 | Display name.                                  |
@@ -442,16 +447,16 @@ Persistence: `automations`.
 | `hookOverlay.durationMs` | number      | Yes      | Non-negative integer            | Overlay duration.          |
 | `hookOverlay.style`      | string      | Yes      | Registered/free style           | Overlay style.             |
 
-## Automation execution and output
+## Template execution and output
 
 ### `AutomationRunRecord`
 
-Persistence: `automation_runs`.
+Persistence: `template_runs`.
 
 | Field                 | Type                           | Required | Allowed values / format          | Meaning                        |
 | --------------------- | ------------------------------ | -------- | -------------------------------- | ------------------------------ |
 | `id`                  | string                         | Yes      | Stable domain ID                 | Run ID.                        |
-| `automationId`        | string                         | Yes      | Automation ID                    | Parent automation.             |
+| `automationId`        | string                         | Yes      | Template ID                      | Parent template.               |
 | `automationTitle`     | string                         | Yes      | Free string                      | Snapshot title.                |
 | `scheduledFor`        | ISO datetime                   | Yes      | ISO 8601                         | Content slot.                  |
 | `generationSource`    | string enum                    | No       | `manual`, `scheduled`            | Initiator.                     |
@@ -593,15 +598,15 @@ Persistence: `outputs`, `source_key=generated_video`.
 | `manuallyPublishedAt` | ISO datetime | No       | ISO 8601                                   | Manual publication evidence. |
 | `deletionBlockedBy`   | string enum  | No       | `published`, `scheduled`                   | Why deletion is blocked.     |
 
-## X and Threads automation
+## X and Threads templates
 
 ### `XAutomationRecord`
 
-Persistence: `x_automations`.
+Persistence: `social_templates`.
 
 | Field                             | Type                          | Required | Allowed values / format                                | Meaning                          |
 | --------------------------------- | ----------------------------- | -------- | ------------------------------------------------------ | -------------------------------- |
-| `id`                              | string                        | Yes      | Stable domain ID                                       | Automation ID.                   |
+| `id`                              | string                        | Yes      | Stable domain ID                                       | Template ID.                     |
 | `ownerId`                         | string                        | No       | Appwrite user ID                                       | Owner.                           |
 | `platform`                        | string enum                   | Yes      | `x`, `threads`                                         | Target platform.                 |
 | `name`                            | string                        | Yes      | Free string                                            | Display name.                    |
@@ -649,14 +654,14 @@ Allowed `output.archetype` values: `educational_thread`, `data_drop`,
 
 ### `XAutomationRun`
 
-Persistence: `outputs`, `source_key=x_automation_run`.
+Persistence: `outputs`, `source_key=social_template_run`.
 
 | Field             | Type               | Required | Allowed values / format                                     | Meaning                      |
 | ----------------- | ------------------ | -------- | ----------------------------------------------------------- | ---------------------------- |
 | `id`              | string             | Yes      | Stable domain ID                                            | Run ID.                      |
 | `ownerId`         | string             | No       | Appwrite user ID                                            | Owner.                       |
 | `requestId`       | string             | No       | Correlation/idempotency ID                                  | Request identity.            |
-| `automationId`    | string             | Yes      | Automation ID                                               | Parent.                      |
+| `automationId`    | string             | Yes      | Template ID                                                 | Parent.                      |
 | `automationName`  | string             | Yes      | Free string                                                 | Snapshot name.               |
 | `topic`           | string             | Yes      | Free string                                                 | Topic.                       |
 | `archetype`       | string enum        | No       | X archetypes listed above                                   | Selected archetype.          |

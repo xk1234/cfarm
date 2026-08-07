@@ -13,15 +13,14 @@ may link to a shared tool but do not invent a second incompatible schema.
 | ----------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
 | Workflows               | [workflows/README.md](workflows/README.md)       | Named production generation pipelines and independently callable deterministic, provider, and storage stages.                |
 | Workspace               | [workspace/README.md](workspace/README.md)       | Workspace defaults, limits, locale, and capabilities.                                                                        |
-| Templates               | [templates/README.md](templates/README.md)       | Catalog search, template detail, versions, examples, and allowed overrides.                                                  |
-| Automations             | [automations/README.md](automations/README.md)   | Automation discovery, preview, create, update, and manual generation runs.                                                   |
+| Templates               | [templates/README.md](templates/README.md)       | Template and starter-template discovery, creation, editing, hook management, and manual generation runs.                     |
 | Collections             | [collections/README.md](collections/README.md)   | Image, video, word, and product collections; imports, search, merge, and deletion policy.                                    |
-| Slideshows              | [slideshow/README.md](slideshow/README.md)       | Template discovery, slideshow automations, direct slideshow creation, rendering, review, and publication.                    |
-| Videos                  | [videos/README.md](videos/README.md)             | Video-template discovery and video-automation generation through the common automation contract.                             |
+| Slideshows              | [slideshow/README.md](slideshow/README.md)       | Template discovery, slideshow templates, direct slideshow creation, rendering, review, and publication.                      |
+| Videos                  | [videos/README.md](videos/README.md)             | Video-template discovery and video-template generation through the common template contract.                                 |
 | Other social media      | [social-media/README.md](social-media/README.md) | X, Threads, LinkedIn, account capability discovery, draft generation, and approval-gated publishing.                         |
 | Outputs and operations  | [outputs/README.md](outputs/README.md)           | Generated draft discovery and long-running operation status.                                                                 |
 | Accounts and publishing | [publishing/README.md](publishing/README.md)     | Safe account discovery, publishing, scheduling a ready output, and manual publication linking.                               |
-| Scheduling              | [scheduling/README.md](scheduling/README.md)     | Recurring automation schedules and one-output scheduling through shared tools.                                               |
+| Scheduling              | [scheduling/README.md](scheduling/README.md)     | Recurring template schedules and one-output scheduling through shared tools.                                                 |
 | Analytics               | [analytics/README.md](analytics/README.md)       | Attributed reports with metric-availability and provenance rules.                                                            |
 | Exports                 | [exports/README.md](exports/README.md)           | Controlled JSON, CSV, and manifest-backed media exports.                                                                     |
 | Shared contracts        | [shared-contracts.md](shared-contracts.md)       | Complete input/output schemas for tools reused by two or more categories, pagination, operations, errors, and resource URIs. |
@@ -32,34 +31,34 @@ may link to a shared tool but do not invent a second incompatible schema.
 - `lumenclip_pipeline_catalog`
 - `lumenclip_pipeline_stage_run`
 - `lumenclip_pipeline_run`
-- `lumenclip_automations_list`
-- `lumenclip_automation_templates_list`
-- `lumenclip_automation_create`
-- `lumenclip_automation_clone`
-- `lumenclip_automation_get`
-- `lumenclip_automation_variable_bindings_get`
-- `lumenclip_automation_experiment_dimensions`
-- `lumenclip_automation_experiment_run`
-- `lumenclip_automation_schema_update`
-- `lumenclip_automation_formatting_update`
-- `lumenclip_automation_text_item_update`
-- `lumenclip_automation_delete`
-- `lumenclip_automation_hooks_get`
-- `lumenclip_automation_hooks_update`
-- `lumenclip_automation_hook_upsert`
-- `lumenclip_automation_hook_set_enabled`
-- `lumenclip_automation_hook_delete`
+- `lumenclip_templates_list`
+- `lumenclip_starter_templates_list`
+- `lumenclip_template_create`
+- `lumenclip_template_clone`
+- `lumenclip_template_get`
+- `lumenclip_template_variable_bindings_get`
+- `lumenclip_template_experiment_dimensions`
+- `lumenclip_template_experiment_run`
+- `lumenclip_template_schema_update`
+- `lumenclip_template_formatting_update`
+- `lumenclip_template_text_item_update`
+- `lumenclip_template_delete`
+- `lumenclip_template_hooks_get`
+- `lumenclip_template_hooks_update`
+- `lumenclip_template_hook_upsert`
+- `lumenclip_template_hook_set_enabled`
+- `lumenclip_template_hook_delete`
 - `lumenclip_hook_performance`
 - `lumenclip_hook_variants_generate`
 - `lumenclip_hook_variant_select`
 - `lumenclip_run_plan_get`
-- `lumenclip_automation_run`
+- `lumenclip_template_run`
 - `lumenclip_schedule_get`
 - `lumenclip_slideshow_generate`
 - `lumenclip_slideshow_analyze`
 - `lumenclip_ugc_estimate`
 - `lumenclip_ugc_generate`
-- `lumenclip_automation_update`
+- `lumenclip_template_update`
 - `lumenclip_collections_list`
 - `lumenclip_product_collection_get`
 - `lumenclip_assets_list`
@@ -71,6 +70,8 @@ may link to a shared tool but do not invent a second incompatible schema.
 - `lumenclip_collection_delete`
 - `lumenclip_outputs_list`
 - `lumenclip_output_get`
+- `lumenclip_workflow_trace_get`
+- `lumenclip_workflow_stage_get`
 - `lumenclip_output_validate`
 - `lumenclip_output_slide_text_update`
 - `lumenclip_output_delete`
@@ -110,7 +111,7 @@ surface and are not callable until marked **Implemented** in the tool index.
 - Raw tool names use the `lumenclip_` prefix.
 - Direct X-, Threads-, LinkedIn-, provider-, model-, and video-generator tools
   are intentionally not defined. Stable workflows use the common
-  `Automation`, `Output`, and `Operation` objects.
+  `Template`, `Output`, and `Operation` objects.
 - Manual generation always creates an unpublished, unscheduled draft.
 - Publishing is a separate, explicitly confirmed tool call.
 - Normal tool results contain metadata and resource links, never media bytes,

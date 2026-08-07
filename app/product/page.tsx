@@ -28,7 +28,7 @@ const groups = [
   {
     icon: IconRoute,
     title: "Workflows with visible inputs",
-    body: "Build an automation from named collections, templates, schedules, and destination settings.",
+    body: "Build a reusable template from named collections, schedules, and destination settings.",
     bullets: [
       "Inspect every input before a run",
       "Persist run history and generated artifacts",

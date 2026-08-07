@@ -46,15 +46,13 @@ export function workspaceLocationFromUrl(
     }
   }
   if (pathname === "/app/collections") return { view: "collections" }
-  if (pathname === "/app/x-automations") return { view: "templates" }
+  if (pathname === "/app/social-templates") return { view: "templates" }
 
   const requestedView = new URLSearchParams(search).get("view")
-  const normalizedView =
-    requestedView === "automations" ? "templates" : requestedView
   return {
     view:
-      normalizedView && viewKeys.has(normalizedView as ViewKey)
-        ? (normalizedView as ViewKey)
+      requestedView && viewKeys.has(requestedView as ViewKey)
+        ? (requestedView as ViewKey)
         : "home",
   }
 }

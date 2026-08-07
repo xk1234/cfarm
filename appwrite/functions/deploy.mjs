@@ -1,4 +1,4 @@
-// Self-contained deploy for the LumenClip Appwrite Functions (automation-scheduler + job-worker).
+// Self-contained deploy for the LumenClip Appwrite Functions (template-scheduler + job-worker).
 // Usage (from repo root):
 //   APPWRITE_ENDPOINT=... APPWRITE_PROJECT_ID=... APPWRITE_API_KEY=... \
 //   APPWRITE_DATABASE_ID=cfarm node appwrite/functions/deploy.mjs
@@ -71,7 +71,7 @@ const optionalProviderVars = Object.fromEntries(
 )
 const FUNCTIONS = [
   {
-    id: "automation-scheduler",
+    id: "template-scheduler",
     schedule: "*/5 * * * *",
     timeout: 120,
     vars: {
@@ -86,7 +86,7 @@ const FUNCTIONS = [
         ? { LUMENCLIP_SYSTEM_OWNER_ID: process.env.LUMENCLIP_SYSTEM_OWNER_ID }
         : {}),
       // The scheduler decides whether to enqueue UGC slots at all
-      // (automation-scheduler/src/main.js checks this flag), so it needs the
+      // (template-scheduler/src/main.js checks this flag), so it needs the
       // value too. Forwarding it only to the job-worker meant scheduled UGC
       // was skipped silently no matter how the worker was configured.
       ...(process.env.ENABLE_UGC_AUTOMATION

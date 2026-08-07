@@ -30,8 +30,8 @@ const GROUPS = {
       "AssetRecord",
     ],
   },
-  automations: {
-    title: "Automation definitions",
+  templates: {
+    title: "Template definitions",
     sections: [
       "AutomationRecord",
       "AutomationSchema",

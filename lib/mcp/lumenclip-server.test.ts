@@ -225,13 +225,13 @@ describe("LumenClip MCP server", () => {
     })
 
     const inspected = await client.callTool({
-      name: "lumenclip_automation_experiment_dimensions",
-      arguments: { automationId: "automation-1" },
+      name: "lumenclip_template_experiment_dimensions",
+      arguments: { templateId: "automation-1" },
     })
     const run = await client.callTool({
-      name: "lumenclip_automation_experiment_run",
+      name: "lumenclip_template_experiment_run",
       arguments: {
-        automationId: "automation-1",
+        templateId: "automation-1",
         vary: [
           {
             dimension: "contentDirection",
@@ -312,7 +312,7 @@ describe("LumenClip MCP server", () => {
 
   it.each([
     {
-      name: "lumenclip_automations_list",
+      name: "lumenclip_templates_list",
       arguments: {},
       overrides: {
         listAutomationRecords: vi.fn(async () => {
@@ -348,8 +348,8 @@ describe("LumenClip MCP server", () => {
       },
     },
     {
-      name: "lumenclip_automation_get",
-      arguments: { automationId: "automation-just-written" },
+      name: "lumenclip_template_get",
+      arguments: { templateId: "automation-just-written" },
       overrides: {
         getAutomationRecord: vi.fn(async () => {
           throw appwriteReadQuotaError()
@@ -429,8 +429,8 @@ describe("LumenClip MCP server", () => {
     })
 
     const result = await client.callTool({
-      name: "lumenclip_automation_update",
-      arguments: { automationId: current.id, action: "pause" },
+      name: "lumenclip_template_update",
+      arguments: { templateId: current.id, action: "pause" },
     })
 
     expect(result.structuredContent).toMatchObject({
@@ -489,11 +489,11 @@ describe("LumenClip MCP server", () => {
     })
 
     const read = await client.callTool({
-      name: "lumenclip_automation_hooks_get",
-      arguments: { automationId: current.id },
+      name: "lumenclip_template_hooks_get",
+      arguments: { templateId: current.id },
     })
     expect(read.structuredContent).toMatchObject({
-      automationId: current.id,
+      templateId: current.id,
       total: 3,
       duplicateSlotCount: 1,
       duplicateGroups: [
@@ -504,16 +504,16 @@ describe("LumenClip MCP server", () => {
     })
 
     const update = await client.callTool({
-      name: "lumenclip_automation_hooks_update",
+      name: "lumenclip_template_hooks_update",
       arguments: {
-        automationId: current.id,
+        templateId: current.id,
         expectedUpdatedAt: current.updatedAt,
         deduplicateNearMatches: true,
         hooks: current.schema.hooks,
       },
     })
     expect(update.structuredContent).toMatchObject({
-      automationId: current.id,
+      templateId: current.id,
       total: 2,
       duplicateSlotCount: 0,
     })
@@ -561,11 +561,11 @@ describe("LumenClip MCP server", () => {
     })
 
     const read = await client.callTool({
-      name: "lumenclip_automation_get",
-      arguments: { automationId: current.id },
+      name: "lumenclip_template_get",
+      arguments: { templateId: current.id },
     })
     expect(read.structuredContent).toMatchObject({
-      automation: {
+      template: {
         schema: {
           automationKind: "slideshow",
           formatting: expect.any(Array),
@@ -575,9 +575,9 @@ describe("LumenClip MCP server", () => {
     })
 
     const upserted = await client.callTool({
-      name: "lumenclip_automation_hook_upsert",
+      name: "lumenclip_template_hook_upsert",
       arguments: {
-        automationId: current.id,
+        templateId: current.id,
         hooks: [
           {
             id: "hook-new",
@@ -602,9 +602,9 @@ describe("LumenClip MCP server", () => {
     })
 
     const malformed = await client.callTool({
-      name: "lumenclip_automation_hook_upsert",
+      name: "lumenclip_template_hook_upsert",
       arguments: {
-        automationId: current.id,
+        templateId: current.id,
         hooks: [
           {
             id: "hook-malformed",
@@ -623,9 +623,9 @@ describe("LumenClip MCP server", () => {
     })
 
     const disabled = await client.callTool({
-      name: "lumenclip_automation_hook_set_enabled",
+      name: "lumenclip_template_hook_set_enabled",
       arguments: {
-        automationId: current.id,
+        templateId: current.id,
         hookIds: ["hook-new"],
         enabled: false,
       },
@@ -638,9 +638,9 @@ describe("LumenClip MCP server", () => {
     })
 
     const deleted = await client.callTool({
-      name: "lumenclip_automation_hook_delete",
+      name: "lumenclip_template_hook_delete",
       arguments: {
-        automationId: current.id,
+        templateId: current.id,
         hookIds: ["hook-new"],
         confirmDelete: true,
       },
@@ -667,12 +667,12 @@ describe("LumenClip MCP server", () => {
     })
 
     const result = await client.callTool({
-      name: "lumenclip_automation_get",
-      arguments: { automationId: current.id },
+      name: "lumenclip_template_get",
+      arguments: { templateId: current.id },
     })
 
     expect(result.structuredContent).toMatchObject({
-      automation: {
+      template: {
         unresolvedCollectionReferences: [
           "collection-mystical-pictures-deleted",
           "collection-deleted-override",
@@ -683,7 +683,7 @@ describe("LumenClip MCP server", () => {
           id: "replace-missing-collection-references",
           severity: "required",
           tool: "lumenclip_collections_list",
-          blocks: ["lumenclip_automation_run"],
+          blocks: ["lumenclip_template_run"],
         }),
       ],
     })
@@ -724,12 +724,12 @@ describe("LumenClip MCP server", () => {
     })
 
     const result = await client.callTool({
-      name: "lumenclip_automation_get",
-      arguments: { automationId: current.id },
+      name: "lumenclip_template_get",
+      arguments: { templateId: current.id },
     })
 
     expect(result.structuredContent).toMatchObject({
-      automation: {
+      template: {
         configurationWarnings: expect.arrayContaining([
           expect.objectContaining({
             code: "BODY_TEXT_LAYERS_COLLAPSED",
@@ -744,7 +744,7 @@ describe("LumenClip MCP server", () => {
       nextSteps: expect.arrayContaining([
         expect.objectContaining({
           id: "restore-body-heading-and-paragraph-layers",
-          tool: "lumenclip_automation_schema_update",
+          tool: "lumenclip_template_schema_update",
           args: expect.objectContaining({
             mode: "patch",
             schema: {
@@ -808,18 +808,18 @@ describe("LumenClip MCP server", () => {
     })
 
     const first = await client.callTool({
-      name: "lumenclip_automation_clone",
+      name: "lumenclip_template_clone",
       arguments: {
-        sourceAutomationId: source.id,
+        sourceTemplateId: source.id,
         name: "Astrology rankings",
         expectedUpdatedAt: source.updatedAt,
         requestId: "clone-rankings-1",
       },
     })
     const second = await client.callTool({
-      name: "lumenclip_automation_clone",
+      name: "lumenclip_template_clone",
       arguments: {
-        sourceAutomationId: source.id,
+        sourceTemplateId: source.id,
         name: "Astrology rankings",
         expectedUpdatedAt: source.updatedAt,
         requestId: "clone-rankings-1",
@@ -828,8 +828,8 @@ describe("LumenClip MCP server", () => {
 
     expect(first.structuredContent).toMatchObject({
       created: true,
-      sourceAutomationId: source.id,
-      automation: {
+      sourceTemplateId: source.id,
+      template: {
         name: "Astrology rankings",
         status: "paused",
         schema: {
@@ -899,9 +899,9 @@ describe("LumenClip MCP server", () => {
     })
 
     const blockResult = await client.callTool({
-      name: "lumenclip_automation_formatting_update",
+      name: "lumenclip_template_formatting_update",
       arguments: {
-        automationId: current.id,
+        templateId: current.id,
         blockId: "body",
         expectedUpdatedAt: current.updatedAt,
         patch: {
@@ -918,7 +918,7 @@ describe("LumenClip MCP server", () => {
       },
     })
     expect(blockResult.structuredContent).toMatchObject({
-      automationId: current.id,
+      templateId: current.id,
       block: {
         id: "body",
         slideCountMode: "varying",
@@ -932,9 +932,9 @@ describe("LumenClip MCP server", () => {
     })
 
     const textResult = await client.callTool({
-      name: "lumenclip_automation_text_item_update",
+      name: "lumenclip_template_text_item_update",
       arguments: {
-        automationId: current.id,
+        templateId: current.id,
         blockId: "body",
         textItemId: "text-body-paragraph",
         expectedUpdatedAt: current.updatedAt,
@@ -942,7 +942,7 @@ describe("LumenClip MCP server", () => {
       },
     })
     expect(textResult.structuredContent).toMatchObject({
-      automationId: current.id,
+      templateId: current.id,
       blockId: "body",
       textItem: {
         id: "text-body-paragraph",
@@ -975,12 +975,12 @@ describe("LumenClip MCP server", () => {
     })
 
     const result = await client.callTool({
-      name: "lumenclip_automation_get",
-      arguments: { automationId: current.id },
+      name: "lumenclip_template_get",
+      arguments: { templateId: current.id },
     })
 
     expect(result.structuredContent).toMatchObject({
-      automation: {
+      template: {
         schema: {
           hook_slots: { sign: "zodiac" },
           hook_slot_overrides: { SIGN: "zodiac" },
@@ -1008,9 +1008,9 @@ describe("LumenClip MCP server", () => {
       nextSteps: [
         expect.objectContaining({
           id: "remove-unused-hook-slot-overrides",
-          tool: "lumenclip_automation_schema_update",
+          tool: "lumenclip_template_schema_update",
           args: expect.objectContaining({
-            automationId: current.id,
+            templateId: current.id,
             schema: { hook_slots: { ZODIAC_CUSP: null } },
           }),
         }),
@@ -1018,11 +1018,11 @@ describe("LumenClip MCP server", () => {
     })
 
     const bindings = await client.callTool({
-      name: "lumenclip_automation_variable_bindings_get",
-      arguments: { automationId: current.id },
+      name: "lumenclip_template_variable_bindings_get",
+      arguments: { templateId: current.id },
     })
     expect(bindings.structuredContent).toMatchObject({
-      automationId: current.id,
+      templateId: current.id,
       bindings: [
         expect.objectContaining({ token: "[[SIGN]]", source: "override" }),
         expect.objectContaining({
@@ -1064,9 +1064,9 @@ describe("LumenClip MCP server", () => {
     })
 
     const result = await client.callTool({
-      name: "lumenclip_automation_hook_upsert",
+      name: "lumenclip_template_hook_upsert",
       arguments: {
-        automationId: current.id,
+        templateId: current.id,
         hooks: [{ id: "bad-sign", text: "Why [[SIGN]] always wins" }],
       },
     })
@@ -1140,7 +1140,7 @@ describe("LumenClip MCP server", () => {
     })
 
     const first = await client.callTool({
-      name: "lumenclip_automation_create",
+      name: "lumenclip_template_create",
       arguments: {
         name: "Created by MCP",
         kind: "slideshow",
@@ -1149,7 +1149,7 @@ describe("LumenClip MCP server", () => {
       },
     })
     const second = await client.callTool({
-      name: "lumenclip_automation_create",
+      name: "lumenclip_template_create",
       arguments: {
         name: "Created by MCP",
         kind: "slideshow",
@@ -1163,9 +1163,9 @@ describe("LumenClip MCP server", () => {
       nextSteps: [
         expect.objectContaining({
           severity: "recommended",
-          tool: "lumenclip_automation_clone",
+          tool: "lumenclip_template_clone",
           args: expect.objectContaining({
-            sourceAutomationId: "automation-seed",
+            sourceTemplateId: "automation-seed",
           }),
         }),
       ],
@@ -1178,7 +1178,7 @@ describe("LumenClip MCP server", () => {
 
     const performance = await client.callTool({
       name: "lumenclip_hook_performance",
-      arguments: { automationId: "automation-1", days: 30 },
+      arguments: { templateId: "automation-1", days: 30 },
     })
     expect(performance.structuredContent).toMatchObject({
       performance: [
@@ -1210,7 +1210,7 @@ describe("LumenClip MCP server", () => {
     const failedJob = {
       ...ugcJob(current.id),
       id: "job-failed",
-      type: "run-automation",
+      type: "run-template",
       status: "failed" as const,
       error: "Generation failed",
       payload: {
@@ -1776,7 +1776,7 @@ describe("LumenClip MCP server", () => {
     const result = await client.callTool({
       name: "lumenclip_slideshow_generate",
       arguments: {
-        automationId: current.id,
+        templateId: current.id,
         requestId: "request-1",
         hook: "My exact slideshow hook",
       },
@@ -1837,7 +1837,7 @@ describe("LumenClip MCP server", () => {
 
     const result = await client.callTool({
       name: "lumenclip_slideshow_generate",
-      arguments: { automationId: current.id, requestId: "request-1" },
+      arguments: { templateId: current.id, requestId: "request-1" },
     })
 
     const summary = (
@@ -1884,7 +1884,7 @@ describe("LumenClip MCP server", () => {
 
     const result = await client.callTool({
       name: "lumenclip_slideshow_generate",
-      arguments: { automationId: current.id, requestId: "request-1" },
+      arguments: { templateId: current.id, requestId: "request-1" },
     })
 
     const summary = (
@@ -1919,7 +1919,7 @@ describe("LumenClip MCP server", () => {
     })
 
     const result = await client.callTool({
-      name: "lumenclip_automations_list",
+      name: "lumenclip_templates_list",
       arguments: { limit: 20 },
     })
 
@@ -1950,9 +1950,9 @@ describe("LumenClip MCP server", () => {
     })
 
     const result = await client.callTool({
-      name: "lumenclip_automation_run",
+      name: "lumenclip_template_run",
       arguments: {
-        automationId: current.id,
+        templateId: current.id,
         requestId: "general-run-1",
         hook: "My exact MCP hook",
       },
@@ -1979,7 +1979,7 @@ describe("LumenClip MCP server", () => {
       nextSteps: [
         expect.objectContaining({
           severity: "required",
-          tool: "lumenclip_automation_run",
+          tool: "lumenclip_template_run",
           blocks: ["lumenclip_output_publish"],
         }),
       ],
@@ -2024,7 +2024,7 @@ describe("LumenClip MCP server", () => {
 
     const result = await client.callTool({
       name: "lumenclip_hook_variants_generate",
-      arguments: { automationId: current.id, count: 2 },
+      arguments: { templateId: current.id, count: 2 },
     })
 
     expect(generateVariants).toHaveBeenCalledWith(current.schema, {
@@ -2034,7 +2034,7 @@ describe("LumenClip MCP server", () => {
       now: new Date("2026-08-01T12:00:00.000Z"),
     })
     expect(result.structuredContent).toMatchObject({
-      automationId: current.id,
+      templateId: current.id,
       count: 2,
       variants,
       nextAction: { tool: "lumenclip_hook_variant_select" },
@@ -2042,13 +2042,13 @@ describe("LumenClip MCP server", () => {
 
     const invalid = await client.callTool({
       name: "lumenclip_hook_variants_generate",
-      arguments: { automationId: current.id, count: 1 },
+      arguments: { templateId: current.id, count: 1 },
     })
     expect(invalid.isError).toBe(true)
 
     const tooMany = await client.callTool({
       name: "lumenclip_hook_variants_generate",
-      arguments: { automationId: current.id, count: 11 },
+      arguments: { templateId: current.id, count: 11 },
     })
     expect(tooMany.isError).toBe(true)
     expect(generateVariants).toHaveBeenCalledTimes(1)
@@ -2073,7 +2073,7 @@ describe("LumenClip MCP server", () => {
     const result = await client.callTool({
       name: "lumenclip_hook_variant_select",
       arguments: {
-        automationId: current.id,
+        templateId: current.id,
         selectedHook: "Selected exact hook",
         requestId: "selected-hook-1",
       },
@@ -2148,7 +2148,7 @@ describe("LumenClip MCP server", () => {
     })
 
     const result = await client.callTool({
-      name: "lumenclip_automations_list",
+      name: "lumenclip_templates_list",
       arguments: { kind: "ugc", limit: 20 },
     })
 
@@ -2182,9 +2182,9 @@ describe("LumenClip MCP server", () => {
     })
 
     const result = await client.callTool({
-      name: "lumenclip_automation_run",
+      name: "lumenclip_template_run",
       arguments: {
-        automationId: current.id,
+        templateId: current.id,
         requestId: "ugc-request-1",
       },
     })
@@ -2192,7 +2192,7 @@ describe("LumenClip MCP server", () => {
     expect(slideshowRunner).not.toHaveBeenCalled()
     expect(enqueue).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: "run-ugc-automation",
+        type: "run-ugc-template",
         dedupeKey: `ugc-mcp:${current.id}:ugc-request-1`,
         payload: expect.objectContaining({
           automationId: current.id,
@@ -2202,7 +2202,7 @@ describe("LumenClip MCP server", () => {
       })
     )
     expect(result.structuredContent).toMatchObject({
-      automationId: current.id,
+      templateId: current.id,
       requestId: "ugc-request-1",
       expectedOutputId: expect.stringMatching(/^ugc-/),
       estimate: { currency: "USD", totalUsd: expect.any(Number) },
@@ -2227,12 +2227,12 @@ describe("LumenClip MCP server", () => {
 
     const result = await client.callTool({
       name: "lumenclip_ugc_estimate",
-      arguments: { automationId: current.id, lipSyncTier: "premium" },
+      arguments: { templateId: current.id, lipSyncTier: "premium" },
     })
 
     expect(enqueue).not.toHaveBeenCalled()
     expect(result.structuredContent).toMatchObject({
-      automationId: current.id,
+      templateId: current.id,
       estimate: { currency: "USD", tier: "premium" },
       assumptions: { lipSyncTier: "premium" },
     })
@@ -2363,20 +2363,20 @@ describe("LumenClip MCP server", () => {
     })
 
     const result = await client.callTool({
-      name: "lumenclip_automation_run",
+      name: "lumenclip_template_run",
       arguments: {
-        automationId: current.id,
+        templateId: current.id,
         requestId: "no-images-1",
       },
     })
 
     expect(result.isError).not.toBe(true)
     expect(result.structuredContent).toMatchObject({
-      automationId: current.id,
+      templateId: current.id,
       requestId: "no-images-1",
       operation: { status: "failed", stage: "precondition" },
       outputs: [],
-      skipped: [{ automationId: current.id, reason: "no_images" }],
+      skipped: [{ templateId: current.id, reason: "no_images" }],
       errors: [{ code: "COLLECTION_EMPTY", retryable: true }],
     })
   })
@@ -3143,7 +3143,7 @@ function ugcAutomationRecord() {
 function ugcJob(automationId: string): Job {
   return {
     id: "job-ugc-1",
-    type: "run-ugc-automation",
+    type: "run-ugc-template",
     status: "queued",
     payload: {
       automationId,

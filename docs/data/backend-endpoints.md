@@ -16,7 +16,7 @@ Inventory verified against the working tree on 2026-07-18: **62 route files and
 - Authentication uses the HTTP-only `lumenclip-session` cookie.
 - JSON is the default request/response format. Upload endpoints use
   `multipart/form-data`; demo and asset-view endpoints may return bytes.
-- Success responses use named top-level fields such as `{ automation }`,
+- Success responses use named top-level fields such as `{ template }`,
   `{ collections }`, or `{ runs }`. There is no universal success envelope.
 - Failures use `{ error: string }` unless a binary endpoint returns a plain
   `Response`.
@@ -46,33 +46,25 @@ The app has no custom authentication API routes.
 | ----------------- | ------------- | ------------------------------------------------------- | ------- |
 | `GET /api/search` | Query `query` | Public read-only Orama index generated from `docs/**/*` | Current |
 
-## Templates and execution compatibility
+## Templates and execution
 
-| Method and path                            | Input                                                                                | Response / behavior                                                           | State   |
-| ------------------------------------------ | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | ------- |
-| `GET /api/automation-templates`            | None                                                                                 | Template records, summaries, example runs, and schema map                     | Current |
-| `POST /api/automation-templates`           | JSON array or `{ templates }` / `{ automations }` containing ReelFarm-shaped exports | Imports normalized templates; `201`                                           | Current |
-| `GET /api/templates`                       | None                                                                                 | User-owned template records and summaries                                     | Current |
-| `POST /api/templates`                      | JSON `{ name?, automationKind?, schema?, template?, overrides? }`                    | Creates a user-owned template; `201`                                          | Current |
-| `PATCH /api/templates`                     | JSON `{ id, name?, status?, favorite?, schema? }`                                    | Updates a user-owned template                                                 | Current |
-| `DELETE /api/templates/[id]`               | Path ID                                                                              | Cascades through runs, slideshow results, and local publication records       | Current |
-| `GET /api/automations`                     | None                                                                                 | `{ records, automations }`                                                    | Current |
-| `POST /api/automations`                    | JSON `{ name?, automationKind?, schema?, template?, overrides? }`                    | Creates a local automation; raw imports are rejected; `201`                   | Current |
-| `PATCH /api/automations`                   | JSON `{ id, name?, status?, favorite?, schema? }`                                    | `{ record, automation }`; `409` when a published hook is removed or renamed   | Current |
-| `DELETE /api/automations/[id]`             | Path ID                                                                              | Cascades through runs, slideshow results, and local publication records       | Current |
-| `POST /api/automations/hooks`              | JSON `{ automationId }`                                                              | Generates and persists a fresh hook set; rejects missing/exhausted inputs     | Current |
-| `POST /api/automations/video-copy`         | JSON `{ automationId, template?, hook?, items?, segmentRoles? }`                     | Generated/fallback title, caption, hashtags, substitutions, and per-item text | Current |
-| `POST /api/automations/run`                | JSON `{ automationId, force: true, now?, requestId? }`                               | Runs one interactive generation and returns created/results/skipped           | Current |
-| `GET /api/automations/runs`                | Query `automationId?`, `limit?`                                                      | Unified run views, including generated-video-backed runs                      | Current |
-| `GET /api/automations/[id]/hook-analytics` | Path automation ID                                                                   | Published hook lock state and aggregated metric rows                          | Current |
+| Method and path                          | Input                                                             | Response / behavior                                                           | State   |
+| ---------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------- |
+| `GET /api/starter-templates`             | None                                                              | Template records, summaries, example runs, and schema map                     | Current |
+| `POST /api/starter-templates`            | JSON array or `{ templates }` containing ReelFarm-shaped exports  | Imports normalized templates; `201`                                           | Current |
+| `GET /api/templates`                     | None                                                              | `{ records, templates }`                                                      | Current |
+| `POST /api/templates`                    | JSON `{ name?, automationKind?, schema?, template?, overrides? }` | Creates a user-owned template; `201`                                          | Current |
+| `PATCH /api/templates`                   | JSON `{ id, name?, status?, favorite?, schema? }`                 | `{ record, template }`; `409` when a published hook is removed or renamed     | Current |
+| `DELETE /api/templates/[id]`             | Path template ID                                                  | Cascades through runs, slideshow results, and local publication records       | Current |
+| `POST /api/templates/hooks`              | JSON `{ templateId }`                                             | Generates and persists a fresh hook set; rejects missing/exhausted inputs     | Current |
+| `POST /api/templates/video-copy`         | JSON `{ templateId, template?, hook?, items?, segmentRoles? }`    | Generated/fallback title, caption, hashtags, substitutions, and per-item text | Current |
+| `POST /api/templates/run`                | JSON `{ templateId, force: true, now?, requestId? }`              | Runs one interactive generation and returns created/results/skipped           | Current |
+| `GET /api/templates/runs`                | Query `templateId?`, `limit?`                                     | Unified run views, including generated-video-backed runs                      | Current |
+| `GET /api/templates/[id]/hook-analytics` | Path template ID                                                  | Published hook lock state and aggregated metric rows                          | Current |
 
-The `/api/automations` definition routes remain compatibility aliases for MCP,
-workers, and older clients. New app authoring uses `/api/templates`; execution
-routes retain automation IDs so historical joins remain stable.
-
-An interactive `/automations/run` call is the manual generation path. Scheduled
-execution is driven by the scheduler/worker and is not exposed as a browser
-endpoint.
+The old `/api/automations`, `/api/x-automations`, and
+`/api/automation-templates` families have been removed. Existing record IDs are
+not rewritten, so historical output and publication joins remain valid.
 
 ## Slideshows, results, and generated videos
 
@@ -80,7 +72,7 @@ endpoint.
 | -------------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------- |
 | `GET /api/slideshows`                              | Query `id?`, `limit?`                                                            | `{ slideshows, slideshowsCount, videosCount }` derived from result outputs          | Current |
 | `POST /api/slideshows`                             | `CreateSlideshowInput` JSON                                                      | Creates a slideshow-compatible `ResultRecord`; `201 { slideshow, result }`          | Current |
-| `GET /api/slideshows/[id]`                         | Path slideshow ID                                                                | Images available from the automation's configured collections                       | Current |
+| `GET /api/slideshows/[id]`                         | Path slideshow ID                                                                | Images available from the template's configured collections                         | Current |
 | `PATCH /api/slideshows/[id]`                       | Action JSON: `removeSlide`, `replaceImage`, `updateMetadata`, or `markPublished` | Updated slideshow/run; blocks edits to scheduled/published content                  | Current |
 | `DELETE /api/slideshows/[id]`                      | Path slideshow ID                                                                | Deletes eligible result/run/publication records; blocks scheduled/published content | Current |
 | `GET /api/public/slideshows/[id]/download?token=…` | Signed output-scoped token                                                       | Login-free ZIP download of every rendered slide; `404` invalid token, `409` empty   | Current |
@@ -97,7 +89,7 @@ endpoint.
 | -------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------ |
 | `GET /api/image-collections`                 | None                                                                            | `{ collections }`                                               | Current            |
 | `POST /api/image-collections`                | `StoredImageCollection` JSON                                                    | Upserts by normalized collection name; `201`                    | Current            |
-| `POST /api/image-collections/delete-preview` | JSON `{ collections: [{ name, created_at }] }`                                  | Counts media and lists dependent automations/templates          | Current            |
+| `POST /api/image-collections/delete-preview` | JSON `{ collections: [{ name, created_at }] }`                                  | Counts media and lists dependent templates                      | Current            |
 | `DELETE /api/image-collections`              | JSON `{ collections: [{ name, created_at }] }`                                  | Soft-deletes for 30 days; unreferenced files purge after expiry | Current            |
 | `POST /api/image-collections/import`         | JSON `{ collectionName?, collectionCreatedAt?, mediaType?, images[] }`          | Downloads, hashes, deduplicates, and adds up to 80 items; `201` | Current            |
 | `POST /api/image-collections/captions`       | Collection JSON plus optional `image_index`                                     | Captions one/all images through OpenRouter and saves collection | Current            |
@@ -148,7 +140,7 @@ character/UGC workspace.
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------- |
 | `GET /api/postfast/connect-url`     | Query `expiryDays?` (1–30)                                                                                      | `{ url }` for PostFast account connection                                      | Current |
 | `GET /api/postfast/integrations`    | None                                                                                                            | Active and locally disconnected integrations; tokens omitted                   | Current |
-| `DELETE /api/postfast/integrations` | JSON `{ integrationId }`                                                                                        | Locally disconnects account and removes it from automations                    | Current |
+| `DELETE /api/postfast/integrations` | JSON `{ integrationId }`                                                                                        | Locally disconnects account and removes it from templates                      | Current |
 | `POST /api/postfast/integrations`   | JSON `{ integrationId }`                                                                                        | Restores a locally disconnected account                                        | Current |
 | `GET /api/postfast/posts`           | Query `startDate?`, `endDate?`, `page?`, `limit?`                                                               | Enriched PostFast posts; returns `configured:false` when key is absent         | Current |
 | `POST /api/postfast/posts`          | JSON `{ sourceType, sourceId, integrationId, provider, content, media?, type?, date?, releaseUrl?, settings? }` | Creates draft/schedule/now post, manual reminder, or manual-published evidence | Current |
@@ -158,21 +150,21 @@ character/UGC workspace.
 Manual and manual-posted records are stored as output publications without
 calling PostFast's create-post endpoint.
 
-## X and Threads automation
+## X and Threads templates
 
-| Method and path                             | Input                                                     | Response / behavior                                                              | State   |
-| ------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------- | ------- |
-| `GET /api/x-automations`                    | None                                                      | `{ automations }`                                                                | Current |
-| `POST /api/x-automations`                   | JSON `{ name?, platform? }`; platform is `x` or `threads` | Creates automation; `201`                                                        | Current |
-| `PATCH /api/x-automations`                  | Full automation or `{ automation }`                       | Normalizes and upserts automation                                                | Current |
-| `DELETE /api/x-automations/[id]`            | Path ID                                                   | `{ deleted }`                                                                    | Current |
-| `POST /api/x-automations/[id]/derive-brief` | Path ID                                                   | Derives niche strategy and persists it                                           | Current |
-| `POST /api/x-automations/discover`          | JSON `{ automationId, query?, source? }`                  | Trend candidates from configured discovery source                                | Current |
-| `GET /api/x-automations/generate`           | Query `automationId?`                                     | `{ runs }`                                                                       | Current |
-| `POST /api/x-automations/generate`          | JSON `{ automationId, topic?, sourceCandidate? }`         | Generates and persists a draft run; `201`                                        | Current |
-| `DELETE /api/x-automations/generate`        | Query `automationId`                                      | Deletes runs and resets recent-use memory                                        | Current |
-| `POST /api/x-automations/image`             | JSON `{ runId, prompt?, aspectRatio? }`                   | Generates a KIE image, persists it in Storage, and attaches it to the run; `201` | Current |
-| `POST /api/x-automations/publish`           | JSON `{ runId }`                                          | Publishes through configured integration(s) and updates run status               | Current |
+| Method and path                                | Input                                                     | Response / behavior                                                              | State   |
+| ---------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------- | ------- |
+| `GET /api/social-templates`                    | None                                                      | `{ templates }`                                                                  | Current |
+| `POST /api/social-templates`                   | JSON `{ name?, platform? }`; platform is `x` or `threads` | Creates a template; `201`                                                        | Current |
+| `PATCH /api/social-templates`                  | Full template or `{ template }`                           | Normalizes and upserts the template                                              | Current |
+| `DELETE /api/social-templates/[id]`            | Path ID                                                   | `{ deleted }`                                                                    | Current |
+| `POST /api/social-templates/[id]/derive-brief` | Path ID                                                   | Derives niche strategy and persists it                                           | Current |
+| `POST /api/social-templates/discover`          | JSON `{ templateId, query?, source? }`                    | Trend candidates from configured discovery source                                | Current |
+| `GET /api/social-templates/generate`           | Query `templateId?`                                       | `{ runs }`                                                                       | Current |
+| `POST /api/social-templates/generate`          | JSON `{ templateId, topic?, sourceCandidate? }`           | Generates and persists a draft run; `201`                                        | Current |
+| `DELETE /api/social-templates/generate`        | Query `templateId`                                        | Deletes runs and resets recent-use memory                                        | Current |
+| `POST /api/social-templates/image`             | JSON `{ runId, prompt?, aspectRatio? }`                   | Generates a KIE image, persists it in Storage, and attaches it to the run; `201` | Current |
+| `POST /api/social-templates/publish`           | JSON `{ runId }`                                          | Publishes through configured integration(s) and updates run status               | Current |
 
 ## Settings and team data
 
@@ -187,17 +179,12 @@ calling PostFast's create-post endpoint.
 
 ## Backend-only and development endpoints
 
-| Method and path                           | Input                                                                       | Response / behavior                                         | State                                          |
-| ----------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------- |
-| `POST /api/linkedin-automations/generate` | JSON containing `niche` plus optional brief/persona/plan/model/count inputs | Stateless LinkedIn generation; no persistence or scheduler  | Internal preview                               |
-| `POST /api/debug/automation-preview`      | Automation/schema JSON plus optional `now`, `textModel`                     | Produces an automation plan without saving a run            | Internal; environment-gated, NOT authenticated |
-| `POST /api/debug/dump`                    | JSON `{ name, data }`                                                       | Writes JSON to OS temp directory and returns local path     | Internal; environment-gated, NOT authenticated |
-| `GET /api/temp/testing-center/models`     | None                                                                        | Cached OpenRouter structured-output model list              | Internal testing center                        |
-| `POST /api/temp/testing-center/generate`  | JSON `{ automationId, model, systemPrompt?, promptInstructions? }`          | Runs template text generation and returns plan/debug result | Internal testing center                        |
+| Method and path                         | Input                                                                       | Response / behavior                                        | State            |
+| --------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------- |
+| `POST /api/linkedin-templates/generate` | JSON containing `niche` plus optional brief/persona/plan/model/count inputs | Stateless LinkedIn generation; no persistence or scheduler | Internal preview |
 
-Development routes should not be treated as stable integrations. Before public
-deployment, the two `/api/debug/**` handlers should be explicitly disabled in
-production or restricted to an administrative capability.
+Development routes should not be treated as stable integrations and must stay
+restricted to an administrative capability.
 
 ## Maintaining this inventory
 

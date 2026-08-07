@@ -246,7 +246,7 @@ describe("production pipeline stage handlers", () => {
 
     expect(runtime.enqueueJob).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: "run-ugc-automation",
+        type: "run-ugc-template",
         payload: expect.objectContaining({
           automationId: "ugc-automation-1",
           stopAfter: "voice",

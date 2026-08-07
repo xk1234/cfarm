@@ -6,12 +6,12 @@ const functionId = process.argv[2]
 const intervalMs = Number(process.argv[3])
 
 if (
-  !["automation-scheduler", "job-worker"].includes(functionId) ||
+  !["template-scheduler", "job-worker"].includes(functionId) ||
   !Number.isFinite(intervalMs) ||
   intervalMs < 1_000
 ) {
   throw new Error(
-    "Usage: tsx scripts/run-railway-function.mts <automation-scheduler|job-worker> <interval-ms>"
+    "Usage: tsx scripts/run-railway-function.mts <template-scheduler|job-worker> <interval-ms>"
   )
 }
 

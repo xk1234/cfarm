@@ -20,10 +20,10 @@ describe("client API helpers", () => {
     const fetchMock = vi.fn(async () => Response.json({ ok: true }))
     vi.stubGlobal("fetch", fetchMock)
 
-    await fetchJsonWithTimeout("/api/automations/run", { method: "POST" })
+    await fetchJsonWithTimeout("/api/templates/run", { method: "POST" })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/automations/run",
+      "/api/templates/run",
       expect.objectContaining({
         credentials: "same-origin",
         method: "POST",

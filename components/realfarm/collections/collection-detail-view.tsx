@@ -1028,7 +1028,7 @@ function CreateAutomationDialog({
         <AppModalHeader title="Create template" onClose={onCancel} />
         <div className="p-5">
           <label className="mt-5 block text-[12px] font-semibold">
-            Automation name
+            Template name
             <input
               className="mt-2 h-10 w-full rounded-[7px] border border-app-panel-border px-3 text-[13px] outline-none"
               value={name}

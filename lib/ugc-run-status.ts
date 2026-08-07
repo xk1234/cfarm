@@ -40,7 +40,7 @@ export async function getUgcRunStatus(
   if (!aw || !ownerId) return null
   const response = await aw.tables.listRows(
     APPWRITE_DATABASE_ID,
-    "automation_runs",
+    "template_runs",
     [
       Query.equal("rid", [runId]),
       Query.equal("owner_id", [ownerId]),
@@ -75,7 +75,8 @@ export async function getUgcRunStatus(
       const checkpoints = record.checkpoints ?? {}
       if (ugcStageOrder.some((stage) => !checkpoints[stage])) {
         record.status = "failed"
-        record.error = "Generation job was lost. Completed stages remain cached."
+        record.error =
+          "Generation job was lost. Completed stages remain cached."
       }
     }
   }

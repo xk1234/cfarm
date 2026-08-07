@@ -332,18 +332,18 @@ const safeJson = (value) => {
   }
 }
 async function xAutomationRecord(t, automationId, ownerId) {
-  const response = await t.listRows(DB, "x_automations", [
+  const response = await t.listRows(DB, "social_templates", [
     Query.equal("rid", [automationId]),
     Query.equal("owner_id", [ownerId]),
     Query.limit(1),
   ])
   const automation = safeJson(response.rows[0]?.data)
-  if (!automation) throw new Error("run-x-automation: automation not found")
+  if (!automation) throw new Error("run-social-template: automation not found")
   return { ...automation, _rowId: response.rows[0].$id }
 }
 
 async function upsertXOutput(t, record, ownerId) {
-  const sourceKey = "x_automation_run"
+  const sourceKey = "social_template_run"
   const rowId =
     "u" +
     crypto
@@ -451,7 +451,7 @@ async function upsertXOutput(t, record, ownerId) {
 async function openRouterObject({ model, system, user }) {
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey)
-    throw new Error("run-x-automation: OPENROUTER_API_KEY is not configured")
+    throw new Error("run-social-template: OPENROUTER_API_KEY is not configured")
   const response = await fetch(
     "https://openrouter.ai/api/v1/chat/completions",
     {
@@ -633,7 +633,7 @@ async function publishScheduledXDraft(automation, record) {
   if (!integrations.length) return null
   const apiKey = process.env.POSTFAST_API_KEY
   if (!apiKey)
-    throw new Error("run-x-automation: POSTFAST_API_KEY is not configured")
+    throw new Error("run-social-template: POSTFAST_API_KEY is not configured")
   let published = 0
   let failed = 0
   const records = []
@@ -704,7 +704,7 @@ const handlers = {
       : sendTelegram(payload.text)
   },
 
-  async ["run-automation"](payload, t, job) {
+  async ["run-template"](payload, t, job) {
     return runSlideshowAutomation({
       payload,
       tables: t,
@@ -714,7 +714,7 @@ const handlers = {
     })
   },
 
-  async ["run-ugc-automation"](payload, t, job) {
+  async ["run-ugc-template"](payload, t, job) {
     return runUgcAutomationJob({
       payload,
       tables: t,
@@ -725,9 +725,10 @@ const handlers = {
     })
   },
 
-  async ["run-x-automation"](payload, t, job) {
+  async ["run-social-template"](payload, t, job) {
     const { automationId, scheduledFor } = payload || {}
-    if (!automationId) throw new Error("run-x-automation: missing automationId")
+    if (!automationId)
+      throw new Error("run-social-template: missing automationId")
     const runId =
       "xrun" +
       crypto
@@ -736,7 +737,7 @@ const handlers = {
         .digest("hex")
         .slice(0, 32)
     const ownerId = job?.owner_id || payload.ownerId
-    if (!ownerId) throw new Error("run-x-automation: missing ownerId")
+    if (!ownerId) throw new Error("run-social-template: missing ownerId")
     const automation = await xAutomationRecord(t, automationId, ownerId)
     const draft = await generateScheduledXDraft(automation, scheduledFor)
     const record = {
@@ -812,7 +813,7 @@ const handlers = {
       const { _rowId, ...storedAutomation } = automation
       storedAutomation.usage = { recentArchetypes, recentHooks, recentBodies }
       storedAutomation.updatedAt = nowIso()
-      await t.updateRow(DB, "x_automations", _rowId, {
+      await t.updateRow(DB, "social_templates", _rowId, {
         data: JSON.stringify(storedAutomation),
       })
       return {

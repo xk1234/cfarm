@@ -62,7 +62,7 @@ Automations remain opt-in user data. Reference data is synced by full setup and
 can also be refreshed explicitly:
 
 ```bash
-pnpm appwrite:local:sync-automations
+pnpm appwrite:local:sync-templates
 pnpm appwrite:local:sync-reference
 ```
 
@@ -103,9 +103,9 @@ The command:
 - skips existing rows/files, so rerunning it is safe;
 - never deletes or mutates cloud collections.
 
-Automation templates are local-only Appwrite reference data. Their cloud rows
+Starter templates are local-only Appwrite reference data. Their cloud rows
 were moved into local `permanent_assets` rows with source keys
-`automation_template` and `automation_template_example`; the app reads those
+`starter_template` and `starter_template_example`; the app reads those
 rows directly from the shared local project.
 
 ## Local functions
@@ -113,7 +113,7 @@ rows directly from the shared local project.
 There is no local Appwrite functions executor. `pnpm dev` runs the checked-in
 function entrypoints through `scripts/run-local-appwrite-function.mjs`:
 
-- `automation-scheduler` every five minutes;
+- `template-scheduler` every five minutes;
 - `job-worker` every minute.
 
 Cloud deployments continue through `appwrite/functions/deploy.mjs`.

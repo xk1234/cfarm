@@ -18,7 +18,6 @@ reachable without a session.
 | `/terms`                 | Private-beta product-use expectations                 | [Legal and system](/docs/ui/public/legal)              |
 | `/share/slideshows/[id]` | Login-free slideshow preview, gated by a signed token | [Shared slideshow](/docs/ui/public/public-slideshow)   |
 | `/docs/[[...slug]]`      | Repository documentation reader                       | [Documentation shell](/docs/ui/public/docs)            |
-| `/debug`                 | Internal slideshow testing center                     | [Legal and system](/docs/ui/public/legal)              |
 
 ## Pages
 

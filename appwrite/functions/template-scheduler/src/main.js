@@ -1,0 +1,178 @@
+// Appwrite Function: template-scheduler (cron */5)
+// Runs IN Appwrite. Reads the `templates` table, computes which templates
+// are due (from the generated canonical lib/automation-slots.ts runtime), and enqueues
+// `run-template` jobs into the `jobs` queue table.
+//
+// Variables: APPWRITE_API_KEY (full-access key), APPWRITE_DATABASE_ID (default "cfarm"),
+//            LOOKBACK_MINUTES (default 10), LUMENCLIP_SYSTEM_OWNER_ID (optional).
+import crypto from "node:crypto"
+import { Client, TablesDB, Query } from "node-appwrite"
+import {
+  dueAutomationSlots,
+  slideshowGenerationLeadMinutes,
+  ugcGenerationLeadMinutes,
+} from "./automation-slots.js"
+
+const railwayDataBackend = process.env.LUMENCLIP_DATA_BACKEND === "railway"
+let RailwayTablesCompat
+if (railwayDataBackend) {
+  ;({ RailwayTablesCompat } =
+    await import("../../../../lib/railway/appwrite-compat.ts"))
+}
+
+// Self-hosted Appwrite injects APPWRITE_FUNCTION_API_ENDPOINT from _APP_DOMAIN,
+// which is not guaranteed to be routable from inside the function container.
+// An explicitly configured endpoint always wins.
+const API_ENDPOINT =
+  process.env.APPWRITE_ENDPOINT || process.env.APPWRITE_FUNCTION_API_ENDPOINT
+
+export {
+  dueAutomationSlots as dueSlots,
+  SLIDESHOW_GENERATION_LEAD_MINUTES,
+} from "./automation-slots.js"
+
+const DB = process.env.APPWRITE_DATABASE_ID || "cfarm"
+const LOOKBACK = Number(process.env.LOOKBACK_MINUTES || 10)
+// Slideshow rendering can take several minutes. Queue it ahead of the target
+// slot so PostFast can hold the finished post until the exact scheduled time.
+// This is product behavior, not deployment configuration.
+function client() {
+  if (railwayDataBackend) return new RailwayTablesCompat()
+  return new TablesDB(
+    new Client()
+      .setEndpoint(API_ENDPOINT)
+      .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
+      .setKey(process.env.APPWRITE_API_KEY)
+  )
+}
+
+function rowId(basis) {
+  return (
+    "j" + crypto.createHash("sha256").update(basis).digest("hex").slice(0, 35)
+  )
+}
+
+export async function listLiveAutomations(db, table = "templates") {
+  const out = []
+  let cursor = null
+  for (;;) {
+    const q = [
+      Query.equal("status", ["live"]),
+      Query.limit(100),
+      Query.orderAsc("ord"),
+    ]
+    if (cursor) q.push(Query.cursorAfter(cursor))
+    const res = await db.listRows(DB, table, q)
+    for (const row of res.rows) {
+      try {
+        out.push({
+          ...JSON.parse(row.data),
+          ownerId: row.owner_id || JSON.parse(row.data).ownerId,
+        })
+      } catch {
+        /* skip */
+      }
+    }
+    if (res.rows.length < 100) break
+    cursor = res.rows[res.rows.length - 1].$id
+  }
+  return out
+}
+
+async function enqueue(
+  db,
+  { type, payload, dedupeKey, ownerId, maxAttempts = 3 }
+) {
+  const nowIso = new Date().toISOString()
+  const id = rowId(dedupeKey)
+  try {
+    await db.createRow(DB, "jobs", id, {
+      type,
+      status: "queued",
+      payload: JSON.stringify(payload),
+      priority: 0,
+      attempts: 0,
+      max_attempts: maxAttempts,
+      available_at: nowIso,
+      dedupe_key: dedupeKey,
+      created_at: nowIso,
+      updated_at: nowIso,
+      owner_id: ownerId,
+    })
+    return "enqueued"
+  } catch (e) {
+    if (e.code === 409) return "duplicate"
+    throw e
+  }
+}
+
+async function automationScheduler({ log, error }) {
+  try {
+    const db = client()
+    const now = new Date()
+    const automations = await listLiveAutomations(db)
+    const xAutomations = await listLiveAutomations(
+      db,
+      "social_templates"
+    ).catch((cause) => {
+      if (cause?.code === 404) return []
+      throw cause
+    })
+    let enqueued = 0,
+      dup = 0,
+      considered = 0
+    for (const a of automations) {
+      considered++
+      const isUgc =
+        a.schema?.automationKind === "ugc" && a.schema?.ugc?.enabled === true
+      if (isUgc && process.env.ENABLE_UGC_AUTOMATION !== "true") continue
+      for (const slot of dueAutomationSlots(
+        a.schema,
+        now,
+        LOOKBACK,
+        isUgc
+          ? ugcGenerationLeadMinutes(a.schema)
+          : slideshowGenerationLeadMinutes(a.schema)
+      )) {
+        const res = await enqueue(db, {
+          type: isUgc ? "run-ugc-template" : "run-template",
+          payload: { automationId: a.id, scheduledFor: slot },
+          dedupeKey: `${isUgc ? "ugc-auto" : "auto"}:${a.id}:${slot}`,
+          ownerId: a.ownerId,
+        })
+        if (res === "enqueued") enqueued++
+        else dup++
+      }
+    }
+    for (const a of xAutomations) {
+      considered++
+      for (const slot of dueAutomationSlots(a, now, LOOKBACK)) {
+        const res = await enqueue(db, {
+          type: "run-social-template",
+          payload: { automationId: a.id, scheduledFor: slot },
+          dedupeKey: `x-auto:${a.id}:${slot}`,
+          ownerId: a.ownerId,
+        })
+        if (res === "enqueued") enqueued++
+        else dup++
+      }
+    }
+
+    log(
+      `scheduler: ${automations.length} slideshow templates + ${xAutomations.length} social templates, ${considered} live, enqueued ${enqueued}, dedup ${dup}`
+    )
+    return {
+      ok: true,
+      automations: automations.length,
+      xAutomations: xAutomations.length,
+      live: considered,
+      enqueued,
+      duplicates: dup,
+    }
+  } catch (e) {
+    error(`scheduler failed: ${e instanceof Error ? e.message : String(e)}`)
+    return { ok: false, error: String(e) }
+  }
+}
+
+export default automationScheduler

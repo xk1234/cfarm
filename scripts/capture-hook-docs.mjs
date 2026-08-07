@@ -7,7 +7,7 @@ import { Client, Query, Users } from "node-appwrite"
 
 const root = path.resolve(import.meta.dirname, "..")
 const baseUrl = process.env.AUTOMATION_DOCS_URL ?? "http://localhost:3000"
-const outputDirectory = path.join(root, "public", "docs", "automations")
+const outputDirectory = path.join(root, "public", "docs", "templates")
 const accountEmail = `docs-hooks-${Date.now()}@example.com`
 const accountPassword = "Documentation2026"
 
@@ -57,7 +57,7 @@ try {
     .waitFor({ timeout: 60_000 })
 
   const automationsResponse = await context.request.get(
-    `${baseUrl}/api/automations`
+    `${baseUrl}/api/templates`
   )
   if (!automationsResponse.ok()) {
     throw new Error(
@@ -107,7 +107,7 @@ try {
     },
   }
   const patchResponse = await context.request.patch(
-    `${baseUrl}/api/automations`,
+    `${baseUrl}/api/templates`,
     { data: { id: automationId, name: "Hook Performance Demo", schema } }
   )
   if (!patchResponse.ok()) {
@@ -148,17 +148,15 @@ try {
       },
     ],
   }
-  await page.route(
-    `**/api/automations/${automationId}/hook-analytics`,
-    (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(analytics),
-      })
+  await page.route(`**/api/templates/${automationId}/hook-analytics`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(analytics),
+    })
   )
 
-  await page.goto(`${baseUrl}/app?view=automations`, {
+  await page.goto(`${baseUrl}/app?view=templates`, {
     waitUntil: "domcontentloaded",
     timeout: 120_000,
   })
@@ -224,7 +222,7 @@ try {
 } finally {
   if (automationId) {
     await context.request.delete(
-      `${baseUrl}/api/automations/${encodeURIComponent(automationId)}`
+      `${baseUrl}/api/templates/${encodeURIComponent(automationId)}`
     )
   }
   await browser.close()

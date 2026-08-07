@@ -1043,8 +1043,8 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "slideshow-generation",
       201,
       "get-automation-document",
-      "Appwrite automations getRow",
-      "Read exactly one owner-scoped slideshow automation row."
+      "Template store templates getRow",
+      "Read exactly one owner-scoped slideshow template row."
     ),
     atomic(
       "slideshow-generation",
@@ -1071,7 +1071,7 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "slideshow-generation",
       205,
       "list-prior-runs-page",
-      "Appwrite automation_runs listRows",
+      "Template store template_runs listRows",
       "Read exactly one owner-scoped automation-run page."
     ),
     atomic(
@@ -1359,22 +1359,22 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "slideshow-generation",
       241,
       "get-automation-run-document",
-      "Appwrite automation_runs getRow",
-      "Read exactly one owner-scoped slideshow automation-run row."
+      "Template store template_runs getRow",
+      "Read exactly one owner-scoped slideshow template-run row."
     ),
     atomic(
       "slideshow-generation",
       242,
       "create-automation-run-document",
-      "Appwrite automation_runs createRow",
-      "Create exactly one owner-scoped slideshow automation-run row."
+      "Template store template_runs createRow",
+      "Create exactly one owner-scoped slideshow template-run row."
     ),
     atomic(
       "slideshow-generation",
       243,
       "update-automation-run-document",
-      "Appwrite automation_runs updateRow",
-      "Update exactly one owner-scoped slideshow automation-run row."
+      "Template store template_runs updateRow",
+      "Update exactly one owner-scoped slideshow template-run row."
     ),
     stage(
       "slideshow-generation",
@@ -1417,21 +1417,21 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "ugc-video-generation",
       301,
       "get-saved-run-document",
-      "Appwrite automation_runs getRow",
+      "Template store template_runs getRow",
       "Read exactly one owner-scoped saved UGC checkpoint row."
     ),
     atomic(
       "ugc-video-generation",
       302,
       "create-saved-run-document",
-      "Appwrite automation_runs createRow",
+      "Template store template_runs createRow",
       "Create exactly one owner-scoped saved UGC checkpoint row."
     ),
     atomic(
       "ugc-video-generation",
       303,
       "update-saved-run-document",
-      "Appwrite automation_runs updateRow",
+      "Template store template_runs updateRow",
       "Update exactly one owner-scoped saved UGC checkpoint row."
     ),
     atomic(
@@ -1535,7 +1535,7 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "ugc-video-generation",
       317,
       "get-saved-automation-document",
-      "Appwrite automations getRow",
+      "Template store templates getRow",
       "Read exactly one owner-scoped UGC automation row."
     ),
     atomic(
@@ -1605,22 +1605,22 @@ function pipelineStorageBoundaryStages(): PipelineStageMetadata[] {
       "x-threads-generation",
       201,
       "get-automation-document",
-      "Appwrite x_automations getRow",
-      "Read exactly one owner-scoped X/Threads automation row."
+      "Template store social_templates getRow",
+      "Read exactly one owner-scoped X/Threads template row."
     ),
     atomic(
       "x-threads-generation",
       202,
       "create-automation-document",
-      "Appwrite x_automations createRow",
-      "Create exactly one owner-scoped X/Threads automation row."
+      "Template store social_templates createRow",
+      "Create exactly one owner-scoped X/Threads template row."
     ),
     atomic(
       "x-threads-generation",
       203,
       "update-automation-document",
-      "Appwrite x_automations updateRow",
-      "Update exactly one owner-scoped X/Threads automation row."
+      "Template store social_templates updateRow",
+      "Update exactly one owner-scoped X/Threads template row."
     ),
     atomic(
       "x-threads-generation",

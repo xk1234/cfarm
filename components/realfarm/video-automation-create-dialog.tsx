@@ -289,7 +289,7 @@ function MediaSetup({
       <div className="mt-8 border-t border-app-panel-border pt-6">
         <label className="block">
           <span className="text-[15px] font-semibold text-app-text">
-            Automation name
+            Template name
           </span>
           <input
             className="mt-2 h-11 w-full rounded-[8px] border border-app-panel-border bg-app-surface px-3 text-[14px] font-medium outline-none focus:border-[#9f9e96]"

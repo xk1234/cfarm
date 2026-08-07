@@ -519,17 +519,17 @@ export function createLumenClipMcpServer(
   server.registerTool(
     "lumenclip_schedule_get",
     {
-      title: "Check automation schedule",
+      title: "Check template schedule",
       description:
-        "Returns saved schedule settings and projected upcoming slots for slideshow, video, AI UGC, X, and Threads automations. This never generates or publishes content.",
+        "Returns saved schedule settings and projected upcoming slots for slideshow, video, AI UGC, X, and Threads templates. This never generates or publishes content.",
       inputSchema: {
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
           .optional()
           .describe(
-            'Optional saved automation ID to inspect, e.g. "automation_123". Omit to list projected slots across automations.'
+            "Optional saved template ID to inspect. Omit to list projected slots across templates."
           ),
         from: z
           .string()
@@ -551,7 +551,7 @@ export function createLumenClipMcpServer(
           .boolean()
           .default(true)
           .describe(
-            "Whether paused automations should appear in the schedule report, e.g. false."
+            "Whether paused templates should appear in the schedule report, e.g. false."
           ),
         limit: z
           .number()
@@ -596,7 +596,7 @@ export function createLumenClipMcpServer(
           const report = buildScheduleReport({
             automations,
             socialAutomations,
-            automationId: input.automationId,
+            automationId: input.templateId,
             from: input.from ? new Date(input.from) : services.now(),
             days: input.days,
             includePaused: input.includePaused,
@@ -609,7 +609,7 @@ export function createLumenClipMcpServer(
               jobs,
               publications,
               remote,
-              automationId: input.automationId,
+              automationId: input.templateId,
               from: new Date(report.from),
               to: new Date(report.to),
               limit: input.limit,
@@ -624,15 +624,13 @@ export function createLumenClipMcpServer(
     {
       title: "Generate a slideshow draft",
       description:
-        "Runs one existing slideshow automation immediately and returns an unpublished, unscheduled draft summary. It never auto-publishes, even when the saved automation is live. An optional exact hook bypasses random selection. Each completed run carries `outputImages` (relative slide paths), a per-slide `slides` array (`index`, `role`, `text`, absolute `renderedImageUrl`, absolute `sourceImageUrl`), a signed public `previewUrl`, and a signed direct ZIP `downloadUrl`. Delivery and slide URLs are absolutised against the server's BASE_URL; when BASE_URL is unset they fall back to relative paths.",
+        "Runs one existing slideshow template immediately and returns an unpublished, unscheduled draft summary. It never auto-publishes, even when the saved template is live. An optional exact hook bypasses random selection. Each completed run carries `outputImages` (relative slide paths), a per-slide `slides` array (`index`, `role`, `text`, absolute `renderedImageUrl`, absolute `sourceImageUrl`), a signed public `previewUrl`, and a signed direct ZIP `downloadUrl`. Delivery and slide URLs are absolutised against the server's BASE_URL; when BASE_URL is unset they fall back to relative paths.",
       inputSchema: {
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
-          .describe(
-            'Saved slideshow automation ID to run, e.g. "automation_123".'
-          ),
+          .describe("Saved slideshow template ID to run."),
         requestId: z
           .string()
           .trim()
@@ -659,13 +657,13 @@ export function createLumenClipMcpServer(
         openWorldHint: true,
       },
     },
-    async ({ automationId, requestId, hook }) =>
+    async ({ templateId: automationId, requestId, hook }) =>
       mcpResult(
         await owned(async () => {
           const automation = await services.getAutomationRecord(automationId)
-          if (!automation) throw new Error("Automation not found")
+          if (!automation) throw new Error("Template not found")
           if (automation.schema.automationKind !== "slideshow") {
-            throw new Error("The selected automation is not a slideshow")
+            throw new Error("The selected template is not a slideshow")
           }
           const traceId = requestId || `mcp-${crypto.randomUUID()}`
           const result = await services.runDueAutomations({
@@ -690,7 +688,7 @@ export function createLumenClipMcpServer(
             return generatedRunSummary(run, ownerId, qa)
           })
           return {
-            automationId,
+            templateId: automationId,
             requestId: traceId,
             runs,
             skipped: result.skipped,
@@ -711,16 +709,14 @@ export function createLumenClipMcpServer(
     {
       title: "Estimate an AI UGC draft",
       description:
-        "Returns an itemized USD generation estimate for a saved UGC automation or an estimate-only configuration. This never starts generation or publishing.",
+        "Returns an itemized USD generation estimate for a saved UGC template or an estimate-only configuration. This never starts generation or publishing.",
       inputSchema: {
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
           .optional()
-          .describe(
-            'Optional saved AI UGC automation ID to estimate, e.g. "automation_ugc_123".'
-          ),
+          .describe("Optional saved AI UGC template ID to estimate."),
         actorSource: z
           .enum(["generate", "gallery", "upload"])
           .optional()
@@ -776,15 +772,13 @@ export function createLumenClipMcpServer(
     async (input) =>
       mcpResult(
         await owned(async () => {
-          const { automationId, ...overrides } = input
+          const { templateId: automationId, ...overrides } = input
           let saved: AutomationUgcConfig | undefined
           if (automationId) {
             const automation = await services.getAutomationRecord(automationId)
-            if (!automation) throw new Error("Automation not found")
+            if (!automation) throw new Error("Template not found")
             if (automation.schema.automationKind !== "ugc") {
-              throw new Error(
-                "The selected automation is not an AI UGC automation"
-              )
+              throw new Error("The selected template is not an AI UGC template")
             }
             saved = automation.schema.ugc
           }
@@ -793,7 +787,7 @@ export function createLumenClipMcpServer(
             ...overrides,
           })
           return {
-            automationId,
+            templateId: automationId,
             estimate: services.estimateUgcCost(configuration),
             assumptions: {
               targetDurationSeconds: configuration.targetDurationSeconds,
@@ -811,15 +805,13 @@ export function createLumenClipMcpServer(
     {
       title: "Generate an AI UGC draft",
       description:
-        "Generates one AI UGC draft by queueing a saved AI UGC automation, then returns an unpublished draft operation, expected output ID, cost estimate, and polling action. It never publishes content.",
+        "Generates one AI UGC draft by queueing a saved AI UGC template, then returns an unpublished draft operation, expected output ID, cost estimate, and polling action. It never publishes content.",
       inputSchema: {
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
-          .describe(
-            'Saved live AI UGC automation ID to queue, e.g. "automation_ugc_123".'
-          ),
+          .describe("Saved live AI UGC template ID to queue."),
         requestId: z
           .string()
           .trim()
@@ -836,27 +828,37 @@ export function createLumenClipMcpServer(
         openWorldHint: true,
       },
     },
-    async (input) => mcpResult(await owned(() => runUgcDraft(services, input)))
+    async ({ templateId, ...input }) =>
+      mcpResult(
+        await owned(async () =>
+          canonicalTemplateEnvelope(
+            await runUgcDraft(services, {
+              ...input,
+              automationId: templateId,
+            })
+          )
+        )
+      )
   )
 
   server.registerTool(
-    "lumenclip_automation_update",
+    "lumenclip_template_update",
     {
-      title: "Update or pause an automation",
+      title: "Update or pause a template",
       description:
-        "Updates safe common automation settings and returns the updated automation summary plus changed fields. Use action pause or resume to stop or restart scheduled runs; schedule changes preserve all generation and publishing configuration.",
+        "Updates safe common template settings and returns the updated template summary plus changed fields. Use action pause or resume to stop or restart scheduled runs; schedule changes preserve all generation and publishing configuration.",
       inputSchema: {
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
-          .describe('Saved automation ID to update, e.g. "automation_123".'),
+          .describe("Saved template ID to update."),
         expectedUpdatedAt: z
           .string()
           .datetime({ offset: true })
           .optional()
           .describe(
-            'Optional optimistic-lock timestamp from automation_get.updatedAt, e.g. "2026-07-23T01:15:00.000Z".'
+            'Optional optimistic-lock timestamp from template_get.updatedAt, e.g. "2026-07-23T01:15:00.000Z".'
           ),
         action: z
           .enum(["pause", "resume"])
@@ -871,13 +873,13 @@ export function createLumenClipMcpServer(
           .max(200)
           .optional()
           .describe(
-            'New display name for the automation, e.g. "Astrology informational".'
+            'New display name for the template, e.g. "Astrology informational".'
           ),
         favorite: z
           .boolean()
           .optional()
           .describe(
-            "Whether the automation should be pinned/favorited in the app, e.g. true."
+            "Whether the template should be pinned/favorited in the app, e.g. true."
           ),
         schedule: schedulePatchSchema
           .optional()
@@ -892,8 +894,12 @@ export function createLumenClipMcpServer(
         openWorldHint: false,
       },
     },
-    async (input) =>
-      mcpResult(await owned(() => updateAutomation(services, input)))
+    async ({ templateId, ...input }) =>
+      mcpResult(
+        await owned(() =>
+          updateAutomation(services, { ...input, automationId: templateId })
+        )
+      )
   )
 
   server.registerTool(
@@ -903,13 +909,13 @@ export function createLumenClipMcpServer(
       description:
         "Reads the same stored, owner-scoped publications and snapshots used by Studio reporting without refreshing providers. Returns latest-per-post totals, account breakdowns, follower change, per-post followers gained, and recent posts.",
       inputSchema: {
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
           .optional()
           .describe(
-            'Optional automation ID whose attributed output metrics should be returned, e.g. "automation_123".'
+            "Optional template ID whose attributed output metrics should be returned."
           ),
         days: z
           .number()
@@ -957,9 +963,9 @@ export function createLumenClipMcpServer(
             services.listMetricSnapshots(),
             services.listFollowerSnapshots(),
             readMcpPublications(services, "analytics"),
-            input.automationId
+            input.templateId
               ? services.listAutomationRuns({
-                  automationId: input.automationId,
+                  automationId: input.templateId,
                   limit: 500,
                 })
               : Promise.resolve([]),
@@ -971,18 +977,18 @@ export function createLumenClipMcpServer(
               ...(run.slideshowId ? [run.slideshowId] : []),
             ])
           )
-          const publications = input.automationId
+          const publications = input.templateId
             ? allPublications.filter((item) => sourceIds.has(item.sourceId))
             : allPublications
           const publicationIds = new Set(
             publications.map((publication) => publication.id)
           )
-          const snapshots = input.automationId
+          const snapshots = input.templateId
             ? allSnapshots.filter((snapshot) =>
                 publicationIds.has(snapshot.postId)
               )
             : allSnapshots
-          const inferredIntegrationIds = input.automationId
+          const inferredIntegrationIds = input.templateId
             ? [
                 ...new Set(
                   publications
@@ -1003,10 +1009,10 @@ export function createLumenClipMcpServer(
           })
           return {
             ...report,
-            automationId: input.automationId,
+            templateId: input.templateId,
             dataWarning:
-              input.automationId && runs.length > 0 && publications.length === 0
-                ? "Outputs exist for this automation, but no publication records are linked. Metrics cannot be attributed until a publication is linked to its output."
+              input.templateId && runs.length > 0 && publications.length === 0
+                ? "Outputs exist for this template, but no publication records are linked. Metrics cannot be attributed until a publication is linked to its output."
                 : undefined,
             nextSteps: analyticsCaptureNextSteps({
               awaitingCapture: report.awaitingCapture,
@@ -1131,11 +1137,11 @@ function registerAutomationReadAndRunTools(
   const owned = <T>(task: () => T) => ownedMcpTask(ownerId, task)
 
   server.registerTool(
-    "lumenclip_automations_list",
+    "lumenclip_templates_list",
     {
-      title: "List automations",
+      title: "List templates",
       description:
-        "Lists caller-owned slideshow, video, AI UGC, X, and Threads automations with safe configuration summaries and last-run state.",
+        "Lists caller-owned slideshow, video, AI UGC, X, and Threads templates with safe configuration summaries and last-run state.",
       inputSchema: {
         query: z
           .string()
@@ -1143,25 +1149,23 @@ function registerAutomationReadAndRunTools(
           .max(200)
           .optional()
           .describe(
-            'Optional case-insensitive search over automation name and kind, e.g. "astrology".'
+            'Optional case-insensitive search over template name and kind, e.g. "astrology".'
           ),
         kind: z
           .enum(["slideshow", "video", "ugc", "x", "threads"])
           .optional()
-          .describe('Optional automation kind filter, e.g. "slideshow".'),
+          .describe('Optional template kind filter, e.g. "slideshow".'),
         status: z
           .enum(["live", "paused", "unknown"])
           .optional()
-          .describe('Optional automation lifecycle filter, e.g. "live".'),
+          .describe('Optional template lifecycle filter, e.g. "live".'),
         limit: z
           .number()
           .int()
           .min(1)
           .max(100)
           .default(20)
-          .describe(
-            "Maximum number of automation summaries to return, e.g. 20."
-          ),
+          .describe("Maximum number of template summaries to return, e.g. 20."),
       },
       annotations: {
         readOnlyHint: true,
@@ -1218,11 +1222,11 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
-    "lumenclip_automation_templates_list",
+    "lumenclip_starter_templates_list",
     {
-      title: "List automation templates",
+      title: "List starter templates",
       description:
-        "Lists reusable automation templates and their curated hook counts. Set includeSchema to inspect the complete normalized editor schema before creating an automation.",
+        "Lists reusable starter templates and their curated hook counts. Set includeSchema to inspect the complete normalized editor schema before creating a saved template.",
       inputSchema: {
         query: z.string().trim().max(200).optional(),
         kind: z.enum(["slideshow", "video", "ugc"]).optional(),
@@ -1266,14 +1270,14 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
-    "lumenclip_automation_create",
+    "lumenclip_template_create",
     {
-      title: "Create an automation",
+      title: "Create a template",
       description:
-        "Creates a caller-owned slideshow, video, or AI UGC automation, optionally cloning a reusable template. The requestId makes retries return the same automation.",
+        "Creates a caller-owned slideshow, video, or AI UGC template, optionally cloning a reusable starter template. The requestId makes retries return the same template.",
       inputSchema: {
         name: z.string().trim().min(1).max(200),
-        templateId: z.string().trim().min(1).optional(),
+        starterTemplateId: z.string().trim().min(1).optional(),
         kind: z.enum(["slideshow", "video", "ugc"]).optional(),
         status: z.enum(["live", "paused"]).default("paused"),
         requestId: z.string().trim().min(1).max(200),
@@ -1299,17 +1303,17 @@ function registerAutomationReadAndRunTools(
               created: false,
               reused: true,
               requestId: input.requestId,
-              automation: serializeStandardAutomation(existing),
+              template: serializeStandardAutomation(existing),
               nextSteps: automationCreateNextSteps(current, input),
             }
           }
-          const template = input.templateId
+          const template = input.starterTemplateId
             ? (await services.listAutomationTemplateRecords()).find(
-                (record) => record.id === input.templateId
+                (record) => record.id === input.starterTemplateId
               )
             : undefined
-          if (input.templateId && !template) {
-            throw new Error("Automation template not found")
+          if (input.starterTemplateId && !template) {
+            throw new Error("Starter template not found")
           }
           const templateKind = template
             ? automationTemplateSchemaToRuntime(template).automationKind
@@ -1341,7 +1345,7 @@ function registerAutomationReadAndRunTools(
             reused: false,
             requestId: input.requestId,
             templateId: template?.id,
-            automation: {
+            template: {
               ...serializeStandardAutomation(saved),
               schema: serializeAutomationSchema(saved.schema),
             },
@@ -1352,13 +1356,13 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
-    "lumenclip_automation_clone",
+    "lumenclip_template_clone",
     {
-      title: "Clone an automation",
+      title: "Clone a template",
       description:
-        "Deep-copies one caller-owned automation's normalized schema, hook pool, collection bindings, publishing configuration, and schedule into a new paused automation. Run history and outputs are not copied.",
+        "Deep-copies one caller-owned template's normalized schema, hook pool, collection bindings, publishing configuration, and schedule into a new paused template. Run history and outputs are not copied.",
       inputSchema: {
-        sourceAutomationId: z.string().trim().min(1),
+        sourceTemplateId: z.string().trim().min(1),
         name: z.string().trim().min(1).max(200),
         expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
         requestId: z.string().trim().min(1).max(200),
@@ -1384,17 +1388,17 @@ function registerAutomationReadAndRunTools(
               created: false,
               reused: true,
               requestId: input.requestId,
-              sourceAutomationId: existing.raw?.sourceAutomationId,
-              automation: {
+              sourceTemplateId: existing.raw?.sourceAutomationId,
+              template: {
                 ...serializeStandardAutomation(existing),
                 schema: serializeAutomationSchema(existing.schema),
               },
             }
           }
           const source = current.find(
-            (record) => record.id === input.sourceAutomationId
+            (record) => record.id === input.sourceTemplateId
           )
-          if (!source) throw new Error("Source automation not found")
+          if (!source) throw new Error("Source template not found")
           assertExpectedVersion(source.updatedAt, input.expectedUpdatedAt)
           const clone = createLocalAutomationRecord({
             name: input.name,
@@ -1418,8 +1422,8 @@ function registerAutomationReadAndRunTools(
             created: true,
             reused: false,
             requestId: input.requestId,
-            sourceAutomationId: source.id,
-            automation: {
+            sourceTemplateId: source.id,
+            template: {
               ...serializeStandardAutomation(saved),
               schema: serializeAutomationSchema(saved.schema),
             },
@@ -1429,19 +1433,17 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
-    "lumenclip_automation_get",
+    "lumenclip_template_get",
     {
-      title: "Get automation",
+      title: "Get template",
       description:
-        "Returns one caller-owned automation's normalized schedule, linked collections/accounts, publishing policy, and most recent run.",
+        "Returns one caller-owned template's normalized schedule, linked collections/accounts, publishing policy, and most recent run.",
       inputSchema: {
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
-          .describe(
-            'Saved automation ID returned by automations_list, e.g. "automation_123".'
-          ),
+          .describe("Saved template ID returned by templates_list."),
       },
       annotations: {
         readOnlyHint: true,
@@ -1450,7 +1452,7 @@ function registerAutomationReadAndRunTools(
         openWorldHint: false,
       },
     },
-    async ({ automationId }) =>
+    async ({ templateId: automationId }) =>
       mcpResult(
         await owned(async () => {
           const standard = await services.getAutomationRecord(automationId)
@@ -1483,7 +1485,7 @@ function registerAutomationReadAndRunTools(
               unresolvedCollectionReferences: collectionReferences.unresolved,
             })
             return {
-              automation: {
+              template: {
                 ...serializeStandardAutomation(standard),
                 schema: {
                   ...serializeAutomationSchema(standard.schema),
@@ -1516,17 +1518,17 @@ function registerAutomationReadAndRunTools(
                       : "slideshow"),
                 },
                 lastRun: lastRun ? generatedRunSummary(lastRun, ownerId) : null,
-                resourceUri: `lumenclip://automations/${encodeURIComponent(standard.id)}`,
+                resourceUri: `lumenclip://templates/${encodeURIComponent(standard.id)}`,
               },
               nextSteps,
             }
           }
 
           const social = await services.getXAutomation(automationId)
-          if (!social) throw new Error("Automation not found")
+          if (!social) throw new Error("Template not found")
           const lastRun = (await services.listXAutomationRuns(automationId))[0]
           return {
-            automation: {
+            template: {
               ...serializeSocialAutomation(social),
               configuration: serializeSocialAutomationConfiguration(social),
               manualRunSupported: true,
@@ -1539,7 +1541,7 @@ function registerAutomationReadAndRunTools(
                 autoPost: social.publishing.autoPost,
               },
               lastRun: lastRun ? socialRunSummary(lastRun) : null,
-              resourceUri: `lumenclip://automations/${encodeURIComponent(social.id)}`,
+              resourceUri: `lumenclip://templates/${encodeURIComponent(social.id)}`,
             },
           }
         })
@@ -1547,19 +1549,17 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
-    "lumenclip_automation_variable_bindings_get",
+    "lumenclip_template_variable_bindings_get",
     {
-      title: "Inspect automation variable bindings",
+      title: "Inspect template variable bindings",
       description:
         "Returns the enabled hook tokens, their effective collection bindings or runtime source, every registered runtime variable, explicit override precedence, and stale-override diagnostics. Runtime variables never require a collection.",
       inputSchema: {
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
-          .describe(
-            'Saved slideshow automation ID to inspect, e.g. "automation_123".'
-          ),
+          .describe("Saved slideshow template ID to inspect."),
       },
       annotations: {
         readOnlyHint: true,
@@ -1568,17 +1568,17 @@ function registerAutomationReadAndRunTools(
         openWorldHint: false,
       },
     },
-    async ({ automationId }) =>
+    async ({ templateId: automationId }) =>
       mcpResult(
         await owned(async () => {
           const automation = await services.getAutomationRecord(automationId)
-          if (!automation) throw new Error("Automation not found")
+          if (!automation) throw new Error("Template not found")
           const bindings = deriveAutomationVariableBindings({
             schema: automation.schema,
             collections: await services.listWordCollections(),
           })
           return {
-            automationId,
+            templateId: automationId,
             updatedAt: automation.updatedAt,
             ...bindings,
             unusedExplicitOverrides: bindings.unusedOverrides,
@@ -1588,19 +1588,17 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
-    "lumenclip_automation_experiment_dimensions",
+    "lumenclip_template_experiment_dimensions",
     {
-      title: "Inspect automation experiment dimensions",
+      title: "Inspect template experiment dimensions",
       description:
-        "Returns whole-block and per-body-slide content-direction dimensions, tone and model dimensions with their current values; sweepable hook variables with their bound collections and sample values; fixed runtime variables; and the enabled hook count. Call this before running an automation experiment.",
+        "Returns whole-block and per-body-slide content-direction dimensions, tone and model dimensions with their current values; sweepable hook variables with their bound collections and sample values; fixed runtime variables; and the enabled hook count. Call this before running a template experiment.",
       inputSchema: {
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
-          .describe(
-            'Saved slideshow automation ID to inspect, e.g. "automation_123".'
-          ),
+          .describe("Saved slideshow template ID to inspect."),
       },
       annotations: {
         readOnlyHint: true,
@@ -1609,7 +1607,7 @@ function registerAutomationReadAndRunTools(
         openWorldHint: false,
       },
     },
-    async ({ automationId }) =>
+    async ({ templateId: automationId }) =>
       mcpResult(
         await owned(() =>
           services.getAutomationExperimentDimensions(automationId)
@@ -1656,19 +1654,17 @@ function registerAutomationReadAndRunTools(
   })
 
   server.registerTool(
-    "lumenclip_automation_experiment_run",
+    "lumenclip_template_experiment_run",
     {
-      title: "Run an automation experiment",
+      title: "Run a template experiment",
       description:
-        "Previews the Cartesian product of selected dimensions against one saved slideshow automation without persisting, publishing, or consuming hooks. Individual cell failures are returned without aborting the sweep.",
+        "Previews the Cartesian product of selected dimensions against one saved slideshow template without persisting, publishing, or consuming hooks. Individual cell failures are returned without aborting the sweep.",
       inputSchema: {
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
-          .describe(
-            'Saved slideshow automation ID to test, e.g. "automation_123".'
-          ),
+          .describe("Saved slideshow template ID to test."),
         vary: z
           .array(experimentVariationSchema)
           .max(20)
@@ -1711,18 +1707,25 @@ function registerAutomationReadAndRunTools(
         openWorldHint: true,
       },
     },
-    async (input) =>
-      mcpResult(await owned(() => services.runAutomationExperiment(input)))
+    async ({ templateId, ...input }) =>
+      mcpResult(
+        await owned(() =>
+          services.runAutomationExperiment({
+            ...input,
+            automationId: templateId,
+          })
+        )
+      )
   )
 
   server.registerTool(
-    "lumenclip_automation_schema_update",
+    "lumenclip_template_schema_update",
     {
-      title: "Patch or replace an automation schema",
+      title: "Patch or replace a template schema",
       description:
         "Patches the normalized editor schema by default: nested objects merge and supplied arrays replace only their array field, while omitted fields remain unchanged. Use mode=replace only when intentionally replacing the complete schema. Always send the current updatedAt timestamp.",
       inputSchema: {
-        automationId: z.string().trim().min(1),
+        templateId: z.string().trim().min(1),
         expectedUpdatedAt: z.string().datetime({ offset: true }),
         mode: z.enum(["patch", "replace"]).default("patch"),
         schema: z.record(z.string(), z.unknown()),
@@ -1737,8 +1740,8 @@ function registerAutomationReadAndRunTools(
     async (input) =>
       mcpResult(
         await owned(async () => {
-          const record = await services.getAutomationRecord(input.automationId)
-          if (!record) throw new Error("Automation not found")
+          const record = await services.getAutomationRecord(input.templateId)
+          if (!record) throw new Error("Template not found")
           assertExpectedVersion(record.updatedAt, input.expectedUpdatedAt)
           const candidate =
             input.mode === "replace"
@@ -1754,10 +1757,10 @@ function registerAutomationReadAndRunTools(
             expectedUpdatedAt: input.expectedUpdatedAt,
             now: services.now(),
           })
-          if (!updated) throw new Error("Automation not found")
+          if (!updated) throw new Error("Template not found")
           const serializedSchema = serializeAutomationSchema(updated.schema)
           return {
-            automation: {
+            template: {
               ...serializeStandardAutomation(updated),
               schema: serializedSchema,
             },
@@ -1771,13 +1774,13 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
-    "lumenclip_automation_formatting_update",
+    "lumenclip_template_formatting_update",
     {
-      title: "Patch one automation formatting block",
+      title: "Patch one template formatting block",
       description:
         "Updates only the requested hook, body, or CTA formatting block. Omitted fields, all other blocks, the hook pool, publishing settings, and schedule remain unchanged. Dynamic is accepted as an alias for the persisted varying slide-count mode; slideOverrides and imageOverrides are active renderer inputs.",
       inputSchema: {
-        automationId: z.string().trim().min(1),
+        templateId: z.string().trim().min(1),
         blockId: z.enum(["hook", "body", "cta"]),
         patch: formattingBlockPatchSchema,
         expectedUpdatedAt: z.string().datetime({ offset: true }),
@@ -1792,8 +1795,8 @@ function registerAutomationReadAndRunTools(
     async (input) =>
       mcpResult(
         await owned(async () => {
-          const record = await services.getAutomationRecord(input.automationId)
-          if (!record) throw new Error("Automation not found")
+          const record = await services.getAutomationRecord(input.templateId)
+          if (!record) throw new Error("Template not found")
           assertExpectedVersion(record.updatedAt, input.expectedUpdatedAt)
           const formatting = patchFormattingBlock(
             record.schema.formatting,
@@ -1806,9 +1809,9 @@ function registerAutomationReadAndRunTools(
             expectedUpdatedAt: input.expectedUpdatedAt,
             now: services.now(),
           })
-          if (!updated) throw new Error("Automation not found")
+          if (!updated) throw new Error("Template not found")
           return {
-            automationId: updated.id,
+            templateId: updated.id,
             updatedAt: updated.updatedAt,
             block: updated.schema.formatting.find(
               (block) => block.id === input.blockId
@@ -1819,13 +1822,13 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
-    "lumenclip_automation_text_item_update",
+    "lumenclip_template_text_item_update",
     {
-      title: "Patch one automation text item",
+      title: "Patch one template text item",
       description:
         "Updates one existing text item inside the requested hook, body, or CTA block. Omitted text and style fields remain unchanged; this tool intentionally does not create or delete renderer items.",
       inputSchema: {
-        automationId: z.string().trim().min(1),
+        templateId: z.string().trim().min(1),
         blockId: z.enum(["hook", "body", "cta"]),
         textItemId: z.string().trim().min(1),
         patch: textItemPatchSchema,
@@ -1841,8 +1844,8 @@ function registerAutomationReadAndRunTools(
     async (input) =>
       mcpResult(
         await owned(async () => {
-          const record = await services.getAutomationRecord(input.automationId)
-          if (!record) throw new Error("Automation not found")
+          const record = await services.getAutomationRecord(input.templateId)
+          if (!record) throw new Error("Template not found")
           assertExpectedVersion(record.updatedAt, input.expectedUpdatedAt)
           const formatting = patchFormattingTextItem(
             record.schema.formatting,
@@ -1856,12 +1859,12 @@ function registerAutomationReadAndRunTools(
             expectedUpdatedAt: input.expectedUpdatedAt,
             now: services.now(),
           })
-          if (!updated) throw new Error("Automation not found")
+          if (!updated) throw new Error("Template not found")
           const block = updated.schema.formatting.find(
             (item) => item.id === input.blockId
           )
           return {
-            automationId: updated.id,
+            templateId: updated.id,
             updatedAt: updated.updatedAt,
             blockId: input.blockId,
             textItem: block?.textItems.find(
@@ -1873,19 +1876,17 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
-    "lumenclip_automation_delete",
+    "lumenclip_template_delete",
     {
-      title: "Delete an automation",
+      title: "Delete a template",
       description:
-        "Permanently deletes one caller-owned slideshow, video, or AI UGC automation and cascades its generated slideshows, run history, queue jobs, and draft publication records.",
+        "Permanently deletes one caller-owned slideshow, video, or AI UGC template and cascades its generated slideshows, run history, queue jobs, and draft publication records.",
       inputSchema: {
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
-          .describe(
-            'Saved automation ID returned by automations_list, e.g. "automation_123".'
-          ),
+          .describe("Saved template ID returned by templates_list."),
         requestId: z
           .string()
           .trim()
@@ -1897,7 +1898,7 @@ function registerAutomationReadAndRunTools(
         confirmDelete: z
           .literal(true)
           .describe(
-            "Must be literal true to confirm permanent deletion of the automation and its generated history."
+            "Must be literal true to confirm permanent deletion of the template and its generated history."
           ),
       },
       annotations: {
@@ -1907,16 +1908,16 @@ function registerAutomationReadAndRunTools(
         openWorldHint: false,
       },
     },
-    async ({ automationId, requestId, confirmDelete }) => {
+    async ({ templateId, requestId, confirmDelete }) => {
       void confirmDelete
       return mcpResult(
         await owned(async () => {
           const result = await services.deleteAutomationCascade({
-            id: automationId,
+            id: templateId,
           })
           return {
             requestId,
-            automationId,
+            templateId,
             deleted: true,
             ...result,
           }
@@ -1926,19 +1927,17 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
-    "lumenclip_automation_hooks_get",
+    "lumenclip_template_hooks_get",
     {
-      title: "Read an automation hook pool",
+      title: "Read a template hook pool",
       description:
-        "Returns the canonical hook pool stored on an automation, including enabled state and exact or near-duplicate groups. This is the authoritative hook source; rendered output prompts are not.",
+        "Returns the canonical hook pool stored on a template, including enabled state and exact or near-duplicate groups. This is the authoritative hook source; rendered output prompts are not.",
       inputSchema: {
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
-          .describe(
-            'Saved slideshow, video, or AI UGC automation ID, e.g. "automation_123".'
-          ),
+          .describe("Saved slideshow, video, or AI UGC template ID."),
       },
       annotations: {
         readOnlyHint: true,
@@ -1947,11 +1946,11 @@ function registerAutomationReadAndRunTools(
         openWorldHint: false,
       },
     },
-    async ({ automationId }) =>
+    async ({ templateId: automationId }) =>
       mcpResult(
         await owned(async () => {
           const record = await services.getAutomationRecord(automationId)
-          if (!record) throw new Error("Automation not found")
+          if (!record) throw new Error("Template not found")
           return serializeAutomationHookPool(
             record,
             deriveAutomationVariableBindings({
@@ -1964,19 +1963,17 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
-    "lumenclip_automation_hooks_update",
+    "lumenclip_template_hooks_update",
     {
-      title: "Replace an automation hook pool",
+      title: "Replace a template hook pool",
       description:
         "Replaces the complete canonical hook pool so agents can add, edit, disable, or prune hooks without reading rendered output prompts. Read the pool first, preserve desired IDs, and optionally remove detected near-duplicates.",
       inputSchema: {
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
-          .describe(
-            'Saved automation ID returned by automation_hooks_get, e.g. "automation_123".'
-          ),
+          .describe("Saved template ID returned by template_hooks_get."),
         expectedUpdatedAt: z
           .string()
           .datetime({ offset: true })
@@ -2007,8 +2004,8 @@ function registerAutomationReadAndRunTools(
     async (input) =>
       mcpResult(
         await owned(async () => {
-          const record = await services.getAutomationRecord(input.automationId)
-          if (!record) throw new Error("Automation not found")
+          const record = await services.getAutomationRecord(input.templateId)
+          if (!record) throw new Error("Template not found")
           assertExpectedVersion(record.updatedAt, input.expectedUpdatedAt)
           const tokenValidation = assertValidAutomationHookTokens({
             hooks: input.hooks,
@@ -2037,13 +2034,13 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
-    "lumenclip_automation_hook_upsert",
+    "lumenclip_template_hook_upsert",
     {
-      title: "Add or edit automation hooks",
+      title: "Add or edit template hooks",
       description:
         "Adds hooks or edits existing hooks by stable ID without replacing the rest of the pool. Returns the complete authoritative pool and duplicate analysis.",
       inputSchema: {
-        automationId: z.string().trim().min(1),
+        templateId: z.string().trim().min(1),
         expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
         hooks: z.array(automationHookMutationSchema).min(1).max(100),
       },
@@ -2057,8 +2054,8 @@ function registerAutomationReadAndRunTools(
     async (input) =>
       mcpResult(
         await owned(async () => {
-          const record = await services.getAutomationRecord(input.automationId)
-          if (!record) throw new Error("Automation not found")
+          const record = await services.getAutomationRecord(input.templateId)
+          if (!record) throw new Error("Template not found")
           assertExpectedVersion(record.updatedAt, input.expectedUpdatedAt)
           const tokenValidation = assertValidAutomationHookTokens({
             hooks: input.hooks,
@@ -2085,13 +2082,13 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
-    "lumenclip_automation_hook_set_enabled",
+    "lumenclip_template_hook_set_enabled",
     {
-      title: "Enable or disable automation hooks",
+      title: "Enable or disable template hooks",
       description:
         "Toggles selected hooks by stable ID. Disabled hooks remain stored for attribution and can be re-enabled later.",
       inputSchema: {
-        automationId: z.string().trim().min(1),
+        templateId: z.string().trim().min(1),
         expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
         hookIds: z.array(z.string().trim().min(1)).min(1).max(500),
         enabled: z.boolean(),
@@ -2106,8 +2103,8 @@ function registerAutomationReadAndRunTools(
     async (input) =>
       mcpResult(
         await owned(async () => {
-          const record = await services.getAutomationRecord(input.automationId)
-          if (!record) throw new Error("Automation not found")
+          const record = await services.getAutomationRecord(input.templateId)
+          if (!record) throw new Error("Template not found")
           assertExpectedVersion(record.updatedAt, input.expectedUpdatedAt)
           const ids = new Set(input.hookIds)
           const current = automationHookItems(record.schema)
@@ -2130,13 +2127,13 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
-    "lumenclip_automation_hook_delete",
+    "lumenclip_template_hook_delete",
     {
-      title: "Delete automation hooks",
+      title: "Delete template hooks",
       description:
         "Permanently removes selected hooks from the canonical pool. Historical run plans and performance attribution retain their hook IDs.",
       inputSchema: {
-        automationId: z.string().trim().min(1),
+        templateId: z.string().trim().min(1),
         expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
         hookIds: z.array(z.string().trim().min(1)).min(1).max(500),
         confirmDelete: z.literal(true),
@@ -2152,8 +2149,8 @@ function registerAutomationReadAndRunTools(
       void confirmDelete
       return mcpResult(
         await owned(async () => {
-          const record = await services.getAutomationRecord(input.automationId)
-          if (!record) throw new Error("Automation not found")
+          const record = await services.getAutomationRecord(input.templateId)
+          if (!record) throw new Error("Template not found")
           assertExpectedVersion(record.updatedAt, input.expectedUpdatedAt)
           const ids = new Set(input.hookIds)
           const current = automationHookItems(record.schema)
@@ -2185,7 +2182,7 @@ function registerAutomationReadAndRunTools(
       description:
         "Joins canonical hook IDs to confirmed publications and their latest metrics. Returns publish count, views, shares, saves, share rate, and mean slide-1-to-2 retention for each hook.",
       inputSchema: {
-        automationId: z.string().trim().min(1),
+        templateId: z.string().trim().min(1),
         days: z.number().int().min(1).max(3650).default(90),
       },
       annotations: {
@@ -2198,14 +2195,11 @@ function registerAutomationReadAndRunTools(
     async (input) =>
       mcpResult(
         await owned(async () => {
-          const report = await services.hookAnalyticsReport(
-            input.automationId,
-            {
-              days: input.days,
-              now: services.now(),
-            }
-          )
-          if (!report) throw new Error("Automation not found")
+          const report = await services.hookAnalyticsReport(input.templateId, {
+            days: input.days,
+            now: services.now(),
+          })
+          if (!report) throw new Error("Template not found")
           return report
         })
       )
@@ -2216,13 +2210,13 @@ function registerAutomationReadAndRunTools(
     {
       title: "Generate random hook variants",
       description:
-        "Stage 1 of hook-variant generation. Randomly resolves 2-10 distinct unused hooks from a saved slideshow automation and generates a text-only slide draft for each. Returns every hook and the text of every slide without persisting outputs.",
+        "Stage 1 of hook-variant generation. Randomly resolves 2-10 distinct unused hooks from a saved slideshow template and generates a text-only slide draft for each. Returns every hook and the text of every slide without persisting outputs.",
       inputSchema: {
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
-          .describe('Saved slideshow automation ID, e.g. "automation_123".'),
+          .describe("Saved slideshow template ID."),
         count: z
           .number()
           .int()
@@ -2238,13 +2232,13 @@ function registerAutomationReadAndRunTools(
         openWorldHint: true,
       },
     },
-    async ({ automationId, count }) =>
+    async ({ templateId: automationId, count }) =>
       mcpResult(
         await owned(async () => {
           const automation = await services.getAutomationRecord(automationId)
-          if (!automation) throw new Error("Automation not found")
+          if (!automation) throw new Error("Template not found")
           if (automation.schema.automationKind !== "slideshow") {
-            throw new Error("Hook variants require a slideshow automation")
+            throw new Error("Hook variants require a slideshow template")
           }
           const variants = await services.previewAutomationHookVariants(
             automation.schema,
@@ -2256,7 +2250,7 @@ function registerAutomationReadAndRunTools(
             }
           )
           return {
-            automationId,
+            templateId: automationId,
             count: variants.length,
             variants,
             nextAction: {
@@ -2276,7 +2270,7 @@ function registerAutomationReadAndRunTools(
       description:
         "Stage 2 of hook-variant generation. Persists one unpublished slideshow draft using the exact selected hook and returns the chosen hook plus the text and media URLs of every slide.",
       inputSchema: {
-        automationId: z.string().trim().min(1),
+        templateId: z.string().trim().min(1),
         selectedHook: z
           .string()
           .trim()
@@ -2301,13 +2295,15 @@ function registerAutomationReadAndRunTools(
         openWorldHint: true,
       },
     },
-    async ({ selectedHook, ...input }) =>
+    async ({ selectedHook, templateId, ...input }) =>
       mcpResult(
-        await owned(() =>
-          runAutomationDraft(
-            services,
-            { ...input, hook: selectedHook },
-            ownerId
+        await owned(async () =>
+          canonicalTemplateEnvelope(
+            await runAutomationDraft(
+              services,
+              { ...input, automationId: templateId, hook: selectedHook },
+              ownerId
+            )
           )
         )
       )
@@ -2316,9 +2312,9 @@ function registerAutomationReadAndRunTools(
   server.registerTool(
     "lumenclip_run_plan_get",
     {
-      title: "Get an automation run plan",
+      title: "Get a template run plan",
       description:
-        "Returns the persisted generation plan for one standard automation run, including hook attribution, substitutions, selected media, slide text/layout, reuse warnings, and strategy.",
+        "Returns the persisted generation plan for one standard template run, including hook attribution, substitutions, selected media, slide text/layout, reuse warnings, and strategy.",
       inputSchema: {
         runId: z.string().trim().min(1),
         includeDebug: z.boolean().default(false),
@@ -2338,11 +2334,11 @@ function registerAutomationReadAndRunTools(
               limit: Number.MAX_SAFE_INTEGER,
             })
           ).find((candidate) => candidate.id === input.runId)
-          if (!run) throw new Error("Automation run not found")
+          if (!run) throw new Error("Template run not found")
           const { debug, ...safePlan } = run.plan
           return {
             runId: run.id,
-            automationId: run.automationId,
+            templateId: run.automationId,
             status: run.status,
             scheduledFor: run.scheduledFor,
             generationSource: run.generationSource,
@@ -2356,18 +2352,18 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
-    "lumenclip_automation_run",
+    "lumenclip_template_run",
     {
-      title: "Run an automation",
+      title: "Run a template",
       description:
-        "Generates one unpublished, unscheduled draft from a saved slideshow, AI UGC, X, or Threads automation. Slideshow callers may supply an exact hook instead of random selection. AI UGC runs asynchronously and returns a pollable operation. Saved video automations remain discoverable but do not yet have a shared runner. For completed slideshow runs the output entry includes the selected hook, `outputImages` (relative slide paths), a per-slide `slides` array (`index`, `role`, `text`, absolute `renderedImageUrl`, absolute `sourceImageUrl`), a signed public `previewUrl`, and a signed direct ZIP `downloadUrl`. Delivery and slide URLs are absolutised against the server's BASE_URL; when BASE_URL is unset they fall back to relative paths.",
+        "Generates one unpublished, unscheduled draft from a saved slideshow, AI UGC, X, or Threads template. Slideshow callers may supply an exact hook instead of random selection. AI UGC runs asynchronously and returns a pollable operation. Saved video templates remain discoverable but do not yet have a shared runner. For completed slideshow runs the output entry includes the selected hook, `outputImages` (relative slide paths), a per-slide `slides` array (`index`, `role`, `text`, absolute `renderedImageUrl`, absolute `sourceImageUrl`), a signed public `previewUrl`, and a signed direct ZIP `downloadUrl`. Delivery and slide URLs are absolutised against the server's BASE_URL; when BASE_URL is unset they fall back to relative paths.",
       inputSchema: {
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
           .describe(
-            'Saved slideshow, AI UGC, X, or Threads automation ID to run, e.g. "automation_123".'
+            "Saved slideshow, AI UGC, X, or Threads template ID to run."
           ),
         topic: z
           .string()
@@ -2402,8 +2398,18 @@ function registerAutomationReadAndRunTools(
         openWorldHint: true,
       },
     },
-    async (input) =>
-      mcpResult(await owned(() => runAutomationDraft(services, input, ownerId)))
+    async ({ templateId, ...input }) =>
+      mcpResult(
+        await owned(async () =>
+          canonicalTemplateEnvelope(
+            await runAutomationDraft(
+              services,
+              { ...input, automationId: templateId },
+              ownerId
+            )
+          )
+        )
+      )
   )
 }
 
@@ -3145,14 +3151,12 @@ function registerOutputAndPublishingTools(
       description:
         "Lists caller-owned slideshow, generated-video, X, and Threads outputs with readiness, publication state, latest metric summaries, and explicit guidance for deeper analytics.",
       inputSchema: {
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
           .optional()
-          .describe(
-            'Optional automation ID to filter generated outputs by, e.g. "automation_123".'
-          ),
+          .describe("Optional template ID to filter generated outputs by."),
         outputType: z
           .enum(["slideshow", "video", "x_post", "threads_post"])
           .optional()
@@ -3216,7 +3220,7 @@ function registerOutputAndPublishingTools(
           const filtered = items
             .filter(
               (item) =>
-                !input.automationId || item.automationId === input.automationId
+                !input.templateId || item.automationId === input.templateId
             )
             .filter(
               (item) =>
@@ -3246,7 +3250,10 @@ function registerOutputAndPublishingTools(
             0
           )
           return {
-            items: page,
+            items: page.map(({ automationId, ...item }) => ({
+              ...item,
+              templateId: automationId,
+            })),
             nextCursor:
               nextOffset < filtered.length ? String(nextOffset) : undefined,
             hasMore: nextOffset < filtered.length,
@@ -3646,7 +3653,7 @@ function registerOutputAndPublishingTools(
       mcpResult(
         await owned(async () => {
           const job = await services.getJob(operationId)
-          if (job?.type === "run-ugc-automation") {
+          if (job?.type === "run-ugc-template") {
             return ugcJobOperation(services, job)
           }
           const regularRuns = await services.listAutomationRuns({ limit: 500 })
@@ -4003,6 +4010,27 @@ async function runAutomationDraft(
   return socialOperation(run)
 }
 
+function canonicalTemplateEnvelope<T extends Record<string, unknown>>(
+  value: T
+) {
+  return canonicalizeTemplateFields(value) as Record<string, unknown>
+}
+
+function canonicalizeTemplateFields(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalizeTemplateFields)
+  if (!value || typeof value !== "object") return value
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+      key === "automationId"
+        ? "templateId"
+        : key === "sourceAutomationId"
+          ? "sourceTemplateId"
+          : key,
+      canonicalizeTemplateFields(entry),
+    ])
+  )
+}
+
 async function runUgcDraft(
   services: LumenClipMcpServices,
   input: { automationId: string; requestId: string }
@@ -4030,7 +4058,7 @@ async function runUgcDraft(
 
   const scheduledFor = services.now().toISOString()
   const queued = await services.enqueueJob({
-    type: "run-ugc-automation",
+    type: "run-ugc-template",
     payload: {
       automationId: input.automationId,
       scheduledFor,
@@ -4310,7 +4338,7 @@ function automationListItem(
       record.schema.automationKind === "slideshow" ||
       record.schema.automationKind === "ugc",
     lastRun: lastRun ? generatedRunSummary(lastRun, ownerId) : null,
-    resourceUri: `lumenclip://automations/${encodeURIComponent(record.id)}`,
+    resourceUri: `lumenclip://templates/${encodeURIComponent(record.id)}`,
   }
 }
 
@@ -4329,7 +4357,7 @@ function socialAutomationListItem(
     platforms: [record.platform],
     manualRunSupported: true,
     lastRun: lastRun ? socialRunSummary(lastRun) : null,
-    resourceUri: `lumenclip://automations/${encodeURIComponent(record.id)}`,
+    resourceUri: `lumenclip://templates/${encodeURIComponent(record.id)}`,
   }
 }
 
@@ -5923,7 +5951,7 @@ function registerTikTokPublicationTools(
     {
       title: "Preview TikTok slideshow matches",
       description:
-        "Reads imported TikTok slide text and compares each post with one automation's generated slideshows. Returns candidate matches and confidence; this never changes publication data.",
+        "Reads imported TikTok slide text and compares each post with one template's generated slideshows. Returns candidate matches and confidence; this never changes publication data.",
       inputSchema: {
         operationId: z
           .string()
@@ -5932,12 +5960,12 @@ function registerTikTokPublicationTools(
           .describe(
             'TikTok import operation ID returned by tiktok_import_start, e.g. "tiktok_import_123".'
           ),
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
           .describe(
-            'Automation ID whose generated slideshows should be compared, e.g. "automation_astrology_info".'
+            "Template ID whose generated slideshows should be compared."
           ),
       },
       annotations: {
@@ -5947,10 +5975,13 @@ function registerTikTokPublicationTools(
         openWorldHint: true,
       },
     },
-    async (input) =>
+    async ({ templateId, ...input }) =>
       mcpResult(
         await withSystemOwner(ownerId, () =>
-          services.inspectTikTokPublicationImport(input)
+          services.inspectTikTokPublicationImport({
+            ...input,
+            automationId: templateId,
+          })
         )
       )
   )
@@ -5969,13 +6000,11 @@ function registerTikTokPublicationTools(
           .describe(
             'TikTok import operation ID returned by tiktok_import_start, e.g. "tiktok_import_123".'
           ),
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
-          .describe(
-            'Automation ID used for matching and attribution, e.g. "automation_astrology_info".'
-          ),
+          .describe("Template ID used for matching and attribution."),
         integrationId: z
           .string()
           .trim()
@@ -6033,11 +6062,14 @@ function registerTikTokPublicationTools(
         openWorldHint: true,
       },
     },
-    async ({ confirm, ...input }) => {
+    async ({ confirm, templateId, ...input }) => {
       void confirm
       return mcpResult({
         links: await withSystemOwner(ownerId, () =>
-          services.linkTikTokPublicationImport(input)
+          services.linkTikTokPublicationImport({
+            ...input,
+            automationId: templateId,
+          })
         ),
       })
     }
@@ -6134,14 +6166,12 @@ function registerTikTokStudioAnalyticsTools(
           .describe(
             'Optional TikTok account integration IDs, e.g. ["pf_tiktok_123"].'
           ),
-        automationId: z
+        templateId: z
           .string()
           .trim()
           .min(1)
           .optional()
-          .describe(
-            'Optional source automation ID, e.g. "automation_astrology_info".'
-          ),
+          .describe("Optional source template ID."),
         days: z
           .number()
           .int()
@@ -6183,11 +6213,11 @@ function registerTikTokStudioAnalyticsTools(
         openWorldHint: false,
       },
     },
-    async (input) =>
+    async ({ templateId, ...input }) =>
       mcpResult(
         await withSystemOwner(ownerId, () =>
           buildTikTokStudioMcpReport(
-            { ...input, now: services.now() },
+            { ...input, automationId: templateId, now: services.now() },
             services
           )
         )
@@ -6788,9 +6818,9 @@ function buildCalendarLifecycleItems(input: {
   }
   const jobItems = input.jobs.flatMap((job) => {
     if (
-      job.type !== "run-automation" &&
-      job.type !== "run-x-automation" &&
-      job.type !== "run-ugc-automation"
+      job.type !== "run-template" &&
+      job.type !== "run-social-template" &&
+      job.type !== "run-ugc-template"
     ) {
       return []
     }
@@ -7109,7 +7139,7 @@ function serializeAutomationTemplate(
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     ...(includeSchema ? { schema: serializeAutomationSchema(schema) } : {}),
-    resourceUri: `lumenclip://automation-templates/${encodeURIComponent(record.id)}`,
+    resourceUri: `lumenclip://starter-templates/${encodeURIComponent(record.id)}`,
   }
 }
 
@@ -7119,12 +7149,12 @@ function serializeAutomationHookPool(
 ) {
   const hooks = automationHookItems(record.schema)
   return {
-    automationId: record.id,
+    templateId: record.id,
     updatedAt: record.updatedAt,
     hooks,
     ...analyzeAutomationHookPool(hooks),
     ...(variableBindings ? { variableBindings } : {}),
-    resourceUri: `lumenclip://automations/${encodeURIComponent(record.id)}/hooks`,
+    resourceUri: `lumenclip://templates/${encodeURIComponent(record.id)}/hooks`,
   }
 }
 
@@ -7237,13 +7267,13 @@ function automationCreateNextSteps(
   if (!source) return []
   return [
     {
-      id: "prefer-clone-for-related-automation",
+      id: "prefer-clone-for-related-template",
       severity: "recommended",
       reason:
-        "This workspace already owns automations. Clone the closest one when you want to preserve its full schema and change only the differences.",
-      tool: "lumenclip_automation_clone",
+        "This workspace already owns templates. Clone the closest one when you want to preserve its full schema and change only the differences.",
+      tool: "lumenclip_template_clone",
       args: {
-        sourceAutomationId: source.id,
+        sourceTemplateId: source.id,
         name: input.name,
         requestId: `${input.requestId}-clone`,
       },
@@ -7268,10 +7298,10 @@ function automationConfigurationNextSteps(input: {
     steps.push({
       id: "resolve-missing-variable-collections",
       severity: "required",
-      reason: `These hook variables do not resolve to an existing word collection: ${input.variableBindings.missingTokens.join(", ")}. Create or select matching variable collections before running this automation.`,
+      reason: `These hook variables do not resolve to an existing word collection: ${input.variableBindings.missingTokens.join(", ")}. Create or select matching variable collections before running this template.`,
       tool: "lumenclip_collections_list",
       args: { mediaType: "word", minimumItemCount: 1, limit: 100 },
-      blocks: ["lumenclip_automation_run"],
+      blocks: ["lumenclip_template_run"],
     })
   }
   const narrative = clean(input.automation.schema.prompt_formatting.narrative)
@@ -7300,9 +7330,9 @@ function automationConfigurationNextSteps(input: {
       reason: narrativeMatchesEnabledPool
         ? "prompt_formatting.narrative duplicates the enabled hook pool. Generation reads hooks[] directly, so clear the redundant catalog."
         : "prompt_formatting.narrative is a stale copy of the enabled hook pool. Generation reads hooks[] directly, so clear the duplicate catalog.",
-      tool: "lumenclip_automation_schema_update",
+      tool: "lumenclip_template_schema_update",
       args: {
-        automationId: input.automation.id,
+        templateId: input.automation.id,
         expectedUpdatedAt: input.automation.updatedAt,
         mode: "patch",
         schema: { prompt_formatting: { narrative: "" } },
@@ -7330,9 +7360,9 @@ function automationConfigurationNextSteps(input: {
       severity: "recommended",
       reason:
         "The hook text item's contentDirection contains a duplicate hook catalog. Keep this field as rendering guidance; hooks[] owns hook content.",
-      tool: "lumenclip_automation_text_item_update",
+      tool: "lumenclip_template_text_item_update",
       args: {
-        automationId: input.automation.id,
+        templateId: input.automation.id,
         blockId: "hook",
         textItemId: hookTextItem.id,
         expectedUpdatedAt: input.automation.updatedAt,
@@ -7347,9 +7377,9 @@ function automationConfigurationNextSteps(input: {
       id: "remove-unused-hook-slot-overrides",
       severity: "recommended",
       reason: `Unused explicit variable overrides are configured: ${input.variableBindings.unusedOverrides.join(", ")}.`,
-      tool: "lumenclip_automation_schema_update",
+      tool: "lumenclip_template_schema_update",
       args: {
-        automationId: input.automation.id,
+        templateId: input.automation.id,
         expectedUpdatedAt: input.automation.updatedAt,
         mode: "patch",
         schema: {
@@ -7445,9 +7475,9 @@ function bodyTextLayerRepairNextSteps(
       severity: "recommended",
       reason:
         "The body heading currently owns paragraph-length copy and the paragraph layer is inert. Split the scan heading from its supporting paragraph before the next run.",
-      tool: "lumenclip_automation_schema_update",
+      tool: "lumenclip_template_schema_update",
       args: {
-        automationId: automation.id,
+        templateId: automation.id,
         expectedUpdatedAt: automation.updatedAt,
         mode: "patch",
         schema: { formatting },
@@ -7494,9 +7524,9 @@ function toneStyleBoundaryNextSteps(
       severity: "recommended",
       reason:
         "tone.value owns register, diction, rhythm, person, and casing. Remove those voice rules from prompt_formatting.style so structural instructions cannot contradict tone.",
-      tool: "lumenclip_automation_schema_update",
+      tool: "lumenclip_template_schema_update",
       args: {
-        automationId: automation.id,
+        templateId: automation.id,
         expectedUpdatedAt: automation.updatedAt,
         mode: "patch",
         schema: {
@@ -7536,10 +7566,10 @@ function missingCollectionReferenceNextSteps(
     {
       id: "replace-missing-collection-references",
       severity: "required",
-      reason: `This automation references missing media ${references.length === 1 ? "collection" : "collections"}: ${references.join(", ")}. Select replacement collection IDs and patch every dangling reference before running it.`,
+      reason: `This template references missing media ${references.length === 1 ? "collection" : "collections"}: ${references.join(", ")}. Select replacement collection IDs and patch every dangling reference before running it.`,
       tool: "lumenclip_collections_list",
       args: { minimumItemCount: 1, limit: 100 },
-      blocks: ["lumenclip_automation_run"],
+      blocks: ["lumenclip_template_run"],
     },
   ]
 }
@@ -7587,9 +7617,9 @@ function qaNextSteps(input: {
       severity: "required",
       reason:
         "Generation completed with deterministic QA errors. Regenerate before publishing, or use an explicit QA override with a recorded reason.",
-      tool: "lumenclip_automation_run",
+      tool: "lumenclip_template_run",
       args: {
-        automationId: input.automationId,
+        templateId: input.automationId,
         requestId: `qa-retry-${input.outputId ?? crypto.randomUUID()}`,
       },
       blocks: ["lumenclip_output_publish"],

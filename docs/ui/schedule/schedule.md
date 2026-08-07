@@ -39,7 +39,7 @@ timezone, timestamps, publishing targets, and error details.
 The calendar has no form for creating a post. A manually composed scheduled
 item is created through [Compose](/docs/ui/compose/compose) by choosing a future
 time and selecting Schedule. Automation cadence is configured separately in
-[Template schedule](/docs/ui/automations/schedule); the Templates action
+[Template schedule](/docs/ui/templates/schedule); the Templates action
 opens that workspace rather than duplicating its controls here.
 
 Month, week, today, previous, and next controls change the requested date
@@ -54,7 +54,7 @@ generated content or the live post.
 ## MCP coverage
 
 Partial. `lumenclip_schedule_get` returns the unified schedule report, including
-projected slots and calendar lifecycle items. `lumenclip_automation_update` can
+projected slots and calendar lifecycle items. `lumenclip_template_update` can
 change an automation schedule, and `lumenclip_output_publish` can schedule a
 ready output. Drag-rescheduling, cancelling a scheduled PostFast item, and
 retrying a failed calendar job have no matching registered tools.

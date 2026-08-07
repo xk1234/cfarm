@@ -96,6 +96,11 @@ run(
 )
 run(
   process.execPath,
+  [path.join(root, "scripts", "migrate-local-template-tables.mjs")],
+  runtimeEnvironment(cloudEnv, localEnv)
+)
+run(
+  process.execPath,
   [path.join(root, "scripts", "provision-consolidated-stores.mjs")],
   runtimeEnvironment(cloudEnv, localEnv)
 )
@@ -142,7 +147,7 @@ async function localBackendReady(env) {
       .setKey(env.APPWRITE_API_KEY)
     const tables = new TablesDB(client)
     await Promise.all([
-      tables.getTable(databaseId, "automations"),
+      tables.getTable(databaseId, "templates"),
       tables.getTable(databaseId, "jobs"),
       tables.getTable(databaseId, "outputs"),
     ])

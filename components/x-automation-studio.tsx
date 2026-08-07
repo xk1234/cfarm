@@ -132,8 +132,8 @@ export function XAutomationStudio({
   async function createAutomation(platform: XAutomationRecord["platform"]) {
     setBusy("create")
     try {
-      const payload = await request<{ automation: XAutomationRecord }>(
-        "/api/x-automations",
+      const payload = await request<{ template: XAutomationRecord }>(
+        "/api/social-templates",
         {
           method: "POST",
           body: JSON.stringify({
@@ -145,9 +145,9 @@ export function XAutomationStudio({
           }),
         }
       )
-      setAutomations((items) => [payload.automation, ...items])
-      setSavedAutomations((items) => [payload.automation, ...items])
-      setSelectedId(payload.automation.id)
+      setAutomations((items) => [payload.template, ...items])
+      setSavedAutomations((items) => [payload.template, ...items])
+      setSelectedId(payload.template.id)
     } catch (error) {
       toast.error(message(error))
     } finally {
@@ -159,20 +159,20 @@ export function XAutomationStudio({
     if (!selected) return null
     setBusy("save")
     try {
-      const payload = await request<{ automation: XAutomationRecord }>(
-        "/api/x-automations",
+      const payload = await request<{ template: XAutomationRecord }>(
+        "/api/social-templates",
         {
           method: "PATCH",
-          body: JSON.stringify({ automation: selected }),
+          body: JSON.stringify({ template: selected }),
         }
       )
-      let saved = payload.automation
+      let saved = payload.template
       if (deriveIfMissing && !saved.brief && saved.niche.label.trim()) {
-        const strategy = await request<{ automation: XAutomationRecord }>(
-          `/api/x-automations/${encodeURIComponent(saved.id)}/derive-brief`,
+        const strategy = await request<{ template: XAutomationRecord }>(
+          `/api/social-templates/${encodeURIComponent(saved.id)}/derive-brief`,
           { method: "POST" }
         )
-        saved = strategy.automation
+        saved = strategy.template
       }
       setAutomations((items) =>
         items.map((item) => (item.id === selected.id ? saved : item))
@@ -226,11 +226,11 @@ export function XAutomationStudio({
       if (!saved) return
       setBusy("generate")
       const payload = await request<{ run: XAutomationRun }>(
-        "/api/x-automations/generate",
+        "/api/social-templates/generate",
         {
           method: "POST",
           body: JSON.stringify({
-            automationId: selected.id,
+            templateId: selected.id,
             topic: topic.trim(),
             sourceCandidate,
           }),
@@ -255,11 +255,11 @@ export function XAutomationStudio({
       if (!saved) return
       setBusy("discover")
       const payload = await request<{ candidates: XTrendCandidate[] }>(
-        "/api/x-automations/discover",
+        "/api/social-templates/discover",
         {
           method: "POST",
           body: JSON.stringify({
-            automationId: selected.id,
+            templateId: selected.id,
             query: discoveryQuery.trim(),
           }),
         }
@@ -284,14 +284,12 @@ export function XAutomationStudio({
       const saved = await saveAutomation(false)
       if (!saved) return
       setBusy("derive")
-      const payload = await request<{ automation: XAutomationRecord }>(
-        `/api/x-automations/${encodeURIComponent(saved.id)}/derive-brief`,
+      const payload = await request<{ template: XAutomationRecord }>(
+        `/api/social-templates/${encodeURIComponent(saved.id)}/derive-brief`,
         { method: "POST" }
       )
       setAutomations((items) =>
-        items.map((item) =>
-          item.id === selected.id ? payload.automation : item
-        )
+        items.map((item) => (item.id === selected.id ? payload.template : item))
       )
       toast.success("Content strategy generated")
     } catch (error) {
@@ -306,9 +304,9 @@ export function XAutomationStudio({
             ? String(requestError.payload.operation.id)
             : undefined,
       })
-      if (requestError?.payload.automation) {
+      if (requestError?.payload.template) {
         const failedAutomation = requestError.payload
-          .automation as XAutomationRecord
+          .template as XAutomationRecord
         setAutomations((items) =>
           items.map((item) =>
             item.id === failedAutomation.id ? failedAutomation : item
@@ -326,7 +324,7 @@ export function XAutomationStudio({
     setBusy("image")
     try {
       const payload = await request<{ run: XAutomationRun }>(
-        "/api/x-automations/image",
+        "/api/social-templates/image",
         {
           method: "POST",
           body: JSON.stringify({
@@ -367,7 +365,7 @@ export function XAutomationStudio({
       await saveAutomation()
       setBusy("publish")
       const payload = await request<{ run: XAutomationRun }>(
-        "/api/x-automations/publish",
+        "/api/social-templates/publish",
         {
           method: "POST",
           body: JSON.stringify({ runId: preview.id }),

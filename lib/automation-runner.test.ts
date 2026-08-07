@@ -85,8 +85,8 @@ async function clearTable(table: string) {
 
 async function clearAll() {
   for (const table of [
-    "automations",
-    "automation_runs",
+    "templates",
+    "template_runs",
     "image_collections",
     "word_collections",
     "usage_ledger",
@@ -126,8 +126,8 @@ beforeEach(async () => {
   await clearAll()
   rootDir = await mkdtemp(path.join(os.tmpdir(), "cfarm-automation-runner-"))
   dataDir = path.join(rootDir, "data")
-  automationRootDir = path.join(dataDir, "automations")
-  runRootDir = path.join(dataDir, "automations")
+  automationRootDir = path.join(dataDir, "templates")
+  runRootDir = path.join(dataDir, "templates")
   imageCollectionDbPath = path.join(dataDir, "image-collections.json")
   wordCollectionRootDir = path.join(dataDir, "word-collections")
   usageLedgerRootDir = dataDir

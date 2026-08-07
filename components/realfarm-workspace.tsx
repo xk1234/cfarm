@@ -153,7 +153,7 @@ const emptyInitialTemplateData: InitialTemplateData = {
 async function loadRecentAutomationRuns() {
   const payload = await fetchJsonWithTimeout<{
     runs?: AutomationRunSummary[]
-  }>("/api/automations/runs?limit=100", {
+  }>("/api/templates/runs?limit=100", {
     toastOnError: false,
   })
   return payload.runs ?? []
@@ -366,12 +366,12 @@ export function RealFarmWorkspace({
   useEffect(() => {
     if ((view !== "home" && view !== "templates") || xAutomationsLoaded) return
     let active = true
-    void fetchJsonWithTimeout<{ automations?: XAutomationRecord[] }>(
-      "/api/x-automations"
+    void fetchJsonWithTimeout<{ templates?: XAutomationRecord[] }>(
+      "/api/social-templates"
     )
       .then((automationPayload) => {
         if (!active) return
-        const loadedAutomations = automationPayload.automations ?? []
+        const loadedAutomations = automationPayload.templates ?? []
         setXAutomations(loadedAutomations)
         const linked = loadedAutomations
           .map(xAutomationToAutomation)
@@ -391,7 +391,7 @@ export function RealFarmWorkspace({
     if (view !== "templates" || xAutomationRunsLoaded) return
     let active = true
     void fetchJsonWithTimeout<{ runs?: XAutomationRun[] }>(
-      "/api/x-automations/generate"
+      "/api/social-templates/generate"
     )
       .then((payload) => {
         if (active) setXAutomationRuns(payload.runs ?? [])
@@ -408,15 +408,15 @@ export function RealFarmWorkspace({
   useEffect(() => {
     let active = true
     void fetchJsonWithTimeout<{
-      automations?: Automation[]
+      templates?: Automation[]
       records?: AutomationRecord[]
     }>("/api/templates")
       .then((payload) => {
-        if (!active || !payload?.automations) {
+        if (!active || !payload?.templates) {
           return
         }
-        setPersistedAutomations(payload.automations)
-        const linked = payload.automations.find(
+        setPersistedAutomations(payload.templates)
+        const linked = payload.templates.find(
           (automation) => automation.id === linkedAutomationId
         )
         if (linked) setEditingAutomation(linked)
@@ -493,22 +493,20 @@ export function RealFarmWorkspace({
   ) {
     void fetchJsonWithTimeout<{
       record: AutomationRecord
-      automation: Automation
+      template: Automation
     }>("/api/templates", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, ...patch }),
       toastOnError: false,
     })
-      .then(({ automation }) => {
+      .then(({ template }) => {
         const mergeSummary = (item: Automation) =>
-          item.id === automation.id ? { ...item, ...automation } : item
+          item.id === template.id ? { ...item, ...template } : item
         setPersistedAutomations((current) => current.map(mergeSummary))
         setCreatedAutomations((current) => current.map(mergeSummary))
         setEditingAutomation((current) =>
-          current?.id === automation.id
-            ? { ...current, ...automation }
-            : current
+          current?.id === template.id ? { ...current, ...template } : current
         )
       })
       .catch((error) => {
@@ -665,14 +663,14 @@ export function RealFarmWorkspace({
     } = {}
   ) {
     const payload = await fetchJsonWithTimeout<{
-      automation?: Automation
+      template?: Automation
       record?: AutomationRecord
     }>("/api/templates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: input.name,
-        automationKind: input.automationKind,
+        kind: input.automationKind,
         schema: input.schema,
         template: input.template,
         overrides: {
@@ -682,11 +680,11 @@ export function RealFarmWorkspace({
       }),
     })
 
-    if (!payload.automation || !payload.record) {
+    if (!payload.template || !payload.record) {
       throw new Error("Failed to create template")
     }
 
-    return applyAutomationRecord(payload.record, payload.automation)
+    return applyAutomationRecord(payload.record, payload.template)
   }
 
   function changeView(nextView: ViewKey) {
@@ -940,14 +938,14 @@ export function RealFarmWorkspace({
                     setEditingAutomation(null)
                     void Promise.all([
                       fetchJsonWithTimeout<{
-                        automations?: XAutomationRecord[]
-                      }>("/api/x-automations"),
+                        templates?: XAutomationRecord[]
+                      }>("/api/social-templates"),
                       fetchJsonWithTimeout<{ runs?: XAutomationRun[] }>(
-                        "/api/x-automations/generate"
+                        "/api/social-templates/generate"
                       ),
                     ])
                       .then(([automationPayload, runPayload]) => {
-                        setXAutomations(automationPayload.automations ?? [])
+                        setXAutomations(automationPayload.templates ?? [])
                         setXAutomationRuns(runPayload.runs ?? [])
                       })
                       .catch(() => undefined)
@@ -1162,7 +1160,7 @@ export function RealFarmWorkspace({
           onCreateBlank={(automationKind, platform) => {
             if (automationKind === "x_threads") {
               const selectedPlatform = platform === "threads" ? "threads" : "x"
-              void fetch("/api/x-automations", {
+              void fetch("/api/social-templates", {
                 method: "POST",
                 headers: { "content-type": "application/json" },
                 body: JSON.stringify({
@@ -1176,36 +1174,36 @@ export function RealFarmWorkspace({
                 .then(async (response) => {
                   if (!response.ok)
                     throw new Error(
-                      `Could not create ${selectedPlatform === "threads" ? "Threads" : "X"} automation`
+                      `Could not create ${selectedPlatform === "threads" ? "Threads" : "X"} template`
                     )
                   return response.json() as Promise<{
-                    automation: XAutomationRecord
+                    template: XAutomationRecord
                   }>
                 })
-                .then(({ automation }) => {
-                  setXAutomations((items) => [automation, ...items])
+                .then(({ template }) => {
+                  setXAutomations((items) => [template, ...items])
                   setTemplateFolderOpen(false)
                   setView("templates")
                   setEditingAutomation({
-                    id: automation.id,
-                    name: automation.name,
+                    id: template.id,
+                    name: template.name,
                     automationKind: "x_threads",
-                    platform: automation.platform,
-                    status: automation.status,
+                    platform: template.platform,
+                    status: template.status,
                     account: "No social account",
-                    handle: automation.platform === "threads" ? "Threads" : "X",
+                    handle: template.platform === "threads" ? "Threads" : "X",
                     times: [],
                     favorite: false,
                     theme: "x_threads",
-                    socialIntegrations: automation.publishing.integrations,
-                    created_at: automation.createdAt,
+                    socialIntegrations: template.publishing.integrations,
+                    created_at: template.createdAt,
                   })
                 })
                 .catch((error) => {
                   toast.error(
                     getApiErrorMessage(
                       error,
-                      `Could not create ${selectedPlatform === "threads" ? "Threads" : "X"} automation`
+                      `Could not create ${selectedPlatform === "threads" ? "Threads" : "X"} template`
                     )
                   )
                 })

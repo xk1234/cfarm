@@ -90,7 +90,7 @@ const generatedModules = [
   },
   {
     source: "lib/automation-slots.ts",
-    target: "appwrite/functions/automation-scheduler/src/automation-slots.js",
+    target: "appwrite/functions/template-scheduler/src/automation-slots.js",
   },
   {
     source: "lib/guards.ts",

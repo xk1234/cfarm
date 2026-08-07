@@ -3,7 +3,7 @@ title: Published posts
 description: Inspect and link published TikTok photo posts for a slideshow automation.
 ---
 
-Route: `/app?view=automations&automation=<id>`
+Route: `/app?view=templates&automation=<id>`
 
 ![Desktop published posts](../assets/screenshots/desktop-home-published-posts.png)
 

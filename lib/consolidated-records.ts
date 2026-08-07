@@ -37,9 +37,8 @@ export function canonicalRowFields(
     common.name = pickField(record, NAME_KEYS)?.slice(0, 2048) ?? null
     common.status = pickField(record, STATUS_KEYS)?.slice(0, 255) ?? null
   }
-  if (route.table !== "automations") {
-    common.created_raw =
-      pickField(record, CREATED_KEYS)?.slice(0, 64) ?? null
+  if (route.table !== "templates") {
+    common.created_raw = pickField(record, CREATED_KEYS)?.slice(0, 64) ?? null
   }
 
   if (route.table === "outputs") {
@@ -173,7 +172,7 @@ export function extractOutputMedia(
   } else if (sourceKey === "character_video") {
     add(obj.videoUrl, "video", "rendered_video")
     delete obj.videoUrl
-  } else if (sourceKey === "x_automation_run") {
+  } else if (sourceKey === "social_template_run") {
     arrayValue(obj.imageUrls).forEach((url, index) =>
       add(url, "image", "post_image", index)
     )
@@ -221,7 +220,7 @@ export function hydrateOutputMedia(
     }
   } else if (sourceKey === "character_video") {
     obj.videoUrl = one("rendered_video")
-  } else if (sourceKey === "x_automation_run") {
+  } else if (sourceKey === "social_template_run") {
     obj.imageUrls = many("post_image")
   }
   return obj
@@ -264,7 +263,7 @@ function outputKind(sourceKey: string, obj: Record<string, unknown>): string {
   if (sourceKey === "generated_video") return "video"
   if (sourceKey === "character_image") return "character_image"
   if (sourceKey === "character_video") return "character_video"
-  if (sourceKey === "x_automation_run") return "social_post"
+  if (sourceKey === "social_template_run") return "social_post"
   return sourceKey
 }
 

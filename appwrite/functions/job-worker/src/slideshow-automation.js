@@ -63,8 +63,8 @@ configureFontconfig(
   )
 )
 
-const AUTOMATIONS = "automations"
-const RUNS = "automation_runs"
+const AUTOMATIONS = "templates"
+const RUNS = "template_runs"
 const OUTPUTS = "outputs"
 const OUTPUT_MEDIA = "output_media"
 const PERMANENT_ASSETS = "permanent_assets"
@@ -89,7 +89,7 @@ export async function runSlideshowAutomation({
   const ownerId = clean(job?.owner_id) || clean(payload?.ownerId)
   if (!automationId || !scheduledFor || !ownerId) {
     throw new Error(
-      "run-automation requires automationId, ownerId, and scheduledFor"
+      "run-template requires automationId, ownerId, and scheduledFor"
     )
   }
 
@@ -421,11 +421,11 @@ async function findAutomation(tables, databaseId, automationId, ownerId) {
     Query.limit(2),
   ])
   if (response.rows.length !== 1) {
-    throw new Error(`run-automation: automation ${automationId} not found`)
+    throw new Error(`run-template: automation ${automationId} not found`)
   }
   const automation = safeJson(response.rows[0].data)
   if (!automation?.schema) {
-    throw new Error(`run-automation: automation ${automationId} is invalid`)
+    throw new Error(`run-template: automation ${automationId} is invalid`)
   }
   return { ...automation, ownerId, _rowId: response.rows[0].$id }
 }
@@ -1857,11 +1857,12 @@ function fileId(relativePath) {
 }
 
 function ownedRowId(table, ownerId, rid) {
+  const namespace = table === "template_runs" ? "automation_runs" : table
   return (
     "u" +
     crypto
       .createHash("sha256")
-      .update(`${table}:${ownerId}:${rid}`)
+      .update(`${namespace}:${ownerId}:${rid}`)
       .digest("hex")
       .slice(0, 35)
   )

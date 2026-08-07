@@ -174,7 +174,7 @@ function workerHarness({ postingMode = "manual", integrations = [] } = {}) {
     files = new Map()
   const tables = {
     listRows: vi.fn(async (_database, table) => {
-      if (table === "automations")
+      if (table === "templates")
         return {
           rows: [
             {
@@ -186,7 +186,7 @@ function workerHarness({ postingMode = "manual", integrations = [] } = {}) {
         }
       if (table === "output_media")
         return { rows: [...rows.values()].filter((row) => row.output_id) }
-      if (table === "automation_runs")
+      if (table === "template_runs")
         return {
           rows: [...rows.values()].filter(
             (row) => row.automation_id && row.data

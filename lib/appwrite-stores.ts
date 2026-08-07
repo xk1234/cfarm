@@ -13,9 +13,9 @@ export type StoreRoute = {
 /**
  * Relative-to-`data/` logical store -> canonical Appwrite table route.
  *
- * The path remains the application-facing compatibility boundary, but records
- * are physically consolidated into outputs/permanent_assets. `sourceKey`
- * scopes reads and deterministic ids inside those polymorphic tables.
+ * Records are physically consolidated into outputs/permanent_assets where
+ * appropriate. `sourceKey` scopes reads and deterministic ids inside those
+ * polymorphic tables.
  */
 const RAW_STORE_ROUTES: Record<string, StoreRoute | string> = {
   "image-collections.json": {
@@ -28,23 +28,23 @@ const RAW_STORE_ROUTES: Record<string, StoreRoute | string> = {
     sourceKey: "uploaded_asset",
     public: false,
   },
-  "automations/automations.json": "automations",
-  "automations/runs.json": "automation_runs",
-  "x-automations/automations.json": "x_automations",
-  "x-automations/runs.json": {
+  "templates/templates.json": "templates",
+  "templates/runs.json": "template_runs",
+  "social-templates/templates.json": "social_templates",
+  "social-templates/runs.json": {
     table: "outputs",
-    sourceKey: "x_automation_run",
+    sourceKey: "social_template_run",
     public: false,
     shareable: true,
   },
-  "automation-templates/templates.json": {
+  "starter-templates/templates.json": {
     table: "permanent_assets",
-    sourceKey: "automation_template",
+    sourceKey: "starter_template",
     public: true,
   },
-  "automation-templates/example-runs.json": {
+  "starter-templates/example-runs.json": {
     table: "permanent_assets",
-    sourceKey: "automation_template_example",
+    sourceKey: "starter_template_example",
     public: true,
   },
   "results/results.json": {

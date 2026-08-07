@@ -21,7 +21,7 @@ flowchart LR
 
     Routes --> Domain["lib domain modules"]
     Pages --> Domain
-    Scheduler["automation-scheduler"] --> Jobs["jobs table"]
+    Scheduler["template-scheduler"] --> Jobs["jobs table"]
     Jobs --> Worker["job-worker / local worker"]
     Worker --> Domain
 
@@ -125,17 +125,17 @@ Storage and is not duplicated in this join table.
 
 High-churn or operational records keep dedicated tables:
 
-| Table                        | Record                                          | Access path              |
-| ---------------------------- | ----------------------------------------------- | ------------------------ |
-| `automations`                | Slideshow/video automation definitions          | JSON-store               |
-| `automation_runs`            | Interactive and scheduled automation executions | JSON-store               |
-| `x_automations`              | X/Threads automation definitions                | JSON-store               |
-| `usage_ledger`               | Hook/image reuse events                         | JSON-store append/delete |
-| `postfast_metric_snapshots`  | Per-post analytics snapshots                    | JSON-store append        |
-| `account_follower_snapshots` | Per-account follower snapshots                  | JSON-store               |
-| `jobs`                       | Scheduler/worker queue                          | Direct TablesDB queries  |
-| `workspace_members`          | Team invitation and access records              | Direct TablesDB queries  |
-| `demos`                      | Settings demo-video metadata                    | Direct TablesDB queries  |
+| Table                        | Record                                        | Access path              |
+| ---------------------------- | --------------------------------------------- | ------------------------ |
+| `templates`                  | Slideshow/video template definitions          | JSON-store               |
+| `template_runs`              | Interactive and scheduled template executions | JSON-store               |
+| `social_templates`           | X/Threads template definitions                | JSON-store               |
+| `usage_ledger`               | Hook/image reuse events                       | JSON-store append/delete |
+| `postfast_metric_snapshots`  | Per-post analytics snapshots                  | JSON-store append        |
+| `account_follower_snapshots` | Per-account follower snapshots                | JSON-store               |
+| `jobs`                       | Scheduler/worker queue                        | Direct TablesDB queries  |
+| `workspace_members`          | Team invitation and access records            | Direct TablesDB queries  |
+| `demos`                      | Settings demo-video metadata                  | Direct TablesDB queries  |
 
 Pre-consolidation tables are not part of the maintained schema. Run
 `pnpm appwrite:prune-schema -- --env=<environment file>` to audit them and add
@@ -147,33 +147,33 @@ embedded in an output's `publications` field.
 
 This table mirrors `STORE_ROUTES` in `lib/appwrite-stores.ts`.
 
-| Logical store                    | Physical table               | `source_key`                  | Visibility               | State  |
-| -------------------------------- | ---------------------------- | ----------------------------- | ------------------------ | ------ |
-| Image collections                | `permanent_assets`           | `image_collection`            | Owner-only               | Active |
-| Uploaded/generated asset records | `permanent_assets`           | `uploaded_asset`              | Owner-only               | Active |
-| Word/variable collections        | `permanent_assets`           | `word_collection`             | Owner-only               | Active |
-| Product collections              | `permanent_assets`           | `product_collection`          | Owner-only               | Active |
-| Media-library catalog            | `permanent_assets`           | `media_library_asset`         | Public reference         | Active |
-| Automation templates             | `permanent_assets`           | `automation_template`         | Public local reference   | Active |
-| Template example runs            | `permanent_assets`           | `automation_template_example` | Public local reference   | Active |
-| Results/slideshows               | `outputs`                    | `result`                      | Workspace-shareable read | Active |
-| Generated video exports          | `outputs`                    | `generated_video`             | Workspace-shareable read | Active |
-| X/Threads runs                   | `outputs`                    | `x_automation_run`            | Workspace-shareable read | Active |
-| Publication-only wrappers        | `outputs`                    | `publication_wrapper`         | Owner-only               | Active |
-| Slideshow/video automations      | `automations`                | Not applicable                | Owner-only               | Active |
-| Automation runs                  | `automation_runs`            | Not applicable                | Owner-only               | Active |
-| X/Threads automations            | `x_automations`              | Not applicable                | Owner-only               | Active |
-| Usage records                    | `usage_ledger`               | Not applicable                | Owner-only               | Active |
-| Post analytics snapshots         | `postfast_metric_snapshots`  | Not applicable                | Owner-only               | Active |
-| Follower snapshots               | `account_follower_snapshots` | Not applicable                | Owner-only               | Active |
+| Logical store                    | Physical table               | `source_key`               | Visibility               | State  |
+| -------------------------------- | ---------------------------- | -------------------------- | ------------------------ | ------ |
+| Image collections                | `permanent_assets`           | `image_collection`         | Owner-only               | Active |
+| Uploaded/generated asset records | `permanent_assets`           | `uploaded_asset`           | Owner-only               | Active |
+| Word/variable collections        | `permanent_assets`           | `word_collection`          | Owner-only               | Active |
+| Product collections              | `permanent_assets`           | `product_collection`       | Owner-only               | Active |
+| Media-library catalog            | `permanent_assets`           | `media_library_asset`      | Public reference         | Active |
+| Starter templates                | `permanent_assets`           | `starter_template`         | Public local reference   | Active |
+| Template example runs            | `permanent_assets`           | `starter_template_example` | Public local reference   | Active |
+| Results/slideshows               | `outputs`                    | `result`                   | Workspace-shareable read | Active |
+| Generated video exports          | `outputs`                    | `generated_video`          | Workspace-shareable read | Active |
+| X/Threads runs                   | `outputs`                    | `social_template_run`      | Workspace-shareable read | Active |
+| Publication-only wrappers        | `outputs`                    | `publication_wrapper`      | Owner-only               | Active |
+| Slideshow/video templates        | `templates`                  | Not applicable             | Owner-only               | Active |
+| Template runs                    | `template_runs`              | Not applicable             | Owner-only               | Active |
+| X/Threads templates              | `social_templates`           | Not applicable             | Owner-only               | Active |
+| Usage records                    | `usage_ledger`               | Not applicable             | Owner-only               | Active |
+| Post analytics snapshots         | `postfast_metric_snapshots`  | Not applicable             | Owner-only               | Active |
+| Follower snapshots               | `account_follower_snapshots` | Not applicable             | Owner-only               | Active |
 
 Dedicated tables do not carry `source_key`; their table identity is already the
 record discriminator. Snapshot and usage tables store query fields plus the
 serialized domain record without unused generic `name` or `status` columns.
 
-Automation template definitions and curated example runs live in local
-Appwrite as public reference categories. Creating a user automation writes a
-separate owner-scoped row to `automations`.
+Starter-template definitions and curated example runs live as public reference
+categories. Creating a user template writes a separate owner-scoped row to
+`templates`.
 
 ## Output and publication model
 
@@ -182,7 +182,7 @@ record lifecycle:
 
 ```mermaid
 flowchart LR
-    Automation --> Run["AutomationRunRecord"]
+    Template --> Run["AutomationRunRecord"]
     Run --> Result["ResultRecord in outputs"]
     Result --> Media["output_media rows"]
     Result --> Publications["PostFastPostRecord[] in outputs.publications"]

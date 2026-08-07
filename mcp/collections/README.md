@@ -68,8 +68,8 @@ Destructive mutation, scope `lumenclip:write`.
 
 Accepts `variableId`, `requestId`, and literal `confirmDelete: true`.
 Permanently deletes the caller-owned variable collection and returns the
-deleted variable snapshot. Automations referring to the deleted variable may
-fail expansion, so callers must inspect automation usage before confirmation.
+deleted variable snapshot. Templates referring to the deleted variable may
+fail expansion, so callers must inspect template usage before confirmation.
 
 ## `lumenclip_collection_save`
 
@@ -128,20 +128,20 @@ delete the collection's stored assets.
 
 ### Input
 
-| Field             | Type           | Required | Description                                                                                   |
-| ----------------- | -------------- | -------- | --------------------------------------------------------------------------------------------- |
-| `collectionId`    | string         | yes      | Stable collection ID or exact collection name.                                                |
-| `requestId`       | string         | yes      | Caller retry/correlation ID.                                                                  |
-| `allowReferenced` | boolean        | no       | Defaults to `false`; must be explicitly true to delete a collection referenced by automation. |
-| `confirmDelete`   | literal `true` | yes      | Explicit destructive-action confirmation.                                                     |
+| Field             | Type           | Required | Description                                                                                 |
+| ----------------- | -------------- | -------- | ------------------------------------------------------------------------------------------- |
+| `collectionId`    | string         | yes      | Stable collection ID or exact collection name.                                              |
+| `requestId`       | string         | yes      | Caller retry/correlation ID.                                                                |
+| `allowReferenced` | boolean        | no       | Defaults to `false`; must be explicitly true to delete a collection referenced by template. |
+| `confirmDelete`   | literal `true` | yes      | Explicit destructive-action confirmation.                                                   |
 
 ### Output and safety
 
 Returns `collectionId`, `deletedAt`, `deletedUntil`, `alreadyDeleted`, and the
-referencing automation `dependencies`. Repeating the call for an already
+referencing template `dependencies`. Repeating the call for an already
 soft-deleted collection returns its existing deletion window. By default,
 referenced collections fail without mutation; setting `allowReferenced: true`
-acknowledges that dependent automations may subsequently produce `no_images`.
+acknowledges that dependent templates may subsequently produce `no_images`.
 Bulk deletion and permanent purge are not exposed through MCP.
 
 ## Merge — proposed

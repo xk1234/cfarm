@@ -1,12 +1,12 @@
 # Video MCP tools
 
 > AI UGC cost estimation, asynchronous draft generation, operation status,
-> video automation/output/collection discovery, safe updates, and publishing
+> video template/output/collection discovery, safe updates, and publishing
 > are callable. Other saved video formats and reusable character training remain
 > deferred until their runner and storage contracts are stable.
 
 There is no generic `lumenclip_video_generate` tool. Videos use the common
-automation contract so provider names, model settings, and internal rendering
+template contract so provider names, model settings, and internal rendering
 services do not leak into MCP. AI UGC has a narrow first-class surface because
 it already has one durable worker and checkpoint contract.
 
@@ -16,41 +16,41 @@ Complete input/output contracts live in
 [../shared-contracts.md](../shared-contracts.md):
 
 Use-case owners are [Templates](../templates/README.md),
-[Automations](../automations/README.md),
+[Templates](../templates/README.md),
 [Collections](../collections/README.md),
 [Outputs and operations](../outputs/README.md), and
 [Accounts and publishing](../publishing/README.md).
 
 - Discovery: `lumenclip_workspace_get`, `lumenclip_templates_list`,
-  `lumenclip_template_get`, `lumenclip_automations_list`,
-  `lumenclip_automation_get`, `lumenclip_collections_list`,
+  `lumenclip_template_get`, `lumenclip_templates_list`,
+  `lumenclip_template_get`, `lumenclip_collections_list`,
   `lumenclip_outputs_list`.
-- Configuration: `lumenclip_automation_preview`,
-  `lumenclip_automation_create_from_template`, `lumenclip_automation_save`,
-  `lumenclip_automation_update`.
+- Configuration: `lumenclip_template_preview`,
+  `lumenclip_template_create_from_template`, `lumenclip_template_save`,
+  `lumenclip_template_update`.
 - Assets: `lumenclip_collection_save`,
   `lumenclip_collection_add_assets`, and proposed
   `lumenclip_external_assets_search`.
 - Status/review: `lumenclip_outputs_list`, `lumenclip_operation_get`.
 - AI UGC: `lumenclip_ugc_estimate`, `lumenclip_ugc_generate`, or the common
-  `lumenclip_automation_run` with a saved UGC automation ID.
+  `lumenclip_template_run` with a saved UGC template ID.
 - Publishing: `lumenclip_accounts_list`, `lumenclip_output_publish`,
   `lumenclip_output_mark_published`.
 
-For discovery, use `kind: "ugc"` for AI UGC automations, `kind: "video"` for
-other video automations, and `mediaType: "video"` for media collections.
+For discovery, use `kind: "ugc"` for AI UGC templates, `kind: "video"` for
+other video templates, and `mediaType: "video"` for media collections.
 
 ## AI UGC estimate and generation
 
-`lumenclip_ugc_estimate` is read-only. Pass a saved `automationId`, optional
+`lumenclip_ugc_estimate` is read-only. Pass a saved `templateId`, optional
 estimate-only overrides (`actorSource`, `actorAssetUrl`, `voiceModel`,
 `lipSyncTier`, `targetDurationSeconds`, and `brollCount`), or only those
 estimate fields to price a hypothetical run. It returns an itemized USD
 estimate and the assumptions used; it never queues work.
 
-`lumenclip_ugc_generate` requires a saved live UGC `automationId` and stable
+`lumenclip_ugc_generate` requires a saved live UGC `templateId` and stable
 `requestId`. It validates the product brief/URL and voice configuration, checks
-the UGC feature flag, and queues `run-ugc-automation`. A repeated request ID
+the UGC feature flag, and queues `run-ugc-template`. A repeated request ID
 returns the same queue job. The result includes `runId`, `expectedOutputId`,
 the cost estimate, a `ugc.generate` operation, and a ready-to-call
 `lumenclip_operation_get` next action.
@@ -80,9 +80,9 @@ public fields inside `template`:
 It must not expose provider model IDs, temporary render commands, API keys, or
 internal storage paths.
 
-## Configure a video automation
+## Configure a video template
 
-Use `lumenclip_automation_preview` with a template source:
+Use `lumenclip_template_preview` with a template source:
 
 ```json
 {
@@ -110,21 +110,21 @@ Use `lumenclip_automation_preview` with a template source:
 
 Output is the shared preview contract: `valid`, `preview_id`, field-level
 `diff`, effective configuration, validation issues, and warnings. Apply with
-`lumenclip_automation_create_from_template` or
-`lumenclip_automation_update`.
+`lumenclip_template_create_from_template` or
+`lumenclip_template_update`.
 
-## `lumenclip_automation_run` for non-UGC video
+## `lumenclip_template_run` for non-UGC video
 
-This path is explicitly unavailable today. The app persists video automation
+This path is explicitly unavailable today. The app persists video template
 configuration and generated-video exports, but it does not expose one shared
-server-side function that executes an arbitrary saved video automation. The MCP
+server-side function that executes an arbitrary saved video template. The MCP
 tool rejects video IDs instead of misrouting them through the slideshow runner.
 
 ### Target input (future)
 
 ```json
 {
-  "automation_id": "auto_react_reveal",
+  "templateId": "auto_react_reveal",
   "topic": "Mercury signs during conflict",
   "count": 1,
   "idempotency_key": "video-run-001"
@@ -136,8 +136,8 @@ may not invoke arbitrary providers or models.
 
 ### Output
 
-Standard operation envelope with `kind: "automation.run"`. A successful video
-output resource contains `id`, `output_type: "video"`, `automation_id`,
+Standard operation envelope with `kind: "template.run"`. A successful video
+output resource contains `id`, `output_type: "video"`, `templateId`,
 `status`, `publication_state: "not_published"`, duration, dimensions, caption,
 source-media provenance, warning list, `preview_uri`, signed media links, and
 `resource_uri`.
@@ -157,7 +157,7 @@ provider evidence on success.
 
 - Arbitrary provider/model invocation.
 - Reusable character CRUD or training. The app currently stores actor URLs and
-  prompts inside each automation; it has no owner-scoped character resource to
+  prompts inside each template; it has no owner-scoped character resource to
   expose safely through MCP yet.
 - Provider-specific faceless-video tools.
 - Browser-cookie or session-token import.
