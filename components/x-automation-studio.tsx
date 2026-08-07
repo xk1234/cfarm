@@ -58,11 +58,13 @@ export function XAutomationStudio({
   initialAutomations,
   initialRuns,
   embedded = false,
+  modal = false,
   onClose,
 }: {
   initialAutomations: XAutomationRecord[]
   initialRuns: XAutomationRun[]
   embedded?: boolean
+  modal?: boolean
   onClose?: () => void
 }) {
   const [automations, setAutomations] = useState(initialAutomations)
@@ -392,7 +394,11 @@ export function XAutomationStudio({
     <main
       className={cn(
         "bg-app-surface-subtle text-app-text",
-        embedded ? "min-h-full" : "min-h-svh"
+        modal
+          ? "h-full min-h-0 overflow-y-auto"
+          : embedded
+            ? "min-h-full"
+            : "min-h-svh"
       )}
     >
       {!embedded ? (
@@ -450,9 +456,11 @@ export function XAutomationStudio({
           showNativePreview
             ? "grid-cols-1 xl:grid-cols-[246px_minmax(460px,1fr)_minmax(360px,0.82fr)]"
             : "grid-cols-1 xl:grid-cols-[246px_minmax(0,1fr)]",
-          embedded
-            ? "min-h-[calc(100svh-3.5rem)] xl:min-h-[calc(100svh-2rem)]"
-            : "min-h-[calc(100svh-7rem)] xl:min-h-[calc(100svh-4rem)]"
+          modal
+            ? "min-h-full"
+            : embedded
+              ? "min-h-[calc(100svh-3.5rem)] xl:min-h-[calc(100svh-2rem)]"
+              : "min-h-[calc(100svh-7rem)] xl:min-h-[calc(100svh-4rem)]"
         )}
       >
         <aside

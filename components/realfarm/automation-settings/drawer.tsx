@@ -53,6 +53,7 @@ import {
 } from "./automation-video-generation"
 
 export function AutomationSettingsDrawer({
+  modal = false,
   automation,
   initialRunId,
   config,
@@ -70,6 +71,7 @@ export function AutomationSettingsDrawer({
   onDelete,
   onClose,
 }: {
+  modal?: boolean
   automation: Automation
   initialRunId?: string
   config: AutomationSchema
@@ -599,7 +601,8 @@ export function AutomationSettingsDrawer({
   return (
     <div
       className={cn(
-        "grid min-h-[calc(100svh-3.5rem)] overflow-hidden bg-app-surface md:min-h-svh",
+        "grid overflow-hidden bg-app-surface",
+        modal ? "h-full min-h-0" : "min-h-[calc(100svh-3.5rem)] md:min-h-svh",
         activeTab !== "format" && "md:grid-cols-[246px_1fr]"
       )}
     >
