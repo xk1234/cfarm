@@ -20,8 +20,8 @@ that the exact merged revision reached production.
 4. Inspect the index in a separate command immediately before committing.
 5. If unrelated files are staged, stop. Do not commit them and do not silently
    unstage them, because another agent may be preparing a commit.
-6. Never expose GitHub or Vercel tokens in commands, remote URLs, logs, or
-   documentation.
+6. Never expose GitHub or deployment-platform tokens in commands, remote URLs,
+   logs, or documentation.
 7. Merge only after checks pass for the exact current PR head SHA.
 8. Do not report deployment success until the production deployment for the
    merge commit is `READY`.
@@ -194,8 +194,7 @@ passed.
 
 ## 7. Verify Railway production
 
-Railway is the application runtime. Vercel is a legacy deployment and must not
-be used as proof that a release reached production.
+Railway is the only application runtime and deployment target.
 
 Required sequence:
 
@@ -215,8 +214,6 @@ Record:
 - framework;
 - validation results;
 - production runtime-error scan.
-
-A successful legacy Vercel deployment is not proof that production was updated.
 
 ## 8. Worker and scheduler changes
 
