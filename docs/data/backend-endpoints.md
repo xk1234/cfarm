@@ -37,15 +37,8 @@ Legend:
 
 ## Authentication
 
-These public API routes manage authentication.
-
-| Method and path                       | Input                                                                                | Response / behavior                                                  | State   |
-| ------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------- | ------- |
-| `POST /api/auth/register`             | JSON `{ name, email, password }`; password requires 8+ chars, a letter, and a number | `201 { ok, verificationSent }`; creates user/session and sets cookie | Current |
-| `POST /api/auth/login`                | JSON `{ email, password }`                                                           | `{ ok }`; sets session cookie                                        | Current |
-| `POST /api/auth/logout`               | Session cookie if present                                                            | `{ ok }`; revokes session best-effort and clears cookie              | Current |
-| `POST /api/auth/verification/confirm` | JSON `{ userId, secret }`                                                            | `{ ok }`                                                             | Current |
-| `POST /api/auth/verification/resend`  | Session cookie                                                                       | `{ ok, alreadyVerified? }`                                           | Current |
+Clerk owns interactive sign-in, sign-up, recovery, verification, and sessions.
+The app has no custom authentication API routes.
 
 ## Documentation search
 

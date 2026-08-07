@@ -1,7 +1,8 @@
 import Image from "next/image"
 import Link from "next/link"
-import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs"
+import { Show, UserButton } from "@clerk/nextjs"
 
+import { ClerkAuthButton } from "@/components/clerk-auth-button"
 import { MarketingMobileMenu } from "@/components/marketing/marketing-mobile-menu"
 
 const navigation = [
@@ -44,16 +45,18 @@ export function MarketingNav() {
         </div>
         <div className="hidden items-center gap-2 md:flex">
           <Show when="signed-out">
-            <SignInButton mode="redirect" forceRedirectUrl="/app">
-              <button className="rounded-app-control px-3 py-2 text-sm font-medium hover:bg-brand-surface sm:px-4">
-                Log in
-              </button>
-            </SignInButton>
-            <SignUpButton mode="redirect" forceRedirectUrl="/app">
-              <button className="brand-button brand-button-primary min-h-0 px-3 py-2 sm:px-4">
-                Create account
-              </button>
-            </SignUpButton>
+            <ClerkAuthButton
+              authMode="sign-in"
+              className="rounded-app-control px-3 py-2 text-sm font-medium hover:bg-brand-surface sm:px-4"
+            >
+              Log in
+            </ClerkAuthButton>
+            <ClerkAuthButton
+              authMode="sign-up"
+              className="brand-button brand-button-primary min-h-0 px-3 py-2 sm:px-4"
+            >
+              Create account
+            </ClerkAuthButton>
           </Show>
           <Show when="signed-in">
             <Link
@@ -97,7 +100,12 @@ export function MarketingFooter() {
               {label}
             </Link>
           ))}
-          <Link href="/login">Log in</Link>
+          <ClerkAuthButton
+            authMode="sign-in"
+            className="text-left hover:text-brand-ink"
+          >
+            Log in
+          </ClerkAuthButton>
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>
         </div>
@@ -129,9 +137,12 @@ export function PageHero({
       </p>
       {action ? (
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link href="/sign-up" className="brand-button brand-button-primary">
+          <ClerkAuthButton
+            authMode="sign-up"
+            className="brand-button brand-button-primary"
+          >
             Create account
-          </Link>
+          </ClerkAuthButton>
           <Link href="/product" className="brand-button brand-button-secondary">
             See the product
           </Link>
@@ -153,12 +164,12 @@ export function CTASection({ title, body }: { title: string; body: string }) {
           <p className="mt-5 max-w-[54ch] text-base leading-7 text-brand-muted-on-dark">
             {body}
           </p>
-          <Link
-            href="/sign-up"
+          <ClerkAuthButton
+            authMode="sign-up"
             className="brand-button brand-button-secondary mt-8"
           >
             Create account
-          </Link>
+          </ClerkAuthButton>
         </div>
       </div>
     </section>

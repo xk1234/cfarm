@@ -180,10 +180,8 @@ function showApiErrorToast(error: ApiRequestError, enabled: boolean) {
 }
 
 function redirectExpiredSessionToLogin() {
-  if (typeof window === "undefined" || window.location.pathname === "/login") {
-    return
-  }
+  if (typeof window === "undefined") return
 
   const next = `${window.location.pathname}${window.location.search}`
-  window.location.assign(`/login?next=${encodeURIComponent(next)}`)
+  window.location.assign(`/?auth=sign-in&next=${encodeURIComponent(next)}`)
 }

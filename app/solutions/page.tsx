@@ -4,7 +4,6 @@ import {
   IconPhoto,
   IconUsers,
 } from "@tabler/icons-react"
-import Link from "next/link"
 
 import {
   CTASection,
@@ -12,6 +11,7 @@ import {
   MarketingNav,
   PageHero,
 } from "@/components/marketing/marketing-shell"
+import { ClerkAuthButton } from "@/components/clerk-auth-button"
 
 const solutions = [
   {
@@ -93,12 +93,12 @@ export default function SolutionsPage() {
                     </div>
                   ))}
                 </div>
-                <Link
-                  href="/sign-up"
+                <ClerkAuthButton
+                  authMode="sign-up"
                   className="mt-7 inline-flex items-center gap-1 text-sm font-semibold text-brand-accent"
                 >
                   Build this workflow <IconArrowRight className="size-4" />
-                </Link>
+                </ClerkAuthButton>
               </div>
             </article>
           ))}

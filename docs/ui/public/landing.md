@@ -46,8 +46,8 @@ principles and plainly states that there are no open roles right now.
 ## Interactions
 
 Marketing links move among the five public destinations and Docs. Create account
-uses `/login?mode=register`, Log in uses `/login`, and the landing hero's product
-action opens `/product`. The mobile menu closes when a destination is selected,
+and Log in open Clerk modals over the current page, while the landing hero's
+product action opens `/product`. The mobile menu closes when a destination is selected,
 when its close button is used, or when Escape is pressed. These actions change
 navigation only; the marketing pages do not save data.
 
