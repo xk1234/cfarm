@@ -81,6 +81,107 @@ export type SlideshowViewerMetadata = {
   hashtags: string
 }
 
+export function SlideshowViewer({
+  title,
+  slides,
+  fallbackSlides = [],
+  activeSlide,
+  onActiveSlideChange,
+  onDeleteSlide,
+  onReplaceSlide,
+  className,
+}: {
+  title: string
+  slides: SlideshowViewerSlide[]
+  fallbackSlides?: SlideshowViewerSlide[]
+  activeSlide: number
+  onActiveSlideChange: (slideIndex: number) => void
+  onDeleteSlide?: () => void
+  onReplaceSlide?: () => void
+  className?: string
+}) {
+  const boundedActiveSlide =
+    slides.length > 0
+      ? Math.min(Math.max(activeSlide, 0), slides.length - 1)
+      : 0
+  const visibleSlide = slides[boundedActiveSlide]
+
+  return (
+    <div
+      className={cn(
+        "relative flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-3 py-4 sm:gap-4 sm:px-10 sm:py-7",
+        className
+      )}
+      data-slideshow-viewer
+    >
+      {slides.length === 0 ? (
+        <TemplateGeneratedPreview
+          exampleSlides={fallbackSlides}
+          tileCount={3}
+          className="h-[356px] w-[620px] max-w-full rounded-[9px] shadow-xl"
+        />
+      ) : (
+        // The arrows overlay the slide below sm: side-by-side they leave too
+        // little room for the portrait slide itself.
+        <div className="relative flex min-h-0 w-full max-w-full flex-1 items-center justify-center gap-3">
+          <button
+            type="button"
+            className="absolute left-2 z-10 grid size-10 shrink-0 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30 sm:static"
+            onClick={() => onActiveSlideChange(boundedActiveSlide - 1)}
+            disabled={boundedActiveSlide === 0}
+            aria-label="Previous slide"
+          >
+            <IconChevronLeft className="size-5" />
+          </button>
+          <InteractiveSlideStage
+            key={visibleSlide.id}
+            slide={visibleSlide}
+            alt={
+              visibleSlide.text || `${title} slide ${boundedActiveSlide + 1}`
+            }
+            label={`Slide ${boundedActiveSlide + 1} of ${slides.length}`}
+            slideNumber={boundedActiveSlide + 1}
+            canDelete={Boolean(onDeleteSlide && slides.length > 1)}
+            canReplace={Boolean(onReplaceSlide)}
+            onDelete={() => onDeleteSlide?.()}
+            onReplace={() => onReplaceSlide?.()}
+          />
+          <button
+            type="button"
+            className="absolute right-2 z-10 grid size-10 shrink-0 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30 sm:static"
+            onClick={() => onActiveSlideChange(boundedActiveSlide + 1)}
+            disabled={boundedActiveSlide === slides.length - 1}
+            aria-label="Next slide"
+          >
+            <IconChevronRight className="size-5" />
+          </button>
+        </div>
+      )}
+      {slides.length > 0 ? (
+        <nav
+          className="flex min-h-8 shrink-0 items-center gap-2 rounded-full bg-app-surface/88 px-3 py-2 shadow-sm ring-1 ring-black/6 backdrop-blur"
+          aria-label="Choose slideshow slide"
+        >
+          {slides.map((slide, dot) => (
+            <button
+              key={slide.id}
+              type="button"
+              className={cn(
+                "size-2 rounded-full transition-transform hover:scale-125 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-app-action",
+                dot === boundedActiveSlide
+                  ? "scale-125 bg-app-action"
+                  : "bg-[#9b9a94] hover:bg-[#6f6e68]"
+              )}
+              onClick={() => onActiveSlideChange(dot)}
+              aria-label={`Show slide ${dot + 1}`}
+            />
+          ))}
+        </nav>
+      ) : null}
+    </div>
+  )
+}
+
 export function SlideshowViewerModal({
   title,
   slideshows,
@@ -258,7 +359,6 @@ function SlideshowViewerContent({
   const [savingMetadata, setSavingMetadata] = useState(false)
   const boundedActiveSlide =
     slides.length > 0 ? Math.min(activeSlide, slides.length - 1) : 0
-  const visibleSlide = slides[boundedActiveSlide]
   const descriptionAndHashtags = [
     metadata.caption.trim(),
     metadata.hashtags.trim(),
@@ -445,73 +545,19 @@ function SlideshowViewerContent({
           </div>
         ) : null}
         <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-3 py-4 sm:gap-4 sm:px-10 sm:py-7">
-            {slides.length === 0 ? (
-              <TemplateGeneratedPreview
-                exampleSlides={fallbackSlides}
-                tileCount={3}
-                className="h-[356px] w-[620px] max-w-full rounded-[9px] shadow-xl"
-              />
-            ) : (
-              // The arrows overlay the slide below sm: side-by-side they left
-              // a phone barely 200px for the slide itself.
-              <div className="relative flex min-h-0 w-full max-w-full flex-1 items-center justify-center gap-3">
-                <button
-                  type="button"
-                  className="absolute left-2 z-10 grid size-10 shrink-0 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30 sm:static"
-                  onClick={() => setActiveSlide(boundedActiveSlide - 1)}
-                  disabled={boundedActiveSlide === 0}
-                  aria-label="Previous slide"
-                >
-                  <IconChevronLeft className="size-5" />
-                </button>
-                <InteractiveSlideStage
-                  key={visibleSlide.id}
-                  slide={visibleSlide}
-                  alt={
-                    visibleSlide.text ||
-                    `${title} slide ${boundedActiveSlide + 1}`
-                  }
-                  label={`Slide ${boundedActiveSlide + 1} of ${slides.length}`}
-                  slideNumber={boundedActiveSlide + 1}
-                  canDelete={Boolean(onDeleteSlide && slides.length > 1)}
-                  canReplace={Boolean(onReplaceSlideImage)}
-                  onDelete={() => setDeleteSlideOpen(true)}
-                  onReplace={() => void openImagePicker()}
-                />
-                <button
-                  type="button"
-                  className="absolute right-2 z-10 grid size-10 shrink-0 place-items-center rounded-full bg-white/88 text-app-text shadow-md transition hover:bg-app-surface disabled:cursor-not-allowed disabled:opacity-30 sm:static"
-                  onClick={() => setActiveSlide(boundedActiveSlide + 1)}
-                  disabled={boundedActiveSlide === slides.length - 1}
-                  aria-label="Next slide"
-                >
-                  <IconChevronRight className="size-5" />
-                </button>
-              </div>
-            )}
-            {slides.length > 0 ? (
-              <nav
-                className="flex min-h-8 shrink-0 items-center gap-2 rounded-full bg-app-surface/88 px-3 py-2 shadow-sm ring-1 ring-black/6 backdrop-blur"
-                aria-label="Choose slideshow slide"
-              >
-                {slides.map((_, dot) => (
-                  <button
-                    key={dot}
-                    type="button"
-                    className={cn(
-                      "size-2 rounded-full transition-transform hover:scale-125 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-app-action",
-                      dot === boundedActiveSlide
-                        ? "scale-125 bg-app-action"
-                        : "bg-[#9b9a94] hover:bg-[#6f6e68]"
-                    )}
-                    onClick={() => setActiveSlide(dot)}
-                    aria-label={`Show slide ${dot + 1}`}
-                  />
-                ))}
-              </nav>
-            ) : null}
-          </div>
+          <SlideshowViewer
+            title={title}
+            slides={slides}
+            fallbackSlides={fallbackSlides}
+            activeSlide={activeSlide}
+            onActiveSlideChange={setActiveSlide}
+            onDeleteSlide={
+              onDeleteSlide ? () => setDeleteSlideOpen(true) : undefined
+            }
+            onReplaceSlide={
+              onReplaceSlideImage ? () => void openImagePicker() : undefined
+            }
+          />
         </section>
         <button
           type="button"
