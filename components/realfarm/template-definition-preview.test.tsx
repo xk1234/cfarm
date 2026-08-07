@@ -62,4 +62,26 @@ describe("TemplateDefinitionPreview", () => {
     expect(markup).not.toContain("Open editor")
     expect(markup).not.toContain("No recent generation")
   })
+
+  it("uses a compact landscape card for X and Threads templates", () => {
+    const postTemplate: Automation = {
+      ...slideshow,
+      id: "template-post",
+      name: "Founder posts",
+      automationKind: "x_threads",
+      platform: "x",
+    }
+    const markup = renderToStaticMarkup(
+      <TemplateDefinitionPreview
+        automation={postTemplate}
+        collections={[]}
+        demoVideos={[]}
+        onOpen={() => undefined}
+      />
+    )
+
+    expect(markup).toContain('data-template-preview-kind="post"')
+    expect(markup).toContain("aspect-[4/3]")
+    expect(markup).not.toContain("aspect-[9/16]")
+  })
 })
