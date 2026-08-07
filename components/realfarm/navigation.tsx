@@ -15,7 +15,6 @@ import {
   IconLogout,
   IconMenu2,
   IconPhoto,
-  IconPlus,
   IconPencilPlus,
   IconSettings,
   IconTemplate,
@@ -55,13 +54,11 @@ export function Sidebar({
   data,
   view,
   onViewChange,
-  onNewTemplate,
   onSettings,
 }: {
   data: RealFarmData
   view: ViewKey
   onViewChange: (view: ViewKey) => void
-  onNewTemplate: () => void
   onSettings: () => void
 }) {
   const { signOut } = useClerk()
@@ -89,15 +86,6 @@ export function Sidebar({
         </span>
         {data.brand.name}
       </button>
-      <Button
-        variant="action"
-        size="appDefault"
-        className="mb-4 justify-start"
-        onClick={onNewTemplate}
-      >
-        <IconPlus className="size-4" />
-        New template
-      </Button>
       <nav className="space-y-1">
         {topNav.map((item) => (
           <SidebarButton
@@ -170,7 +158,6 @@ export function Sidebar({
 export function MobileNavigation({
   view,
   onViewChange,
-  onNewTemplate,
   onSettings,
 }: {
   view: ViewKey
@@ -179,7 +166,6 @@ export function MobileNavigation({
    * plain link, which is what those pages need -- they have no view state.
    */
   onViewChange?: (view: ViewKey) => void
-  onNewTemplate?: () => void
   onSettings?: () => void
 }) {
   const [open, setOpen] = useState(false)
@@ -311,34 +297,19 @@ export function MobileNavigation({
               })}
             </div>
 
-            {onNewTemplate || onSettings ? (
+            {onSettings ? (
               <div className="mt-auto flex flex-col gap-2 border-t border-app-panel-border p-3">
-                {onNewTemplate ? (
-                  <Button
-                    variant="action"
-                    size="appDefault"
-                    onClick={() => {
-                      setOpen(false)
-                      onNewTemplate()
-                    }}
-                  >
-                    <IconPlus className="size-5" />
-                    New template
-                  </Button>
-                ) : null}
-                {onSettings ? (
-                  <Button
-                    variant="softControl"
-                    size="appDefault"
-                    onClick={() => {
-                      setOpen(false)
-                      onSettings()
-                    }}
-                  >
-                    <IconSettings className="size-5" />
-                    Settings
-                  </Button>
-                ) : null}
+                <Button
+                  variant="softControl"
+                  size="appDefault"
+                  onClick={() => {
+                    setOpen(false)
+                    onSettings()
+                  }}
+                >
+                  <IconSettings className="size-5" />
+                  Settings
+                </Button>
               </div>
             ) : null}
           </nav>

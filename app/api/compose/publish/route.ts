@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import type { ComposerValue } from "@/components/realfarm/composer/composer-types"
 import { getCurrentUser } from "@/lib/auth"
+import { resolveComposerSources } from "@/lib/compose-sources.server"
 import {
   composeLimitErrors,
   publishComposerValue,
@@ -15,16 +16,23 @@ export const dynamic = "force-dynamic"
 export async function POST(request: Request) {
   const user = await getCurrentUser()
   if (!user) {
-    return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+    return NextResponse.json(
+      { error: "Authentication required" },
+      { status: 401 }
+    )
   }
 
   const payload = await request.json().catch(() => null)
   const value = composerValue(payload?.value)
   const selectedIds = Array.isArray(payload?.selectedAccountIds)
-    ? payload.selectedAccountIds.filter((id: unknown): id is string => typeof id === "string")
+    ? payload.selectedAccountIds.filter(
+        (id: unknown): id is string => typeof id === "string"
+      )
     : []
-  const mode: ComposePublishMode = payload?.mode === "schedule" ? "schedule" : "now"
-  const scheduledAt = typeof payload?.scheduledAt === "string" ? payload.scheduledAt : undefined
+  const mode: ComposePublishMode =
+    payload?.mode === "schedule" ? "schedule" : "now"
+  const scheduledAt =
+    typeof payload?.scheduledAt === "string" ? payload.scheduledAt : undefined
 
   if (!value || selectedIds.length === 0) {
     return NextResponse.json(
@@ -32,14 +40,30 @@ export async function POST(request: Request) {
       { status: 400 }
     )
   }
+  if (value.sourceOutputIds.length === 0) {
+    return NextResponse.json(
+      { error: "Choose at least one template output before publishing" },
+      { status: 400 }
+    )
+  }
   if (mode === "schedule") {
     const timestamp = Date.parse(scheduledAt ?? "")
     if (!Number.isFinite(timestamp) || timestamp <= Date.now()) {
-      return NextResponse.json({ error: "Choose a future date and time" }, { status: 400 })
+      return NextResponse.json(
+        { error: "Choose a future date and time" },
+        { status: 400 }
+      )
     }
   }
 
   try {
+    const sources = await resolveComposerSources(value.sourceOutputIds)
+    if (sources.length !== new Set(value.sourceOutputIds).size) {
+      return NextResponse.json(
+        { error: "One or more template outputs no longer exist" },
+        { status: 404 }
+      )
+    }
     const allowed = await listConnectedPostFastIntegrations(user.$id)
     const selected = allowed
       .filter((integration) => selectedIds.includes(integration.integration_id))
@@ -98,8 +122,19 @@ async function uploadThroughPostFastSeam(url: string, request: Request) {
 function composerValue(value: unknown): ComposerValue | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null
   const record = value as Record<string, unknown>
-  if (!record.base || typeof record.base !== "object" || Array.isArray(record.base)) return null
+  if (
+    !record.base ||
+    typeof record.base !== "object" ||
+    Array.isArray(record.base)
+  )
+    return null
   const base = record.base as Record<string, unknown>
   if (typeof base.text !== "string" || !Array.isArray(base.media)) return null
+  if (
+    !Array.isArray(record.sourceOutputIds) ||
+    record.sourceOutputIds.some((id) => typeof id !== "string")
+  ) {
+    return null
+  }
   return value as ComposerValue
 }

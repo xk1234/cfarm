@@ -8,8 +8,6 @@ import type { ViewKey } from "@/components/realfarm/navigation"
 import {
   automationTemplateSchemaToRuntime,
   automationTemplateRecordToSummary,
-  groupAutomationTemplateExampleRunsByTemplateId,
-  listAutomationTemplateExampleRuns,
   listAutomationTemplateRecords,
 } from "@/lib/automation-templates"
 import { getCurrentUser } from "@/lib/auth"
@@ -80,15 +78,10 @@ async function loadComposeAccounts(
 }
 
 async function loadInitialTemplateData(): Promise<InitialTemplateData> {
-  const [templateRecords, templateExampleRuns] = await Promise.all([
-    listAutomationTemplateRecords(),
-    listAutomationTemplateExampleRuns(),
-  ])
+  const templateRecords = await listAutomationTemplateRecords()
 
   return {
     templates: templateRecords.map(automationTemplateRecordToSummary),
-    exampleRunsByTemplateId:
-      groupAutomationTemplateExampleRunsByTemplateId(templateExampleRuns),
     schemas: Object.fromEntries(
       templateRecords.map((record) => [
         record.id,

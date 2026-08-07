@@ -16,6 +16,7 @@ beforeEach(() => {
 describe("composer canonical publishing", () => {
   it("creates one destination intent input per account and keeps a retry source stable", async () => {
     const value = {
+      sourceOutputIds: ["run-1"],
       base: { text: "Base caption", media: [] },
       perNetwork: {},
     }
@@ -60,7 +61,11 @@ describe("composer canonical publishing", () => {
 
   it("uses a new business-action source for a deliberate repost", async () => {
     const input = {
-      value: { base: { text: "Caption", media: [] }, perNetwork: {} },
+      value: {
+        sourceOutputIds: ["run-1"],
+        base: { text: "Caption", media: [] },
+        perNetwork: {},
+      },
       accounts: [
         {
           integrationId: "account-1",
