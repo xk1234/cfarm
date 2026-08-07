@@ -57,8 +57,12 @@ As of 2026-08-06:
 - Appwrite scheduler and worker functions must remain disabled after the final
   Railway refresh.
 
-The foundation migration preserves Appwrite identities instead of translating
-them during the copy:
+The foundation migration initially preserved Appwrite identities during the
+copy. The canonical-template migrations then rename the relevant tables and
+transactionally re-key their physical rows from the retired automation hash
+namespaces to `templates`, `template_runs`, and `social_templates`. Domain IDs
+inside the records stay stable because those are the identifiers referenced by
+runs, publications, outputs, and public links.
 
 - `domain_records` stores the physical Appwrite table name and row ID, the raw
   source row, and its decoded domain payload.
@@ -152,12 +156,13 @@ being replayed merely because their queue rows were migrated.
 
 ## Acceptance gates
 
-- Every Appwrite row ID exists in Railway `domain_records`; target-only rows are
-  retained as Railway-native writes.
+- Every imported domain record exists in Railway `domain_records`; canonical
+  template rows intentionally use re-keyed Railway/Appwrite-compatible row IDs,
+  while target-only rows are retained as Railway-native writes.
 - Every Appwrite file found by full cursor traversal exists in the Railway
   bucket and verified `object_manifest`; target-only files are retained.
 - No migration run has unresolved failures.
-- Existing owner IDs still resolve to the same automations, collections,
+- Existing owner IDs still resolve to the same templates, collections,
   outputs, publications, and analytics.
 - Worker leases prevent duplicate execution under concurrency.
 - A generated slideshow renders, opens publicly, downloads as a ZIP, appears in

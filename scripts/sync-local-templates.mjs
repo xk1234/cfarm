@@ -78,7 +78,7 @@ for (const [index, row] of sourceRows.entries()) {
   await local.tables.upsertRow({
     databaseId: targetDatabaseId,
     tableId: targetTableId,
-    rowId: ownedRowId(sourceTableId, localOwner.$id, rid),
+    rowId: ownedRowId(targetTableId, localOwner.$id, rid),
     data: {
       rid: rid.slice(0, 1024),
       owner_id: localOwner.$id,

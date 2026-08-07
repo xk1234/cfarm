@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto"
+
 const tunnelPort = process.env.RAILWAY_LOCAL_TUNNEL_PORT
 if (tunnelPort && process.env.DATABASE_URL) {
   const databaseUrl = new URL(process.env.DATABASE_URL)
@@ -44,6 +46,41 @@ try {
       (SELECT count(*)::int FROM object_manifest) AS object_rows,
       (SELECT count(*)::int FROM migration_failures) AS failures
   `
+  const identityRows = await sql<
+    Array<{
+      table_name: string
+      row_id: string
+      owner_id: string | null
+      rid: string | null
+      source_row_id: string | null
+    }>
+  >`
+    SELECT
+      table_name,
+      row_id,
+      owner_id,
+      rid,
+      source_row ->> '$id' AS source_row_id
+    FROM domain_records
+    WHERE table_name IN ('templates', 'template_runs', 'social_templates')
+  `
+  const legacyRows = await sql<Array<{ count: number }>>`
+    SELECT count(*)::int AS count
+    FROM domain_records
+    WHERE table_name IN ('automations', 'automation_runs', 'x_automations')
+  `
+  const templateRowIdMismatches = identityRows.filter(
+    (row) =>
+      row.row_id !== canonicalRowId(row) || row.source_row_id !== row.row_id
+  )
+  if (templateRowIdMismatches.length > 0) {
+    throw new Error(
+      `${templateRowIdMismatches.length} canonical template rows have mismatched physical ids.`
+    )
+  }
+  if (legacyRows[0]?.count) {
+    throw new Error(`${legacyRows[0].count} legacy automation rows remain.`)
+  }
   const firstAsset = await backend.storage.getFile(
     manifest.source_bucket_id,
     manifest.source_file_id
@@ -63,8 +100,30 @@ try {
       domainRows: counts.domain_rows,
       objectRows: counts.object_rows,
       migrationFailures: counts.failures,
+      canonicalTemplateRows: identityRows.length,
+      templateRowIdMismatches: templateRowIdMismatches.length,
+      legacyAutomationRows: legacyRows[0]?.count ?? 0,
     })
   )
 } finally {
   await closeRailwayDatabase()
+}
+
+function canonicalRowId(row: {
+  table_name: string
+  row_id: string
+  owner_id: string | null
+  rid: string | null
+}) {
+  const ownerId = row.owner_id?.trim() ?? ""
+  const rid = row.rid?.trim() ?? ""
+  if (!rid) return ""
+  if (!ownerId && /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,35}$/.test(rid)) return rid
+  const basis = ownerId
+    ? `${row.table_name}:${ownerId}:${rid}`
+    : `${row.table_name}:${rid}`
+  return `${ownerId ? "u" : "r"}${createHash("sha256")
+    .update(basis)
+    .digest("hex")
+    .slice(0, 35)}`
 }
