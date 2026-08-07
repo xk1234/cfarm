@@ -19,23 +19,24 @@ badge overlaps the avatar so the account remains the primary object and the
 platform remains secondary context.
 
 The overview header contains a 7, 30, 60, or 90 day range and one Sync
-analytics action. An account rail defaults to the all-accounts portfolio. Three
-cards show total audience from the latest follower snapshot for each selected
-account, total impressions from the selected posts, and total engagement from
-their canonical interaction totals. Each card shows data coverage and a trend
-when more than one dated point is available.
+analytics action. Three cards show total audience from the latest follower
+snapshot for every account, total impressions from recent posts, and total
+engagement from their canonical interaction totals. Each card shows data
+coverage and a trend when more than one dated point is available.
 
-Recent posts appear four at a time with account identity, publication-link
-state, content type, primary exposure metric, and engagement rate. The Accounts
-table shows the latest followers, summed post impressions, and weighted
-engagement rate for eight accounts at a time. Mobile stacks the metric and post
-cards, keeps account selectors horizontally scrollable, and gives the account
-table its own horizontal scroll area.
+Recent posts appear four at a time. A generated slideshow uses its persisted
+first rendered slide as the preview, preserves the slide aspect ratio, and
+shows the deck size; other formats use the provider thumbnail. Account identity,
+publication date, content type, primary exposure metric, and engagement rate
+remain below the media. The redundant overview Accounts table is intentionally
+omitted. Mobile stacks the metric and post cards.
 
 The report endpoint combines connected PostFast account metadata with stored
 publication records, `postfast_metric_snapshots`, and
 `account_follower_snapshots`. The chosen range filters stored snapshots by
 capture time and publications by their published, scheduled, or updated time.
+For recent slideshow publications, it also resolves persisted automation-run
+output images so the UI does not substitute the caption for unavailable media.
 Post totals use the latest snapshot for each integration and post pair. Missing
 provider values render as unavailable instead of being converted to zero. One
 snapshot shows its current value but asks for another sync before drawing a
@@ -57,10 +58,9 @@ analytics remain visible with an inline warning.
 ## Interactions
 
 Changing the range reloads stored report data. Sync analytics requests fresh
-PostFast analytics for all accounts, the selected overview account, or the
-selected accounts in a platform drill-down, then reloads the report. Selecting
-an account avatar or account name filters the overview; selecting it again
-restores the portfolio. Recent-post cards open the per-post analytics route.
+PostFast analytics for all accounts in the overview or the selected accounts in
+a platform drill-down, then reloads the report. Recent-post cards open the
+per-post analytics route, where the full persisted slide strip is available.
 
 Compare platform opens an in-place platform drill-down. There the user can
 select multiple accounts, choose any metric exposed for those accounts, switch

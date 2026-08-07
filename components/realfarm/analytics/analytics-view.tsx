@@ -32,6 +32,7 @@ export type AnalyticsPayload = {
   integrations: SocialIntegration[]
   snapshots: PostFastMetricSnapshot[]
   publications: PostFastPostRecord[]
+  slideshowPreviews?: Record<string, string[]>
   followerSnapshots: AccountFollowerSnapshot[]
   capabilities: Record<
     string,
@@ -55,7 +56,6 @@ export function AnalyticsView({
   platformPostId,
 }: AnalyticsViewProps = {}) {
   const router = useRouter()
-  const [overviewAccountId, setOverviewAccountId] = useState("all")
   const [activePlatform, setActivePlatform] = useState(
     initialPlatform || (companionIntent === "tiktok-studio" ? "tiktok" : "")
   )
@@ -177,13 +177,7 @@ export function AnalyticsView({
     : defaultPlatformMetric(activePlatform, platformMetrics)
 
   const refreshReport = () =>
-    refresh(
-      activePlatform
-        ? resolvedPlatformAccountIds
-        : overviewAccountId === "all"
-          ? []
-          : [overviewAccountId]
-    )
+    refresh(activePlatform ? resolvedPlatformAccountIds : [])
 
   const showingPlatform = Boolean(activePlatform && platformAccounts.length)
   const openPost = (post: LatestPost) =>
@@ -269,25 +263,10 @@ export function AnalyticsView({
           ) : (
             <AnalyticsOverview
               integrations={integrations}
-              selectedAccountId={overviewAccountId}
-              onSelectAccount={(id) =>
-                setOverviewAccountId((current) => (current === id ? "all" : id))
-              }
-              onOpenPlatform={(platform) => {
-                setActivePlatform(platform)
-                setPlatformAccountIds(
-                  integrations
-                    .filter(
-                      (integration) =>
-                        normalizeProvider(integration.provider) === platform
-                    )
-                    .map((integration) => integration.integration_id)
-                )
-                setPlatformMetric(initialMetricForPlatform(platform))
-              }}
               posts={latestPosts}
               snapshots={data?.snapshots ?? []}
               followerSnapshots={data?.followerSnapshots ?? []}
+              slideshowPreviews={data?.slideshowPreviews ?? {}}
               onSelectPost={openPost}
             />
           )}
