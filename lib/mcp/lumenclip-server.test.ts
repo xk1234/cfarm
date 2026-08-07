@@ -413,9 +413,15 @@ describe("LumenClip MCP server", () => {
   it("updates template metadata without a schedule mutation surface", async () => {
     const current = automationRecord()
     const patch = vi.fn(
-      async (input: { name?: string; status?: string; schema?: unknown }) => ({
+      async (input: {
+        name?: string
+        hidden?: boolean
+        status?: string
+        schema?: unknown
+      }) => ({
         ...current,
         name: input.name ?? current.name,
+        hidden: input.hidden ?? current.hidden,
         status:
           input.status === "paused" ? ("paused" as const) : current.status,
         schema: input.schema
@@ -434,17 +440,23 @@ describe("LumenClip MCP server", () => {
 
     const result = await client.callTool({
       name: "lumenclip_template_update",
-      arguments: { templateId: current.id, name: "Renamed template" },
+      arguments: {
+        templateId: current.id,
+        name: "Renamed template",
+        hidden: true,
+      },
     })
 
     expect(result.structuredContent).toMatchObject({
       id: current.id,
       name: "Renamed template",
+      hidden: true,
     })
     expect(patch).toHaveBeenCalledWith(
       expect.objectContaining({
         id: current.id,
         name: "Renamed template",
+        hidden: true,
       })
     )
   })
@@ -1917,6 +1929,47 @@ describe("LumenClip MCP server", () => {
     })
   })
 
+  it("lists starter definitions through the same hidden template contract", async () => {
+    const starter = {
+      ...automationRecord(),
+      id: "starter-astrology",
+      name: "Astrology starter",
+      hidden: true,
+      status: "paused" as const,
+    }
+    const upsert = vi.fn(
+      async (input: { records: (typeof starter)[] }) => input.records
+    )
+    const client = await connectClient({
+      listAutomationRecords: vi.fn(async () => []),
+      listAutomationTemplateRecords: vi.fn(async () => [starter]),
+      upsertAutomationRecords:
+        upsert as unknown as LumenClipMcpServices["upsertAutomationRecords"],
+      listImageCollections: vi.fn(async () => []),
+      listXAutomations: vi.fn(async () => []),
+      listAutomationRuns: vi.fn(async () => []),
+      listXAutomationRuns: vi.fn(async () => []),
+    })
+
+    const result = await client.callTool({
+      name: "lumenclip_templates_list",
+      arguments: { visibility: "hidden" },
+    })
+
+    expect(result.structuredContent).toMatchObject({
+      total: 1,
+      items: [
+        {
+          id: "starter-astrology",
+          name: "Astrology starter",
+          hidden: true,
+          kind: "slideshow",
+        },
+      ],
+    })
+    expect(upsert).toHaveBeenCalledWith({ records: [starter] })
+  })
+
   it("runs a slideshow through the general retry-safe automation tool", async () => {
     const current = automationRecord()
     const run = generatedRun(current.id)
@@ -3062,6 +3115,7 @@ async function connectClient(overrides: Partial<LumenClipMcpServices> = {}) {
   const server = createLumenClipMcpServer("owner-1", {
     getAutomationRecord: vi.fn(async () => null),
     listAutomationRecords: vi.fn(async () => []),
+    listAutomationTemplateRecords: vi.fn(async () => []),
     listAutomationRuns: vi.fn(async () => []),
     listTikTokStudioAnalyticsImports: vi.fn(async () => []),
     ...overrides,

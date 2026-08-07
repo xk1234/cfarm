@@ -16,9 +16,11 @@ remain separate concerns.
 Read-only, idempotent, scope `lumenclip:read`.
 
 Current input: optional `query`, `kind` (`slideshow`, `video`, `ugc`, `x`, or
-`threads`), `status`, and `limit` (`1..100`, default `20`).
+`threads`), `status`, `visibility` (`active`, `hidden`, or `all`; default
+`active`), and `limit` (`1..100`, default `20`). Built-in starters use the same
+template record and appear under `visibility: "hidden"` by default.
 
-Output: summaries with `id`, `name`, `kind`, `status`, `platforms`,
+Output: summaries with `id`, `name`, `hidden`, `kind`, `status`, `platforms`,
 `collectionIds`, `manualRunSupported`, `lastRun`, and `resourceUri`, plus
 `total` and `hasMore`.
 
@@ -49,16 +51,10 @@ overrides, overlay collections, and video-segment collections. Missing IDs are
 returned in `unresolvedCollectionReferences` with a required `nextSteps` entry
 that blocks `lumenclip_template_run` until replacements are selected.
 
-### `lumenclip_starter_templates_list`
-
-Read-only template discovery with optional `query`, `kind`, `includeSchema`,
-and `limit`. Each result includes its kind, curated hook count, timestamps, and
-optionally its complete normalized runtime schema.
-
 ### `lumenclip_template_create`
 
-Creates a paused or live slideshow/video/UGC template, optionally cloned from
-`templateId`. Required `requestId` is persisted as the retry key, so repeating
+Creates a paused or live slideshow/video/UGC template, optionally copied from
+any active or hidden `templateId`. Required `requestId` is persisted as the retry key, so repeating
 the call returns the same record. `name` is required and an optional `kind`
 must agree with the selected template.
 When the caller already owns templates, the result recommends
@@ -91,28 +87,22 @@ model write one. Legacy prose asking for the first text item is normalized to
 `resolution: "hook"` and removed, so the metadata schema, prompt, and
 deterministic resolution no longer give conflicting instructions.
 
-### `lumenclip_template_formatting_update`
+### `lumenclip_template_slide_design_update`
 
-Patches exactly one stable formatting block (`hook`, `body`, or `cta`) with a
-required optimistic-lock `expectedUpdatedAt`. Omitted fields remain unchanged.
-The patch supports:
+Patches exactly one stable slide design selected by `designId`, with a required
+optimistic-lock `expectedUpdatedAt`. Omitted fields and every other design stay
+unchanged. The patch supports:
 
-- slide count, mode, minimum, and maximum (`dynamic` is accepted as an alias
-  for the stored `varying` mode);
-- aspect ratio, image grid/mode, text visibility, overlay, and AI image
-  selection;
-- CTA position and overlay-image configuration; and
-- complete replacement of that block's functional `slideOverrides` or
-  `imageOverrides` array.
+- display name and text-agent instructions;
+- image collection, aspect ratio, image grid/mode, text visibility, overlay,
+  and AI image selection;
+- overlay-image configuration; and
+- an optional visual preset ID.
 
-`slideOverrides` changes the first text item's content direction on an indexed
-slide. `imageOverrides` changes that indexed slide's collection. Both are
-consumed by local and scheduled cloud generation; they are not vestigial.
+### `lumenclip_template_slide_text_item_update`
 
-### `lumenclip_template_text_item_update`
-
-Patches one existing `textItemId` inside one stable formatting block, also with
-required `expectedUpdatedAt`. It supports font/style/placement/width/alignment,
+Patches one existing `textItemId` inside one `designId`, also with required
+`expectedUpdatedAt`. It supports font/style/placement/width/alignment,
 anchors, word-length bounds, content direction, text mode, and static text.
 The tool returns the updated item. Text-item create/delete is intentionally not
 exposed: no current generation case requires it, while changing renderer item
@@ -228,6 +218,7 @@ Input:
 | `action`                 | `pause \| resume` | no       | Stops or restarts scheduled runs and keeps lifecycle/schedule pause state aligned. |
 | `name`                   | string            | no       | New template name.                                                                 |
 | `favorite`               | boolean           | no       | Supported for slideshow/video/UGC templates; X/Threads reject it.                  |
+| `hidden`                 | boolean           | no       | `true` moves the template to Hidden; `false` moves it to Active.                   |
 | `schedule.timezone`      | IANA timezone     | no       | New timezone.                                                                      |
 | `schedule.postingTimes`  | object[]          | no       | One or more `{time, days, enabled?}` rows.                                         |
 | `schedule.jitterMinutes` | integer           | no       | Random schedule offset from 0 to 720 minutes.                                      |

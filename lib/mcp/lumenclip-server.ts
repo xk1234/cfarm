@@ -30,10 +30,8 @@ import {
   type AutomationRecord,
 } from "@/lib/automations"
 import {
-  automationTemplateRecordToRuntimeTemplate,
-  automationTemplateSchemaToRuntime,
   listAutomationTemplateRecords,
-  type AutomationTemplateRecord,
+  missingStarterTemplateRecords,
 } from "@/lib/automation-templates"
 import {
   analyzeAutomationHookPool,
@@ -648,7 +646,7 @@ export function createLumenClipMcpServer(
     {
       title: "Update a template",
       description:
-        "Updates a template's display name or favorite state. Template generation is always an explicit manual action.",
+        "Updates a template's display name, favorite state, or Active/Hidden visibility. Template generation is always an explicit manual action.",
       inputSchema: {
         templateId: z
           .string()
@@ -676,6 +674,12 @@ export function createLumenClipMcpServer(
           .optional()
           .describe(
             "Whether the template should be pinned/favorited in the app, e.g. true."
+          ),
+        hidden: z
+          .boolean()
+          .optional()
+          .describe(
+            "Whether the template belongs in the Hidden tab. Set false to move a built-in starter into Active."
           ),
       },
       annotations: {
@@ -950,6 +954,12 @@ function registerAutomationReadAndRunTools(
           .enum(["live", "paused", "unknown"])
           .optional()
           .describe('Optional template lifecycle filter, e.g. "live".'),
+        visibility: z
+          .enum(["active", "hidden", "all"])
+          .default("active")
+          .describe(
+            'Template library visibility. Defaults to "active"; use "hidden" to discover built-in starter templates.'
+          ),
         limit: z
           .number()
           .int()
@@ -968,14 +978,31 @@ function registerAutomationReadAndRunTools(
     async (input) =>
       mcpResult(
         await owned(async () => {
-          const [standard, social, standardRuns, socialRuns, mediaCollections] =
-            await Promise.all([
-              services.listAutomationRecords(),
-              services.listXAutomations(),
-              services.listAutomationRuns({ limit: 500 }),
-              services.listXAutomationRuns(),
-              services.listImageCollections(),
-            ])
+          const [
+            ownedStandard,
+            starterTemplates,
+            social,
+            standardRuns,
+            socialRuns,
+            mediaCollections,
+          ] = await Promise.all([
+            services.listAutomationRecords(),
+            services.listAutomationTemplateRecords(),
+            services.listXAutomations(),
+            services.listAutomationRuns({ limit: 500 }),
+            services.listXAutomationRuns(),
+            services.listImageCollections(),
+          ])
+          const missingStarters = missingStarterTemplateRecords(
+            ownedStandard,
+            starterTemplates
+          )
+          const standard =
+            missingStarters.length > 0
+              ? await services.upsertAutomationRecords({
+                  records: missingStarters,
+                })
+              : ownedStandard
           const query = clean(input.query).toLowerCase()
           const items = [
             ...standard.map((record) =>
@@ -997,6 +1024,11 @@ function registerAutomationReadAndRunTools(
             .filter((item) => !input.status || item.status === input.status)
             .filter(
               (item) =>
+                input.visibility === "all" ||
+                (input.visibility === "hidden" ? item.hidden : !item.hidden)
+            )
+            .filter(
+              (item) =>
                 !query ||
                 `${item.name} ${item.kind}`.toLowerCase().includes(query)
             )
@@ -1013,62 +1045,14 @@ function registerAutomationReadAndRunTools(
   )
 
   server.registerTool(
-    "lumenclip_starter_templates_list",
-    {
-      title: "List starter templates",
-      description:
-        "Lists reusable starter templates and their curated hook counts. Set includeSchema to inspect the complete normalized editor schema before creating a saved template.",
-      inputSchema: {
-        query: z.string().trim().max(200).optional(),
-        kind: z.enum(["slideshow", "video", "ugc"]).optional(),
-        includeSchema: z.boolean().default(false),
-        limit: z.number().int().min(1).max(100).default(20),
-      },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-    },
-    async (input) =>
-      mcpResult(
-        await owned(async () => {
-          const query = clean(input.query).toLowerCase()
-          const records = (await services.listAutomationTemplateRecords())
-            .filter(
-              (record) =>
-                !input.kind ||
-                automationTemplateSchemaToRuntime(record).automationKind ===
-                  input.kind
-            )
-            .filter(
-              (record) =>
-                !query ||
-                `${record.name} ${record.theme}`.toLowerCase().includes(query)
-            )
-          return {
-            items: records
-              .slice(0, input.limit)
-              .map((record) =>
-                serializeAutomationTemplate(record, input.includeSchema)
-              ),
-            total: records.length,
-            hasMore: records.length > input.limit,
-          }
-        })
-      )
-  )
-
-  server.registerTool(
     "lumenclip_template_create",
     {
       title: "Create a template",
       description:
-        "Creates a caller-owned slideshow, video, or AI UGC template, optionally cloning a reusable starter template. The requestId makes retries return the same template.",
+        "Creates a caller-owned slideshow, video, or AI UGC template, optionally copying any existing active or hidden template. The requestId makes retries return the same template.",
       inputSchema: {
         name: z.string().trim().min(1).max(200),
-        starterTemplateId: z.string().trim().min(1).optional(),
+        templateId: z.string().trim().min(1).optional(),
         kind: z.enum(["slideshow", "video", "ugc"]).optional(),
         status: z.enum(["live", "paused"]).default("paused"),
         requestId: z.string().trim().min(1).max(200),
@@ -1083,7 +1067,20 @@ function registerAutomationReadAndRunTools(
     async (input) =>
       mcpResult(
         await owned(async () => {
-          const current = await services.listAutomationRecords()
+          const [ownedTemplates, starterTemplates] = await Promise.all([
+            services.listAutomationRecords(),
+            services.listAutomationTemplateRecords(),
+          ])
+          const missingStarters = missingStarterTemplateRecords(
+            ownedTemplates,
+            starterTemplates
+          )
+          const current =
+            missingStarters.length > 0
+              ? await services.upsertAutomationRecords({
+                  records: missingStarters,
+                })
+              : ownedTemplates
           const existing = current.find(
             (record) =>
               record.raw?.mcpRequestId === input.requestId &&
@@ -1098,17 +1095,13 @@ function registerAutomationReadAndRunTools(
               nextSteps: automationCreateNextSteps(current, input),
             }
           }
-          const template = input.starterTemplateId
-            ? (await services.listAutomationTemplateRecords()).find(
-                (record) => record.id === input.starterTemplateId
-              )
+          const template = input.templateId
+            ? current.find((record) => record.id === input.templateId)
             : undefined
-          if (input.starterTemplateId && !template) {
-            throw new Error("Starter template not found")
+          if (input.templateId && !template) {
+            throw new Error("Template not found")
           }
-          const templateKind = template
-            ? automationTemplateSchemaToRuntime(template).automationKind
-            : undefined
+          const templateKind = template?.schema.automationKind
           if (input.kind && templateKind && input.kind !== templateKind) {
             throw new Error(
               `Template kind is ${templateKind}; requested kind was ${input.kind}`
@@ -1117,9 +1110,7 @@ function registerAutomationReadAndRunTools(
           const record = createLocalAutomationRecord({
             name: input.name,
             automationKind: input.kind ?? templateKind,
-            template: template
-              ? automationTemplateRecordToRuntimeTemplate(template)
-              : undefined,
+            schema: template ? structuredClone(template.schema) : undefined,
             overrides: { status: input.status },
           })
           const saved: AutomationRecord = {
@@ -4107,6 +4098,7 @@ function automationListItem(
   return {
     id: record.id,
     name: record.name,
+    hidden: record.hidden,
     kind: record.schema.automationKind,
     status: record.status,
     updatedAt: record.updatedAt,
@@ -4131,6 +4123,7 @@ function socialAutomationListItem(
   return {
     id: record.id,
     name: record.name,
+    hidden: record.hidden,
     kind: record.platform,
     status: record.status,
     updatedAt: record.updatedAt,
@@ -6141,14 +6134,19 @@ type UpdateAutomationInput = {
   expectedUpdatedAt?: string
   name?: string
   favorite?: boolean
+  hidden?: boolean
 }
 
 async function updateAutomation(
   services: LumenClipMcpServices,
   input: UpdateAutomationInput
 ) {
-  if (input.name === undefined && input.favorite === undefined) {
-    throw new Error("Provide a template name or favorite state")
+  if (
+    input.name === undefined &&
+    input.favorite === undefined &&
+    input.hidden === undefined
+  ) {
+    throw new Error("Provide a template name, favorite state, or visibility")
   }
 
   const standard = await services.getAutomationRecord(input.automationId)
@@ -6158,6 +6156,7 @@ async function updateAutomation(
       id: standard.id,
       name: input.name,
       favorite: input.favorite,
+      hidden: input.hidden,
       expectedUpdatedAt: input.expectedUpdatedAt,
       now: services.now(),
     })
@@ -6174,6 +6173,7 @@ async function updateAutomation(
   const updated = await services.upsertXAutomation({
     ...social,
     name: input.name ?? social.name,
+    hidden: input.hidden ?? social.hidden,
   })
   return serializeSocialAutomation(updated)
 }
@@ -6616,6 +6616,7 @@ function socialAutomationAsScheduleAutomation(
   return {
     id: record.id,
     name: record.name,
+    hidden: record.hidden,
     status: record.status,
     account: "",
     handle: "",
@@ -6636,6 +6637,7 @@ function serializeStandardAutomation(record: AutomationRecord) {
   return {
     id: record.id,
     name: record.name,
+    hidden: record.hidden,
     kind: record.schema.automationKind,
     status: record.status,
     favorite: record.favorite,
@@ -6652,24 +6654,6 @@ function serializeAutomationSchema(schema: AutomationRecord["schema"]) {
   delete stored.posting_mode
   delete stored.generation_lead_minutes
   return stored
-}
-
-function serializeAutomationTemplate(
-  record: AutomationTemplateRecord,
-  includeSchema: boolean
-) {
-  const schema = automationTemplateSchemaToRuntime(record)
-  return {
-    id: record.id,
-    name: record.name,
-    theme: record.theme,
-    kind: schema.automationKind,
-    hookCount: automationHookItems(schema).length,
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
-    ...(includeSchema ? { schema: serializeAutomationSchema(schema) } : {}),
-    resourceUri: `lumenclip://starter-templates/${encodeURIComponent(record.id)}`,
-  }
 }
 
 function serializeAutomationHookPool(
@@ -7257,6 +7241,7 @@ function serializeSocialAutomation(record: XAutomationRecord) {
   return {
     id: record.id,
     name: record.name,
+    hidden: record.hidden,
     kind: record.platform,
     status: record.status,
     updatedAt: record.updatedAt,

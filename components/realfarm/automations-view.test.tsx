@@ -1,13 +1,17 @@
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 
-import { TemplatesView } from "@/components/realfarm/automations-view"
+import {
+  TemplatesView,
+  templatesForVisibility,
+} from "@/components/realfarm/automations-view"
 import { defaultAutomationSchema } from "@/lib/realfarm-automation"
 import type { Automation } from "@/lib/realfarm-data"
 
-const starter: Automation = {
-  id: "starter-1",
-  name: "Astrology slideshow",
+const activeTemplate: Automation = {
+  id: "active-1",
+  name: "Daily stories",
+  hidden: false,
   automationKind: "slideshow",
   status: "live",
   account: "",
@@ -18,56 +22,71 @@ const starter: Automation = {
   socialIntegrations: [],
 }
 
+const hiddenTemplate: Automation = {
+  ...activeTemplate,
+  id: "starter-1",
+  name: "Astrology slideshow",
+  hidden: true,
+}
+
 describe("TemplatesView", () => {
-  it("shows an honest empty state when a starter has no generation", () => {
+  it("uses active and hidden tabs over one template collection", () => {
     const markup = renderToStaticMarkup(
       <TemplatesView
-        automations={[]}
-        schemasByAutomationId={{}}
-        starterTemplates={[starter]}
-        starterSchemasByAutomationId={{
-          [starter.id]: defaultAutomationSchema(starter),
+        automations={[activeTemplate, hiddenTemplate]}
+        schemasByAutomationId={{
+          [activeTemplate.id]: defaultAutomationSchema(activeTemplate),
+          [hiddenTemplate.id]: defaultAutomationSchema(hiddenTemplate),
         }}
-        starterPreviewImagesByAutomationId={{}}
+        previewImagesByAutomationId={{}}
         collections={[]}
         demoVideos={[]}
-        onUseStarterTemplate={vi.fn()}
         onCreateFromTone={vi.fn().mockResolvedValue(undefined)}
         onRename={vi.fn()}
         onToggleFavorite={vi.fn()}
+        onToggleHidden={vi.fn()}
         onEdit={vi.fn()}
       />
     )
 
-    expect(markup).toContain("Starter templates")
-    expect(markup).toContain("Your templates")
-    expect(markup).toContain("No generation yet")
-    expect(markup).toContain(
-      'aria-label="Use Astrology slideshow starter template"'
-    )
-    expect(markup).not.toContain("New template")
-    expect(markup).not.toContain("TemplateGeneratedPreview")
-    expect(markup).not.toContain("Hook text")
+    expect(markup).toContain('role="tablist"')
+    expect(markup).toContain("Active")
+    expect(markup).toContain("Hidden")
+    expect(markup).toContain("Daily stories")
+    expect(markup).not.toContain("Astrology slideshow")
+    expect(markup).not.toContain("Starter templates")
+    expect(markup).not.toContain("Your templates")
   })
 
-  it("uses the latest generated image for a starter template cover", () => {
+  it("filters the same record type by hidden state", () => {
+    expect(
+      templatesForVisibility([activeTemplate, hiddenTemplate], "active").map(
+        (template) => template.id
+      )
+    ).toEqual(["active-1"])
+    expect(
+      templatesForVisibility([activeTemplate, hiddenTemplate], "hidden").map(
+        (template) => template.id
+      )
+    ).toEqual(["starter-1"])
+  })
+
+  it("uses a generated image as a normal hidden template cover", () => {
     const markup = renderToStaticMarkup(
       <TemplatesView
-        automations={[]}
-        schemasByAutomationId={{}}
-        starterTemplates={[starter]}
-        starterSchemasByAutomationId={{
-          [starter.id]: defaultAutomationSchema(starter),
+        automations={[{ ...hiddenTemplate, hidden: false }]}
+        schemasByAutomationId={{
+          [hiddenTemplate.id]: defaultAutomationSchema(hiddenTemplate),
         }}
-        starterPreviewImagesByAutomationId={{
-          [starter.id]: "https://slides.example/latest.jpg",
+        previewImagesByAutomationId={{
+          [hiddenTemplate.id]: "https://slides.example/latest.jpg",
         }}
         collections={[]}
         demoVideos={[]}
-        onUseStarterTemplate={vi.fn()}
         onCreateFromTone={vi.fn().mockResolvedValue(undefined)}
         onRename={vi.fn()}
         onToggleFavorite={vi.fn()}
+        onToggleHidden={vi.fn()}
         onEdit={vi.fn()}
       />
     )
@@ -75,6 +94,6 @@ describe("TemplatesView", () => {
     expect(markup).toContain("https://slides.example/latest.jpg")
     expect(markup).toContain('data-template-preview-media="generated"')
     expect(markup).toContain("latest generated preview")
-    expect(markup).not.toContain("Hook text")
+    expect(markup).not.toContain("Starter")
   })
 })

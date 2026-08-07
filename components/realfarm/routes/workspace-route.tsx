@@ -6,8 +6,6 @@ import {
 } from "@/components/realfarm-workspace"
 import type { ViewKey } from "@/components/realfarm/navigation"
 import {
-  automationTemplateSchemaToRuntime,
-  automationTemplateRecordToSummary,
   groupAutomationTemplateExampleRunsByTemplateId,
   listAutomationTemplateExampleRuns,
   listAutomationTemplateRecords,
@@ -88,13 +86,6 @@ async function loadInitialTemplateData(): Promise<InitialTemplateData> {
     groupAutomationTemplateExampleRunsByTemplateId(exampleRuns)
 
   return {
-    templates: templateRecords.map(automationTemplateRecordToSummary),
-    schemas: Object.fromEntries(
-      templateRecords.map((record) => [
-        record.id,
-        automationTemplateSchemaToRuntime(record),
-      ])
-    ),
     previewImages: Object.fromEntries(
       templateRecords.flatMap((record) => {
         const latestRun = exampleRunsByTemplateId[record.id]?.[0]

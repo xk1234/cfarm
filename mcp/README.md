@@ -1,6 +1,6 @@
 # LumenClip MCP tool reference
 
-> Status: partially implemented. Sixty-one tools are callable through the
+> Status: partially implemented. Sixty tools are callable through the
 > public `/mcp` Streamable HTTP route and local stdio transport. The
 > tool index is the source of truth for which contracts are implemented,
 > proposed, or deferred.
@@ -13,7 +13,7 @@ may link to a shared tool but do not invent a second incompatible schema.
 | ----------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
 | Workflows               | [workflows/README.md](workflows/README.md)       | Named production generation pipelines and independently callable deterministic, provider, and storage stages.                |
 | Workspace               | [workspace/README.md](workspace/README.md)       | Workspace defaults, limits, locale, and capabilities.                                                                        |
-| Templates               | [templates/README.md](templates/README.md)       | Template and starter-template discovery, creation, editing, hook management, and manual generation runs.                     |
+| Templates               | [templates/README.md](templates/README.md)       | Active and hidden template discovery, creation, editing, hook management, and manual generation runs.                        |
 | Collections             | [collections/README.md](collections/README.md)   | Image, video, word, and product collections; imports, search, merge, and deletion policy.                                    |
 | Slideshows              | [slideshow/README.md](slideshow/README.md)       | Template discovery, slideshow templates, direct slideshow creation, rendering, review, and publication.                      |
 | Videos                  | [videos/README.md](videos/README.md)             | Video-template discovery and video-template generation through the common template contract.                                 |
@@ -32,7 +32,6 @@ may link to a shared tool but do not invent a second incompatible schema.
 - `lumenclip_pipeline_stage_run`
 - `lumenclip_pipeline_run`
 - `lumenclip_templates_list`
-- `lumenclip_starter_templates_list`
 - `lumenclip_template_create`
 - `lumenclip_template_clone`
 - `lumenclip_template_get`
@@ -40,8 +39,8 @@ may link to a shared tool but do not invent a second incompatible schema.
 - `lumenclip_template_experiment_dimensions`
 - `lumenclip_template_experiment_run`
 - `lumenclip_template_schema_update`
-- `lumenclip_template_formatting_update`
-- `lumenclip_template_text_item_update`
+- `lumenclip_template_slide_design_update`
+- `lumenclip_template_slide_text_item_update`
 - `lumenclip_template_delete`
 - `lumenclip_template_hooks_get`
 - `lumenclip_template_hooks_update`
@@ -53,7 +52,6 @@ may link to a shared tool but do not invent a second incompatible schema.
 - `lumenclip_hook_variant_select`
 - `lumenclip_run_plan_get`
 - `lumenclip_template_run`
-- `lumenclip_schedule_get`
 - `lumenclip_slideshow_generate`
 - `lumenclip_slideshow_analyze`
 - `lumenclip_ugc_estimate`

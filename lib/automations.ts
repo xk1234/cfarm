@@ -30,9 +30,11 @@ export type AutomationRecord = {
   sourceAutomationId?: string
   sourceUrl?: string
   name: string
+  hidden: boolean
   status: AutomationRecordStatus
   favorite: boolean
   theme: string
+  createdAt: string
   importedAt?: string
   updatedAt: string
   schema: AutomationSchema
@@ -89,6 +91,7 @@ export async function upsertAutomationRecords(input: {
 export function createLocalAutomationRecord(
   input: {
     name?: string
+    hidden?: boolean
     automationKind?: AutomationKind
     schema?: AutomationSchema
     template?: RuntimeAutomationTemplate
@@ -139,9 +142,11 @@ export function createLocalAutomationRecord(
   return {
     id,
     name,
+    hidden: input.hidden ?? false,
     status: input.overrides?.status ?? "live",
     favorite: summary.favorite,
     theme: summary.theme,
+    createdAt: now,
     updatedAt: now,
     schema,
   }
@@ -151,6 +156,7 @@ export async function patchAutomationRecord(input: {
   rootDir?: string
   id: string
   name?: string
+  hidden?: boolean
   status?: AutomationStatus
   favorite?: boolean
   schema?: AutomationSchema
@@ -179,6 +185,7 @@ export async function patchAutomationRecord(input: {
   const updated: AutomationRecord = {
     ...record,
     name: nextName,
+    hidden: typeof input.hidden === "boolean" ? input.hidden : record.hidden,
     status: nextStatus,
     favorite:
       typeof input.favorite === "boolean" ? input.favorite : record.favorite,
@@ -254,9 +261,11 @@ export function normalizeReelfarmAutomation(raw: unknown): AutomationRecord {
     sourceAutomationId: sourceAutomationId || undefined,
     sourceUrl: clean(record.sourceUrl ?? record.url) || undefined,
     name,
+    hidden: false,
     status,
     favorite,
     theme,
+    createdAt: now,
     importedAt: now,
     updatedAt: now,
     schema,
@@ -274,6 +283,7 @@ export function automationRecordToSummary(
   return {
     id: record.id,
     name: record.name,
+    hidden: record.hidden,
     status: record.status,
     account: socialSummary.account,
     handle: socialSummary.handle,
@@ -359,9 +369,16 @@ function normalizeAutomationRecord(
   )
   return {
     ...recordWithoutSource,
+    hidden: record.hidden === true,
     status: normalizedStatus,
     favorite: Boolean(record.favorite),
     theme: clean(record.theme) || "ugc",
+    createdAt:
+      clean(record.createdAt) ||
+      clean(record.importedAt) ||
+      (record.schema?.created_at
+        ? new Date(record.schema.created_at).toISOString()
+        : new Date().toISOString()),
     updatedAt: clean(record.updatedAt) || new Date().toISOString(),
     schema,
   }

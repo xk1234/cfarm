@@ -10,7 +10,6 @@ several workflows, but its input/output contract has one obvious owner.
 | `lumenclip_pipeline_run`                         | [Workflows](workflows/README.md)                | Implemented        |
 | `lumenclip_workspace_get`                        | [Workspace](workspace/README.md)                | Proposed v1        |
 | `lumenclip_templates_list`                       | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_starter_templates_list`               | [Templates](templates/README.md)                | Implemented        |
 | `lumenclip_template_create`                      | [Templates](templates/README.md)                | Implemented        |
 | `lumenclip_template_clone`                       | [Templates](templates/README.md)                | Implemented        |
 | `lumenclip_template_get`                         | [Templates](templates/README.md)                | Implemented        |
@@ -18,8 +17,8 @@ several workflows, but its input/output contract has one obvious owner.
 | `lumenclip_template_experiment_dimensions`       | [Templates](templates/README.md)                | Implemented        |
 | `lumenclip_template_experiment_run`              | [Templates](templates/README.md)                | Implemented        |
 | `lumenclip_template_schema_update`               | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_formatting_update`           | [Templates](templates/README.md)                | Implemented        |
-| `lumenclip_template_text_item_update`            | [Templates](templates/README.md)                | Implemented        |
+| `lumenclip_template_slide_design_update`         | [Templates](templates/README.md)                | Implemented        |
+| `lumenclip_template_slide_text_item_update`      | [Templates](templates/README.md)                | Implemented        |
 | `lumenclip_template_delete`                      | [Templates](templates/README.md)                | Implemented        |
 | `lumenclip_template_hooks_get`                   | [Templates](templates/README.md)                | Implemented        |
 | `lumenclip_template_hooks_update`                | [Templates](templates/README.md)                | Implemented        |
@@ -57,7 +56,6 @@ several workflows, but its input/output contract has one obvious owner.
 | `lumenclip_workspace_members_list`               | [Accounts and publishing](publishing/README.md) | Implemented        |
 | `lumenclip_output_publish`                       | [Accounts and publishing](publishing/README.md) | Implemented        |
 | `lumenclip_output_mark_published`                | [Accounts and publishing](publishing/README.md) | Implemented        |
-| `lumenclip_schedule_get`                         | [Scheduling](scheduling/README.md)              | Implemented        |
 | `lumenclip_analytics_report`                     | [Analytics](analytics/README.md)                | Implemented        |
 | `lumenclip_tiktok_studio_analytics_import_start` | [Analytics](analytics/README.md)                | Implemented        |
 | `lumenclip_tiktok_studio_analytics_report`       | [Analytics](analytics/README.md)                | Implemented        |

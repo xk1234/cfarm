@@ -56,8 +56,8 @@ changes the workspace to Templates, and opens the new template for editing.
 
 ## MCP coverage
 
-Partial. `lumenclip_templates_list`, `lumenclip_starter_templates_list`,
-`lumenclip_template_create`, `lumenclip_outputs_list`, `lumenclip_output_get`,
+Partial. `lumenclip_templates_list`, `lumenclip_template_create`,
+`lumenclip_outputs_list`, `lumenclip_output_get`,
 `lumenclip_output_delete`, and `lumenclip_analytics_report` cover the main
 template, output, and publication data operations. No registered
 tool returns the Home-only outstanding-action aggregate. Opening Home,

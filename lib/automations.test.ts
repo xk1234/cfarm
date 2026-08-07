@@ -297,11 +297,13 @@ describe("automation import persistence", () => {
       rootDir,
       id: record.id,
       name: "Renamed automation",
+      hidden: true,
       status: "live",
     })
 
     expect(updated).toMatchObject({
       name: "Renamed automation",
+      hidden: true,
       status: "live",
     })
     const [stored] = await readJsonArrayStore<Record<string, unknown>>({
@@ -321,6 +323,7 @@ describe("automation import persistence", () => {
 
     expect(record).toMatchObject({
       name: "Daily product demos",
+      hidden: false,
       status: "live",
       favorite: false,
     })

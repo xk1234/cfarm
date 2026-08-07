@@ -248,20 +248,22 @@ Persistence: `templates`. The TypeScript domain type remains
 `AutomationRecord`; stored IDs are intentionally unchanged so historical joins
 continue to resolve.
 
-| Field                | Type               | Required | Allowed values / format     | Meaning                                        |
-| -------------------- | ------------------ | -------- | --------------------------- | ---------------------------------------------- |
-| `ownerId`            | string             | No       | Appwrite user ID            | Injected record owner.                         |
-| `id`                 | string             | Yes      | Stable domain ID            | Template ID.                                   |
-| `sourceAutomationId` | string             | No       | External ID                 | Imported automation identity.                  |
-| `sourceUrl`          | string             | No       | URL                         | Import source.                                 |
-| `name`               | string             | Yes      | Free string                 | Display name.                                  |
-| `status`             | string enum        | Yes      | `live`, `paused`, `unknown` | Lifecycle state; `unknown` covers old records. |
-| `favorite`           | boolean            | Yes      | `true`, `false`             | UI favorite state.                             |
-| `theme`              | string             | Yes      | Free string                 | UI theme label.                                |
-| `importedAt`         | ISO datetime       | No       | ISO 8601                    | Import time.                                   |
-| `updatedAt`          | ISO datetime       | Yes      | ISO 8601                    | Last update.                                   |
-| `schema`             | `AutomationSchema` | Yes      | See below                   | Editable/runtime definition.                   |
-| `raw`                | object             | No       | JSON object                 | Preserved external source payload.             |
+| Field                | Type               | Required | Allowed values / format     | Meaning                                                 |
+| -------------------- | ------------------ | -------- | --------------------------- | ------------------------------------------------------- |
+| `ownerId`            | string             | No       | Appwrite user ID            | Injected record owner.                                  |
+| `id`                 | string             | Yes      | Stable domain ID            | Template ID.                                            |
+| `sourceAutomationId` | string             | No       | External ID                 | Imported automation identity.                           |
+| `sourceUrl`          | string             | No       | URL                         | Import source.                                          |
+| `name`               | string             | Yes      | Free string                 | Display name.                                           |
+| `hidden`             | boolean            | Yes      | `true`, `false`             | Hidden-tab membership; starter seeds default to `true`. |
+| `status`             | string enum        | Yes      | `live`, `paused`, `unknown` | Lifecycle state; `unknown` covers old records.          |
+| `favorite`           | boolean            | Yes      | `true`, `false`             | UI favorite state.                                      |
+| `theme`              | string             | Yes      | Free string                 | UI theme label.                                         |
+| `createdAt`          | ISO datetime       | Yes      | ISO 8601                    | Record creation time.                                   |
+| `importedAt`         | ISO datetime       | No       | ISO 8601                    | Import time.                                            |
+| `updatedAt`          | ISO datetime       | Yes      | ISO 8601                    | Last update.                                            |
+| `schema`             | `AutomationSchema` | Yes      | See below                   | Editable/runtime definition.                            |
+| `raw`                | object             | No       | JSON object                 | Preserved external source payload.                      |
 
 ### `AutomationSchema`
 
@@ -631,6 +633,7 @@ Persistence: `social_templates`.
 | `ownerId`                         | string                        | No       | Appwrite user ID                                       | Owner.                           |
 | `platform`                        | string enum                   | Yes      | `x`, `threads`                                         | Target platform.                 |
 | `name`                            | string                        | Yes      | Free string                                            | Display name.                    |
+| `hidden`                          | boolean                       | Yes      | `true`, `false`                                        | Active/Hidden tab membership.    |
 | `status`                          | string enum                   | Yes      | `live`, `paused`                                       | Lifecycle.                       |
 | `createdAt`                       | ISO datetime                  | Yes      | ISO 8601                                               | Creation time.                   |
 | `updatedAt`                       | ISO datetime                  | Yes      | ISO 8601                                               | Last update.                     |

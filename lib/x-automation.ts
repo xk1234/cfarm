@@ -86,6 +86,7 @@ export type XAutomationRecord = {
   ownerId?: string
   platform: XAutomationPlatform
   name: string
+  hidden: boolean
   status: "live" | "paused"
   createdAt: string
   updatedAt: string
@@ -345,6 +346,7 @@ export function defaultXAutomation(
     name:
       overrides.name ??
       (platform === "threads" ? "New Threads automation" : "New X automation"),
+    hidden: false,
     platform,
     status: "paused",
     createdAt: now,
@@ -457,6 +459,7 @@ export function xAutomationToAutomation(engine: XAutomationRecord): Automation {
   return {
     id: engine.id,
     name: engine.name,
+    hidden: engine.hidden,
     automationKind: "x_threads",
     platform: engine.platform,
     status: engine.status,
@@ -500,6 +503,7 @@ export function normalizeXAutomation(value: unknown): XAutomationRecord | null {
     id,
     platform,
     name: clean(value.name) || defaults.name,
+    hidden: value.hidden === true,
     status: value.status === "live" ? "live" : "paused",
     niche: {
       label: clean(niche.label) || defaults.niche.label,
