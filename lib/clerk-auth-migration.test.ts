@@ -13,6 +13,12 @@ describe("Clerk authentication cutover", () => {
     expect(source).not.toContain("SESSION_COOKIE")
   })
 
+  it("lets extension token endpoints handle their own authentication", () => {
+    const source = read("proxy.ts")
+    expect(source).toContain('pathname === "/api/tiktok-comments/device"')
+    expect(source).toContain('pathname === "/api/tiktok-comments/capture"')
+  })
+
   it("places ClerkProvider inside the root body", () => {
     const source = read("app/layout.tsx")
     expect(source.indexOf("<body")).toBeLessThan(
