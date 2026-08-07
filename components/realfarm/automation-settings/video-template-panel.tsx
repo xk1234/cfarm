@@ -572,7 +572,7 @@ function VideoSegmentCard({
                 onChange({ slideshowAutomationId: event.target.value })
               }
             >
-              <option value="">Select slides automation</option>
+              <option value="">Select slideshow template</option>
               {slideshowAutomations.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}

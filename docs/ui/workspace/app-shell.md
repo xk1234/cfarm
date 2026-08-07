@@ -15,8 +15,8 @@ Owner: `components/realfarm/routes/workspace-route.tsx` loads the authenticated
 workspace, and `components/realfarm-workspace.tsx` owns the chrome and active
 surface.
 
-`WorkspaceRoute` sends a signed-out visitor to the global Clerk modal, then loads the
-initial workspace data, automation templates, connected compose accounts, and
+`WorkspaceRoute` sends a signed-out visitor to the global Clerk modal, then
+loads the initial workspace data, content templates, connected compose accounts, and
 published-post dates before rendering the client workspace. The root layout
 supplies the application theme, the Fumadocs provider used by documentation,
 and one global top-right toaster.
@@ -25,13 +25,13 @@ The workspace fills the viewport and prevents the document itself from
 scrolling. On desktop, a persistent 224px sidebar sits beside a content region
 that scrolls vertically. On mobile, the sidebar is hidden, a fixed 56px branded
 header occupies the top edge, and the content region adds enough top padding to
-clear it. An open automation editor can use the full content region without the
+clear it. An open template editor can use the full content region without the
 standard page padding.
 
 The active destination is initialized from the `view` query parameter. Home,
-Compose, Schedule, Analytics, Collections, and Automations render inside the
-same shell. An automation or run deep link adds `automation=<id>` or `run=<id>`
-to the Automations workspace address.
+Compose, Schedule, Analytics, Collections, Templates, and Published posts render
+inside the same shell. A template or run deep link adds `template=<id>` or
+`run=<id>` to the Templates workspace address.
 
 ## Interactions
 
@@ -39,11 +39,9 @@ Choosing a destination updates the active client surface while preserving an
 addressable workspace location. Browser back and forward events restore the
 destination and any selected collection represented by the current URL.
 
-New Automation opens the template browser over the current workspace, and the
+New template opens the template browser over the current workspace, and the
 account row opens workspace settings without changing the selected
-destination. Log out posts to `/api/auth/logout` and then sends the browser to
-`/`. On Home, an account without a verified email also receives the shared
-verification notice above the workspace.
+destination. Log out ends the Clerk session and sends the browser to `/`.
 
 ## MCP coverage
 

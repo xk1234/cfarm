@@ -56,7 +56,7 @@ export function VideoAutomationCreateDialog({
 }) {
   const preset = videoAutomationTemplatePreset(templateId)
   const initialAutomation = useMemo(
-    () => automationSummary(`${preset.name} automation`, templateId),
+    () => automationSummary(`${preset.name} template`, templateId),
     [preset.name, templateId]
   )
   const [name, setName] = useState(initialAutomation.name)
@@ -97,7 +97,7 @@ export function VideoAutomationCreateDialog({
   async function createAutomation() {
     const trimmedName = name.trim()
     if (!trimmedName) {
-      setError("Give the automation a name before creating it.")
+      setError("Give the template a name before creating it.")
       setActiveTab("media")
       return
     }
@@ -118,7 +118,7 @@ export function VideoAutomationCreateDialog({
       setError(
         createError instanceof Error
           ? createError.message
-          : "Could not create the automation."
+          : "Could not create the template."
       )
       setCreating(false)
     }
@@ -129,9 +129,9 @@ export function VideoAutomationCreateDialog({
       <AppModal onClose={requestBack}>
         <AppModalPanel className="flex h-[min(850px,92vh)] max-w-[1100px] flex-col overflow-hidden rounded-[12px]">
           <AppModalHeader
-            title={`Create ${preset.name} automation`}
+            title={`Create ${preset.name} template`}
             onClose={requestBack}
-            closeLabel="Back to automation templates"
+            closeLabel="Back to templates"
           />
 
           <div className="grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)]">
@@ -224,7 +224,7 @@ export function VideoAutomationCreateDialog({
                 disabled={creating}
                 onClick={() => void createAutomation()}
               >
-                {creating ? "Creating…" : "Create automation"}
+                {creating ? "Creating…" : "Create template"}
               </Button>
             </div>
           </div>

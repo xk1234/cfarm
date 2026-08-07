@@ -6,6 +6,7 @@ export default async function WorkspacePage({
 }: {
   searchParams: Promise<{
     view?: string | string[]
+    template?: string | string[]
     automation?: string | string[]
     run?: string | string[]
   }>
@@ -16,7 +17,8 @@ export default async function WorkspacePage({
     <WorkspaceRoute
       navigation={{
         view: initialView(firstQueryValue(query.view)),
-        automationId: firstQueryValue(query.automation),
+        automationId:
+          firstQueryValue(query.template) || firstQueryValue(query.automation),
         runId: firstQueryValue(query.run),
       }}
     />
@@ -30,11 +32,13 @@ function initialView(value: string): ViewKey {
     "schedule",
     "analytics",
     "collections",
-    "automations",
+    "templates",
     "published-posts",
   ].includes(value)
     ? (value as ViewKey)
-    : "home"
+    : value === "automations"
+      ? "templates"
+      : "home"
 }
 
 function firstQueryValue(value: string | string[] | undefined) {

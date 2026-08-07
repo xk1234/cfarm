@@ -1,9 +1,9 @@
 ---
-title: Automation templates
-description: Search templates and blank starting points to create an automation.
+title: Template browser
+description: Search reusable content configurations or start from a blank template.
 ---
 
-Route: `/app?view=automations`
+Route: `/app?view=templates`
 
 ![Desktop automation template browser production capture](../assets/screenshots/desktop-automation-template-browser.png)
 
@@ -15,7 +15,7 @@ Route: `/app?view=automations`
 
 Owner: `components/realfarm/templates.tsx`.
 
-New automation opens a modal with the visible Automation templates title, a
+New template opens a modal with the visible Templates title, a
 search field, Slideshow, Video, and Other social media filters, a sort control,
 and the matching template count. Newest, Oldest, A to Z, and Z to A sorts are
 available. The modal is bounded to the viewport and its content scrolls inside
@@ -32,9 +32,9 @@ from a search with no matches.
 
 Changing search, kind, or sort resets the visible batch to ten. Open shows the
 selected template's generated examples. Create copies the template settings into
-a new user-owned automation and opens its editor. Each kind also offers a blank
-automation. Other social media provides separate New X automation and New
-Threads automation actions.
+a new user-owned template and opens its editor. Each kind also offers a blank
+template. Other social media provides separate New X template and New Threads
+template actions.
 
 Selecting a built-in video format opens a setup dialog for media, hooks,
 schedule, and publishing before creation. Its Back action returns to the
@@ -43,7 +43,7 @@ template browser and unsaved changes are guarded.
 ## MCP coverage
 
 Partial. `lumenclip_automation_templates_list` reads reusable templates and
-`lumenclip_automation_create` creates slideshow, video, or UGC automations from
+`lumenclip_automation_create` creates slideshow, video, or UGC templates from
 a template or blank schema. X and Threads creation in this browser has no
-matching registered create tool. Search, sort, example previews, and dialogs are
-UI-only.
+matching registered create tool. The MCP prefix remains unchanged for backwards
+compatibility. Search, sort, example previews, and dialogs are UI-only.

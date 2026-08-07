@@ -1,6 +1,6 @@
 ---
 title: Home
-description: Track posting activity, recent generated output, and reusable automation templates.
+description: Track posting activity, recent generated output, and reusable templates.
 ---
 
 Route: `/app?view=home`
@@ -16,8 +16,8 @@ Owner: `components/realfarm/home-view.tsx`.
 Home begins with a 26-week posting activity grid built from linked publication
 dates and explicit manual-publish dates. It shows the total published posts,
 the current daily streak when one exists, and the relative posting count for
-each day. Beside it, the dashboard shows the next expected automation post,
-the number of live unpaused automations, and the number of calendar items that
+each day. Beside it, the dashboard shows the next expected scheduled post,
+the number of scheduled templates, and the number of calendar items that
 need action or have failed. Desktop places the graph and metric cards in two
 columns. Mobile keeps the graph horizontally scrollable and stacks the metrics
 in a compact grid.
@@ -43,17 +43,16 @@ large screens, two at the small breakpoint, and one on phones.
 
 ## Interactions
 
-New automation opens the template and blank-automation browser, while View
-workflows changes the workspace to the automations list. Selecting a successful
+New template opens the template browser, while View templates changes the
+workspace to the template list. Selecting a successful
 slideshow card opens its generated slideshow viewer. Selecting a ready video
 plays or pauses it in place. An owned video can be deleted after confirmation
 unless a scheduled or published record blocks deletion; shared videos cannot
 be deleted here.
 
 The output and quick-start pagers move independently. Selecting an example
-cover on a template opens that example slideshow. Use creates a new automation
-from the selected template, changes the workspace to Automations, and opens the
-new automation for editing.
+cover on a template opens that example slideshow. Use creates a user-owned copy,
+changes the workspace to Templates, and opens the new template for editing.
 
 ## MCP coverage
 

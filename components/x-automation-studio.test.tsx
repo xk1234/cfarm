@@ -9,7 +9,7 @@ describe("XAutomationStudio", () => {
       <XAutomationStudio initialAutomations={[]} initialRuns={[]} />
     )
 
-    expect(markup).toContain('aria-label="Automation workflow"')
+    expect(markup).toContain('aria-label="Template workflow"')
     expect(markup).toContain(">Setup</button>")
     expect(markup).toContain(">Draft</button>")
     expect(markup).toContain(">Preview</button>")

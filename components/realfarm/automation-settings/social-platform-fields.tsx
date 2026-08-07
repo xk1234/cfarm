@@ -235,7 +235,7 @@ function PublishAsSettingsRow({
     return (
       <SettingsRow
         title="Publish as"
-        description="Video automations always publish their rendered video."
+        description="Video templates always publish their rendered video."
         control={
           <span className="inline-flex h-10 items-center rounded-[8px] border border-app-panel-border bg-app-surface-subtle px-3 text-[14px] font-semibold text-app-text">
             Video

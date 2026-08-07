@@ -428,7 +428,7 @@ async function resolveSegmentsMedia(
       if (segment.mediaSource === "slideshow_automation") {
         const automationId = segment.slideshowAutomationId?.trim()
         if (!automationId) {
-          throw new Error(`Choose a slides automation for "${segment.label}"`)
+          throw new Error(`Choose a slideshow template for "${segment.label}"`)
         }
         const payload = await fetchJsonWithTimeout<{
           created?: Array<{
@@ -450,7 +450,7 @@ async function resolveSegmentsMedia(
         ].filter((url, index, urls) => urls.indexOf(url) === index)
         if (slideUrls.length === 0) {
           throw new Error(
-            `The slides automation for "${segment.label}" did not render any slides`
+            `The slideshow template for "${segment.label}" did not render any slides`
           )
         }
         return {

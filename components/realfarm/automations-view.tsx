@@ -9,7 +9,7 @@ import {
   IconStar,
   IconStarFilled,
 } from "@tabler/icons-react"
-import { LuPause, LuPencil } from "react-icons/lu"
+import { LuPencil } from "react-icons/lu"
 
 import { Button } from "@/components/ui/button"
 import { CardGridSkeleton } from "@/components/ui/loading-skeleton"
@@ -20,11 +20,7 @@ import { SlideshowToneAnalyzerDialog } from "@/components/realfarm/slideshow-ton
 import { GenerationFailurePlaceholder } from "@/components/realfarm/shared-media"
 import { XThreadsBrandIcon } from "@/components/realfarm/x-threads-brand-icon"
 import type { AutomationRunApiRecord } from "@/components/realfarm/automation-settings/types"
-import {
-  SocialAccountStatusRow,
-  type SocialAccountStatusItem,
-} from "@/components/realfarm/social-account-status"
-import { upcomingAutomationPosts } from "@/lib/automation-upcoming-posts"
+import type { SocialAccountStatusItem } from "@/components/realfarm/social-account-status"
 import type { Automation } from "@/lib/realfarm-data"
 import type { AutomationSchema } from "@/lib/realfarm-automation"
 import type { XAutomationRun } from "@/lib/x-automation"
@@ -55,7 +51,7 @@ type AutomationRunPreviewSlide = {
   source_image_url?: string
 }
 
-export function AutomationsView({
+export function TemplatesView({
   automations,
   automationsLoading = false,
   recentRunsByAutomationId,
@@ -65,8 +61,6 @@ export function AutomationsView({
   onCreateFromTone,
   onRename,
   onToggleFavorite,
-  onToggleStatus,
-  onEditSocialAccounts,
   onGenerationRunRemove,
   onGenerationRunUpdate,
   onEdit,
@@ -80,8 +74,6 @@ export function AutomationsView({
   onCreateFromTone: (fields: Partial<AutomationSchema>) => Promise<void>
   onRename: (automation: Automation, name: string) => void
   onToggleFavorite: (automation: Automation) => void
-  onToggleStatus: (automation: Automation) => void
-  onEditSocialAccounts: (automation: Automation) => void
   onGenerationRunRemove: (runId: string) => void
   onGenerationRunUpdate?: (run: AutomationRunApiRecord) => void
   onEdit: (automation: Automation) => void
@@ -91,7 +83,7 @@ export function AutomationsView({
     <div className="mx-auto max-w-[1160px]">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="flex h-10 items-center text-[24px] leading-none font-semibold sm:h-9">
-          Automations
+          Templates
         </h1>
         <div className="flex flex-wrap justify-end gap-2 sm:gap-3">
           <Button
@@ -110,7 +102,7 @@ export function AutomationsView({
             onClick={onCreateNew}
           >
             <IconPlus className="size-4" />
-            New automation
+            New template
           </Button>
         </div>
       </div>
@@ -129,7 +121,6 @@ export function AutomationsView({
                 automation={automation}
                 recentRuns={xRunsByAutomationId?.[automation.id]}
                 onEdit={onEdit}
-                onToggleStatus={onToggleStatus}
               />
             ) : (
               <AutomationGridCard
@@ -138,8 +129,6 @@ export function AutomationsView({
                 recentRuns={recentRunsByAutomationId[automation.id]}
                 onRename={onRename}
                 onToggleFavorite={onToggleFavorite}
-                onToggleStatus={onToggleStatus}
-                onEditSocialAccounts={onEditSocialAccounts}
                 onGenerationRunRemove={onGenerationRunRemove}
                 onGenerationRunUpdate={onGenerationRunUpdate}
                 recentRunsLoading={recentRunsLoading}
@@ -149,7 +138,7 @@ export function AutomationsView({
           )}
         {!automationsLoading && automations.length === 0 && (
           <div className="col-span-full rounded-[8px] border border-dashed border-app-panel-border bg-app-surface px-5 py-10 text-center text-[14px] font-semibold text-app-muted-text">
-            No automations yet.
+            No templates yet.
           </div>
         )}
       </div>
@@ -167,14 +156,11 @@ function XThreadsAutomationCard({
   automation,
   recentRuns,
   onEdit,
-  onToggleStatus,
 }: {
   automation: Automation
   recentRuns?: XAutomationRun[]
   onEdit: (automation: Automation) => void
-  onToggleStatus: (automation: Automation) => void
 }) {
-  const live = automation.status !== "paused"
   const previews = (recentRuns ?? []).slice(0, 3)
   const blocked = Boolean(automation.generationBlockers?.length)
 
@@ -185,18 +171,9 @@ function XThreadsAutomationCard({
         automationCardBorderClass(blocked)
       )}
     >
-      <button
-        className="absolute top-2 left-2 z-10 flex items-center gap-1.5 rounded-[6px] bg-app-surface px-2 py-1 text-[12px] font-medium text-app-text shadow-sm"
-        onClick={() => onToggleStatus(automation)}
-      >
-        <span
-          className={cn(
-            "size-2 rounded-full",
-            live ? "bg-[#34d079]" : "bg-[#aaa9a2]"
-          )}
-        />
-        {live ? "Live" : "Paused"}
-      </button>
+      <span className="absolute top-2 left-2 z-10 rounded-[6px] bg-app-surface px-2 py-1 text-[12px] font-medium text-app-text shadow-sm">
+        Post
+      </span>
       <div className="border-b border-[#eeeeee] px-9 py-3 text-center text-[13px] font-semibold">
         {automation.name}
       </div>
@@ -228,27 +205,7 @@ function XThreadsAutomationCard({
           )
         })}
       </div>
-      <AutomationAccountsSection
-        automation={automation}
-        onClick={() => onEdit(automation)}
-      />
-      <AutomationScheduleSection
-        automation={automation}
-        status={live ? "live" : "paused"}
-      />
       <div className="flex justify-end gap-2 px-4 pt-2 pb-4">
-        <Button
-          variant="softControl"
-          size="xs"
-          onClick={() => onToggleStatus(automation)}
-        >
-          {live ? (
-            <LuPause className="size-3.5" />
-          ) : (
-            <IconPlayerPlay className="size-3.5" />
-          )}
-          {automationStatusActionLabel(automation.status)}
-        </Button>
         <Button
           variant="softControl"
           size="xs"
@@ -268,8 +225,6 @@ function AutomationGridCard({
   recentRunsLoading,
   onRename,
   onToggleFavorite,
-  onToggleStatus,
-  onEditSocialAccounts,
   onGenerationRunRemove,
   onGenerationRunUpdate,
   onEdit,
@@ -279,13 +234,10 @@ function AutomationGridCard({
   recentRunsLoading?: boolean
   onRename: (automation: Automation, name: string) => void
   onToggleFavorite: (automation: Automation) => void
-  onToggleStatus: (automation: Automation) => void
-  onEditSocialAccounts: (automation: Automation) => void
   onGenerationRunRemove: (runId: string) => void
   onGenerationRunUpdate?: (run: AutomationRunApiRecord) => void
   onEdit: (automation: Automation) => void
 }) {
-  const status = automation.status === "paused" ? "paused" : "live"
   const previewRuns = automationRunPreviewRuns(recentRuns, 3)
   const [viewerRun, setViewerRun] = useState<AutomationRunPreview | null>(null)
   const generating = recentRuns?.some(
@@ -301,23 +253,9 @@ function AutomationGridCard({
         automationCardBorderClass(blocked)
       )}
     >
-      <button
-        className="absolute top-2 left-2 z-10 flex items-center gap-1.5 rounded-[6px] bg-app-surface px-2 py-1 text-[12px] font-medium text-app-text shadow-sm transition hover:opacity-70"
-        onClick={() => onToggleStatus(automation)}
-        aria-label={`${automationStatusActionLabel(status)} ${automation.name}`}
-      >
-        <span
-          className={cn(
-            "size-2 rounded-full",
-            blocked
-              ? "bg-destructive"
-              : status === "live"
-                ? "bg-[#34d079]"
-                : "bg-[#aaa9a2]"
-          )}
-        />
-        {status === "live" ? "Live" : "Paused"}
-      </button>
+      <span className="absolute top-2 left-2 z-10 rounded-[6px] bg-app-surface px-2 py-1 text-[12px] font-medium text-app-text shadow-sm">
+        {automation.automationKind === "video" ? "Video" : "Slideshow"}
+      </span>
       <button
         className="absolute top-2 right-2 z-10 grid size-7 place-items-center rounded-[6px] bg-app-surface text-app-muted-text shadow-sm transition hover:bg-app-surface-subtle"
         onClick={() => onToggleFavorite(automation)}
@@ -479,25 +417,7 @@ function AutomationGridCard({
         )
       ) : null}
 
-      <AutomationAccountsSection
-        automation={automation}
-        onClick={() => onEditSocialAccounts(automation)}
-      />
-      <AutomationScheduleSection automation={automation} status={status} />
-
       <div className="flex items-center justify-end gap-2 px-4 pt-2 pb-4">
-        <Button
-          variant="softControl"
-          size="xs"
-          onClick={() => onToggleStatus(automation)}
-        >
-          {status === "live" ? (
-            <LuPause className="size-3.5" />
-          ) : (
-            <IconPlayerPlay className="size-3.5" />
-          )}
-          {automationStatusActionLabel(status)}
-        </Button>
         <Button
           variant="softControl"
           size="xs"
@@ -521,82 +441,6 @@ export function automationCardBorderClass(blocked: boolean) {
   return blocked
     ? "border-2 border-destructive ring-1 ring-destructive/20"
     : "border border-app-panel-border"
-}
-
-function AutomationAccountsSection({
-  automation,
-  onClick,
-}: {
-  automation: Automation
-  onClick: () => void
-}) {
-  const activeSocialIntegrations = (automation.socialIntegrations ?? []).filter(
-    (integration) => !integration.disabled
-  )
-  const accountStatusItems = automationAccountStatusItems(automation)
-
-  return (
-    <div className="p-2 pb-1">
-      <button
-        className="flex w-full flex-col items-start gap-2 rounded-[8px] bg-app-surface px-3 py-2 text-left transition hover:opacity-65"
-        onClick={onClick}
-      >
-        <span className="flex w-full items-center justify-between gap-3">
-          <span className="text-[12px] font-bold tracking-[0.08em] text-app-text-faint uppercase">
-            Accounts
-          </span>
-          <span className="text-[12px] font-semibold text-app-muted-text">
-            {activeSocialIntegrations.length} selected
-          </span>
-        </span>
-        <SocialAccountStatusRow
-          items={accountStatusItems}
-          size="compact"
-          showLabels
-          emptyLabel="Add account"
-        />
-      </button>
-    </div>
-  )
-}
-
-function AutomationScheduleSection({
-  automation,
-  status,
-}: {
-  automation: Automation
-  status: "live" | "paused"
-}) {
-  const upcomingPosts = upcomingAutomationPosts(automation)
-
-  return (
-    <div className="mt-1 border-t border-[#eeeeee] px-4 py-2">
-      <div className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap">
-        {upcomingPosts.length > 0 ? (
-          upcomingPosts.map((post) => (
-            <span
-              key={post.key}
-              className={cn(
-                "inline-flex items-center rounded-full border border-[#eeeeee] px-2 py-1 text-[12px] font-medium text-[#191919] shadow-sm",
-                status === "paused" && "line-through opacity-35"
-              )}
-              title={
-                status === "paused"
-                  ? "Cancelled while automation is paused"
-                  : post.scheduledAt
-              }
-            >
-              {post.label}
-            </span>
-          ))
-        ) : (
-          <span className="inline-flex items-center rounded-full border border-[#eeeeee] px-2 py-1 text-[12px] font-medium text-[#191919] shadow-sm">
-            No upcoming posts
-          </span>
-        )}
-      </div>
-    </div>
-  )
 }
 
 export function automationAccountStatusItems(
@@ -740,7 +584,7 @@ function AutomationCardTitle({
             setEditing(false)
           }
         }}
-        aria-label="Automation name"
+        aria-label="Template name"
       />
     )
   }

@@ -753,7 +753,7 @@ export function CollectionsView({
                     </div>
                   ) : (
                     <p className="text-app-muted-text">
-                      No automations or templates depend on these collections.
+                      No templates or schedules depend on these collections.
                     </p>
                   )}
                 </>

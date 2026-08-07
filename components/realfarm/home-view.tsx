@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState, type ComponentType } from "react"
 import {
   IconAlertCircle,
-  IconBolt,
   IconChevronLeft,
   IconChevronRight,
   IconClock,
@@ -12,6 +11,7 @@ import {
   IconPlus,
   IconSlideshow,
   IconTrash,
+  IconTemplate,
   IconVideo,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
@@ -242,8 +242,8 @@ export function HomeView({
                 title={nextPost?.scheduledAt}
               />
               <DashboardMetric
-                icon={IconBolt}
-                label="Active automations"
+                icon={IconTemplate}
+                label="Scheduled templates"
                 value={automationsLoading ? null : activeAutomationCount}
               />
               <DashboardMetric
@@ -256,7 +256,7 @@ export function HomeView({
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             <Button variant="action" size="appDefault" onClick={onCreate}>
               <IconPlus className="size-5" />
-              New automation
+              New template
             </Button>
             <Button
               variant="softControl"
@@ -264,7 +264,7 @@ export function HomeView({
               onClick={onAutomations}
             >
               <IconPlayerPlay className="size-5" />
-              View workflows
+              View templates
             </Button>
           </div>
         </div>
@@ -348,8 +348,7 @@ export function HomeView({
           />
         ) : activeTab === "slideshows" ? (
           <div className="grid min-h-[86px] place-items-center text-[16px] font-medium text-app-muted-text">
-            No generated slideshows yet. Run a slideshow automation to create
-            one.
+            No generated slideshows yet. Generate one from a slideshow template.
           </div>
         ) : pagedVideos.length > 0 ? (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
@@ -640,8 +639,8 @@ function QuickStartTemplateCard({
               <IconPhoto className="size-3.5" />
             )}
             {automation.automationKind === "video"
-              ? "Video automation"
-              : "Slideshow automation"}
+              ? "Video template"
+              : "Slideshow template"}
           </div>
         </div>
         <Button variant="softControl" size="sm" onClick={onUse}>

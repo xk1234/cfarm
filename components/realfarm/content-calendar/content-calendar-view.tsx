@@ -325,11 +325,11 @@ export function ContentCalendarView({
             }
           />
         </FilterControlSlot>
-        <FilterControlSlot label="Automation" mobile={mobile}>
+        <FilterControlSlot label="Template" mobile={mobile}>
           <CalendarSelectFilter
-            label="Automation"
-            allLabel="All automations"
-            emptyLabel="No automations in range"
+            label="Template"
+            allLabel="All templates"
+            emptyLabel="No templates in range"
             icon={<IconSparkles className="size-4" />}
             options={automations}
             value={activeFilters.automation}
@@ -388,7 +388,7 @@ export function ContentCalendarView({
             className="h-9"
             onClick={onGoAutomations}
           >
-            <IconSparkles className="size-4" /> Automations
+            <IconSparkles className="size-4" /> Templates
           </Button>
         </div>
       </header>
@@ -1201,7 +1201,7 @@ function automationOptions(items: CalendarItem[]): CalendarFilterOption[] {
                   value: item.automationId,
                   label:
                     item.automationName?.trim() ||
-                    `Automation ${item.automationId.slice(0, 8)}`,
+                    `Template ${item.automationId.slice(0, 8)}`,
                 },
               ] as const,
             ]

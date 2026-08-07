@@ -157,7 +157,7 @@ export function AutomationOverviewPanel({
               <button
                 className="grid size-6 place-items-center rounded-full text-app-text-faint hover:bg-app-surface-subtle hover:text-app-text"
                 onClick={onStartNameEdit}
-                aria-label="Edit automation name"
+                aria-label="Edit template name"
               >
                 <LuPencil className="size-3.5" />
               </button>

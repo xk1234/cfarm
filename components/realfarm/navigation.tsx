@@ -8,7 +8,6 @@ import useSWR from "swr"
 import { useClerk } from "@clerk/nextjs"
 
 import {
-  IconBolt,
   IconBook,
   IconBrandTiktok,
   IconChartHistogram,
@@ -20,6 +19,7 @@ import {
   IconPlus,
   IconPencilPlus,
   IconSettings,
+  IconTemplate,
   IconX,
 } from "@tabler/icons-react"
 
@@ -47,8 +47,8 @@ const topNav: NavItem[] = [
   { key: "analytics", label: "Analytics", icon: IconChartHistogram },
 ]
 
-const slideshowNav: NavItem[] = [
-  { key: "automations", label: "Automations", icon: IconBolt },
+const creationNav: NavItem[] = [
+  { key: "templates", label: "Templates", icon: IconTemplate },
   { key: "collections", label: "Collections", icon: IconPhoto },
   {
     key: "published-posts",
@@ -61,13 +61,13 @@ export function Sidebar({
   data,
   view,
   onViewChange,
-  onNewAutomation,
+  onNewTemplate,
   onSettings,
 }: {
   data: RealFarmData
   view: ViewKey
   onViewChange: (view: ViewKey) => void
-  onNewAutomation: () => void
+  onNewTemplate: () => void
   onSettings: () => void
 }) {
   const { signOut } = useClerk()
@@ -99,10 +99,10 @@ export function Sidebar({
         variant="action"
         size="appDefault"
         className="mb-4 justify-start"
-        onClick={onNewAutomation}
+        onClick={onNewTemplate}
       >
         <IconPlus className="size-4" />
-        New Automation
+        New template
       </Button>
       <nav className="space-y-1">
         {topNav.map((item) => (
@@ -125,7 +125,7 @@ export function Sidebar({
         Create and ship
       </div>
       <nav className="mt-1 space-y-1">
-        {slideshowNav.map((item) => (
+        {creationNav.map((item) => (
           <SidebarButton
             key={item.label}
             item={item}
@@ -176,7 +176,7 @@ export function Sidebar({
 export function MobileNavigation({
   view,
   onViewChange,
-  onNewAutomation,
+  onNewTemplate,
   onSettings,
 }: {
   view: ViewKey
@@ -185,11 +185,11 @@ export function MobileNavigation({
    * plain link, which is what those pages need -- they have no view state.
    */
   onViewChange?: (view: ViewKey) => void
-  onNewAutomation?: () => void
+  onNewTemplate?: () => void
   onSettings?: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const items = [...topNav, ...slideshowNav]
+  const items = [...topNav, ...creationNav]
 
   // Close on route change and lock the page behind the drawer.
   useEffect(() => {
@@ -317,19 +317,19 @@ export function MobileNavigation({
               })}
             </div>
 
-            {onNewAutomation || onSettings ? (
+            {onNewTemplate || onSettings ? (
               <div className="mt-auto flex flex-col gap-2 border-t border-app-panel-border p-3">
-                {onNewAutomation ? (
+                {onNewTemplate ? (
                   <Button
                     variant="action"
                     size="appDefault"
                     onClick={() => {
                       setOpen(false)
-                      onNewAutomation()
+                      onNewTemplate()
                     }}
                   >
                     <IconPlus className="size-5" />
-                    New automation
+                    New template
                   </Button>
                 ) : null}
                 {onSettings ? (

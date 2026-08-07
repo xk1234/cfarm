@@ -59,7 +59,7 @@ const faqs = [
   ],
   [
     "Is each workspace private?",
-    "Yes. Automations, assets, runs, and generations are scoped to the signed-in Clerk user.",
+    "Yes. Templates, assets, runs, and generations are scoped to the signed-in Clerk user.",
   ],
   [
     "What should I add first?",
@@ -246,7 +246,7 @@ export default function LandingPage() {
             <article className="rounded-2xl bg-brand-surface-muted p-7 lg:col-span-5">
               <IconBolt className="size-7 text-brand-accent" />
               <h3 className="mt-20 text-3xl font-semibold tracking-[-0.04em]">
-                Automations with visible inputs.
+                Templates with visible inputs.
               </h3>
               <p className="mt-4 text-sm leading-6 text-brand-muted">
                 Choose collections, templates, and schedules. Every run saves
@@ -316,7 +316,7 @@ export default function LandingPage() {
               Your creative library belongs to your account.
             </h2>
             <p className="mt-6 max-w-[54ch] text-base leading-7 text-brand-muted">
-              Clerk authentication protects the workspace. Automations, assets,
+              Clerk authentication protects the workspace. Templates, assets,
               generations, jobs, and results are scoped to the signed-in user.
             </p>
           </div>
@@ -376,7 +376,7 @@ export default function LandingPage() {
                 <ul className="mt-8 space-y-3 text-sm">
                   {[
                     "Private source library",
-                    "Automations and saved runs",
+                    "Templates and saved runs",
                     "Creator assets and collections",
                     "Manual review gates",
                   ].map((item) => (

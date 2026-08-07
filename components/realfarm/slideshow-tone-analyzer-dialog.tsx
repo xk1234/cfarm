@@ -3,11 +3,7 @@
 import { useState } from "react"
 import { IconSparkles } from "@tabler/icons-react"
 
-import {
-  AppModal,
-  AppModalHeader,
-  AppModalPanel,
-} from "@/components/ui/modal"
+import { AppModal, AppModalHeader, AppModalPanel } from "@/components/ui/modal"
 import { Button } from "@/components/ui/button"
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import type { AutomationSchema } from "@/lib/realfarm-automation"
@@ -65,7 +61,7 @@ export function SlideshowToneAnalyzerDialog({
     try {
       await onCreate(result.suggestedFields)
     } catch (cause) {
-      setError(getApiErrorMessage(cause, "Could not create automation"))
+      setError(getApiErrorMessage(cause, "Could not create template"))
       setCreating(false)
     }
   }
@@ -76,10 +72,7 @@ export function SlideshowToneAnalyzerDialog({
         className="max-h-[90vh] max-w-4xl overflow-hidden"
         accessibleTitle="Match a TikTok slideshow"
       >
-        <AppModalHeader
-          title="Match a TikTok slideshow"
-          onClose={onClose}
-        />
+        <AppModalHeader title="Match a TikTok slideshow" onClose={onClose} />
         <div className="max-h-[calc(90vh-5rem)] overflow-y-auto p-5">
           <div className="flex flex-col gap-3 sm:flex-row">
             <label className="app-field-label flex-1">
@@ -108,7 +101,7 @@ export function SlideshowToneAnalyzerDialog({
             <p className="mt-3 text-sm font-medium text-app-danger">{error}</p>
           ) : null}
           {result?.warning ? (
-            <p className="mt-3 rounded-control border border-app-panel-border bg-app-control px-3 py-2 text-sm text-app-muted-text">
+            <p className="bg-app-control mt-3 rounded-control border border-app-panel-border px-3 py-2 text-sm text-app-muted-text">
               {result.warning}
             </p>
           ) : null}
@@ -176,7 +169,7 @@ export function SlideshowToneAnalyzerDialog({
                   disabled={creating}
                   onClick={() => void createAutomation()}
                 >
-                  {creating ? "Creating…" : "Create matching automation"}
+                  {creating ? "Creating…" : "Create matching template"}
                 </Button>
               </section>
             </div>

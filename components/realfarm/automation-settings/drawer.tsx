@@ -122,7 +122,7 @@ export function AutomationSettingsDrawer({
   const [videoExports, setVideoExports, videoExportsLoading] =
     useAutomationGeneratedVideoExports(
       automation.id,
-      "Failed to load generated automation videos"
+      "Failed to load generated template videos"
     )
 
   useEffect(() => {
@@ -175,10 +175,7 @@ export function AutomationSettingsDrawer({
           if (latestDraftConfigJsonRef.current === effectiveDraftConfigJson) {
             setSavingConfig(false)
             toast.error(
-              getApiErrorMessage(
-                error,
-                "Failed to autosave automation settings"
-              )
+              getApiErrorMessage(error, "Failed to autosave template settings")
             )
           }
         })
@@ -417,14 +414,14 @@ export function AutomationSettingsDrawer({
         const message =
           run?.error ||
           (payload.skipped?.some((item) => item.reason === "hooks_exhausted")
-            ? "No unused hook combinations remain for this automation."
+            ? "No unused hook combinations remain for this template."
             : payload.skipped?.some(
                   (item) => item.reason === "insufficient_unique_images"
                 )
               ? "There are not enough distinct slide-and-image combinations to generate this slideshow."
               : payload.skipped?.some((item) => item.reason === "no_images")
                 ? "Choose an image collection with at least one image before generating."
-                : "No slideshow slides were generated for this automation.")
+                : "No slideshow slides were generated for this template.")
         settleGeneration(run)
         showGenerationError(message)
         return
@@ -464,7 +461,7 @@ export function AutomationSettingsDrawer({
     } catch (error) {
       setSavingConfig(false)
       toast.error(
-        getApiErrorMessage(error, "Failed to autosave automation settings")
+        getApiErrorMessage(error, "Failed to autosave template settings")
       )
     }
   }
@@ -623,7 +620,7 @@ export function AutomationSettingsDrawer({
                 type="button"
                 className="flex shrink-0 items-center gap-2 text-[13px] font-semibold text-[#5d5c56]"
                 onClick={() => void closeAfterAutosave()}
-                aria-label="Back to automations"
+                aria-label="Back to templates"
               >
                 <IconChevronLeft className="size-4" />
                 Back
@@ -643,7 +640,7 @@ export function AutomationSettingsDrawer({
             <button
               className="absolute top-4 right-4 z-10 hidden h-8 items-center gap-1 rounded-[6px] px-2 text-[12px] font-semibold text-app-text-soft hover:bg-app-surface-subtle hover:text-app-text md:inline-flex"
               onClick={() => void closeAfterAutosave()}
-              aria-label="Back to automations"
+              aria-label="Back to templates"
             >
               <IconChevronLeft className="size-4" />
               Back
@@ -740,7 +737,7 @@ export function AutomationSettingsDrawer({
         <div className="fixed inset-0 z-[70] md:hidden">
           <button
             type="button"
-            aria-label="Close automation menu"
+            aria-label="Close template menu"
             className="absolute inset-0 bg-black/35"
             onClick={() => setNavOpen(false)}
           />
@@ -748,7 +745,7 @@ export function AutomationSettingsDrawer({
             id="automation-settings-nav"
             role="dialog"
             aria-modal="true"
-            aria-label="Automation sections"
+            aria-label="Template sections"
             className="absolute inset-x-0 bottom-0 flex max-h-[85dvh] flex-col overflow-y-auto rounded-t-[18px] bg-app-surface-subtle p-3 shadow-[0_-16px_40px_rgba(25,18,45,0.18)]"
           >
             <div className="mb-2 flex items-center justify-between">
@@ -757,7 +754,7 @@ export function AutomationSettingsDrawer({
               </span>
               <button
                 type="button"
-                aria-label="Close automation menu"
+                aria-label="Close template menu"
                 className="lc-focus-ring flex size-10 items-center justify-center rounded-[10px] text-app-text active:bg-app-control-hover"
                 onClick={() => setNavOpen(false)}
               >
@@ -791,7 +788,7 @@ async function persistDraftConfig(
   automationId: string,
   schema: AutomationSchema
 ) {
-  await fetchJsonWithTimeout("/api/automations", {
+  await fetchJsonWithTimeout("/api/templates", {
     method: "PATCH",
     timeoutMs: 30_000,
     toastOnError: false,
