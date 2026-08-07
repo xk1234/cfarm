@@ -171,6 +171,24 @@ export function postMetricSeries(
     }))
 }
 
+export function postExposureSeries(snapshots: PostFastMetricSnapshot[]) {
+  const latestByPostAndDay = latestSnapshotsPerPostDay(snapshots)
+  const byDay = new Map<string, number[]>()
+  for (const snapshot of latestByPostAndDay.values()) {
+    const value = postExposure(snapshot)?.value
+    if (value === undefined) continue
+    const day = snapshot.capturedAt.slice(0, 10)
+    byDay.set(day, [...(byDay.get(day) ?? []), value])
+  }
+  return [...byDay]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, values]) => ({
+      date,
+      label: DateTime.fromISO(date).toFormat("LLL d"),
+      value: values.reduce((sum, value) => sum + value, 0),
+    }))
+}
+
 export function audienceSeries(
   snapshots: AccountFollowerSnapshot[],
   integrationIds: string[]
@@ -302,6 +320,21 @@ export function metricAggregate(
   metric: CanonicalMetric
 ) {
   return sumDefined(posts.map((post) => post.metrics[metric]))
+}
+
+export function postExposureAggregate(posts: PostFastMetricSnapshot[]) {
+  return sumDefined(posts.map((post) => postExposure(post)?.value))
+}
+
+export function postExposureLabel(posts: PostFastMetricSnapshot[]) {
+  const metrics = new Set(
+    posts.flatMap((post) => postExposure(post)?.metric ?? [])
+  )
+  if (metrics.size === 1) {
+    const metric = [...metrics][0]
+    return `Total ${metric}`
+  }
+  return "Total exposure"
 }
 
 export function weightedEngagementRate(posts: PostFastMetricSnapshot[]) {
@@ -516,6 +549,17 @@ export function postCoverageLabel(
   return `${count} of ${posts.length} posts report this metric`
 }
 
+export function postExposureCoverageLabel(posts: LatestPost[]) {
+  const exposures = posts.map(postExposure)
+  const count = exposures.filter(Boolean).length
+  const metrics = new Set(
+    exposures.flatMap((exposure) => exposure?.metric ?? [])
+  )
+  const metricLabel =
+    metrics.size === 1 ? [...metrics][0] : "views or impressions"
+  return `${count} of ${posts.length} posts report ${metricLabel}`
+}
+
 export function accountCoverageLabel(ids: string[], total: number) {
   return `${new Set(ids).size} of ${total} accounts report followers`
 }
@@ -525,6 +569,18 @@ export function sumDefined(values: Array<number | undefined>) {
   return defined.length
     ? defined.reduce((sum, value) => sum + value, 0)
     : undefined
+}
+
+function postExposure(post: PostFastMetricSnapshot) {
+  const provider = post.provider.trim().toLowerCase()
+  const order: Array<"views" | "impressions" | "reach"> = [
+    ...(provider.startsWith("tiktok") || provider === "youtube"
+      ? (["views", "impressions"] as const)
+      : (["impressions", "views"] as const)),
+    "reach",
+  ]
+  const metric = order.find((key) => post.metrics[key] !== undefined)
+  return metric ? { metric, value: post.metrics[metric]! } : undefined
 }
 
 export function postTimestamp(post: LatestPost) {
