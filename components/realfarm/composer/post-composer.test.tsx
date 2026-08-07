@@ -88,6 +88,9 @@ describe("PostComposer", () => {
     expect(markup).toContain(">X<")
     expect(markup).toContain(">Instagram<")
     expect(markup).toContain(">LinkedIn<")
+    expect(markup).toContain('aria-label="Post preview and settings"')
+    expect(markup).toContain(">Preview<")
+    expect(markup).toContain(">Settings<")
   })
 
   it("keeps source material read-only and removes arbitrary media inputs", () => {

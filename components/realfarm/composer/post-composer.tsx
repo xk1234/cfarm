@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import { IconChevronDown, IconRefresh, IconSparkles } from "@tabler/icons-react"
 import { Accordion, Tabs } from "radix-ui"
 
@@ -26,6 +26,8 @@ export type { ComposerValue, ConnectedComposerAccount } from "./composer-types"
 
 export function PostComposer({
   accounts,
+  editorFooter,
+  editorHeader,
   onChange,
   onRepurpose,
   repurposing,
@@ -33,6 +35,8 @@ export function PostComposer({
   value,
 }: {
   accounts: readonly ConnectedComposerAccount[]
+  editorFooter?: ReactNode
+  editorHeader?: ReactNode
   onChange: (value: ComposerValue) => void
   onRepurpose: () => void
   repurposing: boolean
@@ -71,31 +75,14 @@ export function PostComposer({
   return (
     <section
       aria-label="Post composer"
-      className="grid min-h-[620px] overflow-hidden rounded-app-panel border border-app-panel-border bg-app-surface shadow-app-card xl:grid-cols-[minmax(0,1fr)_420px]"
+      className="grid items-stretch gap-4 xl:grid-cols-2"
     >
-      <div className="min-w-0 bg-app-surface-subtle p-4 sm:p-6 xl:border-r xl:border-app-panel-border">
-        <div className="mx-auto max-w-[680px]">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-heading font-semibold text-app-text">
-              {provider.name} preview
-            </h2>
-            <span className="rounded-full bg-app-control-bg px-3 py-1 text-caption font-semibold text-app-muted-text">
-              {sources.length} source{sources.length === 1 ? "" : "s"}
-            </span>
+      <div className="flex min-h-[680px] min-w-0 flex-col overflow-hidden rounded-app-panel border border-app-panel-border bg-app-surface shadow-app-card">
+        {editorHeader ? (
+          <div className="border-b border-app-panel-border p-4 sm:p-5">
+            {editorHeader}
           </div>
-          <PlatformPreview
-            accountName={activeAccount.accountName}
-            avatarUrl={activeAccount.avatarUrl}
-            fields={network.fields}
-            handle={activeAccount.handle}
-            media={value.base.media}
-            platformKey={activeAccount.platformKey}
-            text={effectiveText}
-          />
-        </div>
-      </div>
-
-      <aside className="flex min-h-0 min-w-0 flex-col bg-app-surface">
+        ) : null}
         <Tabs.Root
           className="flex min-h-0 flex-1 flex-col"
           onValueChange={setActiveKey}
@@ -169,91 +156,162 @@ export function PostComposer({
               </div>
             </div>
 
-            <label className="block">
-              <span className="sr-only">{provider.name} post text</span>
-              <textarea
-                aria-describedby={`character-count-${activeAccount.platformKey}`}
-                aria-invalid={overLimit}
-                aria-label={`${provider.name} post text`}
-                className={cn(
-                  "lc-focus-ring min-h-56 w-full resize-y border-0 bg-transparent p-0 text-[15px] leading-6 text-app-text outline-none placeholder:text-app-text-faint",
-                  overLimit && "text-app-danger"
-                )}
-                onChange={(event) =>
-                  updateNetwork({
-                    useTextOverride: true,
-                    text: event.target.value,
-                  })
-                }
-                value={effectiveText}
-              />
-            </label>
+            {sources.length > 0 ? (
+              <>
+                <label className="block">
+                  <span className="sr-only">{provider.name} post text</span>
+                  <textarea
+                    aria-describedby={`character-count-${activeAccount.platformKey}`}
+                    aria-invalid={overLimit}
+                    aria-label={`${provider.name} post text`}
+                    className={cn(
+                      "lc-focus-ring min-h-64 w-full resize-y border-0 bg-transparent p-0 text-[15px] leading-6 text-app-text outline-none placeholder:text-app-text-faint",
+                      overLimit && "text-app-danger"
+                    )}
+                    onChange={(event) =>
+                      updateNetwork({
+                        useTextOverride: true,
+                        text: event.target.value,
+                      })
+                    }
+                    value={effectiveText}
+                  />
+                </label>
 
-            <div className="mt-3 flex items-center justify-between gap-3 border-t border-app-panel-border pt-3">
-              <span
-                className={cn(
-                  "text-caption font-semibold tabular-nums",
-                  overLimit ? "text-app-danger" : "text-app-muted-text"
-                )}
-                id={`character-count-${activeAccount.platformKey}`}
-                role={overLimit ? "alert" : undefined}
-              >
-                {textCount.toLocaleString()} /{" "}
-                {provider.limits.maxTextLength.toLocaleString()}
-                {overLimit
-                  ? ` — ${textCount - provider.limits.maxTextLength} over limit`
-                  : ""}
-              </span>
-              <Button
-                disabled={repurposing}
-                onClick={onRepurpose}
-                size="appDefault"
-                type="button"
-                variant="softControl"
-              >
-                {repurposing ? (
-                  <IconRefresh className="animate-spin" />
-                ) : (
-                  <IconSparkles />
-                )}
-                Repurpose
-              </Button>
-            </div>
+                <div className="mt-auto flex items-center justify-between gap-3 border-t border-app-panel-border pt-3">
+                  <span
+                    className={cn(
+                      "text-caption font-semibold tabular-nums",
+                      overLimit ? "text-app-danger" : "text-app-muted-text"
+                    )}
+                    id={`character-count-${activeAccount.platformKey}`}
+                    role={overLimit ? "alert" : undefined}
+                  >
+                    {textCount.toLocaleString()} /{" "}
+                    {provider.limits.maxTextLength.toLocaleString()}
+                    {overLimit
+                      ? ` — ${textCount - provider.limits.maxTextLength} over limit`
+                      : ""}
+                  </span>
+                  <Button
+                    disabled={repurposing}
+                    onClick={onRepurpose}
+                    size="appDefault"
+                    type="button"
+                    variant="softControl"
+                  >
+                    {repurposing ? (
+                      <IconRefresh className="animate-spin" />
+                    ) : (
+                      <IconSparkles />
+                    )}
+                    Repurpose
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="grid flex-1 place-items-center py-16 text-center">
+                <p className="text-label font-semibold text-app-muted-text">
+                  Choose a template output to start
+                </p>
+              </div>
+            )}
+          </Tabs.Content>
+        </Tabs.Root>
+        {editorFooter ? (
+          <div className="border-t border-app-panel-border p-4 sm:p-5">
+            {editorFooter}
+          </div>
+        ) : null}
+      </div>
 
-            <Accordion.Root
-              className="mt-5 border-t border-app-panel-border"
-              collapsible
-              type="single"
+      <aside className="flex min-h-[680px] min-w-0 flex-col overflow-hidden rounded-app-panel border border-app-panel-border bg-app-surface shadow-app-card">
+        <Tabs.Root
+          className="flex min-h-0 flex-1 flex-col"
+          defaultValue="preview"
+        >
+          <Tabs.List
+            aria-label="Post preview and settings"
+            className="grid grid-cols-2 border-b border-app-panel-border px-4 pt-3 sm:px-5"
+          >
+            <Tabs.Trigger
+              className="lc-focus-ring -mb-px border-b-2 border-transparent px-4 py-3 text-label font-semibold text-app-muted-text transition-colors data-[state=active]:border-brand-accent data-[state=active]:text-brand-accent"
+              value="preview"
             >
+              Preview
+            </Tabs.Trigger>
+            <Tabs.Trigger
+              className="lc-focus-ring -mb-px border-b-2 border-transparent px-4 py-3 text-label font-semibold text-app-muted-text transition-colors data-[state=active]:border-brand-accent data-[state=active]:text-brand-accent"
+              value="settings"
+            >
+              Settings
+            </Tabs.Trigger>
+          </Tabs.List>
+
+          <Tabs.Content
+            className="min-h-0 flex-1 bg-app-surface-subtle p-4 sm:p-6"
+            value="preview"
+          >
+            {sources.length > 0 ? (
+              <div className="mx-auto max-w-[680px]">
+                <PlatformPreview
+                  accountName={activeAccount.accountName}
+                  avatarUrl={activeAccount.avatarUrl}
+                  fields={network.fields}
+                  handle={activeAccount.handle}
+                  media={value.base.media}
+                  platformKey={activeAccount.platformKey}
+                  text={effectiveText}
+                />
+              </div>
+            ) : (
+              <div className="grid min-h-[560px] place-items-center text-center">
+                <p className="text-label font-semibold text-app-muted-text">
+                  Preview appears after you choose an output
+                </p>
+              </div>
+            )}
+          </Tabs.Content>
+
+          <Tabs.Content
+            className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6"
+            forceMount
+            value="settings"
+          >
+            <Accordion.Root type="multiple">
               <Accordion.Item value="source">
                 <Accordion.Header>
-                  <Accordion.Trigger className="group lc-focus-ring flex w-full items-center justify-between py-4 text-left text-label font-semibold text-app-text">
+                  <Accordion.Trigger className="group lc-focus-ring flex w-full items-center justify-between py-3 text-left text-label font-semibold text-app-text">
                     Source material
                     <IconChevronDown className="size-4 text-app-muted-text transition-transform group-data-[state=open]:rotate-180" />
                   </Accordion.Trigger>
                 </Accordion.Header>
                 <Accordion.Content className="pb-4 text-caption text-app-muted-text">
-                  <div className="max-h-48 space-y-3 overflow-y-auto rounded-app-control bg-app-surface-subtle p-3">
-                    {sources.map((source) => (
-                      <div key={source.id}>
-                        <p className="font-semibold text-app-text">
-                          {source.title}
-                        </p>
-                        <p className="mt-1 whitespace-pre-wrap">
-                          {source.text}
-                        </p>
-                      </div>
-                    ))}
+                  <div className="max-h-64 space-y-4 overflow-y-auto border-l border-app-panel-border pl-4">
+                    {sources.length > 0 ? (
+                      sources.map((source) => (
+                        <div key={source.id}>
+                          <p className="font-semibold text-app-text">
+                            {source.title}
+                          </p>
+                          <p className="mt-1 whitespace-pre-wrap">
+                            {source.text}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <p>No source selected</p>
+                    )}
                   </div>
                 </Accordion.Content>
               </Accordion.Item>
               <Accordion.Item
                 className="border-t border-app-panel-border"
-                value="settings"
+                value="platform"
               >
                 <Accordion.Header>
-                  <Accordion.Trigger className="group lc-focus-ring flex w-full items-center justify-between py-4 text-left text-label font-semibold text-app-text">
-                    Advanced settings
+                  <Accordion.Trigger className="group lc-focus-ring flex w-full items-center justify-between py-3 text-left text-label font-semibold text-app-text">
+                    Platform settings
                     <IconChevronDown className="size-4 text-app-muted-text transition-transform group-data-[state=open]:rotate-180" />
                   </Accordion.Trigger>
                 </Accordion.Header>

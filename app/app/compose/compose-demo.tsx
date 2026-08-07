@@ -232,39 +232,10 @@ export function ComposeDemo({
 
   return (
     <div className="mx-auto max-w-[1440px]">
-      <header className="mb-5 flex min-h-11 items-center justify-between gap-4">
+      <header className="mb-5 flex min-h-11 items-center">
         <h1 className="text-metric font-semibold tracking-tight text-app-text">
           Compose
         </h1>
-        {accounts.length > 0 ? (
-          <div className="flex min-w-0 items-center justify-end gap-2 overflow-x-auto">
-            <label className="flex min-w-0 shrink-0 items-center gap-2">
-              <IconCalendarEvent className="size-4 shrink-0 text-app-muted-text" />
-              <span className="sr-only">Schedule date and time</span>
-              <input
-                className="lc-focus-ring h-10 w-40 min-w-0 rounded-app-control border border-app-panel-border bg-app-surface px-3 text-label text-app-text sm:w-auto"
-                min={localDateTimeMinimum()}
-                onChange={(event) => setScheduledAt(event.target.value)}
-                type="datetime-local"
-                value={scheduledAt}
-              />
-            </label>
-            <Button
-              disabled={!canPublish}
-              onClick={() => void publish("schedule")}
-              variant="softControl"
-            >
-              Schedule
-            </Button>
-            <Button
-              disabled={!canPublish}
-              onClick={() => void publish("now")}
-              variant="action"
-            >
-              Post now
-            </Button>
-          </div>
-        ) : null}
       </header>
 
       {accounts.length === 0 ? (
@@ -279,101 +250,120 @@ export function ComposeDemo({
           </div>
         </section>
       ) : (
-        <>
-          <section className="mb-4 rounded-app-panel border border-app-panel-border bg-app-surface p-4 shadow-app-card">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-heading font-semibold text-app-text">
-                Template outputs
-              </h2>
-              <Button
-                onClick={onOpenTemplates}
-                size="appDefault"
-                variant="ghost"
-              >
-                Open templates
-              </Button>
-            </div>
-            {sourceOutputs.length > 0 ? (
-              <div className="flex gap-3 overflow-x-auto pb-1">
-                {sourceOutputs.map((source) => (
-                  <SourceOutputCard
-                    key={source.id}
-                    onClick={() => toggleSource(source)}
-                    selected={value.sourceOutputIds.includes(source.id)}
-                    source={source}
-                  />
-                ))}
+        <PostComposer
+          accounts={selectedAccounts.length > 0 ? selectedAccounts : accounts}
+          editorFooter={
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <label className="flex min-w-0 items-center gap-2">
+                <IconCalendarEvent className="size-4 shrink-0 text-app-muted-text" />
+                <span className="sr-only">Schedule date and time</span>
+                <input
+                  className="lc-focus-ring h-10 min-w-0 flex-1 rounded-app-control border border-app-panel-border bg-app-surface px-3 text-label text-app-text sm:w-auto sm:flex-none"
+                  min={localDateTimeMinimum()}
+                  onChange={(event) => setScheduledAt(event.target.value)}
+                  type="datetime-local"
+                  value={scheduledAt}
+                />
+              </label>
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  disabled={!canPublish}
+                  onClick={() => void publish("schedule")}
+                  variant="softControl"
+                >
+                  Schedule
+                </Button>
+                <Button
+                  disabled={!canPublish}
+                  onClick={() => void publish("now")}
+                  variant="action"
+                >
+                  Post now
+                </Button>
               </div>
-            ) : (
-              <div className="grid min-h-28 place-items-center rounded-app-control bg-app-surface-subtle p-5 text-center">
-                <div>
-                  <p className="text-label font-semibold text-app-text">
-                    No generated outputs yet
-                  </p>
+            </div>
+          }
+          editorHeader={
+            <div className="space-y-4">
+              <div>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h2 className="text-heading font-semibold text-app-text">
+                    Template outputs
+                  </h2>
                   <Button
-                    className="mt-3"
                     onClick={onOpenTemplates}
-                    variant="action"
+                    size="appDefault"
+                    variant="ghost"
                   >
-                    Generate from a template
+                    Open templates
                   </Button>
                 </div>
+                {sourceOutputs.length > 0 ? (
+                  <div className="flex gap-3 overflow-x-auto pb-1">
+                    {sourceOutputs.map((source) => (
+                      <SourceOutputCard
+                        key={source.id}
+                        onClick={() => toggleSource(source)}
+                        selected={value.sourceOutputIds.includes(source.id)}
+                        source={source}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid min-h-24 place-items-center bg-app-surface-subtle p-4 text-center">
+                    <div>
+                      <p className="text-label font-semibold text-app-text">
+                        No generated outputs yet
+                      </p>
+                      <Button
+                        className="mt-3"
+                        onClick={onOpenTemplates}
+                        variant="action"
+                      >
+                        Generate from a template
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </section>
 
-          <div
-            className="mb-4 flex items-center gap-2 overflow-x-auto"
-            aria-label="Publish accounts"
-          >
-            {accounts.map((account) => {
-              const selected = selectedIds.has(account.integrationId)
-              return (
-                <button
-                  aria-pressed={selected}
-                  className={cn(
-                    "lc-focus-ring flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-caption font-semibold transition",
-                    selected
-                      ? "border-brand-accent bg-brand-accent-soft text-brand-accent"
-                      : "border-app-panel-border bg-app-surface text-app-muted-text"
-                  )}
-                  key={account.integrationId}
-                  onClick={() => toggleAccount(account.integrationId)}
-                  type="button"
-                >
-                  <SocialPlatformIcon
-                    className="size-4"
-                    provider={account.platformKey}
-                  />
-                  {account.accountName}
-                  {selected ? <IconCheck className="size-3.5" /> : null}
-                </button>
-              )
-            })}
-          </div>
-
-          {selectedSources.length > 0 ? (
-            <PostComposer
-              accounts={
-                selectedAccounts.length > 0 ? selectedAccounts : accounts
-              }
-              onChange={setValue}
-              onRepurpose={() => void repurpose()}
-              repurposing={repurposing}
-              sources={selectedSources}
-              value={value}
-            />
-          ) : (
-            <section className="grid min-h-[420px] place-items-center rounded-app-panel border border-dashed border-app-panel-border bg-app-surface p-8 text-center">
-              <div className="max-w-sm">
-                <IconFileText className="mx-auto size-7 text-app-muted-text" />
-                <h2 className="mt-3 text-heading font-semibold text-app-text">
-                  Choose a template output
-                </h2>
+              <div
+                aria-label="Publish accounts"
+                className="flex items-center gap-2 overflow-x-auto border-t border-app-panel-border pt-4"
+              >
+                {accounts.map((account) => {
+                  const selected = selectedIds.has(account.integrationId)
+                  return (
+                    <button
+                      aria-pressed={selected}
+                      className={cn(
+                        "lc-focus-ring flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-caption font-semibold transition",
+                        selected
+                          ? "border-brand-accent bg-brand-accent-soft text-brand-accent"
+                          : "border-app-panel-border bg-app-surface text-app-muted-text"
+                      )}
+                      key={account.integrationId}
+                      onClick={() => toggleAccount(account.integrationId)}
+                      type="button"
+                    >
+                      <SocialPlatformIcon
+                        className="size-4"
+                        provider={account.platformKey}
+                      />
+                      {account.accountName}
+                      {selected ? <IconCheck className="size-3.5" /> : null}
+                    </button>
+                  )
+                })}
               </div>
-            </section>
-          )}
-        </>
+            </div>
+          }
+          onChange={setValue}
+          onRepurpose={() => void repurpose()}
+          repurposing={repurposing}
+          sources={selectedSources}
+          value={value}
+        />
       )}
     </div>
   )
@@ -394,7 +384,7 @@ function SourceOutputCard({
       aria-pressed={selected}
       className={cn(
         "lc-focus-ring group relative shrink-0 overflow-hidden rounded-app-control border text-left transition",
-        isVisual ? "w-28" : "w-52",
+        isVisual ? "w-20" : "w-44",
         selected
           ? "border-brand-accent ring-2 ring-brand-accent/20"
           : "border-app-panel-border hover:border-app-text-faint"
