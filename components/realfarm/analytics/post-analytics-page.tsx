@@ -17,13 +17,9 @@ import {
   IconArrowLeft,
   IconBrandTiktok,
   IconExternalLink,
-  IconLoader2,
-  IconMessageCircle,
   IconPhoto,
-  IconRefresh,
   IconVideo,
 } from "@tabler/icons-react"
-import { toast } from "sonner"
 
 import {
   AccountProfileIcon,
@@ -33,8 +29,8 @@ import {
   SlideshowViewer,
   type SlideshowViewerSlide,
 } from "@/components/realfarm/slideshow-viewer-modal"
-import { Button } from "@/components/ui/button"
-import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
+import { analyticsNeedsRefresh } from "@/lib/analytics-auto-refresh"
+import { fetchJsonWithTimeout } from "@/lib/client-api"
 import {
   canonicalMetricOrder,
   metricLabel,
@@ -46,12 +42,7 @@ import {
 } from "@/lib/post-content-type"
 import type { SocialIntegration } from "@/lib/social/provider-contract"
 import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
-import {
-  collectTikTokCommentsForPublication,
-  TIKTOK_PLATFORM_POST_ID_REQUIRED,
-} from "@/lib/tiktok-comment-collection-client"
 import { cn } from "@/lib/utils"
-import { TikTokStudioImportDialog } from "./tiktok-studio-import-dialog"
 
 export type AnalyticsSlide = {
   index: number
@@ -64,14 +55,12 @@ export function PostAnalyticsPage({
   contentType,
   publicationPlatformPostId,
   slides = [],
-  autoCollectComments = false,
 }: {
   snapshots: PostFastMetricSnapshot[]
   integration: SocialIntegration
   contentType: PostContentType
   publicationPlatformPostId?: string
   slides?: AnalyticsSlide[]
-  autoCollectComments?: boolean
 }) {
   const router = useRouter()
   const ordered = useMemo(
@@ -85,14 +74,7 @@ export function PostAnalyticsPage({
   const latest = ordered.at(-1)!
   const metrics = availableMetrics(ordered)
   const [metric, setMetric] = useState<CanonicalMetric>(defaultMetric(metrics))
-  const [syncing, setSyncing] = useState(false)
-  const [collectingComments, setCollectingComments] =
-    useState(autoCollectComments)
-  const [companionStatus, setCompanionStatus] = useState<
-    "" | "connecting" | "connected" | "error"
-  >(autoCollectComments ? "connecting" : "")
-  const autoCollectionStarted = useRef(false)
-  const [studioImportOpen, setStudioImportOpen] = useState(false)
+  const autoSyncAttempted = useRef(false)
   const [activeSlideshowSlide, setActiveSlideshowSlide] = useState(0)
   const viewerSlides = useMemo(
     () =>
@@ -116,157 +98,49 @@ export function PostAnalyticsPage({
     .reverse()
     .find((snapshot) => snapshot.tiktokStudio)
   const studio = studioSnapshot?.tiktokStudio
-  const isTikTok = latest.provider.toLowerCase().startsWith("tiktok")
   const platformPostId =
     publicationPlatformPostId?.trim() ||
     [...ordered].reverse().find((snapshot) => snapshot.platformPostId?.trim())
       ?.platformPostId
 
-  async function sync() {
-    setSyncing(true)
-    try {
-      await fetchJsonWithTimeout("/api/analytics/report", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          days: 90,
-          integrationIds: [integration.integration_id],
-        }),
-        timeoutMs: 120_000,
-      })
-      router.refresh()
-    } finally {
-      setSyncing(false)
-    }
-  }
-
-  async function collectComments() {
-    setCollectingComments(true)
-    try {
-      await collectTikTokCommentsForPublication({
-        id: latest.postId,
-        platformPostId,
-      })
-      toast.success("Comment collection sent to the TikTok extension")
-    } catch (error) {
-      toast.error(
-        getApiErrorMessage(error, "TikTok comments could not be collected")
-      )
-    } finally {
-      setCollectingComments(false)
-    }
-  }
-
   useEffect(() => {
     if (
-      !autoCollectComments ||
-      autoCollectionStarted.current ||
-      !isTikTok ||
-      !platformPostId
+      autoSyncAttempted.current ||
+      !analyticsNeedsRefresh({
+        integrationIds: [integration.integration_id],
+        snapshots: ordered,
+      })
     ) {
       return
     }
-    autoCollectionStarted.current = true
-    void collectTikTokCommentsForPublication({
-      id: latest.postId,
-      platformPostId,
+    autoSyncAttempted.current = true
+    void fetchJsonWithTimeout("/api/analytics/report", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        days: 90,
+        integrationIds: [integration.integration_id],
+      }),
+      timeoutMs: 120_000,
+      toastOnError: false,
     })
-      .then(() => {
-        toast.success("Comment collection sent to the TikTok extension")
-        setCompanionStatus("connected")
+      .then(() => router.refresh())
+      .catch(() => {
+        // Stored metrics remain usable when PostFast is temporarily unavailable.
       })
-      .catch((error) => {
-        toast.error(
-          getApiErrorMessage(error, "TikTok comments could not be collected")
-        )
-        setCompanionStatus("error")
-      })
-      .finally(() => {
-        setCollectingComments(false)
-        router.replace(
-          `/app/analytics/posts/${encodeURIComponent(latest.postId)}`
-        )
-      })
-  }, [autoCollectComments, isTikTok, latest.postId, platformPostId, router])
+  }, [integration.integration_id, ordered, router])
 
   return (
     <main className="min-h-screen bg-[#f8f7fb] px-4 py-6 sm:px-7 lg:px-10 lg:py-9">
       <div className="mx-auto max-w-[1380px]">
-        <header className="flex flex-wrap items-center justify-between gap-4">
+        <header>
           <Link
             href="/app?view=analytics"
             className="lc-focus-ring inline-flex items-center gap-2 rounded-[9px] px-2 py-1.5 text-[12px] font-semibold text-app-muted-text transition hover:bg-app-control-hover hover:text-app-text"
           >
             <IconArrowLeft className="size-4" /> Analytics
           </Link>
-          <div className="flex flex-wrap items-center gap-2">
-            {isTikTok ? (
-              <>
-                <Button
-                  variant="softControl"
-                  size="compact"
-                  onClick={() => setStudioImportOpen(true)}
-                >
-                  <IconBrandTiktok className="size-4" />
-                  Import from TikTok Studio
-                </Button>
-                {platformPostId ? (
-                  <Button
-                    variant="softControl"
-                    size="compact"
-                    onClick={() => void collectComments()}
-                    disabled={collectingComments}
-                  >
-                    {collectingComments ? (
-                      <IconLoader2 className="size-4 animate-spin" />
-                    ) : (
-                      <IconMessageCircle className="size-4" />
-                    )}
-                    Collect in extension
-                  </Button>
-                ) : (
-                  <span
-                    role="alert"
-                    className="max-w-sm text-caption font-medium text-app-danger"
-                  >
-                    {TIKTOK_PLATFORM_POST_ID_REQUIRED}
-                  </span>
-                )}
-              </>
-            ) : null}
-            <Button
-              variant="softControl"
-              size="compact"
-              onClick={() => void sync()}
-              disabled={syncing}
-            >
-              <IconRefresh
-                className={cn("size-4", syncing && "animate-spin")}
-              />
-              Sync this account
-            </Button>
-          </div>
         </header>
-
-        {companionStatus ? (
-          <div
-            role="status"
-            className={cn(
-              "mt-5 rounded-[10px] border px-4 py-3 text-[12px] leading-5 font-semibold",
-              companionStatus === "error"
-                ? "border-app-danger/25 bg-app-danger-surface text-app-danger"
-                : companionStatus === "connected"
-                  ? "border-app-success/25 bg-app-success-surface text-app-success"
-                  : "border-app-panel-border bg-app-surface text-app-muted-text"
-            )}
-          >
-            {companionStatus === "connecting"
-              ? "Connecting this video to the Chrome companion and starting comment capture…"
-              : companionStatus === "connected"
-                ? "This video is connected. Keep TikTok open while the companion captures its comments."
-                : "The Chrome companion could not be reached. Reload or reinstall the extension, then try Collect in extension."}
-          </div>
-        ) : null}
 
         <section className="mt-6 rounded-[20px] border border-app-panel-border bg-app-surface p-5 shadow-[0_18px_55px_rgba(35,24,67,0.06)] lg:p-7">
           {hasSlideshowViewer ? (
@@ -451,8 +325,8 @@ export function PostAnalyticsPage({
               </ResponsiveContainer>
             ) : (
               <div className="grid h-full place-items-center rounded-[12px] bg-app-surface-subtle px-6 text-center text-[12px] font-medium text-app-text-faint">
-                Sync analytics again later to build this post’s performance
-                curve.
+                More points will appear after the next automatic PostFast
+                refresh.
               </div>
             )}
           </div>
@@ -519,16 +393,6 @@ export function PostAnalyticsPage({
           </aside>
         </div>
       </div>
-      {studioImportOpen ? (
-        <TikTokStudioImportDialog
-          postId={latest.postId}
-          onClose={() => setStudioImportOpen(false)}
-          onLinked={() => {
-            router.refresh()
-            setStudioImportOpen(false)
-          }}
-        />
-      ) : null}
     </main>
   )
 }
@@ -956,7 +820,7 @@ function formatMeasurementNote(type: PostContentType, hasStudio = false) {
   if (type === "slideshow") {
     return hasStudio
       ? "Post totals come from the latest provider capture. Per-slide retention and like distribution come from the linked TikTok Studio snapshot."
-      : "PostFast exposes only post-level slideshow totals. Import the linked post from TikTok Studio to add per-slide retention and like distribution."
+      : "PostFast exposes only post-level slideshow totals. The TikTok companion adds per-slide retention and like distribution when it captures this post in Studio."
   }
   if (type === "video") {
     return "Video watch-time and completion fields appear only when the connected platform returns them; availability varies by provider and post age."

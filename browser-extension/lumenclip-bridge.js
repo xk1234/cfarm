@@ -15,9 +15,6 @@ window.addEventListener("message", (event) => {
     discoverStudio(event.data)
     return
   }
-  if (event.data?.type === "LUMENCLIP_TIKTOK_COMMENTS_CONNECT") {
-    connectComments(event.data)
-  }
 })
 
 function connectStudio(data) {
@@ -74,44 +71,6 @@ function discoverStudio(data) {
       Boolean(result?.ok),
       error,
       { posts: result?.posts }
-    )
-  })
-}
-
-function connectComments(data) {
-  const requestId = data.requestId
-  const config = data.config
-  const endpoint = parseEndpoint(config?.endpoint)
-  if (!endpoint) {
-    respond(
-      "LUMENCLIP_TIKTOK_COMMENTS_CONNECT_RESULT",
-      requestId,
-      false,
-      "Invalid LumenClip endpoint"
-    )
-    return
-  }
-  if (
-    endpoint.origin !== window.location.origin ||
-    config?.version !== 1 ||
-    typeof config?.token !== "string"
-  ) {
-    respond(
-      "LUMENCLIP_TIKTOK_COMMENTS_CONNECT_RESULT",
-      requestId,
-      false,
-      "Invalid companion connection"
-    )
-    return
-  }
-
-  chrome.runtime.sendMessage({ type: "SET_CONFIG", config }, (result) => {
-    const error = chrome.runtime.lastError?.message || result?.error
-    respond(
-      "LUMENCLIP_TIKTOK_COMMENTS_CONNECT_RESULT",
-      requestId,
-      Boolean(result?.ok),
-      error
     )
   })
 }

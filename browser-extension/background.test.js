@@ -118,6 +118,46 @@ describe("TikTok Studio batch lifecycle", () => {
       tabId: 88,
     })
   })
+
+  it("starts comment capture for the open post with the paired device", async () => {
+    const harness = loadBackground({ studioDeviceConfig: deviceConfig() })
+    harness.context.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          collection: { id: "comments-1" },
+          companion: {
+            version: 1,
+            endpoint: "https://lumenclip.test/api/tiktok-comments/capture",
+            token: "comment-token",
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ collection: { posts: [] }, sends: [] }),
+      })
+
+    const result = await harness.context.startCommentsForPlatformPost(
+      "7521234567890123456"
+    )
+
+    expect(result.collectionId).toBe("comments-1")
+    expect(harness.context.fetch).toHaveBeenNthCalledWith(
+      1,
+      new URL("https://lumenclip.test/api/tiktok-comments/device"),
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          authorization: "Bearer token",
+        }),
+      })
+    )
+    expect(harness.state.commentsConfig).toMatchObject({
+      token: "comment-token",
+    })
+  })
 })
 
 function loadBackground(initialState) {

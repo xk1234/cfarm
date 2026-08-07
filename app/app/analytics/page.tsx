@@ -5,22 +5,17 @@ export default async function AnalyticsPage({
 }: {
   searchParams: Promise<{
     companion?: string | string[]
-    platformPostId?: string | string[]
   }>
 }) {
   const query = await searchParams
   const companion = first(query.companion)
-  const companionIntent =
-    companion === "tiktok-studio" || companion === "tiktok-comments"
-      ? companion
-      : undefined
+  const companionIntent = companion === "tiktok-studio" ? companion : undefined
 
   return (
     <WorkspaceRoute
       navigation={{
         view: "analytics",
         companionIntent,
-        platformPostId: first(query.platformPostId)?.trim() || undefined,
       }}
     />
   )

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { normalizeProvider } from "@/components/realfarm/analytics/account-profile-icon"
 import { useAnalyticsData } from "@/components/realfarm/analytics/use-analytics-data"
@@ -21,7 +21,6 @@ import {
 import {
   availablePlatformMetrics,
   defaultPlatformMetric,
-  findTikTokPostByPlatformId,
   initialMetricForPlatform,
   latestPublicationsByPost,
   type LatestPost,
@@ -45,15 +44,13 @@ export type AnalyticsPayload = {
 type AnalyticsViewProps = {
   previewData?: AnalyticsPayload
   initialPlatform?: string
-  companionIntent?: "tiktok-studio" | "tiktok-comments"
-  platformPostId?: string
+  companionIntent?: "tiktok-studio"
 }
 
 export function AnalyticsView({
   previewData,
   initialPlatform,
   companionIntent,
-  platformPostId,
 }: AnalyticsViewProps = {}) {
   const router = useRouter()
   const [activePlatform, setActivePlatform] = useState(
@@ -78,8 +75,7 @@ export function AnalyticsView({
   const [showTikTokStudioSync, setShowTikTokStudioSync] = useState(
     companionIntent === "tiktok-studio"
   )
-  const handledCompanionIntent = useRef(false)
-  const { data, error, isLoading, days, setDays, refreshing, refresh } =
+  const { data, error, isLoading, days, setDays, refresh } =
     useAnalyticsData(previewData)
   const integrations = useMemo(
     () => data?.integrations ?? [],
@@ -99,51 +95,14 @@ export function AnalyticsView({
     [activePlatform, integrations]
   )
 
-  useEffect(() => {
-    if (
-      handledCompanionIntent.current ||
-      !companionIntent ||
-      isLoading ||
-      !data
-    ) {
-      return
-    }
-    handledCompanionIntent.current = true
-
-    if (companionIntent === "tiktok-studio") return
-
-    const post = platformPostId
-      ? findTikTokPostByPlatformId(latestPosts, platformPostId)
-      : undefined
-    if (post) {
-      router.replace(
-        `/app/analytics/posts/${encodeURIComponent(post.postId)}?companion=tiktok-comments&platformPostId=${encodeURIComponent(platformPostId!)}`
-      )
-      return
-    }
-  }, [companionIntent, data, isLoading, latestPosts, platformPostId, router])
-
   const companionNotice = useMemo(() => {
     if (!companionIntent || isLoading || !data) return ""
-    if (companionIntent === "tiktok-studio") {
-      return integrations.some(
-        (integration) => normalizeProvider(integration.provider) === "tiktok"
-      )
-        ? ""
-        : "Connect a TikTok account in Settings before importing TikTok Studio analytics."
-    }
-    return platformPostId &&
-      findTikTokPostByPlatformId(latestPosts, platformPostId)
+    return integrations.some(
+      (integration) => normalizeProvider(integration.provider) === "tiktok"
+    )
       ? ""
-      : "This TikTok post is not linked to a published LumenClip post yet. Import or mark the post as published, then open the extension on the post again."
-  }, [
-    companionIntent,
-    data,
-    integrations,
-    isLoading,
-    latestPosts,
-    platformPostId,
-  ])
+      : "Connect a TikTok account in Settings before importing TikTok Studio analytics."
+  }, [companionIntent, data, integrations, isLoading])
 
   const resolvedPlatformAccountIds = useMemo(() => {
     const available = new Set(
@@ -190,14 +149,6 @@ export function AnalyticsView({
         days={days}
         onDaysChange={setDays}
         onBack={() => setActivePlatform("")}
-        onRefresh={() => void refreshReport()}
-        refreshing={refreshing}
-        loading={isLoading}
-        onTikTokStudioSync={
-          showingPlatform && activePlatform === "tiktok"
-            ? () => setShowTikTokStudioSync(true)
-            : undefined
-        }
       />
 
       {companionNotice ? (
@@ -235,13 +186,13 @@ export function AnalyticsView({
           {integrations.length === 0 ? (
             <AnalyticsState
               title="No connected social accounts"
-              description="Connect accounts in Settings, then sync analytics to start building history."
+              description="Connect accounts in Settings. PostFast analytics will begin refreshing automatically."
             />
           ) : latestPosts.length === 0 &&
             (data?.followerSnapshots.length ?? 0) === 0 ? (
             <AnalyticsState
               title="No stored analytics yet"
-              description="Sync analytics above to save a dated snapshot for your connected accounts. Later snapshots will build trends over time."
+              description="PostFast metrics will appear after the automatic account refresh completes. Later snapshots will build trends over time."
             />
           ) : showingPlatform ? (
             <PlatformAnalytics

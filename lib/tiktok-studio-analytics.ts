@@ -1540,6 +1540,14 @@ export function captureOwnerId(token: string) {
   return verifyCaptureToken(token).ownerId
 }
 
+export function captureDeviceOwnerId(token: string) {
+  const payload = verifyCaptureToken(token)
+  if (payload.version !== 3) {
+    throw new Error("A paired TikTok companion is required")
+  }
+  return payload.ownerId
+}
+
 function tokenSecret() {
   const secret = tokenSecrets()[0]
   if (!secret)

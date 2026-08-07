@@ -163,8 +163,7 @@ export function RealFarmWorkspace({
     automationId?: string
     runId?: string
     collectionId?: string
-    companionIntent?: "tiktok-studio" | "tiktok-comments"
-    platformPostId?: string
+    companionIntent?: "tiktok-studio"
   }
   composeAccounts?: ConnectedComposerAccount[]
   /** When each linked post went out, for the dashboard activity graph. */
@@ -878,7 +877,6 @@ export function RealFarmWorkspace({
           {view === "analytics" && (
             <AnalyticsView
               companionIntent={initialNavigation?.companionIntent}
-              platformPostId={initialNavigation?.platformPostId}
             />
           )}
           {view === "collections" &&

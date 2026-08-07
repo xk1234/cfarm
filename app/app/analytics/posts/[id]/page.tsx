@@ -22,17 +22,12 @@ export const metadata = {
 
 export default async function PostAnalyticsRoute({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{
-    companion?: string | string[]
-    platformPostId?: string | string[]
-  }>
 }) {
   const user = await getCurrentUser()
   if (!user) redirect("/?auth=sign-in&next=/app/analytics")
-  const [{ id }, query] = await Promise.all([params, searchParams])
+  const { id } = await params
   const postId = id.trim()
   const [allSnapshots, publication, integrations] = await Promise.all([
     listMetricSnapshots().catch(() => []),
@@ -85,22 +80,13 @@ export default async function PostAnalyticsRoute({
           snapshots={snapshots.length ? snapshots : [latest]}
           integration={integration}
           contentType={latest.contentType || contentType}
-          publicationPlatformPostId={
-            publication?.externalPostId ||
-            first(query.platformPostId)?.trim() ||
-            undefined
-          }
+          publicationPlatformPostId={publication?.externalPostId}
           slides={slides}
-          autoCollectComments={first(query.companion) === "tiktok-comments"}
         />
       </div>
       <StandaloneMobileNav />
     </>
   )
-}
-
-function first(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value
 }
 
 function fallbackIntegration(input: {

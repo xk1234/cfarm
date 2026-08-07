@@ -19,12 +19,9 @@ import {
   IconArrowDownRight,
   IconArrowLeft,
   IconArrowUpRight,
-  IconBrandTiktok,
-  IconRefresh,
   IconUsers,
   IconWorld,
 } from "@tabler/icons-react"
-import { Button } from "@/components/ui/button"
 import { SelectControl } from "@/components/ui/form-controls"
 import { SkeletonBlock } from "@/components/ui/loading-skeleton"
 import {
@@ -90,19 +87,11 @@ export function AnalyticsHeader({
   days,
   onDaysChange,
   onBack,
-  onRefresh,
-  refreshing,
-  loading,
-  onTikTokStudioSync,
 }: {
   platform: string
   days: number
   onDaysChange: (days: number) => void
   onBack: () => void
-  onRefresh: () => void
-  refreshing: boolean
-  loading: boolean
-  onTikTokStudioSync?: () => void
 }) {
   return (
     <header className="mb-7 flex min-w-0 flex-wrap items-center justify-between gap-5">
@@ -121,17 +110,6 @@ export function AnalyticsHeader({
         </h1>
       </div>
       <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
-        {onTikTokStudioSync ? (
-          <Button
-            variant="softControl"
-            size="compact"
-            className="h-9"
-            onClick={onTikTokStudioSync}
-          >
-            <IconBrandTiktok className="size-4" />
-            Import TikTok posts
-          </Button>
-        ) : null}
         <SelectControl
           aria-label="Analytics date range"
           value={days}
@@ -143,16 +121,6 @@ export function AnalyticsHeader({
             </option>
           ))}
         </SelectControl>
-        <Button
-          variant="softControl"
-          size="compact"
-          className="h-9"
-          onClick={onRefresh}
-          disabled={refreshing || loading}
-        >
-          <IconRefresh className={cn("size-4", refreshing && "animate-spin")} />
-          Sync analytics
-        </Button>
       </div>
     </header>
   )
@@ -378,7 +346,7 @@ export function PortfolioMetricCard({
           </ResponsiveContainer>
         ) : (
           <div className="grid h-full place-items-center rounded-t-[10px] bg-app-surface-subtle text-center text-[10px] font-medium text-app-text-faint">
-            Sync again to build a trend
+            More points will appear after the next automatic refresh
           </div>
         )}
       </div>
@@ -917,7 +885,7 @@ export function ComparisonChart({
           </ResponsiveContainer>
         ) : (
           <div className="grid h-full place-items-center rounded-[10px] bg-app-surface-subtle text-[12px] font-medium text-app-text-faint">
-            Sync again later to build a comparison curve.
+            More points will appear after the next automatic refresh.
           </div>
         )}
       </div>
