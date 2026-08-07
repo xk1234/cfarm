@@ -306,16 +306,12 @@ export function RealFarmWorkspace({
     () => ({ ...templateExampleRunsById, ...recentRunsByAutomationId }),
     [recentRunsByAutomationId, templateExampleRunsById]
   )
-  const xRunsByAutomationId = useMemo(
+  const xTemplatesByAutomationId = useMemo(
     () =>
-      xAutomationRuns.reduce<Record<string, XAutomationRun[]>>(
-        (groups, run) => {
-          groups[run.automationId] = [...(groups[run.automationId] ?? []), run]
-          return groups
-        },
-        {}
+      Object.fromEntries(
+        xAutomations.map((template) => [template.id, template])
       ),
-    [xAutomationRuns]
+    [xAutomations]
   )
 
   useEffect(() => {
@@ -1045,12 +1041,10 @@ export function RealFarmWorkspace({
                 automationsLoading={
                   !persistedAutomationsLoaded || !xAutomationsLoaded
                 }
-                recentRunsByAutomationId={recentRunsByAutomationId}
-                recentRunsLoading={!recentRunsLoaded}
-                onGenerationRunUpdate={(run) =>
-                  upsertRecentAutomationRun(run as unknown as never)
-                }
-                xRunsByAutomationId={xRunsByAutomationId}
+                schemasByAutomationId={automationConfigEdits}
+                collections={visibleCollections}
+                demoVideos={workspaceAssets.demoVideos}
+                xTemplatesByAutomationId={xTemplatesByAutomationId}
                 onCreateNew={() => setTemplateFolderOpen(true)}
                 onCreateFromTone={async (fields) => {
                   const automation = await createLocalAutomation({
@@ -1108,7 +1102,6 @@ export function RealFarmWorkspace({
                     favorite: nextFavorite,
                   })
                 }}
-                onGenerationRunRemove={removeRecentAutomationRun}
                 onEdit={setEditingAutomation}
               />
             ))}
