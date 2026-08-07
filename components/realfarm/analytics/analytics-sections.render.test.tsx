@@ -29,6 +29,41 @@ describe("AnalyticsOverview", () => {
     expect(markup).toContain("Total audience")
   })
 
+  it("shows TikTok views in the portfolio total instead of blank impressions", () => {
+    const integration = {
+      integration_id: "account-1",
+      name: "Creator account",
+      provider: "tiktok",
+    } as SocialIntegration
+    const post = {
+      id: "snapshot-1",
+      postId: "post-1",
+      integrationId: "account-1",
+      provider: "tiktok",
+      capturedAt: "2026-08-07T00:00:00.000Z",
+      metrics: { views: 35_905, interactions: 2_803 },
+      latestMetric: {},
+      rawMetrics: {},
+      observedKeys: ["views", "interactions"],
+    } as LatestPost
+
+    const markup = renderToStaticMarkup(
+      <AnalyticsOverview
+        integrations={[integration]}
+        posts={[post]}
+        snapshots={[post]}
+        followerSnapshots={[]}
+        slideshowPreviews={{}}
+        onSelectPost={vi.fn()}
+      />
+    )
+
+    expect(markup).toContain("Total views")
+    expect(markup).toContain("35.9K")
+    expect(markup).toContain("1 of 1 posts report views")
+    expect(markup).not.toContain("Total impressions")
+  })
+
   it("renders the persisted first slide instead of a text placeholder card", () => {
     const integration = {
       integration_id: "account-1",

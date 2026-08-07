@@ -4,6 +4,10 @@ import {
   accountPostMetricSeries,
   findTikTokPostByPlatformId,
   latestPublicationsByPost,
+  postExposureAggregate,
+  postExposureCoverageLabel,
+  postExposureLabel,
+  postExposureSeries,
   postMetricSeries,
 } from "@/components/realfarm/analytics/analytics-selectors"
 import type { PostFastMetricSnapshot } from "@/lib/postfast-metric-snapshots"
@@ -191,6 +195,44 @@ describe("latestPublicationsByPost", () => {
     ])
     expect(accountPostMetricSeries(snapshots, "engagementRate")).toEqual([
       expect.objectContaining({ date: "2026-07-30", value: 16 }),
+    ])
+  })
+
+  it("uses TikTok views as the portfolio exposure metric", () => {
+    const snapshots = [
+      {
+        id: "post-1",
+        postId: "post-1",
+        integrationId: "tiktok-1",
+        provider: "tiktok",
+        capturedAt: "2026-08-01T01:00:00.000Z",
+        metrics: { views: 35_905 },
+        latestMetric: { views: 35_905 },
+        rawMetrics: { views: 35_905 },
+        observedKeys: ["views"],
+        source: "tiktok_studio",
+      },
+      {
+        id: "post-2",
+        postId: "post-2",
+        integrationId: "tiktok-1",
+        provider: "tiktok",
+        capturedAt: "2026-08-01T02:00:00.000Z",
+        metrics: { views: 3_382 },
+        latestMetric: { views: 3_382 },
+        rawMetrics: { views: 3_382 },
+        observedKeys: ["views"],
+        source: "tiktok_studio",
+      },
+    ] satisfies PostFastMetricSnapshot[]
+
+    expect(postExposureLabel(snapshots)).toBe("Total views")
+    expect(postExposureAggregate(snapshots)).toBe(39_287)
+    expect(postExposureCoverageLabel(snapshots)).toBe(
+      "2 of 2 posts report views"
+    )
+    expect(postExposureSeries(snapshots)).toEqual([
+      expect.objectContaining({ date: "2026-08-01", value: 39_287 }),
     ])
   })
 })

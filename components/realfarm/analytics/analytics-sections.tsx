@@ -46,9 +46,12 @@ import {
 import { cn } from "@/lib/utils"
 import {
   postMetricSeries,
+  postExposureSeries,
   audienceSeries,
   comparisonSeries,
   metricAggregate,
+  postExposureAggregate,
+  postExposureLabel,
   weightedEngagementRate,
   accountMetricCurrent,
   accountMetricChange,
@@ -58,6 +61,7 @@ import {
   latestFollower,
   seriesDelta,
   postCoverageLabel,
+  postExposureCoverageLabel,
   accountCoverageLabel,
   sumDefined,
   postTimestamp,
@@ -198,11 +202,11 @@ export function AnalyticsOverview({
           )}
         />
         <PortfolioMetricCard
-          label="Total impressions"
-          value={metricAggregate(visiblePosts, "impressions")}
-          series={postMetricSeries(visibleSnapshots, "impressions")}
+          label={postExposureLabel(visiblePosts)}
+          value={postExposureAggregate(visiblePosts)}
+          series={postExposureSeries(visibleSnapshots)}
           color="#d43791"
-          availability={postCoverageLabel(visiblePosts, "impressions")}
+          availability={postExposureCoverageLabel(visiblePosts)}
         />
         <PortfolioMetricCard
           label="Total engagement"
