@@ -109,7 +109,7 @@ coordinated version set.
 | `react-dropzone` |        `^17.0.0` | Drag-and-drop upload interaction and file-input handling.                                        | `components/ui/upload-dropzone.tsx`                              |
 | `sharp`          |        `^0.34.5` | Server-side image decoding, conversion, resizing, slideshow materialization, and import scripts. | `lib/slideshows.ts`, Appwrite job worker, product import scripts |
 | `jszip`          |        `^3.10.1` | Client-side ZIP creation for slideshow PNG exports.                                              | `lib/slideshow-export.ts`                                        |
-| `jsoneditor`     |        `^10.4.3` | Structured JSON inspection/editing in internal debug tools.                                      | `components/debug/debug-automation-editor.tsx`                   |
+| `jsoneditor`     |        `^10.4.3` | Structured pipeline-stage JSON inspection and editing in workflow documentation.                 | `components/docs/pipeline-stage-json-enhancer.tsx`               |
 
 Generated video encoding is handled through local provider wrappers and Rendi,
 not through a direct npm video-encoding library.

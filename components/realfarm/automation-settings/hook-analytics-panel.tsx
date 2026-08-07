@@ -26,7 +26,7 @@ export function HookAnalyticsPanel({ automation }: { automation: Automation }) {
   useEffect(() => {
     let active = true
     void fetchJsonWithTimeout<HookAnalyticsPayload>(
-      `/api/automations/${encodeURIComponent(automation.id)}/hook-analytics`,
+      `/api/templates/${encodeURIComponent(automation.id)}/hook-analytics`,
       { toastOnError: false }
     )
       .then((payload) => {

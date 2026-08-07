@@ -30,5 +30,5 @@ export const POST = withHandler(async (request: Request) => {
 
 function assertUgcEnabled() {
   if (process.env.ENABLE_UGC_AUTOMATION !== "true")
-    throw new ApiError(404, "UGC automation is not enabled.")
+    throw new ApiError(404, "UGC template is not enabled.")
 }

@@ -9,7 +9,7 @@ import { readJsonArrayStore, writeJsonArrayStore } from "@/lib/json-store"
 import { clearTestTables } from "@/lib/test-helpers"
 
 const clearStores = () =>
-  clearTestTables("automations", "x_automations", "automation_runs")
+  clearTestTables("templates", "social_templates", "template_runs")
 
 beforeEach(clearStores)
 afterAll(clearStores)
@@ -39,7 +39,7 @@ describe("bounded Appwrite store access", () => {
       createdAt: "2026-07-17T08:00:00.000Z",
       updatedAt: "2026-07-17T08:00:00.000Z",
     }
-    const rootDir = `${process.cwd()}/data/automations`
+    const rootDir = `${process.cwd()}/data/templates`
     await writeJsonArrayStore({
       rootDir,
       fileName: "runs.json",

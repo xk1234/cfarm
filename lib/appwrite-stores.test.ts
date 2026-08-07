@@ -6,8 +6,8 @@ import { ownedRowIdFor, routeForStore } from "@/lib/appwrite-stores"
 
 describe("Appwrite ownership keys", () => {
   it("namespaces the same domain record for different users", () => {
-    const first = ownedRowIdFor("automations", "user-a", "automation-1", 0)
-    const second = ownedRowIdFor("automations", "user-b", "automation-1", 0)
+    const first = ownedRowIdFor("templates", "user-a", "automation-1", 0)
+    const second = ownedRowIdFor("templates", "user-b", "automation-1", 0)
 
     expect(first).not.toBe(second)
     expect(first).toHaveLength(36)
@@ -19,12 +19,12 @@ describe("Appwrite ownership keys", () => {
 
     expect(routeForStore(rootDir, "templates.json")).toMatchObject({
       table: "permanent_assets",
-      sourceKey: "automation_template",
+      sourceKey: "starter_template",
       public: true,
     })
     expect(routeForStore(rootDir, "example-runs.json")).toMatchObject({
       table: "permanent_assets",
-      sourceKey: "automation_template_example",
+      sourceKey: "starter_template_example",
       public: true,
     })
   })

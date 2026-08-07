@@ -46,8 +46,8 @@ to recommend.
   "id": "resolve-generated-output-qa-failure",
   "severity": "required",
   "reason": "Generation completed with deterministic QA errors.",
-  "tool": "lumenclip_automation_run",
-  "args": { "automationId": "auto_123", "requestId": "qa-retry-output_123" },
+  "tool": "lumenclip_template_run",
+  "args": { "templateId": "auto_123", "requestId": "qa-retry-output_123" },
   "blocks": ["lumenclip_output_publish"]
 }
 ```
@@ -96,14 +96,14 @@ Input fields:
 | Field             | Type                           | Required | Description                                   |
 | ----------------- | ------------------------------ | -------- | --------------------------------------------- |
 | `query`           | string                         | no       | Name, tag, niche, or capability search.       |
-| `automation_kind` | `slideshow \| video \| social` | no       | Restrict the template family.                 |
+| `kind`            | `slideshow \| video \| social` | no       | Restrict the template family.                 |
 | `platform`        | string                         | no       | For example `tiktok`, `x`, or `threads`.      |
 | `format`          | string                         | no       | Output format or aspect ratio such as `9:16`. |
 | `tags`            | string[]                       | no       | All requested tags must match.                |
 | `capabilities`    | string[]                       | no       | Required workspace/template capabilities.     |
 | `cursor`, `limit` | pagination                     | no       | Cursor pagination.                            |
 
-Output: paginated `items`, each containing `id`, `name`, `automation_kind`,
+Output: paginated `items`, each containing `id`, `name`, `kind`,
 `output_types`, `platforms`, `tags`, `version`, `required_capabilities`,
 `resource_uri`, and `examples_resource_uri`.
 
@@ -119,7 +119,7 @@ Input: `template_id` (required string) and optional `version`. Output:
     "id": "astro-editorial",
     "version": "3",
     "name": "Astrology Editorial",
-    "automation_kind": "slideshow",
+    "kind": "slideshow",
     "configuration": {},
     "required_capabilities": ["slideshow_generation"],
     "allowed_overrides_schema": {},
@@ -131,42 +131,42 @@ Input: `template_id` (required string) and optional `version`. Output:
 
 Errors: `NOT_FOUND`, `TEMPLATE_VERSION_UNAVAILABLE`.
 
-### `lumenclip_automations_list`
+### `lumenclip_templates_list`
 
 Read-only and idempotent. Scope: `lumenclip:read`.
 
-Input: optional `query`, `automation_kind`, `status`, `platform`,
+Input: optional `query`, `kind`, `status`, `platform`,
 `collection_id`, `cursor`, and `limit`.
 
-Output: paginated summaries with `id`, `name`, `automation_kind`, `status`,
+Output: paginated summaries with `id`, `name`, `kind`, `status`,
 `platforms`, `collection_ids`, `last_run`, `version`, and `resource_uri`.
 
-### `lumenclip_automation_get`
+### `lumenclip_template_get`
 
 Read-only and idempotent. Scope: `lumenclip:read`.
 
-Input: `{ "automation_id": "auto_123" }`.
+Input: `{ "templateId": "auto_123" }`.
 
-Output: `automation` containing the complete normalized editor `schema`,
+Output: `template` containing the complete normalized editor `schema`,
 `schedule`, `publishing_policy`, `linked_collections`, safe `linked_accounts`,
 canonical `hookPool`, `configurationWarnings`, `last_run`, and `resource_uri`.
-Returns `NOT_FOUND` for inaccessible IDs. X/Threads automations instead include
-their safe complete policy `configuration`. Standard automation reads flag
+Returns `NOT_FOUND` for inaccessible IDs. X/Threads templates instead include
+their safe complete policy `configuration`. Standard template reads flag
 collapsed heading/paragraph layers and voice rules stored in structural style,
 with patch-ready repairs in `nextSteps`.
 
 Complete standard schemas are patched by default with
-`lumenclip_automation_schema_update` using optimistic `expectedUpdatedAt`;
+`lumenclip_template_schema_update` using optimistic `expectedUpdatedAt`;
 full replacement requires `mode: "replace"`. Every schema write returns an
 added/changed/removed path diff. Granular lifecycle/schedule changes remain on
-`automation_update`.
+`template_update`.
 
 ### `lumenclip_collections_list`
 
 Read-only and idempotent. Scope: `lumenclip:read`.
 
 Input: optional `query`, `media_type` (`image`, `video`, `word`, `product`),
-`tags`, `minimum_item_count`, `compatible_automation_kind`, `cursor`, `limit`.
+`tags`, `minimum_item_count`, `compatible_template_kind`, `cursor`, `limit`.
 
 Output: paginated summaries with `id`, `name`, `media_type`, `item_count`,
 `tags`, `caption_coverage`, `version`, and `resource_uri`.
@@ -202,17 +202,17 @@ Destructive, non-idempotent mutation. Scope: `lumenclip:write`.
 
 Input: required `variableId`, `requestId`, and literal `confirmDelete: true`.
 Output: `deleted: true` and the deleted variable snapshot. The delete is
-permanent and may invalidate automation hook-variable references.
+permanent and may invalidate template hook-variable references.
 
 ### `lumenclip_outputs_list`
 
 Read-only and idempotent. Scope: `lumenclip:read`.
 
-Input: optional `automation_id`, `output_type`, `status`, `publication_state`,
+Input: optional `templateId`, `output_type`, `status`, `publication_state`,
 `platform`, `account_id`, `created_from`, `created_to`, `cursor`, `limit`.
 
 Output: paginated output summaries containing `id`, `output_type`,
-`automation_id`, `status`, `publication_state`, `platforms`, `preview_uri`,
+`templateId`, `status`, `publication_state`, `platforms`, `preview_uri`,
 `created_at`, `resource_uri`, `qaValid`, `qaFindings`, `nextSteps`, and
 `analytics`. The analytics summary states
 whether metrics exist, aggregates the latest snapshot per publication, reports
@@ -287,9 +287,9 @@ Output:
 Terminal success includes output resource URIs. Terminal failure includes a
 stable error object. This lightweight tool never returns media or full logs.
 
-## Automation configuration
+## Template configuration
 
-### `lumenclip_automation_preview`
+### `lumenclip_template_preview`
 
 Read-only, idempotent, and free of generation charges. Scope:
 `lumenclip:read`.
@@ -297,13 +297,13 @@ Read-only, idempotent, and free of generation charges. Scope:
 Input accepts exactly one source:
 
 - `source.template_id`, optional `source.template_version`, plus `overrides`;
-- `source.brief` containing a normalized automation brief; or
-- `source.automation_id`, `source.expected_version`, `update_mask`, and `patch`.
+- `source.brief` containing a normalized template brief; or
+- `source.templateId`, `source.expected_version`, `update_mask`, and `patch`.
 
 Output: `valid`, `preview_id`, `base_version`, field-level `diff`,
 `effective_automation`, `validation_issues`, and `warnings`. No state is saved.
 
-### `lumenclip_automation_create_from_template`
+### `lumenclip_template_create_from_template`
 
 Scope: `lumenclip:write`. Creates a paused, user-owned copy; never edits the
 catalog template.
@@ -311,31 +311,31 @@ catalog template.
 Input: required `template_id`, `template_version`, `name`, `overrides`, and
 `idempotency_key`; optional approved `preview_id`.
 
-Output: `automation` with `id`, `status: "paused"`, `version`,
+Output: `template` with `id`, `status: "paused"`, `version`,
 `source_template`, and `resource_uri`, plus `applied_overrides` and `warnings`.
 
-### `lumenclip_automation_save`
+### `lumenclip_template_save`
 
 Scope: `lumenclip:write`.
 
 Input: required normalized `brief`, `name`, and `idempotency_key`; optional
-`preview_id`. The brief contains `automation_kind`, niche/topic, audience,
+`preview_id`. The brief contains `kind`, niche/topic, audience,
 platforms, output settings, hooks, section directions, collection IDs, media
 policy, schedule, and publishing policy where supported.
 
-Output: a paused `automation`, its `version`, `resource_uri`, applied defaults,
+Output: a paused `template`, its `version`, `resource_uri`, applied defaults,
 and `warnings`.
 
-### `lumenclip_automation_update`
+### `lumenclip_template_update`
 
 Implemented safe subset. Granular `lumenclip:write` scope enforcement remains
 planned; the current transport runs as the configured MCP/system owner.
 
-Current input: required `automationId`; optional `expectedUpdatedAt`,
+Current input: required `templateId`; optional `expectedUpdatedAt`,
 `action: pause | resume`, `name`, `favorite`, and a schedule patch containing
 timezone, posting rows, or jitter. At least one change is required.
 
-Current output: normalized safe automation metadata and schedule. Omitted
+Current output: normalized safe template metadata and schedule. Omitted
 fields are preserved. A mismatched `expectedUpdatedAt` rejects stale writes.
 The broader preview/update-mask/idempotency contract remains the target for
 arbitrary configuration edits.
@@ -372,7 +372,7 @@ standard operation envelope.
 Input: required `collectionId`, `requestId`, and literal
 `confirmDelete: true`; optional `allowReferenced` defaults to `false`. Output:
 soft-deleted collection ID, the 30-day deletion window, idempotency state, and
-affected automation dependencies.
+affected template dependencies.
 
 ### `lumenclip_output_delete`
 
@@ -398,15 +398,15 @@ state.
 
 ## Generation and publication
 
-### `lumenclip_automation_run`
+### `lumenclip_template_run`
 
 Billable. Scope: `lumenclip:generate`.
 
-Input: required `automation_id` and `idempotency_key`; optional `topic`,
+Input: required `templateId` and `idempotency_key`; optional `topic`,
 `source_output_uri`, `count` (default `1`), and supported per-run overrides.
 
-Output: standard operation envelope with kind `automation.run`. The resulting
-draft is always unscheduled and `not_published`, even when the automation is
+Output: standard operation envelope with kind `template.run`. The resulting
+draft is always unscheduled and `not_published`, even when the template is
 live. Slideshow results include deterministic QA, observable generation passes,
 and required `nextSteps` when publishing is blocked.
 
@@ -447,7 +447,7 @@ Output: updated output publication evidence with `publication_state:
 {
   "operation": {
     "id": "op_01J...",
-    "kind": "automation.run",
+    "kind": "template.run",
     "status": "queued",
     "progress": 0,
     "created_at": "2026-07-16T10:00:00.000Z",

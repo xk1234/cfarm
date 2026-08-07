@@ -24,8 +24,8 @@ precedence where they disagree.
 - Template deep links keep the Templates destination selected and add
   `template=<id>` or `run=<id>` to the workspace query.
 - Collection detail at `/app/collections/[id]`, post analytics at
-  `/app/analytics/posts/[id]`, the testing facility at `/app/testing`, X and
-  Threads automations at `/app/x-automations`, UGC run status at
+  `/app/analytics/posts/[id]`, X and Threads templates at
+  `/app/social-templates`, UGC run status at
   `/app/ugc/[id]`, and analytics previews at
   `/analytics-preview/[platform]` are separately routed surfaces.
 - Public, authentication, documentation, shared slideshow, legal, and system
@@ -53,15 +53,15 @@ precedence where they disagree.
 
 ### Templates
 
-- [Templates overview](/docs/ui/automations/overview)
-- [Templates](/docs/ui/automations/templates)
-- [Hooks](/docs/ui/automations/hooks)
-- [Hook analytics](/docs/ui/automations/hook-analytics)
-- [Template schedule](/docs/ui/automations/schedule)
-- [Template settings](/docs/ui/automations/settings)
-- [Social settings](/docs/ui/automations/social-settings)
-- [X and Threads templates](/docs/ui/automations/x-automations)
-- [UGC video](/docs/ui/automations/ugc)
+- [Templates overview](/docs/ui/templates/overview)
+- [Templates](/docs/ui/templates/templates)
+- [Hooks](/docs/ui/templates/hooks)
+- [Hook analytics](/docs/ui/templates/hook-analytics)
+- [Template schedule](/docs/ui/templates/schedule)
+- [Template settings](/docs/ui/templates/settings)
+- [Social settings](/docs/ui/templates/social-settings)
+- [X and Threads templates](/docs/ui/templates/x-automations)
+- [UGC video](/docs/ui/templates/ugc)
 
 ### Compose, Schedule, Analytics
 
@@ -71,12 +71,10 @@ precedence where they disagree.
 - [Post analytics](/docs/ui/analytics/post-analytics)
 - [Analytics preview](/docs/ui/analytics/analytics-preview)
 
-### Collections and Testing
+### Collections
 
 - [Collections](/docs/ui/collections/collections)
 - [Collection detail](/docs/ui/collections/collection-detail)
-- [Testing facility](/docs/ui/testing/testing)
-- [Output trace](/docs/ui/testing/output-trace)
 
 ### Workspace settings
 

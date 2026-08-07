@@ -28,7 +28,7 @@ export const POST = withHandler<{ params: Promise<{ id: string }> }>(
       automation.schema.automationKind !== "ugc" ||
       automation.schema.ugc?.enabled !== true
     ) {
-      throw new ApiError(404, "UGC automation not found.")
+      throw new ApiError(404, "UGC template not found.")
     }
     if (!run.scheduledFor)
       throw new ApiError(
@@ -39,7 +39,7 @@ export const POST = withHandler<{ params: Promise<{ id: string }> }>(
     const dedupeKey = `ugc-auto:${run.automationId}:${run.scheduledFor}`
     const jobId = deterministicJobId(user.$id, dedupeKey)
     const enqueue = await enqueueJob({
-      type: "run-ugc-automation",
+      type: "run-ugc-template",
       payload: {
         automationId: run.automationId,
         scheduledFor: run.scheduledFor,
@@ -57,7 +57,7 @@ export const POST = withHandler<{ params: Promise<{ id: string }> }>(
 
     const existing = await getJob(jobId)
     if (!existing) throw new ApiError(404, "UGC generation job not found.")
-    if (existing.type !== "run-ugc-automation")
+    if (existing.type !== "run-ugc-template")
       throw new ApiError(409, "The deterministic queue item is not a UGC job.")
     if (existing.status !== "failed" && existing.status !== "dead") {
       throw new ApiError(
@@ -80,5 +80,5 @@ export const POST = withHandler<{ params: Promise<{ id: string }> }>(
 
 function assertUgcEnabled() {
   if (process.env.ENABLE_UGC_AUTOMATION !== "true")
-    throw new ApiError(404, "UGC automation is not enabled.")
+    throw new ApiError(404, "UGC template is not enabled.")
 }

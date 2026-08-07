@@ -13,13 +13,13 @@ outputs, see [Manual publication and linking](./manual-linking).
 
 ## Timing at a glance
 
-| Automation and mode | Generation starts | Posting behavior |
-| --- | --- | --- |
-| Slideshow, `auto` | Normally 30 minutes before the target slot. | The worker uploads media and creates a PostFast `SCHEDULED` post for the exact target slot. |
-| Slideshow, `manual` | Normally 30 minutes before the target slot. | The output becomes `awaiting_manual_post`; it is not published automatically. |
-| Slideshow, `review` | 30, 60, 120, 240, or 720 minutes before the slot, using `generation_lead_minutes`. | The output becomes `ready_for_review`; it is not published automatically. |
-| X or Threads | At the due slot in the current scheduler path. | A supported single post can auto-publish when configured. Multi-post threads remain drafts unless publication records prove otherwise. |
-| Manual **Generate** button | Immediately, outside the recurring scheduler. | The result is unpublished and has no automatic publication date. |
+| Automation and mode        | Generation starts                                                                  | Posting behavior                                                                                                                       |
+| -------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Slideshow, `auto`          | Normally 30 minutes before the target slot.                                        | The worker uploads media and creates a PostFast `SCHEDULED` post for the exact target slot.                                            |
+| Slideshow, `manual`        | Normally 30 minutes before the target slot.                                        | The output becomes `awaiting_manual_post`; it is not published automatically.                                                          |
+| Slideshow, `review`        | 30, 60, 120, 240, or 720 minutes before the slot, using `generation_lead_minutes`. | The output becomes `ready_for_review`; it is not published automatically.                                                              |
+| X or Threads               | At the due slot in the current scheduler path.                                     | A supported single post can auto-publish when configured. Multi-post threads remain drafts unless publication records prove otherwise. |
+| Manual **Generate** button | Immediately, outside the recurring scheduler.                                      | The result is unpublished and has no automatic publication date.                                                                       |
 
 The target slot remains the authoritative `scheduledFor` timestamp even when
 generation starts earlier. A five-minute scheduler cadence and ten-minute
@@ -28,9 +28,9 @@ lookback recover a recently missed invocation.
 ## End-to-end lifecycle
 
 ```text
-Live automation + timezone + posting times
-  -> automation-scheduler (every 5 minutes)
-  -> deterministic run-automation or run-x-automation job
+Live template + timezone + posting times
+  -> template-scheduler (every 5 minutes)
+  -> deterministic run-template or run-social-template job
   -> jobs table (queued / processing / completed / dead)
   -> job-worker (every 2 minutes, one job per invocation)
   -> generated output + durable run record
@@ -86,13 +86,13 @@ migrated before the app loads them.
 
 ## Scheduler function
 
-`automation-scheduler` is configured in `appwrite.json`:
+`template-scheduler` is configured in `appwrite.json`:
 
-| Setting | Current value |
-| --- | --- |
-| Cron | `*/5 * * * *` |
-| Timeout | 120 seconds |
-| Lookback | 10 minutes |
+| Setting                   | Current value                             |
+| ------------------------- | ----------------------------------------- |
+| Cron                      | `*/5 * * * *`                             |
+| Timeout                   | 120 seconds                               |
+| Lookback                  | 10 minutes                                |
 | Slideshow generation lead | 30 minutes, except configured review lead |
 
 Each invocation pages through live `automations` and `x_automations`, restores
@@ -115,13 +115,13 @@ jobs.
 The durable `jobs` table stores handler type, status, payload, attempts,
 availability, priority, dedupe key, lease ownership, and `owner_id`.
 
-| Setting | Current value |
-| --- | --- |
-| Worker cron | `*/2 * * * *` |
-| Batch | 1 job per invocation |
-| Timeout | 900 seconds |
-| Lease | 960,000 ms (16 minutes) |
-| Scheduler-created attempts | 3 by default |
+| Setting                    | Current value           |
+| -------------------------- | ----------------------- |
+| Worker cron                | `*/2 * * * *`           |
+| Batch                      | 1 job per invocation    |
+| Timeout                    | 900 seconds             |
+| Lease                      | 960,000 ms (16 minutes) |
+| Scheduler-created attempts | 3 by default            |
 
 The worker claims due queued jobs by priority and availability. It only checks
 expired processing leases when no queued job exists. After claiming, it
@@ -160,23 +160,23 @@ media to PostFast and therefore requires `POSTFAST_API_KEY`.
 
 ## X and Threads behavior
 
-X/Threads schedules enqueue `run-x-automation` at the due slot without the
-slideshow lead window. Publishing follows the automation configuration.
+X/Threads schedules enqueue `run-social-template` at the due slot without the
+slideshow lead window. Publishing follows the template configuration.
 PostFast does not expose reply-chain publishing like a single post, so a
 multi-post thread must be treated as an unpublished draft unless durable
 publication records explicitly report scheduled or published status.
 
 ## Required function variables
 
-| Variable | Required when |
-| --- | --- |
-| `APPWRITE_API_KEY` | Always; requires TablesDB and Storage scopes. |
-| `APPWRITE_DATABASE_ID` | Optional database override; defaults to `cfarm`. |
-| `OPENROUTER_API_KEY` | Slideshow copy, AI image matching, or scheduled X/Threads generation. |
-| `POSTFAST_API_KEY` | Any active social integration, including scheduled manual/review uploads. |
-| `RENDI_API_KEY` | The automation requests video export. |
-| `DEEPL_KEY` | Translation is requested. |
-| `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` | Manual/review reminders or dead-job alerts; configure both together. |
+| Variable                                    | Required when                                                             |
+| ------------------------------------------- | ------------------------------------------------------------------------- |
+| `APPWRITE_API_KEY`                          | Always; requires TablesDB and Storage scopes.                             |
+| `APPWRITE_DATABASE_ID`                      | Optional database override; defaults to `cfarm`.                          |
+| `OPENROUTER_API_KEY`                        | Slideshow copy, AI image matching, or scheduled X/Threads generation.     |
+| `POSTFAST_API_KEY`                          | Any active social integration, including scheduled manual/review uploads. |
+| `RENDI_API_KEY`                             | The automation requests video export.                                     |
+| `DEEPL_KEY`                                 | Translation is requested.                                                 |
+| `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` | Manual/review reminders or dead-job alerts; configure both together.      |
 
 Appwrite injects the function endpoint and project ID. Function scopes and
 non-secret defaults are declared in `appwrite.json`.
@@ -201,23 +201,23 @@ must not create another provider post.
 
 ## Troubleshooting
 
-| Symptom | Likely cause or check |
-| --- | --- |
-| Planned slot never becomes a job | Automation is not live, is paused, has the wrong timezone/time, or the scheduler is not deployed. |
-| Duplicate projection and job | Compare exact UTC slot, automation ID, and migrated schedule values. |
-| Job stays queued | Check `available_at`, worker deployment, and queue depth; the batch is one. |
-| Job stays processing | Check function execution and `leased_by`/`leased_until`; stale leases are reclaimed after queued work. |
-| Job dead-letters | Inspect the job error, run error, collections, provider keys, and render output. |
+| Symptom                                     | Likely cause or check                                                                                  |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Planned slot never becomes a job            | Automation is not live, is paused, has the wrong timezone/time, or the scheduler is not deployed.      |
+| Duplicate projection and job                | Compare exact UTC slot, automation ID, and migrated schedule values.                                   |
+| Job stays queued                            | Check `available_at`, worker deployment, and queue depth; the batch is one.                            |
+| Job stays processing                        | Check function execution and `leased_by`/`leased_until`; stale leases are reclaimed after queued work. |
+| Job dead-letters                            | Inspect the job error, run error, collections, provider keys, and render output.                       |
 | Auto output generated but was not scheduled | Check active integrations, per-account publication records, PostFast response, and `POSTFAST_API_KEY`. |
-| Review output appears too late | Increase `generation_lead_minutes` and inspect queue depth. |
-| Two posting times are too close | `min_gap_minutes` is not enforced; space the rows manually. |
+| Review output appears too late              | Increase `generation_lead_minutes` and inspect queue depth.                                            |
+| Two posting times are too close             | `min_gap_minutes` is not enforced; space the rows manually.                                            |
 
 ## Source map
 
 - Schedule schema and modes: `lib/realfarm-automation.ts`
 - Posting-time editor: `components/realfarm/automation-settings/schedule-settings.tsx`
 - Slot computation: `lib/automation-slots.ts`
-- Scheduler: `appwrite/functions/automation-scheduler/src/main.js`
+- Scheduler: `appwrite/functions/template-scheduler/src/main.js`
 - Worker and retry logic: `appwrite/functions/job-worker/src/main.js`
 - Slideshow execution: `appwrite/functions/job-worker/src/slideshow-automation.js`
 - Function cadence and variables: `appwrite.json`

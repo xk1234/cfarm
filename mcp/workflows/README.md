@@ -230,7 +230,7 @@ Publishing is deliberately absent from all four lists.
   orchestration, and batch orchestration. Each post attempt is independently
   callable.
 - X/Threads: one brief attempt, one generation/humanize/review attempt,
-  deterministic planning/validation, fixed automation/run document reads,
+  deterministic planning/validation, fixed template/run document reads,
   separate creates and updates, singular output-media page/create/delete
   stages, reminder storage, and KIE image task
   build/create/status/download/persist stages. Upsert and media
@@ -291,7 +291,7 @@ The storage boundary is decomposed as well:
   stages and stages each rendered PNG with `read-one-video-slide`.
   Finalization builds the update locally, invokes `update-result-document`,
   then synchronizes media through registered singular stages.
-- saved UGC state exposes one-request automation/run/usage/output reads,
+- saved UGC state exposes one-request template/run/usage/output reads,
   separate creates and updates, one-object inspect/read/create/delete stages,
   one output-media page/create/delete, and one notification-job create.
 - image/word/usage/run/result pagination is driven by composites that repeatedly

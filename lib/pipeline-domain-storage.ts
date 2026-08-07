@@ -20,14 +20,14 @@ import {
 import { clean, isRecord } from "@/lib/guards"
 
 export type PipelineStorageDomain =
-  | "automations"
+  | "templates"
   | "image-collections"
   | "model-settings"
   | "word-collections"
   | "usage-history"
-  | "automation-runs"
-  | "x-automations"
-  | "x-runs"
+  | "template-runs"
+  | "social-templates"
+  | "social-template-runs"
   | "ugc-outputs"
   | "results"
 
@@ -37,8 +37,8 @@ type DomainConfig = {
 }
 
 const DOMAINS: Record<PipelineStorageDomain, DomainConfig> = {
-  automations: {
-    route: STORE_ROUTES["automations/automations.json"],
+  templates: {
+    route: STORE_ROUTES["templates/templates.json"],
     id: (record) => clean(record.id),
   },
   "image-collections": {
@@ -57,16 +57,16 @@ const DOMAINS: Record<PipelineStorageDomain, DomainConfig> = {
     route: STORE_ROUTES["usage-ledger.json"],
     id: (record) => clean(record.id),
   },
-  "automation-runs": {
-    route: STORE_ROUTES["automations/runs.json"],
+  "template-runs": {
+    route: STORE_ROUTES["templates/runs.json"],
     id: (record) => clean(record.id),
   },
-  "x-automations": {
-    route: STORE_ROUTES["x-automations/automations.json"],
+  "social-templates": {
+    route: STORE_ROUTES["social-templates/templates.json"],
     id: (record) => clean(record.id),
   },
-  "x-runs": {
-    route: STORE_ROUTES["x-automations/runs.json"],
+  "social-template-runs": {
+    route: STORE_ROUTES["social-templates/runs.json"],
     id: (record) => clean(record.id),
   },
   "ugc-outputs": {

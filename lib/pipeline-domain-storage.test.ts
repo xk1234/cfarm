@@ -64,7 +64,7 @@ describe("pipeline domain storage one-request primitives", () => {
     appwrite.tables.getRow.mockRejectedValue({ code: 404 })
     await expect(
       readPipelineDomainDocumentOnce({
-        domain: "x-runs",
+        domain: "social-template-runs",
         ownerId: "owner-1",
         id: "run-1",
       })

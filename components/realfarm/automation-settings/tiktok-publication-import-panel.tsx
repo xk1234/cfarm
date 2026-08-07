@@ -162,7 +162,7 @@ export function TikTokPublicationImportPanel({
       const runPayload = await fetchJsonWithTimeout<{
         runs?: AutomationRunApiRecord[]
       }>(
-        `/api/automations/runs?automationId=${encodeURIComponent(automationId)}&limit=100`,
+        `/api/templates/runs?templateId=${encodeURIComponent(automationId)}&limit=100`,
         { toastOnError: false }
       )
       onRunsImported(runPayload.runs ?? [])

@@ -15,7 +15,11 @@ export const POST = withHandler<{ params: Promise<{ id: string }> }>(
 
     const job = await getJob(id)
     if (!job) throw new ApiError(404, "Generation job not found.")
-    if (job.type !== "run-automation" && job.type !== "run-x-automation" && job.type !== "run-ugc-automation") {
+    if (
+      job.type !== "run-template" &&
+      job.type !== "run-social-template" &&
+      job.type !== "run-ugc-template"
+    ) {
       throw new ApiError(409, "This queue item is not a generation job.")
     }
     if (job.status !== "failed" && job.status !== "dead") {
@@ -27,17 +31,17 @@ export const POST = withHandler<{ params: Promise<{ id: string }> }>(
     if (!automationId) {
       throw new ApiError(
         409,
-        "This failed generation has no source automation to retry."
+        "This failed generation has no source template to retry."
       )
     }
     const sourceAutomation =
-      job.type === "run-x-automation"
+      job.type === "run-social-template"
         ? await getXAutomation(automationId)
         : await getAutomationRecord(automationId)
     if (!sourceAutomation) {
       throw new ApiError(
         409,
-        "The source automation no longer exists. Restore it before retrying this generation."
+        "The source template no longer exists. Restore it before retrying this generation."
       )
     }
 

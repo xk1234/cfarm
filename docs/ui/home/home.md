@@ -31,8 +31,8 @@ pending state, or failure state. Shared output is marked separately. Videos
 load only after Videos is selected for the first time.
 
 Template definitions and examples are shared `permanent_assets` rows with
-`source_key=automation_template` and
-`source_key=automation_template_example`. Slideshow previews come from
+`source_key=starter_template` and
+`source_key=starter_template_example`. Slideshow previews come from
 `automation_runs`; generated videos load lazily from owner-scoped `outputs`
 rows with `source_key=generated_video`.
 
@@ -56,8 +56,8 @@ changes the workspace to Templates, and opens the new template for editing.
 
 ## MCP coverage
 
-Partial. `lumenclip_automations_list`, `lumenclip_automation_templates_list`,
-`lumenclip_automation_create`, `lumenclip_schedule_get`,
+Partial. `lumenclip_templates_list`, `lumenclip_starter_templates_list`,
+`lumenclip_template_create`, `lumenclip_schedule_get`,
 `lumenclip_outputs_list`, `lumenclip_output_get`,
 `lumenclip_output_delete`, and `lumenclip_analytics_report` cover the main
 automation, schedule, output, and publication data operations. No registered

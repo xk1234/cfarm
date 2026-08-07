@@ -462,7 +462,7 @@ function automationSummary() {
 function job(overrides: Record<string, unknown>) {
   return {
     id: "job",
-    type: "run-automation",
+    type: "run-template",
     status: "queued",
     payload: {},
     result: null,

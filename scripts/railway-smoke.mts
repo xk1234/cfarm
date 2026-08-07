@@ -21,9 +21,9 @@ const backend = getAppwrite()
 if (!backend) throw new Error("Railway backend did not initialize.")
 
 try {
-  const automations = await backend.tables.listRows(
+  const templates = await backend.tables.listRows(
     APPWRITE_DATABASE_ID,
-    "automations",
+    "templates",
     []
   )
   const sql = getRailwayDatabase()
@@ -55,8 +55,8 @@ try {
   console.log(
     JSON.stringify({
       ok: true,
-      automationCount: automations.total,
-      firstAutomationId: automations.rows[0]?.$id ?? null,
+      templateCount: templates.total,
+      firstTemplateId: templates.rows[0]?.$id ?? null,
       assetId: firstAsset.$id,
       assetBytes: firstAsset.sizeOriginal,
       viewedAssetBytes: firstAssetBytes.byteLength,

@@ -26,7 +26,7 @@ beforeEach(() => {
   mocks.getCurrentUser.mockResolvedValue({ $id: "owner-1" })
   mocks.getRow.mockResolvedValue({
     $id: "job-1",
-    type: "run-automation",
+    type: "run-template",
     status: "dead",
     payload: JSON.stringify({ automationId: "automation-1" }),
     result: JSON.stringify({ partial: true }),
@@ -45,14 +45,14 @@ beforeEach(() => {
       rows: [
         {
           $id: "job-delete",
-          type: "run-automation",
+          type: "run-template",
           status: "failed",
           payload: JSON.stringify({ automationId: "automation-1" }),
           owner_id: "owner-1",
         },
         {
           $id: "job-keep",
-          type: "run-automation",
+          type: "run-template",
           status: "failed",
           payload: JSON.stringify({ automationId: "automation-2" }),
           owner_id: "owner-1",
@@ -109,7 +109,7 @@ describe("retryGenerationJob", () => {
   it("does not expose or retry a job owned by another user", async () => {
     mocks.getRow.mockResolvedValueOnce({
       $id: "job-1",
-      type: "run-automation",
+      type: "run-template",
       status: "dead",
       owner_id: "owner-2",
     })

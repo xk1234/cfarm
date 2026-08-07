@@ -14,13 +14,13 @@ Read-only and idempotent. Scope `lumenclip:read`.
 
 ### Input
 
-Optional `automationId`, `outputType` (`slideshow`, `video`, `x_post`, or
+Optional `templateId`, `outputType` (`slideshow`, `video`, `x_post`, or
 `threads_post`), `status` (`running`, `ready`, or `failed`),
 `publicationState`, `createdFrom`, `createdTo`, and `limit` (`1..100`).
 
 ### Output
 
-Summaries with `id`, `outputType`, `automationId`, `status`,
+Summaries with `id`, `outputType`, `templateId`, `status`,
 `publicationState`, `title`, `previewUri`, `createdAt`, and `resourceUri`, plus
 `total` and `hasMore`. Each item also includes `analytics`: availability,
 publication IDs, post count, latest capture time, canonical metric totals,
@@ -71,10 +71,10 @@ use this tool only when permanent output removal is intended.
 ## `lumenclip_operations_list`
 
 Read-only queue/run discovery with optional `status`, exact `type`, and
-`limit`. It combines durable queue jobs, standard automation runs, X/Threads
+`limit`. It combines durable queue jobs, standard template runs, X/Threads
 runs, and generated-video exports. Queue rows include attempts, maximum
 attempts, payload/result, availability, timestamps, and error; generated runs
-include automation and output identity.
+include template and output identity.
 
 ## `lumenclip_operation_get`
 
@@ -95,7 +95,7 @@ include the process-local generation stage when available.
 {
   "operation": {
     "id": "op_123",
-    "kind": "automation.run",
+    "kind": "template.run",
     "status": "running",
     "progress": 45,
     "stage": "rendering",

@@ -25,10 +25,10 @@ describe("workspace navigation", () => {
     expect(workspaceLocationFromUrl("/app/analytics")).toEqual({
       view: "analytics",
     })
-    expect(workspaceLocationFromUrl("/app/x-automations")).toEqual({
+    expect(workspaceLocationFromUrl("/app/social-templates")).toEqual({
       view: "templates",
     })
-    expect(workspaceLocationFromUrl("/app", "?view=automations")).toEqual({
+    expect(workspaceLocationFromUrl("/app", "?view=templates")).toEqual({
       view: "templates",
     })
     expect(workspaceLocationFromUrl("/app", "?view=published-posts")).toEqual({

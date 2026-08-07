@@ -189,9 +189,9 @@ function jobCalendarItem(
   to: Date
 ): CalendarItem[] {
   if (
-    job.type !== "run-automation" &&
-    job.type !== "run-x-automation" &&
-    job.type !== "run-ugc-automation"
+    job.type !== "run-template" &&
+    job.type !== "run-social-template" &&
+    job.type !== "run-ugc-template"
   ) {
     return []
   }
@@ -217,7 +217,7 @@ function jobCalendarItem(
       targets: automationTargets(automation, status),
       source: "job",
       sourceType:
-        job.type === "run-x-automation" ? "x_automation" : "automation",
+        job.type === "run-social-template" ? "x_automation" : "automation",
       sourceId: job.id,
       title:
         status === "generation_failed"
@@ -244,7 +244,7 @@ function jobCalendarItem(
         expectedGenerationAt: expectedGenerationAt(
           automation,
           slot || datetime,
-          job.type === "run-x-automation"
+          job.type === "run-social-template"
         ),
         expectedPublishedAt: slot || undefined,
       },
@@ -567,7 +567,7 @@ function calendarFilters(searchParams: URLSearchParams): CalendarFilters {
     accounts: filterSet(searchParams, "accounts"),
     platforms: filterSet(searchParams, "platforms", true),
     statuses: filterSet(searchParams, "statuses"),
-    automations: filterSet(searchParams, "automations"),
+    automations: filterSet(searchParams, "templates"),
     sourceTypes: filterSet(searchParams, "sourceType"),
   }
 }

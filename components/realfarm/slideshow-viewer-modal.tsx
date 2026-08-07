@@ -1105,7 +1105,7 @@ function SlideImagePickerModal({
                   No replacement images available
                 </div>
                 <p className="mt-1 text-[12px] text-app-muted-text">
-                  Add images to this automation’s selected photo collections
+                  Add images to this template’s selected photo collections
                   first.
                 </p>
               </div>

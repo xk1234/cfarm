@@ -737,7 +737,7 @@ export function CollectionsView({
                       <ul className="mt-2 list-disc space-y-1 pl-5">
                         {deletePreview.dependentAutomations.map((item) => (
                           <li key={`automation-${item.id}`}>
-                            Automation: {item.name}
+                            Template: {item.name}
                           </li>
                         ))}
                         {deletePreview.dependentTemplates.map((item) => (

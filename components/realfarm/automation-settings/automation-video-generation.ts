@@ -435,11 +435,11 @@ async function resolveSegmentsMedia(
             renderedSlides?: Array<{ imageUrl?: string }>
             outputImages?: string[]
           }>
-        }>("/api/automations/run", {
+        }>("/api/templates/run", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           timeoutMs: 180_000,
-          body: JSON.stringify({ automationId, force: true }),
+          body: JSON.stringify({ templateId: automationId, force: true }),
         })
         const run = payload.created?.[0]
         const slideUrls = [
@@ -555,13 +555,13 @@ async function requestVideoCopy(
     hashtags?: string[]
     substitutions?: Record<string, string>
     texts?: Record<string, string | string[]>
-  }>("/api/automations/video-copy", {
+  }>("/api/templates/video-copy", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     timeoutMs: 60_000,
     toastOnError: false,
     body: JSON.stringify({
-      automationId,
+      templateId: automationId,
       template: format.template,
       hook,
       segmentRoles: format.segments.map((segment) => ({

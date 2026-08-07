@@ -51,7 +51,7 @@ roadmap remain proposed.
 
 ## `lumenclip_hook_performance`
 
-Read-only hook-attributed analytics. Input is `automationId` plus `days`
+Read-only hook-attributed analytics. Input is `templateId` plus `days`
 (`1..3650`, default `90`). The tool joins persisted run-plan `hookId` values
 through both publication `sourceId` and snapshot `sourceId`. A Studio snapshot
 can therefore recover attribution when a legacy output is missing its embedded
@@ -121,7 +121,7 @@ calls.
 | `batchId`        | string         | no       | Restrict the report to one pending batch. Mutually exclusive with import.  |
 | `postIds`        | string[]       | no       | Local publication IDs or external TikTok post IDs.                         |
 | `integrationIds` | string[]       | no       | Restrict linked snapshots to TikTok account integrations.                  |
-| `automationId`   | string         | no       | Restrict results to one source automation.                                 |
+| `templateId`     | string         | no       | Restrict results to one source template.                                   |
 | `days`           | integer 1-3650 | no       | Linked-snapshot lookback window; default 365.                              |
 | `offset`         | integer        | no       | Zero-based page offset; default 0.                                         |
 | `limit`          | integer 1-50   | no       | Page size; default 20.                                                     |
@@ -136,7 +136,7 @@ output:
 - Slideshows include title, caption, hashtags, prompt, generation metadata,
   assets, and every slide's text, styling, media, overlays, icons, role, and
   duration.
-- Generated videos include status, copy, automation/run relationships,
+- Generated videos include status, copy, template/run relationships,
   timestamps, preview/video URLs, publication state, and safe source config.
 - Studio data includes overview totals, per-slide retention and likes, traffic,
   search, audience, raw metrics, and capture/link readiness. Section-aware
@@ -157,7 +157,7 @@ persisted output, the report keeps its analytics and returns explicit mapping
 issues instead of inventing missing slide or video data.
 
 For linked analytics, omit `importId` and `batchId`, then filter with `postIds`,
-`integrationIds`, `automationId`, and `days`.
+`integrationIds`, `templateId`, and `days`.
 
 ## Exporting a report
 

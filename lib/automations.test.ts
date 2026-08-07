@@ -20,10 +20,10 @@ import {
 import { defaultAutomationTemplateDefaults } from "@/lib/automation-template-defaults"
 
 // Appwrite-only, run against cfarm (forced by vitest.setup.ts):
-//   data/automations/automations.json          -> automations
-const rootDir = path.join(process.cwd(), "data", "automations")
+//   data/templates/automations.json          -> automations
+const rootDir = path.join(process.cwd(), "data", "templates")
 
-const clearAll = () => clearTestTables("automations")
+const clearAll = () => clearTestTables("templates")
 
 beforeEach(clearAll)
 afterAll(clearAll)
@@ -282,7 +282,7 @@ describe("automation import persistence", () => {
     await writeJsonArrayStore({
       rootDir,
       fileName: "automations.json",
-      key: "automations",
+      key: "templates",
       records: [record],
     })
 
@@ -307,7 +307,7 @@ describe("automation import persistence", () => {
     const [stored] = await readJsonArrayStore<Record<string, unknown>>({
       rootDir,
       fileName: "automations.json",
-      key: "automations",
+      key: "templates",
     })
     expect(stored).not.toHaveProperty("account")
     expect(stored).not.toHaveProperty("handle")
@@ -569,7 +569,7 @@ describe("automation import persistence", () => {
     await writeJsonArrayStore({
       rootDir,
       fileName: "automations.json",
-      key: "automations",
+      key: "templates",
       records: [
         automationRecordFixture("delete-me"),
         automationRecordFixture("keep-me"),
@@ -581,7 +581,7 @@ describe("automation import persistence", () => {
     const stored = await readJsonArrayStore<{ id: string }>({
       rootDir,
       fileName: "automations.json",
-      key: "automations",
+      key: "templates",
     })
     expect(result?.id).toBe("delete-me")
     expect(stored.map((record) => record.id)).toEqual(["keep-me"])

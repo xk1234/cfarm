@@ -174,7 +174,7 @@ export function PromptConfigPanel({
   useEffect(() => {
     let active = true
     void fetchJsonWithTimeout<{ hooks?: HookUsageState[] }>(
-      `/api/automations/${encodeURIComponent(automation.id)}/hook-analytics`,
+      `/api/templates/${encodeURIComponent(automation.id)}/hook-analytics`,
       { toastOnError: false }
     )
       .then((payload) => {

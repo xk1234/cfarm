@@ -41,8 +41,8 @@ export type AutomationRecord = {
 
 export type AutomationKind = AutomationSchema["automationKind"]
 
-const defaultRootDir = path.join(process.cwd(), "data", "automations")
-const dbFileName = "automations.json"
+const defaultRootDir = path.join(process.cwd(), "data", "templates")
+const dbFileName = "templates.json"
 
 export async function listAutomationRecords(
   options: { rootDir?: string } = {}
@@ -295,7 +295,7 @@ function readAutomationRecords(
   return readJsonArrayStore({
     rootDir,
     fileName: dbFileName,
-    key: "automations",
+    key: "templates",
     normalize: normalizeAutomationRecord,
   })
 }
@@ -312,7 +312,7 @@ function automationStore(rootDir = defaultRootDir) {
   return {
     rootDir,
     fileName: dbFileName,
-    key: "automations",
+    key: "templates",
   }
 }
 

@@ -582,9 +582,16 @@ function isConsolidated(route: StoreRoute): boolean {
 }
 
 function storeRowNamespace(route: StoreRoute): string {
-  return isConsolidated(route)
-    ? `${route.table}:${route.sourceKey}`
-    : route.table
+  if (isConsolidated(route)) return `${route.table}:${route.sourceKey}`
+  // Row IDs are durable storage identities. Keep their original hash
+  // namespace while the physical table name moves to the template vocabulary.
+  return (
+    {
+      templates: "automations",
+      template_runs: "automation_runs",
+      social_templates: "x_automations",
+    }[route.table] ?? route.table
+  )
 }
 
 function storeRowId(route: StoreRoute, rid: string | null, index: number) {

@@ -31,10 +31,3 @@ Update the relevant document with every material implementation change.
   identifier, such as the Appwrite database and project names.
 - Screenshots are reference imagery. Where a capture and the written behavior
   disagree, the written behavior is correct.
-
-## Archives
-
-Dated audit directories such as `docs/ui-audit-2026-07-29/` and
-`docs/ui-paper-audit-2026-08-01/` are historical records. They are excluded from
-the documentation build in `source.config.ts` and are deliberately left in the
-state they were written, including product naming that has since changed.

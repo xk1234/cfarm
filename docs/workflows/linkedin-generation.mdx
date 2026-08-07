@@ -5,7 +5,7 @@ description: "Transform a niche, persona, proof bank, and optional brief into va
 
 # LinkedIn generation pipeline
 
-**Availability:** `POST /api/linkedin-automations/generate` executes this pipeline without
+**Availability:** `POST /api/linkedin-templates/generate` executes this pipeline without
 persistence. The store, editor, scheduler, and publisher are not wired.
 
 The example values below are abbreviated, but every block is valid JSON.
@@ -50,7 +50,7 @@ with that `stageId` and an explicit `input` object.
 Post the request body directly. Only `niche` is required.
 
 ```bash
-curl -X POST https://<your-host>/api/linkedin-automations/generate \
+curl -X POST https://<your-host>/api/linkedin-templates/generate \
   -H 'Content-Type: application/json' \
   -d '{
     "niche": "B2B SaaS onboarding",
@@ -70,7 +70,7 @@ change the post model. The response is `{ niche, model, brief, posts }`; nothing
 <Tab value="Studio">
 
 There is no Studio surface for this pipeline. No workspace view calls
-`POST /api/linkedin-automations/generate`, so use the HTTP or MCP path above.
+`POST /api/linkedin-templates/generate`, so use the HTTP or MCP path above.
 
 </Tab>
 

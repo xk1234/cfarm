@@ -28,11 +28,11 @@ export type StoredAutomationTemplate = {
   createdAt: string
   updatedAt: string
   schema: Omit<
-  AutomationSchema,
-  "created_at" | "title" | "status" | "schedule" | "social_integrations"
-> & {
-  created_at: string
-}
+    AutomationSchema,
+    "created_at" | "title" | "status" | "schedule" | "social_integrations"
+  > & {
+    created_at: string
+  }
 }
 
 export type StoredAutomationTemplateSchema = StoredAutomationTemplate["schema"]
@@ -62,7 +62,7 @@ export type AutomationTemplateCollectionValidationIssue = {
   missingCollectionIds: string[]
 }
 
-const defaultRootDir = path.join(process.cwd(), "data", "automation-templates")
+const defaultRootDir = path.join(process.cwd(), "data", "starter-templates")
 const dbFileName = "templates.json"
 const exampleRunsFileName = "example-runs.json"
 
@@ -205,7 +205,6 @@ export function automationTemplateSchemaToRuntime(
     },
     summary
   )
-
 }
 
 export function validateAutomationTemplateCollectionIds(input: {
@@ -298,11 +297,7 @@ export function automationSchemaToTemplateRecord(input: {
 function normalizeAutomationTemplateRecord(
   record: AutomationTemplateRecord
 ): AutomationTemplateRecord | null {
-  if (
-    !record?.id ||
-    !record.name ||
-    !record.schema
-  ) {
+  if (!record?.id || !record.name || !record.schema) {
     return null
   }
 

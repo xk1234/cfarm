@@ -1,6 +1,6 @@
 # LumenClip
 
-LumenClip is a content-production and automation workspace for social slideshows, short-form video, and text posts. It combines reusable media collections, scheduled automation, X/Threads generation, PostFast publishing, a content calendar, and analytics in a Next.js app backed by Appwrite.
+LumenClip is a content-production workspace for social slideshows, short-form video, and text posts. It combines reusable media collections, scheduled templates, X/Threads generation, PostFast publishing, a content calendar, and analytics in a Next.js app backed by Railway PostgreSQL and object storage.
 
 ## Stack
 
@@ -23,20 +23,20 @@ pnpm dev               # starts local Appwrite + workers + Next.js
 
 ### Scripts
 
-| Command                                | Description                                                           |
-| -------------------------------------- | --------------------------------------------------------------------- |
-| `pnpm env:check`                       | Verify required environment variables are present                     |
-| `pnpm dev`                             | Start local Appwrite, workers, and the Next.js dev server             |
-| `pnpm dev:web`                         | Start only Next.js without checking or starting the backend           |
-| `pnpm appwrite:local:setup`            | Resync the cloud schema into local Appwrite                           |
-| `pnpm appwrite:local:sync-automations` | Explicitly copy missing cloud automations into local Appwrite         |
-| `pnpm appwrite:local:sync-reference`   | Copy cloud image collections and referenced files into local Appwrite |
-| `pnpm build`                           | Production build                                                      |
-| `pnpm start`                           | Start the production server                                           |
-| `pnpm lint`                            | Run eslint                                                            |
-| `pnpm test`                            | Run the vitest suite                                                  |
-| `pnpm format`                          | Prettier-write all `.ts/.tsx`                                         |
-| `pnpm typecheck`                       | `tsc --noEmit`                                                        |
+| Command                              | Description                                                           |
+| ------------------------------------ | --------------------------------------------------------------------- |
+| `pnpm env:check`                     | Verify required environment variables are present                     |
+| `pnpm dev`                           | Start local Appwrite, workers, and the Next.js dev server             |
+| `pnpm dev:web`                       | Start only Next.js without checking or starting the backend           |
+| `pnpm appwrite:local:setup`          | Resync the cloud schema into local Appwrite                           |
+| `pnpm appwrite:local:sync-templates` | Explicitly copy missing cloud templates into local Appwrite           |
+| `pnpm appwrite:local:sync-reference` | Copy cloud image collections and referenced files into local Appwrite |
+| `pnpm build`                         | Production build                                                      |
+| `pnpm start`                         | Start the production server                                           |
+| `pnpm lint`                          | Run eslint                                                            |
+| `pnpm test`                          | Run the vitest suite                                                  |
+| `pnpm format`                        | Prettier-write all `.ts/.tsx`                                         |
+| `pnpm typecheck`                     | `tsc --noEmit`                                                        |
 
 ### Environment
 
@@ -47,7 +47,7 @@ Required to run: the four `APPWRITE_*` keys (endpoint, project id, api key, data
 ```
 app/                     Next.js App Router: pages, API routes, global styles
 components/realfarm/      App UI: navigation + per-tab views (home, collections,
-                         automations, greenscreen, schedule, analytics…)
+                         templates, greenscreen, schedule, analytics…)
 components/ui/           shadcn component library
 lib/                     Domain logic, API clients, persistence layer, tests
 appwrite/functions/      Appwrite Functions (cron scheduler + job worker)
@@ -65,8 +65,8 @@ no traffic.
 
 - **TablesDB** database `cfarm` stores owned application data, consolidated permanent assets, generated outputs, and output media.
 - **Storage** holds source media and generated assets. Asset file ids are deterministic (`sha256(path).slice(0,36)`).
-- **Persistence layer** — `lib/json-store.ts` reads and writes Appwrite TablesDB. There is no mutable filesystem fallback; local development reads the migrated automation-template catalog from local Appwrite.
-- **Functions** — `automation-scheduler` (cron `*/5 * * * *`) computes which automations are due and enqueues deduped jobs; `job-worker` (every two minutes) drains the `jobs` table with a leased-claim queue and runs rendering/generation/publishing work. See `docs/scheduling.md` for the queue model.
+- **Persistence layer** — production stores domain records in Railway PostgreSQL and media in Railway object storage. The Appwrite-compatible adapter remains only for local development and one-way migration tooling.
+- **Workers** — `template-scheduler` computes which templates are due and enqueues deduped jobs; `job-worker` drains the `jobs` table with a leased-claim queue and runs rendering/generation/publishing work. See `docs/scheduling.md` for the queue model.
 
 Local `data/` files are limited to bundled seeds and working files for filesystem-dependent code (ffmpeg, sharp, directory scans); slideshow intermediate frames (SVG/PNG) stay local by design.
 

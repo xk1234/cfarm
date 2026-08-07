@@ -101,7 +101,7 @@ async function loadSlideshowTemplateItems(): Promise<
           id: record.id,
           name: record.name,
           eyebrow: `${record.theme || "General"} slideshow`,
-          description: `${record.name} is a ${tone.toLowerCase()} slideshow automation with ${automation.slides.length} configured slide slots. Its catalog definition supplies the hooks, media collections, text constraints, and publishing-ready runtime settings copied into a new automation.`,
+          description: `${record.name} is a ${tone.toLowerCase()} slideshow template with ${automation.slides.length} configured slide slots. Its catalog definition supplies the hooks, media collections, text constraints, and publishing-ready runtime settings copied into a reusable template.`,
           styleBrief: `Use the ${tone.toLowerCase()} tone while keeping every slide specific to its selected hook.`,
           metadata: [
             `${automation.slides.length} slides`,
@@ -190,7 +190,7 @@ export function VideoAutomationTemplateAssets() {
       return {
         id: preset.id,
         name: preset.name,
-        eyebrow: "Video automation",
+        eyebrow: "Video template",
         description: preset.description,
         styleBrief: preset.tagline,
         metadata: [
@@ -218,8 +218,8 @@ export function OtherAutomationTemplateAssets() {
   const items: AssetTemplateCatalogItem[] = [
     socialTemplateItem({
       id: "x-posts",
-      name: "X post automation",
-      eyebrow: "Social text automation",
+      name: "X post template",
+      eyebrow: "Social text template",
       description:
         "Generates either a single X post or an educational thread by selecting a weighted archetype, compatible hook style, and reusable voice preset before deterministic validation.",
       styleBrief:
@@ -235,8 +235,8 @@ export function OtherAutomationTemplateAssets() {
     }),
     socialTemplateItem({
       id: "threads-posts",
-      name: "Threads post automation",
-      eyebrow: "Social text automation",
+      name: "Threads post template",
+      eyebrow: "Social text template",
       description:
         "Generates short, identity-led Threads posts from a weighted mix of callouts, questions, analogies, micro-stories, credibility claims, and community-code humor.",
       styleBrief:
@@ -252,8 +252,8 @@ export function OtherAutomationTemplateAssets() {
     }),
     socialTemplateItem({
       id: "linkedin-posts",
-      name: "LinkedIn post automation",
-      eyebrow: "Social text automation",
+      name: "LinkedIn post template",
+      eyebrow: "Social text template",
       description:
         "Builds structured LinkedIn posts from production-tested archetypes, hook formulas, proof-aware voices, and strict output validation for length and unsupported claims.",
       styleBrief:

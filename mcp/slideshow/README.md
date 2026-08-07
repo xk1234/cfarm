@@ -1,16 +1,16 @@
 # Slideshow MCP tools
 
-> Partially implemented. Existing slideshow automations can generate a manual
+> Partially implemented. Existing slideshow templates can generate a manual
 > draft with `lumenclip_slideshow_generate`. Direct brief-based and explicit
 > slide creation remain proposed.
 
-Slideshow workflows use the shared discovery, automation, collection,
+Slideshow workflows use the shared discovery, template, collection,
 operation, output, and publishing tools documented in
 [../shared-contracts.md](../shared-contracts.md), plus the two slideshow-native
 tools below.
 
 Primary contracts: [Templates](../templates/README.md),
-[Automations](../automations/README.md),
+[Templates](../templates/README.md),
 [Collections](../collections/README.md),
 [Outputs and operations](../outputs/README.md), and
 [Accounts and publishing](../publishing/README.md).
@@ -18,13 +18,13 @@ Primary contracts: [Templates](../templates/README.md),
 ## Applicable shared tools
 
 `lumenclip_workspace_get`, `lumenclip_templates_list`,
-`lumenclip_template_get`, `lumenclip_automations_list`,
-`lumenclip_automation_get`, `lumenclip_collections_list`,
+`lumenclip_template_get`, `lumenclip_templates_list`,
+`lumenclip_template_get`, `lumenclip_collections_list`,
 `lumenclip_outputs_list`, `lumenclip_accounts_list`,
-`lumenclip_automation_preview`, `lumenclip_automation_create_from_template`,
-`lumenclip_automation_save`, `lumenclip_automation_update`,
+`lumenclip_template_preview`, `lumenclip_template_create_from_template`,
+`lumenclip_template_save`, `lumenclip_template_update`,
 `lumenclip_collection_save`, `lumenclip_collection_add_assets`,
-`lumenclip_automation_run`, `lumenclip_operation_get`,
+`lumenclip_template_run`, `lumenclip_operation_get`,
 `lumenclip_output_publish`, and `lumenclip_output_mark_published`.
 
 For slideshow discovery, pass `kind: "slideshow"`. Compatible image collections
@@ -32,17 +32,17 @@ use `mediaType: "image"`; word-variable collections use `mediaType: "word"`.
 
 ## `lumenclip_slideshow_generate`
 
-Implemented. Runs one existing slideshow automation immediately. Generation is
+Implemented. Runs one existing slideshow template immediately. Generation is
 billable and may wait for text generation and rendering, but it never schedules
-or publishes the output. A paused automation can be run manually without
+or publishes the output. A paused template can be run manually without
 resuming its recurring schedule.
 
 ### Input
 
-| Field          | Type   | Required | Description                                                               |
-| -------------- | ------ | -------- | ------------------------------------------------------------------------- |
-| `automationId` | string | yes      | Existing caller-owned slideshow automation.                               |
-| `requestId`    | string | no       | Caller trace key recorded on the run; it is not an idempotency guarantee. |
+| Field        | Type   | Required | Description                                                               |
+| ------------ | ------ | -------- | ------------------------------------------------------------------------- |
+| `templateId` | string | yes      | Existing caller-owned slideshow template.                                 |
+| `requestId`  | string | no       | Caller trace key recorded on the run; it is not an idempotency guarantee. |
 
 ### Output
 
@@ -50,11 +50,11 @@ Returns the request ID plus concise run summaries:
 
 ```json
 {
-  "automationId": "auto_astrology_info",
+  "templateId": "auto_astrology_info",
   "requestId": "manual-draft-001",
   "runs": [
     {
-      "runId": "automation-run-123",
+      "runId": "template-run-123",
       "slideshowId": "slideshow-123",
       "status": "succeeded",
       "title": "Mercury signs in conflict",
@@ -130,24 +130,24 @@ output resource on success. Rendered images use cover cropping to fill the
 selected aspect ratio; media bytes are accessed through signed preview links,
 not embedded in the tool result.
 
-## Slideshow automation run
+## Slideshow template run
 
-Use `lumenclip_automation_run` with a slideshow automation:
+Use `lumenclip_template_run` with a slideshow template:
 
 ```json
 {
-  "automationId": "auto_astrology_info",
+  "templateId": "auto_astrology_info",
   "requestId": "astro-mercury-001"
 }
 ```
 
-Output is an `automation.run` operation. Manual results remain unpublished and
-unscheduled regardless of the automation's live schedule.
+Output is an `template.run` operation. Manual results remain unpublished and
+unscheduled regardless of the template's live schedule.
 
 ## Review and publish sequence
 
 1. Discover a template and image collection.
-2. Preview and save a paused automation, or call a slideshow-native tool.
+2. Preview and save a paused template, or call a slideshow-native tool.
 3. Poll `lumenclip_operation_get`.
 4. Read `lumenclip://outputs/{id}` and inspect every slide.
 5. Resolve account capabilities with `lumenclip_accounts_list`.

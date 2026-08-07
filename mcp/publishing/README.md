@@ -87,13 +87,13 @@ slideshow/video/social-run publication marker without posting externally.
 URLs and returns an Apify operation ID. It is read-only from LumenClip's point
 of view and does not change the external posts.
 
-`lumenclip_tiktok_import_preview` accepts the operation and automation IDs. It
+`lumenclip_tiktok_import_preview` accepts the operation and template IDs. It
 returns normalized post metadata, visible first-slide text, owner-scoped run
 candidates, scores/evidence, a recommendation only when unambiguous, and any
 existing local link.
 
 `lumenclip_tiktok_publications_link` accepts the reviewed operation,
-automation, connected TikTok account, and one selection per post. Each
+template, connected TikTok account, and one selection per post. Each
 selection names an existing run or requests historical recovery. Literal
 `confirm: true` is required. The operation is idempotent for an existing link
 and rejects a provider-post ID already linked to a different output.

@@ -3,7 +3,7 @@ title: Media viewers
 description: Review and edit collection images, generated slideshows, and generated videos in a modal.
 ---
 
-Route: Modal state from `/app?view=home`, `/app?view=automations`, and `/app/collections/[id]`.
+Route: Modal state from `/app?view=home`, `/app?view=templates`, and `/app/collections/[id]`.
 
 ![Desktop dashboard slideshow viewer](../assets/screenshots/desktop-dashboard-slideshow-viewer.png)
 

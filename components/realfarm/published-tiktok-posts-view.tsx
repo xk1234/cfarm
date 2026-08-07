@@ -33,7 +33,7 @@ export function PublishedTikTokPostsView({
     return (
       <SettingsPage title="Published TikTok posts">
         <div className="py-10 text-sm font-medium text-app-muted-text">
-          Create a slideshow automation before linking published TikTok posts.
+          Create a slideshow template before linking published TikTok posts.
         </div>
       </SettingsPage>
     )
