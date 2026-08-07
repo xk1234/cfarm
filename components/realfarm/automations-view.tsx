@@ -29,6 +29,7 @@ export function TemplatesView({
   schemasByAutomationId,
   starterTemplates,
   starterSchemasByAutomationId,
+  starterPreviewImagesByAutomationId,
   collections,
   demoVideos,
   xTemplatesByAutomationId,
@@ -43,6 +44,7 @@ export function TemplatesView({
   schemasByAutomationId: Record<string, AutomationSchema>
   starterTemplates: Automation[]
   starterSchemasByAutomationId: Record<string, AutomationSchema>
+  starterPreviewImagesByAutomationId: Record<string, string>
   collections: CreatedImageCollection[]
   demoVideos: LocalAsset[]
   xTemplatesByAutomationId?: Record<string, XAutomationRecord>
@@ -53,6 +55,11 @@ export function TemplatesView({
   onEdit: (automation: Automation) => void
 }) {
   const [toneAnalyzerOpen, setToneAnalyzerOpen] = useState(false)
+  const orderedStarterTemplates = starterTemplates.toSorted(
+    (first, second) =>
+      Number(Boolean(starterPreviewImagesByAutomationId[second.id])) -
+      Number(Boolean(starterPreviewImagesByAutomationId[first.id]))
+  )
   return (
     <div className="mx-auto max-w-[1160px]">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -77,7 +84,7 @@ export function TemplatesView({
             Starter templates
           </h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {starterTemplates.map((automation) => (
+            {orderedStarterTemplates.map((automation) => (
               <StarterTemplateCard
                 key={automation.id}
                 automation={automation}
@@ -91,6 +98,9 @@ export function TemplatesView({
                 }
                 collections={collections}
                 demoVideos={demoVideos}
+                previewImageUrl={
+                  starterPreviewImagesByAutomationId[automation.id]
+                }
                 onUse={() => onUseStarterTemplate(automation)}
               />
             ))}
@@ -149,12 +159,14 @@ function StarterTemplateCard({
   config,
   collections,
   demoVideos,
+  previewImageUrl,
   onUse,
 }: {
   automation: Automation
   config?: AutomationSchema
   collections: CreatedImageCollection[]
   demoVideos: LocalAsset[]
+  previewImageUrl?: string
   onUse: () => void
 }) {
   return (
@@ -164,6 +176,8 @@ function StarterTemplateCard({
         config={config}
         collections={collections}
         demoVideos={demoVideos}
+        previewImageUrl={previewImageUrl}
+        showGeneratedPreviewFallback
         actionLabel={`Use ${automation.name} starter template`}
         onOpen={onUse}
       />

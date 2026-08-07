@@ -134,11 +134,13 @@ export type AutomationRunSummary = {
 export type InitialTemplateData = {
   templates: Automation[]
   schemas: Record<string, AutomationSchema>
+  previewImages: Record<string, string>
 }
 
 const emptyInitialTemplateData: InitialTemplateData = {
   templates: [],
   schemas: {},
+  previewImages: {},
 }
 
 async function loadRecentAutomationRuns() {
@@ -765,6 +767,7 @@ export function RealFarmWorkspace({
       schemasByAutomationId={automationConfigEdits}
       starterTemplates={templateAutomations}
       starterSchemasByAutomationId={templateConfigEdits}
+      starterPreviewImagesByAutomationId={initialTemplateData.previewImages}
       collections={visibleCollections}
       demoVideos={workspaceAssets.demoVideos}
       xTemplatesByAutomationId={xTemplatesByAutomationId}
