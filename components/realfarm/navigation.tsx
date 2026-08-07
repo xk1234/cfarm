@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import useSWR from "swr"
+import { useClerk } from "@clerk/nextjs"
 
 import {
   IconBolt,
@@ -69,6 +70,7 @@ export function Sidebar({
   onNewAutomation: () => void
   onSettings: () => void
 }) {
+  const { signOut } = useClerk()
   const { data: calendarStatus } = useSWR<{
     summary: { needsAction: number; failed: number }
   }>("/api/calendar/summary", clientSWRFetcher, {
@@ -151,8 +153,7 @@ export function Sidebar({
         <button
           className="lc-focus-ring mt-1 flex h-9 w-full items-center gap-2.5 rounded-[10px] px-3 text-left text-xs font-medium text-app-muted-text hover:bg-app-control-hover hover:text-app-text"
           onClick={async () => {
-            await fetch("/api/auth/logout", { method: "POST" })
-            window.location.assign("/")
+            await signOut({ redirectUrl: "/" })
           }}
         >
           <IconLogout className="size-4" />

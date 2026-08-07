@@ -65,6 +65,10 @@ import {
   draftTikTokCommentReplies,
 } from "@/lib/tiktok-comment-replies"
 
+beforeEach(() => {
+  process.env.TIKTOK_COMMENTS_CAPTURE_SECRET = "test-secret"
+})
+
 describe("TikTok comment reply styles", () => {
   it.each([
     [

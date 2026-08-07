@@ -3,14 +3,16 @@ title: "Railway migration"
 ---
 
 This page is the operational contract for replacing Appwrite with Railway.
-Railway is now the default runtime; Appwrite is retained only as a read-only
-migration source, rollback source, and temporary authentication bridge.
+Railway is now the data and asset runtime, and Clerk owns authentication.
+Appwrite is retained only as an offline migration and rollback source.
 
 ## Target topology
 
 ```mermaid
 flowchart LR
-    Client["Browser and MCP clients"] --> Web["Railway web service"]
+    Client["Browser and MCP clients"] --> Clerk["Clerk authentication"]
+    Client --> Web["Railway web service"]
+    Clerk --> Web
     Web --> Postgres["Railway Postgres"]
     Web --> Bucket["Railway private bucket"]
     Scheduler["Railway scheduler service"] --> Postgres
@@ -22,13 +24,13 @@ flowchart LR
 The Railway project is named `lumenclip`. Its production environment contains
 these resources:
 
-| Resource           | Responsibility                                                              |
-| ------------------ | --------------------------------------------------------------------------- |
-| `Postgres`         | Users, sessions, domain records, jobs, migration manifests, and checkpoints |
-| `lumenclip-assets` | Private S3-compatible object storage for all generated and uploaded media   |
-| `web`              | Next.js application and MCP HTTP surface                                    |
-| `worker`           | Continuously claims and runs queued jobs                                    |
-| `scheduler`        | Polls every five minutes and enqueues due automations                       |
+| Resource           | Responsibility                                                            |
+| ------------------ | ------------------------------------------------------------------------- |
+| `Postgres`         | User profiles, domain records, jobs, migration manifests, and checkpoints |
+| `lumenclip-assets` | Private S3-compatible object storage for all generated and uploaded media |
+| `web`              | Next.js application and MCP HTTP surface                                  |
+| `worker`           | Continuously claims and runs queued jobs                                  |
+| `scheduler`        | Polls every five minutes and enqueues due automations                     |
 
 Railway buckets are private. Application routes continue to be the stable
 public media boundary; direct downloads use short-lived presigned URLs.
@@ -69,16 +71,13 @@ them during the copy:
 - `jobs` is a typed PostgreSQL queue with lease fields for safe concurrent
   workers.
 
-Appwrite password hashes are not exportable through its server API. The
-Railway auth adapter preserves user IDs and promotes an existing Appwrite
-session, or validates an imported user's first password login against Appwrite
-once before storing a Railway `scrypt` hash. All subsequent sessions are stored
-in PostgreSQL. This temporary sign-in bridge is the only remaining Appwrite
-dependency after the data and asset flags move to Railway; keep the Appwrite
-auth variables until every imported account has been promoted. Native Railway
-registrations do not yet have a configured transactional-email provider, so
-verification and recovery delivery must be configured before the bridge is
-removed.
+Appwrite password hashes are not exportable. `pnpm auth:migrate:clerk --
+--apply` creates Clerk identities from Railway's `app_users`, preserves every
+existing owner ID as the Clerk external ID, and keeps preferences in Postgres.
+Imported users authenticate with Clerk's email flow and must set a new password
+if they choose password sign-in. Clerk owns verification, recovery, sessions,
+and invitation email delivery; the application no longer calls Appwrite auth
+or Teams at runtime.
 
 The compatibility adapter implements the TablesDB operations and query shapes
 used by the application (`equal`, `notEqual`, comparisons, ordering, limits,
@@ -99,6 +98,8 @@ pnpm railway:migrate:assets -- --apply --source-env=.env --concurrency=8
 pnpm railway:cutover:queue
 pnpm railway:cutover:queue -- --apply
 pnpm railway:smoke
+pnpm auth:migrate:clerk
+pnpm auth:migrate:clerk -- --apply
 pnpm railway:worker
 pnpm railway:scheduler
 ```
@@ -133,8 +134,9 @@ being replayed merely because their queue rows were migrated.
 3. Exercise the TablesDB-compatible PostgreSQL adapter and the S3-compatible
    asset adapter behind `LUMENCLIP_DATA_BACKEND` and
    `LUMENCLIP_ASSET_BACKEND`.
-4. Exercise Railway sessions. Imported users retain their owner IDs and are
-   promoted on their first valid session or password login.
+4. Import Railway users into Clerk. Confirm their Clerk external IDs match the
+   existing Railway owner IDs, then exercise sign-up, sign-in, recovery, and
+   sign-out.
 5. Deploy `web`, `worker`, and `scheduler` with Railway private-network
    references to Postgres and the bucket.
 6. Pause Appwrite schedulers and workers, run both importers with `--restart`
@@ -144,9 +146,9 @@ being replayed merely because their queue rows were migrated.
 7. Move the companion extension, capture origin, MCP clients, and user-facing
    links to the Railway production domain. Keep the development scheduler and
    worker stopped.
-8. Keep Appwrite read-only through the rollback window. Remove its SDK,
-   functions, schema scripts, auth bridge, and infrastructure after imported
-   accounts have moved to the replacement auth provider.
+8. Keep Appwrite offline through the rollback window. Deployed Railway services
+   have no Appwrite credentials; source-only migration scripts can be removed
+   after the rollback window.
 
 ## Acceptance gates
 

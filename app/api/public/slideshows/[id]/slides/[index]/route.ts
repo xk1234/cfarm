@@ -1,10 +1,12 @@
 import { bucketForPath, fileIdForPath } from "@/lib/appwrite-stores"
 import { appwriteFileResponse } from "@/lib/appwrite-storage-response"
+import { assetBackend } from "@/lib/backend-config"
 import {
   slideshowImageContentType,
   slideshowOutputAssetPath,
 } from "@/lib/public-slideshow-assets"
 import { loadSharedSlideshow } from "@/lib/slideshow-share"
+import { railwayFileResponse } from "@/lib/railway/storage-response"
 
 export const dynamic = "force-dynamic"
 
@@ -30,10 +32,13 @@ export async function GET(
   )
   if (!relativePath) return new Response("Not found", { status: 404 })
 
-  return appwriteFileResponse({
+  const responseInput = {
     bucketId: bucketForPath(relativePath),
     fileId: fileIdForPath(relativePath),
     contentType: slideshowImageContentType(relativePath),
     range: request.headers.get("range"),
-  })
+  }
+  return assetBackend() === "railway"
+    ? railwayFileResponse(responseInput)
+    : appwriteFileResponse(responseInput)
 }
