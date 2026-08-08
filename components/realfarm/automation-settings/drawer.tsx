@@ -433,11 +433,11 @@ export function AutomationSettingsDrawer({
         modal ? "h-full" : "min-h-[calc(100svh-3.5rem)] md:min-h-svh"
       )}
     >
-      <header className="z-30 shrink-0 border-b border-app-panel-border bg-app-surface">
+      <header className="z-30 shrink-0 border-b border-black/15 bg-[#1d1d1c] text-white">
         <div className="flex min-h-14 items-center gap-2 px-3 sm:px-4">
           <button
             type="button"
-            className="flex shrink-0 items-center gap-1 text-[13px] font-semibold text-app-text-soft"
+            className="flex shrink-0 items-center gap-1 text-[13px] font-semibold text-white/70 transition hover:text-white"
             onClick={() => void closeAfterAutosave()}
             aria-label="Back to templates"
           >
@@ -448,7 +448,7 @@ export function AutomationSettingsDrawer({
           {editingName ? (
             <input
               autoFocus
-              className="h-9 max-w-56 min-w-0 rounded-lg border border-app-panel-border px-2 text-[14px] font-bold outline-none"
+              className="h-9 max-w-56 min-w-0 rounded-md border border-white/20 bg-white/10 px-2 text-[14px] font-bold text-white outline-none focus:border-white/50"
               value={draftName}
               onChange={(event) => setDraftName(event.target.value)}
               onBlur={saveName}
@@ -463,20 +463,46 @@ export function AutomationSettingsDrawer({
           ) : (
             <button
               type="button"
-              className="max-w-48 min-w-0 truncate text-left text-[14px] font-bold text-app-text"
+              className="max-w-24 min-w-0 truncate text-left text-[14px] font-bold text-white sm:max-w-56"
               onClick={() => setEditingName(true)}
             >
               {automation.name}
             </button>
           )}
 
+          <nav
+            className="ml-1 flex items-center gap-0.5 rounded-md bg-black/20 p-1 sm:ml-3"
+            aria-label="Template editor"
+          >
+            {tabs.map((tab) => {
+              const TabIcon = tab.icon
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={cn(
+                    "lc-focus-ring flex h-8 items-center justify-center gap-1.5 rounded px-2 text-[11px] font-semibold transition sm:px-3",
+                    activeTab === tab.id
+                      ? "bg-white text-[#20201f] shadow-sm"
+                      : "text-white/62 hover:bg-white/10 hover:text-white"
+                  )}
+                  onClick={() => setActiveTab(tab.id)}
+                  aria-current={activeTab === tab.id ? "page" : undefined}
+                >
+                  <TabIcon className="size-4" />
+                  <span className="hidden md:inline">{tab.label}</span>
+                </button>
+              )
+            })}
+          </nav>
+
           <div className="ml-auto flex items-center gap-1">
-            <span className="hidden text-[11px] font-semibold text-app-text-faint sm:inline">
+            <span className="hidden text-[11px] font-semibold text-white/48 lg:inline">
               {savingConfig || configChanged ? "Saving…" : "Saved"}
             </span>
             <button
               type="button"
-              className="grid size-9 place-items-center rounded-lg text-app-text-soft hover:bg-app-surface-subtle disabled:opacity-40"
+              className="hidden size-9 place-items-center rounded-md text-white/68 transition hover:bg-white/10 hover:text-white disabled:opacity-40 sm:grid"
               disabled={duplicating}
               onClick={() => {
                 setDuplicating(true)
@@ -488,99 +514,73 @@ export function AutomationSettingsDrawer({
             </button>
             <button
               type="button"
-              className="grid size-9 place-items-center rounded-lg text-[#c54b4b] hover:bg-red-50"
+              className="hidden size-9 place-items-center rounded-md text-[#ff8b82] transition hover:bg-white/10 sm:grid"
               onClick={onDelete}
               aria-label="Delete template"
             >
               <IconTrash className="size-4" />
             </button>
             <button
-              className="flex h-9 items-center justify-center gap-1.5 rounded-lg bg-app-strong px-3 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-55"
+              className="flex h-9 items-center justify-center gap-1.5 rounded-md bg-[#f4c44e] px-2 text-[13px] font-bold text-[#1d1d1c] transition hover:bg-[#ffd467] disabled:cursor-not-allowed disabled:opacity-55 sm:px-3"
               disabled={generating || savingConfig || configChanged}
               onClick={generateAutomation}
               aria-busy={generating}
             >
               <IconPlus className="size-4" />
-              {generating ? "Generating…" : "Generate"}
+              <span className="hidden sm:inline">
+                {generating ? "Generating…" : "Generate"}
+              </span>
             </button>
           </div>
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-rows-[52px_minmax(0,1fr)] md:grid-cols-[68px_minmax(0,1fr)] md:grid-rows-1">
-        <nav
-          className="z-20 flex items-center justify-center gap-1 border-b border-app-panel-border bg-[#f4f4f1] px-2 md:flex-col md:justify-start md:border-r md:border-b-0 md:px-1.5 md:py-2"
-          aria-label="Template editor"
-        >
-          {tabs.map((tab) => {
-            const TabIcon = tab.icon
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                className={cn(
-                  "lc-focus-ring flex h-9 flex-1 items-center justify-center gap-2 rounded-md px-3 text-[11px] font-semibold transition md:h-14 md:w-full md:flex-none md:flex-col md:gap-1 md:px-1",
-                  activeTab === tab.id
-                    ? "bg-white text-[#1b5fab] shadow-sm ring-1 ring-black/7"
-                    : "text-app-text-faint hover:bg-white/70 hover:text-app-text"
-                )}
-                onClick={() => setActiveTab(tab.id)}
-                aria-current={activeTab === tab.id ? "page" : undefined}
-              >
-                <TabIcon className="size-4" />
-                <span>{tab.label}</span>
-              </button>
-            )
-          })}
-        </nav>
-
-        <div
-          className={cn(
-            "min-h-0 min-w-0",
-            activeTab === "editor" && automationKind === "slideshow"
-              ? "overflow-hidden"
-              : "overflow-y-auto"
-          )}
-        >
-          {activeTab === "editor" ? (
-            automationKind === "slideshow" ? (
-              <SlideSequencePanel
-                config={draftConfig}
-                collections={collections}
-                onCreateCollection={onCreateCollection}
-                onConfigChange={setDraftConfig}
-              />
-            ) : (
-              <AutomationFormatPanel
-                automation={automation}
-                config={draftConfig}
-                collections={collections}
-                selectedSound={selectedSound}
-                music={music}
-                demoVideos={demoVideos}
-                onCreateCollection={onCreateCollection}
-                onConfigChange={setDraftConfig}
-                onBack={() => void closeAfterAutosave()}
-              />
-            )
-          ) : null}
-          {activeTab === "text" ? (
-            <PromptConfigPanel
+      <div
+        className={cn(
+          "min-h-0 min-w-0 flex-1",
+          activeTab === "editor" && automationKind === "slideshow"
+            ? "overflow-hidden"
+            : "overflow-y-auto"
+        )}
+      >
+        {activeTab === "editor" ? (
+          automationKind === "slideshow" ? (
+            <SlideSequencePanel
+              config={draftConfig}
+              collections={collections}
+              onCreateCollection={onCreateCollection}
+              onConfigChange={setDraftConfig}
+            />
+          ) : (
+            <AutomationFormatPanel
               automation={automation}
               config={draftConfig}
-              onConfigChange={setDraftConfig}
-              hideFooter
-            />
-          ) : null}
-          {activeTab === "settings" ? (
-            <AutomationGeneralSettingsPanel
-              config={draftConfig}
+              collections={collections}
               selectedSound={selectedSound}
               music={music}
+              demoVideos={demoVideos}
+              onCreateCollection={onCreateCollection}
               onConfigChange={setDraftConfig}
+              onBack={() => void closeAfterAutosave()}
             />
-          ) : null}
-        </div>
+          )
+        ) : null}
+        {activeTab === "text" ? (
+          <PromptConfigPanel
+            automation={automation}
+            config={draftConfig}
+            onConfigChange={setDraftConfig}
+            hideFooter
+          />
+        ) : null}
+        {activeTab === "settings" ? (
+          <AutomationGeneralSettingsPanel
+            config={draftConfig}
+            selectedSound={selectedSound}
+            music={music}
+            onConfigChange={setDraftConfig}
+          />
+        ) : null}
       </div>
     </div>
   )

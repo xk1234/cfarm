@@ -65,8 +65,10 @@ export function AutomationFormatPreviewCard({
   onAddText?: () => void
 }) {
   const previewBaseScale = 2.5
-  const displayScale = compact ? 1 : previewBaseScale * zoom
   const size = formatPreviewCardSize(item.section.aspect_ratio, item.image)
+  const displayScale = compact
+    ? Math.min(0.72, 76 / size.height, 58 / size.width)
+    : previewBaseScale * zoom
   const slide = previewSlideshowSlide(item, index)
   const aspectRatio = previewSlideshowAspectRatio(item)
   const font = previewSlideshowFont(item)
@@ -90,7 +92,7 @@ export function AutomationFormatPreviewCard({
     <div
       className={cn(
         "group/slide shrink-0 cursor-pointer transition-opacity duration-300",
-        active ? "opacity-100" : "opacity-65"
+        active || compact ? "opacity-100" : "opacity-65"
       )}
       style={{ width: slotWidth, minWidth: slotWidth, maxWidth: slotWidth }}
       role="button"
