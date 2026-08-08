@@ -20,6 +20,8 @@ export type SlideshowTextItem = {
   textPlacement?: "top" | "center" | "bottom"
   font?: string
   fontWeight?: number
+  textColor?: string
+  letterSpacing?: number
   backgroundMode?: "line" | "block"
   backgroundRadius?: number
   textPosition: {
@@ -46,6 +48,22 @@ export type SlideshowImageItem = {
   opacity: number
 }
 
+export type SlideshowShapeItem = {
+  id: string
+  kind: "rect" | "arrow"
+  positionX: number
+  positionY: number
+  width: number
+  height: number
+  fill: string
+  stroke?: string
+  strokeWidth: number
+  opacity: number
+  rotation: number
+  cornerRadius: number
+  direction?: "left" | "right" | "up" | "down"
+}
+
 export type SlideshowOvalIcon = {
   image_url: string
   source_image_url?: string
@@ -68,6 +86,7 @@ export type SlideshowSlide = {
   source_image_url?: string
   overlayImage?: SlideshowOverlayImage
   imageItems?: SlideshowImageItem[]
+  shapeItems?: SlideshowShapeItem[]
   overlay?: boolean
   imageFit?: "cover" | "contain" | "fit"
   textItems: SlideshowTextItem[]
@@ -127,6 +146,9 @@ export function renderedSlideSvg(
       height
     )
   )
+  const shapeItemsSvg = slide.shapeItems?.map((item) =>
+    renderedShapeItemSvg(item, width, height)
+  )
 
   const baseLayers = slide.iconLayout
     ? renderedOvalIconsSvg(
@@ -149,11 +171,67 @@ export function renderedSlideSvg(
       : null,
     overlayImageSvg,
     ...(imageItemsSvg ?? []),
+    ...(shapeItemsSvg ?? []),
     ...renderedTextItemsSvg(textItems, width, height, font),
     `</svg>`,
   ]
     .filter(Boolean)
     .join("")
+}
+
+function renderedShapeItemSvg(
+  item: SlideshowShapeItem,
+  slideWidth: number,
+  slideHeight: number
+) {
+  const width = (Math.max(0.5, Math.min(100, item.width)) / 100) * slideWidth
+  const height = (Math.max(0.5, Math.min(100, item.height)) / 100) * slideHeight
+  const x = (item.positionX / 100) * slideWidth - width / 2
+  const y = (item.positionY / 100) * slideHeight - height / 2
+  const cx = x + width / 2
+  const cy = y + height / 2
+  const strokeWidth = Math.max(0, item.strokeWidth)
+  const stroke = item.stroke
+    ? ` stroke="${escapeXml(item.stroke)}" stroke-width="${round(strokeWidth)}"`
+    : ""
+  const shared = `data-shape-layer="${escapeXml(item.id)}" fill="${escapeXml(item.fill)}"${stroke} opacity="${Math.max(0, Math.min(1, item.opacity))}" transform="rotate(${round(item.rotation)} ${round(cx)} ${round(cy)})"`
+
+  if (item.kind === "rect") {
+    const radius = Math.max(
+      0,
+      Math.min(width / 2, height / 2, item.cornerRadius)
+    )
+    return `<rect ${shared} x="${round(x)}" y="${round(y)}" width="${round(width)}" height="${round(height)}" rx="${round(radius)}"/>`
+  }
+
+  const normalized = [
+    [0, 50],
+    [38, 0],
+    [38, 34],
+    [100, 34],
+    [100, 66],
+    [38, 66],
+    [38, 100],
+  ] as const
+  const direction = item.direction ?? "left"
+  const points = normalized
+    .map(([pointX, pointY]) => {
+      const [mappedX, mappedY] = arrowPoint(pointX, pointY, direction)
+      return `${round(x + (mappedX / 100) * width)},${round(y + (mappedY / 100) * height)}`
+    })
+    .join(" ")
+  return `<polygon ${shared} points="${points}" stroke-linejoin="round"/>`
+}
+
+function arrowPoint(
+  x: number,
+  y: number,
+  direction: NonNullable<SlideshowShapeItem["direction"]>
+) {
+  if (direction === "right") return [100 - x, y] as const
+  if (direction === "up") return [y, x] as const
+  if (direction === "down") return [100 - y, x] as const
+  return [x, y] as const
 }
 
 export function renderedImageItemEditorBounds(
@@ -467,7 +545,7 @@ function hasHorizontalOverlap(group: RenderedTextItem[]) {
 function renderedTextItemSvg(rendered: RenderedTextItem, font: string) {
   const { item, x, y, fontSize, lineHeight, lines } = rendered
   const textAnchor = svgTextAnchor(item.textAlign)
-  const fill = textFill(item.textStyle)
+  const fill = item.textColor || textFill(item.textStyle)
   const stroke = needsTextStroke(item.textStyle)
     ? ` stroke="#000000" stroke-opacity="0.88" stroke-width="${Math.max(6, fontSize * 0.13)}" paint-order="stroke"`
     : ""
@@ -478,10 +556,14 @@ function renderedTextItemSvg(rendered: RenderedTextItem, font: string) {
     })
     .join("")
 
-  const fontFamily = escapeXml(font || resolveSlideshowFont())
+  const fontFamily = escapeXml(resolveSlideshowFont(item.font || font))
   const background = renderedTextBackgroundSvg(rendered)
   const fontWeight = Math.max(100, Math.min(900, item.fontWeight ?? 800))
-  return `${background}<text id="${escapeXml(item.id)}" x="${x}" y="${y}" text-anchor="${textAnchor}" dominant-baseline="middle" font-family="${fontFamily}, sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}"${stroke}>${tspans}</text>`
+  const letterSpacing = (item.letterSpacing ?? 0) * fontSize
+  const tracking = letterSpacing
+    ? ` letter-spacing="${round(letterSpacing)}"`
+    : ""
+  return `${background}<text id="${escapeXml(item.id)}" x="${x}" y="${y}" text-anchor="${textAnchor}" dominant-baseline="middle" font-family="${fontFamily}, sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${escapeXml(fill)}"${tracking}${stroke}>${tspans}</text>`
 }
 
 function renderedTextBackgroundSvg(rendered: RenderedTextItem) {

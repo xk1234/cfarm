@@ -46,6 +46,8 @@ function previewItem(): AutomationFormatPreviewItem {
     textAlign: "right" as const,
     textAnchor: "flush" as const,
     textVerticalAnchor: "flush" as const,
+    textColor: "#fb4d80",
+    letterSpacing: 0.12,
   }
   const second = {
     ...defaultAutomationTextItem({ id: "second" }),
@@ -66,6 +68,21 @@ function previewItem(): AutomationFormatPreviewItem {
       noText: false,
       overlay: true,
       overlayImage: { enabled: true, collectionId: "overlay", padding: 12 },
+      shapeItems: [
+        {
+          id: "panel",
+          kind: "rect",
+          positionX: 50,
+          positionY: 20,
+          width: 80,
+          height: 12,
+          fill: "#f3c791",
+          strokeWidth: 0,
+          opacity: 1,
+          rotation: 0,
+          cornerRadius: 0,
+        },
+      ],
     },
     image: { id: "base", imageUrl: "/base.jpg" } as never,
     images: [],
@@ -153,6 +170,7 @@ describe("slideshow format preview controls", () => {
     expect(slide).toMatchObject({
       overlay: true,
       overlayImage: { image_url: "/overlay.jpg", padding: 12 },
+      shapeItems: [{ id: "panel", kind: "rect", fill: "#f3c791" }],
     })
     expect(previewSlideshowAspectRatio(item)).toBe("1:1")
   })
@@ -169,8 +187,11 @@ describe("slideshow format preview controls", () => {
       textAlign: "right",
       textAnchor: "flush",
       textVerticalAnchor: "flush",
-      textPlacement: "bottom",
+      textPlacement: undefined,
       textSize: { width: 80 },
+      font: "Arial",
+      textColor: "#fb4d80",
+      letterSpacing: 0.12,
     })
     expect(previewSlideshowFont(item)).toBe("Arial")
     expect(items[1]).toMatchObject({ id: "second", text: "Second text" })
@@ -182,6 +203,8 @@ describe("slideshow format preview controls", () => {
       ...item.textItems[0],
       textAlign: "left",
       textAnchor: "flush",
+      positionX: undefined,
+      positionY: undefined,
     }
     item.section.textItems = item.textItems
     expect(previewSlideshowTextItems(item)[0].textPosition.x).toBe(1.5)

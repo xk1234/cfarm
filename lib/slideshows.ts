@@ -43,6 +43,7 @@ import {
   type SlideshowOverlayImage,
   type SlideshowOvalIconLayout,
   type SlideshowSlide,
+  type SlideshowShapeItem,
   type SlideshowTextItem,
 } from "@/lib/slideshow-renderer"
 import { fetchWithTimeout } from "@/lib/http"
@@ -51,6 +52,7 @@ export type {
   SlideshowImageItem,
   SlideshowOvalIconLayout,
   SlideshowSlide,
+  SlideshowShapeItem,
   SlideshowTextItem,
 } from "@/lib/slideshow-renderer"
 
@@ -1016,6 +1018,7 @@ function normalizeSlide(
     source_image_url: clean(slide.source_image_url) || undefined,
     overlayImage: normalizeOverlayImage(slide.overlayImage),
     imageItems: normalizeImageItems(slide.imageItems),
+    shapeItems: normalizeShapeItems(slide.shapeItems),
     overlay: Boolean(slide.overlay),
     iconLayout: normalizeOvalIconLayout(slide.iconLayout),
     textItems: Array.isArray(slide.textItems)
@@ -1024,6 +1027,42 @@ function normalizeSlide(
         )
       : [],
   }
+}
+
+function normalizeShapeItems(
+  value: SlideshowShapeItem[] | undefined
+): SlideshowShapeItem[] {
+  if (!Array.isArray(value)) return []
+  return value.map((item, index) => ({
+    id: clean(item.id) || `shape-${index + 1}`,
+    kind: item.kind === "arrow" ? "arrow" : "rect",
+    positionX: Math.max(0, Math.min(100, normalizeNumber(item.positionX, 50))),
+    positionY: Math.max(0, Math.min(100, normalizeNumber(item.positionY, 50))),
+    width: Math.max(0.5, Math.min(100, normalizeNumber(item.width, 20))),
+    height: Math.max(0.5, Math.min(100, normalizeNumber(item.height, 10))),
+    fill: normalizeShapeColor(item.fill, "#000000"),
+    stroke: item.stroke
+      ? normalizeShapeColor(item.stroke, "#000000")
+      : undefined,
+    strokeWidth: Math.max(
+      0,
+      Math.min(100, normalizeNumber(item.strokeWidth, 0))
+    ),
+    opacity: Math.max(0, Math.min(1, normalizeNumber(item.opacity, 1))),
+    rotation: Math.max(-360, Math.min(360, normalizeNumber(item.rotation, 0))),
+    cornerRadius: Math.max(0, normalizeNumber(item.cornerRadius, 0)),
+    direction:
+      item.direction === "right" ||
+      item.direction === "up" ||
+      item.direction === "down"
+        ? item.direction
+        : "left",
+  }))
+}
+
+function normalizeShapeColor(value: unknown, fallback: string) {
+  const color = clean(value)
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback
 }
 
 function normalizeOvalIconLayout(
@@ -1116,6 +1155,20 @@ function normalizeTextItem(
     textVerticalAnchor: clean(item.textVerticalAnchor) || "padded",
     textPlacement: item.textPlacement,
     textPosition: normalizeTextPosition(item.textPosition),
+    font: clean(item.font) || undefined,
+    fontWeight: Math.max(
+      100,
+      Math.min(900, normalizeNumber(item.fontWeight, 800))
+    ),
+    textColor: item.textColor
+      ? normalizeShapeColor(item.textColor, "#ffffff")
+      : undefined,
+    letterSpacing: Math.max(
+      -0.2,
+      Math.min(2, normalizeNumber(item.letterSpacing, 0))
+    ),
+    backgroundMode: item.backgroundMode === "block" ? "block" : "line",
+    backgroundRadius: Math.max(0, normalizeNumber(item.backgroundRadius, 0)),
   }
 }
 

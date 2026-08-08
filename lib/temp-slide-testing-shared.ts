@@ -45,6 +45,8 @@ export type TempSlideTextPlaceholder = {
   fontWeight?: number
   backgroundMode?: "line" | "block"
   backgroundRadius?: number
+  textColor?: string
+  letterSpacing?: number
 }
 
 export type TempSlideSpec = {
@@ -68,6 +70,21 @@ export type TempSlideSpec = {
     height: number
     fit: "cover" | "contain"
     opacity: number
+  }>
+  shapeItems?: Array<{
+    id: string
+    kind: "rect" | "arrow"
+    positionX: number
+    positionY: number
+    width: number
+    height: number
+    fill: string
+    stroke?: string
+    strokeWidth: number
+    opacity: number
+    rotation: number
+    cornerRadius: number
+    direction?: "left" | "right" | "up" | "down"
   }>
   overlayImage?: {
     enabled: boolean

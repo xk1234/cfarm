@@ -100,6 +100,48 @@ export function AutomationFormatTextToolbar({
               }
             />
           </div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="space-y-1">
+              <span className="block text-[10px] font-bold text-app-text-soft">
+                Color
+              </span>
+              <span className="flex h-9 items-center gap-2 rounded-md border border-app-panel-border bg-white px-2">
+                <input
+                  type="color"
+                  className="size-6 cursor-pointer border-0 bg-transparent p-0"
+                  value={textItem.textColor || "#ffffff"}
+                  disabled={locked}
+                  onChange={(event) =>
+                    updateTextItem({ textColor: event.target.value })
+                  }
+                />
+                <span className="truncate text-[10px] font-semibold text-app-text-soft uppercase">
+                  {textItem.textColor || "Style default"}
+                </span>
+              </span>
+            </label>
+            <label className="space-y-1">
+              <span className="flex items-center justify-between text-[10px] font-bold text-app-text-soft">
+                Tracking
+                <span className="tabular-nums">
+                  {Math.round((textItem.letterSpacing ?? 0) * 100)}%
+                </span>
+              </span>
+              <input
+                type="range"
+                min="-20"
+                max="100"
+                value={Math.round((textItem.letterSpacing ?? 0) * 100)}
+                className="h-9 w-full accent-[#2f73bd]"
+                disabled={locked}
+                onChange={(event) =>
+                  updateTextItem({
+                    letterSpacing: Number(event.target.value) / 100,
+                  })
+                }
+              />
+            </label>
+          </div>
           <div
             className={cn(
               "grid gap-2",

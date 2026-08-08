@@ -33,7 +33,7 @@ export type AutomationStatus = "paused" | "live"
 // the stored record and the UI summary view.
 export type AutomationLifecycleStatus = AutomationStatus | "unknown"
 export type AutomationAspectRatio =
-  "9:16" | "4:5" | "3:4" | "4:3" | "3:2" | "1:1"
+  "9:16" | "1:2" | "4:5" | "3:4" | "4:3" | "3:2" | "1:1"
 export type AutomationImageFit = "cover" | "contain" | "fit"
 export type AutomationImageGrid = "none" | "2x2" | "1x2" | "1x3" | "oval-icons"
 export type AutomationImageMode = "collection" | "single_image"
@@ -101,6 +101,8 @@ export type TextItem = {
   fontWeight?: number
   backgroundMode?: "line" | "block"
   backgroundRadius?: number
+  textColor?: string
+  letterSpacing?: number
 }
 
 export type AutomationFormatSectionId = "hook" | "body" | "cta"
@@ -127,6 +129,22 @@ export type AutomationImageItem = {
   opacity: number
 }
 
+export type AutomationShapeItem = {
+  id: string
+  kind: "rect" | "arrow"
+  positionX: number
+  positionY: number
+  width: number
+  height: number
+  fill: string
+  stroke?: string
+  strokeWidth: number
+  opacity: number
+  rotation: number
+  cornerRadius: number
+  direction?: "left" | "right" | "up" | "down"
+}
+
 export type AutomationFormatSection = {
   id: AutomationFormatSectionId
   textItems: TextItem[]
@@ -140,6 +158,7 @@ export type AutomationFormatSection = {
   overlay: boolean
   aiImageSelection?: boolean
   imageItems?: AutomationImageItem[]
+  shapeItems?: AutomationShapeItem[]
   overlayImage?: {
     enabled: boolean
     collectionId?: string
@@ -411,6 +430,7 @@ export type AutomationSchema = {
 
 export const automationAspectRatios: AutomationAspectRatio[] = [
   "9:16",
+  "1:2",
   "4:5",
   "3:4",
   "4:3",
@@ -1934,6 +1954,7 @@ function normalizeFormattingItem(value: unknown): AutomationFormattingItem[] {
           : defaultAutomationSection(id).overlay,
       aiImageSelection: Boolean(record.aiImageSelection),
       imageItems: normalizeImageItems(record.imageItems),
+      shapeItems: normalizeShapeItems(record.shapeItems),
       overlayImage: normalizeOverlayImage(record.overlayImage),
       slideOverrides: normalizeSlideOverrides(record.slideOverrides),
       imageOverrides: normalizeImageOverrides(record.imageOverrides),
@@ -2003,6 +2024,7 @@ function normalizeSlideDesign(
         typeof value.overlay === "boolean" ? value.overlay : fallback.overlay,
       aiImageSelection: Boolean(value.aiImageSelection),
       imageItems: normalizeImageItems(value.imageItems),
+      shapeItems: normalizeShapeItems(value.shapeItems),
       overlayImage: normalizeOverlayImage(value.overlayImage),
       imageMode:
         value.imageMode === "single_image" ? "single_image" : "collection",
@@ -2035,6 +2057,7 @@ function legacyFormattingToSlideDesigns(
         overlay: section.overlay,
         aiImageSelection: section.aiImageSelection,
         imageItems: section.imageItems?.map((item) => ({ ...item })),
+        shapeItems: section.shapeItems?.map((item) => ({ ...item })),
         overlayImage: section.overlayImage
           ? { ...section.overlayImage }
           : undefined,
@@ -2178,6 +2201,48 @@ function normalizeImageItems(value: unknown): AutomationImageItem[] {
   })
 }
 
+function normalizeShapeItems(value: unknown): AutomationShapeItem[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item, index) => {
+    if (!isRecord(item)) return []
+    const kind = item.kind === "arrow" ? "arrow" : "rect"
+    const direction =
+      item.direction === "right" ||
+      item.direction === "up" ||
+      item.direction === "down"
+        ? item.direction
+        : "left"
+    return [
+      {
+        id: clean(item.id) || `shape-${index + 1}`,
+        kind,
+        positionX: clampEditorPercent(numberValue(item.positionX, 50)),
+        positionY: clampEditorPercent(numberValue(item.positionY, 50)),
+        width: clampEditorSize(numberValue(item.width, 30)),
+        height: clampEditorSize(numberValue(item.height, 12)),
+        fill: normalizeEditorColor(item.fill, "#ffffff"),
+        stroke: normalizeEditorColor(item.stroke, "") || undefined,
+        strokeWidth: Math.max(
+          0,
+          Math.min(20, numberValue(item.strokeWidth, 0))
+        ),
+        opacity: Math.max(0, Math.min(1, numberValue(item.opacity, 1))),
+        rotation: Math.max(-360, Math.min(360, numberValue(item.rotation, 0))),
+        cornerRadius: Math.max(
+          0,
+          Math.min(100, numberValue(item.cornerRadius, 0))
+        ),
+        ...(kind === "arrow" ? { direction } : {}),
+      },
+    ]
+  })
+}
+
+function normalizeEditorColor(value: unknown, fallback: string) {
+  const color = clean(value)
+  return /^#[0-9a-f]{3,8}$/i.test(color) ? color : fallback
+}
+
 function clampEditorPercent(value: number) {
   return Math.max(0, Math.min(100, value))
 }
@@ -2225,6 +2290,11 @@ function normalizeTextItem(value: unknown): TextItem {
     backgroundRadius: Math.max(
       0,
       Math.min(48, numberValue(record.backgroundRadius, 6))
+    ),
+    textColor: normalizeEditorColor(record.textColor, "") || undefined,
+    letterSpacing: Math.max(
+      -0.2,
+      Math.min(2, numberValue(record.letterSpacing, 0))
     ),
   })
 }

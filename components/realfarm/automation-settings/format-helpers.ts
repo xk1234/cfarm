@@ -65,6 +65,7 @@ export function previewSlideshowSlide(
       fit: imageItem.fit,
       opacity: imageItem.opacity,
     })),
+    shapeItems: item.section.shapeItems?.map((shapeItem) => ({ ...shapeItem })),
     overlay: item.section.overlay,
     iconLayout: ovalIconLayout
       ? {
@@ -120,7 +121,10 @@ export function previewSlideshowTextItems(
       textPlacement:
         textItem.positionY === undefined ? textItem.textPosition : undefined,
       textPosition: previewTextItemPosition(textItem),
+      font: textItem.font,
       fontWeight: textItem.fontWeight,
+      textColor: textItem.textColor,
+      letterSpacing: textItem.letterSpacing,
       backgroundMode: textItem.backgroundMode,
       backgroundRadius: textItem.backgroundRadius,
     }
