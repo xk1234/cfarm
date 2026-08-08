@@ -19,7 +19,7 @@ const automation: Automation = {
 }
 
 describe("SlideSequencePanel", () => {
-  it("keeps per-slide controls focused on purpose, media, and styling", () => {
+  it("uses a canvas-first editor with one properties rail and a slide filmstrip", () => {
     const html = renderToStaticMarkup(
       <SlideSequencePanel
         config={defaultAutomationSchema(automation)}
@@ -30,7 +30,15 @@ describe("SlideSequencePanel", () => {
     )
 
     expect(html).toContain("Slide 1")
+    expect(html).toContain("Slide 1 properties")
     expect(html).toContain("Usage")
+    expect(html).toContain("Images")
+    expect(html).toContain("Text")
+    expect(html).toContain("Appearance")
+    expect(html).toContain('aria-label="Slides"')
+    expect(html).toContain('aria-label="Add slide design"')
+    expect(html).toContain('aria-label="Fit canvas"')
+    expect(html).not.toContain('aria-label="Slide inspector"')
     expect(html).not.toContain(">Name<")
     expect(html).not.toContain("Display text")
     expect(html).not.toContain(">Image grid<")
