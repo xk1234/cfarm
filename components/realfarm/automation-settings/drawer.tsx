@@ -539,7 +539,7 @@ export function AutomationSettingsDrawer({
         className={cn(
           "min-h-0 min-w-0 flex-1",
           activeTab === "editor" && automationKind === "slideshow"
-            ? "overflow-hidden"
+            ? "overflow-y-auto lg:overflow-hidden"
             : "overflow-y-auto"
         )}
       >

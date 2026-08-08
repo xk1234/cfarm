@@ -62,7 +62,7 @@ export function SlideSequencePanel({
     null
   )
   const [activePanel, setActivePanel] = useState<EditorPanel>("content")
-  const [canvasZoom, setCanvasZoom] = useState(1)
+  const [canvasZoom, setCanvasZoom] = useState(0.5)
   const selectedIndex = Math.max(
     0,
     designs.findIndex((design) => design.id === selectedId)
@@ -220,8 +220,8 @@ export function SlideSequencePanel({
   if (!design || !previewItem) return null
 
   return (
-    <div className="flex h-full min-h-[760px] min-w-0 flex-col bg-[#d7d7d3] lg:grid lg:min-h-0 lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)_112px]">
-      <aside className="flex max-h-[380px] min-h-0 flex-col border-b border-app-panel-border bg-[#f7f7f5] lg:row-span-2 lg:max-h-none lg:border-r lg:border-b-0">
+    <div className="flex h-auto min-h-0 min-w-0 flex-col bg-[#d7d7d3] lg:grid lg:h-full lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)_112px]">
+      <aside className="flex max-h-[360px] min-h-0 shrink-0 flex-col border-b border-app-panel-border bg-[#f7f7f5] lg:row-span-2 lg:max-h-none lg:border-r lg:border-b-0">
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-app-panel-border px-4">
           <div className="flex min-w-0 items-center gap-2">
             <h2 className="truncate text-[13px] font-bold text-app-text">
@@ -356,7 +356,7 @@ export function SlideSequencePanel({
         </div>
       </aside>
 
-      <main className="relative flex min-h-[560px] min-w-0 flex-col overflow-hidden bg-[#d7d7d3] lg:min-h-0">
+      <main className="relative flex min-h-[520px] min-w-0 shrink-0 flex-col overflow-hidden bg-[#d7d7d3] lg:min-h-0 lg:shrink">
         <div className="flex h-12 shrink-0 items-center gap-1 border-b border-black/15 bg-[#242423] px-3 text-white">
           <div className="mr-2 flex h-8 items-center gap-2 rounded bg-white/12 px-2.5 text-[12px] font-semibold">
             <IconPointer className="size-4 text-[#83b8ff]" />
@@ -412,7 +412,7 @@ export function SlideSequencePanel({
             if (!event.ctrlKey && !event.metaKey) return
             event.preventDefault()
             setCanvasZoom((value) =>
-              Math.max(0.65, Math.min(1.5, value - event.deltaY * 0.002))
+              Math.max(0.45, Math.min(1.5, value - event.deltaY * 0.002))
             )
           }}
         >
@@ -452,9 +452,9 @@ export function SlideSequencePanel({
           <CanvasIconButton
             dark
             label="Zoom out"
-            disabled={canvasZoom <= 0.65}
+            disabled={canvasZoom <= 0.45}
             onClick={() =>
-              setCanvasZoom((value) => Math.max(0.65, value - 0.1))
+              setCanvasZoom((value) => Math.max(0.45, value - 0.1))
             }
           >
             <IconMinus className="size-4" />
@@ -471,7 +471,7 @@ export function SlideSequencePanel({
           <CanvasIconButton
             dark
             label="Fit canvas"
-            onClick={() => setCanvasZoom(1)}
+            onClick={() => setCanvasZoom(0.5)}
           >
             <IconFocusCentered className="size-4" />
           </CanvasIconButton>
