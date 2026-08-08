@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { flushSync } from "react-dom"
 import { toast } from "sonner"
-import { IconChevronLeft, IconPlus, IconTrash } from "@tabler/icons-react"
-import { LuCopy, LuPanelsTopLeft, LuSettings2, LuType } from "react-icons/lu"
+import { IconChevronLeft, IconPlus } from "@tabler/icons-react"
+import { LuPanelsTopLeft, LuSettings2, LuType } from "react-icons/lu"
 
 import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import { useAutomationGeneratedVideoExports } from "@/components/realfarm/generated-video-workflow"
@@ -231,18 +231,33 @@ export function AutomationSettingsDrawer({
   }
 
   async function generateAutomation() {
-    if (configChanged) {
-      toast.error("Wait for your changes to finish autosaving")
-      return
+    const generationConfig = JSON.parse(
+      effectiveDraftConfigJson
+    ) as AutomationSchema
+    if (configChanged || savingConfig) {
+      setSavingConfig(true)
+      try {
+        await queueConfigSave(generationConfig)
+      } catch (error) {
+        setSavingConfig(false)
+        showGenerationError(
+          getApiErrorMessage(error, "Failed to save template changes"),
+          "Template changes weren’t saved"
+        )
+        return
+      }
+      if (latestDraftConfigJsonRef.current === effectiveDraftConfigJson) {
+        setSavingConfig(false)
+      }
     }
     const preflightError =
       automationKind === "video"
         ? automationVideoGenerationIssue(
-            effectiveDraftConfig,
+            generationConfig,
             collections,
             demoVideos
           )
-        : automationGenerationIssue(effectiveDraftConfig, collections)
+        : automationGenerationIssue(generationConfig, collections)
     if (preflightError) {
       setActiveTab("editor")
       showGenerationError(preflightError)
@@ -252,7 +267,7 @@ export function AutomationSettingsDrawer({
     if (automationKind === "video") {
       const loadingStartedAt = Date.now()
       const placeholderId = `pending-video-${crypto.randomUUID()}`
-      const videoTemplate = effectiveDraftConfig.video_format?.template
+      const videoTemplate = generationConfig.video_format?.template
       const placeholderType =
         videoTemplate === "greenscreen_meme"
           ? ("greenscreen" as const)
@@ -278,10 +293,10 @@ export function AutomationSettingsDrawer({
         ...current,
       ])
       try {
-        await persistDraftConfig(automation.id, effectiveDraftConfig)
+        await persistDraftConfig(automation.id, generationConfig)
         await generateAutomationVideo({
           automation,
-          config: effectiveDraftConfig,
+          config: generationConfig,
           collections,
           demoVideos,
           music,
@@ -316,7 +331,7 @@ export function AutomationSettingsDrawer({
     const requestId = crypto.randomUUID()
     const placeholderRun = generationPlaceholderRun({
       automation,
-      config: effectiveDraftConfig,
+      config: generationConfig,
       requestId,
     })
     flushSync(() => {
@@ -347,7 +362,7 @@ export function AutomationSettingsDrawer({
       // Persist the exact editor state first, then let the runner reload the
       // canonical Appwrite row. Passing a client-side schema override here can
       // resurrect stale prompt/style fields from a long-open drawer.
-      await persistDraftConfig(automation.id, effectiveDraftConfig)
+      await persistDraftConfig(automation.id, generationConfig)
       const payload = await fetchJsonWithTimeout<AutomationRunApiPayload>(
         "/api/templates/run",
         {
@@ -501,30 +516,11 @@ export function AutomationSettingsDrawer({
               {savingConfig || configChanged ? "Saving…" : "Saved"}
             </span>
             <button
-              type="button"
-              className="hidden size-9 place-items-center rounded-md text-white/68 transition hover:bg-white/10 hover:text-white disabled:opacity-40 sm:grid"
-              disabled={duplicating}
-              onClick={() => {
-                setDuplicating(true)
-                void onDuplicate().finally(() => setDuplicating(false))
-              }}
-              aria-label="Duplicate template"
-            >
-              <LuCopy className="size-4" />
-            </button>
-            <button
-              type="button"
-              className="hidden size-9 place-items-center rounded-md text-[#ff8b82] transition hover:bg-white/10 sm:grid"
-              onClick={onDelete}
-              aria-label="Delete template"
-            >
-              <IconTrash className="size-4" />
-            </button>
-            <button
               className="flex h-9 items-center justify-center gap-1.5 rounded-md bg-[#f4c44e] px-2 text-[13px] font-bold text-[#1d1d1c] transition hover:bg-[#ffd467] disabled:cursor-not-allowed disabled:opacity-55 sm:px-3"
-              disabled={generating || savingConfig || configChanged}
+              disabled={generating}
               onClick={generateAutomation}
               aria-busy={generating}
+              aria-label="Generate template"
             >
               <IconPlus className="size-4" />
               <span className="hidden sm:inline">
@@ -579,6 +575,12 @@ export function AutomationSettingsDrawer({
             selectedSound={selectedSound}
             music={music}
             onConfigChange={setDraftConfig}
+            duplicating={duplicating}
+            onDuplicate={() => {
+              setDuplicating(true)
+              void onDuplicate().finally(() => setDuplicating(false))
+            }}
+            onDelete={onDelete}
           />
         ) : null}
       </div>

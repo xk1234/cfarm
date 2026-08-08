@@ -52,4 +52,20 @@ describe("AutomationGeneralSettingsPanel", () => {
     expect(html).not.toContain('aria-label="Slideshow aspect ratio"')
     expect(html).not.toContain('aria-label="Slideshow image grid"')
   })
+
+  it("keeps template-level duplicate and delete actions in Settings", () => {
+    const html = renderToStaticMarkup(
+      <AutomationGeneralSettingsPanel
+        config={defaultAutomationSchema(automation)}
+        selectedSound={null}
+        music={[]}
+        onConfigChange={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    )
+
+    expect(html).toContain("Duplicate template")
+    expect(html).toContain("Delete template")
+  })
 })

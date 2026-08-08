@@ -49,7 +49,7 @@ import { AutomationFormatPreviewCard } from "./format-preview-card"
 import { AutomationFormatTextToolbar } from "./format-text-toolbar"
 import type { AutomationFormatPreviewItem } from "./format-helpers"
 
-type EditorPanel = "content" | "media" | "text" | "appearance"
+type EditorPanel = "media" | "text" | "appearance"
 
 export function SlideSequencePanel({
   config,
@@ -67,7 +67,7 @@ export function SlideSequencePanel({
   const [selectedTextIndex, setSelectedTextIndex] = useState<number | null>(
     null
   )
-  const [activePanel, setActivePanel] = useState<EditorPanel>("content")
+  const [activePanel, setActivePanel] = useState<EditorPanel>("text")
   const [canvasZoom, setCanvasZoom] = useState(0.5)
   const selectedIndex = Math.max(
     0,
@@ -121,7 +121,7 @@ export function SlideSequencePanel({
     save([...designs, next])
     setSelectedId(id)
     setSelectedTextIndex(null)
-    setActivePanel("content")
+    setActivePanel("text")
   }
 
   function removeDesign() {
@@ -130,7 +130,7 @@ export function SlideSequencePanel({
     save(next)
     setSelectedId(next[Math.min(selectedIndex, next.length - 1)]?.id ?? "")
     setSelectedTextIndex(null)
-    setActivePanel("content")
+    setActivePanel("text")
   }
 
   function moveDesign(offset: -1 | 1) {
@@ -184,11 +184,6 @@ export function SlideSequencePanel({
       if (current === index) return Math.min(index, next.length - 1)
       return current > index ? current - 1 : current
     })
-  }
-
-  function duplicateTextItem() {
-    if (!design || selectedTextIndex === null) return
-    duplicateTextItemAt(selectedTextIndex)
   }
 
   function duplicateTextItemAt(index: number) {
@@ -255,27 +250,6 @@ export function SlideSequencePanel({
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <EditorPanelSection
-            title="Content"
-            icon={<IconPointer className="size-4" />}
-            open={activePanel === "content"}
-            onToggle={() => setActivePanel("content")}
-          >
-            <label className="block space-y-1.5">
-              <span className="text-xs font-semibold text-app-muted-text">
-                Usage
-              </span>
-              <textarea
-                className="h-28 w-full resize-none rounded-md border border-app-panel-border bg-white p-3 text-[12px] leading-5 font-medium transition outline-none placeholder:text-app-text-faint focus:border-[#6d9fe1] focus:ring-2 focus:ring-[#6d9fe1]/15"
-                value={design.instructions}
-                onChange={(event) =>
-                  updateDesign({ instructions: event.target.value })
-                }
-                placeholder="Opening claim, explanation, list item…"
-              />
-            </label>
-          </EditorPanelSection>
-
-          <EditorPanelSection
             title="Images"
             icon={<IconPhoto className="size-4" />}
             open={activePanel === "media"}
@@ -310,6 +284,19 @@ export function SlideSequencePanel({
               setSelectedTextIndex((current) => current ?? 0)
             }}
           >
+            <label className="block space-y-1.5">
+              <span className="text-xs font-semibold text-app-muted-text">
+                Usage
+              </span>
+              <textarea
+                className="h-24 w-full resize-y rounded-md border border-app-panel-border bg-white p-3 text-[12px] leading-5 font-medium transition outline-none placeholder:text-app-text-faint focus:border-[#6d9fe1] focus:ring-2 focus:ring-[#6d9fe1]/15"
+                value={design.instructions}
+                onChange={(event) =>
+                  updateDesign({ instructions: event.target.value })
+                }
+                placeholder="Opening claim, explanation, list item…"
+              />
+            </label>
             <SlideTextElementList
               items={design.textItems}
               selectedIndex={selectedTextIndex}
@@ -459,22 +446,6 @@ export function SlideSequencePanel({
               >
                 <IconAlignBoxCenterBottom className="size-4" />
               </CanvasIconButton>
-              <span className="mx-1 h-5 w-px bg-white/15" />
-              <CanvasIconButton
-                dark
-                label="Duplicate text"
-                onClick={duplicateTextItem}
-              >
-                <IconCopy className="size-4" />
-              </CanvasIconButton>
-              <CanvasIconButton
-                dark
-                danger
-                label="Delete text"
-                onClick={deleteTextItem}
-              >
-                <IconTrash className="size-4" />
-              </CanvasIconButton>
             </>
           ) : null}
           <span className="flex-1" />
@@ -503,7 +474,7 @@ export function SlideSequencePanel({
             selectedTextIndex={selectedTextIndex}
             onSelect={() => {
               setSelectedTextIndex(null)
-              setActivePanel("content")
+              setActivePanel("text")
             }}
             onSelectText={(textIndex) => {
               setSelectedTextIndex(textIndex)
@@ -610,7 +581,7 @@ export function SlideSequencePanel({
                   onSelect={() => {
                     setSelectedId(item.id)
                     setSelectedTextIndex(null)
-                    setActivePanel("content")
+                    setActivePanel("text")
                   }}
                   onSelectText={() => undefined}
                   onClearTextSelection={() => undefined}
