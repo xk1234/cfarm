@@ -4,6 +4,7 @@ import { planAutomationSlideSequence } from "@/lib/automation-runner"
 import {
   automationSlideDesigns,
   defaultAutomationSchema,
+  schemaWithAutomationSlideDesigns,
   schemaWithAutomationHookItems,
   schemaWithAutomationSharedSlideStyle,
 } from "@/lib/realfarm-automation"
@@ -84,6 +85,48 @@ describe("sequence-based slideshow templates", () => {
           section.aspect_ratio === "9:16" && section.imageGrid === "2x2"
       )
     ).toBe(true)
+  })
+
+  it("preserves positioned image layers in runtime slide specs", () => {
+    const schema = defaultAutomationSchema(automation)
+    const designs = automationSlideDesigns(schema)
+    const withImageLayer = schemaWithAutomationSlideDesigns(schema, [
+      {
+        ...designs[0]!,
+        imageItems: [
+          {
+            id: "product-cutout",
+            collectionId: "products",
+            imageId: "chair-01",
+            positionX: 62,
+            positionY: 58,
+            width: 38,
+            height: 24,
+            fit: "contain",
+            opacity: 0.9,
+          },
+        ],
+      },
+    ])
+
+    const [slide] = automationSchemaToTempSlideTestingAutomation(
+      withImageLayer,
+      {
+        id: automation.id,
+        name: automation.name,
+        slidePlan: [{ designId: designs[0]!.id, purpose: "Show the product" }],
+      }
+    ).slides
+
+    expect(slide.imageItems).toEqual([
+      expect.objectContaining({
+        id: "product-cutout",
+        collectionId: "products",
+        imageId: "chair-01",
+        positionX: 62,
+        fit: "contain",
+      }),
+    ])
   })
 
   it("lets the text model choose a valid count and ordered design IDs", async () => {

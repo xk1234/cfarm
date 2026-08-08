@@ -53,6 +53,36 @@ describe("slideshow renderer", () => {
     expect(svg).not.toContain('data-layer="overlay"')
   })
 
+  it("renders positioned image layers beneath slide text", () => {
+    const svg = renderedSlideSvg(
+      {
+        id: "slide-image-layer",
+        image_url: "/background.jpg",
+        imageItems: [
+          {
+            id: "product-cutout",
+            image_url: "/product.png",
+            positionX: 60,
+            positionY: 55,
+            width: 40,
+            height: 25,
+            fit: "contain",
+            opacity: 0.8,
+          },
+        ],
+        textItems: [textItem("headline", "top")],
+      },
+      "/background.jpg"
+    )
+
+    expect(svg).toContain('data-image-layer="product-cutout"')
+    expect(svg).toContain('href="/product.png"')
+    expect(svg).toContain('preserveAspectRatio="xMidYMid meet"')
+    expect(svg.indexOf('data-image-layer="product-cutout"')).toBeLessThan(
+      svg.indexOf('id="text-headline"')
+    )
+  })
+
   it.each(["cover", "contain", "fit"] as const)(
     "fills the frame with centered cover cropping for legacy %s settings",
     (imageFit) => {

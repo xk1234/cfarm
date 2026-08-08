@@ -240,6 +240,17 @@ export type AutomationRunSlide = AutomationRunSlideView & {
     imageCaption: string
     padding: number
   }
+  imageItems?: Array<{
+    id: string
+    imageUrl: string
+    imageCaption: string
+    positionX: number
+    positionY: number
+    width: number
+    height: number
+    fit: "cover" | "contain"
+    opacity: number
+  }>
   text: string
   textPlacement?: SlideshowTextItem["textPlacement"]
   aspectRatio?: string
@@ -2021,6 +2032,38 @@ function overlayImageForSlide(input: {
   }
 }
 
+function imageItemsForSlide(input: {
+  collections: Awaited<ReturnType<typeof readImageCollections>>
+  slide: TempSlideSpec
+}): AutomationRunSlide["imageItems"] {
+  return input.slide.imageItems?.map((item) => {
+    const images = imagesForCollectionIds({
+      collections: input.collections,
+      collectionIds: [item.collectionId],
+    })
+    const image = images.find(
+      (candidate) =>
+        candidate.id === item.imageId || candidate.key === item.imageId
+    )
+    if (!image) {
+      throw new Error(
+        `Image layer ${item.id} could not find image ${item.imageId} in collection ${item.collectionId}`
+      )
+    }
+    return {
+      id: item.id,
+      imageUrl: image.imageUrl,
+      imageCaption: image.imageCaption,
+      positionX: item.positionX,
+      positionY: item.positionY,
+      width: item.width,
+      height: item.height,
+      fit: item.fit,
+      opacity: item.opacity,
+    }
+  })
+}
+
 function bestCaptionMatch<T extends { imageCaption?: string }>(
   images: T[],
   matchText: string | undefined
@@ -2167,6 +2210,12 @@ async function createSlides(input: {
         aspectRatio: slide.aspectRatio,
         imageGrid: slide.imageGrid,
         overlay: slide.overlay,
+        imageItems: input.skipVisuals
+          ? undefined
+          : imageItemsForSlide({
+              collections: input.imageCollections,
+              slide,
+            }),
         overlayImage: input.skipVisuals
           ? undefined
           : overlayImageForSlide({
@@ -2340,6 +2389,16 @@ export function automationRunSlidesToSlideshowSlides(
             padding: slide.overlayImage.padding,
           }
         : undefined,
+      imageItems: slide.imageItems?.map((item) => ({
+        id: item.id,
+        image_url: item.imageUrl,
+        positionX: item.positionX,
+        positionY: item.positionY,
+        width: item.width,
+        height: item.height,
+        fit: item.fit,
+        opacity: item.opacity,
+      })),
       overlay: slide.overlay,
       imageFit: schema.image_fit,
       iconLayout: slide.iconLayout

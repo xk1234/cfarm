@@ -159,10 +159,16 @@ function referencedCollectionIds(schema: AutomationSchema) {
     if (section.overlayImage?.enabled && section.overlayImage.collectionId) {
       ids.add(section.overlayImage.collectionId)
     }
+    for (const imageItem of section.imageItems ?? []) {
+      if (imageItem.collectionId) ids.add(imageItem.collectionId)
+    }
   }
   for (const design of schema.slide_designs) {
     if (design.overlayImage?.enabled && design.overlayImage.collectionId) {
       ids.add(design.overlayImage.collectionId)
+    }
+    for (const imageItem of design.imageItems ?? []) {
+      if (imageItem.collectionId) ids.add(imageItem.collectionId)
     }
   }
 

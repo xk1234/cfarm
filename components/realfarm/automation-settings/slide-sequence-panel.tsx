@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, type ReactNode } from "react"
+import { useMemo, useRef, useState, type ReactNode } from "react"
 import {
   IconArrowDown,
   IconArrowUp,
@@ -18,18 +18,25 @@ import {
   IconPhoto,
   IconPointer,
   IconPlus,
+  IconRefresh,
   IconTrash,
   IconTypography,
+  IconUpload,
 } from "@tabler/icons-react"
+import { toast } from "sonner"
 
 import { CollectionSelector } from "@/components/realfarm/collection-selector"
 import { ControlToggle } from "@/components/realfarm/shared-media"
 import { SelectLike } from "@/components/ui/form-controls"
+import { UploadDropzone } from "@/components/ui/upload-dropzone"
+import type { AssetRecord } from "@/lib/assets"
+import { fetchJsonWithTimeout, getApiErrorMessage } from "@/lib/client-api"
 import {
   automationSlideDesigns,
   defaultAutomationTextItem,
   schemaWithAutomationSlideDesigns,
   type AutomationFormatSection,
+  type AutomationImageItem,
   type AutomationSchema,
   type AutomationSlideDesign,
   type TextItem,
@@ -67,6 +74,12 @@ export function SlideSequencePanel({
   const [selectedTextIndex, setSelectedTextIndex] = useState<number | null>(
     null
   )
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(
+    null
+  )
+  const [imagePickerFor, setImagePickerFor] = useState<number | "new" | null>(
+    null
+  )
   const [activePanel, setActivePanel] = useState<EditorPanel>("text")
   const [canvasZoom, setCanvasZoom] = useState(0.5)
   const selectedIndex = Math.max(
@@ -74,16 +87,19 @@ export function SlideSequencePanel({
     designs.findIndex((design) => design.id === selectedId)
   )
   const design = designs[selectedIndex] ?? designs[0]
-  const photoCollections = collections.filter(
-    (collection) => collection.mediaType !== "video"
+  const photoCollections = useMemo(
+    () => collections.filter((collection) => collection.mediaType !== "video"),
+    [collections]
   )
   const collection = design
     ? findCollectionByIdOrAlias(photoCollections, design.collectionId)
     : undefined
   const previewItem = useMemo(
     () =>
-      design ? designPreviewItem(design, collection, selectedIndex) : null,
-    [collection, design, selectedIndex]
+      design
+        ? designPreviewItem(design, collection, selectedIndex, photoCollections)
+        : null,
+    [collection, design, photoCollections, selectedIndex]
   )
   const textItem =
     design?.textItems[selectedTextIndex ?? 0] ?? defaultAutomationTextItem()
@@ -113,6 +129,10 @@ export function SlideSequencePanel({
             ...item,
             id: `text-${crypto.randomUUID()}`,
           })),
+          imageItems: source.imageItems?.map((item) => ({
+            ...item,
+            id: `image-${crypto.randomUUID()}`,
+          })),
         }
       : newSlideDesign(id, designs.length + 1, {
           aspectRatio: design?.aspect_ratio ?? config.aspect_ratio,
@@ -121,6 +141,7 @@ export function SlideSequencePanel({
     save([...designs, next])
     setSelectedId(id)
     setSelectedTextIndex(null)
+    setSelectedImageIndex(null)
     setActivePanel("text")
   }
 
@@ -130,6 +151,7 @@ export function SlideSequencePanel({
     save(next)
     setSelectedId(next[Math.min(selectedIndex, next.length - 1)]?.id ?? "")
     setSelectedTextIndex(null)
+    setSelectedImageIndex(null)
     setActivePanel("text")
   }
 
@@ -215,6 +237,94 @@ export function SlideSequencePanel({
     setSelectedTextIndex(target)
   }
 
+  function updateImageItemAt(
+    index: number,
+    patch: Partial<AutomationImageItem>
+  ) {
+    if (!design) return
+    updateDesign({
+      imageItems: (design.imageItems ?? []).map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...patch } : item
+      ),
+    })
+  }
+
+  function chooseImage(collection: CreatedImageCollection, imageIndex: number) {
+    if (!design) return
+    const image = collection.images[imageIndex]
+    if (!image) return
+    const imageId = image.hash || image.imageUrl
+    if (imagePickerFor === "new" || imagePickerFor === null) {
+      const size = defaultImageLayerSize(
+        design.aspect_ratio,
+        image.width,
+        image.height
+      )
+      const nextItem: AutomationImageItem = {
+        id: `image-${crypto.randomUUID()}`,
+        collectionId: collection.id,
+        imageId,
+        positionX: 50,
+        positionY: 50,
+        width: size.width,
+        height: size.height,
+        fit: "contain",
+        opacity: 1,
+      }
+      updateDesign({ imageItems: [...(design.imageItems ?? []), nextItem] })
+      setSelectedImageIndex(design.imageItems?.length ?? 0)
+    } else {
+      updateImageItemAt(imagePickerFor, {
+        collectionId: collection.id,
+        imageId,
+      })
+      setSelectedImageIndex(imagePickerFor)
+    }
+    setSelectedTextIndex(null)
+    setActivePanel("media")
+    setImagePickerFor(null)
+  }
+
+  function duplicateImageItemAt(index: number) {
+    if (!design) return
+    const source = design.imageItems?.[index]
+    if (!source) return
+    const next = [...(design.imageItems ?? [])]
+    next.splice(index + 1, 0, {
+      ...source,
+      id: `image-${crypto.randomUUID()}`,
+      positionX: Math.min(100, source.positionX + 3),
+      positionY: Math.min(100, source.positionY + 3),
+    })
+    updateDesign({ imageItems: next })
+    setSelectedImageIndex(index + 1)
+    setSelectedTextIndex(null)
+  }
+
+  function deleteImageItemAt(index: number) {
+    if (!design) return
+    const next = (design.imageItems ?? []).filter(
+      (_, itemIndex) => itemIndex !== index
+    )
+    updateDesign({ imageItems: next })
+    setSelectedImageIndex((current) => {
+      if (current === null) return null
+      if (current === index)
+        return next.length ? Math.min(index, next.length - 1) : null
+      return current > index ? current - 1 : current
+    })
+  }
+
+  function moveImageItem(index: number, offset: -1 | 1) {
+    if (!design) return
+    const target = index + offset
+    const next = [...(design.imageItems ?? [])]
+    if (target < 0 || target >= next.length) return
+    ;[next[index], next[target]] = [next[target], next[index]]
+    updateDesign({ imageItems: next })
+    setSelectedImageIndex(target)
+  }
+
   function applyPreset(name: string) {
     if (!design) return
     const preset = slideshowVisualPresets.find((item) => item.name === name)
@@ -256,7 +366,7 @@ export function SlideSequencePanel({
             onToggle={() => setActivePanel("media")}
           >
             <CollectionSelector
-              label="Image collection"
+              label="Background collection"
               collection={collection}
               collections={photoCollections}
               showPictures={false}
@@ -272,6 +382,171 @@ export function SlideSequencePanel({
                 })
               }
             />
+            <div className="border-t border-app-panel-border pt-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h3 className="text-xs font-bold text-app-text">
+                  Image layers
+                </h3>
+                <button
+                  type="button"
+                  className="lc-focus-ring flex h-8 items-center gap-1.5 rounded-md bg-[#2f73bd] px-2.5 text-[11px] font-bold text-white transition hover:bg-[#2865a7]"
+                  onClick={() => setImagePickerFor("new")}
+                >
+                  <IconPlus className="size-3.5" />
+                  Add image
+                </button>
+              </div>
+              {(design.imageItems ?? []).length > 0 ? (
+                <div className="space-y-2" aria-label="Image layers">
+                  {(design.imageItems ?? []).map((item, index) => {
+                    const source = imageForLayer(item, photoCollections)
+                    return (
+                      <article
+                        key={item.id}
+                        className={cn(
+                          "flex items-center gap-2 rounded-lg border bg-white p-2 transition",
+                          selectedImageIndex === index
+                            ? "border-[#72a3df] ring-2 ring-[#72a3df]/15"
+                            : "border-app-panel-border"
+                        )}
+                      >
+                        <button
+                          type="button"
+                          className="relative size-12 shrink-0 overflow-hidden rounded-md bg-[#deddd8]"
+                          aria-label={`Select image layer ${index + 1}`}
+                          onClick={() => {
+                            setSelectedImageIndex(index)
+                            setSelectedTextIndex(null)
+                          }}
+                        >
+                          {source ? (
+                            // User library URLs can be remote and are not limited
+                            // to the host allow-list used by next/image.
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={source.imageUrl}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <IconPhoto className="m-auto size-4 text-app-text-faint" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          className="lc-focus-ring min-w-0 flex-1 rounded px-1 text-left"
+                          onClick={() => {
+                            setSelectedImageIndex(index)
+                            setSelectedTextIndex(null)
+                          }}
+                        >
+                          <span className="block truncate text-[11px] font-bold text-app-text">
+                            {source?.title || `Image ${index + 1}`}
+                          </span>
+                          <span className="mt-0.5 block text-[9px] font-semibold text-app-text-faint">
+                            Layer {index + 1}
+                          </span>
+                        </button>
+                        <div className="grid grid-cols-2 gap-0.5">
+                          <CanvasIconButton
+                            label={`Replace image ${index + 1}`}
+                            onClick={() => setImagePickerFor(index)}
+                          >
+                            <IconRefresh className="size-3.5" />
+                          </CanvasIconButton>
+                          <CanvasIconButton
+                            label={`Duplicate image ${index + 1}`}
+                            onClick={() => duplicateImageItemAt(index)}
+                          >
+                            <IconCopy className="size-3.5" />
+                          </CanvasIconButton>
+                          <CanvasIconButton
+                            label={`Move image ${index + 1} backward`}
+                            disabled={index === 0}
+                            onClick={() => moveImageItem(index, -1)}
+                          >
+                            <IconArrowDown className="size-3.5" />
+                          </CanvasIconButton>
+                          <CanvasIconButton
+                            danger
+                            label={`Delete image ${index + 1}`}
+                            onClick={() => deleteImageItemAt(index)}
+                          >
+                            <IconTrash className="size-3.5" />
+                          </CanvasIconButton>
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="lc-focus-ring flex min-h-24 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-app-panel-border bg-white text-[11px] font-semibold text-app-text-soft transition hover:border-[#72a3df] hover:text-[#245f9f]"
+                  onClick={() => setImagePickerFor("new")}
+                >
+                  <IconPhoto className="size-5" />
+                  Add an image to this slide
+                </button>
+              )}
+              {selectedImageIndex !== null &&
+              design.imageItems?.[selectedImageIndex] ? (
+                <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-[#ecece8] p-2.5">
+                  <label className="space-y-1">
+                    <span className="text-[10px] font-bold text-app-text-soft">
+                      Fit
+                    </span>
+                    <SelectLike
+                      value={
+                        design.imageItems[selectedImageIndex].fit === "contain"
+                          ? "Contain"
+                          : "Cover"
+                      }
+                      options={["Contain", "Cover"]}
+                      onChange={(value) =>
+                        updateImageItemAt(selectedImageIndex, {
+                          fit: value === "Contain" ? "contain" : "cover",
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="flex items-center justify-between text-[10px] font-bold text-app-text-soft">
+                      Opacity
+                      <span className="tabular-nums">
+                        {Math.round(
+                          design.imageItems[selectedImageIndex].opacity * 100
+                        )}
+                        %
+                      </span>
+                    </span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={Math.round(
+                        design.imageItems[selectedImageIndex].opacity * 100
+                      )}
+                      className="h-8 w-full accent-[#2f73bd]"
+                      onChange={(event) =>
+                        updateImageItemAt(selectedImageIndex, {
+                          opacity: Number(event.target.value) / 100,
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+              ) : null}
+            </div>
+            {imagePickerFor !== null ? (
+              <ImageLibraryPicker
+                collections={photoCollections}
+                replacing={imagePickerFor !== "new"}
+                onChoose={chooseImage}
+                onCreateCollection={onCreateCollection}
+                onClose={() => setImagePickerFor(null)}
+              />
+            ) : null}
           </EditorPanelSection>
 
           <EditorPanelSection
@@ -448,6 +723,41 @@ export function SlideSequencePanel({
               </CanvasIconButton>
             </>
           ) : null}
+          {selectedImageIndex !== null ? (
+            <>
+              <span className="mr-1 hidden text-[11px] font-semibold text-white/50 sm:inline">
+                Image {selectedImageIndex + 1}
+              </span>
+              <CanvasIconButton
+                dark
+                label="Move image backward"
+                disabled={selectedImageIndex === 0}
+                onClick={() => moveImageItem(selectedImageIndex, -1)}
+              >
+                <IconArrowDown className="size-4" />
+              </CanvasIconButton>
+              <CanvasIconButton
+                dark
+                label="Move image forward"
+                disabled={
+                  selectedImageIndex === (design.imageItems?.length ?? 0) - 1
+                }
+                onClick={() => moveImageItem(selectedImageIndex, 1)}
+              >
+                <IconArrowUp className="size-4" />
+              </CanvasIconButton>
+              <CanvasIconButton
+                dark
+                label="Replace image"
+                onClick={() => {
+                  setActivePanel("media")
+                  setImagePickerFor(selectedImageIndex)
+                }}
+              >
+                <IconRefresh className="size-4" />
+              </CanvasIconButton>
+            </>
+          ) : null}
           <span className="flex-1" />
           <span className="text-[11px] font-semibold text-white/48">
             {design.aspect_ratio}
@@ -472,16 +782,24 @@ export function SlideSequencePanel({
             slotWidth={430}
             zoom={canvasZoom}
             selectedTextIndex={selectedTextIndex}
+            selectedImageIndex={selectedImageIndex}
             onSelect={() => {
               setSelectedTextIndex(null)
-              setActivePanel("text")
+              setSelectedImageIndex(null)
             }}
             onSelectText={(textIndex) => {
               setSelectedTextIndex(textIndex)
+              setSelectedImageIndex(null)
               setActivePanel("appearance")
+            }}
+            onSelectImage={(imageIndex) => {
+              setSelectedImageIndex(imageIndex)
+              setSelectedTextIndex(null)
+              setActivePanel("media")
             }}
             onClearTextSelection={() => {
               setSelectedTextIndex(null)
+              setSelectedImageIndex(null)
             }}
             onTransformText={(textIndex, patch) => {
               setSelectedTextIndex(textIndex)
@@ -491,6 +809,12 @@ export function SlideSequencePanel({
                   itemIndex === textIndex ? { ...item, ...patch } : item
                 ),
               })
+            }}
+            onTransformImage={(imageIndex, patch) => {
+              setSelectedImageIndex(imageIndex)
+              setSelectedTextIndex(null)
+              setActivePanel("media")
+              updateImageItemAt(imageIndex, patch)
             }}
             onAddText={addTextItem}
           />
@@ -558,7 +882,12 @@ export function SlideSequencePanel({
               photoCollections,
               item.collectionId
             )
-            const itemPreview = designPreviewItem(item, itemCollection, index)
+            const itemPreview = designPreviewItem(
+              item,
+              itemCollection,
+              index,
+              photoCollections
+            )
             return (
               <div
                 key={item.id}
@@ -578,9 +907,11 @@ export function SlideSequencePanel({
                   slotWidth={64}
                   zoom={1}
                   selectedTextIndex={null}
+                  selectedImageIndex={null}
                   onSelect={() => {
                     setSelectedId(item.id)
                     setSelectedTextIndex(null)
+                    setSelectedImageIndex(null)
                     setActivePanel("text")
                   }}
                   onSelectText={() => undefined}
@@ -844,6 +1175,7 @@ function designPatchFromSection(
     noText: section.noText,
     overlay: section.overlay,
     aiImageSelection: section.aiImageSelection,
+    imageItems: section.imageItems,
     overlayImage: section.overlayImage,
     imageMode: section.imageMode,
     visualPresetId: section.visualPresetId,
@@ -853,7 +1185,8 @@ function designPatchFromSection(
 function designPreviewItem(
   design: AutomationSlideDesign,
   collection: CreatedImageCollection | undefined,
-  index: number
+  index: number,
+  collections: CreatedImageCollection[] = collection ? [collection] : []
 ): AutomationFormatPreviewItem {
   return {
     id: design.id,
@@ -864,8 +1197,185 @@ function designPreviewItem(
     image: collection?.images[0],
     images: collection?.images ?? [],
     overlayImages: [],
+    imageItems: (design.imageItems ?? []).flatMap((item) => {
+      const image = imageForLayer(item, collections)
+      return image ? [{ ...item, image }] : []
+    }),
     text: design.textItems[0]?.staticText || "Slide text",
     textItem: design.textItems[0] ?? defaultAutomationTextItem(),
     textItems: design.textItems,
   }
+}
+
+function imageForLayer(
+  item: AutomationImageItem,
+  collections: CreatedImageCollection[]
+) {
+  const collection = findCollectionByIdOrAlias(collections, item.collectionId)
+  return collection?.images.find(
+    (image) =>
+      image.hash === item.imageId ||
+      image.id === item.imageId ||
+      image.imageUrl === item.imageId
+  )
+}
+
+function defaultImageLayerSize(
+  aspectRatio: AutomationSlideDesign["aspect_ratio"],
+  imageWidth?: number,
+  imageHeight?: number
+) {
+  const [slideWidth, slideHeight] = aspectRatio.split(":").map(Number)
+  const safeSlideRatio =
+    Number.isFinite(slideWidth) &&
+    Number.isFinite(slideHeight) &&
+    slideHeight > 0
+      ? slideWidth / slideHeight
+      : 9 / 16
+  const imageRatio =
+    imageWidth && imageHeight && imageWidth > 0 && imageHeight > 0
+      ? imageHeight / imageWidth
+      : 1
+  const width = 46
+  return {
+    width,
+    height: Math.max(12, Math.min(72, width * safeSlideRatio * imageRatio)),
+  }
+}
+
+function ImageLibraryPicker({
+  collections,
+  replacing,
+  onChoose,
+  onCreateCollection,
+  onClose,
+}: {
+  collections: CreatedImageCollection[]
+  replacing: boolean
+  onChoose: (collection: CreatedImageCollection, imageIndex: number) => void
+  onCreateCollection: (collection: CreatedImageCollection) => void
+  onClose: () => void
+}) {
+  const uploadInputRef = useRef<HTMLInputElement | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const available = collections.filter((collection) => collection.images.length)
+
+  async function uploadImages(fileList: FileList | null) {
+    if (!fileList || uploading) return
+    const files = Array.from(fileList).filter((file) =>
+      file.type.startsWith("image/")
+    )
+    if (!files.length) {
+      toast.error("Choose at least one image file")
+      return
+    }
+    setUploading(true)
+    try {
+      const images = await Promise.all(
+        files.map(async (file) => {
+          const formData = new FormData()
+          formData.set("file", file)
+          formData.set("scope", "global")
+          formData.set("category", "reference")
+          formData.set("name", file.name.replace(/\.[^.]+$/, ""))
+          const payload = await fetchJsonWithTimeout<{ asset: AssetRecord }>(
+            "/api/assets/upload",
+            { method: "POST", body: formData }
+          )
+          if (!payload.asset.fileUrl) throw new Error("Upload returned no URL")
+          return {
+            id: payload.asset.id,
+            title: payload.asset.name,
+            description: payload.asset.caption,
+            imageUrl: payload.asset.fileUrl,
+            sourceUrl: payload.asset.fileUrl,
+            dominantColor: "#d9d8d0",
+            hash: payload.asset.id,
+          }
+        })
+      )
+      const collection: CreatedImageCollection = {
+        id: `collection-editor-${crypto.randomUUID()}`,
+        title: `Editor uploads ${new Date().toLocaleDateString()}`,
+        images,
+        createdAt: new Date().toISOString(),
+        source: "upload",
+      }
+      onCreateCollection(collection)
+      onChoose(collection, 0)
+      toast.success(
+        `Uploaded ${images.length} image${images.length === 1 ? "" : "s"}`
+      )
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Failed to upload images"))
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-[#72a3df] bg-white shadow-sm">
+      <div className="flex h-10 items-center justify-between border-b border-app-panel-border px-3">
+        <span className="text-[11px] font-bold text-app-text">
+          {replacing ? "Replace image" : "Add image"}
+        </span>
+        <button
+          type="button"
+          className="lc-focus-ring rounded px-2 py-1 text-[10px] font-bold text-app-text-soft hover:bg-app-control-hover"
+          onClick={onClose}
+        >
+          Cancel
+        </button>
+      </div>
+      <div className="max-h-72 space-y-4 overflow-y-auto p-3">
+        <UploadDropzone
+          inputRef={uploadInputRef}
+          accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+          multiple
+          disabled={uploading}
+          onFiles={(files) => void uploadImages(files)}
+          className="min-h-20 p-3"
+        >
+          <span className="flex items-center justify-center gap-2 text-[11px] font-bold text-app-text">
+            <IconUpload className="size-4" />
+            {uploading ? "Uploading…" : "Upload images"}
+          </span>
+        </UploadDropzone>
+        {available.length ? (
+          available.map((collection) => (
+            <section key={collection.id}>
+              <h4 className="mb-2 truncate text-[10px] font-bold text-app-text-soft">
+                {collection.title}
+              </h4>
+              <div className="grid grid-cols-3 gap-1.5">
+                {collection.images.map((image, index) => (
+                  <button
+                    key={`${image.id}-${index}`}
+                    type="button"
+                    className="lc-focus-ring group relative aspect-square overflow-hidden rounded-md bg-[#deddd8] ring-[#4f91ff] transition hover:ring-2"
+                    title={
+                      image.title || image.description || `Image ${index + 1}`
+                    }
+                    aria-label={`Use ${image.title || `image ${index + 1}`} from ${collection.title}`}
+                    onClick={() => onChoose(collection, index)}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={image.imageUrl}
+                      alt=""
+                      className="h-full w-full object-cover transition-transform group-hover:scale-[1.03]"
+                    />
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))
+        ) : (
+          <p className="py-6 text-center text-[11px] font-semibold text-app-text-faint">
+            Upload an image or add one to your library first.
+          </p>
+        )}
+      </div>
+    </div>
+  )
 }

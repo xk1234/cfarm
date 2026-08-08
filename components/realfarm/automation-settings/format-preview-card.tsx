@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic"
 import type { TextItem } from "@/lib/realfarm-automation"
 import {
+  renderedImageItemEditorBounds,
   renderedSlideSvg,
   renderedTextItemEditorBounds,
   slideDimensions,
@@ -13,6 +14,7 @@ import { LuPlus } from "react-icons/lu"
 import {
   formatAspectRatioCss,
   formatPreviewCardSize,
+  konvaImageTransformPatch,
   konvaTextTransformPatch,
   previewSlideshowAspectRatio,
   previewSlideshowFont,
@@ -21,9 +23,9 @@ import {
 } from "./format-helpers"
 import { clickTargetsSlideshowTextEditor } from "./slide-editor-events"
 
-const KonvaTextOverlay = dynamic(
+const KonvaSlideOverlay = dynamic(
   () =>
-    import("../konva-text-overlay").then((module) => module.KonvaTextOverlay),
+    import("../konva-slide-overlay").then((module) => module.KonvaSlideOverlay),
   { ssr: false }
 )
 
@@ -44,10 +46,13 @@ export function AutomationFormatPreviewCard({
   compact,
   showLabel = true,
   selectedTextIndex,
+  selectedImageIndex = null,
   onSelect,
   onSelectText,
   onClearTextSelection,
   onTransformText,
+  onSelectImage = () => undefined,
+  onTransformImage = () => undefined,
   onAddText,
 }: {
   item: AutomationFormatPreviewItem
@@ -58,10 +63,21 @@ export function AutomationFormatPreviewCard({
   compact?: boolean
   showLabel?: boolean
   selectedTextIndex: number | null
+  selectedImageIndex?: number | null
   onSelect: () => void
   onSelectText: (index: number) => void
   onClearTextSelection: () => void
   onTransformText: (index: number, patch: Partial<TextItem>) => void
+  onSelectImage?: (index: number) => void
+  onTransformImage?: (
+    index: number,
+    patch: {
+      positionX: number
+      positionY: number
+      width: number
+      height: number
+    }
+  ) => void
   onAddText?: () => void
 }) {
   const previewBaseScale = 2.5
@@ -84,6 +100,11 @@ export function AutomationFormatPreviewCard({
   const dimensions = slideDimensions(aspectRatio)
   const selectionBounds = renderedTextItemEditorBounds(
     previewTextItems,
+    dimensions.width,
+    dimensions.height
+  )
+  const imageSelectionBounds = renderedImageItemEditorBounds(
+    slide.imageItems ?? [],
     dimensions.width,
     dimensions.height
   )
@@ -146,16 +167,23 @@ export function AutomationFormatPreviewCard({
                   className="h-full w-full [&>svg]:h-full [&>svg]:w-full"
                   dangerouslySetInnerHTML={{ __html: previewSvg }}
                 />
-                {active && !item.section.noText && item.text ? (
-                  <KonvaTextOverlay
-                    bounds={selectionBounds}
+                {active &&
+                (imageSelectionBounds.length > 0 ||
+                  (!item.section.noText && item.text)) ? (
+                  <KonvaSlideOverlay
+                    textBounds={
+                      !item.section.noText && item.text ? selectionBounds : []
+                    }
+                    imageBounds={imageSelectionBounds}
                     canvasWidth={dimensions.width}
                     canvasHeight={dimensions.height}
                     displayWidth={size.width}
                     displayHeight={size.height}
                     selectedTextIndex={selectedTextIndex}
+                    selectedImageIndex={selectedImageIndex}
                     onSelectText={onSelectText}
-                    onClearTextSelection={onClearTextSelection}
+                    onSelectImage={onSelectImage}
+                    onClearSelection={onClearTextSelection}
                     onTextTransform={(textIndex, transform) =>
                       onTransformText(
                         textIndex,
@@ -163,6 +191,12 @@ export function AutomationFormatPreviewCard({
                           ...transform,
                           textAlign: item.textItems[textIndex]?.textAlign,
                         })
+                      )
+                    }
+                    onImageTransform={(imageIndex, transform) =>
+                      onTransformImage(
+                        imageIndex,
+                        konvaImageTransformPatch(transform)
                       )
                     }
                   />
