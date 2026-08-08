@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  konvaImageTransformPatch,
   konvaTextTransformPatch,
   newAutomationTextItemAfter,
   previewSlideshowAspectRatio,
@@ -69,6 +70,7 @@ function previewItem(): AutomationFormatPreviewItem {
     image: { id: "base", imageUrl: "/base.jpg" } as never,
     images: [],
     overlayImages: [{ id: "overlay", imageUrl: "/overlay.jpg" } as never],
+    imageItems: [],
     text: "First text",
     textItem: first,
     textItems: [first, second],
@@ -76,6 +78,19 @@ function previewItem(): AutomationFormatPreviewItem {
 }
 
 describe("slideshow format preview controls", () => {
+  it("converts image drag and resize geometry into layer percentages", () => {
+    expect(
+      konvaImageTransformPatch({
+        left: 216,
+        top: 384,
+        width: 540,
+        height: 480,
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+      })
+    ).toEqual({ positionX: 45, positionY: 32.5, width: 50, height: 25 })
+  })
+
   it("converts Konva drag and resize geometry into template percentages", () => {
     expect(
       konvaTextTransformPatch({

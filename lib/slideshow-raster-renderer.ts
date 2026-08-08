@@ -7,6 +7,7 @@ export type SlideshowRasterInput = {
   aspectRatio?: string
   font?: string
   iconUrls?: string[]
+  imageItemUrls?: string[]
 }
 
 export async function renderSlideshowSlideBuffers(input: SlideshowRasterInput) {
@@ -14,6 +15,7 @@ export async function renderSlideshowSlideBuffers(input: SlideshowRasterInput) {
     aspectRatio: input.aspectRatio,
     font: input.font,
     iconUrls: input.iconUrls,
+    imageItemUrls: input.imageItemUrls,
   })
   const sharp = (await import("sharp")).default
   const png = await sharp(Buffer.from(svg)).png().toBuffer()

@@ -58,6 +58,17 @@ export type TempSlideSpec = {
   aiImageSelection?: boolean
   displayText: boolean
   collectionId: string
+  imageItems?: Array<{
+    id: string
+    collectionId: string
+    imageId: string
+    positionX: number
+    positionY: number
+    width: number
+    height: number
+    fit: "cover" | "contain"
+    opacity: number
+  }>
   overlayImage?: {
     enabled: boolean
     collectionId: string

@@ -55,6 +55,16 @@ export function previewSlideshowSlide(
           padding: item.section.overlayImage?.padding ?? 5,
         }
       : undefined,
+    imageItems: item.imageItems.map((imageItem) => ({
+      id: imageItem.id,
+      image_url: imageItem.image.imageUrl,
+      positionX: imageItem.positionX,
+      positionY: imageItem.positionY,
+      width: imageItem.width,
+      height: imageItem.height,
+      fit: imageItem.fit,
+      opacity: imageItem.opacity,
+    })),
     overlay: item.section.overlay,
     iconLayout: ovalIconLayout
       ? {
@@ -166,6 +176,30 @@ export function konvaTextTransformPatch(input: {
   }
 }
 
+export function konvaImageTransformPatch(input: {
+  left: number
+  top: number
+  width: number
+  height: number
+  canvasWidth: number
+  canvasHeight: number
+}) {
+  const width = Math.max(1, Math.min(input.canvasWidth, input.width))
+  const height = Math.max(1, Math.min(input.canvasHeight, input.height))
+  const left = Math.max(0, Math.min(input.canvasWidth - width, input.left))
+  const top = Math.max(0, Math.min(input.canvasHeight - height, input.top))
+  return {
+    positionX: roundEditorPercent(
+      ((left + width / 2) / input.canvasWidth) * 100
+    ),
+    positionY: roundEditorPercent(
+      ((top + height / 2) / input.canvasHeight) * 100
+    ),
+    width: roundEditorPercent((width / input.canvasWidth) * 100),
+    height: roundEditorPercent((height / input.canvasHeight) * 100),
+  }
+}
+
 function roundEditorPercent(value: number) {
   return Math.round(clampPercent(value) * 10) / 10
 }
@@ -189,6 +223,16 @@ export type AutomationFormatPreviewItem = {
   image?: PinterestSearchResult
   images: PinterestSearchResult[]
   overlayImages: PinterestSearchResult[]
+  imageItems: Array<{
+    id: string
+    image: PinterestSearchResult
+    positionX: number
+    positionY: number
+    width: number
+    height: number
+    fit: "cover" | "contain"
+    opacity: number
+  }>
   text: string
   textItem: TextItem
   textItems: TextItem[]
@@ -365,6 +409,7 @@ export function formatPreviewItem({
     image,
     images,
     overlayImages,
+    imageItems: [],
     text: formatPreviewText(config, role, index),
     textItem,
     textItems,

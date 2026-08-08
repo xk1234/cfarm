@@ -445,6 +445,7 @@ function buildAutomationSlideSpec(input: {
     aiImageSelection: input.formatSection.aiImageSelection === true,
     displayText: !input.formatSection.noText,
     collectionId: input.collectionId,
+    imageItems: input.formatSection.imageItems?.map((item) => ({ ...item })),
     overlayImage: input.formatSection.overlayImage?.enabled
       ? {
           enabled: true,

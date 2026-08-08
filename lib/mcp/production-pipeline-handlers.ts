@@ -956,6 +956,10 @@ export function createProductionPipelineHandlers(
       .filter(([key]) => key.startsWith(`${slideIndex}:icon:`))
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([, value]) => value as unknown as StagedSlideshowAsset)
+    const imageItems = Object.entries(staged)
+      .filter(([key]) => key.startsWith(`${slideIndex}:image-layer:`))
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([, value]) => value as unknown as StagedSlideshowAsset)
     const output = await renderOneStagedSlideshowSlide({
       scratchDir: requiredString(
         render.scratchDir,
@@ -971,6 +975,7 @@ export function createProductionPipelineHandlers(
         ? (staged[`${slideIndex}:overlay`] as unknown as StagedSlideshowAsset)
         : undefined,
       icons,
+      imageItems,
     })
     return mergePipelineOutput(input, { slideOutput: output })
   })

@@ -34,6 +34,18 @@ export type SlideshowOverlayImage = {
   padding: number
 }
 
+export type SlideshowImageItem = {
+  id: string
+  image_url: string
+  source_image_url?: string
+  positionX: number
+  positionY: number
+  width: number
+  height: number
+  fit: "cover" | "contain"
+  opacity: number
+}
+
 export type SlideshowOvalIcon = {
   image_url: string
   source_image_url?: string
@@ -55,6 +67,7 @@ export type SlideshowSlide = {
   image_url: string
   source_image_url?: string
   overlayImage?: SlideshowOverlayImage
+  imageItems?: SlideshowImageItem[]
   overlay?: boolean
   imageFit?: "cover" | "contain" | "fit"
   textItems: SlideshowTextItem[]
@@ -70,6 +83,8 @@ export type SlideshowTextBounds = {
   width: number
   height: number
 }
+
+export type SlideshowImageBounds = SlideshowTextBounds
 
 export function slideshowTextPositionX(
   textAlign: string | undefined,
@@ -88,7 +103,12 @@ export function renderedSlideSvg(
   slide: SlideshowSlide,
   sourceUrl: string,
   overlayUrl?: string,
-  opts?: { aspectRatio?: string; font?: string; iconUrls?: string[] }
+  opts?: {
+    aspectRatio?: string
+    font?: string
+    iconUrls?: string[]
+    imageItemUrls?: string[]
+  }
 ) {
   const { width, height } = slideDimensions(
     opts?.aspectRatio || defaultSlideshowAspectRatio
@@ -100,6 +120,13 @@ export function renderedSlideSvg(
       ? renderedOverlayImageSvg(slide.overlayImage, overlayUrl, width, height)
       : null
   const overlayAlpha = slide.overlay ? slideshowOverlayOpacity : 0
+  const imageItemsSvg = slide.imageItems?.map((item, index) =>
+    renderedImageItemSvg(
+      { ...item, image_url: opts?.imageItemUrls?.[index] || item.image_url },
+      width,
+      height
+    )
+  )
 
   const baseLayers = slide.iconLayout
     ? renderedOvalIconsSvg(
@@ -121,11 +148,61 @@ export function renderedSlideSvg(
       ? `<rect data-layer="overlay" width="${width}" height="${height}" fill="#000" opacity="${overlayAlpha}"/>`
       : null,
     overlayImageSvg,
+    ...(imageItemsSvg ?? []),
     ...renderedTextItemsSvg(textItems, width, height, font),
     `</svg>`,
   ]
     .filter(Boolean)
     .join("")
+}
+
+export function renderedImageItemEditorBounds(
+  items: SlideshowImageItem[],
+  width: number,
+  height: number
+): SlideshowImageBounds[] {
+  return items.map((item) => {
+    const itemWidth = (Math.max(2, Math.min(100, item.width)) / 100) * width
+    const itemHeight = (Math.max(2, Math.min(100, item.height)) / 100) * height
+    return {
+      id: item.id,
+      left: Math.max(
+        0,
+        Math.min(
+          width - itemWidth,
+          (item.positionX / 100) * width - itemWidth / 2
+        )
+      ),
+      top: Math.max(
+        0,
+        Math.min(
+          height - itemHeight,
+          (item.positionY / 100) * height - itemHeight / 2
+        )
+      ),
+      width: itemWidth,
+      height: itemHeight,
+    }
+  })
+}
+
+function renderedImageItemSvg(
+  item: SlideshowImageItem,
+  slideWidth: number,
+  slideHeight: number
+) {
+  const [bounds] = renderedImageItemEditorBounds(
+    [item],
+    slideWidth,
+    slideHeight
+  )
+  const clipId = `image-layer-${item.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`
+  const preserveAspectRatio =
+    item.fit === "contain" ? "xMidYMid meet" : "xMidYMid slice"
+  return [
+    `<defs><clipPath id="${clipId}"><rect x="${round(bounds.left)}" y="${round(bounds.top)}" width="${round(bounds.width)}" height="${round(bounds.height)}"/></clipPath></defs>`,
+    `<image data-image-layer="${escapeXml(item.id)}" href="${escapeXml(item.image_url)}" x="${round(bounds.left)}" y="${round(bounds.top)}" width="${round(bounds.width)}" height="${round(bounds.height)}" opacity="${Math.max(0, Math.min(1, item.opacity))}" preserveAspectRatio="${preserveAspectRatio}" clip-path="url(#${clipId})"/>`,
+  ].join("")
 }
 
 function renderedOvalIconsSvg(

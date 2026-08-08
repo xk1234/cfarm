@@ -115,6 +115,18 @@ export type AutomationImageOverride = {
   collectionId: string
 }
 
+export type AutomationImageItem = {
+  id: string
+  collectionId: string
+  imageId: string
+  positionX: number
+  positionY: number
+  width: number
+  height: number
+  fit: "cover" | "contain"
+  opacity: number
+}
+
 export type AutomationFormatSection = {
   id: AutomationFormatSectionId
   textItems: TextItem[]
@@ -127,6 +139,7 @@ export type AutomationFormatSection = {
   noText: boolean
   overlay: boolean
   aiImageSelection?: boolean
+  imageItems?: AutomationImageItem[]
   overlayImage?: {
     enabled: boolean
     collectionId?: string
@@ -1920,6 +1933,7 @@ function normalizeFormattingItem(value: unknown): AutomationFormattingItem[] {
           ? record.overlay
           : defaultAutomationSection(id).overlay,
       aiImageSelection: Boolean(record.aiImageSelection),
+      imageItems: normalizeImageItems(record.imageItems),
       overlayImage: normalizeOverlayImage(record.overlayImage),
       slideOverrides: normalizeSlideOverrides(record.slideOverrides),
       imageOverrides: normalizeImageOverrides(record.imageOverrides),
@@ -1988,6 +2002,7 @@ function normalizeSlideDesign(
       overlay:
         typeof value.overlay === "boolean" ? value.overlay : fallback.overlay,
       aiImageSelection: Boolean(value.aiImageSelection),
+      imageItems: normalizeImageItems(value.imageItems),
       overlayImage: normalizeOverlayImage(value.overlayImage),
       imageMode:
         value.imageMode === "single_image" ? "single_image" : "collection",
@@ -2019,6 +2034,7 @@ function legacyFormattingToSlideDesigns(
         noText: section.noText,
         overlay: section.overlay,
         aiImageSelection: section.aiImageSelection,
+        imageItems: section.imageItems?.map((item) => ({ ...item })),
         overlayImage: section.overlayImage
           ? { ...section.overlayImage }
           : undefined,
@@ -2137,6 +2153,37 @@ function normalizeOverlayImage(
     collectionId: clean(record.collectionId) || undefined,
     padding: numberValue(record.padding, 0),
   }
+}
+
+function normalizeImageItems(value: unknown): AutomationImageItem[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item, index) => {
+    if (!isRecord(item)) return []
+    const collectionId = clean(item.collectionId)
+    const imageId = clean(item.imageId)
+    if (!collectionId || !imageId) return []
+    return [
+      {
+        id: clean(item.id) || `image-${index + 1}`,
+        collectionId,
+        imageId,
+        positionX: clampEditorPercent(numberValue(item.positionX, 50)),
+        positionY: clampEditorPercent(numberValue(item.positionY, 50)),
+        width: clampEditorSize(numberValue(item.width, 44)),
+        height: clampEditorSize(numberValue(item.height, 28)),
+        fit: item.fit === "contain" ? "contain" : "cover",
+        opacity: Math.max(0, Math.min(1, numberValue(item.opacity, 1))),
+      },
+    ]
+  })
+}
+
+function clampEditorPercent(value: number) {
+  return Math.max(0, Math.min(100, value))
+}
+
+function clampEditorSize(value: number) {
+  return Math.max(2, Math.min(100, value))
 }
 
 function normalizeTextItem(value: unknown): TextItem {
