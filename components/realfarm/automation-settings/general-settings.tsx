@@ -1,6 +1,7 @@
-import { IconLanguage } from "@tabler/icons-react"
+import { IconCopy, IconLanguage, IconTrash } from "@tabler/icons-react"
 
 import { SoundSelector } from "@/components/realfarm/creator-ui"
+import { Button } from "@/components/ui/button"
 import { SelectControl, SwitchPillButton } from "@/components/ui/form-controls"
 import {
   aspectRatioLabel,
@@ -34,11 +35,17 @@ export function AutomationGeneralSettingsPanel({
   selectedSound,
   music,
   onConfigChange,
+  onDuplicate,
+  onDelete,
+  duplicating = false,
 }: {
   config: AutomationSchema
   selectedSound: LocalAsset | null
   music: LocalAsset[]
   onConfigChange: (config: AutomationSchema) => void
+  onDuplicate?: () => void
+  onDelete?: () => void
+  duplicating?: boolean
 }) {
   const language = config.language || defaultAutomationLanguage
   const isVideoAutomation = config.automationKind === "video"
@@ -264,6 +271,38 @@ export function AutomationGeneralSettingsPanel({
           />
         }
       />
+      {onDuplicate ? (
+        <SettingsRow
+          title="Duplicate template"
+          control={
+            <Button
+              type="button"
+              variant="softControl"
+              disabled={duplicating}
+              onClick={onDuplicate}
+            >
+              <IconCopy className="size-4" />
+              {duplicating ? "Duplicating…" : "Duplicate"}
+            </Button>
+          }
+        />
+      ) : null}
+      {onDelete ? (
+        <SettingsRow
+          title="Delete template"
+          control={
+            <Button
+              type="button"
+              variant="softControl"
+              className="border-[#efb6b3] text-[#a1322c] hover:bg-[#fff1f0]"
+              onClick={onDelete}
+            >
+              <IconTrash className="size-4" />
+              Delete
+            </Button>
+          }
+        />
+      ) : null}
     </SettingsPage>
   )
 }
