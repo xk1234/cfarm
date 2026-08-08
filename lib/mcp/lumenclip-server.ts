@@ -198,7 +198,9 @@ const slideDesignPatchSchema = z
     name: z.string().trim().min(1).max(200).optional(),
     instructions: z.string().trim().max(5_000).optional(),
     collectionId: z.string().trim().max(500).optional(),
-    aspect_ratio: z.enum(["9:16", "4:5", "3:4", "3:2", "1:1"]).optional(),
+    aspect_ratio: z
+      .enum(["9:16", "1:2", "4:5", "3:4", "4:3", "3:2", "1:1"])
+      .optional(),
     imageGrid: z.enum(["none", "2x2", "1x2", "1x3", "oval-icons"]).optional(),
     overlay: z.boolean().optional(),
     aiImageSelection: z.boolean().optional(),

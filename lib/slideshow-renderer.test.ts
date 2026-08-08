@@ -83,6 +83,79 @@ describe("slideshow renderer", () => {
     )
   })
 
+  it("renders reusable rectangle and arrow layers beneath slide text", () => {
+    const svg = renderedSlideSvg(
+      {
+        id: "slide-shapes",
+        image_url: "/background.jpg",
+        shapeItems: [
+          {
+            id: "title-panel",
+            kind: "rect",
+            positionX: 50,
+            positionY: 15,
+            width: 80,
+            height: 12,
+            fill: "#f3c791",
+            stroke: "#532d1b",
+            strokeWidth: 4,
+            opacity: 1,
+            rotation: 0,
+            cornerRadius: 10,
+          },
+          {
+            id: "left-arrow",
+            kind: "arrow",
+            positionX: 15,
+            positionY: 50,
+            width: 20,
+            height: 12,
+            fill: "#f17b39",
+            strokeWidth: 0,
+            opacity: 0.9,
+            rotation: 0,
+            cornerRadius: 0,
+            direction: "left",
+          },
+        ],
+        textItems: [textItem("headline", "top")],
+      },
+      "/background.jpg"
+    )
+
+    expect(svg).toContain('data-shape-layer="title-panel"')
+    expect(svg).toContain('fill="#f3c791"')
+    expect(svg).toContain('data-shape-layer="left-arrow"')
+    expect(svg).toContain("<polygon")
+    expect(svg.indexOf('data-shape-layer="left-arrow"')).toBeLessThan(
+      svg.indexOf('id="text-headline"')
+    )
+  })
+
+  it("uses each text element's own font, color, and tracking", () => {
+    const svg = renderedSlideSvg(
+      {
+        id: "slide-text-style",
+        image_url: "/background.jpg",
+        textItems: [
+          {
+            ...textItem("headline", "top"),
+            font: "serif",
+            textColor: "#fb4d80",
+            letterSpacing: 0.12,
+          },
+        ],
+      },
+      "/background.jpg",
+      undefined,
+      { font: "Inter" }
+    )
+
+    expect(svg).toContain('font-family="serif, sans-serif"')
+    expect(svg).toContain('fill="#fb4d80"')
+    expect(svg).toMatch(/letter-spacing="[1-9]/)
+  })
+
   it.each(["cover", "contain", "fit"] as const)(
     "fills the frame with centered cover cropping for legacy %s settings",
     (imageFit) => {

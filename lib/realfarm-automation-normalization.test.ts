@@ -239,6 +239,58 @@ describe("automation schema normalization", () => {
     expect(normalized.font).toBe("Inter")
   })
 
+  it("keeps Pinterest 1:2 layouts, shapes, and per-element typography", () => {
+    const base = defaultAutomationSchema(automation)
+    const normalized = normalizeAutomationSchema(
+      {
+        ...base,
+        aspect_ratio: "1:2",
+        formatting: base.formatting.map((section) =>
+          section.id === "body"
+            ? {
+                ...section,
+                aspect_ratio: "1:2",
+                shapeItems: [
+                  {
+                    id: "left-arrow",
+                    kind: "arrow" as const,
+                    positionX: 15,
+                    positionY: 50,
+                    width: 20,
+                    height: 12,
+                    fill: "#f17b39",
+                    strokeWidth: 0,
+                    opacity: 1,
+                    rotation: 0,
+                    cornerRadius: 0,
+                    direction: "left" as const,
+                  },
+                ],
+                textItems: section.textItems.map((item) => ({
+                  ...item,
+                  textColor: "#fb4d80",
+                  letterSpacing: 0.12,
+                })),
+              }
+            : section
+        ),
+      },
+      automation
+    )
+
+    expect(normalized.aspect_ratio).toBe("1:2")
+    const body = normalized.formatting.find((section) => section.id === "body")
+    expect(body?.shapeItems?.[0]).toMatchObject({
+      id: "left-arrow",
+      kind: "arrow",
+      direction: "left",
+    })
+    expect(body?.textItems[0]).toMatchObject({
+      textColor: "#fb4d80",
+      letterSpacing: 0.12,
+    })
+  })
+
   it("uses section overlays as the only overlay configuration", () => {
     const base = defaultAutomationSchema(automation)
     const normalized = normalizeAutomationSchema(base, automation)

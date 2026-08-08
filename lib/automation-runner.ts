@@ -251,6 +251,7 @@ export type AutomationRunSlide = AutomationRunSlideView & {
     fit: "cover" | "contain"
     opacity: number
   }>
+  shapeItems?: TempSlideSpec["shapeItems"]
   text: string
   textPlacement?: SlideshowTextItem["textPlacement"]
   aspectRatio?: string
@@ -2216,6 +2217,7 @@ async function createSlides(input: {
               collections: input.imageCollections,
               slide,
             }),
+        shapeItems: slide.shapeItems?.map((item) => ({ ...item })),
         overlayImage: input.skipVisuals
           ? undefined
           : overlayImageForSlide({
@@ -2375,6 +2377,9 @@ export function automationRunSlidesToSlideshowSlides(
                   : undefined,
               textPosition,
               fontWeight: textItem?.fontWeight,
+              font: textItem?.font,
+              textColor: textItem?.textColor,
+              letterSpacing: textItem?.letterSpacing,
               backgroundMode: textItem?.backgroundMode,
               backgroundRadius: textItem?.backgroundRadius,
             },
@@ -2399,6 +2404,7 @@ export function automationRunSlidesToSlideshowSlides(
         fit: item.fit,
         opacity: item.opacity,
       })),
+      shapeItems: slide.shapeItems?.map((item) => ({ ...item })),
       overlay: slide.overlay,
       imageFit: schema.image_fit,
       iconLayout: slide.iconLayout
@@ -2445,7 +2451,10 @@ function slideshowTextItemFromTempTextItem(input: {
           tempTextPlacement(input.textItem?.textPosition))
         : undefined,
     textPosition: tempTextItemPosition(input.textItem),
+    font: input.textItem?.font,
     fontWeight: input.textItem?.fontWeight,
+    textColor: input.textItem?.textColor,
+    letterSpacing: input.textItem?.letterSpacing,
     backgroundMode: input.textItem?.backgroundMode,
     backgroundRadius: input.textItem?.backgroundRadius,
   }

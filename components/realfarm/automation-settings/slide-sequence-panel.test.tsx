@@ -39,6 +39,7 @@ describe("SlideSequencePanel", () => {
     expect(html).toContain("Slide 1 properties")
     expect(html).toContain("Usage")
     expect(html).toContain("Images")
+    expect(html).toContain("Shapes")
     expect(html).toContain("Text")
     expect(html).toContain("Appearance")
     expect(html).toContain('aria-label="Slides"')

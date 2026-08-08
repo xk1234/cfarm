@@ -446,6 +446,7 @@ function buildAutomationSlideSpec(input: {
     displayText: !input.formatSection.noText,
     collectionId: input.collectionId,
     imageItems: input.formatSection.imageItems?.map((item) => ({ ...item })),
+    shapeItems: input.formatSection.shapeItems?.map((item) => ({ ...item })),
     overlayImage: input.formatSection.overlayImage?.enabled
       ? {
           enabled: true,
@@ -496,5 +497,7 @@ function automationTextItemToPlaceholder(input: {
     fontWeight: input.textItem.fontWeight,
     backgroundMode: input.textItem.backgroundMode,
     backgroundRadius: input.textItem.backgroundRadius,
+    textColor: input.textItem.textColor,
+    letterSpacing: input.textItem.letterSpacing,
   }
 }

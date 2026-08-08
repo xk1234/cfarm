@@ -38,6 +38,7 @@ import {
   type AutomationFormatSection,
   type AutomationImageItem,
   type AutomationSchema,
+  type AutomationShapeItem,
   type AutomationSlideDesign,
   type TextItem,
 } from "@/lib/realfarm-automation"
@@ -56,7 +57,7 @@ import { AutomationFormatPreviewCard } from "./format-preview-card"
 import { AutomationFormatTextToolbar } from "./format-text-toolbar"
 import type { AutomationFormatPreviewItem } from "./format-helpers"
 
-type EditorPanel = "media" | "text" | "appearance"
+type EditorPanel = "media" | "shapes" | "text" | "appearance"
 
 export function SlideSequencePanel({
   config,
@@ -75,6 +76,9 @@ export function SlideSequencePanel({
     null
   )
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(
+    null
+  )
+  const [selectedShapeIndex, setSelectedShapeIndex] = useState<number | null>(
     null
   )
   const [imagePickerFor, setImagePickerFor] = useState<number | "new" | null>(
@@ -133,6 +137,10 @@ export function SlideSequencePanel({
             ...item,
             id: `image-${crypto.randomUUID()}`,
           })),
+          shapeItems: source.shapeItems?.map((item) => ({
+            ...item,
+            id: `shape-${crypto.randomUUID()}`,
+          })),
         }
       : newSlideDesign(id, designs.length + 1, {
           aspectRatio: design?.aspect_ratio ?? config.aspect_ratio,
@@ -142,6 +150,7 @@ export function SlideSequencePanel({
     setSelectedId(id)
     setSelectedTextIndex(null)
     setSelectedImageIndex(null)
+    setSelectedShapeIndex(null)
     setActivePanel("text")
   }
 
@@ -152,6 +161,7 @@ export function SlideSequencePanel({
     setSelectedId(next[Math.min(selectedIndex, next.length - 1)]?.id ?? "")
     setSelectedTextIndex(null)
     setSelectedImageIndex(null)
+    setSelectedShapeIndex(null)
     setActivePanel("text")
   }
 
@@ -249,6 +259,65 @@ export function SlideSequencePanel({
     })
   }
 
+  function addShapeItem(kind: AutomationShapeItem["kind"]) {
+    if (!design) return
+    const nextItem: AutomationShapeItem = {
+      id: `shape-${crypto.randomUUID()}`,
+      kind,
+      positionX: 50,
+      positionY: 50,
+      width: kind === "arrow" ? 24 : 70,
+      height: kind === "arrow" ? 10 : 16,
+      fill: "#f17b39",
+      strokeWidth: 0,
+      opacity: 1,
+      rotation: 0,
+      cornerRadius: 0,
+      direction: kind === "arrow" ? "left" : undefined,
+    }
+    updateDesign({ shapeItems: [...(design.shapeItems ?? []), nextItem] })
+    setSelectedShapeIndex(design.shapeItems?.length ?? 0)
+    setSelectedTextIndex(null)
+    setSelectedImageIndex(null)
+    setActivePanel("shapes")
+  }
+
+  function updateShapeItemAt(
+    index: number,
+    patch: Partial<AutomationShapeItem>
+  ) {
+    if (!design) return
+    updateDesign({
+      shapeItems: (design.shapeItems ?? []).map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...patch } : item
+      ),
+    })
+  }
+
+  function duplicateShapeItemAt(index: number) {
+    if (!design) return
+    const source = design.shapeItems?.[index]
+    if (!source) return
+    const next = [...(design.shapeItems ?? [])]
+    next.splice(index + 1, 0, {
+      ...source,
+      id: `shape-${crypto.randomUUID()}`,
+      positionX: Math.min(100, source.positionX + 3),
+      positionY: Math.min(100, source.positionY + 3),
+    })
+    updateDesign({ shapeItems: next })
+    setSelectedShapeIndex(index + 1)
+  }
+
+  function deleteShapeItemAt(index: number) {
+    if (!design) return
+    const next = (design.shapeItems ?? []).filter(
+      (_, itemIndex) => itemIndex !== index
+    )
+    updateDesign({ shapeItems: next })
+    setSelectedShapeIndex(next.length ? Math.min(index, next.length - 1) : null)
+  }
+
   function chooseImage(collection: CreatedImageCollection, imageIndex: number) {
     if (!design) return
     const image = collection.images[imageIndex]
@@ -281,6 +350,7 @@ export function SlideSequencePanel({
       setSelectedImageIndex(imagePickerFor)
     }
     setSelectedTextIndex(null)
+    setSelectedShapeIndex(null)
     setActivePanel("media")
     setImagePickerFor(null)
   }
@@ -299,6 +369,7 @@ export function SlideSequencePanel({
     updateDesign({ imageItems: next })
     setSelectedImageIndex(index + 1)
     setSelectedTextIndex(null)
+    setSelectedShapeIndex(null)
   }
 
   function deleteImageItemAt(index: number) {
@@ -550,6 +621,88 @@ export function SlideSequencePanel({
           </EditorPanelSection>
 
           <EditorPanelSection
+            title="Shapes"
+            label={`${design.shapeItems?.length ?? 0}`}
+            icon={
+              <span className="grid size-4 place-items-center text-[11px]">
+                ◆
+              </span>
+            }
+            open={activePanel === "shapes"}
+            onToggle={() => setActivePanel("shapes")}
+          >
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                className="lc-focus-ring h-9 rounded-md border border-app-panel-border bg-white text-[11px] font-bold text-app-text hover:bg-app-control-hover"
+                onClick={() => addShapeItem("rect")}
+              >
+                Add rectangle
+              </button>
+              <button
+                type="button"
+                className="lc-focus-ring h-9 rounded-md border border-app-panel-border bg-white text-[11px] font-bold text-app-text hover:bg-app-control-hover"
+                onClick={() => addShapeItem("arrow")}
+              >
+                Add arrow
+              </button>
+            </div>
+            {(design.shapeItems ?? []).length > 0 ? (
+              <div className="space-y-2" aria-label="Shape layers">
+                {(design.shapeItems ?? []).map((item, index) => (
+                  <article
+                    key={item.id}
+                    className={cn(
+                      "flex items-center gap-2 rounded-lg border bg-white p-2",
+                      selectedShapeIndex === index
+                        ? "border-[#72a3df] ring-2 ring-[#72a3df]/15"
+                        : "border-app-panel-border"
+                    )}
+                  >
+                    <button
+                      type="button"
+                      className="lc-focus-ring flex min-w-0 flex-1 items-center gap-2 rounded px-1 text-left text-[11px] font-bold text-app-text capitalize"
+                      onClick={() => {
+                        setSelectedShapeIndex(index)
+                        setSelectedTextIndex(null)
+                        setSelectedImageIndex(null)
+                      }}
+                    >
+                      <span
+                        className="size-5 shrink-0 rounded border border-black/15"
+                        style={{ backgroundColor: item.fill }}
+                      />
+                      {item.kind} {index + 1}
+                    </button>
+                    <CanvasIconButton
+                      label={`Duplicate shape ${index + 1}`}
+                      onClick={() => duplicateShapeItemAt(index)}
+                    >
+                      <IconCopy className="size-3.5" />
+                    </CanvasIconButton>
+                    <CanvasIconButton
+                      danger
+                      label={`Delete shape ${index + 1}`}
+                      onClick={() => deleteShapeItemAt(index)}
+                    >
+                      <IconTrash className="size-3.5" />
+                    </CanvasIconButton>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+            {selectedShapeIndex !== null &&
+            design.shapeItems?.[selectedShapeIndex] ? (
+              <ShapeInspector
+                item={design.shapeItems[selectedShapeIndex]}
+                onChange={(patch) =>
+                  updateShapeItemAt(selectedShapeIndex, patch)
+                }
+              />
+            ) : null}
+          </EditorPanelSection>
+
+          <EditorPanelSection
             title="Text"
             label={`${design.textItems.length}`}
             icon={<IconTypography className="size-4" />}
@@ -786,15 +939,18 @@ export function SlideSequencePanel({
             onSelect={() => {
               setSelectedTextIndex(null)
               setSelectedImageIndex(null)
+              setSelectedShapeIndex(null)
             }}
             onSelectText={(textIndex) => {
               setSelectedTextIndex(textIndex)
               setSelectedImageIndex(null)
+              setSelectedShapeIndex(null)
               setActivePanel("appearance")
             }}
             onSelectImage={(imageIndex) => {
               setSelectedImageIndex(imageIndex)
               setSelectedTextIndex(null)
+              setSelectedShapeIndex(null)
               setActivePanel("media")
             }}
             onClearTextSelection={() => {
@@ -912,6 +1068,7 @@ export function SlideSequencePanel({
                     setSelectedId(item.id)
                     setSelectedTextIndex(null)
                     setSelectedImageIndex(null)
+                    setSelectedShapeIndex(null)
                     setActivePanel("text")
                   }}
                   onSelectText={() => undefined}
@@ -1050,6 +1207,163 @@ export function SlideTextElementList({
   )
 }
 
+function ShapeInspector({
+  item,
+  onChange,
+}: {
+  item: AutomationShapeItem
+  onChange: (patch: Partial<AutomationShapeItem>) => void
+}) {
+  return (
+    <div className="space-y-3 rounded-lg bg-[#ecece8] p-2.5">
+      <div className="grid grid-cols-2 gap-2">
+        <label className="space-y-1">
+          <span className="text-[10px] font-bold text-app-text-soft">Fill</span>
+          <span className="flex h-9 items-center gap-2 rounded-md border border-app-panel-border bg-white px-2">
+            <input
+              type="color"
+              className="size-6 cursor-pointer border-0 bg-transparent p-0"
+              value={item.fill}
+              onChange={(event) => onChange({ fill: event.target.value })}
+            />
+            <span className="truncate text-[10px] font-semibold text-app-text-soft uppercase">
+              {item.fill}
+            </span>
+          </span>
+        </label>
+        <label className="space-y-1">
+          <span className="text-[10px] font-bold text-app-text-soft">
+            Stroke
+          </span>
+          <span className="flex h-9 items-center gap-2 rounded-md border border-app-panel-border bg-white px-2">
+            <input
+              type="color"
+              className="size-6 cursor-pointer border-0 bg-transparent p-0"
+              value={item.stroke || item.fill}
+              onChange={(event) =>
+                onChange({
+                  stroke: event.target.value,
+                  strokeWidth: item.strokeWidth || 2,
+                })
+              }
+            />
+            <button
+              type="button"
+              className="text-[10px] font-semibold text-app-text-soft"
+              onClick={() => onChange({ stroke: undefined, strokeWidth: 0 })}
+            >
+              {item.stroke ? "Remove" : "None"}
+            </button>
+          </span>
+        </label>
+      </div>
+      {item.kind === "arrow" ? (
+        <label className="block space-y-1">
+          <span className="text-[10px] font-bold text-app-text-soft">
+            Direction
+          </span>
+          <SelectLike
+            value={capitalize(item.direction ?? "left")}
+            options={["Left", "Right", "Up", "Down"]}
+            onChange={(value) =>
+              onChange({
+                direction: value.toLowerCase() as NonNullable<
+                  AutomationShapeItem["direction"]
+                >,
+              })
+            }
+          />
+        </label>
+      ) : null}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+        <ShapeRange
+          label="X"
+          value={item.positionX}
+          min={0}
+          max={100}
+          onChange={(positionX) => onChange({ positionX })}
+        />
+        <ShapeRange
+          label="Y"
+          value={item.positionY}
+          min={0}
+          max={100}
+          onChange={(positionY) => onChange({ positionY })}
+        />
+        <ShapeRange
+          label="Width"
+          value={item.width}
+          min={1}
+          max={100}
+          onChange={(width) => onChange({ width })}
+        />
+        <ShapeRange
+          label="Height"
+          value={item.height}
+          min={1}
+          max={100}
+          onChange={(height) => onChange({ height })}
+        />
+        <ShapeRange
+          label="Rotation"
+          value={item.rotation}
+          min={-180}
+          max={180}
+          onChange={(rotation) => onChange({ rotation })}
+        />
+        <ShapeRange
+          label="Opacity"
+          value={Math.round(item.opacity * 100)}
+          min={0}
+          max={100}
+          suffix="%"
+          onChange={(opacity) => onChange({ opacity: opacity / 100 })}
+        />
+      </div>
+    </div>
+  )
+}
+
+function ShapeRange({
+  label,
+  value,
+  min,
+  max,
+  suffix = "",
+  onChange,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  suffix?: string
+  onChange: (value: number) => void
+}) {
+  return (
+    <label className="space-y-1">
+      <span className="flex items-center justify-between text-[10px] font-bold text-app-text-soft">
+        {label}
+        <span className="tabular-nums">
+          {Math.round(value)}
+          {suffix}
+        </span>
+      </span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        value={value}
+        className="h-7 w-full accent-[#2f73bd]"
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
+    </label>
+  )
+}
+
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
 function CanvasIconButton({
   children,
   label,
@@ -1176,6 +1490,7 @@ function designPatchFromSection(
     overlay: section.overlay,
     aiImageSelection: section.aiImageSelection,
     imageItems: section.imageItems,
+    shapeItems: section.shapeItems,
     overlayImage: section.overlayImage,
     imageMode: section.imageMode,
     visualPresetId: section.visualPresetId,
