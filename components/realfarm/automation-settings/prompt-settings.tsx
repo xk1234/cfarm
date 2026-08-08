@@ -246,24 +246,22 @@ export function PromptConfigPanel({
           <h3 className="text-[16px] font-semibold text-app-text">
             Text agent
           </h3>
-          <PromptTextarea
-            title={
-              isVideoAutomation
-                ? "Writing instructions"
-                : "Slide text instructions"
-            }
-            value={config.prompt_formatting.style}
-            large
-            onChange={(value) =>
-              onConfigChange({
-                ...config,
-                prompt_formatting: {
-                  ...config.prompt_formatting,
-                  style: value,
-                },
-              })
-            }
-          />
+          {isVideoAutomation ? (
+            <PromptTextarea
+              title="Writing instructions"
+              value={config.prompt_formatting.style}
+              large
+              onChange={(value) =>
+                onConfigChange({
+                  ...config,
+                  prompt_formatting: {
+                    ...config.prompt_formatting,
+                    style: value,
+                  },
+                })
+              }
+            />
+          ) : null}
           {!isVideoAutomation ? (
             <>
               <PromptTextarea
@@ -343,7 +341,7 @@ export function PromptConfigPanel({
           />
           {selectedTone === "Custom" ? (
             <PromptTextarea
-              title="Custom tone"
+              title="Writing instructions"
               value={rawToneValue}
               large
               onChange={(value) =>
