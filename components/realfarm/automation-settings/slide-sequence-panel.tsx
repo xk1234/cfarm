@@ -4,6 +4,12 @@ import { useMemo, useState, type ReactNode } from "react"
 import {
   IconArrowDown,
   IconArrowUp,
+  IconAlignBoxCenterBottom,
+  IconAlignBoxCenterMiddle,
+  IconAlignBoxCenterTop,
+  IconAlignCenter,
+  IconAlignLeft,
+  IconAlignRight,
   IconChevronRight,
   IconCopy,
   IconFocusCentered,
@@ -139,6 +145,11 @@ export function SlideSequencePanel({
   function updateTextItem(patch: Partial<TextItem>) {
     if (!design) return
     const index = selectedTextIndex ?? 0
+    updateTextItemAt(index, patch)
+  }
+
+  function updateTextItemAt(index: number, patch: Partial<TextItem>) {
+    if (!design) return
     updateDesign({
       textItems: design.textItems.map((item, itemIndex) =>
         itemIndex === index ? { ...item, ...patch } : item
@@ -161,18 +172,28 @@ export function SlideSequencePanel({
 
   function deleteTextItem() {
     if (!design || selectedTextIndex === null) return
-    const next = design.textItems.filter(
-      (_, index) => index !== selectedTextIndex
-    )
-    updateDesign({
-      textItems: next.length > 0 ? next : [defaultAutomationTextItem()],
+    deleteTextItemAt(selectedTextIndex)
+  }
+
+  function deleteTextItemAt(index: number) {
+    if (!design || design.textItems.length <= 1) return
+    const next = design.textItems.filter((_, itemIndex) => itemIndex !== index)
+    updateDesign({ textItems: next })
+    setSelectedTextIndex((current) => {
+      if (current === null) return null
+      if (current === index) return Math.min(index, next.length - 1)
+      return current > index ? current - 1 : current
     })
-    setSelectedTextIndex(0)
   }
 
   function duplicateTextItem() {
     if (!design || selectedTextIndex === null) return
-    const source = design.textItems[selectedTextIndex]
+    duplicateTextItemAt(selectedTextIndex)
+  }
+
+  function duplicateTextItemAt(index: number) {
+    if (!design) return
+    const source = design.textItems[index]
     if (!source) return
     const nextItem = {
       ...source,
@@ -181,10 +202,9 @@ export function SlideSequencePanel({
       positionY: Math.min(100, (source.positionY ?? 45) + 3),
     }
     const nextItems = [...design.textItems]
-    nextItems.splice(selectedTextIndex + 1, 0, nextItem)
+    nextItems.splice(index + 1, 0, nextItem)
     updateDesign({ textItems: nextItems })
-    setSelectedTextIndex(selectedTextIndex + 1)
-    setActivePanel("text")
+    setSelectedTextIndex(index + 1)
   }
 
   function moveTextItem(offset: -1 | 1) {
@@ -282,6 +302,7 @@ export function SlideSequencePanel({
 
           <EditorPanelSection
             title="Text"
+            label={`${design.textItems.length}`}
             icon={<IconTypography className="size-4" />}
             open={activePanel === "text"}
             onToggle={() => {
@@ -289,42 +310,15 @@ export function SlideSequencePanel({
               setSelectedTextIndex((current) => current ?? 0)
             }}
           >
-            <div className="flex flex-wrap gap-1.5">
-              {design.textItems.map((item, index) => (
-                <button
-                  key={item.id ?? index}
-                  type="button"
-                  className={cn(
-                    "max-w-full truncate rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition",
-                    selectedTextIndex === index
-                      ? "border-[#8bb3ea] bg-[#edf4ff] text-[#174b91]"
-                      : "border-app-panel-border bg-white text-app-text-soft hover:bg-app-control-hover"
-                  )}
-                  onClick={() => setSelectedTextIndex(index)}
-                >
-                  {item.staticText ||
-                    item.contentDirection ||
-                    `Text ${index + 1}`}
-                </button>
-              ))}
-              <button
-                type="button"
-                className="grid size-7 place-items-center rounded-md border border-app-panel-border bg-white text-app-text-soft hover:bg-app-control-hover"
-                onClick={addTextItem}
-                aria-label="Add text layer"
-                title="Add text layer"
-              >
-                <IconPlus className="size-3.5" />
-              </button>
-            </div>
-            <AutomationFormatTextToolbar
-              mode="Content"
-              layout="inspector"
-              textItem={textItem}
-              updateTextItem={updateTextItem}
-              onDelete={deleteTextItem}
-              onAdd={addTextItem}
+            <SlideTextElementList
+              items={design.textItems}
+              selectedIndex={selectedTextIndex}
               locked={Boolean(activePreset)}
+              onSelect={setSelectedTextIndex}
+              onChange={updateTextItemAt}
+              onDuplicate={duplicateTextItemAt}
+              onDelete={deleteTextItemAt}
+              onAdd={addTextItem}
             />
           </EditorPanelSection>
 
@@ -332,7 +326,10 @@ export function SlideSequencePanel({
             title="Appearance"
             icon={<IconPalette className="size-4" />}
             open={activePanel === "appearance"}
-            onToggle={() => setActivePanel("appearance")}
+            onToggle={() => {
+              setActivePanel("appearance")
+              setSelectedTextIndex((current) => current ?? 0)
+            }}
           >
             <label className="block space-y-1.5">
               <span className="text-xs font-semibold text-app-muted-text">
@@ -352,6 +349,22 @@ export function SlideSequencePanel({
               enabled={design.overlay}
               onClick={() => updateDesign({ overlay: !design.overlay })}
             />
+            <div className="border-t border-app-panel-border pt-4">
+              <h3 className="mb-3 text-xs font-bold text-app-text">
+                Selected text
+              </h3>
+              <AutomationFormatTextToolbar
+                mode="Content"
+                layout="inspector"
+                textItem={textItem}
+                updateTextItem={updateTextItem}
+                onDelete={deleteTextItem}
+                onAdd={addTextItem}
+                locked={Boolean(activePreset)}
+                showContentDirection={false}
+                showActions={false}
+              />
+            </div>
           </EditorPanelSection>
         </div>
       </aside>
@@ -383,6 +396,70 @@ export function SlideSequencePanel({
               >
                 <IconArrowUp className="size-4" />
               </CanvasIconButton>
+              <span className="mx-1 h-5 w-px bg-white/15" />
+              <CanvasIconButton
+                dark
+                label="Align text layer left"
+                onClick={() =>
+                  updateTextItem({
+                    positionX: 10,
+                    textAlign: "left",
+                    textAnchor: "padded",
+                  })
+                }
+              >
+                <IconAlignLeft className="size-4" />
+              </CanvasIconButton>
+              <CanvasIconButton
+                dark
+                label="Center text layer horizontally"
+                onClick={() =>
+                  updateTextItem({ positionX: 50, textAlign: "center" })
+                }
+              >
+                <IconAlignCenter className="size-4" />
+              </CanvasIconButton>
+              <CanvasIconButton
+                dark
+                label="Align text layer right"
+                onClick={() =>
+                  updateTextItem({
+                    positionX: 90,
+                    textAlign: "right",
+                    textAnchor: "padded",
+                  })
+                }
+              >
+                <IconAlignRight className="size-4" />
+              </CanvasIconButton>
+              <CanvasIconButton
+                dark
+                label="Align text layer to top"
+                onClick={() =>
+                  updateTextItem({ positionY: 16, textPosition: "top" })
+                }
+              >
+                <IconAlignBoxCenterTop className="size-4" />
+              </CanvasIconButton>
+              <CanvasIconButton
+                dark
+                label="Center text layer vertically"
+                onClick={() =>
+                  updateTextItem({ positionY: 45, textPosition: "center" })
+                }
+              >
+                <IconAlignBoxCenterMiddle className="size-4" />
+              </CanvasIconButton>
+              <CanvasIconButton
+                dark
+                label="Align text layer to bottom"
+                onClick={() =>
+                  updateTextItem({ positionY: 82, textPosition: "bottom" })
+                }
+              >
+                <IconAlignBoxCenterBottom className="size-4" />
+              </CanvasIconButton>
+              <span className="mx-1 h-5 w-px bg-white/15" />
               <CanvasIconButton
                 dark
                 label="Duplicate text"
@@ -430,14 +507,14 @@ export function SlideSequencePanel({
             }}
             onSelectText={(textIndex) => {
               setSelectedTextIndex(textIndex)
-              setActivePanel("text")
+              setActivePanel("appearance")
             }}
             onClearTextSelection={() => {
               setSelectedTextIndex(null)
             }}
             onTransformText={(textIndex, patch) => {
               setSelectedTextIndex(textIndex)
-              setActivePanel("text")
+              setActivePanel("appearance")
               updateDesign({
                 textItems: design.textItems.map((item, itemIndex) =>
                   itemIndex === textIndex ? { ...item, ...patch } : item
@@ -577,6 +654,96 @@ export function SlideSequencePanel({
           </CanvasIconButton>
         </div>
       </footer>
+    </div>
+  )
+}
+
+export function SlideTextElementList({
+  items,
+  selectedIndex,
+  locked,
+  onSelect,
+  onChange,
+  onDuplicate,
+  onDelete,
+  onAdd,
+}: {
+  items: TextItem[]
+  selectedIndex: number | null
+  locked: boolean
+  onSelect: (index: number) => void
+  onChange: (index: number, patch: Partial<TextItem>) => void
+  onDuplicate: (index: number) => void
+  onDelete: (index: number) => void
+  onAdd: () => void
+}) {
+  return (
+    <div className="space-y-2.5" aria-label="Text elements">
+      {items.map((item, index) => {
+        const selected = selectedIndex === index
+        return (
+          <article
+            key={item.id ?? index}
+            className={cn(
+              "rounded-lg border bg-white transition",
+              selected
+                ? "border-[#72a3df] ring-2 ring-[#72a3df]/15"
+                : "border-app-panel-border"
+            )}
+          >
+            <div className="flex h-9 items-center gap-1 border-b border-app-panel-border px-2">
+              <button
+                type="button"
+                className="lc-focus-ring min-w-0 flex-1 truncate rounded px-1.5 text-left text-[11px] font-bold text-app-text hover:bg-app-control-hover"
+                aria-pressed={selected}
+                onClick={() => onSelect(index)}
+              >
+                Text {index + 1}
+              </button>
+              <CanvasIconButton
+                label={`Duplicate text ${index + 1}`}
+                disabled={locked}
+                onClick={() => onDuplicate(index)}
+              >
+                <IconCopy className="size-3.5" />
+              </CanvasIconButton>
+              <CanvasIconButton
+                danger
+                label={`Delete text ${index + 1}`}
+                disabled={locked || items.length <= 1}
+                onClick={() => onDelete(index)}
+              >
+                <IconTrash className="size-3.5" />
+              </CanvasIconButton>
+            </div>
+            <label className="block p-2">
+              <span className="sr-only">
+                Content direction for text {index + 1}
+              </span>
+              <textarea
+                rows={3}
+                className="w-full resize-y rounded-md border border-transparent bg-[#f5f5f2] px-2.5 py-2 text-[12px] leading-5 font-medium text-app-text outline-none placeholder:text-app-text-faint focus:border-[#72a3df] focus:bg-white focus:ring-2 focus:ring-[#72a3df]/15"
+                value={item.contentDirection ?? ""}
+                onFocus={() => onSelect(index)}
+                onChange={(event) =>
+                  onChange(index, { contentDirection: event.target.value })
+                }
+                placeholder="Describe what this text should say"
+              />
+            </label>
+          </article>
+        )
+      })}
+      <button
+        type="button"
+        className="lc-focus-ring flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-app-panel-border bg-white text-[11px] font-bold text-app-text-soft transition hover:border-[#72a3df] hover:text-[#245f9f] disabled:pointer-events-none disabled:opacity-45"
+        disabled={locked}
+        onClick={onAdd}
+        aria-label="Add text layer"
+      >
+        <IconPlus className="size-3.5" />
+        Add text
+      </button>
     </div>
   )
 }

@@ -1,10 +1,16 @@
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 
-import { defaultAutomationSchema } from "@/lib/realfarm-automation"
+import {
+  defaultAutomationSchema,
+  defaultAutomationTextItem,
+} from "@/lib/realfarm-automation"
 import type { Automation } from "@/lib/realfarm-data"
 
-import { SlideSequencePanel } from "./slide-sequence-panel"
+import {
+  SlideSequencePanel,
+  SlideTextElementList,
+} from "./slide-sequence-panel"
 
 const automation: Automation = {
   id: "slide-editor-test",
@@ -43,5 +49,37 @@ describe("SlideSequencePanel", () => {
     expect(html).not.toContain("Display text")
     expect(html).not.toContain(">Image grid<")
     expect(html).not.toContain(">Ratio<")
+  })
+
+  it("shows every text element as a direct content-direction editor", () => {
+    const html = renderToStaticMarkup(
+      <SlideTextElementList
+        items={[
+          defaultAutomationTextItem({
+            id: "headline",
+            contentDirection: "State the main hook",
+          }),
+          defaultAutomationTextItem({
+            id: "support",
+            contentDirection: "Explain why it matters",
+          }),
+        ]}
+        selectedIndex={0}
+        locked={false}
+        onSelect={vi.fn()}
+        onChange={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onAdd={vi.fn()}
+      />
+    )
+
+    expect(html).toContain('aria-label="Text elements"')
+    expect(html).toContain("Text 1")
+    expect(html).toContain("Text 2")
+    expect(html).toContain("State the main hook")
+    expect(html).toContain("Explain why it matters")
+    expect(html).not.toContain(">Font<")
+    expect(html).not.toContain(">Style<")
   })
 })

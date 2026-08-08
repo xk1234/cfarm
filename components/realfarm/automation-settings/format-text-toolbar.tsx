@@ -27,6 +27,8 @@ export function AutomationFormatTextToolbar({
   onAdd,
   layout = "floating",
   locked = false,
+  showContentDirection = true,
+  showActions = true,
 }: {
   mode: "Hook" | "Content" | "CTA"
   textItem: TextItem
@@ -35,6 +37,8 @@ export function AutomationFormatTextToolbar({
   onAdd: () => void
   layout?: "floating" | "inline" | "inspector"
   locked?: boolean
+  showContentDirection?: boolean
+  showActions?: boolean
 }) {
   return (
     <div
@@ -52,7 +56,7 @@ export function AutomationFormatTextToolbar({
     >
       {locked ? (
         <div className="rounded-lg border border-[#dddcd4] bg-white/70 px-2.5 py-2 text-[11px] font-medium text-app-muted-text">
-          Preset layout is locked. Content direction stays editable.
+          Preset layout is locked.
         </div>
       ) : null}
       <div className="space-y-2.5">
@@ -182,26 +186,28 @@ export function AutomationFormatTextToolbar({
               }
             />
           </div>
-          <label className="block space-y-1">
-            <span className="text-xs font-medium text-app-text">
-              Content direction
-            </span>
-            <textarea
-              rows={2}
-              className="w-full resize-none rounded-lg border border-app-panel-border bg-app-surface px-2.5 py-1.5 text-xs font-medium outline-none placeholder:text-[#CCC] focus:border-[#999]"
-              value={textItem.contentDirection ?? ""}
-              onChange={(event) =>
-                updateTextItem({ contentDirection: event.target.value })
-              }
-              placeholder={
-                mode === "CTA"
-                  ? "e.g. a short call to action..."
-                  : "e.g. A bold hook about..."
-              }
-            />
-          </label>
+          {showContentDirection ? (
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-app-text">
+                Content direction
+              </span>
+              <textarea
+                rows={2}
+                className="w-full resize-none rounded-lg border border-app-panel-border bg-app-surface px-2.5 py-1.5 text-xs font-medium outline-none placeholder:text-[#CCC] focus:border-[#999]"
+                value={textItem.contentDirection ?? ""}
+                onChange={(event) =>
+                  updateTextItem({ contentDirection: event.target.value })
+                }
+                placeholder={
+                  mode === "CTA"
+                    ? "e.g. a short call to action..."
+                    : "e.g. A bold hook about..."
+                }
+              />
+            </label>
+          ) : null}
         </div>
-        {!locked ? (
+        {!locked && showActions ? (
           <div className="flex items-center justify-end gap-1.5">
             <button
               className="flex items-center gap-1 rounded-md p-1.5 text-xs font-medium text-blue-500 transition-colors hover:bg-blue-50"
