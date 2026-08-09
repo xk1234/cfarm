@@ -285,7 +285,7 @@ schema:
     - automation_id
   properties:
     automation_id:
-      type: object
+      type: string
       format: dynselect-automation_id
       title: Automation
       description: Choose the Lumenclip automation to generate from.

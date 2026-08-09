@@ -158,7 +158,7 @@ function publicInputFor(workflowId: PipelineWorkflowId) {
     - automation_id
   properties:
     automation_id:
-      type: object
+      type: string
       format: dynselect-automation_id
       title: ${kind === "x_threads" ? "Automation" : "Template"}
       description: Choose the Lumenclip ${noun} to generate from.
