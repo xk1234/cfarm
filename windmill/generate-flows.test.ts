@@ -22,4 +22,38 @@ describe("generated Lumenclip Windmill flows", () => {
       expect(source).not.toContain("path: f/lumenclip/run_pipeline_stage")
     })
   }
+
+  it("models UGC as typed components with an explicit media branch and joins", async () => {
+    const source = await readFile(
+      path.join(
+        import.meta.dirname,
+        "f",
+        "lumenclip",
+        "ugc_video_generation__flow",
+        "flow.yaml"
+      ),
+      "utf8"
+    )
+
+    expect(source).toContain("id: resolve_components")
+    expect(source).toContain("type: branchall")
+    expect(source).toContain("parallel: false")
+    expect(source).toContain("Product component — analyze facts")
+    expect(source).toContain("Script component — hook, body, CTA and timing")
+    expect(source).toContain("Performance join — actor motion plus voice")
+    expect(source).toContain("Render join — performance, B-roll and styling")
+    expect(source).toContain("template_id:")
+    for (const component of [
+      "product:",
+      "script:",
+      "actor:",
+      "voice:",
+      "broll:",
+      "render:",
+    ]) {
+      expect(source).toContain(component)
+    }
+    expect(source).not.toContain("results.generate_script_plan?.output ??")
+    expect(source).not.toContain("flow_input.input ??")
+  })
 })

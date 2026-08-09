@@ -6,7 +6,11 @@ import {
   runUgcAutomation,
   ugcRunId,
 } from "./ugc-automation-runner.js"
-import { analyzeUgcProduct, generateUgcScript } from "./ugc-video-generation.js"
+import {
+  analyzeUgcProduct,
+  generateUgcScript,
+  validateUgcScriptPlan,
+} from "./ugc-video-generation.js"
 import {
   generateFalImage,
   generateFalVideo,
@@ -39,6 +43,67 @@ const safeJson = (value) => {
   }
 }
 
+function hash(value, length) {
+  return crypto
+    .createHash("sha256")
+    .update(String(value))
+    .digest("hex")
+    .slice(0, length)
+}
+
+function credentialsForStage(stage, ugc = {}) {
+  if (!stage)
+    return [
+      "FAL_KEY",
+      "ELEVENLABS_API_KEY",
+      "OPENROUTER_API_KEY",
+      "RENDI_API_KEY",
+    ]
+  if (stage === "analysis") return ugc.analysis ? [] : ["OPENROUTER_API_KEY"]
+  if (stage === "script") return ugc.scriptPlan ? [] : ["OPENROUTER_API_KEY"]
+  if (["actor", "motion", "lipsync", "broll"].includes(stage))
+    return ["FAL_KEY"]
+  if (stage === "voice") return ["ELEVENLABS_API_KEY"]
+  if (stage === "composite") return ["RENDI_API_KEY"]
+  return []
+}
+
+function legacyUgcConfig(value) {
+  if (!value || typeof value !== "object") return {}
+  const product =
+    value.product && typeof value.product === "object" ? value.product : {}
+  const script =
+    value.script && typeof value.script === "object" ? value.script : {}
+  const actor =
+    value.actor && typeof value.actor === "object" ? value.actor : {}
+  const voice =
+    value.voice && typeof value.voice === "object" ? value.voice : {}
+  const broll =
+    value.broll && typeof value.broll === "object" ? value.broll : {}
+  const render =
+    value.render && typeof value.render === "object" ? value.render : {}
+  const config = {}
+  const set = (key, item) => {
+    if (item !== undefined && item !== null && item !== "") config[key] = item
+  }
+  set("productUrl", product.url)
+  set("productBrief", product.brief)
+  set("analysis", product.analysis)
+  set("targetDurationSeconds", script.targetDurationSeconds)
+  set("scriptPlan", script.plan)
+  set("actorSource", actor.source)
+  set("actorAssetUrl", actor.assetUrl)
+  set("actorPrompt", actor.prompt)
+  set("motionPrompt", actor.motionPrompt)
+  set("voiceId", voice.voiceId)
+  set("voiceModel", voice.model)
+  set("brollCount", broll.enabled === false ? 0 : broll.count)
+  set("lipSyncTier", render.lipSyncTier)
+  set("captions", render.captions)
+  set("hookOverlay", render.hookOverlay)
+  return config
+}
+
 export async function runUgcAutomationJob({
   payload,
   tables,
@@ -48,14 +113,20 @@ export async function runUgcAutomationJob({
   sendTelegram,
   clients = {},
 }) {
-  const automationId = String(payload?.automationId || "").trim()
+  const templateId = String(
+    payload?.templateId || payload?.automationId || ""
+  ).trim()
+  const generationId = String(
+    payload?.generationId || job?.$id || job?.id || ""
+  ).trim()
+  const automationId = templateId || `standalone-${hash(generationId, 24)}`
   const scheduledFor = String(payload?.scheduledFor || "").trim()
   const ownerId = String(job?.owner_id || "").trim()
   if (!automationId || !scheduledFor || !ownerId)
     throw new UgcConfigurationError("run-ugc-template: invalid job identity")
   const runId = ugcRunId(automationId, scheduledFor)
   const draftOnly = payload?.draftOnly === true
-  const stopAfter = [
+  const stageNames = [
     "analysis",
     "script",
     "actor",
@@ -65,26 +136,46 @@ export async function runUgcAutomationJob({
     "broll",
     "composite",
     "store",
-  ].includes(payload?.stopAfter)
+  ]
+  const stopAfter = stageNames.includes(payload?.stopAfter)
     ? payload.stopAfter
+    : undefined
+  const onlyStage = stageNames.includes(payload?.onlyStage)
+    ? payload.onlyStage
     : undefined
 
   // Kill switch is deliberately checked before any database or provider call.
   if (process.env.ENABLE_UGC_AUTOMATION !== "true")
     return { skipped: true, reason: "feature_disabled", runId }
-  const response = await tables.listRows(databaseId, "templates", [
-    `equal(\"rid\",[\"${automationId.replaceAll('"', "")}\"])`,
-    `equal(\"owner_id\",[\"${ownerId.replaceAll('"', "")}\"])`,
-    "limit(1)",
-  ])
-  const row = response.rows?.[0]
-  const automation = safeJson(row?.data)
-  if (!row || !automation)
-    throw new UgcConfigurationError("run-ugc-template: automation not found")
+  let row
+  let automation
+  if (templateId) {
+    const response = await tables.listRows(databaseId, "templates", [
+      `equal(\"rid\",[\"${templateId.replaceAll('"', "")}\"])`,
+      `equal(\"owner_id\",[\"${ownerId.replaceAll('"', "")}\"])`,
+      "limit(1)",
+    ])
+    row = response.rows?.[0]
+    automation = safeJson(row?.data)
+    if (!row || !automation)
+      throw new UgcConfigurationError("run-ugc-template: template not found")
+  } else {
+    automation = {
+      id: automationId,
+      status: "live",
+      schema: {
+        status: "live",
+        automationKind: "ugc",
+        ugc: { enabled: true },
+      },
+    }
+  }
+  const componentExecution = payload?.componentExecution === true
   if (
-    row.status !== "live" ||
-    automation.status !== "live" ||
-    automation.schema?.status !== "live"
+    !componentExecution &&
+    (row?.status !== "live" ||
+      automation.status !== "live" ||
+      automation.schema?.status !== "live")
   )
     return { skipped: true, reason: "not_live", runId }
   if (
@@ -92,12 +183,22 @@ export async function runUgcAutomationJob({
     automation.schema?.ugc?.enabled !== true
   )
     return { skipped: true, reason: "ugc_disabled", runId }
+  const executionAutomation = componentExecution
+    ? {
+        ...automation,
+        status: "live",
+        schema: { ...automation.schema, status: "live" },
+      }
+    : automation
+
+  const schema = automation.schema
+  const ugc = {
+    ...(schema.ugc || {}),
+    ...legacyUgcConfig(payload?.components),
+  }
 
   const missing = [
-    "FAL_KEY",
-    "ELEVENLABS_API_KEY",
-    "OPENROUTER_API_KEY",
-    "RENDI_API_KEY",
+    ...credentialsForStage(onlyStage, ugc),
     ...(!draftOnly &&
     automation.schema.posting_mode === "auto" &&
     (automation.schema.social_integrations || []).length
@@ -115,9 +216,12 @@ export async function runUgcAutomationJob({
   }
 
   const existingRun = await findRun(tables, databaseId, ownerId, runId)
-  const checkpoints = existingRun?.checkpoints || {}
-  const schema = automation.schema
-  const ugc = schema.ugc || {}
+  const checkpoints = {
+    ...(existingRun?.checkpoints || {}),
+    ...(payload?.checkpoints && typeof payload.checkpoints === "object"
+      ? payload.checkpoints
+      : {}),
+  }
   const prefix = `ugc_avatar_videos/${ownerId}/${runId}`
   const api = {
     analyze: clients.analyzeUgcProduct || analyzeUgcProduct,
@@ -141,9 +245,10 @@ export async function runUgcAutomationJob({
       automationId,
       ownerId,
       scheduledFor,
-      automation,
+      automation: executionAutomation,
       checkpoints,
       stopAfter,
+      onlyStages: onlyStage ? [onlyStage] : undefined,
       assetExists: async (storagePath) => {
         const fileId = crypto
           .createHash("sha256")
@@ -164,6 +269,8 @@ export async function runUgcAutomationJob({
           jobId: job?.$id || job?.id,
           id: runId,
           automationId,
+          templateId: templateId || undefined,
+          generationId,
           scheduledFor,
           status: stage,
           checkpoints: all,
@@ -172,6 +279,9 @@ export async function runUgcAutomationJob({
         }),
       stages: {
         analysis: async () => {
+          if (ugc.analysis && typeof ugc.analysis === "object") {
+            return { analysis: ugc.analysis, source: "supplied" }
+          }
           try {
             const analysis = await api.analyze({
               apiKey: process.env.OPENROUTER_API_KEY,
@@ -188,6 +298,15 @@ export async function runUgcAutomationJob({
           }
         },
         script: async ({ checkpoints }) => {
+          if (ugc.scriptPlan && typeof ugc.scriptPlan === "object") {
+            return {
+              plan: validateUgcScriptPlan(
+                ugc.scriptPlan,
+                bounded(ugc.targetDurationSeconds, 15, 180, 60)
+              ),
+              source: "supplied",
+            }
+          }
           const plan = await api.script({
             apiKey: process.env.OPENROUTER_API_KEY,
             analysis: checkpoints.analysis.analysis,

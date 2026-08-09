@@ -262,6 +262,76 @@ describe("production pipeline stage handlers", () => {
     expect(JSON.stringify(output)).not.toContain("base64")
   })
 
+  it("resolves explicit UGC components without requiring a template", async () => {
+    const handlers = createProductionPipelineHandlers(services() as never)
+    const handler = handlers.get("ugc-video-generation.resolve-components")!
+
+    const output = await handler(
+      {
+        generationId: "debug-run-1",
+        product: { brief: "A compact camera for travel creators" },
+        script: { targetDurationSeconds: 30 },
+        actor: { source: "asset", assetUrl: "https://cdn.test/actor.png" },
+        voice: { voiceId: "voice-1" },
+        broll: { enabled: false },
+        render: { lipSyncTier: "premium" },
+      },
+      context("ugc-video-generation.resolve-components", handlers)
+    )
+
+    expect(output).toMatchObject({
+      generation: {
+        templateId: null,
+        generationId: "debug-run-1",
+        scheduledFor: "2026-08-01T09:00:00.000Z",
+      },
+      source: "explicit_components",
+      components: {
+        product: { brief: "A compact camera for travel creators" },
+        script: { targetDurationSeconds: 30 },
+        actor: {
+          source: "asset",
+          assetUrl: "https://cdn.test/actor.png",
+        },
+        voice: { voiceId: "voice-1" },
+        broll: { enabled: false },
+        render: { aspectRatio: "9:16", lipSyncTier: "premium" },
+      },
+    })
+  })
+
+  it("queues one exact UGC component with only its named dependencies", async () => {
+    const runtime = services()
+    const handlers = createProductionPipelineHandlers(runtime as never)
+    const handler = handlers.get("ugc-video-generation.synthesize-voice")!
+    const scriptCheckpoint = { plan: { hook: "Hook", segments: [] } }
+
+    await handler(
+      {
+        componentExecution: true,
+        generationId: "debug-run-1",
+        scheduledFor: "2026-08-01T09:00:00.000Z",
+        components: { voice: { voiceId: "voice-1" } },
+        checkpoints: { script: scriptCheckpoint },
+      },
+      context("ugc-video-generation.synthesize-voice", handlers)
+    )
+
+    expect(runtime.enqueueJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "run-ugc-template",
+        payload: expect.objectContaining({
+          componentExecution: true,
+          generationId: "debug-run-1",
+          onlyStage: "voice",
+          stopAfter: "voice",
+          components: { voice: { voiceId: "voice-1" } },
+          checkpoints: { script: scriptCheckpoint },
+        }),
+      })
+    )
+  })
+
   it("keeps a pinned slideshow image inside a bounded shortlist", async () => {
     const handlers = createProductionPipelineHandlers(services() as never)
     const handler = handlers.get("slideshow-generation.build-image-shortlists")!

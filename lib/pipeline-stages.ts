@@ -375,6 +375,15 @@ export const PIPELINE_STAGE_CATALOG = [
 
   stage(
     "ugc-video-generation",
+    0,
+    "resolve-components",
+    "Resolve generation components",
+    "storage",
+    "Load an optional UGC template and merge explicit product, script, actor, voice, b-roll, and render overrides.",
+    compositeStage
+  ),
+  stage(
+    "ugc-video-generation",
     1,
     "analyze-product",
     "Analyze product",

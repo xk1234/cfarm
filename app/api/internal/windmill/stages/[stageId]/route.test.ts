@@ -9,6 +9,7 @@ vi.mock("@/lib/production-pipeline-runtime", () => ({
 }))
 
 import { POST } from "@/app/api/internal/windmill/stages/[stageId]/route"
+import { systemOwnerId } from "@/lib/system-owner-context"
 
 afterEach(() => {
   vi.clearAllMocks()
@@ -29,13 +30,16 @@ describe("Windmill stage boundary", () => {
 
   it("executes exactly the requested stage for an authorized owner", async () => {
     vi.stubEnv("WINDMILL_SHARED_SECRET", "shared-secret")
-    runProductionPipelineStage.mockResolvedValue({
+    runProductionPipelineStage.mockImplementation(async () => ({
       stage: { id: "linkedin-generation.validate-input" },
       requestId: "request-1",
       status: "succeeded",
       externalCalls: 0,
-      output: { normalizedInput: { niche: "SaaS" } },
-    })
+      output: {
+        normalizedInput: { niche: "SaaS" },
+        ownerInContext: systemOwnerId(),
+      },
+    }))
     const response = await POST(
       request(
         {
@@ -53,6 +57,7 @@ describe("Windmill stage boundary", () => {
       execution: {
         stage: { id: "linkedin-generation.validate-input" },
         status: "succeeded",
+        output: { ownerInContext: "owner-1" },
       },
     })
     expect(runProductionPipelineStage).toHaveBeenCalledWith(
