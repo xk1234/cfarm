@@ -1,15 +1,15 @@
 summary: Run one composable Lumenclip workflow stage
 description: Calls the private Lumenclip single-stage boundary from a Windmill flow.
-lock: '!inline f/lumenclip/run_pipeline_stage.script.lock'
+lock: "!inline f/lumenclip/run_pipeline_stage.script.lock"
 kind: script
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   type: object
   order:
     - stage_id
+    - stage_input
     - owner_id
     - request_id
-    - stage_input
   properties:
     owner_id:
       type: string
@@ -30,6 +30,4 @@ schema:
       format: resource-record
   required:
     - stage_id
-    - owner_id
-    - request_id
     - stage_input

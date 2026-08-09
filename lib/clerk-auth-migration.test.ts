@@ -21,9 +21,7 @@ describe("Clerk authentication cutover", () => {
 
   it("lets Windmill callbacks handle their own bearer authentication", () => {
     const source = read("proxy.ts")
-    expect(source).toContain(
-      'pathname.startsWith("/api/internal/windmill/stages/")'
-    )
+    expect(source).toContain('pathname.startsWith("/api/internal/windmill/")')
   })
 
   it("places ClerkProvider inside the root body", () => {

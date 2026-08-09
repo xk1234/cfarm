@@ -45,6 +45,7 @@ const workflows: Array<{
 for (const workflow of workflows) {
   const stages = pipelineStagesForWorkflow(workflow.id)
   const stageIds = stages.map((stage) => stage.id)
+  const publicInput = publicInputFor(workflow.id)
   const modules = stages
     .map((stage, index) => {
       const moduleId = stage.id.split(".").at(-1)!.replaceAll("-", "_")
@@ -55,7 +56,7 @@ for (const workflow of workflows) {
           (candidate) =>
             `results.${candidate.id.split(".").at(-1)!.replaceAll("-", "_")}?.output`
         )
-        .concat("flow_input.input")
+        .concat(publicInput.stageInput)
         .join(" ?? ")
       return `    - id: ${moduleId}
       summary: ${yamlString(stage.title)}
@@ -79,7 +80,7 @@ for (const workflow of workflows) {
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: ${priorOutput}`
+            expr: ${yamlString(priorOutput)}`
     })
     .join("\n")
 
@@ -91,35 +92,7 @@ ${modules}
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   type: object
-  order:
-    - owner_id
-    - request_id
-    - input
-    - start_at
-    - stop_after
-  properties:
-    owner_id:
-      type: string
-      description: Lumenclip owner whose data this workflow may access.
-    request_id:
-      type: string
-      description: Stable idempotency key for this workflow run.
-    input:
-      type: object
-      additionalProperties: true
-      description: Initial structured input for the first workflow stage.
-    start_at:
-      type: string
-      enum: ${JSON.stringify(stageIds)}
-      description: Optional first stage for a partial workflow run.
-    stop_after:
-      type: string
-      enum: ${JSON.stringify(stageIds)}
-      description: Optional final stage for a partial workflow run.
-  required:
-    - owner_id
-    - request_id
-    - input
+${publicInput.schema}
 `
 
   await writeFile(
@@ -132,6 +105,105 @@ schema:
     ),
     yaml
   )
+}
+
+function publicInputFor(workflowId: PipelineWorkflowId) {
+  if (workflowId === "linkedin-generation") {
+    return {
+      stageInput:
+        'flow_input.input ?? { niche: flow_input.niche, topic: flow_input.topic, persona: flow_input.persona ?? "educator", count: flow_input.count ?? 1 }',
+      schema: `  order:
+    - niche
+    - topic
+    - persona
+    - count
+  properties:
+    niche:
+      type: string
+      title: Niche
+      description: The audience or market this content is for.
+    topic:
+      type: string
+      title: Topic
+      description: Optional topic for this generation.
+    persona:
+      type: string
+      title: Voice
+      enum:
+        - educator
+        - practitioner
+      default: educator
+    count:
+      type: integer
+      title: Posts
+      minimum: 1
+      maximum: 4
+      default: 1
+  required:
+    - niche`,
+    }
+  }
+
+  const kind =
+    workflowId === "slideshow-generation"
+      ? "slideshow"
+      : workflowId === "ugc-video-generation"
+        ? "ugc"
+        : "x_threads"
+  const noun = kind === "x_threads" ? "automation" : "template"
+  const extra = kind === "x_threads" ? ", deriveBrief: true" : ""
+  return {
+    stageInput: `flow_input.input ?? { automationId: flow_input.automation_id${extra} }`,
+    schema: `  order:
+    - automation_id
+  properties:
+    automation_id:
+      type: object
+      format: dynselect-automation_id
+      title: ${kind === "x_threads" ? "Automation" : "Template"}
+      description: Choose the Lumenclip ${noun} to generate from.
+  required:
+    - automation_id
+  x-windmill-dyn-select-lang: bun
+  x-windmill-dyn-select-code: ${yamlString(dynamicTemplateSelectCode(kind))}`,
+  }
+}
+
+function dynamicTemplateSelectCode(kind: "slideshow" | "ugc" | "x_threads") {
+  return `import * as wmill from "windmill-client"
+
+export async function automation_id(filterText = "") {
+  const [baseUrlValue, secretValue, ownerIdValue] = await Promise.all([
+    wmill.getVariable("f/lumenclip/internal_base_url"),
+    wmill.getVariable("f/lumenclip/shared_secret"),
+    wmill.getVariable("f/lumenclip/default_owner_id"),
+  ])
+  const baseUrl = required("internal_base_url", baseUrlValue).replace(/\\/$/, "")
+  const secret = required("shared_secret", secretValue)
+  const ownerId = required("default_owner_id", ownerIdValue)
+  const response = await fetch(\`${"${baseUrl}"}/api/internal/windmill/templates\`, {
+    method: "POST",
+    headers: {
+      authorization: \`Bearer ${"${secret}"}\`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ ownerId, kind: ${JSON.stringify(kind)} }),
+  })
+  const payload = await response.json()
+  if (!response.ok || !Array.isArray(payload.options)) {
+    throw new Error(payload.error || \`Template lookup failed with ${"${response.status}"}\`)
+  }
+  const query = filterText.trim().toLowerCase()
+  return query
+    ? payload.options.filter((option) => option.label.toLowerCase().includes(query))
+    : payload.options
+}
+
+function required(name: string, value: unknown) {
+  const text = typeof value === "string" ? value.trim() : ""
+  if (!text) throw new Error(\`Lumenclip variable ${"${name}"} is not configured\`)
+  return text
+}`
 }
 
 function yamlString(value: string) {

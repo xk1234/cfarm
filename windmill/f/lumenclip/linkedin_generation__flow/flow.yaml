@@ -1,274 +1,220 @@
-summary: lumenclip - LinkedIn generation
-description: Generate LinkedIn posts through individually observable and composable stages.
+summary: "lumenclip - LinkedIn generation"
+description: "Generate LinkedIn posts through individually observable and composable stages."
 value:
   modules:
     - id: validate_input
-      summary: Validate and normalize input
+      summary: "Validate and normalize input"
+      skip_if:
+        expr: flow_input.start_at && ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at) > 0
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after === "linkedin-generation.validate-input"
+        skip_if_stopped: false
       value:
         type: script
+        path: f/lumenclip/run_pipeline_stage
         input_transforms:
+          stage_id:
+            type: static
+            value: "linkedin-generation.validate-input"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
           request_id:
             type: javascript
             expr: flow_input.request_id
-          stage_id:
-            type: static
-            value: linkedin-generation.validate-input
           stage_input:
             type: javascript
-            expr: flow_input.input
-        path: f/lumenclip/run_pipeline_stage
-      skip_if:
-        expr: flow_input.start_at &&
-          ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at)
-          > 0
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after ===
-          "linkedin-generation.validate-input"
-        skip_if_stopped: false
+            expr: 'flow_input.input ?? { niche: flow_input.niche, topic: flow_input.topic, persona: flow_input.persona ?? "educator", count: flow_input.count ?? 1 }'
     - id: resolve_brief
-      summary: Resolve niche brief
+      summary: "Resolve niche brief"
+      skip_if:
+        expr: flow_input.start_at && ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at) > 1
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after === "linkedin-generation.resolve-brief"
+        skip_if_stopped: false
       value:
         type: script
+        path: f/lumenclip/run_pipeline_stage
         input_transforms:
+          stage_id:
+            type: static
+            value: "linkedin-generation.resolve-brief"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
           request_id:
             type: javascript
             expr: flow_input.request_id
-          stage_id:
-            type: static
-            value: linkedin-generation.resolve-brief
           stage_input:
             type: javascript
-            expr: results.validate_input?.output ?? flow_input.input
-        path: f/lumenclip/run_pipeline_stage
-      skip_if:
-        expr: flow_input.start_at &&
-          ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at)
-          > 1
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after ===
-          "linkedin-generation.resolve-brief"
-        skip_if_stopped: false
+            expr: 'results.validate_input?.output ?? flow_input.input ?? { niche: flow_input.niche, topic: flow_input.topic, persona: flow_input.persona ?? "educator", count: flow_input.count ?? 1 }'
     - id: select_post_plan
-      summary: Select post plan
+      summary: "Select post plan"
+      skip_if:
+        expr: flow_input.start_at && ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at) > 2
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after === "linkedin-generation.select-post-plan"
+        skip_if_stopped: false
       value:
         type: script
+        path: f/lumenclip/run_pipeline_stage
         input_transforms:
+          stage_id:
+            type: static
+            value: "linkedin-generation.select-post-plan"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
           request_id:
             type: javascript
             expr: flow_input.request_id
-          stage_id:
-            type: static
-            value: linkedin-generation.select-post-plan
           stage_input:
             type: javascript
-            expr: results.resolve_brief?.output ?? results.validate_input?.output ??
-              flow_input.input
-        path: f/lumenclip/run_pipeline_stage
-      skip_if:
-        expr: flow_input.start_at &&
-          ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at)
-          > 2
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after ===
-          "linkedin-generation.select-post-plan"
-        skip_if_stopped: false
+            expr: 'results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { niche: flow_input.niche, topic: flow_input.topic, persona: flow_input.persona ?? "educator", count: flow_input.count ?? 1 }'
     - id: build_generation_request
-      summary: Build prompt and schema
+      summary: "Build prompt and schema"
+      skip_if:
+        expr: flow_input.start_at && ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at) > 3
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after === "linkedin-generation.build-generation-request"
+        skip_if_stopped: false
       value:
         type: script
+        path: f/lumenclip/run_pipeline_stage
         input_transforms:
+          stage_id:
+            type: static
+            value: "linkedin-generation.build-generation-request"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
           request_id:
             type: javascript
             expr: flow_input.request_id
-          stage_id:
-            type: static
-            value: linkedin-generation.build-generation-request
           stage_input:
             type: javascript
-            expr: results.select_post_plan?.output ?? results.resolve_brief?.output ??
-              results.validate_input?.output ?? flow_input.input
-        path: f/lumenclip/run_pipeline_stage
-      skip_if:
-        expr: flow_input.start_at &&
-          ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at)
-          > 3
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after ===
-          "linkedin-generation.build-generation-request"
-        skip_if_stopped: false
+            expr: 'results.select_post_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { niche: flow_input.niche, topic: flow_input.topic, persona: flow_input.persona ?? "educator", count: flow_input.count ?? 1 }'
     - id: generate_compose
-      summary: Generate and compose
+      summary: "Generate and compose"
+      skip_if:
+        expr: flow_input.start_at && ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at) > 4
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after === "linkedin-generation.generate-compose"
+        skip_if_stopped: false
       value:
         type: script
+        path: f/lumenclip/run_pipeline_stage
         input_transforms:
+          stage_id:
+            type: static
+            value: "linkedin-generation.generate-compose"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
           request_id:
             type: javascript
             expr: flow_input.request_id
-          stage_id:
-            type: static
-            value: linkedin-generation.generate-compose
           stage_input:
             type: javascript
-            expr: results.build_generation_request?.output ??
-              results.select_post_plan?.output ?? results.resolve_brief?.output
-              ?? results.validate_input?.output ?? flow_input.input
-        path: f/lumenclip/run_pipeline_stage
-      skip_if:
-        expr: flow_input.start_at &&
-          ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at)
-          > 4
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after ===
-          "linkedin-generation.generate-compose"
-        skip_if_stopped: false
+            expr: 'results.build_generation_request?.output ?? results.select_post_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { niche: flow_input.niche, topic: flow_input.topic, persona: flow_input.persona ?? "educator", count: flow_input.count ?? 1 }'
     - id: validate_draft
-      summary: Deterministic validation
+      summary: "Deterministic validation"
+      skip_if:
+        expr: flow_input.start_at && ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at) > 5
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after === "linkedin-generation.validate-draft"
+        skip_if_stopped: false
       value:
         type: script
+        path: f/lumenclip/run_pipeline_stage
         input_transforms:
+          stage_id:
+            type: static
+            value: "linkedin-generation.validate-draft"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
           request_id:
             type: javascript
             expr: flow_input.request_id
-          stage_id:
-            type: static
-            value: linkedin-generation.validate-draft
           stage_input:
             type: javascript
-            expr: results.generate_compose?.output ??
-              results.build_generation_request?.output ??
-              results.select_post_plan?.output ?? results.resolve_brief?.output
-              ?? results.validate_input?.output ?? flow_input.input
-        path: f/lumenclip/run_pipeline_stage
-      skip_if:
-        expr: flow_input.start_at &&
-          ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at)
-          > 5
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after ===
-          "linkedin-generation.validate-draft"
-        skip_if_stopped: false
+            expr: 'results.generate_compose?.output ?? results.build_generation_request?.output ?? results.select_post_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { niche: flow_input.niche, topic: flow_input.topic, persona: flow_input.persona ?? "educator", count: flow_input.count ?? 1 }'
     - id: repair_draft
-      summary: Repair violations
+      summary: "Repair violations"
+      skip_if:
+        expr: flow_input.start_at && ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at) > 6
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after === "linkedin-generation.repair-draft"
+        skip_if_stopped: false
       value:
         type: script
+        path: f/lumenclip/run_pipeline_stage
         input_transforms:
+          stage_id:
+            type: static
+            value: "linkedin-generation.repair-draft"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
           request_id:
             type: javascript
             expr: flow_input.request_id
-          stage_id:
-            type: static
-            value: linkedin-generation.repair-draft
           stage_input:
             type: javascript
-            expr: results.validate_draft?.output ?? results.generate_compose?.output ??
-              results.build_generation_request?.output ??
-              results.select_post_plan?.output ?? results.resolve_brief?.output
-              ?? results.validate_input?.output ?? flow_input.input
-        path: f/lumenclip/run_pipeline_stage
-      skip_if:
-        expr: flow_input.start_at &&
-          ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at)
-          > 6
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after ===
-          "linkedin-generation.repair-draft"
-        skip_if_stopped: false
+            expr: 'results.validate_draft?.output ?? results.generate_compose?.output ?? results.build_generation_request?.output ?? results.select_post_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { niche: flow_input.niche, topic: flow_input.topic, persona: flow_input.persona ?? "educator", count: flow_input.count ?? 1 }'
     - id: complete_batch
-      summary: Complete batch
+      summary: "Complete batch"
+      skip_if:
+        expr: flow_input.start_at && ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at) > 7
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after === "linkedin-generation.complete-batch"
+        skip_if_stopped: false
       value:
         type: script
+        path: f/lumenclip/run_pipeline_stage
         input_transforms:
+          stage_id:
+            type: static
+            value: "linkedin-generation.complete-batch"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
           request_id:
             type: javascript
             expr: flow_input.request_id
-          stage_id:
-            type: static
-            value: linkedin-generation.complete-batch
           stage_input:
             type: javascript
-            expr: results.repair_draft?.output ?? results.validate_draft?.output ??
-              results.generate_compose?.output ??
-              results.build_generation_request?.output ??
-              results.select_post_plan?.output ?? results.resolve_brief?.output
-              ?? results.validate_input?.output ?? flow_input.input
-        path: f/lumenclip/run_pipeline_stage
-      skip_if:
-        expr: flow_input.start_at &&
-          ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at)
-          > 7
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after ===
-          "linkedin-generation.complete-batch"
-        skip_if_stopped: false
+            expr: 'results.repair_draft?.output ?? results.validate_draft?.output ?? results.generate_compose?.output ?? results.build_generation_request?.output ?? results.select_post_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { niche: flow_input.niche, topic: flow_input.topic, persona: flow_input.persona ?? "educator", count: flow_input.count ?? 1 }'
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   type: object
   order:
-    - owner_id
-    - request_id
-    - input
-    - start_at
-    - stop_after
+    - niche
+    - topic
+    - persona
+    - count
   properties:
-    input:
-      type: object
-      additionalProperties: true
-      description: Initial structured input for the first workflow stage.
-    owner_id:
+    niche:
       type: string
-      description: Lumenclip owner whose data this workflow may access.
-    request_id:
+      title: Niche
+      description: The audience or market this content is for.
+    topic:
       type: string
-      description: Stable idempotency key for this workflow run.
-    start_at:
+      title: Topic
+      description: Optional topic for this generation.
+    persona:
       type: string
-      description: Optional first stage for a partial workflow run.
+      title: Voice
       enum:
-        - linkedin-generation.validate-input
-        - linkedin-generation.resolve-brief
-        - linkedin-generation.select-post-plan
-        - linkedin-generation.build-generation-request
-        - linkedin-generation.generate-compose
-        - linkedin-generation.validate-draft
-        - linkedin-generation.repair-draft
-        - linkedin-generation.complete-batch
-    stop_after:
-      type: string
-      description: Optional final stage for a partial workflow run.
-      enum:
-        - linkedin-generation.validate-input
-        - linkedin-generation.resolve-brief
-        - linkedin-generation.select-post-plan
-        - linkedin-generation.build-generation-request
-        - linkedin-generation.generate-compose
-        - linkedin-generation.validate-draft
-        - linkedin-generation.repair-draft
-        - linkedin-generation.complete-batch
+        - educator
+        - practitioner
+      default: educator
+    count:
+      type: integer
+      title: Posts
+      minimum: 1
+      maximum: 4
+      default: 1
   required:
-    - owner_id
-    - request_id
-    - input
+    - niche

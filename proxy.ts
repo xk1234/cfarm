@@ -9,7 +9,7 @@ function isPublicApi(pathname: string) {
   return (
     pathname === "/api/search" ||
     pathname.startsWith("/api/public/") ||
-    pathname.startsWith("/api/internal/windmill/stages/") ||
+    pathname.startsWith("/api/internal/windmill/") ||
     pathname === "/api/telegram/webhook" ||
     pathname === "/api/tiktok-comments/capture" ||
     pathname === "/api/tiktok-comments/device" ||
