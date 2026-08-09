@@ -57,7 +57,8 @@ describe("TemplateDefinitionPreview", () => {
 
     expect(markup).toContain('data-template-preview-kind="slideshow"')
     expect(markup).toContain('aria-label="Edit Astrology slideshow template"')
-    expect(markup).toContain("aspect-[9/16]")
+    expect(markup).toContain('style="aspect-ratio:4 / 5"')
+    expect(markup).toContain('data-template-preview-ratio="configured"')
     expect(markup).toContain('data-template-preview-media="cover"')
     expect(markup).toContain('preserveAspectRatio="xMidYMid slice"')
     expect(markup).not.toContain("h-[92%]")
@@ -85,7 +86,25 @@ describe("TemplateDefinitionPreview", () => {
     )
 
     expect(markup).toContain('data-template-preview-kind="post"')
-    expect(markup).toContain("aspect-[4/3]")
-    expect(markup).not.toContain("aspect-[9/16]")
+    expect(markup).toContain('style="aspect-ratio:4 / 3"')
+    expect(markup).toContain('data-template-preview-ratio="configured"')
+  })
+
+  it("keeps generated covers at their intrinsic image ratio", () => {
+    const markup = renderToStaticMarkup(
+      <TemplateDefinitionPreview
+        automation={slideshow}
+        config={defaultAutomationSchema(slideshow)}
+        collections={[]}
+        demoVideos={[]}
+        previewImageUrl="https://slides.example/native-cover.jpg"
+        onOpen={() => undefined}
+      />
+    )
+
+    expect(markup).toContain('data-template-preview-ratio="intrinsic"')
+    expect(markup).toContain('class="block h-auto w-full"')
+    expect(markup).not.toContain("aspect-ratio:")
+    expect(markup).not.toContain("object-cover")
   })
 })
