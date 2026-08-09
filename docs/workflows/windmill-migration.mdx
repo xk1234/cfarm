@@ -1,0 +1,55 @@
+---
+title: "Windmill migration"
+description: "The generation workflow migration boundary and operational requirements."
+---
+
+# Windmill migration
+
+The four generation workflows are represented as Windmill flows under
+`f/lumenclip`. Their display names follow `APP_NAME - WORKFLOW_NAME` with
+`APP_NAME` fixed to `lumenclip`.
+
+| Workflow ID            | Windmill display name                  | Windmill path                      |
+| ---------------------- | -------------------------------------- | ---------------------------------- |
+| `slideshow-generation` | `lumenclip - slideshow generation`     | `f/lumenclip/slideshow_generation` |
+| `ugc-video-generation` | `lumenclip - UGC video generation`     | `f/lumenclip/ugc_video_generation` |
+| `linkedin-generation`  | `lumenclip - LinkedIn generation`      | `f/lumenclip/linkedin_generation`  |
+| `x-threads-generation` | `lumenclip - X and Threads generation` | `f/lumenclip/x_threads_generation` |
+
+Each ordered production stage is a separate Windmill module. The flow passes
+the complete structured output of one module to the next. `start_at` and
+`stop_after` allow a contiguous subset to be queued independently.
+
+## App boundary
+
+`lumenclip_pipeline_run` queues a Windmill flow. It no longer executes the
+named stage loop inside the Next.js process. `lumenclip_pipeline_stage_run`
+invokes the shared Windmill stage script so individual stages remain callable
+and composable through MCP.
+
+Windmill calls the private
+`POST /api/internal/windmill/stages/<stage-id>` boundary. The route requires a
+bearer token that matches `WINDMILL_SHARED_SECRET`; it does not accept browser
+sessions or public requests.
+
+## Required configuration
+
+The Lumenclip web service requires `WINDMILL_BASE_URL`,
+`WINDMILL_WORKSPACE_ID`, `WINDMILL_TOKEN`, and `WINDMILL_SHARED_SECRET`.
+The Windmill workspace requires `f/lumenclip/internal_base_url` and the secret
+variable `f/lumenclip/shared_secret`.
+
+## Deployment state
+
+The four flows and shared stage script are imported into the `main` workspace
+on the Railway-hosted Windmill instance. Railway and Windmill variables are
+provisioned without committing their values.
+
+Remote execution remains blocked until this app change is merged and deployed:
+the currently deployed Lumenclip web service does not yet expose the private
+stage route imported by these flows.
+
+The first migration slice moves orchestration out of the app. Stage handlers
+remain behind the private Lumenclip boundary while they are moved into
+Windmill-native scripts. Composite stages can therefore still contain nested
+provider calls during this transition.

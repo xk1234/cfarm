@@ -7,7 +7,6 @@ import {
   type PipelineStageExecution,
   type PipelineStageHandler,
   type PipelineStageRegistry,
-  type PipelineWorkflowId,
   type RegisteredPipelineStage,
 } from "@/lib/pipeline-stages"
 
@@ -80,77 +79,6 @@ export async function executePipelineStage(input: {
     externalCalls,
     output,
     ...(operation ? { operation } : {}),
-  }
-}
-
-export async function executeNamedPipeline(input: {
-  registry: PipelineStageRegistry
-  ownerId: string
-  workflowId: PipelineWorkflowId
-  workflowInput: Record<string, unknown>
-  requestId?: string
-  startAt?: string
-  stopAfter?: string
-}) {
-  if (
-    !(PIPELINE_WORKFLOW_IDS as readonly string[]).includes(input.workflowId)
-  ) {
-    throw new Error(`Unknown pipeline workflow: ${input.workflowId}`)
-  }
-  const allStages = pipelineStagesForWorkflow(input.workflowId)
-  const startIndex = input.startAt
-    ? allStages.findIndex((stage) => stage.id === input.startAt)
-    : 0
-  if (startIndex < 0) {
-    throw new Error(
-      `Stage ${input.startAt} does not belong to ${input.workflowId}`
-    )
-  }
-  const stopIndex = input.stopAfter
-    ? allStages.findIndex((stage) => stage.id === input.stopAfter)
-    : allStages.length - 1
-  if (stopIndex < startIndex) {
-    throw new Error(
-      "stopAfter must be the start stage or a later workflow stage"
-    )
-  }
-
-  const requestId = cleanRequestId(input.requestId)
-  let current = structuredClone(input.workflowInput)
-  const stages: PipelineStageExecution[] = []
-  for (const metadata of allStages.slice(startIndex, stopIndex + 1)) {
-    const execution = await executePipelineStage({
-      registry: input.registry,
-      ownerId: input.ownerId,
-      stageId: metadata.id,
-      stageInput: current,
-      requestId,
-    })
-    stages.push(execution)
-    current = execution.output
-    if (execution.status === "running") {
-      return {
-        workflowId: input.workflowId,
-        requestId,
-        status: "running" as const,
-        completedStages: stages.length - 1,
-        totalStages: stopIndex - startIndex + 1,
-        activeStage: metadata.id,
-        nextStage: allStages[metadata.order]?.id,
-        operation: execution.operation,
-        output: current,
-        stages,
-      }
-    }
-  }
-  return {
-    workflowId: input.workflowId,
-    requestId,
-    status: "succeeded" as const,
-    completedStages: stages.length,
-    totalStages: stopIndex - startIndex + 1,
-    output: current,
-    stages,
   }
 }
 

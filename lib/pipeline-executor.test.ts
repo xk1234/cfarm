@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest"
 
 import {
   createPipelineStageRegistry,
-  executeNamedPipeline,
   executePipelineStage,
   pipelineCatalog,
   type PipelineHandlerMap,
@@ -26,7 +25,7 @@ function handlers(overrides: Record<string, ReturnType<typeof vi.fn>> = {}) {
 }
 
 describe("production pipeline executor", () => {
-  it("pipes complete structured output through the exact registered handlers", async () => {
+  it("executes one exact registered handler", async () => {
     const first = vi.fn(async (input: Record<string, unknown>) => ({
       ...input,
       selectedHook: "Why Cancer goes quiet",
@@ -44,14 +43,6 @@ describe("production pipeline executor", () => {
       first
     )
 
-    const workflow = await executeNamedPipeline({
-      registry,
-      ownerId: "owner-1",
-      workflowId: "slideshow-generation",
-      workflowInput: { automationId: "automation-1" },
-      requestId: "request-1",
-      stopAfter: "slideshow-generation.resolve-slide-count",
-    })
     const single = await executePipelineStage({
       registry,
       ownerId: "owner-1",
@@ -60,55 +51,12 @@ describe("production pipeline executor", () => {
       requestId: "request-1",
     })
 
-    expect(first).toHaveBeenCalledTimes(2)
-    expect(second).toHaveBeenCalledWith(
-      expect.objectContaining({ selectedHook: "Why Cancer goes quiet" }),
-      expect.objectContaining({ ownerId: "owner-1" })
-    )
-    expect(workflow).toMatchObject({
-      status: "succeeded",
-      completedStages: 2,
-      output: {
-        selectedHook: "Why Cancer goes quiet",
-        researchedHook: "Why Cancer goes quiet",
-      },
-    })
+    expect(first).toHaveBeenCalledOnce()
+    expect(second).not.toHaveBeenCalled()
     expect(single.output).toEqual({
       automationId: "automation-1",
       selectedHook: "Why Cancer goes quiet",
     })
-  })
-
-  it("pauses a workflow on a long-running stage operation", async () => {
-    const queued = vi.fn(async (input: Record<string, unknown>) => ({
-      ...input,
-      operation: {
-        id: "job-1",
-        status: "running",
-        nextPollAfterMs: 5000,
-      },
-    }))
-    const later = vi.fn()
-    const registry = createPipelineStageRegistry(
-      handlers({
-        "ugc-video-generation.analyze-product": queued,
-        "ugc-video-generation.generate-script-plan": later,
-      })
-    )
-    const workflow = await executeNamedPipeline({
-      registry,
-      ownerId: "owner-1",
-      workflowId: "ugc-video-generation",
-      workflowInput: { automationId: "ugc-1" },
-    })
-
-    expect(workflow).toMatchObject({
-      status: "running",
-      activeStage: "ugc-video-generation.analyze-product",
-      completedStages: 0,
-      operation: { id: "job-1" },
-    })
-    expect(later).not.toHaveBeenCalled()
   })
 
   it("rejects secrets and media bytes at either side of a handler", async () => {

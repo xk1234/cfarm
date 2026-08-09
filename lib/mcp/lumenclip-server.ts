@@ -1,18 +1,15 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
 
-import {
-  createPipelineStageRegistry,
-  executeNamedPipeline,
-  executePipelineStage,
-  pipelineCatalog,
-} from "@/lib/pipeline-executor"
-import { createProductionPipelineHandlers } from "@/lib/mcp/production-pipeline-handlers"
+import { pipelineCatalog } from "@/lib/pipeline-executor"
 import {
   PIPELINE_STAGE_CATALOG,
   PIPELINE_WORKFLOW_IDS,
-  type PipelineStageRegistry,
 } from "@/lib/pipeline-stages"
+import {
+  queueWindmillWorkflow,
+  runWindmillPipelineStage,
+} from "@/lib/windmill-workflows"
 import { toLumenClipDataError } from "@/lib/appwrite-errors"
 import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
 import {
@@ -312,6 +309,8 @@ export type LumenClipMcpServices = {
   getUgcRunStatus: typeof getUgcRunStatus
   estimateUgcCost: typeof estimateUgcCost
   ugcGenerationEnabled: () => boolean
+  runPipelineStage: typeof runWindmillPipelineStage
+  queuePipelineWorkflow: typeof queueWindmillWorkflow
 }
 
 const defaultServices: LumenClipMcpServices = {
@@ -387,6 +386,8 @@ const defaultServices: LumenClipMcpServices = {
   getUgcRunStatus,
   estimateUgcCost,
   ugcGenerationEnabled: () => process.env.ENABLE_UGC_AUTOMATION === "true",
+  runPipelineStage: runWindmillPipelineStage,
+  queuePipelineWorkflow: queueWindmillWorkflow,
 }
 
 function readMcpPublications(
@@ -411,10 +412,6 @@ export function createLumenClipMcpServer(
     version: "2.0.0",
   })
   const owned = <T>(task: () => T) => ownedMcpTask(ownerId, task)
-  const pipelineRegistry = createPipelineStageRegistry(
-    createProductionPipelineHandlers(services)
-  )
-
   registerAutomationReadAndRunTools(server, ownerId, services)
   registerCollectionTools(server, ownerId, services)
   registerOutputAndPublishingTools(server, ownerId, services)
@@ -823,7 +820,7 @@ export function createLumenClipMcpServer(
   registerSlideshowAnalysisTools(server, ownerId, services)
   registerTikTokStudioAnalyticsTools(server, ownerId, services)
   registerTikTokCommentTools(server, ownerId, services)
-  registerPipelineTools(server, ownerId, pipelineRegistry)
+  registerPipelineTools(server, ownerId, services)
 
   return server
 }
@@ -831,7 +828,10 @@ export function createLumenClipMcpServer(
 function registerPipelineTools(
   server: McpServer,
   ownerId: string,
-  registry: PipelineStageRegistry
+  services: Pick<
+    LumenClipMcpServices,
+    "runPipelineStage" | "queuePipelineWorkflow"
+  >
 ) {
   server.registerTool(
     "lumenclip_pipeline_catalog",
@@ -876,8 +876,7 @@ function registerPipelineTools(
     async (input) =>
       mcpResult(
         await ownedMcpTask(ownerId, () =>
-          executePipelineStage({
-            registry,
+          services.runPipelineStage({
             ownerId,
             stageId: input.stageId,
             stageInput: input.input,
@@ -892,7 +891,7 @@ function registerPipelineTools(
     {
       title: "Run a named production generation pipeline",
       description:
-        "Runs a registered named generation workflow by invoking its registered stage handlers in order and piping each complete structured output to the next. A running operation pauses the workflow at that exact stage. Generation never publishes; publishing remains a separate confirmed MCP action.",
+        "Queues the registered Windmill workflow. Windmill invokes each production stage in order and records every stage as its own run step. startAt and stopAfter select a composable workflow slice. Generation never publishes; publishing remains a separate confirmed MCP action.",
       inputSchema: {
         workflowId: z.enum(PIPELINE_WORKFLOW_IDS),
         input: z.record(z.string(), z.unknown()),
@@ -910,8 +909,7 @@ function registerPipelineTools(
     async (input) =>
       mcpResult(
         await ownedMcpTask(ownerId, () =>
-          executeNamedPipeline({
-            registry,
+          services.queuePipelineWorkflow({
             ownerId,
             workflowId: input.workflowId,
             workflowInput: input.input,

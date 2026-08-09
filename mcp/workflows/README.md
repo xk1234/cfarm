@@ -1,15 +1,14 @@
 # Production generation pipelines
 
-The pipeline MCP surface exposes registered production handlers for the four
-live generation workflows. It is not a generic MCP-tool wrapper. Callers can
-run a complete workflow, invoke one named stage with JSON, or retain a stage
-envelope and pass it to another stage.
+The pipeline MCP surface exposes the four Windmill-owned generation workflows.
+Callers can queue a complete workflow, invoke one named stage with JSON, or
+retain a stage envelope and pass it to another stage.
 
 ## Execution model
 
 `lumenclip_pipeline_catalog` returns two stage lists per workflow:
 
-- `workflowStages` is the ordered convenience pipeline used by
+- `workflowStages` is the ordered Windmill flow used by
   `lumenclip_pipeline_run`.
 - `stages` is the complete catalog, including every independently callable
   atomic stage used inside composites.
@@ -31,18 +30,18 @@ separate create, one-status-read, result/download, and persistence stages. A
 composite may return a running operation so the caller can resume later with
 the retained structured output.
 
-Full workflow execution resolves every step from the same registry used by
-`lumenclip_pipeline_stage_run`. Decomposed convenience composites likewise call
-atomic handlers through the registry. Production compatibility entry points use
-the same extracted one-request provider primitives.
+Full workflow execution is queued in Windmill. Each ordered stage is visible as
+its own Windmill module and uses the same private stage boundary as
+`lumenclip_pipeline_stage_run`. Decomposed convenience composites still call
+atomic handlers through the registry during the incremental handler migration.
 
 ## Tools
 
 | Tool                           | Purpose                                                                                               |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------- |
 | `lumenclip_pipeline_catalog`   | List all workflows, workflow stages, atomic stages, boundary metadata, and provider/model provenance. |
-| `lumenclip_pipeline_stage_run` | Invoke one registered atomic or composite stage with explicit JSON.                                   |
-| `lumenclip_pipeline_run`       | Invoke an ordered named workflow and pipe each complete stage output to the next registered handler.  |
+| `lumenclip_pipeline_stage_run` | Invoke one registered atomic or composite stage through Windmill with explicit JSON.                  |
+| `lumenclip_pipeline_run`       | Queue an ordered named Windmill workflow and return its Windmill job ID.                              |
 
 ## Generate slideshow text for a fixed hook
 
