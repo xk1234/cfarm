@@ -293,6 +293,24 @@ export const PIPELINE_STAGE_CATALOG = [
     "Load model settings through the registered fixed-document read.",
     { ...compositeStage, workflowStep: false }
   ),
+  stage(
+    "slideshow-generation",
+    116,
+    "prepare-generation-context",
+    "Prepare generation memory and model context",
+    "deterministic",
+    "Normalize hook, text, heading, and image reuse memory with the selected slideshow text model.",
+    { workflowStep: false }
+  ),
+  stage(
+    "slideshow-generation",
+    117,
+    "prepare-image-candidate-pools",
+    "Prepare static image candidate pools",
+    "deterministic",
+    "Resolve each slide's configured collection into a bounded static candidate pool without reading generated text.",
+    { workflowStep: false }
+  ),
   atomicStage(
     "slideshow-generation",
     107,
@@ -383,6 +401,42 @@ export const PIPELINE_STAGE_CATALOG = [
     "storage",
     "Load an optional UGC template and merge explicit product, script, actor, voice, b-roll, and render overrides.",
     compositeStage
+  ),
+  stage(
+    "ugc-video-generation",
+    8,
+    "load-template-defaults",
+    "Load UGC template defaults",
+    "storage",
+    "Load and validate an optional UGC template and expose its component defaults.",
+    compositeStage
+  ),
+  ...[
+    ["product", "product URL, brief, or supplied analysis"],
+    ["script", "script plan and target duration"],
+    ["actor", "actor source, portrait, and motion prompt"],
+    ["voice", "voice identifier and model"],
+    ["broll", "B-roll enablement and image count"],
+    ["render", "aspect ratio, lip-sync tier, captions, and hook overlay"],
+  ].map(([name, description], index) =>
+    stage(
+      "ugc-video-generation",
+      9 + index,
+      `resolve-${name}-component`,
+      `Resolve ${name} component`,
+      "deterministic",
+      `Merge and validate the ${description} component from template defaults and the per-run override.`,
+      { workflowStep: false }
+    )
+  ),
+  stage(
+    "ugc-video-generation",
+    15,
+    "assemble-performance",
+    "Assemble performance artifacts",
+    "deterministic",
+    "Create one typed performance artifact from isolated voice and lip-sync checkpoint outputs.",
+    { workflowStep: false }
   ),
   stage(
     "ugc-video-generation",
@@ -708,6 +762,42 @@ export const PIPELINE_STAGE_CATALOG = [
   ),
   stage(
     "linkedin-generation",
+    103,
+    "normalize-audience-topic",
+    "Normalize audience and topic",
+    "deterministic",
+    "Require the niche and normalize topic and excluded-topic controls.",
+    { workflowStep: false }
+  ),
+  stage(
+    "linkedin-generation",
+    104,
+    "normalize-voice-proof",
+    "Normalize voice and proof",
+    "deterministic",
+    "Normalize the persona, proof bank, optional planning overrides, and post model.",
+    { workflowStep: false }
+  ),
+  stage(
+    "linkedin-generation",
+    105,
+    "normalize-brief-controls",
+    "Normalize brief controls",
+    "deterministic",
+    "Validate an optional supplied brief and normalize the brief model.",
+    { workflowStep: false }
+  ),
+  stage(
+    "linkedin-generation",
+    106,
+    "normalize-batch-controls",
+    "Normalize batch controls",
+    "deterministic",
+    "Clamp the requested post count to the supported batch range.",
+    { workflowStep: false }
+  ),
+  stage(
+    "linkedin-generation",
     2,
     "resolve-brief",
     "Resolve niche brief",
@@ -801,6 +891,24 @@ export const PIPELINE_STAGE_CATALOG = [
     "Validate and normalize input",
     "storage",
     "Load and normalize the owner-scoped persisted X/Threads automation generation input."
+  ),
+  stage(
+    "x-threads-generation",
+    116,
+    "load-template",
+    "Load X/Threads template",
+    "storage",
+    "Load and validate the selected owner-scoped X/Threads template.",
+    compositeStage
+  ),
+  stage(
+    "x-threads-generation",
+    117,
+    "normalize-run-input",
+    "Normalize per-run content input",
+    "deterministic",
+    "Normalize the optional topic and structured source candidate independently of template loading.",
+    { workflowStep: false }
   ),
   stage(
     "x-threads-generation",
@@ -1860,6 +1968,60 @@ function fixedVideoFormatStages(
       "storage",
       resolveDescription,
       compositeStage
+    ),
+    stage(
+      workflowId,
+      9,
+      "load-template-defaults",
+      "Load format template defaults",
+      "storage",
+      "Load and validate the optional format template before resolving role-specific components.",
+      compositeStage
+    ),
+    stage(
+      workflowId,
+      10,
+      `resolve-${primaryRole}`,
+      `Resolve ${primaryRole}`,
+      "deterministic",
+      `Merge and validate the ${primaryRole} media component.`,
+      { workflowStep: false }
+    ),
+    stage(
+      workflowId,
+      11,
+      `resolve-${secondaryRole}`,
+      `Resolve ${secondaryRole}`,
+      "deterministic",
+      `Merge and validate the ${secondaryRole} media component.`,
+      { workflowStep: false }
+    ),
+    stage(
+      workflowId,
+      12,
+      "resolve-audio",
+      "Resolve optional soundtrack",
+      "deterministic",
+      "Merge and validate the optional audio component.",
+      { workflowStep: false }
+    ),
+    stage(
+      workflowId,
+      13,
+      "resolve-caption",
+      "Resolve format captions",
+      "deterministic",
+      "Merge and normalize the captions consumed by the format render plan.",
+      { workflowStep: false }
+    ),
+    stage(
+      workflowId,
+      14,
+      "resolve-output",
+      "Resolve draft metadata",
+      "deterministic",
+      "Merge and normalize the title, description, and hashtags consumed when the rendered media becomes a draft output.",
+      { workflowStep: false }
     ),
     atomicStage(
       workflowId,

@@ -19,9 +19,9 @@ The example values below are abbreviated, but every block is valid JSON.
 <Tab value="MCP">
 
 No MCP tool wraps LinkedIn generation on its own. Run it through the generic workflow tool, which
-queues `lumenclip - LinkedIn generation` in Windmill. Its audience/topic, proof, voice/model,
-brief, and batch controls resolve as separate input artifacts before validation; downstream stages
-remain sequential where each genuinely depends on the previous artifact.
+queues `lumenclip - LinkedIn generation` in Windmill. Its audience/topic, voice/proof/model,
+brief, and batch controls run real normalization and validation handlers before their first common
+consumer. Downstream stages remain sequential where each genuinely depends on the previous result.
 
 ```json
 {

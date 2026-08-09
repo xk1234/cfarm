@@ -3,152 +3,166 @@ import path from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-const flowFolders = [
-  "slideshow_generation__flow",
-  "ugc_video_generation__flow",
-  "react_reveal_generation__flow",
-  "greenscreen_meme_generation__flow",
-  "linkedin_generation__flow",
-  "x_threads_generation__flow",
-]
+import { WINDMILL_WORKFLOW_DEPENDENCIES } from "./workflow-dependencies"
+
+const flowFolders = {
+  "slideshow-generation": "slideshow_generation__flow",
+  "ugc-video-generation": "ugc_video_generation__flow",
+  "react-reveal-generation": "react_reveal_generation__flow",
+  "greenscreen-meme-generation": "greenscreen_meme_generation__flow",
+  "linkedin-generation": "linkedin_generation__flow",
+  "x-threads-generation": "x_threads_generation__flow",
+} as const
+
+async function sourceFor(workflowId: keyof typeof flowFolders) {
+  return readFile(
+    path.join(
+      import.meta.dirname,
+      "f",
+      "lumenclip",
+      flowFolders[workflowId],
+      "flow.yaml"
+    ),
+    "utf8"
+  )
+}
 
 describe("generated Lumenclip Windmill flows", () => {
-  for (const folder of flowFolders) {
-    it(`${folder} embeds its stage boundary instead of exposing a helper script`, async () => {
-      const source = await readFile(
-        path.join(import.meta.dirname, "f", "lumenclip", folder, "flow.yaml"),
-        "utf8"
-      )
+  for (const workflowId of Object.keys(flowFolders) as Array<
+    keyof typeof flowFolders
+  >) {
+    it(`${workflowId} contains only real stage calls`, async () => {
+      const source = await sourceFor(workflowId)
 
       expect(source).toContain("type: rawscript")
       expect(source).not.toContain("path: f/lumenclip/run_pipeline_stage")
-    })
-  }
-
-  it("models UGC as typed components with an explicit media branch and joins", async () => {
-    const source = await readFile(
-      path.join(
-        import.meta.dirname,
-        "f",
-        "lumenclip",
-        "ugc_video_generation__flow",
-        "flow.yaml"
-      ),
-      "utf8"
-    )
-
-    expect(source).toContain("id: resolve_input_groups")
-    expect(source).toContain("id: resolve_components")
-    expect(source).toContain("type: branchall")
-    expect(source).toContain("parallel: true")
-    expect(source).toContain("Product component — analyze facts")
-    expect(source).toContain("Script component — hook, body, CTA and timing")
-    expect(source).toContain("Performance join — actor motion plus voice")
-    expect(source).toContain("Render join — performance, B-roll and styling")
-    expect(source).toContain("template_id:")
-    for (const component of [
-      "product:",
-      "script:",
-      "actor:",
-      "voice:",
-      "broll:",
-      "render:",
-    ]) {
-      expect(source).toContain(component)
-    }
-    expect(source).not.toContain("results.generate_script_plan?.output ??")
-    expect(source).not.toContain("flow_input.input ??")
-  })
-
-  it("models slideshow hydration, text, visual selection, and assembly as explicit branches and joins", async () => {
-    const source = await readFile(
-      path.join(
-        import.meta.dirname,
-        "f",
-        "lumenclip",
-        "slideshow_generation__flow",
-        "flow.yaml"
-      ),
-      "utf8"
-    )
-
-    expect(source).toContain("id: hydrate_inputs")
-    expect(source).toContain("id: prepare_slide_artifacts")
-    expect(source).toContain("parallel: true")
-    expect(source).toContain("Text path — accepted slide copy")
-    expect(source).toContain("Visual path — select slide images")
-    expect(source).toContain("Join text and images into slide plan")
-  })
-
-  for (const [folder, primary, secondary, join] of [
-    [
-      "react_reveal_generation__flow",
-      "anticipation",
-      "reveal",
-      "Join full anticipation and full reveal",
-    ],
-    [
-      "greenscreen_meme_generation__flow",
-      "meme",
-      "background",
-      "Join chroma-keyed meme, background and caption",
-    ],
-  ] as const) {
-    it(`${folder} splits inputs and media before its format-specific join`, async () => {
-      const source = await readFile(
-        path.join(import.meta.dirname, "f", "lumenclip", folder, "flow.yaml"),
-        "utf8"
-      )
-
-      expect(source).toContain("id: resolve_input_groups")
-      expect(source).toContain("id: stage_media_components")
-      expect(source).toContain("parallel: true")
-      expect(source).toContain(`${primary} component`)
-      expect(source).toContain(`${secondary} component`)
-      expect(source).toContain(join)
-    })
-  }
-
-  it("never emits cumulative result fallback chains", async () => {
-    for (const folder of flowFolders) {
-      const source = await readFile(
-        path.join(import.meta.dirname, "f", "lumenclip", folder, "flow.yaml"),
-        "utf8"
-      )
+      expect(source).not.toContain("return { output: { artifact } }")
+      expect(source).not.toContain("artifactNode")
       expect(source).not.toMatch(/results\.[^\n]+\?\?\s*results\./)
       expect(source).not.toContain("flow_input.input ??")
-    }
+    })
+  }
+
+  it("derives slideshow joins from actual text, candidate, render, and QA consumption", async () => {
+    const source = await sourceFor("slideshow-generation")
+
+    expect(source).toContain("id: load_validation_inputs")
+    expect(source).toContain("id: produce_text_and_candidates")
+    expect(source).toContain("id: prepare_image_candidate_pools")
+    expect(source).toContain(
+      "candidatesBySlide: results.produce_text_and_candidates[1].output.candidatesBySlide"
+    )
+    expect(source).not.toContain("id: text_artifact")
+    expect(source).not.toContain("id: prepare_slide_artifacts")
+
+    const qaBranch = source.indexOf("id: render_and_qa_context")
+    const priorRuns = source.indexOf("id: load_prior_runs")
+    const outputValidation = source.indexOf("id: validate_output")
+    expect(qaBranch).toBeGreaterThan(0)
+    expect(priorRuns).toBeGreaterThan(qaBranch)
+    expect(outputValidation).toBeGreaterThan(priorRuns)
+    expect(source.slice(0, qaBranch)).not.toContain("load_prior_runs")
+    expect(source).toContain(
+      "priorRuns: results.render_and_qa_context[1].output.priorRuns"
+    )
   })
 
-  it("splits LinkedIn and X/Threads run inputs before downstream generation", async () => {
-    const linkedIn = await readFile(
-      path.join(
-        import.meta.dirname,
-        "f",
-        "lumenclip",
-        "linkedin_generation__flow",
-        "flow.yaml"
-      ),
-      "utf8"
-    )
-    const social = await readFile(
-      path.join(
-        import.meta.dirname,
-        "f",
-        "lumenclip",
-        "x_threads_generation__flow",
-        "flow.yaml"
-      ),
-      "utf8"
-    )
+  it("derives UGC edges from resolved components and isolated checkpoint artifacts", async () => {
+    const source = await sourceFor("ugc-video-generation")
 
-    expect(linkedIn).toContain("Resolve independent LinkedIn input groups")
-    expect(linkedIn).toContain("Audience and topic")
-    expect(linkedIn).toContain("Voice and persona")
-    expect(linkedIn).toContain("Batch controls")
-    expect(social).toContain("Resolve independent X and Threads input groups")
-    expect(social).toContain("Saved template reference")
-    expect(social).toContain("Per-run content input")
-    expect(social).toContain("source_candidate:")
+    expect(source).not.toContain("id: resolve_input_groups")
+    expect(source).toContain("id: load_template_defaults")
+    expect(source).toContain("id: resolve_product_component")
+    expect(source).toContain("id: prepare_script_inputs")
+    expect(source).toContain("id: prepare_actor_voice")
+    expect(source).toContain("id: assemble_performance")
+    expect(source).toContain("id: prepare_render_artifacts")
+    expect(source).toContain(
+      "motion: results.prepare_actor_voice[0].output.artifact"
+    )
+    expect(source).toContain(
+      "voice: results.prepare_actor_voice[1].output.artifact"
+    )
+    expect(source).toContain(
+      "generationId: `${baseGenerationId}-${checkpoint_name}`"
+    )
+  })
+
+  for (const workflowId of [
+    "react-reveal-generation",
+    "greenscreen-meme-generation",
+  ] as const) {
+    it(`${workflowId} resolves roles and stages only real media branches`, async () => {
+      const source = await sourceFor(workflowId)
+
+      expect(source).not.toContain("id: resolve_input_groups")
+      expect(source).toContain("id: load_template_defaults")
+      expect(source).toContain("id: resolve_and_stage_render_inputs")
+      expect(source).toContain("id: render_and_output_metadata")
+      expect(source).toContain("id: resolve_caption")
+      expect(source).toContain("id: resolve_output")
+      expect(source).toContain(
+        "components: { ...results.render_and_output_metadata[0].output.components, ...results.render_and_output_metadata[1].output.component }"
+      )
+    })
+  }
+
+  it("uses real normalizers for LinkedIn and real template loading for X/Threads", async () => {
+    const linkedIn = await sourceFor("linkedin-generation")
+    const social = await sourceFor("x-threads-generation")
+
+    for (const handler of [
+      "linkedin-generation.normalize-audience-topic",
+      "linkedin-generation.normalize-voice-proof",
+      "linkedin-generation.normalize-brief-controls",
+      "linkedin-generation.normalize-batch-controls",
+    ]) {
+      expect(linkedIn).toContain(handler)
+    }
+    expect(linkedIn).toContain(
+      "audience: results.resolve_input_groups[0].output.audience"
+    )
+    expect(social).toContain("x-threads-generation.load-template")
+    expect(social).toContain("x-threads-generation.normalize-run-input")
+    expect(social).toContain(
+      "automation: results.resolve_input_groups[0].output.automation"
+    )
+    expect(social).toContain(
+      "runInput: results.resolve_input_groups[1].output.runInput"
+    )
+  })
+
+  it("keeps a checked dependency table for every emitted consumer", async () => {
+    for (const [workflowId, dependencies] of Object.entries(
+      WINDMILL_WORKFLOW_DEPENDENCIES
+    ) as Array<
+      [
+        keyof typeof WINDMILL_WORKFLOW_DEPENDENCIES,
+        (typeof WINDMILL_WORKFLOW_DEPENDENCIES)[keyof typeof WINDMILL_WORKFLOW_DEPENDENCIES],
+      ]
+    >) {
+      const source = await sourceFor(workflowId)
+      const consumers = new Set<string>()
+      for (const edge of dependencies) {
+        expect(consumers.has(edge.consumer)).toBe(false)
+        consumers.add(edge.consumer)
+        expect(edge.reads.length).toBeGreaterThan(0)
+        expect(edge.writes.length).toBeGreaterThan(0)
+        expect(source).toContain(`id: ${edge.consumer}\n`)
+        expect(source).toContain(edge.handler)
+        const consumerPosition = source.indexOf(`id: ${edge.consumer}\n`)
+        for (const producer of edge.producers) {
+          const producerPosition = source.indexOf(`id: ${producer}\n`)
+          expect(
+            producerPosition,
+            `${workflowId}: ${producer}`
+          ).toBeGreaterThan(-1)
+          expect(
+            producerPosition,
+            `${workflowId}: ${producer} -> ${edge.consumer}`
+          ).toBeLessThan(consumerPosition)
+        }
+      }
+    }
   })
 })

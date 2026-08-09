@@ -263,6 +263,12 @@ an async atomic sequence, retain the complete output containing the provider
 task ID, invoke its one-status-read stage after `nextPollAfterMs`, and pipe a
 succeeded output to download and persistence.
 
+The generated flows contain no generic identity/pass-through modules. The
+dependency audit in `windmill/workflow-dependencies.ts` records each consumer's
+handler, producers, reads, and writes. Slideshow prior-run history first joins
+at output QA; UGC component jobs use checkpoint-specific run IDs; fixed-video
+metadata first joins after rendering.
+
 ## Safety
 
 - Owner identity is supplied by the MCP server, never trusted from stage JSON.

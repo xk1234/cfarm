@@ -2,98 +2,8 @@ summary: "lumenclip - UGC video generation"
 description: "Generate a UGC product video through individually observable and composable stages."
 value:
   modules:
-    - id: resolve_input_groups
-      summary: "Resolve independent UGC input groups"
-      value:
-        type: branchall
-        parallel: true
-        branches:
-          - summary: "Template reference"
-            modules:
-              - id: template_input
-                summary: "Template defaults reference"
-                value:
-                  type: rawscript
-                  language: bun
-                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
-                  input_transforms:
-                    artifact:
-                      type: javascript
-                      expr: "({ templateId: flow_input.template_id })"
-          - summary: "Product input"
-            modules:
-              - id: product_input
-                summary: "Product component input"
-                value:
-                  type: rawscript
-                  language: bun
-                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
-                  input_transforms:
-                    artifact:
-                      type: javascript
-                      expr: "flow_input.product ?? {}"
-          - summary: "Script input"
-            modules:
-              - id: script_input
-                summary: "Script component input"
-                value:
-                  type: rawscript
-                  language: bun
-                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
-                  input_transforms:
-                    artifact:
-                      type: javascript
-                      expr: "flow_input.script ?? {}"
-          - summary: "Actor input"
-            modules:
-              - id: actor_input
-                summary: "Actor component input"
-                value:
-                  type: rawscript
-                  language: bun
-                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
-                  input_transforms:
-                    artifact:
-                      type: javascript
-                      expr: "flow_input.actor ?? {}"
-          - summary: "Voice input"
-            modules:
-              - id: voice_input
-                summary: "Voice component input"
-                value:
-                  type: rawscript
-                  language: bun
-                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
-                  input_transforms:
-                    artifact:
-                      type: javascript
-                      expr: "flow_input.voice ?? {}"
-          - summary: "B-roll input"
-            modules:
-              - id: broll_input
-                summary: "B-roll component input"
-                value:
-                  type: rawscript
-                  language: bun
-                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
-                  input_transforms:
-                    artifact:
-                      type: javascript
-                      expr: "flow_input.broll ?? {}"
-          - summary: "Render input"
-            modules:
-              - id: render_input
-                summary: "Render component input"
-                value:
-                  type: rawscript
-                  language: bun
-                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
-                  input_transforms:
-                    artifact:
-                      type: javascript
-                      expr: "flow_input.render ?? {}"
-    - id: resolve_components
-      summary: "Resolve template and component overrides"
+    - id: load_template_defaults
+      summary: "Load and validate optional UGC template defaults"
       timeout:
         type: static
         value: 300
@@ -113,7 +23,7 @@ value:
             value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
-            value: "ugc-video-generation.resolve-components"
+            value: "ugc-video-generation.load-template-defaults"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
@@ -122,44 +32,116 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "({ templateId: results.resolve_input_groups[0].output.artifact.templateId, product: results.resolve_input_groups[1].output.artifact, script: results.resolve_input_groups[2].output.artifact, actor: results.resolve_input_groups[3].output.artifact, voice: results.resolve_input_groups[4].output.artifact, broll: results.resolve_input_groups[5].output.artifact, render: results.resolve_input_groups[6].output.artifact, generationId: flow_input.generation_id, scheduledFor: flow_input.scheduled_for })"
-    - id: analyze_product
-      summary: "Product component — analyze facts"
-      timeout:
-        type: static
-        value: 1800
+            expr: "({ templateId: flow_input.template_id, generationId: flow_input.generation_id, scheduledFor: flow_input.scheduled_for })"
+    - id: prepare_script_inputs
+      summary: "Resolve product facts while script configuration is validated"
       value:
-        type: rawscript
-        language: bun
-        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: { id?: string; status?: string }\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  checkpoint_name: string,\n  stage_input: Record<string, unknown>,\n  max_wait_seconds = 1500,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const ownerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || `windmill-${crypto.randomUUID()}`\n  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, stage_input)\n  if (queued.status === \"succeeded\") return queued\n  const jobId = text(queued.operation?.id)\n  if (!jobId) throw new Error(`${checkpoint_name} did not return a queue job`)\n  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000\n  while (Date.now() < deadline) {\n    await Bun.sleep(2000)\n    const polled = await callStage(\n      base_url,\n      shared_secret,\n      ownerId,\n      requestId,\n      \"ugc-video-generation.get-checkpoint-job\",\n      { jobId }\n    )\n    const job = record(polled.output.job)\n    const status = text(job.status)\n    if ([\"failed\", \"dead\", \"canceled\"].includes(status)) {\n      throw new Error(text(job.error) || `${checkpoint_name} component failed`)\n    }\n    if (status !== \"completed\") continue\n    const result = record(job.result)\n    if (result.skipped === true) {\n      throw new Error(`${checkpoint_name} component was skipped: ${text(result.reason) || \"unknown reason\"}`)\n    }\n    const artifact = record(record(result.checkpoints)[checkpoint_name])\n    if (!Object.keys(artifact).length) {\n      throw new Error(`${checkpoint_name} completed without a checkpoint artifact`)\n    }\n    return {\n      stage: queued.stage,\n      requestId,\n      status: \"succeeded\",\n      externalCalls: queued.externalCalls + polled.externalCalls,\n      output: {\n        component: checkpoint_name,\n        artifact,\n        generation: record(stage_input.generation),\n        operation: { id: jobId, status: \"succeeded\" },\n      },\n    }\n  }\n  throw new Error(`${checkpoint_name} component timed out after ${max_wait_seconds}s`)\n}\n\nasync function callStage(\n  baseUrl: string,\n  secret: string,\n  ownerId: string,\n  requestId: string,\n  stageId: string,\n  input: Record<string, unknown>\n) {\n  const response = await fetch(\n    `${required(\"base_url\", baseUrl).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stageId)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({ ownerId, requestId, input }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction record(value: unknown): Record<string, any> {\n  return value && typeof value === \"object\" && !Array.isArray(value) ? value as Record<string, any> : {}\n}\nfunction text(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\nfunction required(name: string, value: unknown) {\n  const result = text(value)\n  if (!result) throw new Error(`Lumenclip ${name} is not configured`)\n  return result\n}"
-        input_transforms:
-          base_url:
-            type: static
-            value: $var:f/lumenclip/internal_base_url
-          shared_secret:
-            type: static
-            value: $var:f/lumenclip/shared_secret
-          default_owner_id:
-            type: static
-            value: $var:f/lumenclip/default_owner_id
-          stage_id:
-            type: static
-            value: "ugc-video-generation.analyze-product"
-          checkpoint_name:
-            type: static
-            value: "analysis"
-          max_wait_seconds:
-            type: static
-            value: 1500
-          owner_id:
-            type: javascript
-            expr: flow_input.owner_id
-          request_id:
-            type: javascript
-            expr: flow_input.request_id
-          stage_input:
-            type: javascript
-            expr: "({ componentExecution: true, generation: results.resolve_components.output.generation, ...results.resolve_components.output.generation, components: results.resolve_components.output.components, checkpoints: {} })"
+        type: branchall
+        parallel: true
+        branches:
+          - summary: "Product resolution and analysis"
+            modules:
+              - id: resolve_product_component
+                summary: "Merge and validate product component"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
+                  input_transforms:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "ugc-video-generation.resolve-product-component"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.product })"
+              - id: analyze_product
+                summary: "Product component — analyze facts"
+                timeout:
+                  type: static
+                  value: 1800
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: { id?: string; status?: string }\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  checkpoint_name: string,\n  stage_input: Record<string, unknown>,\n  max_wait_seconds = 1500,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const ownerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || `windmill-${crypto.randomUUID()}`\n  const generation = record(stage_input.generation)\n  const baseGenerationId = text(generation.generationId) || requestId\n  const isolatedInput = {\n    ...stage_input,\n    generationId: `${baseGenerationId}-${checkpoint_name}`,\n    scheduledFor: generation.scheduledFor,\n  }\n  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, isolatedInput)\n  if (queued.status === \"succeeded\") {\n    return {\n      ...queued,\n      output: {\n        ...queued.output,\n        generation,\n        components: record(stage_input.components),\n      },\n    }\n  }\n  const jobId = text(queued.operation?.id)\n  if (!jobId) throw new Error(`${checkpoint_name} did not return a queue job`)\n  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000\n  while (Date.now() < deadline) {\n    await Bun.sleep(2000)\n    const polled = await callStage(\n      base_url,\n      shared_secret,\n      ownerId,\n      requestId,\n      \"ugc-video-generation.get-checkpoint-job\",\n      { jobId }\n    )\n    const job = record(polled.output.job)\n    const status = text(job.status)\n    if ([\"failed\", \"dead\", \"canceled\"].includes(status)) {\n      throw new Error(text(job.error) || `${checkpoint_name} component failed`)\n    }\n    if (status !== \"completed\") continue\n    const result = record(job.result)\n    if (result.skipped === true) {\n      throw new Error(`${checkpoint_name} component was skipped: ${text(result.reason) || \"unknown reason\"}`)\n    }\n    const artifact = record(record(result.checkpoints)[checkpoint_name])\n    if (!Object.keys(artifact).length) {\n      throw new Error(`${checkpoint_name} completed without a checkpoint artifact`)\n    }\n    return {\n      stage: queued.stage,\n      requestId,\n      status: \"succeeded\",\n      externalCalls: queued.externalCalls + polled.externalCalls,\n      output: {\n        component: checkpoint_name,\n        artifact,\n        generation,\n        components: record(stage_input.components),\n        operation: { id: jobId, status: \"succeeded\" },\n      },\n    }\n  }\n  throw new Error(`${checkpoint_name} component timed out after ${max_wait_seconds}s`)\n}\n\nasync function callStage(\n  baseUrl: string,\n  secret: string,\n  ownerId: string,\n  requestId: string,\n  stageId: string,\n  input: Record<string, unknown>\n) {\n  const response = await fetch(\n    `${required(\"base_url\", baseUrl).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stageId)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({ ownerId, requestId, input }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction record(value: unknown): Record<string, any> {\n  return value && typeof value === \"object\" && !Array.isArray(value) ? value as Record<string, any> : {}\n}\nfunction text(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\nfunction required(name: string, value: unknown) {\n  const result = text(value)\n  if (!result) throw new Error(`Lumenclip ${name} is not configured`)\n  return result\n}"
+                  input_transforms:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "ugc-video-generation.analyze-product"
+                    checkpoint_name:
+                      type: static
+                      value: "analysis"
+                    max_wait_seconds:
+                      type: static
+                      value: 1500
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "({ componentExecution: true, generation: results.load_template_defaults.output.generation, ...results.load_template_defaults.output.generation, components: ({ product: results.resolve_product_component.output.component }), checkpoints: {} })"
+          - summary: "Script configuration"
+            modules:
+              - id: resolve_script_component
+                summary: "Merge and validate script component"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
+                  input_transforms:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "ugc-video-generation.resolve-script-component"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.script })"
     - id: generate_script_plan
       summary: "Script component — hook, body, CTA and timing"
       timeout:
@@ -168,7 +150,7 @@ value:
       value:
         type: rawscript
         language: bun
-        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: { id?: string; status?: string }\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  checkpoint_name: string,\n  stage_input: Record<string, unknown>,\n  max_wait_seconds = 1500,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const ownerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || `windmill-${crypto.randomUUID()}`\n  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, stage_input)\n  if (queued.status === \"succeeded\") return queued\n  const jobId = text(queued.operation?.id)\n  if (!jobId) throw new Error(`${checkpoint_name} did not return a queue job`)\n  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000\n  while (Date.now() < deadline) {\n    await Bun.sleep(2000)\n    const polled = await callStage(\n      base_url,\n      shared_secret,\n      ownerId,\n      requestId,\n      \"ugc-video-generation.get-checkpoint-job\",\n      { jobId }\n    )\n    const job = record(polled.output.job)\n    const status = text(job.status)\n    if ([\"failed\", \"dead\", \"canceled\"].includes(status)) {\n      throw new Error(text(job.error) || `${checkpoint_name} component failed`)\n    }\n    if (status !== \"completed\") continue\n    const result = record(job.result)\n    if (result.skipped === true) {\n      throw new Error(`${checkpoint_name} component was skipped: ${text(result.reason) || \"unknown reason\"}`)\n    }\n    const artifact = record(record(result.checkpoints)[checkpoint_name])\n    if (!Object.keys(artifact).length) {\n      throw new Error(`${checkpoint_name} completed without a checkpoint artifact`)\n    }\n    return {\n      stage: queued.stage,\n      requestId,\n      status: \"succeeded\",\n      externalCalls: queued.externalCalls + polled.externalCalls,\n      output: {\n        component: checkpoint_name,\n        artifact,\n        generation: record(stage_input.generation),\n        operation: { id: jobId, status: \"succeeded\" },\n      },\n    }\n  }\n  throw new Error(`${checkpoint_name} component timed out after ${max_wait_seconds}s`)\n}\n\nasync function callStage(\n  baseUrl: string,\n  secret: string,\n  ownerId: string,\n  requestId: string,\n  stageId: string,\n  input: Record<string, unknown>\n) {\n  const response = await fetch(\n    `${required(\"base_url\", baseUrl).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stageId)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({ ownerId, requestId, input }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction record(value: unknown): Record<string, any> {\n  return value && typeof value === \"object\" && !Array.isArray(value) ? value as Record<string, any> : {}\n}\nfunction text(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\nfunction required(name: string, value: unknown) {\n  const result = text(value)\n  if (!result) throw new Error(`Lumenclip ${name} is not configured`)\n  return result\n}"
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: { id?: string; status?: string }\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  checkpoint_name: string,\n  stage_input: Record<string, unknown>,\n  max_wait_seconds = 1500,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const ownerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || `windmill-${crypto.randomUUID()}`\n  const generation = record(stage_input.generation)\n  const baseGenerationId = text(generation.generationId) || requestId\n  const isolatedInput = {\n    ...stage_input,\n    generationId: `${baseGenerationId}-${checkpoint_name}`,\n    scheduledFor: generation.scheduledFor,\n  }\n  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, isolatedInput)\n  if (queued.status === \"succeeded\") {\n    return {\n      ...queued,\n      output: {\n        ...queued.output,\n        generation,\n        components: record(stage_input.components),\n      },\n    }\n  }\n  const jobId = text(queued.operation?.id)\n  if (!jobId) throw new Error(`${checkpoint_name} did not return a queue job`)\n  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000\n  while (Date.now() < deadline) {\n    await Bun.sleep(2000)\n    const polled = await callStage(\n      base_url,\n      shared_secret,\n      ownerId,\n      requestId,\n      \"ugc-video-generation.get-checkpoint-job\",\n      { jobId }\n    )\n    const job = record(polled.output.job)\n    const status = text(job.status)\n    if ([\"failed\", \"dead\", \"canceled\"].includes(status)) {\n      throw new Error(text(job.error) || `${checkpoint_name} component failed`)\n    }\n    if (status !== \"completed\") continue\n    const result = record(job.result)\n    if (result.skipped === true) {\n      throw new Error(`${checkpoint_name} component was skipped: ${text(result.reason) || \"unknown reason\"}`)\n    }\n    const artifact = record(record(result.checkpoints)[checkpoint_name])\n    if (!Object.keys(artifact).length) {\n      throw new Error(`${checkpoint_name} completed without a checkpoint artifact`)\n    }\n    return {\n      stage: queued.stage,\n      requestId,\n      status: \"succeeded\",\n      externalCalls: queued.externalCalls + polled.externalCalls,\n      output: {\n        component: checkpoint_name,\n        artifact,\n        generation,\n        components: record(stage_input.components),\n        operation: { id: jobId, status: \"succeeded\" },\n      },\n    }\n  }\n  throw new Error(`${checkpoint_name} component timed out after ${max_wait_seconds}s`)\n}\n\nasync function callStage(\n  baseUrl: string,\n  secret: string,\n  ownerId: string,\n  requestId: string,\n  stageId: string,\n  input: Record<string, unknown>\n) {\n  const response = await fetch(\n    `${required(\"base_url\", baseUrl).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stageId)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({ ownerId, requestId, input }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction record(value: unknown): Record<string, any> {\n  return value && typeof value === \"object\" && !Array.isArray(value) ? value as Record<string, any> : {}\n}\nfunction text(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\nfunction required(name: string, value: unknown) {\n  const result = text(value)\n  if (!result) throw new Error(`Lumenclip ${name} is not configured`)\n  return result\n}"
         input_transforms:
           base_url:
             type: static
@@ -196,24 +178,207 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "({ componentExecution: true, generation: results.resolve_components.output.generation, ...results.resolve_components.output.generation, components: results.resolve_components.output.components, checkpoints: { analysis: results.analyze_product.output.artifact } })"
-    - id: prepare_media_components
-      summary: "Prepare independent media components"
+            expr: "({ componentExecution: true, generation: results.load_template_defaults.output.generation, ...results.load_template_defaults.output.generation, components: ({ product: results.prepare_script_inputs[0].output.components.product, script: results.prepare_script_inputs[1].output.component }), checkpoints: { analysis: results.prepare_script_inputs[0].output.artifact } })"
+    - id: prepare_render_artifacts
+      summary: "Prepare performance, B-roll, and render configuration for composite"
       value:
         type: branchall
         parallel: true
         branches:
-          - summary: "Actor portrait and motion"
+          - summary: "Actor, voice, and lip-sync performance"
             modules:
-              - id: resolve_actor
-                summary: "Actor component — resolve or generate portrait"
+              - id: prepare_actor_voice
+                summary: "Prepare actor motion and voice for their lip-sync join"
+                value:
+                  type: branchall
+                  parallel: true
+                  branches:
+                    - summary: "Actor and motion"
+                      modules:
+                      - id: resolve_actor_component
+                        summary: "Merge and validate actor component"
+                        timeout:
+                          type: static
+                          value: 300
+                        value:
+                          type: rawscript
+                          language: bun
+                          content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
+                          input_transforms:
+                            base_url:
+                              type: static
+                              value: $var:f/lumenclip/internal_base_url
+                            shared_secret:
+                              type: static
+                              value: $var:f/lumenclip/shared_secret
+                            default_owner_id:
+                              type: static
+                              value: $var:f/lumenclip/default_owner_id
+                            stage_id:
+                              type: static
+                              value: "ugc-video-generation.resolve-actor-component"
+                            owner_id:
+                              type: javascript
+                              expr: flow_input.owner_id
+                            request_id:
+                              type: javascript
+                              expr: flow_input.request_id
+                            stage_input:
+                              type: javascript
+                              expr: "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.actor })"
+                      - id: resolve_actor
+                        summary: "Actor component — resolve or generate portrait"
+                        timeout:
+                          type: static
+                          value: 1800
+                        value:
+                          type: rawscript
+                          language: bun
+                          content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: { id?: string; status?: string }\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  checkpoint_name: string,\n  stage_input: Record<string, unknown>,\n  max_wait_seconds = 1500,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const ownerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || `windmill-${crypto.randomUUID()}`\n  const generation = record(stage_input.generation)\n  const baseGenerationId = text(generation.generationId) || requestId\n  const isolatedInput = {\n    ...stage_input,\n    generationId: `${baseGenerationId}-${checkpoint_name}`,\n    scheduledFor: generation.scheduledFor,\n  }\n  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, isolatedInput)\n  if (queued.status === \"succeeded\") {\n    return {\n      ...queued,\n      output: {\n        ...queued.output,\n        generation,\n        components: record(stage_input.components),\n      },\n    }\n  }\n  const jobId = text(queued.operation?.id)\n  if (!jobId) throw new Error(`${checkpoint_name} did not return a queue job`)\n  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000\n  while (Date.now() < deadline) {\n    await Bun.sleep(2000)\n    const polled = await callStage(\n      base_url,\n      shared_secret,\n      ownerId,\n      requestId,\n      \"ugc-video-generation.get-checkpoint-job\",\n      { jobId }\n    )\n    const job = record(polled.output.job)\n    const status = text(job.status)\n    if ([\"failed\", \"dead\", \"canceled\"].includes(status)) {\n      throw new Error(text(job.error) || `${checkpoint_name} component failed`)\n    }\n    if (status !== \"completed\") continue\n    const result = record(job.result)\n    if (result.skipped === true) {\n      throw new Error(`${checkpoint_name} component was skipped: ${text(result.reason) || \"unknown reason\"}`)\n    }\n    const artifact = record(record(result.checkpoints)[checkpoint_name])\n    if (!Object.keys(artifact).length) {\n      throw new Error(`${checkpoint_name} completed without a checkpoint artifact`)\n    }\n    return {\n      stage: queued.stage,\n      requestId,\n      status: \"succeeded\",\n      externalCalls: queued.externalCalls + polled.externalCalls,\n      output: {\n        component: checkpoint_name,\n        artifact,\n        generation,\n        components: record(stage_input.components),\n        operation: { id: jobId, status: \"succeeded\" },\n      },\n    }\n  }\n  throw new Error(`${checkpoint_name} component timed out after ${max_wait_seconds}s`)\n}\n\nasync function callStage(\n  baseUrl: string,\n  secret: string,\n  ownerId: string,\n  requestId: string,\n  stageId: string,\n  input: Record<string, unknown>\n) {\n  const response = await fetch(\n    `${required(\"base_url\", baseUrl).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stageId)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({ ownerId, requestId, input }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction record(value: unknown): Record<string, any> {\n  return value && typeof value === \"object\" && !Array.isArray(value) ? value as Record<string, any> : {}\n}\nfunction text(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\nfunction required(name: string, value: unknown) {\n  const result = text(value)\n  if (!result) throw new Error(`Lumenclip ${name} is not configured`)\n  return result\n}"
+                          input_transforms:
+                            base_url:
+                              type: static
+                              value: $var:f/lumenclip/internal_base_url
+                            shared_secret:
+                              type: static
+                              value: $var:f/lumenclip/shared_secret
+                            default_owner_id:
+                              type: static
+                              value: $var:f/lumenclip/default_owner_id
+                            stage_id:
+                              type: static
+                              value: "ugc-video-generation.resolve-generate-actor"
+                            checkpoint_name:
+                              type: static
+                              value: "actor"
+                            max_wait_seconds:
+                              type: static
+                              value: 1500
+                            owner_id:
+                              type: javascript
+                              expr: flow_input.owner_id
+                            request_id:
+                              type: javascript
+                              expr: flow_input.request_id
+                            stage_input:
+                              type: javascript
+                              expr: "({ componentExecution: true, generation: results.load_template_defaults.output.generation, ...results.load_template_defaults.output.generation, components: ({ actor: results.resolve_actor_component.output.component }), checkpoints: { analysis: results.prepare_script_inputs[0].output.artifact, script: results.generate_script_plan.output.artifact } })"
+                      - id: animate_actor
+                        summary: "Actor component — animate portrait"
+                        timeout:
+                          type: static
+                          value: 1800
+                        value:
+                          type: rawscript
+                          language: bun
+                          content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: { id?: string; status?: string }\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  checkpoint_name: string,\n  stage_input: Record<string, unknown>,\n  max_wait_seconds = 1500,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const ownerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || `windmill-${crypto.randomUUID()}`\n  const generation = record(stage_input.generation)\n  const baseGenerationId = text(generation.generationId) || requestId\n  const isolatedInput = {\n    ...stage_input,\n    generationId: `${baseGenerationId}-${checkpoint_name}`,\n    scheduledFor: generation.scheduledFor,\n  }\n  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, isolatedInput)\n  if (queued.status === \"succeeded\") {\n    return {\n      ...queued,\n      output: {\n        ...queued.output,\n        generation,\n        components: record(stage_input.components),\n      },\n    }\n  }\n  const jobId = text(queued.operation?.id)\n  if (!jobId) throw new Error(`${checkpoint_name} did not return a queue job`)\n  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000\n  while (Date.now() < deadline) {\n    await Bun.sleep(2000)\n    const polled = await callStage(\n      base_url,\n      shared_secret,\n      ownerId,\n      requestId,\n      \"ugc-video-generation.get-checkpoint-job\",\n      { jobId }\n    )\n    const job = record(polled.output.job)\n    const status = text(job.status)\n    if ([\"failed\", \"dead\", \"canceled\"].includes(status)) {\n      throw new Error(text(job.error) || `${checkpoint_name} component failed`)\n    }\n    if (status !== \"completed\") continue\n    const result = record(job.result)\n    if (result.skipped === true) {\n      throw new Error(`${checkpoint_name} component was skipped: ${text(result.reason) || \"unknown reason\"}`)\n    }\n    const artifact = record(record(result.checkpoints)[checkpoint_name])\n    if (!Object.keys(artifact).length) {\n      throw new Error(`${checkpoint_name} completed without a checkpoint artifact`)\n    }\n    return {\n      stage: queued.stage,\n      requestId,\n      status: \"succeeded\",\n      externalCalls: queued.externalCalls + polled.externalCalls,\n      output: {\n        component: checkpoint_name,\n        artifact,\n        generation,\n        components: record(stage_input.components),\n        operation: { id: jobId, status: \"succeeded\" },\n      },\n    }\n  }\n  throw new Error(`${checkpoint_name} component timed out after ${max_wait_seconds}s`)\n}\n\nasync function callStage(\n  baseUrl: string,\n  secret: string,\n  ownerId: string,\n  requestId: string,\n  stageId: string,\n  input: Record<string, unknown>\n) {\n  const response = await fetch(\n    `${required(\"base_url\", baseUrl).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stageId)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({ ownerId, requestId, input }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction record(value: unknown): Record<string, any> {\n  return value && typeof value === \"object\" && !Array.isArray(value) ? value as Record<string, any> : {}\n}\nfunction text(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\nfunction required(name: string, value: unknown) {\n  const result = text(value)\n  if (!result) throw new Error(`Lumenclip ${name} is not configured`)\n  return result\n}"
+                          input_transforms:
+                            base_url:
+                              type: static
+                              value: $var:f/lumenclip/internal_base_url
+                            shared_secret:
+                              type: static
+                              value: $var:f/lumenclip/shared_secret
+                            default_owner_id:
+                              type: static
+                              value: $var:f/lumenclip/default_owner_id
+                            stage_id:
+                              type: static
+                              value: "ugc-video-generation.animate-actor"
+                            checkpoint_name:
+                              type: static
+                              value: "motion"
+                            max_wait_seconds:
+                              type: static
+                              value: 1500
+                            owner_id:
+                              type: javascript
+                              expr: flow_input.owner_id
+                            request_id:
+                              type: javascript
+                              expr: flow_input.request_id
+                            stage_input:
+                              type: javascript
+                              expr: "({ componentExecution: true, generation: results.load_template_defaults.output.generation, ...results.load_template_defaults.output.generation, components: results.resolve_actor.output.components, checkpoints: { actor: results.resolve_actor.output.artifact } })"
+                    - summary: "Voice track"
+                      modules:
+                      - id: resolve_voice_component
+                        summary: "Merge and validate voice component"
+                        timeout:
+                          type: static
+                          value: 300
+                        value:
+                          type: rawscript
+                          language: bun
+                          content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
+                          input_transforms:
+                            base_url:
+                              type: static
+                              value: $var:f/lumenclip/internal_base_url
+                            shared_secret:
+                              type: static
+                              value: $var:f/lumenclip/shared_secret
+                            default_owner_id:
+                              type: static
+                              value: $var:f/lumenclip/default_owner_id
+                            stage_id:
+                              type: static
+                              value: "ugc-video-generation.resolve-voice-component"
+                            owner_id:
+                              type: javascript
+                              expr: flow_input.owner_id
+                            request_id:
+                              type: javascript
+                              expr: flow_input.request_id
+                            stage_input:
+                              type: javascript
+                              expr: "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.voice })"
+                      - id: synthesize_voice
+                        summary: "Voice component — speech and word timings"
+                        timeout:
+                          type: static
+                          value: 1800
+                        value:
+                          type: rawscript
+                          language: bun
+                          content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: { id?: string; status?: string }\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  checkpoint_name: string,\n  stage_input: Record<string, unknown>,\n  max_wait_seconds = 1500,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const ownerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || `windmill-${crypto.randomUUID()}`\n  const generation = record(stage_input.generation)\n  const baseGenerationId = text(generation.generationId) || requestId\n  const isolatedInput = {\n    ...stage_input,\n    generationId: `${baseGenerationId}-${checkpoint_name}`,\n    scheduledFor: generation.scheduledFor,\n  }\n  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, isolatedInput)\n  if (queued.status === \"succeeded\") {\n    return {\n      ...queued,\n      output: {\n        ...queued.output,\n        generation,\n        components: record(stage_input.components),\n      },\n    }\n  }\n  const jobId = text(queued.operation?.id)\n  if (!jobId) throw new Error(`${checkpoint_name} did not return a queue job`)\n  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000\n  while (Date.now() < deadline) {\n    await Bun.sleep(2000)\n    const polled = await callStage(\n      base_url,\n      shared_secret,\n      ownerId,\n      requestId,\n      \"ugc-video-generation.get-checkpoint-job\",\n      { jobId }\n    )\n    const job = record(polled.output.job)\n    const status = text(job.status)\n    if ([\"failed\", \"dead\", \"canceled\"].includes(status)) {\n      throw new Error(text(job.error) || `${checkpoint_name} component failed`)\n    }\n    if (status !== \"completed\") continue\n    const result = record(job.result)\n    if (result.skipped === true) {\n      throw new Error(`${checkpoint_name} component was skipped: ${text(result.reason) || \"unknown reason\"}`)\n    }\n    const artifact = record(record(result.checkpoints)[checkpoint_name])\n    if (!Object.keys(artifact).length) {\n      throw new Error(`${checkpoint_name} completed without a checkpoint artifact`)\n    }\n    return {\n      stage: queued.stage,\n      requestId,\n      status: \"succeeded\",\n      externalCalls: queued.externalCalls + polled.externalCalls,\n      output: {\n        component: checkpoint_name,\n        artifact,\n        generation,\n        components: record(stage_input.components),\n        operation: { id: jobId, status: \"succeeded\" },\n      },\n    }\n  }\n  throw new Error(`${checkpoint_name} component timed out after ${max_wait_seconds}s`)\n}\n\nasync function callStage(\n  baseUrl: string,\n  secret: string,\n  ownerId: string,\n  requestId: string,\n  stageId: string,\n  input: Record<string, unknown>\n) {\n  const response = await fetch(\n    `${required(\"base_url\", baseUrl).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stageId)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({ ownerId, requestId, input }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction record(value: unknown): Record<string, any> {\n  return value && typeof value === \"object\" && !Array.isArray(value) ? value as Record<string, any> : {}\n}\nfunction text(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\nfunction required(name: string, value: unknown) {\n  const result = text(value)\n  if (!result) throw new Error(`Lumenclip ${name} is not configured`)\n  return result\n}"
+                          input_transforms:
+                            base_url:
+                              type: static
+                              value: $var:f/lumenclip/internal_base_url
+                            shared_secret:
+                              type: static
+                              value: $var:f/lumenclip/shared_secret
+                            default_owner_id:
+                              type: static
+                              value: $var:f/lumenclip/default_owner_id
+                            stage_id:
+                              type: static
+                              value: "ugc-video-generation.synthesize-voice"
+                            checkpoint_name:
+                              type: static
+                              value: "voice"
+                            max_wait_seconds:
+                              type: static
+                              value: 1500
+                            owner_id:
+                              type: javascript
+                              expr: flow_input.owner_id
+                            request_id:
+                              type: javascript
+                              expr: flow_input.request_id
+                            stage_input:
+                              type: javascript
+                              expr: "({ componentExecution: true, generation: results.load_template_defaults.output.generation, ...results.load_template_defaults.output.generation, components: ({ voice: results.resolve_voice_component.output.component }), checkpoints: { script: results.generate_script_plan.output.artifact } })"
+              - id: lip_sync_performance
+                summary: "Performance join — actor motion plus voice"
                 timeout:
                   type: static
                   value: 1800
                 value:
                   type: rawscript
                   language: bun
-                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: { id?: string; status?: string }\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  checkpoint_name: string,\n  stage_input: Record<string, unknown>,\n  max_wait_seconds = 1500,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const ownerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || `windmill-${crypto.randomUUID()}`\n  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, stage_input)\n  if (queued.status === \"succeeded\") return queued\n  const jobId = text(queued.operation?.id)\n  if (!jobId) throw new Error(`${checkpoint_name} did not return a queue job`)\n  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000\n  while (Date.now() < deadline) {\n    await Bun.sleep(2000)\n    const polled = await callStage(\n      base_url,\n      shared_secret,\n      ownerId,\n      requestId,\n      \"ugc-video-generation.get-checkpoint-job\",\n      { jobId }\n    )\n    const job = record(polled.output.job)\n    const status = text(job.status)\n    if ([\"failed\", \"dead\", \"canceled\"].includes(status)) {\n      throw new Error(text(job.error) || `${checkpoint_name} component failed`)\n    }\n    if (status !== \"completed\") continue\n    const result = record(job.result)\n    if (result.skipped === true) {\n      throw new Error(`${checkpoint_name} component was skipped: ${text(result.reason) || \"unknown reason\"}`)\n    }\n    const artifact = record(record(result.checkpoints)[checkpoint_name])\n    if (!Object.keys(artifact).length) {\n      throw new Error(`${checkpoint_name} completed without a checkpoint artifact`)\n    }\n    return {\n      stage: queued.stage,\n      requestId,\n      status: \"succeeded\",\n      externalCalls: queued.externalCalls + polled.externalCalls,\n      output: {\n        component: checkpoint_name,\n        artifact,\n        generation: record(stage_input.generation),\n        operation: { id: jobId, status: \"succeeded\" },\n      },\n    }\n  }\n  throw new Error(`${checkpoint_name} component timed out after ${max_wait_seconds}s`)\n}\n\nasync function callStage(\n  baseUrl: string,\n  secret: string,\n  ownerId: string,\n  requestId: string,\n  stageId: string,\n  input: Record<string, unknown>\n) {\n  const response = await fetch(\n    `${required(\"base_url\", baseUrl).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stageId)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({ ownerId, requestId, input }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction record(value: unknown): Record<string, any> {\n  return value && typeof value === \"object\" && !Array.isArray(value) ? value as Record<string, any> : {}\n}\nfunction text(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\nfunction required(name: string, value: unknown) {\n  const result = text(value)\n  if (!result) throw new Error(`Lumenclip ${name} is not configured`)\n  return result\n}"
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: { id?: string; status?: string }\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  checkpoint_name: string,\n  stage_input: Record<string, unknown>,\n  max_wait_seconds = 1500,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const ownerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || `windmill-${crypto.randomUUID()}`\n  const generation = record(stage_input.generation)\n  const baseGenerationId = text(generation.generationId) || requestId\n  const isolatedInput = {\n    ...stage_input,\n    generationId: `${baseGenerationId}-${checkpoint_name}`,\n    scheduledFor: generation.scheduledFor,\n  }\n  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, isolatedInput)\n  if (queued.status === \"succeeded\") {\n    return {\n      ...queued,\n      output: {\n        ...queued.output,\n        generation,\n        components: record(stage_input.components),\n      },\n    }\n  }\n  const jobId = text(queued.operation?.id)\n  if (!jobId) throw new Error(`${checkpoint_name} did not return a queue job`)\n  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000\n  while (Date.now() < deadline) {\n    await Bun.sleep(2000)\n    const polled = await callStage(\n      base_url,\n      shared_secret,\n      ownerId,\n      requestId,\n      \"ugc-video-generation.get-checkpoint-job\",\n      { jobId }\n    )\n    const job = record(polled.output.job)\n    const status = text(job.status)\n    if ([\"failed\", \"dead\", \"canceled\"].includes(status)) {\n      throw new Error(text(job.error) || `${checkpoint_name} component failed`)\n    }\n    if (status !== \"completed\") continue\n    const result = record(job.result)\n    if (result.skipped === true) {\n      throw new Error(`${checkpoint_name} component was skipped: ${text(result.reason) || \"unknown reason\"}`)\n    }\n    const artifact = record(record(result.checkpoints)[checkpoint_name])\n    if (!Object.keys(artifact).length) {\n      throw new Error(`${checkpoint_name} completed without a checkpoint artifact`)\n    }\n    return {\n      stage: queued.stage,\n      requestId,\n      status: \"succeeded\",\n      externalCalls: queued.externalCalls + polled.externalCalls,\n      output: {\n        component: checkpoint_name,\n        artifact,\n        generation,\n        components: record(stage_input.components),\n        operation: { id: jobId, status: \"succeeded\" },\n      },\n    }\n  }\n  throw new Error(`${checkpoint_name} component timed out after ${max_wait_seconds}s`)\n}\n\nasync function callStage(\n  baseUrl: string,\n  secret: string,\n  ownerId: string,\n  requestId: string,\n  stageId: string,\n  input: Record<string, unknown>\n) {\n  const response = await fetch(\n    `${required(\"base_url\", baseUrl).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stageId)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({ ownerId, requestId, input }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction record(value: unknown): Record<string, any> {\n  return value && typeof value === \"object\" && !Array.isArray(value) ? value as Record<string, any> : {}\n}\nfunction text(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\nfunction required(name: string, value: unknown) {\n  const result = text(value)\n  if (!result) throw new Error(`Lumenclip ${name} is not configured`)\n  return result\n}"
                   input_transforms:
                     base_url:
                       type: static
@@ -226,10 +391,10 @@ value:
                       value: $var:f/lumenclip/default_owner_id
                     stage_id:
                       type: static
-                      value: "ugc-video-generation.resolve-generate-actor"
+                      value: "ugc-video-generation.lip-sync-performance"
                     checkpoint_name:
                       type: static
-                      value: "actor"
+                      value: "lipsync"
                     max_wait_seconds:
                       type: static
                       value: 1500
@@ -241,16 +406,16 @@ value:
                       expr: flow_input.request_id
                     stage_input:
                       type: javascript
-                      expr: "({ componentExecution: true, generation: results.resolve_components.output.generation, ...results.resolve_components.output.generation, components: results.resolve_components.output.components, checkpoints: { analysis: results.analyze_product.output.artifact, script: results.generate_script_plan.output.artifact } })"
-              - id: animate_actor
-                summary: "Actor component — animate portrait"
+                      expr: "({ componentExecution: true, generation: results.load_template_defaults.output.generation, ...results.load_template_defaults.output.generation, components: ({ ...results.prepare_actor_voice[0].output.components, ...results.prepare_actor_voice[1].output.components }), checkpoints: { motion: results.prepare_actor_voice[0].output.artifact, voice: results.prepare_actor_voice[1].output.artifact } })"
+              - id: assemble_performance
+                summary: "Assemble isolated voice and lip-sync artifacts"
                 timeout:
                   type: static
-                  value: 1800
+                  value: 300
                 value:
                   type: rawscript
                   language: bun
-                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: { id?: string; status?: string }\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  checkpoint_name: string,\n  stage_input: Record<string, unknown>,\n  max_wait_seconds = 1500,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const ownerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || `windmill-${crypto.randomUUID()}`\n  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, stage_input)\n  if (queued.status === \"succeeded\") return queued\n  const jobId = text(queued.operation?.id)\n  if (!jobId) throw new Error(`${checkpoint_name} did not return a queue job`)\n  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000\n  while (Date.now() < deadline) {\n    await Bun.sleep(2000)\n    const polled = await callStage(\n      base_url,\n      shared_secret,\n      ownerId,\n      requestId,\n      \"ugc-video-generation.get-checkpoint-job\",\n      { jobId }\n    )\n    const job = record(polled.output.job)\n    const status = text(job.status)\n    if ([\"failed\", \"dead\", \"canceled\"].includes(status)) {\n      throw new Error(text(job.error) || `${checkpoint_name} component failed`)\n    }\n    if (status !== \"completed\") continue\n    const result = record(job.result)\n    if (result.skipped === true) {\n      throw new Error(`${checkpoint_name} component was skipped: ${text(result.reason) || \"unknown reason\"}`)\n    }\n    const artifact = record(record(result.checkpoints)[checkpoint_name])\n    if (!Object.keys(artifact).length) {\n      throw new Error(`${checkpoint_name} completed without a checkpoint artifact`)\n    }\n    return {\n      stage: queued.stage,\n      requestId,\n      status: \"succeeded\",\n      externalCalls: queued.externalCalls + polled.externalCalls,\n      output: {\n        component: checkpoint_name,\n        artifact,\n        generation: record(stage_input.generation),\n        operation: { id: jobId, status: \"succeeded\" },\n      },\n    }\n  }\n  throw new Error(`${checkpoint_name} component timed out after ${max_wait_seconds}s`)\n}\n\nasync function callStage(\n  baseUrl: string,\n  secret: string,\n  ownerId: string,\n  requestId: string,\n  stageId: string,\n  input: Record<string, unknown>\n) {\n  const response = await fetch(\n    `${required(\"base_url\", baseUrl).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stageId)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({ ownerId, requestId, input }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction record(value: unknown): Record<string, any> {\n  return value && typeof value === \"object\" && !Array.isArray(value) ? value as Record<string, any> : {}\n}\nfunction text(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\nfunction required(name: string, value: unknown) {\n  const result = text(value)\n  if (!result) throw new Error(`Lumenclip ${name} is not configured`)\n  return result\n}"
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
                   input_transforms:
                     base_url:
                       type: static
@@ -263,13 +428,7 @@ value:
                       value: $var:f/lumenclip/default_owner_id
                     stage_id:
                       type: static
-                      value: "ugc-video-generation.animate-actor"
-                    checkpoint_name:
-                      type: static
-                      value: "motion"
-                    max_wait_seconds:
-                      type: static
-                      value: 1500
+                      value: "ugc-video-generation.assemble-performance"
                     owner_id:
                       type: javascript
                       expr: flow_input.owner_id
@@ -278,48 +437,40 @@ value:
                       expr: flow_input.request_id
                     stage_input:
                       type: javascript
-                      expr: "({ componentExecution: true, generation: results.resolve_components.output.generation, ...results.resolve_components.output.generation, components: results.resolve_components.output.components, checkpoints: { actor: results.resolve_actor.output.artifact } })"
-          - summary: "Voice track"
-            modules:
-              - id: synthesize_voice
-                summary: "Voice component — speech and word timings"
-                timeout:
-                  type: static
-                  value: 1800
-                value:
-                  type: rawscript
-                  language: bun
-                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: { id?: string; status?: string }\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  checkpoint_name: string,\n  stage_input: Record<string, unknown>,\n  max_wait_seconds = 1500,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const ownerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || `windmill-${crypto.randomUUID()}`\n  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, stage_input)\n  if (queued.status === \"succeeded\") return queued\n  const jobId = text(queued.operation?.id)\n  if (!jobId) throw new Error(`${checkpoint_name} did not return a queue job`)\n  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000\n  while (Date.now() < deadline) {\n    await Bun.sleep(2000)\n    const polled = await callStage(\n      base_url,\n      shared_secret,\n      ownerId,\n      requestId,\n      \"ugc-video-generation.get-checkpoint-job\",\n      { jobId }\n    )\n    const job = record(polled.output.job)\n    const status = text(job.status)\n    if ([\"failed\", \"dead\", \"canceled\"].includes(status)) {\n      throw new Error(text(job.error) || `${checkpoint_name} component failed`)\n    }\n    if (status !== \"completed\") continue\n    const result = record(job.result)\n    if (result.skipped === true) {\n      throw new Error(`${checkpoint_name} component was skipped: ${text(result.reason) || \"unknown reason\"}`)\n    }\n    const artifact = record(record(result.checkpoints)[checkpoint_name])\n    if (!Object.keys(artifact).length) {\n      throw new Error(`${checkpoint_name} completed without a checkpoint artifact`)\n    }\n    return {\n      stage: queued.stage,\n      requestId,\n      status: \"succeeded\",\n      externalCalls: queued.externalCalls + polled.externalCalls,\n      output: {\n        component: checkpoint_name,\n        artifact,\n        generation: record(stage_input.generation),\n        operation: { id: jobId, status: \"succeeded\" },\n      },\n    }\n  }\n  throw new Error(`${checkpoint_name} component timed out after ${max_wait_seconds}s`)\n}\n\nasync function callStage(\n  baseUrl: string,\n  secret: string,\n  ownerId: string,\n  requestId: string,\n  stageId: string,\n  input: Record<string, unknown>\n) {\n  const response = await fetch(\n    `${required(\"base_url\", baseUrl).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stageId)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({ ownerId, requestId, input }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction record(value: unknown): Record<string, any> {\n  return value && typeof value === \"object\" && !Array.isArray(value) ? value as Record<string, any> : {}\n}\nfunction text(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\nfunction required(name: string, value: unknown) {\n  const result = text(value)\n  if (!result) throw new Error(`Lumenclip ${name} is not configured`)\n  return result\n}"
-                  input_transforms:
-                    base_url:
-                      type: static
-                      value: $var:f/lumenclip/internal_base_url
-                    shared_secret:
-                      type: static
-                      value: $var:f/lumenclip/shared_secret
-                    default_owner_id:
-                      type: static
-                      value: $var:f/lumenclip/default_owner_id
-                    stage_id:
-                      type: static
-                      value: "ugc-video-generation.synthesize-voice"
-                    checkpoint_name:
-                      type: static
-                      value: "voice"
-                    max_wait_seconds:
-                      type: static
-                      value: 1500
-                    owner_id:
-                      type: javascript
-                      expr: flow_input.owner_id
-                    request_id:
-                      type: javascript
-                      expr: flow_input.request_id
-                    stage_input:
-                      type: javascript
-                      expr: "({ componentExecution: true, generation: results.resolve_components.output.generation, ...results.resolve_components.output.generation, components: results.resolve_components.output.components, checkpoints: { script: results.generate_script_plan.output.artifact } })"
+                      expr: "({ voice: results.prepare_actor_voice[1].output.artifact, lipsync: results.lip_sync_performance.output.artifact })"
           - summary: "B-roll inserts"
             modules:
+              - id: resolve_broll_component
+                summary: "Merge and validate broll component"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
+                  input_transforms:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "ugc-video-generation.resolve-broll-component"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.broll })"
               - id: generate_broll
                 summary: "B-roll component — timed visual inserts"
                 timeout:
@@ -328,7 +479,7 @@ value:
                 value:
                   type: rawscript
                   language: bun
-                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: { id?: string; status?: string }\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  checkpoint_name: string,\n  stage_input: Record<string, unknown>,\n  max_wait_seconds = 1500,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const ownerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || `windmill-${crypto.randomUUID()}`\n  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, stage_input)\n  if (queued.status === \"succeeded\") return queued\n  const jobId = text(queued.operation?.id)\n  if (!jobId) throw new Error(`${checkpoint_name} did not return a queue job`)\n  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000\n  while (Date.now() < deadline) {\n    await Bun.sleep(2000)\n    const polled = await callStage(\n      base_url,\n      shared_secret,\n      ownerId,\n      requestId,\n      \"ugc-video-generation.get-checkpoint-job\",\n      { jobId }\n    )\n    const job = record(polled.output.job)\n    const status = text(job.status)\n    if ([\"failed\", \"dead\", \"canceled\"].includes(status)) {\n      throw new Error(text(job.error) || `${checkpoint_name} component failed`)\n    }\n    if (status !== \"completed\") continue\n    const result = record(job.result)\n    if (result.skipped === true) {\n      throw new Error(`${checkpoint_name} component was skipped: ${text(result.reason) || \"unknown reason\"}`)\n    }\n    const artifact = record(record(result.checkpoints)[checkpoint_name])\n    if (!Object.keys(artifact).length) {\n      throw new Error(`${checkpoint_name} completed without a checkpoint artifact`)\n    }\n    return {\n      stage: queued.stage,\n      requestId,\n      status: \"succeeded\",\n      externalCalls: queued.externalCalls + polled.externalCalls,\n      output: {\n        component: checkpoint_name,\n        artifact,\n        generation: record(stage_input.generation),\n        operation: { id: jobId, status: \"succeeded\" },\n      },\n    }\n  }\n  throw new Error(`${checkpoint_name} component timed out after ${max_wait_seconds}s`)\n}\n\nasync function callStage(\n  baseUrl: string,\n  secret: string,\n  ownerId: string,\n  requestId: string,\n  stageId: string,\n  input: Record<string, unknown>\n) {\n  const response = await fetch(\n    `${required(\"base_url\", baseUrl).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stageId)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({ ownerId, requestId, input }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction record(value: unknown): Record<string, any> {\n  return value && typeof value === \"object\" && !Array.isArray(value) ? value as Record<string, any> : {}\n}\nfunction text(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\nfunction required(name: string, value: unknown) {\n  const result = text(value)\n  if (!result) throw new Error(`Lumenclip ${name} is not configured`)\n  return result\n}"
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: { id?: string; status?: string }\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  checkpoint_name: string,\n  stage_input: Record<string, unknown>,\n  max_wait_seconds = 1500,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const ownerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || `windmill-${crypto.randomUUID()}`\n  const generation = record(stage_input.generation)\n  const baseGenerationId = text(generation.generationId) || requestId\n  const isolatedInput = {\n    ...stage_input,\n    generationId: `${baseGenerationId}-${checkpoint_name}`,\n    scheduledFor: generation.scheduledFor,\n  }\n  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, isolatedInput)\n  if (queued.status === \"succeeded\") {\n    return {\n      ...queued,\n      output: {\n        ...queued.output,\n        generation,\n        components: record(stage_input.components),\n      },\n    }\n  }\n  const jobId = text(queued.operation?.id)\n  if (!jobId) throw new Error(`${checkpoint_name} did not return a queue job`)\n  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000\n  while (Date.now() < deadline) {\n    await Bun.sleep(2000)\n    const polled = await callStage(\n      base_url,\n      shared_secret,\n      ownerId,\n      requestId,\n      \"ugc-video-generation.get-checkpoint-job\",\n      { jobId }\n    )\n    const job = record(polled.output.job)\n    const status = text(job.status)\n    if ([\"failed\", \"dead\", \"canceled\"].includes(status)) {\n      throw new Error(text(job.error) || `${checkpoint_name} component failed`)\n    }\n    if (status !== \"completed\") continue\n    const result = record(job.result)\n    if (result.skipped === true) {\n      throw new Error(`${checkpoint_name} component was skipped: ${text(result.reason) || \"unknown reason\"}`)\n    }\n    const artifact = record(record(result.checkpoints)[checkpoint_name])\n    if (!Object.keys(artifact).length) {\n      throw new Error(`${checkpoint_name} completed without a checkpoint artifact`)\n    }\n    return {\n      stage: queued.stage,\n      requestId,\n      status: \"succeeded\",\n      externalCalls: queued.externalCalls + polled.externalCalls,\n      output: {\n        component: checkpoint_name,\n        artifact,\n        generation,\n        components: record(stage_input.components),\n        operation: { id: jobId, status: \"succeeded\" },\n      },\n    }\n  }\n  throw new Error(`${checkpoint_name} component timed out after ${max_wait_seconds}s`)\n}\n\nasync function callStage(\n  baseUrl: string,\n  secret: string,\n  ownerId: string,\n  requestId: string,\n  stageId: string,\n  input: Record<string, unknown>\n) {\n  const response = await fetch(\n    `${required(\"base_url\", baseUrl).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stageId)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({ ownerId, requestId, input }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction record(value: unknown): Record<string, any> {\n  return value && typeof value === \"object\" && !Array.isArray(value) ? value as Record<string, any> : {}\n}\nfunction text(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\nfunction required(name: string, value: unknown) {\n  const result = text(value)\n  if (!result) throw new Error(`Lumenclip ${name} is not configured`)\n  return result\n}"
                   input_transforms:
                     base_url:
                       type: static
@@ -356,44 +507,40 @@ value:
                       expr: flow_input.request_id
                     stage_input:
                       type: javascript
-                      expr: "({ componentExecution: true, generation: results.resolve_components.output.generation, ...results.resolve_components.output.generation, components: results.resolve_components.output.components, checkpoints: { script: results.generate_script_plan.output.artifact } })"
-    - id: lip_sync_performance
-      summary: "Performance join — actor motion plus voice"
-      timeout:
-        type: static
-        value: 1800
-      value:
-        type: rawscript
-        language: bun
-        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: { id?: string; status?: string }\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  checkpoint_name: string,\n  stage_input: Record<string, unknown>,\n  max_wait_seconds = 1500,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const ownerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || `windmill-${crypto.randomUUID()}`\n  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, stage_input)\n  if (queued.status === \"succeeded\") return queued\n  const jobId = text(queued.operation?.id)\n  if (!jobId) throw new Error(`${checkpoint_name} did not return a queue job`)\n  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000\n  while (Date.now() < deadline) {\n    await Bun.sleep(2000)\n    const polled = await callStage(\n      base_url,\n      shared_secret,\n      ownerId,\n      requestId,\n      \"ugc-video-generation.get-checkpoint-job\",\n      { jobId }\n    )\n    const job = record(polled.output.job)\n    const status = text(job.status)\n    if ([\"failed\", \"dead\", \"canceled\"].includes(status)) {\n      throw new Error(text(job.error) || `${checkpoint_name} component failed`)\n    }\n    if (status !== \"completed\") continue\n    const result = record(job.result)\n    if (result.skipped === true) {\n      throw new Error(`${checkpoint_name} component was skipped: ${text(result.reason) || \"unknown reason\"}`)\n    }\n    const artifact = record(record(result.checkpoints)[checkpoint_name])\n    if (!Object.keys(artifact).length) {\n      throw new Error(`${checkpoint_name} completed without a checkpoint artifact`)\n    }\n    return {\n      stage: queued.stage,\n      requestId,\n      status: \"succeeded\",\n      externalCalls: queued.externalCalls + polled.externalCalls,\n      output: {\n        component: checkpoint_name,\n        artifact,\n        generation: record(stage_input.generation),\n        operation: { id: jobId, status: \"succeeded\" },\n      },\n    }\n  }\n  throw new Error(`${checkpoint_name} component timed out after ${max_wait_seconds}s`)\n}\n\nasync function callStage(\n  baseUrl: string,\n  secret: string,\n  ownerId: string,\n  requestId: string,\n  stageId: string,\n  input: Record<string, unknown>\n) {\n  const response = await fetch(\n    `${required(\"base_url\", baseUrl).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stageId)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({ ownerId, requestId, input }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction record(value: unknown): Record<string, any> {\n  return value && typeof value === \"object\" && !Array.isArray(value) ? value as Record<string, any> : {}\n}\nfunction text(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\nfunction required(name: string, value: unknown) {\n  const result = text(value)\n  if (!result) throw new Error(`Lumenclip ${name} is not configured`)\n  return result\n}"
-        input_transforms:
-          base_url:
-            type: static
-            value: $var:f/lumenclip/internal_base_url
-          shared_secret:
-            type: static
-            value: $var:f/lumenclip/shared_secret
-          default_owner_id:
-            type: static
-            value: $var:f/lumenclip/default_owner_id
-          stage_id:
-            type: static
-            value: "ugc-video-generation.lip-sync-performance"
-          checkpoint_name:
-            type: static
-            value: "lipsync"
-          max_wait_seconds:
-            type: static
-            value: 1500
-          owner_id:
-            type: javascript
-            expr: flow_input.owner_id
-          request_id:
-            type: javascript
-            expr: flow_input.request_id
-          stage_input:
-            type: javascript
-            expr: "({ componentExecution: true, generation: results.resolve_components.output.generation, ...results.resolve_components.output.generation, components: results.resolve_components.output.components, checkpoints: { motion: results.prepare_media_components[0].output.artifact, voice: results.prepare_media_components[1].output.artifact } })"
+                      expr: "({ componentExecution: true, generation: results.load_template_defaults.output.generation, ...results.load_template_defaults.output.generation, components: ({ broll: results.resolve_broll_component.output.component }), checkpoints: { script: results.generate_script_plan.output.artifact } })"
+          - summary: "Render configuration"
+            modules:
+              - id: resolve_render_component
+                summary: "Merge and validate render component"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
+                  input_transforms:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "ugc-video-generation.resolve-render-component"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.render })"
     - id: composite_output
       summary: "Render join — performance, B-roll and styling"
       timeout:
@@ -402,7 +549,7 @@ value:
       value:
         type: rawscript
         language: bun
-        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: { id?: string; status?: string }\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  checkpoint_name: string,\n  stage_input: Record<string, unknown>,\n  max_wait_seconds = 1500,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const ownerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || `windmill-${crypto.randomUUID()}`\n  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, stage_input)\n  if (queued.status === \"succeeded\") return queued\n  const jobId = text(queued.operation?.id)\n  if (!jobId) throw new Error(`${checkpoint_name} did not return a queue job`)\n  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000\n  while (Date.now() < deadline) {\n    await Bun.sleep(2000)\n    const polled = await callStage(\n      base_url,\n      shared_secret,\n      ownerId,\n      requestId,\n      \"ugc-video-generation.get-checkpoint-job\",\n      { jobId }\n    )\n    const job = record(polled.output.job)\n    const status = text(job.status)\n    if ([\"failed\", \"dead\", \"canceled\"].includes(status)) {\n      throw new Error(text(job.error) || `${checkpoint_name} component failed`)\n    }\n    if (status !== \"completed\") continue\n    const result = record(job.result)\n    if (result.skipped === true) {\n      throw new Error(`${checkpoint_name} component was skipped: ${text(result.reason) || \"unknown reason\"}`)\n    }\n    const artifact = record(record(result.checkpoints)[checkpoint_name])\n    if (!Object.keys(artifact).length) {\n      throw new Error(`${checkpoint_name} completed without a checkpoint artifact`)\n    }\n    return {\n      stage: queued.stage,\n      requestId,\n      status: \"succeeded\",\n      externalCalls: queued.externalCalls + polled.externalCalls,\n      output: {\n        component: checkpoint_name,\n        artifact,\n        generation: record(stage_input.generation),\n        operation: { id: jobId, status: \"succeeded\" },\n      },\n    }\n  }\n  throw new Error(`${checkpoint_name} component timed out after ${max_wait_seconds}s`)\n}\n\nasync function callStage(\n  baseUrl: string,\n  secret: string,\n  ownerId: string,\n  requestId: string,\n  stageId: string,\n  input: Record<string, unknown>\n) {\n  const response = await fetch(\n    `${required(\"base_url\", baseUrl).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stageId)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({ ownerId, requestId, input }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction record(value: unknown): Record<string, any> {\n  return value && typeof value === \"object\" && !Array.isArray(value) ? value as Record<string, any> : {}\n}\nfunction text(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\nfunction required(name: string, value: unknown) {\n  const result = text(value)\n  if (!result) throw new Error(`Lumenclip ${name} is not configured`)\n  return result\n}"
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: { id?: string; status?: string }\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  checkpoint_name: string,\n  stage_input: Record<string, unknown>,\n  max_wait_seconds = 1500,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const ownerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || `windmill-${crypto.randomUUID()}`\n  const generation = record(stage_input.generation)\n  const baseGenerationId = text(generation.generationId) || requestId\n  const isolatedInput = {\n    ...stage_input,\n    generationId: `${baseGenerationId}-${checkpoint_name}`,\n    scheduledFor: generation.scheduledFor,\n  }\n  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, isolatedInput)\n  if (queued.status === \"succeeded\") {\n    return {\n      ...queued,\n      output: {\n        ...queued.output,\n        generation,\n        components: record(stage_input.components),\n      },\n    }\n  }\n  const jobId = text(queued.operation?.id)\n  if (!jobId) throw new Error(`${checkpoint_name} did not return a queue job`)\n  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000\n  while (Date.now() < deadline) {\n    await Bun.sleep(2000)\n    const polled = await callStage(\n      base_url,\n      shared_secret,\n      ownerId,\n      requestId,\n      \"ugc-video-generation.get-checkpoint-job\",\n      { jobId }\n    )\n    const job = record(polled.output.job)\n    const status = text(job.status)\n    if ([\"failed\", \"dead\", \"canceled\"].includes(status)) {\n      throw new Error(text(job.error) || `${checkpoint_name} component failed`)\n    }\n    if (status !== \"completed\") continue\n    const result = record(job.result)\n    if (result.skipped === true) {\n      throw new Error(`${checkpoint_name} component was skipped: ${text(result.reason) || \"unknown reason\"}`)\n    }\n    const artifact = record(record(result.checkpoints)[checkpoint_name])\n    if (!Object.keys(artifact).length) {\n      throw new Error(`${checkpoint_name} completed without a checkpoint artifact`)\n    }\n    return {\n      stage: queued.stage,\n      requestId,\n      status: \"succeeded\",\n      externalCalls: queued.externalCalls + polled.externalCalls,\n      output: {\n        component: checkpoint_name,\n        artifact,\n        generation,\n        components: record(stage_input.components),\n        operation: { id: jobId, status: \"succeeded\" },\n      },\n    }\n  }\n  throw new Error(`${checkpoint_name} component timed out after ${max_wait_seconds}s`)\n}\n\nasync function callStage(\n  baseUrl: string,\n  secret: string,\n  ownerId: string,\n  requestId: string,\n  stageId: string,\n  input: Record<string, unknown>\n) {\n  const response = await fetch(\n    `${required(\"base_url\", baseUrl).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stageId)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({ ownerId, requestId, input }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction record(value: unknown): Record<string, any> {\n  return value && typeof value === \"object\" && !Array.isArray(value) ? value as Record<string, any> : {}\n}\nfunction text(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\nfunction required(name: string, value: unknown) {\n  const result = text(value)\n  if (!result) throw new Error(`Lumenclip ${name} is not configured`)\n  return result\n}"
         input_transforms:
           base_url:
             type: static
@@ -430,7 +577,7 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "({ componentExecution: true, generation: results.resolve_components.output.generation, ...results.resolve_components.output.generation, components: results.resolve_components.output.components, checkpoints: { script: results.generate_script_plan.output.artifact, voice: results.prepare_media_components[1].output.artifact, lipsync: results.lip_sync_performance.output.artifact, broll: results.prepare_media_components[2].output.artifact } })"
+            expr: "({ componentExecution: true, generation: results.load_template_defaults.output.generation, ...results.load_template_defaults.output.generation, components: ({ render: results.prepare_render_artifacts[2].output.component }), checkpoints: { script: results.generate_script_plan.output.artifact, voice: results.prepare_render_artifacts[0].output.performance.voice, lipsync: results.prepare_render_artifacts[0].output.performance.lipsync, broll: results.prepare_render_artifacts[1].output.artifact } })"
     - id: store_final_output
       summary: "Output component — persist draft video"
       timeout:
@@ -439,7 +586,7 @@ value:
       value:
         type: rawscript
         language: bun
-        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: { id?: string; status?: string }\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  checkpoint_name: string,\n  stage_input: Record<string, unknown>,\n  max_wait_seconds = 1500,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const ownerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || `windmill-${crypto.randomUUID()}`\n  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, stage_input)\n  if (queued.status === \"succeeded\") return queued\n  const jobId = text(queued.operation?.id)\n  if (!jobId) throw new Error(`${checkpoint_name} did not return a queue job`)\n  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000\n  while (Date.now() < deadline) {\n    await Bun.sleep(2000)\n    const polled = await callStage(\n      base_url,\n      shared_secret,\n      ownerId,\n      requestId,\n      \"ugc-video-generation.get-checkpoint-job\",\n      { jobId }\n    )\n    const job = record(polled.output.job)\n    const status = text(job.status)\n    if ([\"failed\", \"dead\", \"canceled\"].includes(status)) {\n      throw new Error(text(job.error) || `${checkpoint_name} component failed`)\n    }\n    if (status !== \"completed\") continue\n    const result = record(job.result)\n    if (result.skipped === true) {\n      throw new Error(`${checkpoint_name} component was skipped: ${text(result.reason) || \"unknown reason\"}`)\n    }\n    const artifact = record(record(result.checkpoints)[checkpoint_name])\n    if (!Object.keys(artifact).length) {\n      throw new Error(`${checkpoint_name} completed without a checkpoint artifact`)\n    }\n    return {\n      stage: queued.stage,\n      requestId,\n      status: \"succeeded\",\n      externalCalls: queued.externalCalls + polled.externalCalls,\n      output: {\n        component: checkpoint_name,\n        artifact,\n        generation: record(stage_input.generation),\n        operation: { id: jobId, status: \"succeeded\" },\n      },\n    }\n  }\n  throw new Error(`${checkpoint_name} component timed out after ${max_wait_seconds}s`)\n}\n\nasync function callStage(\n  baseUrl: string,\n  secret: string,\n  ownerId: string,\n  requestId: string,\n  stageId: string,\n  input: Record<string, unknown>\n) {\n  const response = await fetch(\n    `${required(\"base_url\", baseUrl).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stageId)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({ ownerId, requestId, input }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction record(value: unknown): Record<string, any> {\n  return value && typeof value === \"object\" && !Array.isArray(value) ? value as Record<string, any> : {}\n}\nfunction text(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\nfunction required(name: string, value: unknown) {\n  const result = text(value)\n  if (!result) throw new Error(`Lumenclip ${name} is not configured`)\n  return result\n}"
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: { id?: string; status?: string }\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  checkpoint_name: string,\n  stage_input: Record<string, unknown>,\n  max_wait_seconds = 1500,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const ownerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || `windmill-${crypto.randomUUID()}`\n  const generation = record(stage_input.generation)\n  const baseGenerationId = text(generation.generationId) || requestId\n  const isolatedInput = {\n    ...stage_input,\n    generationId: `${baseGenerationId}-${checkpoint_name}`,\n    scheduledFor: generation.scheduledFor,\n  }\n  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, isolatedInput)\n  if (queued.status === \"succeeded\") {\n    return {\n      ...queued,\n      output: {\n        ...queued.output,\n        generation,\n        components: record(stage_input.components),\n      },\n    }\n  }\n  const jobId = text(queued.operation?.id)\n  if (!jobId) throw new Error(`${checkpoint_name} did not return a queue job`)\n  const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000\n  while (Date.now() < deadline) {\n    await Bun.sleep(2000)\n    const polled = await callStage(\n      base_url,\n      shared_secret,\n      ownerId,\n      requestId,\n      \"ugc-video-generation.get-checkpoint-job\",\n      { jobId }\n    )\n    const job = record(polled.output.job)\n    const status = text(job.status)\n    if ([\"failed\", \"dead\", \"canceled\"].includes(status)) {\n      throw new Error(text(job.error) || `${checkpoint_name} component failed`)\n    }\n    if (status !== \"completed\") continue\n    const result = record(job.result)\n    if (result.skipped === true) {\n      throw new Error(`${checkpoint_name} component was skipped: ${text(result.reason) || \"unknown reason\"}`)\n    }\n    const artifact = record(record(result.checkpoints)[checkpoint_name])\n    if (!Object.keys(artifact).length) {\n      throw new Error(`${checkpoint_name} completed without a checkpoint artifact`)\n    }\n    return {\n      stage: queued.stage,\n      requestId,\n      status: \"succeeded\",\n      externalCalls: queued.externalCalls + polled.externalCalls,\n      output: {\n        component: checkpoint_name,\n        artifact,\n        generation,\n        components: record(stage_input.components),\n        operation: { id: jobId, status: \"succeeded\" },\n      },\n    }\n  }\n  throw new Error(`${checkpoint_name} component timed out after ${max_wait_seconds}s`)\n}\n\nasync function callStage(\n  baseUrl: string,\n  secret: string,\n  ownerId: string,\n  requestId: string,\n  stageId: string,\n  input: Record<string, unknown>\n) {\n  const response = await fetch(\n    `${required(\"base_url\", baseUrl).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stageId)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({ ownerId, requestId, input }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as { execution?: PipelineStageExecution; error?: string } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction record(value: unknown): Record<string, any> {\n  return value && typeof value === \"object\" && !Array.isArray(value) ? value as Record<string, any> : {}\n}\nfunction text(value: unknown) {\n  return typeof value === \"string\" ? value.trim() : \"\"\n}\nfunction required(name: string, value: unknown) {\n  const result = text(value)\n  if (!result) throw new Error(`Lumenclip ${name} is not configured`)\n  return result\n}"
         input_transforms:
           base_url:
             type: static
@@ -467,7 +614,7 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "({ componentExecution: true, generation: results.resolve_components.output.generation, ...results.resolve_components.output.generation, components: results.resolve_components.output.components, checkpoints: { script: results.generate_script_plan.output.artifact, composite: results.composite_output.output.artifact } })"
+            expr: "({ componentExecution: true, generation: results.load_template_defaults.output.generation, ...results.load_template_defaults.output.generation, components: results.composite_output.output.components, checkpoints: { script: results.generate_script_plan.output.artifact, composite: results.composite_output.output.artifact } })"
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   type: object

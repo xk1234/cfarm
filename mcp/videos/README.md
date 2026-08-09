@@ -125,7 +125,8 @@ The two fixed video formats are available as explicit Windmill DAGs through
 
 Use `lumenclip_pipeline_stage_run` with a format stage ID for isolated component
 tests. Full workflow runs do not support linear stage windows because both
-formats contain parallel input and media branches.
+formats contain real role resolvers and parallel media staging. Draft metadata
+is normalized on a separate path and first joins after rendered media exists.
 
 ### Example input
 

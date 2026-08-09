@@ -13,10 +13,12 @@ generation.
 
 Path: `f/lumenclip/react_reveal_generation`
 
-The input DAG separates the optional template reference, anticipation clip,
-reveal clip, soundtrack, captions, and draft metadata. Media staging runs in
-parallel. The render join concatenates the complete anticipation clip followed
-by the complete reveal clip; it does not sample, trim, or interleave them.
+The workflow loads the optional template once. Real anticipation, reveal,
+soundtrack, and caption resolvers feed parallel media staging and first join at
+the render command. Draft metadata is normalized independently and first joins
+after rendered media exists. The renderer concatenates the complete
+anticipation clip followed by the complete reveal clip; it does not sample,
+trim, or interleave them.
 
 ```json
 {
@@ -34,11 +36,12 @@ by the complete reveal clip; it does not sample, trim, or interleave them.
 
 Path: `f/lumenclip/greenscreen_meme_generation`
 
-The input DAG separates the optional template reference, full meme clip,
-background image, soundtrack, caption, and draft metadata. Media staging runs
-in parallel. The render join scales the background to cover the vertical frame,
-chroma-keys green from the complete meme clip, overlays the subject, and draws
-the hook caption at the selected placement.
+The workflow loads the optional template once. Real meme, background,
+soundtrack, and caption resolvers feed parallel media staging and first join at
+the render command. Draft metadata is normalized independently and first joins
+after rendering. The renderer scales the background to cover the vertical
+frame, chroma-keys green from the complete meme clip, overlays the subject, and
+draws the hook caption at the selected placement.
 
 ```json
 {

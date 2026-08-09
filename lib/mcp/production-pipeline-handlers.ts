@@ -1797,28 +1797,8 @@ export function createProductionPipelineHandlers(
         "slideshow-generation.list-word-collections",
         !Array.isArray(state.wordCollections),
       ],
-      [
-        "slideshow-generation.list-usage-history",
-        !Array.isArray(state.usageHistory),
-      ],
-      [
-        "slideshow-generation.list-prior-runs",
-        Boolean(clean(state.automationId)) && !Array.isArray(state.priorRuns),
-      ],
-      [
-        "slideshow-generation.load-model-settings",
-        !isRecord(state.generationSettings),
-      ],
     ] as const) {
       if (needed) state = (await context.runStage(stageId, state)).output
-    }
-    if (!state.collectionUsageEnriched) {
-      state = (
-        await context.runStage(
-          "slideshow-generation.enrich-collection-usage",
-          state
-        )
-      ).output
     }
     const collections = requiredArray<StoredImageCollection>(
       state.collections,
@@ -1827,17 +1807,6 @@ export function createProductionPipelineHandlers(
     const wordCollections = requiredArray<WordCollectionRecord>(
       state.wordCollections,
       "wordCollections"
-    )
-    const usageRecords = requiredArray<UsageRecord>(
-      state.usageHistory,
-      "usageHistory"
-    )
-    const priorRuns = Array.isArray(state.priorRuns)
-      ? (state.priorRuns as AutomationRunRecord[])
-      : []
-    const modelSettings = requiredRecord(
-      state.generationSettings,
-      "generationSettings"
     )
     const blockers = automationGenerationBlockers({
       schema,
@@ -1865,12 +1834,6 @@ export function createProductionPipelineHandlers(
       schema,
       automation
     )
-    const publishedUsage = usageRecordsForPublishedRuns(
-      usageRecords,
-      automation.id
-    )
-    const usageFor = (kind: UsageRecord["kind"]) =>
-      publishedUsage.filter((record) => record.kind === kind)
     return mergePipelineOutput(state, {
       automation,
       schema,
@@ -1886,7 +1849,38 @@ export function createProductionPipelineHandlers(
       publishType: automationPublishType(schema),
       language: schema.language,
       renderSettings: automationSlideshowSettings(schema),
-      priorRuns,
+      firstSlidePinnedImageId:
+        schema.image_collection_ids.first_slide.mode === "single_image"
+          ? schema.image_collection_ids.first_slide.single_image
+          : null,
+      ctaPinnedImageId:
+        automationFormatSection(schema, "cta").imageMode === "single_image"
+          ? schema.image_collection_ids.cta_slide.image_id
+          : null,
+      scheduledFor: clean(input.scheduledFor) || services.now().toISOString(),
+      requestId: context.requestId,
+      runId: clean(input.runId) || context.requestId,
+      blockers: [],
+    })
+  })
+
+  add("slideshow-generation.prepare-generation-context", async (input) => {
+    const automation = requiredRecord(input.automation, "automation")
+    const usageRecords = requiredArray<UsageRecord>(
+      input.usageHistory,
+      "usageHistory"
+    )
+    const modelSettings = requiredRecord(
+      input.generationSettings,
+      "generationSettings"
+    )
+    const publishedUsage = usageRecordsForPublishedRuns(
+      usageRecords,
+      requiredString(automation.id, "automation.id")
+    )
+    const usageFor = (kind: UsageRecord["kind"]) =>
+      publishedUsage.filter((record) => record.kind === kind)
+    return mergePipelineOutput(input, {
       recentPublishedHookKeys: usageFor("hook_published").map(
         (record) => record.key
       ),
@@ -1901,19 +1895,50 @@ export function createProductionPipelineHandlers(
       textModel:
         clean(modelSettings.slideshowTextModel) ||
         generationModelRegistry.openRouter.slideshowText.model,
-      firstSlidePinnedImageId:
-        schema.image_collection_ids.first_slide.mode === "single_image"
-          ? schema.image_collection_ids.first_slide.single_image
-          : null,
-      ctaPinnedImageId:
-        automationFormatSection(schema, "cta").imageMode === "single_image"
-          ? schema.image_collection_ids.cta_slide.image_id
-          : null,
-      scheduledFor: clean(input.scheduledFor) || services.now().toISOString(),
-      requestId: context.requestId,
-      runId: clean(input.runId) || context.requestId,
-      blockers: [],
     })
+  })
+
+  add("slideshow-generation.prepare-image-candidate-pools", async (input) => {
+    const slides = requiredArray<Record<string, unknown>>(
+      asRecord(input.textAutomation).slides,
+      "textAutomation.slides"
+    )
+    const collections = requiredArray<StoredImageCollection>(
+      input.collections,
+      "collections"
+    )
+    const candidatesBySlide = slides.map((slide) => {
+      const slideId = requiredString(slide.id, "slide.id")
+      const collectionId = requiredString(
+        slide.collectionId,
+        `collectionId for ${slideId}`
+      )
+      const collection = collections.find((candidate) =>
+        [
+          storedCollectionId(candidate),
+          legacyStoredCollectionId(candidate),
+          candidate.name,
+        ].includes(collectionId)
+      )
+      if (!collection)
+        throw new Error(`Collection not found for slide ${slideId}`)
+      return {
+        slideId,
+        aiImageSelection: Boolean(slide.aiImageSelection),
+        candidates: collection.images.map((image, index) => ({
+          id: image.hash || `${storedCollectionId(collection)}-${index}`,
+          imageUrl: image.image_link,
+          caption: image.caption,
+        })),
+      }
+    })
+    return {
+      candidatesBySlide,
+      candidatePoolCount: candidatesBySlide.reduce(
+        (count, pool) => count + pool.candidates.length,
+        0
+      ),
+    }
   })
 
   add("slideshow-generation.resolve-slide-count", async (input) => {
@@ -2185,25 +2210,53 @@ export function createProductionPipelineHandlers(
 
   add("slideshow-generation.derive-visual-concepts", async (input, context) => {
     const generatedText = asRecord(asRecord(input.generatedText).text)
+    const candidatePools = Array.isArray(input.candidatesBySlide)
+      ? (input.candidatesBySlide as Record<string, unknown>[])
+      : []
     const slides = Array.isArray(input.visualSlides)
       ? (input.visualSlides as Record<string, unknown>[])
-      : requiredArray<Record<string, unknown>>(
-          asRecord(input.textAutomation).slides,
-          "textAutomation.slides"
-        ).map((slide) => {
-          const promptItem = requiredArray<Record<string, unknown>>(
-            slide.textItems,
-            "slide.textItems"
-          ).find((item) => item.textMode === "prompt")
-          return {
-            id: slide.id,
-            aiImageSelection: Boolean(slide.aiImageSelection),
-            text:
-              clean(slide.section) === "hook"
-                ? clean(input.hook)
-                : clean(generatedText[clean(promptItem?.id)]),
-          }
-        })
+      : candidatePools.length
+        ? candidatePools.map((pool) => {
+            const slideId = requiredString(
+              pool.slideId,
+              "candidatePool.slideId"
+            )
+            const slide = requiredArray<Record<string, unknown>>(
+              asRecord(input.textAutomation).slides,
+              "textAutomation.slides"
+            ).find((candidate) => clean(candidate.id) === slideId)
+            if (!slide)
+              throw new Error(`Slide not found for candidate pool ${slideId}`)
+            const promptItem = requiredArray<Record<string, unknown>>(
+              slide.textItems,
+              "slide.textItems"
+            ).find((item) => item.textMode === "prompt")
+            return {
+              id: slideId,
+              aiImageSelection: Boolean(pool.aiImageSelection),
+              text:
+                clean(slide.section) === "hook"
+                  ? clean(input.hook)
+                  : clean(generatedText[clean(promptItem?.id)]),
+            }
+          })
+        : requiredArray<Record<string, unknown>>(
+            asRecord(input.textAutomation).slides,
+            "textAutomation.slides"
+          ).map((slide) => {
+            const promptItem = requiredArray<Record<string, unknown>>(
+              slide.textItems,
+              "slide.textItems"
+            ).find((item) => item.textMode === "prompt")
+            return {
+              id: slide.id,
+              aiImageSelection: Boolean(slide.aiImageSelection),
+              text:
+                clean(slide.section) === "hook"
+                  ? clean(input.hook)
+                  : clean(generatedText[clean(promptItem?.id)]),
+            }
+          })
     if (!slides.some((slide) => slide.aiImageSelection !== false)) {
       return mergePipelineOutput(input, { visualConceptsBySlide: [] })
     }
@@ -3542,9 +3595,9 @@ export function createProductionPipelineHandlers(
     })
   })
 
-  add("ugc-video-generation.resolve-components", async (input, context) => {
+  add("ugc-video-generation.load-template-defaults", async (input, context) => {
     const templateId = clean(input.templateId)
-    let templateUgc: Record<string, unknown> = {}
+    let templateDefaults: Record<string, unknown> = {}
     if (templateId) {
       const loaded = await context.runStage(
         "ugc-video-generation.get-saved-automation-document",
@@ -3556,67 +3609,7 @@ export function createProductionPipelineHandlers(
       if (clean(schema.automationKind) !== "ugc") {
         throw new Error("Selected template is not a UGC video template")
       }
-      templateUgc = asRecord(schema.ugc)
-    }
-
-    const supplied = asRecord(input.components)
-    const product = asRecord(input.product ?? supplied.product)
-    const script = asRecord(input.script ?? supplied.script)
-    const actor = asRecord(input.actor ?? supplied.actor)
-    const voice = asRecord(input.voice ?? supplied.voice)
-    const broll = asRecord(input.broll ?? supplied.broll)
-    const render = asRecord(input.render ?? supplied.render)
-    const components = {
-      product: compactRecord({
-        url: firstPresent(product.url, templateUgc.productUrl),
-        brief: firstPresent(product.brief, templateUgc.productBrief),
-        analysis: firstPresent(product.analysis, templateUgc.analysis),
-      }),
-      script: compactRecord({
-        plan: firstPresent(script.plan, templateUgc.scriptPlan),
-        targetDurationSeconds: firstPresent(
-          script.targetDurationSeconds,
-          templateUgc.targetDurationSeconds,
-          60
-        ),
-      }),
-      actor: compactRecord({
-        source: firstPresent(actor.source, templateUgc.actorSource, "generate"),
-        assetUrl: firstPresent(actor.assetUrl, templateUgc.actorAssetUrl),
-        prompt: firstPresent(actor.prompt, templateUgc.actorPrompt),
-        motionPrompt: firstPresent(
-          actor.motionPrompt,
-          templateUgc.motionPrompt
-        ),
-      }),
-      voice: compactRecord({
-        voiceId: firstPresent(voice.voiceId, templateUgc.voiceId),
-        model: firstPresent(voice.model, templateUgc.voiceModel),
-      }),
-      broll: compactRecord({
-        enabled: firstPresent(broll.enabled, true),
-        count: firstPresent(broll.count, templateUgc.brollCount, 3),
-      }),
-      render: compactRecord({
-        aspectRatio: firstPresent(render.aspectRatio, "9:16"),
-        lipSyncTier: firstPresent(
-          render.lipSyncTier,
-          templateUgc.lipSyncTier,
-          "standard"
-        ),
-        captions: firstPresent(render.captions, templateUgc.captions),
-        hookOverlay: firstPresent(render.hookOverlay, templateUgc.hookOverlay),
-      }),
-    }
-    const productComponent = asRecord(components.product)
-    if (
-      !clean(productComponent.url) &&
-      !clean(productComponent.brief) &&
-      !isRecord(productComponent.analysis)
-    ) {
-      throw new Error(
-        "Product requires a URL, brief, or supplied analysis when no template provides one"
-      )
+      templateDefaults = asRecord(schema.ugc)
     }
     return {
       generation: {
@@ -3624,8 +3617,151 @@ export function createProductionPipelineHandlers(
         generationId: clean(input.generationId) || context.requestId,
         scheduledFor: clean(input.scheduledFor) || services.now().toISOString(),
       },
-      components,
+      templateDefaults,
       source: templateId ? "template_with_overrides" : "explicit_components",
+    }
+  })
+
+  const resolveUgcComponent = (
+    name: "product" | "script" | "actor" | "voice" | "broll" | "render",
+    resolve: (
+      override: Record<string, unknown>,
+      defaults: Record<string, unknown>
+    ) => Record<string, unknown>
+  ) =>
+    add(`ugc-video-generation.resolve-${name}-component`, async (input) => {
+      const component = resolve(
+        asRecord(input.override ?? input[name]),
+        asRecord(input.templateDefaults)
+      )
+      return { generation: input.generation, component, componentRole: name }
+    })
+
+  resolveUgcComponent("product", (product, defaults) => {
+    const component = compactRecord({
+      url: firstPresent(product.url, defaults.productUrl),
+      brief: firstPresent(product.brief, defaults.productBrief),
+      analysis: firstPresent(product.analysis, defaults.analysis),
+    })
+    if (
+      !clean(component.url) &&
+      !clean(component.brief) &&
+      !isRecord(component.analysis)
+    ) {
+      throw new Error("Product requires a URL, brief, or supplied analysis")
+    }
+    return component
+  })
+  resolveUgcComponent("script", (script, defaults) => {
+    const duration = Math.max(
+      15,
+      Math.min(
+        180,
+        numberValue(
+          firstPresent(
+            script.targetDurationSeconds,
+            defaults.targetDurationSeconds,
+            60
+          )
+        ) || 60
+      )
+    )
+    return compactRecord({
+      plan: firstPresent(script.plan, defaults.scriptPlan),
+      targetDurationSeconds: duration,
+    })
+  })
+  resolveUgcComponent("actor", (actor, defaults) => {
+    const source =
+      clean(firstPresent(actor.source, defaults.actorSource)) || "generate"
+    if (!["generate", "asset"].includes(source)) {
+      throw new Error("Actor source must be generate or asset")
+    }
+    const component = compactRecord({
+      source,
+      assetUrl: firstPresent(actor.assetUrl, defaults.actorAssetUrl),
+      prompt: firstPresent(actor.prompt, defaults.actorPrompt),
+      motionPrompt: firstPresent(actor.motionPrompt, defaults.motionPrompt),
+    })
+    if (source === "asset" && !clean(component.assetUrl)) {
+      throw new Error("Asset actor requires an asset URL")
+    }
+    return component
+  })
+  resolveUgcComponent("voice", (voice, defaults) => {
+    const component = compactRecord({
+      voiceId: firstPresent(voice.voiceId, defaults.voiceId),
+      model: firstPresent(voice.model, defaults.voiceModel),
+    })
+    if (!clean(component.voiceId)) throw new Error("Voice requires a voice ID")
+    return component
+  })
+  resolveUgcComponent("broll", (broll, defaults) => ({
+    enabled: firstPresent(broll.enabled, defaults.brollEnabled, true) !== false,
+    count: Math.max(
+      0,
+      Math.min(
+        6,
+        numberValue(firstPresent(broll.count, defaults.brollCount, 3)) || 0
+      )
+    ),
+  }))
+  resolveUgcComponent("render", (render, defaults) => {
+    const aspectRatio =
+      clean(firstPresent(render.aspectRatio, defaults.aspectRatio)) || "9:16"
+    if (!["9:16", "1:1", "16:9"].includes(aspectRatio)) {
+      throw new Error("Render aspect ratio is unsupported")
+    }
+    const lipSyncTier =
+      clean(firstPresent(render.lipSyncTier, defaults.lipSyncTier)) ||
+      "standard"
+    if (!["standard", "premium"].includes(lipSyncTier)) {
+      throw new Error("Lip-sync tier must be standard or premium")
+    }
+    return compactRecord({
+      aspectRatio,
+      lipSyncTier,
+      captions: firstPresent(render.captions, defaults.captions),
+      hookOverlay: firstPresent(render.hookOverlay, defaults.hookOverlay),
+    })
+  })
+
+  add("ugc-video-generation.assemble-performance", async (input) => ({
+    performance: {
+      voice: requiredRecord(input.voice, "voice"),
+      lipsync: requiredRecord(input.lipsync, "lipsync"),
+    },
+  }))
+
+  add("ugc-video-generation.resolve-components", async (input, context) => {
+    const loaded = await context.runStage(
+      "ugc-video-generation.load-template-defaults",
+      input
+    )
+    const supplied = asRecord(input.components)
+    const components: Record<string, unknown> = {}
+    for (const name of [
+      "product",
+      "script",
+      "actor",
+      "voice",
+      "broll",
+      "render",
+    ] as const) {
+      const resolved = await context.runStage(
+        `ugc-video-generation.resolve-${name}-component`,
+        {
+          generation: loaded.output.generation,
+          templateDefaults: loaded.output.templateDefaults,
+          override: input[name] ?? supplied[name],
+        }
+      )
+      components[name] = resolved.output.component
+    }
+    return {
+      generation: loaded.output.generation,
+      components,
+      source: loaded.output.source,
     }
   })
 
@@ -4078,8 +4214,9 @@ export function createProductionPipelineHandlers(
   }) => {
     const id = (name: string) => `${input.workflowId}.${name}`
 
-    add(id("resolve-components"), async (state, context) => {
+    add(id("load-template-defaults"), async (state, context) => {
       const templateId = clean(state.templateId)
+      let templateDefaults: Record<string, unknown> = {}
       if (templateId) {
         const loaded = await context.runStage(
           "ugc-video-generation.get-saved-automation-document",
@@ -4096,67 +4233,7 @@ export function createProductionPipelineHandlers(
             `Selected template is not a ${input.format.replaceAll("_", " ")} template`
           )
         }
-      }
-
-      const supplied = asRecord(state.components)
-      const audio = asRecord(state.audio ?? supplied.audio)
-      const output = asRecord(state.output ?? supplied.output)
-      const common = {
-        audio: compactRecord({ url: firstPresent(audio.url, state.soundUrl) }),
-        title: firstPresent(output.title, state.title),
-        description: firstPresent(output.description, state.description),
-        hashtags: firstPresent(output.hashtags, state.hashtags, []),
-      }
-      const components: Record<string, unknown> =
-        input.format === "react_reveal"
-          ? {
-              ...common,
-              anticipation: compactRecord({
-                url: firstPresent(
-                  asRecord(state.anticipation ?? supplied.anticipation).url,
-                  state.anticipationVideoUrl
-                ),
-              }),
-              reveal: compactRecord({
-                url: firstPresent(
-                  asRecord(state.reveal ?? supplied.reveal).url,
-                  state.revealVideoUrl
-                ),
-              }),
-              hookCaption: firstPresent(
-                supplied.hookCaption,
-                state.hookCaption
-              ),
-              payoffCaption: firstPresent(
-                supplied.payoffCaption,
-                state.payoffCaption
-              ),
-            }
-          : {
-              ...common,
-              meme: compactRecord({
-                url: firstPresent(
-                  asRecord(state.meme ?? supplied.meme).url,
-                  state.memeVideoUrl
-                ),
-              }),
-              background: compactRecord({
-                url: firstPresent(
-                  asRecord(state.background ?? supplied.background).url,
-                  state.backgroundImageUrl
-                ),
-              }),
-              caption: firstPresent(supplied.caption, state.caption),
-              textPlacement: firstPresent(
-                supplied.textPlacement,
-                state.textPlacement,
-                "top"
-              ),
-            }
-      for (const role of [input.primaryRole, input.secondaryRole]) {
-        if (!clean(asRecord(components[role]).url)) {
-          throw new Error(`${role} component requires a media URL`)
-        }
+        templateDefaults = videoFormat
       }
       return {
         generation: {
@@ -4164,8 +4241,178 @@ export function createProductionPipelineHandlers(
           outputId: clean(state.outputId) || context.requestId,
           createdAt: services.now().toISOString(),
         },
-        components,
+        templateDefaults,
         source: templateId ? "template_with_overrides" : "explicit_components",
+      }
+    })
+
+    const addFixedResolver = (
+      name: string,
+      resolve: (
+        override: Record<string, unknown>,
+        defaults: Record<string, unknown>,
+        state: Record<string, unknown>
+      ) => Record<string, unknown>
+    ) =>
+      add(id(`resolve-${name}`), async (state) => ({
+        generation: state.generation,
+        componentRole: name,
+        component: resolve(
+          asRecord(state.override ?? state[name]),
+          asRecord(state.templateDefaults),
+          state
+        ),
+      }))
+
+    const templateRole = (defaults: Record<string, unknown>, role: string) => {
+      const direct = asRecord(defaults[role])
+      if (Object.keys(direct).length) return direct
+      const segments = requiredArray<Record<string, unknown>>(
+        defaults.segments,
+        "video_format.segments",
+        true
+      )
+      const aliases =
+        role === "anticipation"
+          ? ["anticipation", "react-anticipation"]
+          : role === "reveal"
+            ? ["reveal", "react-reveal"]
+            : role === "meme"
+              ? ["meme", "greenscreen-meme"]
+              : ["background", "greenscreen-background"]
+      return asRecord(
+        segments.find((segment) => aliases.includes(clean(segment.id)))
+      )
+    }
+
+    for (const role of [input.primaryRole, input.secondaryRole]) {
+      addFixedResolver(role, (override, defaults) => {
+        const component = compactRecord({
+          url: firstPresent(override.url, templateRole(defaults, role).url),
+        })
+        if (!clean(component.url)) {
+          throw new Error(`${role} component requires a media URL`)
+        }
+        return component
+      })
+    }
+    addFixedResolver("audio", (override, defaults, state) =>
+      compactRecord({
+        url: firstPresent(
+          override.url,
+          asRecord(defaults.audio).url,
+          state.soundUrl
+        ),
+      })
+    )
+    addFixedResolver("caption", (override, defaults, state) =>
+      input.format === "react_reveal"
+        ? compactRecord({
+            hookCaption: firstPresent(
+              override.hookCaption,
+              defaults.hookCaption,
+              state.hookCaption
+            ),
+            payoffCaption: firstPresent(
+              override.payoffCaption,
+              defaults.payoffCaption,
+              state.payoffCaption
+            ),
+          })
+        : compactRecord({
+            caption: firstPresent(
+              override.caption,
+              defaults.caption,
+              state.caption
+            ),
+            textPlacement: firstPresent(
+              override.textPlacement,
+              defaults.textPlacement,
+              state.textPlacement,
+              "top"
+            ),
+          })
+    )
+    addFixedResolver("output", (override, defaults, state) => ({
+      title: firstPresent(override.title, defaults.title, state.title),
+      description: firstPresent(
+        override.description,
+        defaults.description,
+        state.description
+      ),
+      hashtags: stringArray(
+        firstPresent(override.hashtags, defaults.hashtags, state.hashtags, [])
+      ),
+    }))
+
+    add(id("resolve-components"), async (state, context) => {
+      const loaded = await context.runStage(id("load-template-defaults"), state)
+      const supplied = asRecord(state.components)
+      const components: Record<string, unknown> = {}
+      for (const role of [
+        input.primaryRole,
+        input.secondaryRole,
+        "audio",
+        "caption",
+        "output",
+      ]) {
+        const override =
+          role === "caption"
+            ? input.format === "react_reveal"
+              ? {
+                  hookCaption: firstPresent(
+                    supplied.hookCaption,
+                    state.hookCaption
+                  ),
+                  payoffCaption: firstPresent(
+                    supplied.payoffCaption,
+                    state.payoffCaption
+                  ),
+                }
+              : {
+                  caption: firstPresent(supplied.caption, state.caption),
+                  textPlacement: firstPresent(
+                    supplied.textPlacement,
+                    state.textPlacement
+                  ),
+                }
+            : role === "output"
+              ? asRecord(state.output ?? supplied.output)
+              : role === "audio"
+                ? asRecord(state.audio ?? supplied.audio)
+                : {
+                    ...asRecord(state[role] ?? supplied[role]),
+                    url: firstPresent(
+                      asRecord(state[role] ?? supplied[role]).url,
+                      role === "anticipation"
+                        ? state.anticipationVideoUrl
+                        : role === "reveal"
+                          ? state.revealVideoUrl
+                          : role === "meme"
+                            ? state.memeVideoUrl
+                            : state.backgroundImageUrl
+                    ),
+                  }
+        const resolved = await context.runStage(id(`resolve-${role}`), {
+          generation: loaded.output.generation,
+          templateDefaults: loaded.output.templateDefaults,
+          override,
+          soundUrl: state.soundUrl,
+        })
+        const component = requiredRecord(
+          resolved.output.component,
+          `${role} component`
+        )
+        if (role === "caption" || role === "output") {
+          Object.assign(components, component)
+        } else {
+          components[role] = component
+        }
+      }
+      return {
+        generation: loaded.output.generation,
+        components,
+        source: loaded.output.source,
       }
     })
 
@@ -4413,24 +4660,82 @@ export function createProductionPipelineHandlers(
     secondaryRole: "background",
   })
 
+  add("linkedin-generation.normalize-audience-topic", async (input) => ({
+    audience: {
+      niche: requiredString(input.niche, "niche"),
+      topic: clean(input.topic) || null,
+      excludedTopics: stringArray(input.excludedTopics),
+    },
+  }))
+
+  add("linkedin-generation.normalize-voice-proof", async (input) => ({
+    voiceProof: {
+      persona: input.persona === "practitioner" ? "practitioner" : "educator",
+      proof: stringArray(input.proof),
+      archetypeId: clean(input.archetypeId) || null,
+      hookStyleId: clean(input.hookStyleId) || null,
+      pillar: clean(input.pillar) || null,
+      model: clean(input.model) || "openai/gpt-5.6-luna",
+    },
+  }))
+
+  add("linkedin-generation.normalize-brief-controls", async (input) => {
+    if (
+      input.brief !== undefined &&
+      input.brief !== null &&
+      !isRecord(input.brief)
+    ) {
+      throw new Error("brief must be a JSON object")
+    }
+    return {
+      briefControls: {
+        brief: isRecord(input.brief) ? input.brief : null,
+        briefModel: clean(input.briefModel) || "google/gemini-3.1-flash-lite",
+      },
+    }
+  })
+
+  add("linkedin-generation.normalize-batch-controls", async (input) => ({
+    batchControls: {
+      count: Math.max(1, Math.min(4, numberValue(input.count) || 1)),
+    },
+  }))
+
   add("linkedin-generation.validate-input", async (input) => {
-    const niche = requiredString(input.niche, "niche")
+    const audience = asRecord(input.audience)
+    const voiceProof = asRecord(input.voiceProof)
+    const briefControls = asRecord(input.briefControls)
+    const batchControls = asRecord(input.batchControls)
+    const niche = requiredString(audience.niche ?? input.niche, "niche")
     const persona =
-      input.persona === "practitioner" ? "practitioner" : "educator"
+      (voiceProof.persona ?? input.persona) === "practitioner"
+        ? "practitioner"
+        : "educator"
     return {
       normalizedInput: {
         niche,
-        brief: isRecord(input.brief) ? input.brief : null,
+        brief: isRecord(briefControls.brief)
+          ? briefControls.brief
+          : isRecord(input.brief)
+            ? input.brief
+            : null,
         persona,
-        archetypeId: clean(input.archetypeId) || null,
-        hookStyleId: clean(input.hookStyleId) || null,
-        pillar: clean(input.pillar) || null,
-        topic: clean(input.topic) || null,
-        excludedTopics: stringArray(input.excludedTopics),
-        proof: stringArray(input.proof),
-        count: Math.max(1, Math.min(4, numberValue(input.count) || 1)),
-        briefModel: clean(input.briefModel) || "google/gemini-3.1-flash-lite",
-        model: clean(input.model) || "openai/gpt-5.6-luna",
+        archetypeId: clean(voiceProof.archetypeId ?? input.archetypeId) || null,
+        hookStyleId: clean(voiceProof.hookStyleId ?? input.hookStyleId) || null,
+        pillar: clean(voiceProof.pillar ?? input.pillar) || null,
+        topic: clean(audience.topic ?? input.topic) || null,
+        excludedTopics: stringArray(
+          audience.excludedTopics ?? input.excludedTopics
+        ),
+        proof: stringArray(voiceProof.proof ?? input.proof),
+        count: Math.max(
+          1,
+          Math.min(4, numberValue(batchControls.count ?? input.count) || 1)
+        ),
+        briefModel:
+          clean(briefControls.briefModel ?? input.briefModel) ||
+          "google/gemini-3.1-flash-lite",
+        model: clean(voiceProof.model ?? input.model) || "openai/gpt-5.6-luna",
       },
       validationErrors: [],
     }
@@ -4649,14 +4954,41 @@ export function createProductionPipelineHandlers(
     }
   })
 
+  add("x-threads-generation.load-template", async (input, context) => {
+    const automationId = requiredString(input.automationId, "automationId")
+    const state = await context.runStage(
+      "x-threads-generation.get-automation-document",
+      { automationId }
+    )
+    const automation = isRecord(state.output.xAutomationDocument)
+      ? (asRecord(state.output.xAutomationDocument)
+          .record as unknown as XAutomationRecord)
+      : null
+    if (!automation) throw new Error("X/Threads template not found")
+    if (
+      !automation.platform ||
+      !["x", "threads"].includes(automation.platform)
+    ) {
+      throw new Error("Selected template is not an X/Threads template")
+    }
+    return { automationId, automation }
+  })
+
+  add("x-threads-generation.normalize-run-input", async (input) => ({
+    runInput: {
+      topic: clean(input.topic),
+      sourceCandidate: isRecord(input.sourceCandidate)
+        ? input.sourceCandidate
+        : null,
+      deriveBrief: input.deriveBrief !== false,
+    },
+  }))
+
   add("x-threads-generation.validate-input", async (input, context) => {
     let state = input
     if (clean(input.automationId) && !isRecord(input.automation)) {
       state = (
-        await context.runStage(
-          "x-threads-generation.get-automation-document",
-          input
-        )
+        await context.runStage("x-threads-generation.load-template", input)
       ).output
     }
     const automation = isRecord(state.automation)
@@ -4666,12 +4998,17 @@ export function createProductionPipelineHandlers(
             .record as unknown as XAutomationRecord)
         : null
     if (!automation) throw new Error("X/Threads automation not found")
+    const runInput = asRecord(input.runInput)
     return mergePipelineOutput(state, {
       automation,
-      topic: clean(input.topic),
-      sourceCandidate: isRecord(input.sourceCandidate)
-        ? input.sourceCandidate
-        : null,
+      topic: clean(runInput.topic ?? input.topic),
+      sourceCandidate: isRecord(runInput.sourceCandidate)
+        ? runInput.sourceCandidate
+        : isRecord(input.sourceCandidate)
+          ? input.sourceCandidate
+          : null,
+      deriveBrief:
+        runInput.deriveBrief !== false && input.deriveBrief !== false,
       validationErrors: [],
     })
   })

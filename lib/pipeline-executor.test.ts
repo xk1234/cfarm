@@ -141,7 +141,7 @@ describe("production pipeline executor", () => {
       "x-threads-generation",
     ])
     expect(catalog.map((workflow) => workflow.workflowStages.length)).toEqual([
-      16, 10, 5, 5, 8, 12,
+      16, 11, 6, 6, 8, 13,
     ])
     expect(
       catalog.reduce((total, workflow) => total + workflow.stages.length, 0)

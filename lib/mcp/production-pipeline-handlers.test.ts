@@ -300,6 +300,69 @@ describe("production pipeline stage handlers", () => {
     })
   })
 
+  it("resolves UGC components independently from one loaded template artifact", async () => {
+    const handlers = createProductionPipelineHandlers(services() as never)
+    const generation = {
+      templateId: null,
+      generationId: "ugc-1",
+      scheduledFor: "2026-08-01T09:00:00.000Z",
+    }
+    const product = await handlers.get(
+      "ugc-video-generation.resolve-product-component"
+    )!(
+      {
+        generation,
+        templateDefaults: { productBrief: "Template brief" },
+        override: { url: "https://product.test/item" },
+      },
+      context("ugc-video-generation.resolve-product-component", handlers)
+    )
+    const script = await handlers.get(
+      "ugc-video-generation.resolve-script-component"
+    )!(
+      {
+        generation,
+        templateDefaults: { targetDurationSeconds: 240 },
+        override: {},
+      },
+      context("ugc-video-generation.resolve-script-component", handlers)
+    )
+
+    expect(product).toEqual({
+      generation,
+      componentRole: "product",
+      component: {
+        url: "https://product.test/item",
+        brief: "Template brief",
+      },
+    })
+    expect(script).toEqual({
+      generation,
+      componentRole: "script",
+      component: { targetDurationSeconds: 180 },
+    })
+  })
+
+  it("creates an isolated typed UGC performance join", async () => {
+    const handlers = createProductionPipelineHandlers(services() as never)
+    const output = await handlers.get(
+      "ugc-video-generation.assemble-performance"
+    )!(
+      {
+        voice: { audioUrl: "https://cdn.test/voice.mp3" },
+        lipsync: { videoUrl: "https://cdn.test/lipsync.mp4" },
+      },
+      context("ugc-video-generation.assemble-performance", handlers)
+    )
+
+    expect(output).toEqual({
+      performance: {
+        voice: { audioUrl: "https://cdn.test/voice.mp3" },
+        lipsync: { videoUrl: "https://cdn.test/lipsync.mp4" },
+      },
+    })
+  })
+
   it.each([
     {
       stageId: "react-reveal-generation.resolve-components",
@@ -343,6 +406,147 @@ describe("production pipeline stage handlers", () => {
       source: "explicit_components",
       components: test.components,
     })
+  })
+
+  it("normalizes fixed-video media and output with role-specific handlers", async () => {
+    const handlers = createProductionPipelineHandlers(services() as never)
+    const generation = { outputId: "video-1" }
+    const media = await handlers.get(
+      "react-reveal-generation.resolve-anticipation"
+    )!(
+      {
+        generation,
+        templateDefaults: {},
+        override: { url: "https://cdn.test/anticipation.mp4" },
+      },
+      context("react-reveal-generation.resolve-anticipation", handlers)
+    )
+    const output = await handlers.get(
+      "react-reveal-generation.resolve-output"
+    )!(
+      {
+        generation,
+        templateDefaults: {},
+        override: { title: "The reveal", hashtags: ["#demo"] },
+      },
+      context("react-reveal-generation.resolve-output", handlers)
+    )
+
+    expect(media).toEqual({
+      generation,
+      componentRole: "anticipation",
+      component: { url: "https://cdn.test/anticipation.mp4" },
+    })
+    expect(output).toEqual({
+      generation,
+      componentRole: "output",
+      component: {
+        title: "The reveal",
+        description: undefined,
+        hashtags: ["#demo"],
+      },
+    })
+  })
+
+  it("normalizes LinkedIn groups before their first common consumer", async () => {
+    const handlers = createProductionPipelineHandlers(services() as never)
+    const audience = await handlers.get(
+      "linkedin-generation.normalize-audience-topic"
+    )!(
+      {
+        niche: "Creator analytics",
+        topic: " retention ",
+        excludedTopics: ["AI"],
+      },
+      context("linkedin-generation.normalize-audience-topic", handlers)
+    )
+    const batch = await handlers.get(
+      "linkedin-generation.normalize-batch-controls"
+    )!(
+      { count: 99 },
+      context("linkedin-generation.normalize-batch-controls", handlers)
+    )
+
+    expect(audience).toEqual({
+      audience: {
+        niche: "Creator analytics",
+        topic: "retention",
+        excludedTopics: ["AI"],
+      },
+    })
+    expect(batch).toEqual({ batchControls: { count: 4 } })
+  })
+
+  it("normalizes X/Threads run input without loading its template", async () => {
+    const handlers = createProductionPipelineHandlers(services() as never)
+    const output = await handlers.get(
+      "x-threads-generation.normalize-run-input"
+    )!(
+      {
+        topic: "  Saturn return  ",
+        sourceCandidate: { url: "https://x.com/example/status/1" },
+      },
+      context("x-threads-generation.normalize-run-input", handlers)
+    )
+
+    expect(output).toEqual({
+      runInput: {
+        topic: "Saturn return",
+        sourceCandidate: { url: "https://x.com/example/status/1" },
+        deriveBrief: true,
+      },
+    })
+  })
+
+  it("prepares slideshow image pools without generated text", async () => {
+    const handlers = createProductionPipelineHandlers(services() as never)
+    const output = await handlers.get(
+      "slideshow-generation.prepare-image-candidate-pools"
+    )!(
+      {
+        textAutomation: {
+          slides: [
+            {
+              id: "hook-1",
+              collectionId: "Hooks",
+              aiImageSelection: true,
+            },
+          ],
+        },
+        collections: [
+          {
+            id: "collection-1",
+            name: "Hooks",
+            images: [
+              {
+                hash: "image-1",
+                image_link: "/assets/hook.jpg",
+                caption: "Night sky",
+              },
+            ],
+          },
+        ],
+      },
+      context("slideshow-generation.prepare-image-candidate-pools", handlers)
+    )
+
+    expect(output).toEqual({
+      candidatesBySlide: [
+        {
+          slideId: "hook-1",
+          aiImageSelection: true,
+          candidates: [
+            {
+              id: "image-1",
+              imageUrl: "/assets/hook.jpg",
+              caption: "Night sky",
+            },
+          ],
+        },
+      ],
+      candidatePoolCount: 1,
+    })
+    expect(JSON.stringify(output)).not.toContain("generatedText")
   })
 
   it("queues one exact UGC component with only its named dependencies", async () => {

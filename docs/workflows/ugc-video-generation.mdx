@@ -60,24 +60,29 @@ named dependency checkpoints shown below.
 
 ## Stage map
 
-| Node                 | Named input checkpoints               | Output checkpoint |
-| -------------------- | ------------------------------------- | ----------------- |
-| Resolve components   | Template plus six overrides           | `components`      |
-| Analyze product      | Product component                     | `analysis`        |
-| Generate script plan | `analysis`                            | `script`          |
-| Resolve actor        | `analysis`, `script`                  | `actor`           |
-| Animate actor        | `actor`                               | `motion`          |
-| Synthesize voice     | `script`                              | `voice`           |
-| Generate B-roll      | `script`                              | `broll`           |
-| Lip-sync performance | `motion`, `voice`                     | `lipsync`         |
-| Composite output     | `script`, `voice`, `lipsync`, `broll` | `composite`       |
-| Store final draft    | `script`, `composite`                 | `store`           |
+| Node                 | Named input checkpoints                            | Output checkpoint  |
+| -------------------- | -------------------------------------------------- | ------------------ |
+| Load template        | Optional template ID                               | `templateDefaults` |
+| Resolve product      | Template defaults, product override                | `productComponent` |
+| Resolve script       | Template defaults, script override                 | `scriptComponent`  |
+| Analyze product      | Product component                                  | `analysis`         |
+| Generate script plan | `analysis`, script component                       | `script`           |
+| Resolve actor        | Actor component, `analysis`, `script`              | `actor`            |
+| Animate actor        | `actor`                                            | `motion`           |
+| Synthesize voice     | Voice component, `script`                          | `voice`            |
+| Generate B-roll      | B-roll component, `script`                         | `broll`            |
+| Lip-sync performance | `motion`, `voice`                                  | `lipsync`          |
+| Assemble performance | `voice`, `lipsync`                                 | `performance`      |
+| Composite output     | `script`, `performance`, `broll`, render component | `composite`        |
+| Store final draft    | `script`, `composite`                              | `store`            |
 
-The Windmill graph first splits template, product, script, actor, voice, B-roll, and render inputs
-into named input artifacts. Its `branchall` media section then runs actor/motion, voice, and B-roll
-in parallel. Only named checkpoint artifacts cross the lip-sync, composite, and storage joins. Every
-component job is polled to a terminal checkpoint inside its node, so the flow no longer stops after
-merely enqueuing its first stage.
+The graph contains no input-echo nodes. It loads template defaults once and
+each component resolver performs the merge and validation used by its first
+provider consumer. Product analysis and script configuration first meet at
+script generation. Actor/motion and voice first meet at lip-sync. That typed
+performance artifact first meets B-roll and render configuration at composite.
+Every parallel component uses a checkpoint-specific generation ID, returns an
+isolated artifact, and is polled to completion inside its node.
 
 ## Stage 1 — Analyze the product
 
