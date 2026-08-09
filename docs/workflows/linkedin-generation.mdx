@@ -19,7 +19,8 @@ The example values below are abbreviated, but every block is valid JSON.
 <Tab value="MCP">
 
 No MCP tool wraps LinkedIn generation on its own. Run it through the generic workflow tool, which
-executes the registered `linkedin-generation` stages in order and pipes each output into the next.
+queues `lumenclip - LinkedIn generation` in Windmill. Windmill pipes each registered stage output
+into the next stage.
 
 ```json
 {

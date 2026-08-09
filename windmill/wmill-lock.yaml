@@ -1,0 +1,7 @@
+version: v2
+locks:
+  f/lumenclip/linkedin_generation__flow+__flow_hash: 44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a
+  f/lumenclip/run_pipeline_stage: 815466a432236c164bf2108a0b115a9c39306c66dcc5d989dd6c086dcf28a4cb
+  f/lumenclip/slideshow_generation__flow+__flow_hash: 44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a
+  f/lumenclip/ugc_video_generation__flow+__flow_hash: 44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a
+  f/lumenclip/x_threads_generation__flow+__flow_hash: 44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a

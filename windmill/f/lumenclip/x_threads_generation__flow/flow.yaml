@@ -1,0 +1,414 @@
+summary: lumenclip - X and Threads generation
+description: Generate X or Threads content through individually observable and
+  composable stages.
+value:
+  modules:
+    - id: validate_input
+      summary: Validate and normalize input
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: x-threads-generation.validate-input
+          stage_input:
+            type: javascript
+            expr: flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at)
+          > 0
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "x-threads-generation.validate-input"
+        skip_if_stopped: false
+    - id: resolve_brief
+      summary: Resolve required niche brief
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: x-threads-generation.resolve-brief
+          stage_input:
+            type: javascript
+            expr: results.validate_input?.output ?? flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at)
+          > 1
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "x-threads-generation.resolve-brief"
+        skip_if_stopped: false
+    - id: select_content_plan
+      summary: Select content plan
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: x-threads-generation.select-content-plan
+          stage_input:
+            type: javascript
+            expr: results.resolve_brief?.output ?? results.validate_input?.output ??
+              flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at)
+          > 2
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "x-threads-generation.select-content-plan"
+        skip_if_stopped: false
+    - id: build_generation_request
+      summary: Build generation request
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: x-threads-generation.build-generation-request
+          stage_input:
+            type: javascript
+            expr: results.select_content_plan?.output ?? results.resolve_brief?.output ??
+              results.validate_input?.output ?? flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at)
+          > 3
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "x-threads-generation.build-generation-request"
+        skip_if_stopped: false
+    - id: generate_draft
+      summary: Generate draft
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: x-threads-generation.generate-draft
+          stage_input:
+            type: javascript
+            expr: results.build_generation_request?.output ??
+              results.select_content_plan?.output ??
+              results.resolve_brief?.output ?? results.validate_input?.output ??
+              flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at)
+          > 4
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "x-threads-generation.generate-draft"
+        skip_if_stopped: false
+    - id: humanize_draft
+      summary: Humanize draft
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: x-threads-generation.humanize-draft
+          stage_input:
+            type: javascript
+            expr: results.generate_draft?.output ?? results.build_generation_request?.output
+              ?? results.select_content_plan?.output ??
+              results.resolve_brief?.output ?? results.validate_input?.output ??
+              flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at)
+          > 5
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "x-threads-generation.humanize-draft"
+        skip_if_stopped: false
+    - id: review_draft
+      summary: Review draft
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: x-threads-generation.review-draft
+          stage_input:
+            type: javascript
+            expr: results.humanize_draft?.output ?? results.generate_draft?.output ??
+              results.build_generation_request?.output ??
+              results.select_content_plan?.output ??
+              results.resolve_brief?.output ?? results.validate_input?.output ??
+              flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at)
+          > 6
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "x-threads-generation.review-draft"
+        skip_if_stopped: false
+    - id: validate_draft
+      summary: Deterministic validation
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: x-threads-generation.validate-draft
+          stage_input:
+            type: javascript
+            expr: results.review_draft?.output ?? results.humanize_draft?.output ??
+              results.generate_draft?.output ??
+              results.build_generation_request?.output ??
+              results.select_content_plan?.output ??
+              results.resolve_brief?.output ?? results.validate_input?.output ??
+              flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at)
+          > 7
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "x-threads-generation.validate-draft"
+        skip_if_stopped: false
+    - id: repair_draft
+      summary: Repair retry
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: x-threads-generation.repair-draft
+          stage_input:
+            type: javascript
+            expr: results.validate_draft?.output ?? results.review_draft?.output ??
+              results.humanize_draft?.output ?? results.generate_draft?.output
+              ?? results.build_generation_request?.output ??
+              results.select_content_plan?.output ??
+              results.resolve_brief?.output ?? results.validate_input?.output ??
+              flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at)
+          > 8
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "x-threads-generation.repair-draft"
+        skip_if_stopped: false
+    - id: benchmark_build_run
+      summary: Benchmark and build run
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: x-threads-generation.benchmark-build-run
+          stage_input:
+            type: javascript
+            expr: results.repair_draft?.output ?? results.validate_draft?.output ??
+              results.review_draft?.output ?? results.humanize_draft?.output ??
+              results.generate_draft?.output ??
+              results.build_generation_request?.output ??
+              results.select_content_plan?.output ??
+              results.resolve_brief?.output ?? results.validate_input?.output ??
+              flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at)
+          > 9
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "x-threads-generation.benchmark-build-run"
+        skip_if_stopped: false
+    - id: persist_run_memory
+      summary: Persist run and usage memory
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: x-threads-generation.persist-run-memory
+          stage_input:
+            type: javascript
+            expr: results.benchmark_build_run?.output ?? results.repair_draft?.output ??
+              results.validate_draft?.output ?? results.review_draft?.output ??
+              results.humanize_draft?.output ?? results.generate_draft?.output
+              ?? results.build_generation_request?.output ??
+              results.select_content_plan?.output ??
+              results.resolve_brief?.output ?? results.validate_input?.output ??
+              flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at)
+          > 10
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "x-threads-generation.persist-run-memory"
+        skip_if_stopped: false
+    - id: generate_image
+      summary: Generate image
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: x-threads-generation.generate-image
+          stage_input:
+            type: javascript
+            expr: results.persist_run_memory?.output ?? results.benchmark_build_run?.output
+              ?? results.repair_draft?.output ?? results.validate_draft?.output
+              ?? results.review_draft?.output ?? results.humanize_draft?.output
+              ?? results.generate_draft?.output ??
+              results.build_generation_request?.output ??
+              results.select_content_plan?.output ??
+              results.resolve_brief?.output ?? results.validate_input?.output ??
+              flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at)
+          > 11
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "x-threads-generation.generate-image"
+        skip_if_stopped: false
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  order:
+    - owner_id
+    - request_id
+    - input
+    - start_at
+    - stop_after
+  properties:
+    input:
+      type: object
+      additionalProperties: true
+      description: Initial structured input for the first workflow stage.
+    owner_id:
+      type: string
+      description: Lumenclip owner whose data this workflow may access.
+    request_id:
+      type: string
+      description: Stable idempotency key for this workflow run.
+    start_at:
+      type: string
+      description: Optional first stage for a partial workflow run.
+      enum:
+        - x-threads-generation.validate-input
+        - x-threads-generation.resolve-brief
+        - x-threads-generation.select-content-plan
+        - x-threads-generation.build-generation-request
+        - x-threads-generation.generate-draft
+        - x-threads-generation.humanize-draft
+        - x-threads-generation.review-draft
+        - x-threads-generation.validate-draft
+        - x-threads-generation.repair-draft
+        - x-threads-generation.benchmark-build-run
+        - x-threads-generation.persist-run-memory
+        - x-threads-generation.generate-image
+    stop_after:
+      type: string
+      description: Optional final stage for a partial workflow run.
+      enum:
+        - x-threads-generation.validate-input
+        - x-threads-generation.resolve-brief
+        - x-threads-generation.select-content-plan
+        - x-threads-generation.build-generation-request
+        - x-threads-generation.generate-draft
+        - x-threads-generation.humanize-draft
+        - x-threads-generation.review-draft
+        - x-threads-generation.validate-draft
+        - x-threads-generation.repair-draft
+        - x-threads-generation.benchmark-build-run
+        - x-threads-generation.persist-run-memory
+        - x-threads-generation.generate-image
+  required:
+    - owner_id
+    - request_id
+    - input

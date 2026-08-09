@@ -1,0 +1,570 @@
+summary: lumenclip - slideshow generation
+description: Generate a complete slideshow through individually observable and
+  composable stages.
+value:
+  modules:
+    - id: validate_input
+      summary: Validate generation input
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: slideshow-generation.validate-input
+          stage_input:
+            type: javascript
+            expr: flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at)
+          > 0
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "slideshow-generation.validate-input"
+        skip_if_stopped: false
+    - id: resolve_slide_count
+      summary: Resolve slide count
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: slideshow-generation.resolve-slide-count
+          stage_input:
+            type: javascript
+            expr: results.validate_input?.output ?? flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at)
+          > 1
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "slideshow-generation.resolve-slide-count"
+        skip_if_stopped: false
+    - id: select_expand_hook
+      summary: Select and expand hook
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: slideshow-generation.select-expand-hook
+          stage_input:
+            type: javascript
+            expr: results.resolve_slide_count?.output ?? results.validate_input?.output ??
+              flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at)
+          > 2
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "slideshow-generation.select-expand-hook"
+        skip_if_stopped: false
+    - id: research_hook
+      summary: Research selected hook
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: slideshow-generation.research-hook
+          stage_input:
+            type: javascript
+            expr: results.select_expand_hook?.output ?? results.resolve_slide_count?.output
+              ?? results.validate_input?.output ?? flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at)
+          > 3
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "slideshow-generation.research-hook"
+        skip_if_stopped: false
+    - id: build_text_prompt
+      summary: Build structured generation prompt
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: slideshow-generation.build-text-prompt
+          stage_input:
+            type: javascript
+            expr: results.research_hook?.output ?? results.select_expand_hook?.output ??
+              results.resolve_slide_count?.output ??
+              results.validate_input?.output ?? flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at)
+          > 4
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "slideshow-generation.build-text-prompt"
+        skip_if_stopped: false
+    - id: generate_slide_text
+      summary: Generate slideshow text
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: slideshow-generation.generate-slide-text
+          stage_input:
+            type: javascript
+            expr: results.build_text_prompt?.output ?? results.research_hook?.output ??
+              results.select_expand_hook?.output ??
+              results.resolve_slide_count?.output ??
+              results.validate_input?.output ?? flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at)
+          > 5
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "slideshow-generation.generate-slide-text"
+        skip_if_stopped: false
+    - id: retry_text_similarity
+      summary: Retry similar text
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: slideshow-generation.retry-text-similarity
+          stage_input:
+            type: javascript
+            expr: results.generate_slide_text?.output ?? results.build_text_prompt?.output
+              ?? results.research_hook?.output ??
+              results.select_expand_hook?.output ??
+              results.resolve_slide_count?.output ??
+              results.validate_input?.output ?? flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at)
+          > 6
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "slideshow-generation.retry-text-similarity"
+        skip_if_stopped: false
+    - id: derive_visual_concepts
+      summary: Derive visual concepts
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: slideshow-generation.derive-visual-concepts
+          stage_input:
+            type: javascript
+            expr: results.retry_text_similarity?.output ??
+              results.generate_slide_text?.output ??
+              results.build_text_prompt?.output ?? results.research_hook?.output
+              ?? results.select_expand_hook?.output ??
+              results.resolve_slide_count?.output ??
+              results.validate_input?.output ?? flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at)
+          > 7
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "slideshow-generation.derive-visual-concepts"
+        skip_if_stopped: false
+    - id: build_image_shortlists
+      summary: Build image shortlists
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: slideshow-generation.build-image-shortlists
+          stage_input:
+            type: javascript
+            expr: results.derive_visual_concepts?.output ??
+              results.retry_text_similarity?.output ??
+              results.generate_slide_text?.output ??
+              results.build_text_prompt?.output ?? results.research_hook?.output
+              ?? results.select_expand_hook?.output ??
+              results.resolve_slide_count?.output ??
+              results.validate_input?.output ?? flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at)
+          > 8
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "slideshow-generation.build-image-shortlists"
+        skip_if_stopped: false
+    - id: select_slide_images
+      summary: Select slide images
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: slideshow-generation.select-slide-images
+          stage_input:
+            type: javascript
+            expr: results.build_image_shortlists?.output ??
+              results.derive_visual_concepts?.output ??
+              results.retry_text_similarity?.output ??
+              results.generate_slide_text?.output ??
+              results.build_text_prompt?.output ?? results.research_hook?.output
+              ?? results.select_expand_hook?.output ??
+              results.resolve_slide_count?.output ??
+              results.validate_input?.output ?? flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at)
+          > 9
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "slideshow-generation.select-slide-images"
+        skip_if_stopped: false
+    - id: assemble_plan
+      summary: Assemble slideshow plan
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: slideshow-generation.assemble-plan
+          stage_input:
+            type: javascript
+            expr: results.select_slide_images?.output ??
+              results.build_image_shortlists?.output ??
+              results.derive_visual_concepts?.output ??
+              results.retry_text_similarity?.output ??
+              results.generate_slide_text?.output ??
+              results.build_text_prompt?.output ?? results.research_hook?.output
+              ?? results.select_expand_hook?.output ??
+              results.resolve_slide_count?.output ??
+              results.validate_input?.output ?? flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at)
+          > 10
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "slideshow-generation.assemble-plan"
+        skip_if_stopped: false
+    - id: translate_plan
+      summary: Translate displayed text
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: slideshow-generation.translate-plan
+          stage_input:
+            type: javascript
+            expr: results.assemble_plan?.output ?? results.select_slide_images?.output ??
+              results.build_image_shortlists?.output ??
+              results.derive_visual_concepts?.output ??
+              results.retry_text_similarity?.output ??
+              results.generate_slide_text?.output ??
+              results.build_text_prompt?.output ?? results.research_hook?.output
+              ?? results.select_expand_hook?.output ??
+              results.resolve_slide_count?.output ??
+              results.validate_input?.output ?? flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at)
+          > 11
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "slideshow-generation.translate-plan"
+        skip_if_stopped: false
+    - id: render_store_pngs
+      summary: Render and store PNG slides
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: slideshow-generation.render-store-pngs
+          stage_input:
+            type: javascript
+            expr: results.translate_plan?.output ?? results.assemble_plan?.output ??
+              results.select_slide_images?.output ??
+              results.build_image_shortlists?.output ??
+              results.derive_visual_concepts?.output ??
+              results.retry_text_similarity?.output ??
+              results.generate_slide_text?.output ??
+              results.build_text_prompt?.output ?? results.research_hook?.output
+              ?? results.select_expand_hook?.output ??
+              results.resolve_slide_count?.output ??
+              results.validate_input?.output ?? flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at)
+          > 12
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "slideshow-generation.render-store-pngs"
+        skip_if_stopped: false
+    - id: render_store_mp4
+      summary: Render and store MP4
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: slideshow-generation.render-store-mp4
+          stage_input:
+            type: javascript
+            expr: results.render_store_pngs?.output ?? results.translate_plan?.output ??
+              results.assemble_plan?.output ??
+              results.select_slide_images?.output ??
+              results.build_image_shortlists?.output ??
+              results.derive_visual_concepts?.output ??
+              results.retry_text_similarity?.output ??
+              results.generate_slide_text?.output ??
+              results.build_text_prompt?.output ?? results.research_hook?.output
+              ?? results.select_expand_hook?.output ??
+              results.resolve_slide_count?.output ??
+              results.validate_input?.output ?? flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at)
+          > 13
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "slideshow-generation.render-store-mp4"
+        skip_if_stopped: false
+    - id: validate_output
+      summary: Validate generated output
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: slideshow-generation.validate-output
+          stage_input:
+            type: javascript
+            expr: results.render_store_mp4?.output ?? results.render_store_pngs?.output ??
+              results.translate_plan?.output ?? results.assemble_plan?.output ??
+              results.select_slide_images?.output ??
+              results.build_image_shortlists?.output ??
+              results.derive_visual_concepts?.output ??
+              results.retry_text_similarity?.output ??
+              results.generate_slide_text?.output ??
+              results.build_text_prompt?.output ?? results.research_hook?.output
+              ?? results.select_expand_hook?.output ??
+              results.resolve_slide_count?.output ??
+              results.validate_input?.output ?? flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at)
+          > 14
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "slideshow-generation.validate-output"
+        skip_if_stopped: false
+    - id: finalize_output
+      summary: Finalize generated output
+      value:
+        type: script
+        input_transforms:
+          owner_id:
+            type: javascript
+            expr: flow_input.owner_id
+          request_id:
+            type: javascript
+            expr: flow_input.request_id
+          stage_id:
+            type: static
+            value: slideshow-generation.finalize-output
+          stage_input:
+            type: javascript
+            expr: results.validate_output?.output ?? results.render_store_mp4?.output ??
+              results.render_store_pngs?.output ??
+              results.translate_plan?.output ?? results.assemble_plan?.output ??
+              results.select_slide_images?.output ??
+              results.build_image_shortlists?.output ??
+              results.derive_visual_concepts?.output ??
+              results.retry_text_similarity?.output ??
+              results.generate_slide_text?.output ??
+              results.build_text_prompt?.output ?? results.research_hook?.output
+              ?? results.select_expand_hook?.output ??
+              results.resolve_slide_count?.output ??
+              results.validate_input?.output ?? flow_input.input
+        path: f/lumenclip/run_pipeline_stage
+      skip_if:
+        expr: flow_input.start_at &&
+          ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at)
+          > 15
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after ===
+          "slideshow-generation.finalize-output"
+        skip_if_stopped: false
+schema:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  type: object
+  order:
+    - owner_id
+    - request_id
+    - input
+    - start_at
+    - stop_after
+  properties:
+    input:
+      type: object
+      additionalProperties: true
+      description: Initial structured input for the first workflow stage.
+    owner_id:
+      type: string
+      description: Lumenclip owner whose data this workflow may access.
+    request_id:
+      type: string
+      description: Stable idempotency key for this workflow run.
+    start_at:
+      type: string
+      description: Optional first stage for a partial workflow run.
+      enum:
+        - slideshow-generation.validate-input
+        - slideshow-generation.resolve-slide-count
+        - slideshow-generation.select-expand-hook
+        - slideshow-generation.research-hook
+        - slideshow-generation.build-text-prompt
+        - slideshow-generation.generate-slide-text
+        - slideshow-generation.retry-text-similarity
+        - slideshow-generation.derive-visual-concepts
+        - slideshow-generation.build-image-shortlists
+        - slideshow-generation.select-slide-images
+        - slideshow-generation.assemble-plan
+        - slideshow-generation.translate-plan
+        - slideshow-generation.render-store-pngs
+        - slideshow-generation.render-store-mp4
+        - slideshow-generation.validate-output
+        - slideshow-generation.finalize-output
+    stop_after:
+      type: string
+      description: Optional final stage for a partial workflow run.
+      enum:
+        - slideshow-generation.validate-input
+        - slideshow-generation.resolve-slide-count
+        - slideshow-generation.select-expand-hook
+        - slideshow-generation.research-hook
+        - slideshow-generation.build-text-prompt
+        - slideshow-generation.generate-slide-text
+        - slideshow-generation.retry-text-similarity
+        - slideshow-generation.derive-visual-concepts
+        - slideshow-generation.build-image-shortlists
+        - slideshow-generation.select-slide-images
+        - slideshow-generation.assemble-plan
+        - slideshow-generation.translate-plan
+        - slideshow-generation.render-store-pngs
+        - slideshow-generation.render-store-mp4
+        - slideshow-generation.validate-output
+        - slideshow-generation.finalize-output
+  required:
+    - owner_id
+    - request_id
+    - input

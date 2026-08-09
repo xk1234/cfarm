@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=wmill.schema.json
+defaultTs: bun
+includes:
+  - "f/lumenclip/**"
+excludes: []
+skipVariables: true
+skipResources: true
+skipResourceTypes: true
+skipSecrets: true
+skipScripts: false
+skipFlows: false
+skipApps: true
+skipFolders: false
+skipWorkspaceDependencies: true
+skipDatatableMigrations: true
+nonDottedPaths: true
+syncBehavior: v1
+workspaces:
+  main:
+    baseUrl: https://windmill-server-production-5856.up.railway.app
+    workspaceId: main
+    gitBranch: main

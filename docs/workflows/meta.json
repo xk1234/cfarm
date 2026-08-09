@@ -2,6 +2,7 @@
   "title": "Output generation",
   "pages": [
     "index",
+    "windmill-migration",
     "slideshow-generation",
     "x-threads-generation",
     "linkedin-generation",

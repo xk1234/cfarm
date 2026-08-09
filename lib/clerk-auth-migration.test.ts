@@ -19,6 +19,13 @@ describe("Clerk authentication cutover", () => {
     expect(source).toContain('pathname === "/api/tiktok-comments/capture"')
   })
 
+  it("lets Windmill callbacks handle their own bearer authentication", () => {
+    const source = read("proxy.ts")
+    expect(source).toContain(
+      'pathname.startsWith("/api/internal/windmill/stages/")'
+    )
+  })
+
   it("places ClerkProvider inside the root body", () => {
     const source = read("app/layout.tsx")
     expect(source.indexOf("<body")).toBeLessThan(

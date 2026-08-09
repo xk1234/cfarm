@@ -15,6 +15,7 @@ import {
   type LumenClipMcpServices,
 } from "@/lib/mcp/lumenclip-server"
 import { LUMENCLIP_MCP_TOOL_NAMES } from "@/lib/mcp/tool-registry"
+import { PIPELINE_STAGE_CATALOG } from "@/lib/pipeline-stages"
 import type { Job } from "@/lib/queue"
 import type {
   AccountFollowerSnapshot,
@@ -90,7 +91,51 @@ describe("LumenClip MCP server", () => {
   })
 
   it("runs a named production workflow or one exact registered stage", async () => {
-    const client = await connectClient()
+    const runPipelineStage = vi.fn(
+      async (
+        input: Parameters<LumenClipMcpServices["runPipelineStage"]>[0]
+      ) => {
+        const stage = PIPELINE_STAGE_CATALOG.find(
+          (candidate) => candidate.id === input.stageId
+        )!
+        return {
+          stage,
+          requestId: input.requestId || "pipeline-test",
+          status: "succeeded" as const,
+          externalCalls: 0,
+          output:
+            input.stageId === "slideshow-generation.select-one-slide-image"
+              ? {
+                  ...input.stageInput,
+                  selectedImage: {
+                    slideId: "content-1",
+                    id: "image-1",
+                  },
+                }
+              : {
+                  normalizedInput: {
+                    niche: "B2B SaaS onboarding",
+                    count: 2,
+                  },
+                },
+        }
+      }
+    )
+    const queuePipelineWorkflow = vi.fn(
+      async (
+        input: Parameters<LumenClipMcpServices["queuePipelineWorkflow"]>[0]
+      ) => ({
+        workflowId: input.workflowId,
+        requestId: input.requestId || "pipeline-test",
+        status: "queued" as const,
+        jobId: "windmill-job-1",
+        flowPath: "f/lumenclip/linkedin_generation",
+      })
+    )
+    const client = await connectClient({
+      runPipelineStage,
+      queuePipelineWorkflow,
+    })
     const stageInput = {
       niche: "B2B SaaS onboarding",
       persona: "practitioner",
@@ -168,9 +213,9 @@ describe("LumenClip MCP server", () => {
     })
     expect(workflow.structuredContent).toMatchObject({
       workflowId: "linkedin-generation",
-      status: "succeeded",
-      completedStages: 1,
-      output: (single.structuredContent as { output: unknown }).output,
+      status: "queued",
+      jobId: "windmill-job-1",
+      flowPath: "f/lumenclip/linkedin_generation",
     })
     expect(selectedImage.structuredContent).toMatchObject({
       stage: { id: "slideshow-generation.select-one-slide-image" },
@@ -182,6 +227,14 @@ describe("LumenClip MCP server", () => {
         },
       },
     })
+    expect(runPipelineStage).toHaveBeenCalledTimes(2)
+    expect(queuePipelineWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: "linkedin-generation",
+        ownerId: "owner-1",
+        stopAfter: "linkedin-generation.validate-input",
+      })
+    )
   })
 
   it("inspects and runs read-only automation experiments through injected services", async () => {
