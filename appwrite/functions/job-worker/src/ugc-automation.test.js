@@ -115,6 +115,48 @@ describe("UGC worker pipeline", () => {
     expect(clients.compositeUgcVideo).not.toHaveBeenCalled()
   })
 
+  it("runs one supplied component without loading a template or unrelated providers", async () => {
+    const harness = workerHarness()
+    for (const key of [
+      "FAL_KEY",
+      "ELEVENLABS_API_KEY",
+      "OPENROUTER_API_KEY",
+      "RENDI_API_KEY",
+    ])
+      delete process.env[key]
+    const analysis = {
+      product: "Travel camera",
+      audience: ["Travel creators"],
+      pains: ["Heavy gear"],
+      differentiators: ["Compact body"],
+      proofPoints: [],
+      prohibitedClaims: [],
+      cta: "See the camera",
+      visualCues: ["Camera in a carry-on"],
+    }
+
+    const result = await runUgcAutomationJob({
+      ...harness.input,
+      payload: {
+        generationId: "component-debug-1",
+        scheduledFor: "2026-07-22T00:00:00Z",
+        componentExecution: true,
+        onlyStage: "analysis",
+        components: { product: { analysis } },
+      },
+      clients: mockClients(),
+    })
+
+    expect(result.checkpoints).toEqual({
+      analysis: { analysis, source: "supplied" },
+    })
+    expect(harness.input.tables.listRows).not.toHaveBeenCalledWith(
+      "cfarm",
+      "templates",
+      expect.anything()
+    )
+  })
+
   it("leaves a transient FAL failure retryable", async () => {
     const harness = workerHarness()
     const clients = mockClients()

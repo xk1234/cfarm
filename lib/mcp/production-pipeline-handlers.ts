@@ -3343,7 +3343,12 @@ export function createProductionPipelineHandlers(
     if (!services.ugcGenerationEnabled()) {
       throw new Error("AI UGC generation is disabled")
     }
-    const automationId = requiredString(input.automationId, "automationId")
+    const templateId = clean(input.templateId) || clean(input.automationId)
+    const generationId =
+      clean(input.generationId) || clean(input.requestId) || context.requestId
+    if (!templateId && !generationId) {
+      throw new Error("templateId or generationId is required")
+    }
     const scheduledFor =
       clean(input.scheduledFor) || services.now().toISOString()
     const stopAfter = requiredString(input.stopAfter, "stopAfter")
@@ -3351,23 +3356,37 @@ export function createProductionPipelineHandlers(
       services.enqueueJob({
         type: "run-ugc-template",
         payload: {
-          automationId,
+          ...(templateId ? { templateId, automationId: templateId } : {}),
+          generationId,
           scheduledFor,
           requestId: context.requestId,
           source: "mcp_pipeline_stage",
           draftOnly: true,
           stopAfter,
+          ...(input.componentExecution === true
+            ? { componentExecution: true, onlyStage: stopAfter }
+            : {}),
+          ...(isRecord(input.components)
+            ? { components: input.components }
+            : {}),
+          ...(isRecord(input.checkpoints)
+            ? { checkpoints: input.checkpoints }
+            : {}),
         },
-        dedupeKey: `ugc-stage:${automationId}:${scheduledFor}:${stopAfter}:${context.requestId}`,
+        dedupeKey: `ugc-stage:${templateId || generationId}:${scheduledFor}:${stopAfter}:${context.requestId}`,
         maxAttempts: 3,
       })
     )
     if (!queued) throw new Error("The generation queue is unavailable")
     return mergePipelineOutput(input, {
-      automationId,
+      ...(templateId ? { templateId, automationId: templateId } : {}),
+      generationId,
       scheduledFor,
-      runId: ugcRunId(automationId, scheduledFor),
-      expectedOutputId: ugcExportId(automationId, scheduledFor),
+      runId: ugcRunId(templateId || `standalone-${generationId}`, scheduledFor),
+      expectedOutputId: ugcExportId(
+        templateId || `standalone-${generationId}`,
+        scheduledFor
+      ),
       estimate: estimateUgcCost({}),
       operation: {
         id: queued.id,
@@ -3508,6 +3527,93 @@ export function createProductionPipelineHandlers(
     })
   })
 
+  add("ugc-video-generation.resolve-components", async (input, context) => {
+    const templateId = clean(input.templateId)
+    let templateUgc: Record<string, unknown> = {}
+    if (templateId) {
+      const loaded = await context.runStage(
+        "ugc-video-generation.get-saved-automation-document",
+        { automationId: templateId }
+      )
+      const document = asRecord(loaded.output.savedAutomationDocument)
+      const template = asRecord(document.record)
+      const schema = asRecord(template.schema)
+      if (clean(schema.automationKind) !== "ugc") {
+        throw new Error("Selected template is not a UGC video template")
+      }
+      templateUgc = asRecord(schema.ugc)
+    }
+
+    const supplied = asRecord(input.components)
+    const product = asRecord(input.product ?? supplied.product)
+    const script = asRecord(input.script ?? supplied.script)
+    const actor = asRecord(input.actor ?? supplied.actor)
+    const voice = asRecord(input.voice ?? supplied.voice)
+    const broll = asRecord(input.broll ?? supplied.broll)
+    const render = asRecord(input.render ?? supplied.render)
+    const components = {
+      product: compactRecord({
+        url: firstPresent(product.url, templateUgc.productUrl),
+        brief: firstPresent(product.brief, templateUgc.productBrief),
+        analysis: firstPresent(product.analysis, templateUgc.analysis),
+      }),
+      script: compactRecord({
+        plan: firstPresent(script.plan, templateUgc.scriptPlan),
+        targetDurationSeconds: firstPresent(
+          script.targetDurationSeconds,
+          templateUgc.targetDurationSeconds,
+          60
+        ),
+      }),
+      actor: compactRecord({
+        source: firstPresent(actor.source, templateUgc.actorSource, "generate"),
+        assetUrl: firstPresent(actor.assetUrl, templateUgc.actorAssetUrl),
+        prompt: firstPresent(actor.prompt, templateUgc.actorPrompt),
+        motionPrompt: firstPresent(
+          actor.motionPrompt,
+          templateUgc.motionPrompt
+        ),
+      }),
+      voice: compactRecord({
+        voiceId: firstPresent(voice.voiceId, templateUgc.voiceId),
+        model: firstPresent(voice.model, templateUgc.voiceModel),
+      }),
+      broll: compactRecord({
+        enabled: firstPresent(broll.enabled, true),
+        count: firstPresent(broll.count, templateUgc.brollCount, 3),
+      }),
+      render: compactRecord({
+        aspectRatio: firstPresent(render.aspectRatio, "9:16"),
+        lipSyncTier: firstPresent(
+          render.lipSyncTier,
+          templateUgc.lipSyncTier,
+          "standard"
+        ),
+        captions: firstPresent(render.captions, templateUgc.captions),
+        hookOverlay: firstPresent(render.hookOverlay, templateUgc.hookOverlay),
+      }),
+    }
+    const productComponent = asRecord(components.product)
+    if (
+      !clean(productComponent.url) &&
+      !clean(productComponent.brief) &&
+      !isRecord(productComponent.analysis)
+    ) {
+      throw new Error(
+        "Product requires a URL, brief, or supplied analysis when no template provides one"
+      )
+    }
+    return {
+      generation: {
+        templateId: templateId || null,
+        generationId: clean(input.generationId) || context.requestId,
+        scheduledFor: clean(input.scheduledFor) || services.now().toISOString(),
+      },
+      components,
+      source: templateId ? "template_with_overrides" : "explicit_components",
+    }
+  })
+
   add(
     "ugc-video-generation.generate-one-broll-image",
     async (input, context) => {
@@ -3592,8 +3698,13 @@ export function createProductionPipelineHandlers(
   )
 
   add("ugc-video-generation.analyze-product", async (input, context) => {
-    if (clean(input.automationId))
+    if (input.componentExecution === true || clean(input.automationId))
       return queueUgcStage(input, context, "analysis")
+    if (isRecord(input.analysis)) {
+      return mergePipelineOutput(input, {
+        checkpoint: { stage: "analysis", status: "complete" },
+      })
+    }
     let state = input
     if (clean(input.productUrl)) {
       state = (
@@ -3609,7 +3720,7 @@ export function createProductionPipelineHandlers(
   })
 
   add("ugc-video-generation.generate-script-plan", async (input, context) => {
-    if (clean(input.automationId))
+    if (input.componentExecution === true || clean(input.automationId))
       return queueUgcStage(input, context, "script")
     return (
       await context.runStage(
@@ -3742,7 +3853,8 @@ export function createProductionPipelineHandlers(
   )
 
   add("ugc-video-generation.synthesize-voice", async (input, context) => {
-    if (clean(input.automationId)) return queueUgcStage(input, context, "voice")
+    if (input.componentExecution === true || clean(input.automationId))
+      return queueUgcStage(input, context, "voice")
     return (
       await context.runStage(
         "ugc-video-generation.synthesize-voice-assets",
@@ -3904,6 +4016,8 @@ export function createProductionPipelineHandlers(
   })
 
   add("ugc-video-generation.composite-output", async (input, context) => {
+    if (input.componentExecution === true)
+      return queueUgcStage(input, context, "composite")
     if (
       Array.isArray(input.rendiLocalInputs) ||
       clean(input.actorLocalFilePath)
@@ -3928,6 +4042,8 @@ export function createProductionPipelineHandlers(
   }
 
   add("ugc-video-generation.store-final-output", async (input, context) => {
+    if (input.componentExecution === true)
+      return queueUgcStage(input, context, "store")
     if (isRecord(input.finalOutput)) {
       return (
         await context.runStage(
@@ -4962,6 +5078,21 @@ function asRecord(value: unknown): Record<string, unknown> {
 function numberValue(value: unknown) {
   const number = Number(value)
   return Number.isFinite(number) ? number : 0
+}
+
+function firstPresent(...values: unknown[]) {
+  return values.find(
+    (value) =>
+      value !== undefined &&
+      value !== null &&
+      !(typeof value === "string" && value.trim() === "")
+  )
+}
+
+function compactRecord(input: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(input).filter(([, value]) => value !== undefined)
+  )
 }
 
 function contextId(input: Record<string, unknown>) {

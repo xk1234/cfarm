@@ -3,26 +3,58 @@ import crypto from "node:crypto";
 export class UgcConfigurationError extends Error {
     nonRetryable = true;
     telegramNotified;
-    constructor(message, options = {}) { super(message); this.name = "UgcConfigurationError"; this.telegramNotified = options.telegramNotified === true; }
+    constructor(message, options = {}) {
+        super(message);
+        this.name = "UgcConfigurationError";
+        this.telegramNotified = options.telegramNotified === true;
+    }
 }
 export const ugcRunId = (automationId, scheduledFor) => `ugcrun${hash(`${automationId}:${scheduledFor}`, 29)}`;
 export const ugcExportId = (automationId, scheduledFor) => `ugc-${hash(`${automationId}:${scheduledFor}`, 32)}`;
-export const ugcStageOrder = ["analysis", "script", "actor", "voice", "motion", "lipsync", "broll", "composite", "store", "publish"];
+export const ugcStageOrder = [
+    "analysis",
+    "script",
+    "actor",
+    "voice",
+    "motion",
+    "lipsync",
+    "broll",
+    "composite",
+    "store",
+    "publish",
+];
 export async function runUgcAutomation(input) {
     const runId = ugcRunId(input.automationId, input.scheduledFor), exportId = ugcExportId(input.automationId, input.scheduledFor);
-    if (input.automation.status !== "live" || input.automation.schema?.status !== "live")
-        return { skipped: true, reason: "not_live", runId, exportId, checkpoints: input.checkpoints ?? {} };
+    if (input.automation.status !== "live" ||
+        input.automation.schema?.status !== "live")
+        return {
+            skipped: true,
+            reason: "not_live",
+            runId,
+            exportId,
+            checkpoints: input.checkpoints ?? {},
+        };
     if (input.automation.schema.ugc?.enabled !== true)
-        return { skipped: true, reason: "ugc_disabled", runId, exportId, checkpoints: input.checkpoints ?? {} };
+        return {
+            skipped: true,
+            reason: "ugc_disabled",
+            runId,
+            exportId,
+            checkpoints: input.checkpoints ?? {},
+        };
     const checkpoints = structuredClone(input.checkpoints ?? {});
-    for (const stage of ugcStageOrder) {
+    const selectedStages = input.onlyStages?.length
+        ? ugcStageOrder.filter((stage) => input.onlyStages?.includes(stage))
+        : ugcStageOrder;
+    for (const stage of selectedStages) {
         const existing = checkpoints[stage];
-        if (existing && await checkpointIsDurable(existing, input.assetExists)) {
+        if (existing && (await checkpointIsDurable(existing, input.assetExists))) {
             if (input.stopAfter === stage)
                 break;
             continue;
         }
-        const handler = input.stages[stage] ?? (stage === "analysis" ? input.stages.analyze : undefined);
+        const handler = input.stages[stage] ??
+            (stage === "analysis" ? input.stages.analyze : undefined);
         if (!handler) {
             if (input.stopAfter)
                 continue;
@@ -38,7 +70,10 @@ export async function runUgcAutomation(input) {
     return { skipped: false, runId, exportId, checkpoints };
 }
 export async function checkpointIsDurable(checkpoint, assetExists) {
-    const paths = [checkpoint.storagePath, ...(Array.isArray(checkpoint.storagePaths) ? checkpoint.storagePaths : [])].filter((value) => typeof value === "string" && value.length > 0);
+    const paths = [
+        checkpoint.storagePath,
+        ...(Array.isArray(checkpoint.storagePaths) ? checkpoint.storagePaths : []),
+    ].filter((value) => typeof value === "string" && value.length > 0);
     if (!paths.length)
         return true;
     if (!assetExists)

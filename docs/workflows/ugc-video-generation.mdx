@@ -15,118 +15,69 @@ The example values below are abbreviated, but every block is valid JSON.
 Each stage writes a checkpoint. On retry, a stage is skipped only when its checkpoint exists and
 every referenced storage file is still durable.
 
-## Run this
+## Windmill component input
 
 <Callout type="warn">
   This pipeline is gated. `ENABLE_UGC_AUTOMATION=true` must be set for the job
-  worker and the MCP process, or generation refuses to start and the
-  `/api/ugc-runs/*` routes answer 404. The template must also be `live` and pass
-  its UGC configuration checks.
+  worker and the MCP process. Component runs always produce drafts and may use a
+  draft template because they cannot publish.
 </Callout>
 
-<Tabs items={['MCP', 'HTTP', 'Studio']}>
-
-<Tab value="MCP">
-
-Price the configuration first, then queue the draft.
+The template is an optional initializer, not the pipeline payload. Windmill exposes six editable
+component objects. Explicit values win over values loaded from `template_id`.
 
 ```json
 {
-  "tool": "lumenclip_ugc_estimate",
-  "arguments": {
-    "templateId": "template_ugc_123",
-    "targetDurationSeconds": 30,
-    "brollCount": 3,
-    "lipSyncTier": "standard"
+  "template_id": "template_ugc_123",
+  "product": {
+    "url": "https://example.com/product",
+    "brief": "A lightweight analytics product for small SaaS teams"
+  },
+  "script": { "targetDurationSeconds": 30 },
+  "actor": {
+    "source": "generate",
+    "prompt": "Friendly product operator in a bright home office",
+    "motionPrompt": "Natural direct-to-camera delivery"
+  },
+  "voice": {
+    "voiceId": "voice-123",
+    "model": "eleven_multilingual_v2"
+  },
+  "broll": { "enabled": true, "count": 3 },
+  "render": {
+    "aspectRatio": "9:16",
+    "lipSyncTier": "standard",
+    "captions": { "enabled": true },
+    "hookOverlay": { "enabled": true }
   }
 }
 ```
 
-```json
-{
-  "tool": "lumenclip_ugc_generate",
-  "arguments": {
-    "templateId": "template_ugc_123",
-    "requestId": "ugc-test-001"
-  }
-}
-```
-
-Both arguments are required on `lumenclip_ugc_generate`. `requestId` is the idempotency key, so
-reusing it returns the already queued operation. The call returns a running operation, the expected
-output id, and a cost estimate; poll it with `lumenclip_operation_get`. The queued job is allowed
-three attempts. `lumenclip_template_run` accepts the same UGC template and forwards to the same
-queue, but rejects a `hook` argument.
-
-</Tab>
-
-<Tab value="HTTP">
-
-No HTTP route starts a fresh UGC run. The routes that exist cover estimating, polling, and resuming.
-
-```bash
-# Estimate a configuration without generating anything.
-curl -X POST https://<your-host>/api/ugc-runs/estimate \
-  -H 'Content-Type: application/json' \
-  -d '{"ugc":{"actorSource":"generate","lipSyncTier":"standard","targetDurationSeconds":30,"brollCount":3}}'
-
-# Poll one run, with its estimated and actual cost.
-curl https://<your-host>/api/ugc-runs/ugc-run-123
-
-# Re-enqueue an existing run from its checkpoints.
-curl -X POST https://<your-host>/api/ugc-runs/ugc-run-123/retry
-```
-
-The estimate route also accepts the bare configuration object as the body. The retry route resumes
-an existing run and answers 409 when that run is already complete, queued, or processing. To start
-a new run, use the MCP tool or let the scheduler enqueue the automation's next due slot.
-
-</Tab>
-
-<Tab value="Studio">
-
-<Steps>
-
-<Step>
-
-Open the automation at `/app?view=templates&automation=automation_ugc_123` and configure it in the
-**AI actor format** tab. The panel calls `/api/ugc-runs/estimate` and shows the projected cost.
-
-</Step>
-
-<Step>
-
-Set the automation live so its schedule enqueues runs, or queue one immediately through MCP. There
-is no Studio button that starts a UGC run outside the schedule.
-
-</Step>
-
-<Step>
-
-Follow a queued run from the **UGC runs** list on the automation overview, which links to
-`/app/ugc/<runId>` for stage-by-stage progress and a retry control.
-
-</Step>
-
-</Steps>
-
-</Tab>
-
-</Tabs>
+For isolated tests, omit `template_id` and provide a product URL, product brief, or complete
+`product.analysis`. A supplied `product.analysis` skips the analysis model. A supplied
+`script.plan` skips script generation. Each component node receives only its configuration and the
+named dependency checkpoints shown below.
 
 ## Stage map
 
-| #   | Stage                     | Adds to the preceding output                          |
-| --- | ------------------------- | ----------------------------------------------------- |
-| 1   | Analyze product           | Structured product, audience, proof, and visual facts |
-| 2   | Generate script plan      | Hook, spoken segments, b-roll prompts, and timing     |
-| 3   | Resolve or generate actor | Durable actor image                                   |
-| 4   | Synthesize voice          | Audio, timestamps, and duration                       |
-| 5   | Animate actor             | Talking-performance source video                      |
-| 6   | Lip-sync performance      | Voice-synchronized actor video                        |
-| 7   | Generate b-roll           | Timed visual inserts                                  |
-| 8   | Composite output          | Captions, overlays, final MP4, and thumbnail          |
-| 9   | Store final output        | Result record and durable artifact references         |
+| Node                 | Named input checkpoints               | Output checkpoint |
+| -------------------- | ------------------------------------- | ----------------- |
+| Resolve components   | Template plus six overrides           | `components`      |
+| Analyze product      | Product component                     | `analysis`        |
+| Generate script plan | `analysis`                            | `script`          |
+| Resolve actor        | `analysis`, `script`                  | `actor`           |
+| Animate actor        | `actor`                               | `motion`          |
+| Synthesize voice     | `script`                              | `voice`           |
+| Generate B-roll      | `script`                              | `broll`           |
+| Lip-sync performance | `motion`, `voice`                     | `lipsync`         |
+| Composite output     | `script`, `voice`, `lipsync`, `broll` | `composite`       |
+| Store final draft    | `script`, `composite`                 | `store`           |
+
+The Windmill graph uses a `branchall` media section for actor/motion, voice, and B-roll. It executes
+those branches sequentially for now because checkpoint persistence is shared; the graph still makes
+their independent contracts visible and keeps the join dependencies explicit. Every component job
+is polled to a terminal checkpoint inside its node, so the flow no longer stops after merely
+enqueuing its first stage.
 
 ## Stage 1 — Analyze the product
 
@@ -134,21 +85,10 @@ Follow a queued run from the **UGC runs** list on the automation overview, which
 
 ```json
 {
-  "automationId": "ugc-automation-123",
-  "scheduledFor": "2026-08-01T09:00:00.000Z",
-  "productUrl": "https://example.com/product",
-  "productBrief": "A lightweight analytics product for small SaaS teams.",
-  "targetDurationSeconds": 30,
-  "actorSource": "generate",
-  "actorAssetUrl": null,
-  "actorPrompt": "Friendly product operator in a bright home office",
-  "motionPrompt": "Natural delivery with subtle head and hand movement",
-  "voiceId": "voice-123",
-  "voiceModel": "eleven_multilingual_v2",
-  "lipSyncTier": "standard",
-  "brollCount": 3,
-  "captions": { "enabled": true, "style": "bold" },
-  "hookOverlay": { "enabled": true, "position": "top" }
+  "product": {
+    "url": "https://example.com/product",
+    "brief": "A lightweight analytics product for small SaaS teams."
+  }
 }
 ```
 
@@ -156,16 +96,6 @@ Follow a queued run from the **UGC runs** list on the automation overview, which
 
 ```json
 {
-  "input": {
-    "automationId": "ugc-automation-123",
-    "scheduledFor": "2026-08-01T09:00:00.000Z",
-    "targetDurationSeconds": 30,
-    "actorSource": "generate",
-    "voiceId": "voice-123",
-    "voiceModel": "eleven_multilingual_v2",
-    "lipSyncTier": "standard",
-    "brollCount": 3
-  },
   "analysis": {
     "product": "Lightweight SaaS analytics",
     "audience": "Small SaaS product teams",
@@ -192,7 +122,7 @@ proof, prohibited claims, CTA, and visual cues.
 
 ```json
 {
-  "...output": "stage-1 output",
+  "dependencies": { "analysis": "analysis checkpoint" },
   "scriptConstraints": {
     "targetDurationSeconds": 30,
     "requiredPhases": ["hook", "problem", "solution", "cta"]
@@ -204,7 +134,6 @@ proof, prohibited claims, CTA, and visual cues.
 
 ```json
 {
-  "...output": "stage-1 output",
   "plan": {
     "hook": "Your weekly product report should not take all morning.",
     "caption": "A faster way to see what drives activation.",
@@ -256,7 +185,10 @@ caption, hashtags, and hook overlay; validate all phases and keep duration withi
 
 ```json
 {
-  "...output": "stage-2 output",
+  "dependencies": {
+    "analysis": "analysis checkpoint",
+    "script": "script checkpoint"
+  },
   "actor": {
     "source": "generate",
     "assetUrl": null,
@@ -269,7 +201,6 @@ caption, hashtags, and hook overlay; validate all phases and keep duration withi
 
 ```json
 {
-  "...output": "stage-2 output",
   "actor": {
     "source": "generated",
     "path": "runs/ugc-run-123/actor.png",
@@ -296,7 +227,7 @@ uses no model.
 
 ```json
 {
-  "...output": "stage-3 output",
+  "dependencies": { "script": "script checkpoint" },
   "voice": {
     "voiceId": "voice-123",
     "model": "eleven_multilingual_v2",
@@ -309,7 +240,6 @@ uses no model.
 
 ```json
 {
-  "...output": "stage-3 output",
   "voice": {
     "audioPath": "runs/ugc-run-123/voice.mp3",
     "timingsPath": "runs/ugc-run-123/voice-timings.json",
@@ -342,7 +272,7 @@ and word-timing data.
 
 ```json
 {
-  "...output": "stage-4 output",
+  "dependencies": { "actor": "actor checkpoint" },
   "motion": {
     "sourceImagePath": "runs/ugc-run-123/actor.png",
     "prompt": "Natural delivery with subtle head and hand movement"
@@ -354,7 +284,6 @@ and word-timing data.
 
 ```json
 {
-  "...output": "stage-4 output",
   "motion": {
     "videoPath": "runs/ugc-run-123/motion.mp4",
     "model": "fal-ai/minimax/hailuo-2.3-fast/standard/image-to-video"
@@ -378,7 +307,10 @@ result, and persist the video.
 
 ```json
 {
-  "...output": "stage-5 output",
+  "dependencies": {
+    "motion": "motion checkpoint",
+    "voice": "voice checkpoint"
+  },
   "lipSync": {
     "tier": "standard",
     "videoPath": "runs/ugc-run-123/motion.mp4",
@@ -391,7 +323,6 @@ result, and persist the video.
 
 ```json
 {
-  "...output": "stage-5 output",
   "lipsync": {
     "videoPath": "runs/ugc-run-123/lipsync.mp4",
     "tier": "standard",
@@ -417,7 +348,7 @@ result.
 
 ```json
 {
-  "...output": "stage-6 output",
+  "dependencies": { "script": "script checkpoint" },
   "broll": {
     "count": 3,
     "prompts": [
@@ -433,7 +364,6 @@ result.
 
 ```json
 {
-  "...output": "stage-6 output",
   "broll": {
     "assets": [
       {
@@ -480,7 +410,12 @@ asset's display window from the script plan.
 
 ```json
 {
-  "...output": "stage-7 output",
+  "dependencies": {
+    "script": "script checkpoint",
+    "voice": "voice checkpoint",
+    "lipsync": "lipsync checkpoint",
+    "broll": "broll checkpoint"
+  },
   "render": {
     "baseVideoPath": "runs/ugc-run-123/lipsync.mp4",
     "audioPath": "runs/ugc-run-123/voice.mp3",
@@ -499,7 +434,6 @@ asset's display window from the script plan.
 
 ```json
 {
-  "...output": "stage-7 output",
   "composite": {
     "videoPath": "runs/ugc-run-123/final.mp4",
     "thumbnailPath": "runs/ugc-run-123/thumbnail.jpg",
@@ -527,7 +461,10 @@ overlays, hook text, word-timed ASS captions, and thumbnail; render at 1080×192
 
 ```json
 {
-  "...output": "stage-8 output",
+  "dependencies": {
+    "script": "script checkpoint",
+    "composite": "composite checkpoint"
+  },
   "run": {
     "id": "ugc-run-123",
     "automationId": "ugc-automation-123",

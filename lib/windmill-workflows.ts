@@ -1,8 +1,7 @@
-import { clean, isRecord } from "@/lib/guards"
+import { clean } from "@/lib/guards"
 import {
   PIPELINE_WORKFLOW_IDS,
   pipelineStagesForWorkflow,
-  type PipelineStageExecution,
   type PipelineWorkflowId,
 } from "@/lib/pipeline-stages"
 
@@ -61,41 +60,6 @@ export async function queueWindmillWorkflow(input: {
     jobId,
     flowPath,
   }
-}
-
-export async function runWindmillPipelineStage(input: {
-  ownerId: string
-  stageId: string
-  stageInput: Record<string, unknown>
-  requestId?: string
-  fetchImpl?: typeof fetch
-}): Promise<PipelineStageExecution> {
-  const config = windmillConfig()
-  const requestId = clean(input.requestId) || `pipeline-${crypto.randomUUID()}`
-  const response = await (input.fetchImpl ?? fetch)(
-    windmillApiUrl(
-      config,
-      "jobs/run_wait_result/p/f/lumenclip/run_pipeline_stage"
-    ),
-    {
-      method: "POST",
-      headers: windmillHeaders(config.token),
-      body: JSON.stringify({
-        owner_id: input.ownerId,
-        request_id: requestId,
-        stage_id: input.stageId,
-        stage_input: input.stageInput,
-      }),
-    }
-  )
-  const result = (await response.json().catch(() => null)) as unknown
-  if (!response.ok || !isPipelineStageExecution(result)) {
-    const detail = isRecord(result) ? clean(result.error) : ""
-    throw new Error(
-      `Windmill stage ${input.stageId} failed: ${response.status}${detail ? ` ${detail}` : ""}`
-    )
-  }
-  return result
 }
 
 export function windmillConfigured() {
@@ -159,19 +123,6 @@ function assertExecutionWindow(
       "stopAfter must be the start stage or a later workflow stage"
     )
   }
-}
-
-function isPipelineStageExecution(
-  value: unknown
-): value is PipelineStageExecution {
-  return (
-    isRecord(value) &&
-    isRecord(value.stage) &&
-    typeof value.stage.id === "string" &&
-    typeof value.requestId === "string" &&
-    (value.status === "succeeded" || value.status === "running") &&
-    isRecord(value.output)
-  )
 }
 
 export function isPipelineWorkflowId(

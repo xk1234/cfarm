@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-const { executePipelineStage } = vi.hoisted(() => ({
-  executePipelineStage: vi.fn(),
+const { runProductionPipelineStage } = vi.hoisted(() => ({
+  runProductionPipelineStage: vi.fn(),
 }))
 
-vi.mock("@/lib/pipeline-executor", () => ({ executePipelineStage }))
 vi.mock("@/lib/production-pipeline-runtime", () => ({
-  createProductionPipelineRegistry: () => new Map(),
+  runProductionPipelineStage,
 }))
 
 import { POST } from "@/app/api/internal/windmill/stages/[stageId]/route"
+import { systemOwnerId } from "@/lib/system-owner-context"
 
 afterEach(() => {
   vi.clearAllMocks()
@@ -25,18 +25,21 @@ describe("Windmill stage boundary", () => {
     )
 
     expect(response.status).toBe(401)
-    expect(executePipelineStage).not.toHaveBeenCalled()
+    expect(runProductionPipelineStage).not.toHaveBeenCalled()
   })
 
   it("executes exactly the requested stage for an authorized owner", async () => {
     vi.stubEnv("WINDMILL_SHARED_SECRET", "shared-secret")
-    executePipelineStage.mockResolvedValue({
+    runProductionPipelineStage.mockImplementation(async () => ({
       stage: { id: "linkedin-generation.validate-input" },
       requestId: "request-1",
       status: "succeeded",
       externalCalls: 0,
-      output: { normalizedInput: { niche: "SaaS" } },
-    })
+      output: {
+        normalizedInput: { niche: "SaaS" },
+        ownerInContext: systemOwnerId(),
+      },
+    }))
     const response = await POST(
       request(
         {
@@ -54,9 +57,10 @@ describe("Windmill stage boundary", () => {
       execution: {
         stage: { id: "linkedin-generation.validate-input" },
         status: "succeeded",
+        output: { ownerInContext: "owner-1" },
       },
     })
-    expect(executePipelineStage).toHaveBeenCalledWith(
+    expect(runProductionPipelineStage).toHaveBeenCalledWith(
       expect.objectContaining({
         ownerId: "owner-1",
         requestId: "request-1",

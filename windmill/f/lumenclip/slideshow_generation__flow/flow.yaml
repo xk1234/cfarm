@@ -10,9 +10,19 @@ value:
         expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.validate-input"
         skip_if_stopped: false
       value:
-        type: script
-        path: f/lumenclip/run_pipeline_stage
+        type: rawscript
+        language: bun
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
         input_transforms:
+          base_url:
+            type: static
+            value: $var:f/lumenclip/internal_base_url
+          shared_secret:
+            type: static
+            value: $var:f/lumenclip/shared_secret
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
             value: "slideshow-generation.validate-input"
@@ -33,9 +43,19 @@ value:
         expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.resolve-slide-count"
         skip_if_stopped: false
       value:
-        type: script
-        path: f/lumenclip/run_pipeline_stage
+        type: rawscript
+        language: bun
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
         input_transforms:
+          base_url:
+            type: static
+            value: $var:f/lumenclip/internal_base_url
+          shared_secret:
+            type: static
+            value: $var:f/lumenclip/shared_secret
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
             value: "slideshow-generation.resolve-slide-count"
@@ -56,9 +76,19 @@ value:
         expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.select-expand-hook"
         skip_if_stopped: false
       value:
-        type: script
-        path: f/lumenclip/run_pipeline_stage
+        type: rawscript
+        language: bun
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
         input_transforms:
+          base_url:
+            type: static
+            value: $var:f/lumenclip/internal_base_url
+          shared_secret:
+            type: static
+            value: $var:f/lumenclip/shared_secret
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
             value: "slideshow-generation.select-expand-hook"
@@ -79,9 +109,19 @@ value:
         expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.research-hook"
         skip_if_stopped: false
       value:
-        type: script
-        path: f/lumenclip/run_pipeline_stage
+        type: rawscript
+        language: bun
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
         input_transforms:
+          base_url:
+            type: static
+            value: $var:f/lumenclip/internal_base_url
+          shared_secret:
+            type: static
+            value: $var:f/lumenclip/shared_secret
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
             value: "slideshow-generation.research-hook"
@@ -102,9 +142,19 @@ value:
         expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.build-text-prompt"
         skip_if_stopped: false
       value:
-        type: script
-        path: f/lumenclip/run_pipeline_stage
+        type: rawscript
+        language: bun
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
         input_transforms:
+          base_url:
+            type: static
+            value: $var:f/lumenclip/internal_base_url
+          shared_secret:
+            type: static
+            value: $var:f/lumenclip/shared_secret
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
             value: "slideshow-generation.build-text-prompt"
@@ -125,9 +175,19 @@ value:
         expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.generate-slide-text"
         skip_if_stopped: false
       value:
-        type: script
-        path: f/lumenclip/run_pipeline_stage
+        type: rawscript
+        language: bun
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
         input_transforms:
+          base_url:
+            type: static
+            value: $var:f/lumenclip/internal_base_url
+          shared_secret:
+            type: static
+            value: $var:f/lumenclip/shared_secret
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
             value: "slideshow-generation.generate-slide-text"
@@ -148,9 +208,19 @@ value:
         expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.retry-text-similarity"
         skip_if_stopped: false
       value:
-        type: script
-        path: f/lumenclip/run_pipeline_stage
+        type: rawscript
+        language: bun
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
         input_transforms:
+          base_url:
+            type: static
+            value: $var:f/lumenclip/internal_base_url
+          shared_secret:
+            type: static
+            value: $var:f/lumenclip/shared_secret
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
             value: "slideshow-generation.retry-text-similarity"
@@ -171,9 +241,19 @@ value:
         expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.derive-visual-concepts"
         skip_if_stopped: false
       value:
-        type: script
-        path: f/lumenclip/run_pipeline_stage
+        type: rawscript
+        language: bun
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
         input_transforms:
+          base_url:
+            type: static
+            value: $var:f/lumenclip/internal_base_url
+          shared_secret:
+            type: static
+            value: $var:f/lumenclip/shared_secret
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
             value: "slideshow-generation.derive-visual-concepts"
@@ -194,9 +274,19 @@ value:
         expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.build-image-shortlists"
         skip_if_stopped: false
       value:
-        type: script
-        path: f/lumenclip/run_pipeline_stage
+        type: rawscript
+        language: bun
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
         input_transforms:
+          base_url:
+            type: static
+            value: $var:f/lumenclip/internal_base_url
+          shared_secret:
+            type: static
+            value: $var:f/lumenclip/shared_secret
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
             value: "slideshow-generation.build-image-shortlists"
@@ -217,9 +307,19 @@ value:
         expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.select-slide-images"
         skip_if_stopped: false
       value:
-        type: script
-        path: f/lumenclip/run_pipeline_stage
+        type: rawscript
+        language: bun
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
         input_transforms:
+          base_url:
+            type: static
+            value: $var:f/lumenclip/internal_base_url
+          shared_secret:
+            type: static
+            value: $var:f/lumenclip/shared_secret
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
             value: "slideshow-generation.select-slide-images"
@@ -240,9 +340,19 @@ value:
         expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.assemble-plan"
         skip_if_stopped: false
       value:
-        type: script
-        path: f/lumenclip/run_pipeline_stage
+        type: rawscript
+        language: bun
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
         input_transforms:
+          base_url:
+            type: static
+            value: $var:f/lumenclip/internal_base_url
+          shared_secret:
+            type: static
+            value: $var:f/lumenclip/shared_secret
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
             value: "slideshow-generation.assemble-plan"
@@ -263,9 +373,19 @@ value:
         expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.translate-plan"
         skip_if_stopped: false
       value:
-        type: script
-        path: f/lumenclip/run_pipeline_stage
+        type: rawscript
+        language: bun
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
         input_transforms:
+          base_url:
+            type: static
+            value: $var:f/lumenclip/internal_base_url
+          shared_secret:
+            type: static
+            value: $var:f/lumenclip/shared_secret
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
             value: "slideshow-generation.translate-plan"
@@ -286,9 +406,19 @@ value:
         expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.render-store-pngs"
         skip_if_stopped: false
       value:
-        type: script
-        path: f/lumenclip/run_pipeline_stage
+        type: rawscript
+        language: bun
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
         input_transforms:
+          base_url:
+            type: static
+            value: $var:f/lumenclip/internal_base_url
+          shared_secret:
+            type: static
+            value: $var:f/lumenclip/shared_secret
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
             value: "slideshow-generation.render-store-pngs"
@@ -309,9 +439,19 @@ value:
         expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.render-store-mp4"
         skip_if_stopped: false
       value:
-        type: script
-        path: f/lumenclip/run_pipeline_stage
+        type: rawscript
+        language: bun
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
         input_transforms:
+          base_url:
+            type: static
+            value: $var:f/lumenclip/internal_base_url
+          shared_secret:
+            type: static
+            value: $var:f/lumenclip/shared_secret
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
             value: "slideshow-generation.render-store-mp4"
@@ -332,9 +472,19 @@ value:
         expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.validate-output"
         skip_if_stopped: false
       value:
-        type: script
-        path: f/lumenclip/run_pipeline_stage
+        type: rawscript
+        language: bun
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
         input_transforms:
+          base_url:
+            type: static
+            value: $var:f/lumenclip/internal_base_url
+          shared_secret:
+            type: static
+            value: $var:f/lumenclip/shared_secret
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
             value: "slideshow-generation.validate-output"
@@ -355,9 +505,19 @@ value:
         expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.finalize-output"
         skip_if_stopped: false
       value:
-        type: script
-        path: f/lumenclip/run_pipeline_stage
+        type: rawscript
+        language: bun
+        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
         input_transforms:
+          base_url:
+            type: static
+            value: $var:f/lumenclip/internal_base_url
+          shared_secret:
+            type: static
+            value: $var:f/lumenclip/shared_secret
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
             value: "slideshow-generation.finalize-output"

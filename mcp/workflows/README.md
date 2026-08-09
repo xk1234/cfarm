@@ -31,8 +31,9 @@ composite may return a running operation so the caller can resume later with
 the retained structured output.
 
 Full workflow execution is queued in Windmill. Each ordered stage is visible as
-its own Windmill module and uses the same private stage boundary as
-`lumenclip_pipeline_stage_run`. Decomposed convenience composites still call
+its own embedded Windmill module and uses the same private stage boundary as
+`lumenclip_pipeline_stage_run`; there is no standalone Windmill stage-runner
+script. Decomposed convenience composites still call
 atomic handlers through the registry during the incremental handler migration.
 
 ## Tools
@@ -40,7 +41,7 @@ atomic handlers through the registry during the incremental handler migration.
 | Tool                           | Purpose                                                                                               |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------- |
 | `lumenclip_pipeline_catalog`   | List all workflows, workflow stages, atomic stages, boundary metadata, and provider/model provenance. |
-| `lumenclip_pipeline_stage_run` | Invoke one registered atomic or composite stage through Windmill with explicit JSON.                  |
+| `lumenclip_pipeline_stage_run` | Invoke one registered atomic or composite stage directly with explicit JSON.                          |
 | `lumenclip_pipeline_run`       | Queue an ordered named Windmill workflow and return its Windmill job ID.                              |
 
 ## Generate slideshow text for a fixed hook

@@ -1,7 +1,7 @@
 import { authorizeWindmillRequest } from "@/lib/windmill-auth"
-import { executePipelineStage } from "@/lib/pipeline-executor"
-import { createProductionPipelineRegistry } from "@/lib/production-pipeline-runtime"
+import { runProductionPipelineStage } from "@/lib/production-pipeline-runtime"
 import { clean, isRecord } from "@/lib/guards"
+import { withSystemOwner } from "@/lib/system-owner-context"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -20,6 +20,7 @@ export async function POST(
       { status: 400 }
     )
   }
+  const stageInput = body.input
   const ownerId = clean(body.ownerId)
   const requestId = clean(body.requestId)
   if (!ownerId || !requestId) {
@@ -30,13 +31,14 @@ export async function POST(
   }
   const { stageId } = await params
   try {
-    const execution = await executePipelineStage({
-      registry: createProductionPipelineRegistry(),
-      ownerId,
-      stageId,
-      stageInput: body.input,
-      requestId,
-    })
+    const execution = await withSystemOwner(ownerId, () =>
+      runProductionPipelineStage({
+        ownerId,
+        stageId,
+        stageInput,
+        requestId,
+      })
+    )
     return Response.json({ execution })
   } catch (error) {
     return Response.json(

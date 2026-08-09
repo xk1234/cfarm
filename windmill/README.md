@@ -14,17 +14,19 @@ moved out incrementally.
 | `f/lumenclip/x_threads_generation` | `lumenclip - X and Threads generation` |
 
 Every ordered Lumenclip stage is a separate Windmill module. The generated run
-form exposes product inputs only: slideshow, UGC, and X/Threads flows use a
-searchable template picker, while LinkedIn exposes its content fields. Manual
-runs derive their owner from `f/lumenclip/default_owner_id` and use Windmill's
-root flow job ID as their idempotency key.
+form exposes product inputs only: slideshow and X/Threads use a searchable
+template picker, LinkedIn exposes its content fields, and UGC exposes an
+optional template initializer plus product, script, actor, voice, B-roll, and
+render component objects. Manual runs derive their owner from
+`f/lumenclip/default_owner_id` and use Windmill's root flow job ID as their
+idempotency key.
 
 API and MCP callers can continue to pass `owner_id`, `request_id`, `input`,
 `start_at`, and `stop_after`. Those orchestration fields intentionally remain
 outside the generated UI schema so they do not clutter manual runs.
 
-The shared `f/lumenclip/run_pipeline_stage` script requires these Windmill
-variables:
+The embedded private-boundary steps inside the four flows require these
+Windmill variables:
 
 ```text
 f/lumenclip/internal_base_url
@@ -55,7 +57,16 @@ before importing.
 
 - Named MCP workflow runs are queued in Windmill; the app no longer contains
   or invokes an in-process named-workflow loop.
-- Individual MCP stage runs execute through the Windmill stage script.
+- Individual MCP stage runs execute directly against Lumenclip's registered
+  production stage boundary; Windmill contains complete workflows only.
+- Each flow embeds its private-boundary call as a `rawscript` module so every
+  stage remains independently observable without creating a standalone script
+  or MCP tool.
+- The UGC flow is a component graph rather than a cumulative-output line. It
+  resolves optional template defaults, runs actor/motion, voice, and B-roll in
+  a visible branch group, then joins named checkpoint artifacts for lip-sync,
+  composition, and storage. Every component node waits for its own durable
+  checkpoint before returning.
 - The private Lumenclip stage endpoint still hosts the existing stage handlers.
   Moving those handlers into Windmill-native scripts is the next migration
   slice. Until then, some composite modules can contain nested provider calls.

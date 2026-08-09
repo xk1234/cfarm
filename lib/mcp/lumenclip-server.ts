@@ -6,10 +6,8 @@ import {
   PIPELINE_STAGE_CATALOG,
   PIPELINE_WORKFLOW_IDS,
 } from "@/lib/pipeline-stages"
-import {
-  queueWindmillWorkflow,
-  runWindmillPipelineStage,
-} from "@/lib/windmill-workflows"
+import { queueWindmillWorkflow } from "@/lib/windmill-workflows"
+import { runProductionPipelineStage } from "@/lib/production-pipeline-runtime"
 import { toLumenClipDataError } from "@/lib/appwrite-errors"
 import { validateAutomationRunOutput } from "@/lib/automation-output-qa"
 import {
@@ -309,7 +307,7 @@ export type LumenClipMcpServices = {
   getUgcRunStatus: typeof getUgcRunStatus
   estimateUgcCost: typeof estimateUgcCost
   ugcGenerationEnabled: () => boolean
-  runPipelineStage: typeof runWindmillPipelineStage
+  runPipelineStage: typeof runProductionPipelineStage
   queuePipelineWorkflow: typeof queueWindmillWorkflow
 }
 
@@ -386,7 +384,7 @@ const defaultServices: LumenClipMcpServices = {
   getUgcRunStatus,
   estimateUgcCost,
   ugcGenerationEnabled: () => process.env.ENABLE_UGC_AUTOMATION === "true",
-  runPipelineStage: runWindmillPipelineStage,
+  runPipelineStage: runProductionPipelineStage,
   queuePipelineWorkflow: queueWindmillWorkflow,
 }
 

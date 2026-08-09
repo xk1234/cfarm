@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   queueWindmillWorkflow,
-  runWindmillPipelineStage,
   windmillConfigured,
 } from "@/lib/windmill-workflows"
 
@@ -44,41 +43,6 @@ describe("Windmill workflow client", () => {
           stop_after: "slideshow-generation.generate-slide-text",
         }),
       })
-    )
-  })
-
-  it("runs one stage through the shared Windmill script", async () => {
-    configureWindmill()
-    const execution = {
-      stage: {
-        id: "linkedin-generation.validate-input",
-        workflowId: "linkedin-generation",
-      },
-      requestId: "request-2",
-      status: "succeeded",
-      externalCalls: 0,
-      output: { normalizedInput: { niche: "SaaS" } },
-    }
-    const fetchImpl = vi.fn(
-      async () =>
-        new Response(JSON.stringify(execution), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        })
-    )
-
-    await expect(
-      runWindmillPipelineStage({
-        ownerId: "owner-1",
-        requestId: "request-2",
-        stageId: "linkedin-generation.validate-input",
-        stageInput: { niche: "SaaS" },
-        fetchImpl,
-      })
-    ).resolves.toEqual(execution)
-    expect(fetchImpl).toHaveBeenCalledWith(
-      "https://windmill.example/api/w/lumenclip/jobs/run_wait_result/p/f/lumenclip/run_pipeline_stage",
-      expect.objectContaining({ method: "POST" })
     )
   })
 
