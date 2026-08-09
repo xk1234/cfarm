@@ -1,6 +1,6 @@
 // Generated from lib/slideshow-renderer.ts. Do not edit by hand.
 import { clean } from "./guards.js";
-import { resolveSlideshowFont } from "./slideshow-font-family.js";
+import { resolveSlideshowFont, resolveSlideshowFontWeight, } from "./slideshow-font-family.js";
 import { textStyleToEditorColor, textStyleUsesStroke, } from "./realfarm-slideshow-text-style-config.js";
 export const slideshowOverlayOpacity = 0.2;
 export function slideshowTextPositionX(textAlign, textAnchor) {
@@ -21,6 +21,7 @@ export function renderedSlideSvg(slide, sourceUrl, overlayUrl, opts) {
         ? renderedOverlayImageSvg(slide.overlayImage, overlayUrl, width, height)
         : null;
     const overlayAlpha = slide.overlay ? slideshowOverlayOpacity : 0;
+    const imageItemsSvg = slide.imageItems?.map((item, index) => renderedImageItemSvg({ ...item, image_url: opts?.imageItemUrls?.[index] || item.image_url }, width, height));
     const baseLayers = slide.iconLayout
         ? renderedOvalIconsSvg(slide.iconLayout, sourceUrl, opts?.iconUrls, width, height)
         : [
@@ -34,11 +35,34 @@ export function renderedSlideSvg(slide, sourceUrl, overlayUrl, opts) {
             ? `<rect data-layer="overlay" width="${width}" height="${height}" fill="#000" opacity="${overlayAlpha}"/>`
             : null,
         overlayImageSvg,
+        ...(imageItemsSvg ?? []),
         ...renderedTextItemsSvg(textItems, width, height, font),
         `</svg>`,
     ]
         .filter(Boolean)
         .join("");
+}
+export function renderedImageItemEditorBounds(items, width, height) {
+    return items.map((item) => {
+        const itemWidth = (Math.max(2, Math.min(100, item.width)) / 100) * width;
+        const itemHeight = (Math.max(2, Math.min(100, item.height)) / 100) * height;
+        return {
+            id: item.id,
+            left: Math.max(0, Math.min(width - itemWidth, (item.positionX / 100) * width - itemWidth / 2)),
+            top: Math.max(0, Math.min(height - itemHeight, (item.positionY / 100) * height - itemHeight / 2)),
+            width: itemWidth,
+            height: itemHeight,
+        };
+    });
+}
+function renderedImageItemSvg(item, slideWidth, slideHeight) {
+    const [bounds] = renderedImageItemEditorBounds([item], slideWidth, slideHeight);
+    const clipId = `image-layer-${item.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+    const preserveAspectRatio = item.fit === "contain" ? "xMidYMid meet" : "xMidYMid slice";
+    return [
+        `<defs><clipPath id="${clipId}"><rect x="${round(bounds.left)}" y="${round(bounds.top)}" width="${round(bounds.width)}" height="${round(bounds.height)}"/></clipPath></defs>`,
+        `<image data-image-layer="${escapeXml(item.id)}" href="${escapeXml(item.image_url)}" x="${round(bounds.left)}" y="${round(bounds.top)}" width="${round(bounds.width)}" height="${round(bounds.height)}" opacity="${Math.max(0, Math.min(1, item.opacity))}" preserveAspectRatio="${preserveAspectRatio}" clip-path="url(#${clipId})"/>`,
+    ].join("");
 }
 function renderedOvalIconsSvg(layout, focalUrl, iconUrls, width, height) {
     const cx = width * 0.5;
@@ -213,9 +237,10 @@ function renderedTextItemSvg(rendered, font) {
         return `<tspan x="${x}" dy="${dy}">${escapeXml(line)}</tspan>`;
     })
         .join("");
-    const fontFamily = escapeXml(font || resolveSlideshowFont());
+    const requestedFont = item.font || font;
+    const fontFamily = escapeXml(resolveSlideshowFont(requestedFont));
     const background = renderedTextBackgroundSvg(rendered);
-    const fontWeight = Math.max(100, Math.min(900, item.fontWeight ?? 800));
+    const fontWeight = resolveSlideshowFontWeight(requestedFont, item.fontWeight);
     return `${background}<text id="${escapeXml(item.id)}" x="${x}" y="${y}" text-anchor="${textAnchor}" dominant-baseline="middle" font-family="${fontFamily}, sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}"${stroke}>${tspans}</text>`;
 }
 function renderedTextBackgroundSvg(rendered) {

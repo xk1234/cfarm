@@ -1,5 +1,8 @@
 import { clean } from "@/lib/guards"
-import { resolveSlideshowFont } from "@/lib/slideshow-font-family"
+import {
+  resolveSlideshowFont,
+  resolveSlideshowFontWeight,
+} from "@/lib/slideshow-font-family"
 import {
   textStyleToEditorColor,
   textStyleUsesStroke,
@@ -478,9 +481,10 @@ function renderedTextItemSvg(rendered: RenderedTextItem, font: string) {
     })
     .join("")
 
-  const fontFamily = escapeXml(font || resolveSlideshowFont())
+  const requestedFont = item.font || font
+  const fontFamily = escapeXml(resolveSlideshowFont(requestedFont))
   const background = renderedTextBackgroundSvg(rendered)
-  const fontWeight = Math.max(100, Math.min(900, item.fontWeight ?? 800))
+  const fontWeight = resolveSlideshowFontWeight(requestedFont, item.fontWeight)
   return `${background}<text id="${escapeXml(item.id)}" x="${x}" y="${y}" text-anchor="${textAnchor}" dominant-baseline="middle" font-family="${fontFamily}, sans-serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="${fill}"${stroke}>${tspans}</text>`
 }
 

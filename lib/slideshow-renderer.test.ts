@@ -40,6 +40,28 @@ describe("slideshow renderer", () => {
     expect(svg).toContain('id="text-controls" x="540" y="1283"')
   })
 
+  it("supports a font and weight on each individual text element", () => {
+    const svg = renderedSlideSvg(
+      {
+        id: "slide-mixed-typography",
+        image_url: "/image.jpg",
+        textItems: [
+          {
+            ...textItem("script", "center"),
+            font: "Angelina",
+            fontWeight: 400,
+          },
+        ],
+      },
+      "/image.jpg",
+      undefined,
+      { aspectRatio: "4:5", font: "Inter" }
+    )
+
+    expect(svg).toContain('font-family="Angelina, sans-serif"')
+    expect(svg).toContain('font-weight="400"')
+  })
+
   it("does not render a dark overlay when the switch is off", () => {
     const svg = renderedSlideSvg(
       {

@@ -48,3 +48,31 @@ built-in starting points through the same template contract, and
 template or blank schema. X and Threads creation in this browser has no
 matching registered create tool. The MCP prefix remains unchanged for backwards
 compatibility. Search, sort, example previews, and dialogs are UI-only.
+
+## PIN Set 34A typography
+
+The editor bundles every font package supplied for `PIN SET 34A 2022` and
+offers each face in the slideshow font control. Text elements persist their own
+`font` and `fontWeight`, allowing one template to combine headline,
+handwritten, and script faces.
+
+The PDF embeds subset names, while several supplied packages are intentionally
+different families. The template mapping uses the closest visual match rather
+than trusting a similar archive name:
+
+| PDF role                            | Editor family        | Decision                                                                  |
+| ----------------------------------- | -------------------- | ------------------------------------------------------------------------- |
+| Glacial Indifference Regular / Bold | Inter                | Existing geometric sans fallback; no complete Glacial file was supplied.  |
+| Jenthill Light                      | Yoriglo              | Closest connected monoline script in the supplied set.                    |
+| Angelina                            | Angelina             | Exact family.                                                             |
+| Hertical Sans Smooth                | Hertical Sans Smooth | Exact family and style.                                                   |
+| Rumba                               | Sunset Script        | Closest loose handwritten script; Respano is a condensed display sans.    |
+| Sunflower                           | Casual Human         | Closest tall, narrow hand-lettered face; Rossen is a high-contrast serif. |
+| Maldina                             | Buffalo              | Closest bold brush script; Backind Maldina is a different serif family.   |
+| Seattle                             | Casual Human         | Closest tall handwritten sans.                                            |
+| Buffalo                             | Buffalo              | Exact family.                                                             |
+
+Source archives remain unchanged in the owner's Drive folder. The app stores
+normalized OTF copies for browser preview and native rendering; worker bundles
+are generated from the same source directory so previews and exports resolve
+the same font files.

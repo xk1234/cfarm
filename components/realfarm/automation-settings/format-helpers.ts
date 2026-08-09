@@ -120,6 +120,7 @@ export function previewSlideshowTextItems(
       textPlacement:
         textItem.positionY === undefined ? textItem.textPosition : undefined,
       textPosition: previewTextItemPosition(textItem),
+      font: textItem.font,
       fontWeight: textItem.fontWeight,
       backgroundMode: textItem.backgroundMode,
       backgroundRadius: textItem.backgroundRadius,

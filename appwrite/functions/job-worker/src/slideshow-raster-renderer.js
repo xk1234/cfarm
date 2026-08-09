@@ -5,6 +5,7 @@ export async function renderSlideshowSlideBuffers(input) {
         aspectRatio: input.aspectRatio,
         font: input.font,
         iconUrls: input.iconUrls,
+        imageItemUrls: input.imageItemUrls,
     });
     const sharp = (await import("sharp")).default;
     const png = await sharp(Buffer.from(svg)).png().toBuffer();
