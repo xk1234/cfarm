@@ -172,7 +172,7 @@ function publicInputFor(workflowId: PipelineWorkflowId) {
 function dynamicTemplateSelectCode(kind: "slideshow" | "ugc" | "x_threads") {
   return `import * as wmill from "windmill-client"
 
-async function automation_id(filterText = "") {
+export async function automation_id(filterText = "") {
   const [baseUrlValue, secretValue, ownerIdValue] = await Promise.all([
     wmill.getVariable("f/lumenclip/internal_base_url"),
     wmill.getVariable("f/lumenclip/shared_secret"),
