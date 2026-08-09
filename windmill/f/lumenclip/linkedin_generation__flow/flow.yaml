@@ -3,71 +3,143 @@ description: "Generate LinkedIn posts through individually observable and compos
 value:
   modules:
     - id: resolve_input_groups
-      summary: "Resolve independent LinkedIn input groups"
+      summary: "Normalize independent LinkedIn input groups"
       value:
         type: branchall
         parallel: true
         branches:
           - summary: "Audience and topic"
             modules:
-              - id: audience_topic_input
-                summary: "Audience and topic input"
+              - id: normalize_audience_topic
+                summary: "Require niche and normalize topic controls"
+                timeout:
+                  type: static
+                  value: 300
                 value:
                   type: rawscript
                   language: bun
-                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
                   input_transforms:
-                    artifact:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "linkedin-generation.normalize-audience-topic"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
                       type: javascript
                       expr: "({ niche: flow_input.niche, topic: flow_input.topic, excludedTopics: flow_input.excluded_topics })"
-          - summary: "Proof and evidence"
-            modules:
-              - id: proof_input
-                summary: "Proof bank input"
-                value:
-                  type: rawscript
-                  language: bun
-                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
-                  input_transforms:
-                    artifact:
-                      type: javascript
-                      expr: "({ proof: flow_input.proof ?? [] })"
           - summary: "Voice and persona"
             modules:
-              - id: voice_input
-                summary: "Voice, persona and post model"
+              - id: normalize_voice_proof
+                summary: "Normalize persona, proof, and post model"
+                timeout:
+                  type: static
+                  value: 300
                 value:
                   type: rawscript
                   language: bun
-                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
                   input_transforms:
-                    artifact:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "linkedin-generation.normalize-voice-proof"
+                    owner_id:
                       type: javascript
-                      expr: "({ persona: flow_input.persona ?? \"educator\", model: flow_input.model })"
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "({ persona: flow_input.persona, proof: flow_input.proof, archetypeId: flow_input.archetype_id, hookStyleId: flow_input.hook_style_id, pillar: flow_input.pillar, model: flow_input.model })"
           - summary: "Brief controls"
             modules:
-              - id: brief_input
-                summary: "Optional brief and strategy model"
+              - id: normalize_brief_controls
+                summary: "Validate supplied brief and brief model"
+                timeout:
+                  type: static
+                  value: 300
                 value:
                   type: rawscript
                   language: bun
-                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
                   input_transforms:
-                    artifact:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "linkedin-generation.normalize-brief-controls"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
                       type: javascript
                       expr: "({ brief: flow_input.brief, briefModel: flow_input.brief_model })"
           - summary: "Batch controls"
             modules:
-              - id: batch_input
-                summary: "Batch count input"
+              - id: normalize_batch_controls
+                summary: "Clamp requested batch count"
+                timeout:
+                  type: static
+                  value: 300
                 value:
                   type: rawscript
                   language: bun
-                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
                   input_transforms:
-                    artifact:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "linkedin-generation.normalize-batch-controls"
+                    owner_id:
                       type: javascript
-                      expr: "({ count: flow_input.count ?? 1 })"
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "({ count: flow_input.count })"
     - id: validate_input
       summary: "Join and normalize LinkedIn inputs"
       timeout:
@@ -98,7 +170,7 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "({ ...results.resolve_input_groups[0].output.artifact, ...results.resolve_input_groups[1].output.artifact, ...results.resolve_input_groups[2].output.artifact, ...results.resolve_input_groups[3].output.artifact, ...results.resolve_input_groups[4].output.artifact })"
+            expr: "({ audience: results.resolve_input_groups[0].output.audience, voiceProof: results.resolve_input_groups[1].output.voiceProof, briefControls: results.resolve_input_groups[2].output.briefControls, batchControls: results.resolve_input_groups[3].output.batchControls })"
     - id: resolve_brief
       summary: "Resolve niche brief artifact"
       timeout:

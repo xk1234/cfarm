@@ -55,8 +55,11 @@ pnpm dlx windmill-cli sync push --yes --skip-variables --skip-secrets
 ```
 
 `generate-flows.mts` derives six flow graphs from explicit per-workflow DAG
-definitions backed by the canonical stage catalog. Re-run it whenever a stage
-or graph dependency changes, then lint before importing.
+definitions backed by the canonical stage catalog. The audited reads, writes,
+and producer edges are recorded in `workflow-dependencies.ts`; its tests fail
+when a declared producer is missing, ordered after its consumer, or replaced
+by a generic identity artifact. Re-run the generator whenever a stage or graph
+dependency changes, then lint before importing.
 
 ## Current migration boundary
 
@@ -67,15 +70,21 @@ or graph dependency changes, then lint before importing.
 - Each flow embeds its private-boundary call as a `rawscript` module so every
   stage remains independently observable without creating a standalone script
   or MCP tool.
-- Slideshow input hydration is parallelized across template, collections,
-  variables, usage history, prior runs, and model settings. Its accepted text
-  artifact and visual-selection path remain distinct until slide assembly.
-- UGC input groups resolve independently. Actor/motion, voice, and B-roll run
-  in parallel, then join named checkpoint artifacts for lip-sync, composition,
-  and storage. Every component node waits for its own durable checkpoint.
+- Slideshow validation loads only template, collection, and word-variable
+  inputs. Text generation then runs in parallel with static image-candidate
+  preparation. Prior runs are loaded later, alongside rendering, and first
+  join rendered output at output QA.
+- UGC loads template defaults once, then real component resolvers merge and
+  validate each override at its first consumer. Product analysis joins script
+  configuration at script generation; actor and voice first join at lip-sync;
+  performance, B-roll, and render settings first join at composition. Parallel
+  component jobs use isolated checkpoint run IDs rather than racing on one
+  shared checkpoint document.
 - React & Reveal plays the complete anticipation clip before the complete
   reveal. Greenscreen Meme chroma-keys the complete meme clip over its selected
-  background and adds the hook caption. Both create draft outputs only.
+  background and adds the hook caption. Their media roles are genuinely
+  resolved and staged in parallel; draft metadata follows an independent path
+  and joins only after rendering. Both create draft outputs only.
 - The private Lumenclip stage endpoint still hosts the existing stage handlers.
   Moving those handlers into Windmill-native scripts is the next migration
   slice. Until then, some composite modules can contain nested provider calls.

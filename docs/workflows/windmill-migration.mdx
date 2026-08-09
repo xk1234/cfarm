@@ -27,12 +27,25 @@ Named workflow runs accept the same top-level fields as the Windmill form.
 Linear `startAt`/`stopAfter` windows are rejected because they cannot preserve
 branch dependencies; isolated testing uses `lumenclip_pipeline_stage_run`.
 
-Slideshow hydrates template/schema, collections/assets, word variables, usage
-history, prior runs, and model settings in parallel. Text generation and visual
-selection remain separate paths and join at slide assembly. UGC splits input
-groups and parallelizes actor/motion, voice, and B-roll. X/Threads separates
-template and per-run topic/source inputs, then prepares text persistence and
-the optional image task independently before image attachment.
+Slideshow validation joins only template/schema, collections/assets, and word
+variables. Reuse memory and model settings are loaded inside the text path,
+while static image candidates are prepared independently. Accepted text and
+candidate pools first meet at visual-concept preparation. Prior runs are loaded
+alongside rendering and first meet the rendered result at output QA.
+
+UGC loads template defaults once. Product and script component resolvers do
+real merge/validation work before script generation; actor/motion and voice
+join at lip-sync; the resulting performance joins B-roll and render settings at
+composition. Each parallel checkpoint job uses an isolated component run.
+React & Reveal and Greenscreen Meme similarly use real role resolvers and media
+staging, while draft metadata first joins after rendering. LinkedIn branches
+run actual group normalizers. X/Threads loads and validates the template while
+normalizing topic/source input, then prepares text persistence and the optional
+image task independently before image attachment.
+
+The source-level dependency audit lives in
+`windmill/workflow-dependencies.ts`. Generated-flow tests reject the generic
+identity artifact source and assert the recorded producer-to-consumer order.
 
 ## App boundary
 

@@ -255,22 +255,9 @@ function stageNode(input: {
   })
 }
 
-function artifactNode(id: string, summary: string, inputExpr: string) {
-  return `    - id: ${id}
-      summary: ${yamlString(summary)}
-      value:
-        type: rawscript
-        language: bun
-        content: ${yamlString(`export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }`)}
-        input_transforms:
-          artifact:
-            type: javascript
-            expr: ${yamlString(inputExpr)}`
-}
-
 function slideshowDagFlowYaml(summary: string, description: string) {
-  const hydrate = `    - id: hydrate_inputs
-      summary: "Hydrate independent slideshow inputs"
+  const validationInputs = `    - id: load_validation_inputs
+      summary: "Load inputs consumed together by slideshow validation"
       value:
         type: branchall
         parallel: true
@@ -284,27 +271,38 @@ ${indent(stageNode({ id: "load_collections", summary: "Load image collections", 
           - summary: "Word variables and hooks"
             modules:
 ${indent(stageNode({ id: "load_word_collections", summary: "Load word collections", stageId: "slideshow-generation.list-word-collections", inputExpr: "({})" }), 14)}
-          - summary: "Usage memory"
-            modules:
-${indent(stageNode({ id: "load_usage", summary: "Load usage history", stageId: "slideshow-generation.list-usage-history", inputExpr: "({})" }), 14)}
-          - summary: "Prior generation history"
-            modules:
-${indent(stageNode({ id: "load_prior_runs", summary: "Load prior runs", stageId: "slideshow-generation.list-prior-runs", inputExpr: "({ automationId: flow_input.automation_id })" }), 14)}
-          - summary: "Generation model settings"
-            modules:
-${indent(stageNode({ id: "load_model_settings", summary: "Load model settings", stageId: "slideshow-generation.load-model-settings", inputExpr: "({})" }), 14)}`
+`
   const validate = stageNode({
     id: "validate_input",
-    summary: "Join hydrated inputs and validate",
+    summary: "Validate template, collections, and word variables",
     stageId: "slideshow-generation.validate-input",
     inputExpr:
-      "({ automationId: flow_input.automation_id, automationRecord: results.hydrate_inputs[0].output.automationRecord, collections: results.hydrate_inputs[1].output.collections, wordCollections: results.hydrate_inputs[2].output.wordCollections, usageHistory: results.hydrate_inputs[3].output.usageHistory, priorRuns: results.hydrate_inputs[4].output.priorRuns, generationSettings: results.hydrate_inputs[5].output.generationSettings })",
+      "({ automationId: flow_input.automation_id, automationRecord: results.load_validation_inputs[0].output.automationRecord, collections: results.load_validation_inputs[1].output.collections, wordCollections: results.load_validation_inputs[2].output.wordCollections })",
+  })
+  const loadGenerationContext = `              - id: load_generation_context
+                summary: "Load memory and model inputs consumed by text generation"
+                value:
+                  type: branchall
+                  parallel: true
+                  branches:
+                    - summary: "Published reuse memory"
+                      modules:
+${indent(stageNode({ id: "load_usage", summary: "Load usage history", stageId: "slideshow-generation.list-usage-history", inputExpr: "({})" }), 22)}
+                    - summary: "Generation model settings"
+                      modules:
+${indent(stageNode({ id: "load_model_settings", summary: "Load model settings", stageId: "slideshow-generation.load-model-settings", inputExpr: "({})" }), 22)}`
+  const context = stageNode({
+    id: "prepare_generation_context",
+    summary: "Normalize reuse memory and generation model",
+    stageId: "slideshow-generation.prepare-generation-context",
+    inputExpr:
+      "({ ...results.validate_input.output, usageHistory: results.load_generation_context[0].output.usageHistory, generationSettings: results.load_generation_context[1].output.generationSettings })",
   })
   const count = stageNode({
     id: "resolve_slide_count",
     summary: "Resolve slide count",
     stageId: "slideshow-generation.resolve-slide-count",
-    inputExpr: "results.validate_input.output",
+    inputExpr: "results.prepare_generation_context.output",
   })
   const hook = stageNode({
     id: "select_expand_hook",
@@ -336,16 +334,12 @@ ${indent(stageNode({ id: "load_model_settings", summary: "Load model settings", 
     stageId: "slideshow-generation.retry-text-similarity",
     inputExpr: "results.generate_slide_text.output",
   })
-  const textArtifact = artifactNode(
-    "text_artifact",
-    "Text path — accepted slide copy",
-    "results.retry_text_similarity.output"
-  )
-  const concepts = stageNode({
-    id: "derive_visual_concepts",
-    summary: "Visual path — derive concepts",
-    stageId: "slideshow-generation.derive-visual-concepts",
-    inputExpr: "results.retry_text_similarity.output",
+  const candidatePools = stageNode({
+    id: "prepare_image_candidate_pools",
+    summary: "Prepare static image candidate pools",
+    stageId: "slideshow-generation.prepare-image-candidate-pools",
+    inputExpr:
+      "({ textAutomation: results.validate_input.output.textAutomation, collections: results.validate_input.output.collections })",
   })
   const shortlists = stageNode({
     id: "build_image_shortlists",
@@ -359,26 +353,37 @@ ${indent(stageNode({ id: "load_model_settings", summary: "Load model settings", 
     stageId: "slideshow-generation.select-slide-images",
     inputExpr: "results.build_image_shortlists.output",
   })
-  const split = `    - id: prepare_slide_artifacts
-      summary: "Prepare text and visual artifacts"
+  const split = `    - id: produce_text_and_candidates
+      summary: "Generate text while static image pools are prepared"
       value:
         type: branchall
         parallel: true
         branches:
-          - summary: "Accepted text artifact"
+          - summary: "Text generation"
             modules:
-${indent(textArtifact, 14)}
-          - summary: "Visual concepts and image selection"
+${loadGenerationContext}
+${indent(context, 14)}
+${indent(count, 14)}
+${indent(hook, 14)}
+${indent(research, 14)}
+${indent(prompt, 14)}
+${indent(generate, 14)}
+${indent(retry, 14)}
+          - summary: "Static image candidate preparation"
             modules:
-${indent(concepts, 14)}
-${indent(shortlists, 14)}
-${indent(images, 14)}`
+${indent(candidatePools, 14)}`
+  const concepts = stageNode({
+    id: "derive_visual_concepts",
+    summary: "Derive concepts from accepted text and eligible candidate pools",
+    stageId: "slideshow-generation.derive-visual-concepts",
+    inputExpr:
+      "({ ...results.produce_text_and_candidates[0].output, candidatesBySlide: results.produce_text_and_candidates[1].output.candidatesBySlide })",
+  })
   const assemble = stageNode({
     id: "assemble_plan",
     summary: "Join text and images into slide plan",
     stageId: "slideshow-generation.assemble-plan",
-    inputExpr:
-      "({ ...results.prepare_slide_artifacts[0].output.artifact, visualConceptsBySlide: results.prepare_slide_artifacts[1].output.visualConceptsBySlide, shortlists: results.prepare_slide_artifacts[1].output.shortlists, selectedImages: results.prepare_slide_artifacts[1].output.selectedImages })",
+    inputExpr: "results.select_slide_images.output",
   })
   const translate = stageNode({
     id: "translate_plan",
@@ -398,11 +403,25 @@ ${indent(images, 14)}`
     stageId: "slideshow-generation.render-store-mp4",
     inputExpr: "results.render_store_pngs.output",
   })
+  const renderAndQa = `    - id: render_and_qa_context
+      summary: "Render output while prior-run QA context loads"
+      value:
+        type: branchall
+        parallel: true
+        branches:
+          - summary: "Rendered slideshow artifacts"
+            modules:
+${indent(png, 14)}
+${indent(mp4, 14)}
+          - summary: "Prior-run QA context"
+            modules:
+${indent(stageNode({ id: "load_prior_runs", summary: "Load prior runs for output QA", stageId: "slideshow-generation.list-prior-runs", inputExpr: "({ automationId: flow_input.automation_id })" }), 14)}`
   const qa = stageNode({
     id: "validate_output",
     summary: "Validate generated output",
     stageId: "slideshow-generation.validate-output",
-    inputExpr: "results.render_store_mp4.output",
+    inputExpr:
+      "({ ...results.render_and_qa_context[0].output, priorRuns: results.render_and_qa_context[1].output.priorRuns })",
   })
   const finalize = stageNode({
     id: "finalize_output",
@@ -414,19 +433,15 @@ ${indent(images, 14)}`
 description: ${yamlString(description)}
 value:
   modules:
-${hydrate}
+${validationInputs}
 ${validate}
-${count}
-${hook}
-${research}
-${prompt}
-${generate}
-${retry}
 ${split}
+${concepts}
+${shortlists}
+${images}
 ${assemble}
 ${translate}
-${png}
-${mp4}
+${renderAndQa}
 ${qa}
 ${finalize}
 schema:
@@ -445,32 +460,29 @@ schema:
 
 function linkedinDagFlowYaml(summary: string, description: string) {
   const inputGroups = `    - id: resolve_input_groups
-      summary: "Resolve independent LinkedIn input groups"
+      summary: "Normalize independent LinkedIn input groups"
       value:
         type: branchall
         parallel: true
         branches:
           - summary: "Audience and topic"
             modules:
-${indent(artifactNode("audience_topic_input", "Audience and topic input", "({ niche: flow_input.niche, topic: flow_input.topic, excludedTopics: flow_input.excluded_topics })"), 14)}
-          - summary: "Proof and evidence"
-            modules:
-${indent(artifactNode("proof_input", "Proof bank input", "({ proof: flow_input.proof ?? [] })"), 14)}
+${indent(stageNode({ id: "normalize_audience_topic", summary: "Require niche and normalize topic controls", stageId: "linkedin-generation.normalize-audience-topic", inputExpr: "({ niche: flow_input.niche, topic: flow_input.topic, excludedTopics: flow_input.excluded_topics })" }), 14)}
           - summary: "Voice and persona"
             modules:
-${indent(artifactNode("voice_input", "Voice, persona and post model", '({ persona: flow_input.persona ?? "educator", model: flow_input.model })'), 14)}
+${indent(stageNode({ id: "normalize_voice_proof", summary: "Normalize persona, proof, and post model", stageId: "linkedin-generation.normalize-voice-proof", inputExpr: "({ persona: flow_input.persona, proof: flow_input.proof, archetypeId: flow_input.archetype_id, hookStyleId: flow_input.hook_style_id, pillar: flow_input.pillar, model: flow_input.model })" }), 14)}
           - summary: "Brief controls"
             modules:
-${indent(artifactNode("brief_input", "Optional brief and strategy model", "({ brief: flow_input.brief, briefModel: flow_input.brief_model })"), 14)}
+${indent(stageNode({ id: "normalize_brief_controls", summary: "Validate supplied brief and brief model", stageId: "linkedin-generation.normalize-brief-controls", inputExpr: "({ brief: flow_input.brief, briefModel: flow_input.brief_model })" }), 14)}
           - summary: "Batch controls"
             modules:
-${indent(artifactNode("batch_input", "Batch count input", "({ count: flow_input.count ?? 1 })"), 14)}`
+${indent(stageNode({ id: "normalize_batch_controls", summary: "Clamp requested batch count", stageId: "linkedin-generation.normalize-batch-controls", inputExpr: "({ count: flow_input.count })" }), 14)}`
   const modules = [
     [
       "validate_input",
       "Join and normalize LinkedIn inputs",
       "validate-input",
-      "({ ...results.resolve_input_groups[0].output.artifact, ...results.resolve_input_groups[1].output.artifact, ...results.resolve_input_groups[2].output.artifact, ...results.resolve_input_groups[3].output.artifact, ...results.resolve_input_groups[4].output.artifact })",
+      "({ audience: results.resolve_input_groups[0].output.audience, voiceProof: results.resolve_input_groups[1].output.voiceProof, briefControls: results.resolve_input_groups[2].output.briefControls, batchControls: results.resolve_input_groups[3].output.batchControls })",
     ],
     [
       "resolve_brief",
@@ -539,23 +551,23 @@ ${linkedinInputSchema()}
 
 function xThreadsDagFlowYaml(summary: string, description: string) {
   const inputGroups = `    - id: resolve_input_groups
-      summary: "Resolve independent X and Threads input groups"
+      summary: "Load template while per-run content is normalized"
       value:
         type: branchall
         parallel: true
         branches:
           - summary: "Saved template reference"
             modules:
-${indent(artifactNode("template_input", "Saved social template reference", "({ automationId: flow_input.automation_id })"), 14)}
+${indent(stageNode({ id: "load_template", summary: "Load and validate the saved social template", stageId: "x-threads-generation.load-template", inputExpr: "({ automationId: flow_input.automation_id })" }), 14)}
           - summary: "Per-run content input"
             modules:
-${indent(artifactNode("content_input", "Topic and source candidate", "({ topic: flow_input.topic, sourceCandidate: flow_input.source_candidate })"), 14)}`
+${indent(stageNode({ id: "normalize_run_input", summary: "Normalize topic and source candidate", stageId: "x-threads-generation.normalize-run-input", inputExpr: "({ topic: flow_input.topic, sourceCandidate: flow_input.source_candidate, deriveBrief: true })" }), 14)}`
   const sequential = [
     [
       "validate_input",
       "Join template and per-run content",
       "validate-input",
-      "({ ...results.resolve_input_groups[0].output.artifact, ...results.resolve_input_groups[1].output.artifact, deriveBrief: true })",
+      "({ automationId: results.resolve_input_groups[0].output.automationId, automation: results.resolve_input_groups[0].output.automation, runInput: results.resolve_input_groups[1].output.runInput })",
     ],
     [
       "resolve_brief",
@@ -692,84 +704,90 @@ function fixedVideoFlowYaml(
       : "greenscreen-meme-generation"
   const primary = format === "react_reveal" ? "anticipation" : "meme"
   const secondary = format === "react_reveal" ? "reveal" : "background"
-  const captionArtifact =
-    format === "react_reveal"
-      ? "({ hookCaption: flow_input.hook_caption, payoffCaption: flow_input.payoff_caption })"
-      : "({ caption: flow_input.caption, textPlacement: flow_input.text_placement })"
-  const inputGroups = `    - id: resolve_input_groups
-      summary: "Resolve independent format input groups"
-      value:
-        type: branchall
-        parallel: true
-        branches:
-          - summary: "Template reference"
-            modules:
-${indent(artifactNode("template_input", "Template defaults reference", "({ templateId: flow_input.template_id })"), 14)}
-          - summary: ${yamlString(`${primary} input`)}
-            modules:
-${indent(artifactNode(`${primary}_input`, `${primary} media component`, `flow_input.${primary} ?? {}`), 14)}
-          - summary: ${yamlString(`${secondary} input`)}
-            modules:
-${indent(artifactNode(`${secondary}_input`, `${secondary} media component`, `flow_input.${secondary} ?? {}`), 14)}
-          - summary: "Audio input"
-            modules:
-${indent(artifactNode("audio_input", "Optional soundtrack component", "flow_input.audio ?? {}"), 14)}
-          - summary: "Caption input"
-            modules:
-${indent(artifactNode("caption_input", "Format caption component", captionArtifact), 14)}
-          - summary: "Draft output input"
-            modules:
-${indent(artifactNode("output_input", "Draft metadata component", "flow_input.output ?? {}"), 14)}`
-  const resolve = stageNode({
-    id: "resolve_components",
-    summary: "Resolve template and format components",
-    stageId: `${workflowId}.resolve-components`,
-    inputExpr:
-      format === "react_reveal"
-        ? "({ templateId: results.resolve_input_groups[0].output.artifact.templateId, anticipation: results.resolve_input_groups[1].output.artifact, reveal: results.resolve_input_groups[2].output.artifact, audio: results.resolve_input_groups[3].output.artifact, hookCaption: results.resolve_input_groups[4].output.artifact.hookCaption, payoffCaption: results.resolve_input_groups[4].output.artifact.payoffCaption, output: results.resolve_input_groups[5].output.artifact })"
-        : "({ templateId: results.resolve_input_groups[0].output.artifact.templateId, meme: results.resolve_input_groups[1].output.artifact, background: results.resolve_input_groups[2].output.artifact, audio: results.resolve_input_groups[3].output.artifact, caption: results.resolve_input_groups[4].output.artifact.caption, textPlacement: results.resolve_input_groups[4].output.artifact.textPlacement, output: results.resolve_input_groups[5].output.artifact })",
+  const loadTemplate = stageNode({
+    id: "load_template_defaults",
+    summary: "Load and validate optional format template",
+    stageId: `${workflowId}.load-template-defaults`,
+    inputExpr: "({ templateId: flow_input.template_id })",
   })
+  const resolveRole = (role: string) =>
+    stageNode({
+      id: `resolve_${role}`,
+      summary: `Merge and validate ${role} media`,
+      stageId: `${workflowId}.resolve-${role}`,
+      inputExpr: `({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.${role} })`,
+    })
   const primaryStage = stageNode({
     id: `stage_${primary}`,
     summary: `Stage ${primary} media`,
     stageId: `${workflowId}.stage-${primary}`,
-    inputExpr: "results.resolve_components.output",
+    inputExpr: `({ generation: results.resolve_${primary}.output.generation, components: { ${primary}: results.resolve_${primary}.output.component } })`,
   })
   const secondaryStage = stageNode({
     id: `stage_${secondary}`,
     summary: `Stage ${secondary} media`,
     stageId: `${workflowId}.stage-${secondary}`,
-    inputExpr: "results.resolve_components.output",
+    inputExpr: `({ generation: results.resolve_${secondary}.output.generation, components: { ${secondary}: results.resolve_${secondary}.output.component } })`,
   })
   const audioStage = stageNode({
     id: "stage_audio",
     summary: "Stage optional soundtrack",
     stageId: `${workflowId}.stage-audio`,
-    inputExpr: "results.resolve_components.output",
+    inputExpr:
+      "({ generation: results.resolve_audio.output.generation, components: { audio: results.resolve_audio.output.component } })",
   })
-  const branch = `    - id: stage_media_components
-      summary: "Stage independent media components"
-      value:
-        type: branchall
-        parallel: true
-        branches:
-          - summary: ${yamlString(`${primary} component`)}
-            modules:
-${indent(primaryStage, 14)}
-          - summary: ${yamlString(`${secondary} component`)}
-            modules:
-${indent(secondaryStage, 14)}
-          - summary: "Optional audio component"
-            modules:
-${indent(audioStage, 14)}`
+  const resolveAudio = stageNode({
+    id: "resolve_audio",
+    summary: "Merge and validate optional soundtrack",
+    stageId: `${workflowId}.resolve-audio`,
+    inputExpr:
+      "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.audio })",
+  })
+  const resolveCaption = stageNode({
+    id: "resolve_caption",
+    summary: "Normalize captions consumed by the renderer",
+    stageId: `${workflowId}.resolve-caption`,
+    inputExpr:
+      format === "react_reveal"
+        ? "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: { hookCaption: flow_input.hook_caption, payoffCaption: flow_input.payoff_caption } })"
+        : "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: { caption: flow_input.caption, textPlacement: flow_input.text_placement } })",
+  })
+  const resolveOutput = stageNode({
+    id: "resolve_output",
+    summary: "Normalize metadata consumed by draft finalization",
+    stageId: `${workflowId}.resolve-output`,
+    inputExpr:
+      "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.output })",
+  })
+  const renderInputs = `              - id: resolve_and_stage_render_inputs
+                summary: "Resolve and stage inputs first consumed by the renderer"
+                value:
+                  type: branchall
+                  parallel: true
+                  branches:
+                    - summary: ${yamlString(`${primary} media`)}
+                      modules:
+${indent(resolveRole(primary), 22)}
+${indent(primaryStage, 22)}
+                    - summary: ${yamlString(`${secondary} media`)}
+                      modules:
+${indent(resolveRole(secondary), 22)}
+${indent(secondaryStage, 22)}
+                    - summary: "Optional soundtrack"
+                      modules:
+${indent(resolveAudio, 22)}
+${indent(audioStage, 22)}
+                    - summary: "Format captions"
+                      modules:
+${indent(resolveCaption, 22)}`
   const build = stageNode({
     id: "build_render_command",
     summary:
       format === "react_reveal"
-        ? "Join full anticipation and full reveal"
-        : "Join chroma-keyed meme, background and caption",
+        ? "Join full anticipation, full reveal, audio, and captions"
+        : "Join chroma-keyed meme, background, audio, and caption",
     stageId: `${workflowId}.build-render-command`,
-    inputExpr: `({ ...results.resolve_components.output, stagedMedia: { ${primary}: results.stage_media_components[0].output.stagedMedia.${primary}, ${secondary}: results.stage_media_components[1].output.stagedMedia.${secondary}, audio: results.stage_media_components[2].output.stagedMedia?.audio } })`,
+    inputExpr: `({ generation: results.load_template_defaults.output.generation, components: { ${primary}: results.resolve_and_stage_render_inputs[0].output.components.${primary}, ${secondary}: results.resolve_and_stage_render_inputs[1].output.components.${secondary}, audio: results.resolve_and_stage_render_inputs[2].output.components.audio, ...results.resolve_and_stage_render_inputs[3].output.component }, stagedMedia: { ${primary}: results.resolve_and_stage_render_inputs[0].output.stagedMedia.${primary}, ${secondary}: results.resolve_and_stage_render_inputs[1].output.stagedMedia.${secondary}, audio: results.resolve_and_stage_render_inputs[2].output.stagedMedia?.audio } })`,
   })
   const render = stageNode({
     id: "render_store_output",
@@ -777,11 +795,26 @@ ${indent(audioStage, 14)}`
     stageId: `${workflowId}.render-store-output`,
     inputExpr: "results.build_render_command.output",
   })
+  const renderAndOutput = `    - id: render_and_output_metadata
+      summary: "Render media while draft metadata is normalized"
+      value:
+        type: branchall
+        parallel: true
+        branches:
+          - summary: "Format render path"
+            modules:
+${renderInputs}
+${indent(build, 14)}
+${indent(render, 14)}
+          - summary: "Draft output metadata"
+            modules:
+${indent(resolveOutput, 14)}`
   const finalize = stageNode({
     id: "finalize_output",
     summary: "Create draft video output",
     stageId: `${workflowId}.finalize-output`,
-    inputExpr: "results.render_store_output.output",
+    inputExpr:
+      "({ ...results.render_and_output_metadata[0].output, components: { ...results.render_and_output_metadata[0].output.components, ...results.render_and_output_metadata[1].output.component } })",
   })
   const discard = stageNode({
     id: "discard_staged_media",
@@ -793,11 +826,8 @@ ${indent(audioStage, 14)}`
 description: ${yamlString(description)}
 value:
   modules:
-${inputGroups}
-${resolve}
-${branch}
-${build}
-${render}
+${loadTemplate}
+${renderAndOutput}
 ${finalize}
 ${discard}
 schema:
@@ -867,41 +897,21 @@ ${media}
 }
 
 function ugcComponentFlowYaml(summary: string, description: string) {
-  const inputGroups = `    - id: resolve_input_groups
-      summary: "Resolve independent UGC input groups"
-      value:
-        type: branchall
-        parallel: true
-        branches:
-          - summary: "Template reference"
-            modules:
-${indent(artifactNode("template_input", "Template defaults reference", "({ templateId: flow_input.template_id })"), 14)}
-          - summary: "Product input"
-            modules:
-${indent(artifactNode("product_input", "Product component input", "flow_input.product ?? {}"), 14)}
-          - summary: "Script input"
-            modules:
-${indent(artifactNode("script_input", "Script component input", "flow_input.script ?? {}"), 14)}
-          - summary: "Actor input"
-            modules:
-${indent(artifactNode("actor_input", "Actor component input", "flow_input.actor ?? {}"), 14)}
-          - summary: "Voice input"
-            modules:
-${indent(artifactNode("voice_input", "Voice component input", "flow_input.voice ?? {}"), 14)}
-          - summary: "B-roll input"
-            modules:
-${indent(artifactNode("broll_input", "B-roll component input", "flow_input.broll ?? {}"), 14)}
-          - summary: "Render input"
-            modules:
-${indent(artifactNode("render_input", "Render component input", "flow_input.render ?? {}"), 14)}`
-  const resolveModule = ugcRawStageModule({
-    id: "resolve_components",
-    summary: "Resolve template and component overrides",
-    stageId: "ugc-video-generation.resolve-components",
+  const loadTemplate = ugcRawStageModule({
+    id: "load_template_defaults",
+    summary: "Load and validate optional UGC template defaults",
+    stageId: "ugc-video-generation.load-template-defaults",
     source: pipelineStageModule,
     inputExpr:
-      "({ templateId: results.resolve_input_groups[0].output.artifact.templateId, product: results.resolve_input_groups[1].output.artifact, script: results.resolve_input_groups[2].output.artifact, actor: results.resolve_input_groups[3].output.artifact, voice: results.resolve_input_groups[4].output.artifact, broll: results.resolve_input_groups[5].output.artifact, render: results.resolve_input_groups[6].output.artifact, generationId: flow_input.generation_id, scheduledFor: flow_input.scheduled_for })",
+      "({ templateId: flow_input.template_id, generationId: flow_input.generation_id, scheduledFor: flow_input.scheduled_for })",
   })
+  const resolver = (role: string, inputExpr: string) =>
+    stageNode({
+      id: `resolve_${role}_component`,
+      summary: `Merge and validate ${role} component`,
+      stageId: `ugc-video-generation.resolve-${role}-component`,
+      inputExpr,
+    })
   const component = (input: {
     id: string
     summary: string
@@ -921,7 +931,11 @@ ${indent(artifactNode("render_input", "Render component input", "flow_input.rend
     summary: "Product component — analyze facts",
     stageId: "ugc-video-generation.analyze-product",
     checkpoint: "analysis",
-    inputExpr: ugcComponentInputExpr("{}"),
+    inputExpr: ugcComponentInputExpr(
+      "results.load_template_defaults.output.generation",
+      "({ product: results.resolve_product_component.output.component })",
+      "{}"
+    ),
   })
   const script = component({
     id: "generate_script_plan",
@@ -929,7 +943,9 @@ ${indent(artifactNode("render_input", "Render component input", "flow_input.rend
     stageId: "ugc-video-generation.generate-script-plan",
     checkpoint: "script",
     inputExpr: ugcComponentInputExpr(
-      "{ analysis: results.analyze_product.output.artifact }"
+      "results.load_template_defaults.output.generation",
+      "({ product: results.prepare_script_inputs[0].output.components.product, script: results.prepare_script_inputs[1].output.component })",
+      "{ analysis: results.prepare_script_inputs[0].output.artifact }"
     ),
   })
   const actor = component({
@@ -938,7 +954,9 @@ ${indent(artifactNode("render_input", "Render component input", "flow_input.rend
     stageId: "ugc-video-generation.resolve-generate-actor",
     checkpoint: "actor",
     inputExpr: ugcComponentInputExpr(
-      "{ analysis: results.analyze_product.output.artifact, script: results.generate_script_plan.output.artifact }"
+      "results.load_template_defaults.output.generation",
+      "({ actor: results.resolve_actor_component.output.component })",
+      "{ analysis: results.prepare_script_inputs[0].output.artifact, script: results.generate_script_plan.output.artifact }"
     ),
   })
   const motion = component({
@@ -947,6 +965,8 @@ ${indent(artifactNode("render_input", "Render component input", "flow_input.rend
     stageId: "ugc-video-generation.animate-actor",
     checkpoint: "motion",
     inputExpr: ugcComponentInputExpr(
+      "results.load_template_defaults.output.generation",
+      "results.resolve_actor.output.components",
       "{ actor: results.resolve_actor.output.artifact }"
     ),
   })
@@ -956,6 +976,8 @@ ${indent(artifactNode("render_input", "Render component input", "flow_input.rend
     stageId: "ugc-video-generation.synthesize-voice",
     checkpoint: "voice",
     inputExpr: ugcComponentInputExpr(
+      "results.load_template_defaults.output.generation",
+      "({ voice: results.resolve_voice_component.output.component })",
       "{ script: results.generate_script_plan.output.artifact }"
     ),
   })
@@ -965,6 +987,8 @@ ${indent(artifactNode("render_input", "Render component input", "flow_input.rend
     stageId: "ugc-video-generation.generate-broll",
     checkpoint: "broll",
     inputExpr: ugcComponentInputExpr(
+      "results.load_template_defaults.output.generation",
+      "({ broll: results.resolve_broll_component.output.component })",
       "{ script: results.generate_script_plan.output.artifact }"
     ),
   })
@@ -974,7 +998,9 @@ ${indent(artifactNode("render_input", "Render component input", "flow_input.rend
     stageId: "ugc-video-generation.lip-sync-performance",
     checkpoint: "lipsync",
     inputExpr: ugcComponentInputExpr(
-      "{ motion: results.prepare_media_components[0].output.artifact, voice: results.prepare_media_components[1].output.artifact }"
+      "results.load_template_defaults.output.generation",
+      "({ ...results.prepare_actor_voice[0].output.components, ...results.prepare_actor_voice[1].output.components })",
+      "{ motion: results.prepare_actor_voice[0].output.artifact, voice: results.prepare_actor_voice[1].output.artifact }"
     ),
   })
   const composite = component({
@@ -983,7 +1009,9 @@ ${indent(artifactNode("render_input", "Render component input", "flow_input.rend
     stageId: "ugc-video-generation.composite-output",
     checkpoint: "composite",
     inputExpr: ugcComponentInputExpr(
-      "{ script: results.generate_script_plan.output.artifact, voice: results.prepare_media_components[1].output.artifact, lipsync: results.lip_sync_performance.output.artifact, broll: results.prepare_media_components[2].output.artifact }"
+      "results.load_template_defaults.output.generation",
+      "({ render: results.prepare_render_artifacts[2].output.component })",
+      "{ script: results.generate_script_plan.output.artifact, voice: results.prepare_render_artifacts[0].output.performance.voice, lipsync: results.prepare_render_artifacts[0].output.performance.lipsync, broll: results.prepare_render_artifacts[1].output.artifact }"
     ),
   })
   const store = component({
@@ -992,37 +1020,75 @@ ${indent(artifactNode("render_input", "Render component input", "flow_input.rend
     stageId: "ugc-video-generation.store-final-output",
     checkpoint: "store",
     inputExpr: ugcComponentInputExpr(
+      "results.load_template_defaults.output.generation",
+      "results.composite_output.output.components",
       "{ script: results.generate_script_plan.output.artifact, composite: results.composite_output.output.artifact }"
     ),
   })
 
-  const branch = `    - id: prepare_media_components
-      summary: "Prepare independent media components"
+  const prepareScriptInputs = `    - id: prepare_script_inputs
+      summary: "Resolve product facts while script configuration is validated"
       value:
         type: branchall
         parallel: true
         branches:
-          - summary: "Actor portrait and motion"
+          - summary: "Product resolution and analysis"
             modules:
-${indent(actor, 14)}
-${indent(motion, 14)}
-          - summary: "Voice track"
+${indent(resolver("product", "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.product })"), 14)}
+${indent(analyze, 14)}
+          - summary: "Script configuration"
             modules:
-${indent(voice, 14)}
+${indent(resolver("script", "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.script })"), 14)}`
+
+  const prepareActorVoice = `              - id: prepare_actor_voice
+                summary: "Prepare actor motion and voice for their lip-sync join"
+                value:
+                  type: branchall
+                  parallel: true
+                  branches:
+                    - summary: "Actor and motion"
+                      modules:
+${indent(resolver("actor", "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.actor })"), 22)}
+${indent(actor, 22)}
+${indent(motion, 22)}
+                    - summary: "Voice track"
+                      modules:
+${indent(resolver("voice", "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.voice })"), 22)}
+${indent(voice, 22)}`
+  const assemblePerformance = stageNode({
+    id: "assemble_performance",
+    summary: "Assemble isolated voice and lip-sync artifacts",
+    stageId: "ugc-video-generation.assemble-performance",
+    inputExpr:
+      "({ voice: results.prepare_actor_voice[1].output.artifact, lipsync: results.lip_sync_performance.output.artifact })",
+  })
+  const renderArtifacts = `    - id: prepare_render_artifacts
+      summary: "Prepare performance, B-roll, and render configuration for composite"
+      value:
+        type: branchall
+        parallel: true
+        branches:
+          - summary: "Actor, voice, and lip-sync performance"
+            modules:
+${prepareActorVoice}
+${indent(lipsync, 14)}
+${indent(assemblePerformance, 14)}
           - summary: "B-roll inserts"
             modules:
-${indent(broll, 14)}`
+${indent(resolver("broll", "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.broll })"), 14)}
+${indent(broll, 14)}
+          - summary: "Render configuration"
+            modules:
+${indent(resolver("render", "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.render })"), 14)}`
 
   return `summary: ${yamlString(summary)}
 description: ${yamlString(description)}
 value:
   modules:
-${inputGroups}
-${resolveModule}
-${analyze}
+${loadTemplate}
+${prepareScriptInputs}
 ${script}
-${branch}
-${lipsync}
+${renderArtifacts}
 ${composite}
 ${store}
 schema:
@@ -1030,8 +1096,12 @@ ${ugcComponentSchema()}
 `
 }
 
-function ugcComponentInputExpr(checkpoints: string) {
-  return `({ componentExecution: true, generation: results.resolve_components.output.generation, ...results.resolve_components.output.generation, components: results.resolve_components.output.components, checkpoints: ${checkpoints} })`
+function ugcComponentInputExpr(
+  generation: string,
+  components: string,
+  checkpoints: string
+) {
+  return `({ componentExecution: true, generation: ${generation}, ...${generation}, components: ${components}, checkpoints: ${checkpoints} })`
 }
 
 function ugcRawStageModule(input: {
@@ -1109,8 +1179,24 @@ export async function main(
 ): Promise<PipelineStageExecution> {
   const ownerId = owner_id?.trim() || required("default_owner_id", default_owner_id)
   const requestId = request_id?.trim() || process.env.WM_ROOT_FLOW_JOB_ID?.trim() || process.env.WM_FLOW_JOB_ID?.trim() || process.env.WM_JOB_ID?.trim() || \`windmill-\${crypto.randomUUID()}\`
-  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, stage_input)
-  if (queued.status === "succeeded") return queued
+  const generation = record(stage_input.generation)
+  const baseGenerationId = text(generation.generationId) || requestId
+  const isolatedInput = {
+    ...stage_input,
+    generationId: \`\${baseGenerationId}-\${checkpoint_name}\`,
+    scheduledFor: generation.scheduledFor,
+  }
+  const queued = await callStage(base_url, shared_secret, ownerId, requestId, stage_id, isolatedInput)
+  if (queued.status === "succeeded") {
+    return {
+      ...queued,
+      output: {
+        ...queued.output,
+        generation,
+        components: record(stage_input.components),
+      },
+    }
+  }
   const jobId = text(queued.operation?.id)
   if (!jobId) throw new Error(\`\${checkpoint_name} did not return a queue job\`)
   const deadline = Date.now() + Math.max(30, max_wait_seconds) * 1000
@@ -1146,7 +1232,8 @@ export async function main(
       output: {
         component: checkpoint_name,
         artifact,
-        generation: record(stage_input.generation),
+        generation,
+        components: record(stage_input.components),
         operation: { id: jobId, status: "succeeded" },
       },
     }
