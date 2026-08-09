@@ -216,7 +216,7 @@ schema:
     - automation_id
   properties:
     automation_id:
-      type: object
+      type: string
       format: dynselect-automation_id
       title: Template
       description: Choose the Lumenclip template to generate from.
