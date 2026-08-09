@@ -1,6 +1,6 @@
 # Production generation pipelines
 
-The pipeline MCP surface exposes the four Windmill-owned generation workflows.
+The pipeline MCP surface exposes the six Windmill-owned generation workflows.
 Callers can queue a complete workflow, invoke one named stage with JSON, or
 retain a stage envelope and pass it to another stage.
 
@@ -8,7 +8,7 @@ retain a stage envelope and pass it to another stage.
 
 `lumenclip_pipeline_catalog` returns two stage lists per workflow:
 
-- `workflowStages` is the ordered Windmill flow used by
+- `workflowStages` is the public stage set represented by the Windmill DAG used by
   `lumenclip_pipeline_run`.
 - `stages` is the complete catalog, including every independently callable
   atomic stage used inside composites.
@@ -22,7 +22,7 @@ Every catalog entry publishes these machine-readable boundary fields:
 | `operation`          | The named provider, storage, or deterministic action.                                                                                                   |
 | `maxExternalCalls`   | `0` for deterministic/composite handlers and `1` for an atomic network/storage handler. The executor rejects a second declared boundary before it runs. |
 | `provider` / `model` | Provider and model provenance when applicable.                                                                                                          |
-| `workflowStep`       | Whether the stage participates in the ordered full workflow.                                                                                            |
+| `workflowStep`       | Whether the stage participates in the public full-workflow graph.                                                                                       |
 
 Atomic provider handlers never own retry loops. A repair or retry is another
 invocation of the same registered atomic handler by a composite. Async APIs use
@@ -30,8 +30,8 @@ separate create, one-status-read, result/download, and persistence stages. A
 composite may return a running operation so the caller can resume later with
 the retained structured output.
 
-Full workflow execution is queued in Windmill. Each ordered stage is visible as
-its own embedded Windmill module and uses the same private stage boundary as
+Full workflow execution is queued in Windmill. Each stage, branch, and join is
+visible in the Windmill DAG and uses the same private stage boundary as
 `lumenclip_pipeline_stage_run`; there is no standalone Windmill stage-runner
 script. Decomposed convenience composites still call
 atomic handlers through the registry during the incremental handler migration.
@@ -42,7 +42,7 @@ atomic handlers through the registry during the incremental handler migration.
 | ------------------------------ | ----------------------------------------------------------------------------------------------------- |
 | `lumenclip_pipeline_catalog`   | List all workflows, workflow stages, atomic stages, boundary metadata, and provider/model provenance. |
 | `lumenclip_pipeline_stage_run` | Invoke one registered atomic or composite stage directly with explicit JSON.                          |
-| `lumenclip_pipeline_run`       | Queue an ordered named Windmill workflow and return its Windmill job ID.                              |
+| `lumenclip_pipeline_run`       | Queue a named Windmill DAG and return its Windmill job ID.                                            |
 
 ## Generate slideshow text for a fixed hook
 
@@ -240,7 +240,7 @@ Use `lumenclip_pipeline_catalog` as the canonical source of exact stage IDs;
 the catalog includes atomic stages that are intentionally absent from the
 ordered `workflowStages` list.
 
-## Run and resume
+## Run and debug
 
 ```json
 {
@@ -255,12 +255,13 @@ ordered `workflowStages` list.
 }
 ```
 
-`startAt` resumes an ordered workflow from an envelope returned by the prior
-stage. `stopAfter` stops after a named workflow stage for inspection. For an
-async atomic sequence, retain the complete output containing the provider task
-ID, invoke its one-status-read stage after `nextPollAfterMs`, and pipe a
-succeeded output to download and persistence. No stage blocks in an internal
-poll loop.
+Named runs accept the same top-level logical input groups as their Windmill
+forms. Linear `startAt` and `stopAfter` windows are rejected because skipping a
+branch would break dependency joins. For isolated debugging, call
+`lumenclip_pipeline_stage_run` with one stage and explicit named artifacts. For
+an async atomic sequence, retain the complete output containing the provider
+task ID, invoke its one-status-read stage after `nextPollAfterMs`, and pipe a
+succeeded output to download and persistence.
 
 ## Safety
 

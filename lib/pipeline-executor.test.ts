@@ -130,16 +130,18 @@ describe("production pipeline executor", () => {
     expect(forbiddenSecondCall).not.toHaveBeenCalled()
   })
 
-  it("publishes complete typed stage metadata for all four live workflows", () => {
+  it("publishes complete typed stage metadata for all six live workflows", () => {
     const catalog = pipelineCatalog()
     expect(catalog.map((workflow) => workflow.id)).toEqual([
       "slideshow-generation",
       "ugc-video-generation",
+      "react-reveal-generation",
+      "greenscreen-meme-generation",
       "linkedin-generation",
       "x-threads-generation",
     ])
     expect(catalog.map((workflow) => workflow.workflowStages.length)).toEqual([
-      16, 9, 8, 12,
+      16, 10, 5, 5, 8, 12,
     ])
     expect(
       catalog.reduce((total, workflow) => total + workflow.stages.length, 0)

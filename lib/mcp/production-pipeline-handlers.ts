@@ -113,7 +113,11 @@ import {
   uploadRendiSessionPart,
 } from "@/lib/pipeline-rendi"
 import { getRendiApiKey } from "@/lib/rendi-client"
-import { persistPipelineTempFile } from "@/lib/local-asset-download"
+import {
+  discardDownloadedTempFile,
+  downloadRemoteFileToTemp,
+  persistPipelineTempFile,
+} from "@/lib/local-asset-download"
 import { deleteAssetFromAppwrite } from "@/lib/asset-storage"
 import {
   createDomainAssetOnce,
@@ -149,6 +153,11 @@ import {
 } from "@/lib/consolidated-records"
 import type { ResultRecord } from "@/lib/results"
 import { prepareUgcRendiComposite } from "@/lib/pipeline-ugc-rendi"
+import { absoluteAssetUrl } from "@/lib/asset-urls"
+import {
+  buildFixedVideoRenderPlan,
+  type FixedVideoFormat,
+} from "@/lib/video-format-rendi"
 import {
   buildNanoBananaProPayload,
   createKieMarketTask,
@@ -1378,7 +1387,11 @@ export function createProductionPipelineHandlers(
   })
 
   const registerRendiProtocol = (
-    workflowId: "slideshow-generation" | "ugc-video-generation"
+    workflowId:
+      | "slideshow-generation"
+      | "ugc-video-generation"
+      | "react-reveal-generation"
+      | "greenscreen-meme-generation"
   ) => {
     const id = (name: string) => `${workflowId}.${name}`
     add(id("rendi-init-upload"), async (input, context) => {
@@ -1628,6 +1641,8 @@ export function createProductionPipelineHandlers(
 
   registerRendiProtocol("slideshow-generation")
   registerRendiProtocol("ugc-video-generation")
+  registerRendiProtocol("react-reveal-generation")
+  registerRendiProtocol("greenscreen-meme-generation")
 
   add("slideshow-generation.load-automation-record", async (input, context) => {
     const state = await context.runStage(
@@ -4055,6 +4070,349 @@ export function createProductionPipelineHandlers(
     return queueUgcStage(input, context, "store")
   })
 
+  const registerFixedVideoFormat = (input: {
+    workflowId: "react-reveal-generation" | "greenscreen-meme-generation"
+    format: FixedVideoFormat
+    primaryRole: "anticipation" | "meme"
+    secondaryRole: "reveal" | "background"
+  }) => {
+    const id = (name: string) => `${input.workflowId}.${name}`
+
+    add(id("resolve-components"), async (state, context) => {
+      const templateId = clean(state.templateId)
+      if (templateId) {
+        const loaded = await context.runStage(
+          "ugc-video-generation.get-saved-automation-document",
+          { automationId: templateId }
+        )
+        const document = asRecord(loaded.output.savedAutomationDocument)
+        const schema = asRecord(asRecord(document.record).schema)
+        const videoFormat = asRecord(schema.video_format)
+        if (
+          clean(schema.automationKind) !== "video" ||
+          clean(videoFormat.template) !== input.format
+        ) {
+          throw new Error(
+            `Selected template is not a ${input.format.replaceAll("_", " ")} template`
+          )
+        }
+      }
+
+      const supplied = asRecord(state.components)
+      const audio = asRecord(state.audio ?? supplied.audio)
+      const output = asRecord(state.output ?? supplied.output)
+      const common = {
+        audio: compactRecord({ url: firstPresent(audio.url, state.soundUrl) }),
+        title: firstPresent(output.title, state.title),
+        description: firstPresent(output.description, state.description),
+        hashtags: firstPresent(output.hashtags, state.hashtags, []),
+      }
+      const components: Record<string, unknown> =
+        input.format === "react_reveal"
+          ? {
+              ...common,
+              anticipation: compactRecord({
+                url: firstPresent(
+                  asRecord(state.anticipation ?? supplied.anticipation).url,
+                  state.anticipationVideoUrl
+                ),
+              }),
+              reveal: compactRecord({
+                url: firstPresent(
+                  asRecord(state.reveal ?? supplied.reveal).url,
+                  state.revealVideoUrl
+                ),
+              }),
+              hookCaption: firstPresent(
+                supplied.hookCaption,
+                state.hookCaption
+              ),
+              payoffCaption: firstPresent(
+                supplied.payoffCaption,
+                state.payoffCaption
+              ),
+            }
+          : {
+              ...common,
+              meme: compactRecord({
+                url: firstPresent(
+                  asRecord(state.meme ?? supplied.meme).url,
+                  state.memeVideoUrl
+                ),
+              }),
+              background: compactRecord({
+                url: firstPresent(
+                  asRecord(state.background ?? supplied.background).url,
+                  state.backgroundImageUrl
+                ),
+              }),
+              caption: firstPresent(supplied.caption, state.caption),
+              textPlacement: firstPresent(
+                supplied.textPlacement,
+                state.textPlacement,
+                "top"
+              ),
+            }
+      for (const role of [input.primaryRole, input.secondaryRole]) {
+        if (!clean(asRecord(components[role]).url)) {
+          throw new Error(`${role} component requires a media URL`)
+        }
+      }
+      return {
+        generation: {
+          templateId: templateId || null,
+          outputId: clean(state.outputId) || context.requestId,
+          createdAt: services.now().toISOString(),
+        },
+        components,
+        source: templateId ? "template_with_overrides" : "explicit_components",
+      }
+    })
+
+    const addStageMedia = (role: string) =>
+      add(id(`stage-${role}`), async (state, context) => {
+        const sourceUrl = clean(asRecord(asRecord(state.components)[role]).url)
+        if (!sourceUrl) {
+          if (role === "audio") return mergePipelineOutput(state, {})
+          throw new Error(`${role} component requires a media URL`)
+        }
+        const downloaded = await context.externalCall(
+          `Download ${role} media`,
+          () =>
+            downloadRemoteFileToTemp({
+              url: absoluteAssetUrl(sourceUrl),
+              taskId: `${context.requestId}-${role}`,
+              fallbackName: role,
+              failureMessage: `Failed to download ${role} media`,
+              extensionForContentType: (contentType) =>
+                fixedVideoMediaExtension(role, contentType),
+            })
+        )
+        return mergePipelineOutput(state, {
+          stagedMedia: {
+            ...asRecord(state.stagedMedia),
+            [role]: downloaded,
+          },
+        })
+      })
+
+    addStageMedia(input.primaryRole)
+    addStageMedia(input.secondaryRole)
+    addStageMedia("audio")
+
+    add(id("build-render-command"), async (state) =>
+      mergePipelineOutput(state, buildFixedVideoRenderPlan(input.format, state))
+    )
+
+    add(id("render-store-output"), async (state, context) => {
+      const localInputs = requiredArray<Record<string, unknown>>(
+        state.rendiLocalInputs,
+        "rendiLocalInputs"
+      )
+      const uploads = Array.isArray(state.rendiUploads)
+        ? ([...state.rendiUploads] as Record<string, unknown>[])
+        : localInputs.map(() => ({}))
+      let current = state
+      for (const [index, localInput] of localInputs.entries()) {
+        const priorUpload = requiredRecord(
+          uploads[index] ?? {},
+          `rendiUploads.${index}`
+        )
+        if (clean(priorUpload.storageUrl)) continue
+        const execution = await context.runStage(id("rendi-upload-file"), {
+          ...current,
+          localFilePath: localInput.localFilePath,
+          rendiFileName: localInput.fileName,
+          rendiUpload: priorUpload,
+        })
+        uploads[index] = requiredRecord(
+          execution.output.rendiUpload,
+          "rendiUpload"
+        )
+        current = mergePipelineOutput(current, {
+          rendiUploads: uploads,
+          operation: execution.output.operation,
+        })
+        if (execution.status === "running") return current
+        await context.runStage(id("rendi-discard-temp"), {
+          uploadSessionPath: requiredRecord(
+            uploads[index],
+            `rendiUploads.${index}`
+          ).uploadSessionPath,
+        })
+      }
+
+      current = mergePipelineOutput(current, {
+        rendiCommandRequest: {
+          ...requiredRecord(current.rendiCommandRequest, "rendiCommandRequest"),
+          inputFiles: Object.fromEntries(
+            localInputs.map((localInput, index) => [
+              requiredString(
+                localInput.alias,
+                `rendiLocalInputs.${index}.alias`
+              ),
+              requiredString(
+                requiredRecord(uploads[index], `rendiUploads.${index}`)
+                  .storageUrl,
+                `rendiUploads.${index}.storageUrl`
+              ),
+            ])
+          ),
+        },
+      })
+      if (!clean(current.rendiCommandId)) {
+        return (await context.runStage(id("rendi-submit-command"), current))
+          .output
+      }
+      if (!Object.keys(asRecord(current.rendiOutputUrls)).length) {
+        const execution = await context.runStage(
+          id("rendi-get-command"),
+          current
+        )
+        current = execution.output
+        if (execution.status === "running") return current
+      }
+
+      const persisted = { ...asRecord(current.rendiPersistedOutputs) }
+      for (const [index, outputSpec] of requiredArray<Record<string, unknown>>(
+        current.rendiOutputSpecs,
+        "rendiOutputSpecs"
+      ).entries()) {
+        const alias = requiredString(
+          outputSpec.alias,
+          `rendiOutputSpecs.${index}.alias`
+        )
+        if (clean(persisted[alias])) continue
+        const downloaded = await context.runStage(id("rendi-download-output"), {
+          ...current,
+          remoteOutputUrl: requiredString(
+            asRecord(current.rendiOutputUrls)[alias],
+            `rendiOutputUrls.${alias}`
+          ),
+          outputFileName: requiredString(
+            outputSpec.fileName,
+            `rendiOutputSpecs.${index}.fileName`
+          ),
+        })
+        const saved = await context.runStage(id("rendi-persist-output"), {
+          ...downloaded.output,
+          outputId: requiredString(
+            asRecord(current.generation).outputId,
+            "generation.outputId"
+          ),
+          outputKind: requiredString(
+            outputSpec.outputKind,
+            `rendiOutputSpecs.${index}.outputKind`
+          ),
+        })
+        persisted[alias] = saved.output.persistedRendiOutputUrl
+        current = mergePipelineOutput(saved.output, {
+          rendiPersistedOutputs: persisted,
+        })
+        current = mergePipelineOutput(
+          current,
+          (await context.runStage(id("rendi-discard-temp"), current)).output
+        )
+      }
+      return mergePipelineOutput(current, {
+        videoUrl: persisted["output.mp4"],
+        thumbnailUrl: persisted["thumbnail.jpg"],
+        operation: rendiOperation(
+          requiredString(current.rendiCommandId, "rendiCommandId"),
+          `${input.workflowId}.rendi.command`,
+          "succeeded"
+        ),
+      })
+    })
+
+    add(id("finalize-output"), async (state, context) => {
+      const generation = requiredRecord(state.generation, "generation")
+      const components = requiredRecord(state.components, "components")
+      const outputId = requiredString(
+        generation.outputId,
+        "generation.outputId"
+      )
+      const now = services.now().toISOString()
+      const finalOutput = {
+        id: outputId,
+        type:
+          input.format === "greenscreen_meme"
+            ? ("greenscreen" as const)
+            : ("template_video" as const),
+        status: "ready" as const,
+        createdAt: clean(generation.createdAt) || now,
+        updatedAt: now,
+        title:
+          clean(components.title) ||
+          (input.format === "greenscreen_meme"
+            ? "Greenscreen Meme"
+            : "React & Reveal"),
+        description:
+          clean(components.description) ||
+          clean(components.caption) ||
+          clean(components.hookCaption),
+        hashtags: stringArray(components.hashtags),
+        sourceConfig: {
+          format: input.format,
+          templateId: clean(generation.templateId) || undefined,
+          components,
+          requestId: context.requestId,
+        },
+        sourceAutomationId: clean(generation.templateId) || undefined,
+        previewUrl: requiredString(state.thumbnailUrl, "thumbnailUrl"),
+        videoUrl: requiredString(state.videoUrl, "videoUrl"),
+      }
+      let current = (
+        await context.runStage(
+          "ugc-video-generation.prepare-final-output-document",
+          { ...state, finalOutput }
+        )
+      ).output
+      current = (
+        await context.runStage(
+          "ugc-video-generation.get-final-output-document",
+          current
+        )
+      ).output
+      current = (
+        await context.runStage(
+          current.finalOutputDocument
+            ? "ugc-video-generation.update-final-output-document"
+            : "ugc-video-generation.create-final-output-document",
+          current
+        )
+      ).output
+      current = (
+        await context.runStage(
+          "ugc-video-generation.persist-final-output-media",
+          current
+        )
+      ).output
+      return mergePipelineOutput(current, { finalOutput })
+    })
+
+    add(id("discard-staged-media"), async (state) => {
+      for (const item of Object.values(asRecord(state.stagedMedia))) {
+        const tempPath = clean(asRecord(item).tempPath)
+        if (tempPath) await discardDownloadedTempFile(tempPath)
+      }
+      return mergePipelineOutput(state, { stagedMedia: {} })
+    })
+  }
+
+  registerFixedVideoFormat({
+    workflowId: "react-reveal-generation",
+    format: "react_reveal",
+    primaryRole: "anticipation",
+    secondaryRole: "reveal",
+  })
+  registerFixedVideoFormat({
+    workflowId: "greenscreen-meme-generation",
+    format: "greenscreen_meme",
+    primaryRole: "meme",
+    secondaryRole: "background",
+  })
+
   add("linkedin-generation.validate-input", async (input) => {
     const niche = requiredString(input.niche, "niche")
     const persona =
@@ -5105,6 +5463,19 @@ function requiredRendiApiKey() {
   return apiKey
 }
 
+function fixedVideoMediaExtension(role: string, contentType: string) {
+  const normalized = contentType.toLowerCase()
+  if (normalized.includes("webm")) return ".webm"
+  if (normalized.includes("quicktime")) return ".mov"
+  if (normalized.includes("png")) return ".png"
+  if (normalized.includes("webp")) return ".webp"
+  if (normalized.includes("jpeg")) return ".jpg"
+  if (normalized.includes("wav")) return ".wav"
+  if (normalized.includes("mpeg") && role === "audio") return ".mp3"
+  if (normalized.includes("mp4") || normalized.includes("video")) return ".mp4"
+  return role === "background" ? ".jpg" : role === "audio" ? ".mp3" : ".mp4"
+}
+
 function rendiOperation(
   id: string,
   kind: string,
@@ -5119,7 +5490,11 @@ function rendiOperation(
 }
 
 function rendiPersistenceTarget(
-  workflowId: "slideshow-generation" | "ugc-video-generation",
+  workflowId:
+    | "slideshow-generation"
+    | "ugc-video-generation"
+    | "react-reveal-generation"
+    | "greenscreen-meme-generation",
   ownerId: string,
   input: Record<string, unknown>
 ) {
@@ -5148,6 +5523,32 @@ function rendiPersistenceTarget(
         fileName
       ),
       publicUrl: `/api/local-assets/slideshows/outputs/${ownerScope}/${encodeURIComponent(slideshowId)}/${fileName}`,
+    }
+  }
+  if (
+    workflowId === "react-reveal-generation" ||
+    workflowId === "greenscreen-meme-generation"
+  ) {
+    const outputId = safePathSegment(requiredString(input.outputId, "outputId"))
+    const fileName =
+      kind === "video"
+        ? "video.mp4"
+        : kind === "thumbnail"
+          ? "thumbnail.jpg"
+          : ""
+    if (!fileName) throw new Error("Unsupported video-format output kind")
+    return {
+      kind,
+      outputPath: path.join(
+        process.cwd(),
+        "data",
+        "generated-videos",
+        "outputs",
+        ownerScope,
+        outputId,
+        fileName
+      ),
+      publicUrl: `/api/local-assets/generated-videos/outputs/${ownerScope}/${encodeURIComponent(outputId)}/${fileName}`,
     }
   }
   const automationId = safePathSegment(

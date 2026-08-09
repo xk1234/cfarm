@@ -7,7 +7,7 @@ import { listXAutomations } from "@/lib/x-automation-store"
 
 export const dynamic = "force-dynamic"
 
-type TemplateKind = "slideshow" | "ugc" | "x_threads"
+type TemplateKind = "slideshow" | "ugc" | "video" | "x_threads"
 
 export async function POST(request: Request) {
   if (!authorizeWindmillRequest(request.headers.get("authorization"))) {
@@ -46,7 +46,12 @@ export async function POST(request: Request) {
 }
 
 function isTemplateKind(value: string): value is TemplateKind {
-  return value === "slideshow" || value === "ugc" || value === "x_threads"
+  return (
+    value === "slideshow" ||
+    value === "ugc" ||
+    value === "video" ||
+    value === "x_threads"
+  )
 }
 
 function automationOption(record: AutomationRecord) {
@@ -85,6 +90,27 @@ function automationOption(record: AutomationRecord) {
         hooks: enabledHooks.length,
         sampleHook: sampleHook?.text,
         direction: ugc?.productBrief || direction,
+        tone,
+        result,
+      }),
+    }
+  }
+
+  if (schema.automationKind === "video") {
+    const format = schema.video_format
+    const segments = format?.segments ?? []
+    const result = [
+      format?.template ? titleCase(format.template) : "Configured video format",
+      `${segments.length} component${segments.length === 1 ? "" : "s"}`,
+      `${schema.aspect_ratio} output`,
+    ].join(", ")
+    return {
+      value: record.id,
+      label: `${record.name} - ${result}`,
+      subtitle: optionSubtitle({
+        hooks: enabledHooks.length,
+        sampleHook: sampleHook?.text,
+        direction,
         tone,
         result,
       }),

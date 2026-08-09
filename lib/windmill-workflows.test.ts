@@ -8,7 +8,7 @@ import {
 afterEach(() => vi.unstubAllEnvs())
 
 describe("Windmill workflow client", () => {
-  it("queues the conventionally named flow with a composable stage window", async () => {
+  it("queues the conventionally named flow with named top-level inputs", async () => {
     configureWindmill()
     const fetchImpl = vi.fn(
       async () => new Response("job-123", { status: 201 })
@@ -19,8 +19,6 @@ describe("Windmill workflow client", () => {
       ownerId: "owner-1",
       requestId: "request-1",
       workflowInput: { automationId: "automation-1" },
-      startAt: "slideshow-generation.build-text-prompt",
-      stopAfter: "slideshow-generation.generate-slide-text",
       fetchImpl,
     })
 
@@ -38,15 +36,13 @@ describe("Windmill workflow client", () => {
         body: JSON.stringify({
           owner_id: "owner-1",
           request_id: "request-1",
-          input: { automationId: "automation-1" },
-          start_at: "slideshow-generation.build-text-prompt",
-          stop_after: "slideshow-generation.generate-slide-text",
+          automation_id: "automation-1",
         }),
       })
     )
   })
 
-  it("rejects invalid partial workflow ranges before making a request", async () => {
+  it("rejects linear execution windows for dependency graphs", async () => {
     configureWindmill()
     const fetchImpl = vi.fn()
 
@@ -59,8 +55,37 @@ describe("Windmill workflow client", () => {
         stopAfter: "linkedin-generation.validate-input",
         fetchImpl,
       })
-    ).rejects.toThrow("stopAfter must be")
+    ).rejects.toThrow("do not support linear startAt/stopAfter")
     expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it("maps fixed-video API fields to the generated Windmill form contract", async () => {
+    configureWindmill()
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      Promise.resolve(new Response("job-video", { status: 201 }))
+    )
+
+    await queueWindmillWorkflow({
+      workflowId: "react-reveal-generation",
+      ownerId: "owner-1",
+      workflowInput: {
+        templateId: "react-template",
+        anticipation: { url: "https://cdn.test/a.mp4" },
+        reveal: { url: "https://cdn.test/b.mp4" },
+        hookCaption: "wait for it",
+        payoffCaption: "the reveal",
+      },
+      fetchImpl,
+    })
+
+    const request = fetchImpl.mock.calls[0]?.[1]
+    expect(JSON.parse(String(request!.body))).toMatchObject({
+      template_id: "react-template",
+      anticipation: { url: "https://cdn.test/a.mp4" },
+      reveal: { url: "https://cdn.test/b.mp4" },
+      hook_caption: "wait for it",
+      payoff_caption: "the reveal",
+    })
   })
 
   it("reports missing Windmill configuration without falling back in-process", async () => {

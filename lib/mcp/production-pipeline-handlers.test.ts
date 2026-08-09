@@ -300,6 +300,51 @@ describe("production pipeline stage handlers", () => {
     })
   })
 
+  it.each([
+    {
+      stageId: "react-reveal-generation.resolve-components",
+      input: {
+        anticipation: { url: "https://cdn.test/anticipation.mp4" },
+        reveal: { url: "https://cdn.test/reveal.mp4" },
+        hookCaption: "wait for it",
+      },
+      components: {
+        anticipation: { url: "https://cdn.test/anticipation.mp4" },
+        reveal: { url: "https://cdn.test/reveal.mp4" },
+        hookCaption: "wait for it",
+      },
+    },
+    {
+      stageId: "greenscreen-meme-generation.resolve-components",
+      input: {
+        meme: { url: "https://cdn.test/meme.mp4" },
+        background: { url: "https://cdn.test/background.jpg" },
+        caption: "one more revision",
+      },
+      components: {
+        meme: { url: "https://cdn.test/meme.mp4" },
+        background: { url: "https://cdn.test/background.jpg" },
+        caption: "one more revision",
+        textPlacement: "top",
+      },
+    },
+  ])("resolves explicit fixed-video components for $stageId", async (test) => {
+    const handlers = createProductionPipelineHandlers(services() as never)
+    const handler = handlers.get(test.stageId)!
+
+    const output = await handler(test.input, context(test.stageId, handlers))
+
+    expect(output).toMatchObject({
+      generation: {
+        templateId: null,
+        outputId: expect.any(String),
+        createdAt: "2026-08-01T09:00:00.000Z",
+      },
+      source: "explicit_components",
+      components: test.components,
+    })
+  })
+
   it("queues one exact UGC component with only its named dependencies", async () => {
     const runtime = services()
     const handlers = createProductionPipelineHandlers(runtime as never)

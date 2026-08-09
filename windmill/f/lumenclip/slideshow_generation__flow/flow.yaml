@@ -2,13 +2,215 @@ summary: "lumenclip - slideshow generation"
 description: "Generate a complete slideshow through individually observable and composable stages."
 value:
   modules:
+    - id: hydrate_inputs
+      summary: "Hydrate independent slideshow inputs"
+      value:
+        type: branchall
+        parallel: true
+        branches:
+          - summary: "Template schema"
+            modules:
+              - id: load_template
+                summary: "Load template schema"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
+                  input_transforms:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "slideshow-generation.load-automation-record"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "({ automationId: flow_input.automation_id })"
+          - summary: "Image collections and assets"
+            modules:
+              - id: load_collections
+                summary: "Load image collections"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
+                  input_transforms:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "slideshow-generation.list-image-collections"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "({})"
+          - summary: "Word variables and hooks"
+            modules:
+              - id: load_word_collections
+                summary: "Load word collections"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
+                  input_transforms:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "slideshow-generation.list-word-collections"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "({})"
+          - summary: "Usage memory"
+            modules:
+              - id: load_usage
+                summary: "Load usage history"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
+                  input_transforms:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "slideshow-generation.list-usage-history"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "({})"
+          - summary: "Prior generation history"
+            modules:
+              - id: load_prior_runs
+                summary: "Load prior runs"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
+                  input_transforms:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "slideshow-generation.list-prior-runs"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "({ automationId: flow_input.automation_id })"
+          - summary: "Generation model settings"
+            modules:
+              - id: load_model_settings
+                summary: "Load model settings"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
+                  input_transforms:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "slideshow-generation.load-model-settings"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "({})"
     - id: validate_input
-      summary: "Validate generation input"
-      skip_if:
-        expr: flow_input.start_at && ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at) > 0
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.validate-input"
-        skip_if_stopped: false
+      summary: "Join hydrated inputs and validate"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -34,14 +236,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "flow_input.input ?? { automationId: flow_input.automation_id }"
+            expr: "({ automationId: flow_input.automation_id, automationRecord: results.hydrate_inputs[0].output.automationRecord, collections: results.hydrate_inputs[1].output.collections, wordCollections: results.hydrate_inputs[2].output.wordCollections, usageHistory: results.hydrate_inputs[3].output.usageHistory, priorRuns: results.hydrate_inputs[4].output.priorRuns, generationSettings: results.hydrate_inputs[5].output.generationSettings })"
     - id: resolve_slide_count
       summary: "Resolve slide count"
-      skip_if:
-        expr: flow_input.start_at && ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at) > 1
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.resolve-slide-count"
-        skip_if_stopped: false
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -67,14 +267,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
+            expr: "results.validate_input.output"
     - id: select_expand_hook
       summary: "Select and expand hook"
-      skip_if:
-        expr: flow_input.start_at && ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at) > 2
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.select-expand-hook"
-        skip_if_stopped: false
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -100,14 +298,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.resolve_slide_count?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
+            expr: "results.resolve_slide_count.output"
     - id: research_hook
       summary: "Research selected hook"
-      skip_if:
-        expr: flow_input.start_at && ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at) > 3
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.research-hook"
-        skip_if_stopped: false
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -133,14 +329,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.select_expand_hook?.output ?? results.resolve_slide_count?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
+            expr: "results.select_expand_hook.output"
     - id: build_text_prompt
-      summary: "Build structured generation prompt"
-      skip_if:
-        expr: flow_input.start_at && ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at) > 4
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.build-text-prompt"
-        skip_if_stopped: false
+      summary: "Build structured text prompt"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -166,14 +360,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.research_hook?.output ?? results.select_expand_hook?.output ?? results.resolve_slide_count?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
+            expr: "results.research_hook.output"
     - id: generate_slide_text
-      summary: "Generate slideshow text"
-      skip_if:
-        expr: flow_input.start_at && ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at) > 5
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.generate-slide-text"
-        skip_if_stopped: false
+      summary: "Generate slide text"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -199,14 +391,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.build_text_prompt?.output ?? results.research_hook?.output ?? results.select_expand_hook?.output ?? results.resolve_slide_count?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
+            expr: "results.build_text_prompt.output"
     - id: retry_text_similarity
-      summary: "Retry similar text"
-      skip_if:
-        expr: flow_input.start_at && ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at) > 6
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.retry-text-similarity"
-        skip_if_stopped: false
+      summary: "Check and repair text similarity"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -232,113 +422,125 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.generate_slide_text?.output ?? results.build_text_prompt?.output ?? results.research_hook?.output ?? results.select_expand_hook?.output ?? results.resolve_slide_count?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
-    - id: derive_visual_concepts
-      summary: "Derive visual concepts"
-      skip_if:
-        expr: flow_input.start_at && ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at) > 7
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.derive-visual-concepts"
-        skip_if_stopped: false
+            expr: "results.generate_slide_text.output"
+    - id: prepare_slide_artifacts
+      summary: "Prepare text and visual artifacts"
       value:
-        type: rawscript
-        language: bun
-        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
-        input_transforms:
-          base_url:
-            type: static
-            value: $var:f/lumenclip/internal_base_url
-          shared_secret:
-            type: static
-            value: $var:f/lumenclip/shared_secret
-          default_owner_id:
-            type: static
-            value: $var:f/lumenclip/default_owner_id
-          stage_id:
-            type: static
-            value: "slideshow-generation.derive-visual-concepts"
-          owner_id:
-            type: javascript
-            expr: flow_input.owner_id
-          request_id:
-            type: javascript
-            expr: flow_input.request_id
-          stage_input:
-            type: javascript
-            expr: "results.retry_text_similarity?.output ?? results.generate_slide_text?.output ?? results.build_text_prompt?.output ?? results.research_hook?.output ?? results.select_expand_hook?.output ?? results.resolve_slide_count?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
-    - id: build_image_shortlists
-      summary: "Build image shortlists"
-      skip_if:
-        expr: flow_input.start_at && ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at) > 8
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.build-image-shortlists"
-        skip_if_stopped: false
-      value:
-        type: rawscript
-        language: bun
-        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
-        input_transforms:
-          base_url:
-            type: static
-            value: $var:f/lumenclip/internal_base_url
-          shared_secret:
-            type: static
-            value: $var:f/lumenclip/shared_secret
-          default_owner_id:
-            type: static
-            value: $var:f/lumenclip/default_owner_id
-          stage_id:
-            type: static
-            value: "slideshow-generation.build-image-shortlists"
-          owner_id:
-            type: javascript
-            expr: flow_input.owner_id
-          request_id:
-            type: javascript
-            expr: flow_input.request_id
-          stage_input:
-            type: javascript
-            expr: "results.derive_visual_concepts?.output ?? results.retry_text_similarity?.output ?? results.generate_slide_text?.output ?? results.build_text_prompt?.output ?? results.research_hook?.output ?? results.select_expand_hook?.output ?? results.resolve_slide_count?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
-    - id: select_slide_images
-      summary: "Select slide images"
-      skip_if:
-        expr: flow_input.start_at && ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at) > 9
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.select-slide-images"
-        skip_if_stopped: false
-      value:
-        type: rawscript
-        language: bun
-        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
-        input_transforms:
-          base_url:
-            type: static
-            value: $var:f/lumenclip/internal_base_url
-          shared_secret:
-            type: static
-            value: $var:f/lumenclip/shared_secret
-          default_owner_id:
-            type: static
-            value: $var:f/lumenclip/default_owner_id
-          stage_id:
-            type: static
-            value: "slideshow-generation.select-slide-images"
-          owner_id:
-            type: javascript
-            expr: flow_input.owner_id
-          request_id:
-            type: javascript
-            expr: flow_input.request_id
-          stage_input:
-            type: javascript
-            expr: "results.build_image_shortlists?.output ?? results.derive_visual_concepts?.output ?? results.retry_text_similarity?.output ?? results.generate_slide_text?.output ?? results.build_text_prompt?.output ?? results.research_hook?.output ?? results.select_expand_hook?.output ?? results.resolve_slide_count?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
+        type: branchall
+        parallel: true
+        branches:
+          - summary: "Accepted text artifact"
+            modules:
+              - id: text_artifact
+                summary: "Text path — accepted slide copy"
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  input_transforms:
+                    artifact:
+                      type: javascript
+                      expr: "results.retry_text_similarity.output"
+          - summary: "Visual concepts and image selection"
+            modules:
+              - id: derive_visual_concepts
+                summary: "Visual path — derive concepts"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
+                  input_transforms:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "slideshow-generation.derive-visual-concepts"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "results.retry_text_similarity.output"
+              - id: build_image_shortlists
+                summary: "Visual path — build image shortlists"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
+                  input_transforms:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "slideshow-generation.build-image-shortlists"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "results.derive_visual_concepts.output"
+              - id: select_slide_images
+                summary: "Visual path — select slide images"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
+                  input_transforms:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "slideshow-generation.select-slide-images"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "results.build_image_shortlists.output"
     - id: assemble_plan
-      summary: "Assemble slideshow plan"
-      skip_if:
-        expr: flow_input.start_at && ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at) > 10
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.assemble-plan"
-        skip_if_stopped: false
+      summary: "Join text and images into slide plan"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -364,14 +566,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.select_slide_images?.output ?? results.build_image_shortlists?.output ?? results.derive_visual_concepts?.output ?? results.retry_text_similarity?.output ?? results.generate_slide_text?.output ?? results.build_text_prompt?.output ?? results.research_hook?.output ?? results.select_expand_hook?.output ?? results.resolve_slide_count?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
+            expr: "({ ...results.prepare_slide_artifacts[0].output.artifact, visualConceptsBySlide: results.prepare_slide_artifacts[1].output.visualConceptsBySlide, shortlists: results.prepare_slide_artifacts[1].output.shortlists, selectedImages: results.prepare_slide_artifacts[1].output.selectedImages })"
     - id: translate_plan
       summary: "Translate displayed text"
-      skip_if:
-        expr: flow_input.start_at && ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at) > 11
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.translate-plan"
-        skip_if_stopped: false
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -397,14 +597,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.assemble_plan?.output ?? results.select_slide_images?.output ?? results.build_image_shortlists?.output ?? results.derive_visual_concepts?.output ?? results.retry_text_similarity?.output ?? results.generate_slide_text?.output ?? results.build_text_prompt?.output ?? results.research_hook?.output ?? results.select_expand_hook?.output ?? results.resolve_slide_count?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
+            expr: "results.assemble_plan.output"
     - id: render_store_pngs
-      summary: "Render and store PNG slides"
-      skip_if:
-        expr: flow_input.start_at && ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at) > 12
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.render-store-pngs"
-        skip_if_stopped: false
+      summary: "Render and persist slide PNGs"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -430,14 +628,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.translate_plan?.output ?? results.assemble_plan?.output ?? results.select_slide_images?.output ?? results.build_image_shortlists?.output ?? results.derive_visual_concepts?.output ?? results.retry_text_similarity?.output ?? results.generate_slide_text?.output ?? results.build_text_prompt?.output ?? results.research_hook?.output ?? results.select_expand_hook?.output ?? results.resolve_slide_count?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
+            expr: "results.translate_plan.output"
     - id: render_store_mp4
-      summary: "Render and store MP4"
-      skip_if:
-        expr: flow_input.start_at && ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at) > 13
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.render-store-mp4"
-        skip_if_stopped: false
+      summary: "Render optional slideshow MP4"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -463,14 +659,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.render_store_pngs?.output ?? results.translate_plan?.output ?? results.assemble_plan?.output ?? results.select_slide_images?.output ?? results.build_image_shortlists?.output ?? results.derive_visual_concepts?.output ?? results.retry_text_similarity?.output ?? results.generate_slide_text?.output ?? results.build_text_prompt?.output ?? results.research_hook?.output ?? results.select_expand_hook?.output ?? results.resolve_slide_count?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
+            expr: "results.render_store_pngs.output"
     - id: validate_output
       summary: "Validate generated output"
-      skip_if:
-        expr: flow_input.start_at && ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at) > 14
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.validate-output"
-        skip_if_stopped: false
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -496,14 +690,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.render_store_mp4?.output ?? results.render_store_pngs?.output ?? results.translate_plan?.output ?? results.assemble_plan?.output ?? results.select_slide_images?.output ?? results.build_image_shortlists?.output ?? results.derive_visual_concepts?.output ?? results.retry_text_similarity?.output ?? results.generate_slide_text?.output ?? results.build_text_prompt?.output ?? results.research_hook?.output ?? results.select_expand_hook?.output ?? results.resolve_slide_count?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
+            expr: "results.render_store_mp4.output"
     - id: finalize_output
-      summary: "Finalize generated output"
-      skip_if:
-        expr: flow_input.start_at && ["slideshow-generation.validate-input","slideshow-generation.resolve-slide-count","slideshow-generation.select-expand-hook","slideshow-generation.research-hook","slideshow-generation.build-text-prompt","slideshow-generation.generate-slide-text","slideshow-generation.retry-text-similarity","slideshow-generation.derive-visual-concepts","slideshow-generation.build-image-shortlists","slideshow-generation.select-slide-images","slideshow-generation.assemble-plan","slideshow-generation.translate-plan","slideshow-generation.render-store-pngs","slideshow-generation.render-store-mp4","slideshow-generation.validate-output","slideshow-generation.finalize-output"].indexOf(flow_input.start_at) > 15
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "slideshow-generation.finalize-output"
-        skip_if_stopped: false
+      summary: "Persist run, output, media and reuse memory"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -529,19 +721,15 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.validate_output?.output ?? results.render_store_mp4?.output ?? results.render_store_pngs?.output ?? results.translate_plan?.output ?? results.assemble_plan?.output ?? results.select_slide_images?.output ?? results.build_image_shortlists?.output ?? results.derive_visual_concepts?.output ?? results.retry_text_similarity?.output ?? results.generate_slide_text?.output ?? results.build_text_prompt?.output ?? results.research_hook?.output ?? results.select_expand_hook?.output ?? results.resolve_slide_count?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
+            expr: "results.validate_output.output"
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   type: object
-  order:
-    - automation_id
   properties:
     automation_id:
       type: object
       format: dynselect-automation_id
       title: Template
-      description: Choose the Lumenclip template to generate from.
-  required:
-    - automation_id
+  required: [automation_id]
   x-windmill-dyn-select-lang: bun
   x-windmill-dyn-select-code: "import * as wmill from \"windmill-client\"\n\nexport async function automation_id(filterText = \"\") {\n  const [baseUrlValue, secretValue, ownerIdValue] = await Promise.all([\n    wmill.getVariable(\"f/lumenclip/internal_base_url\"),\n    wmill.getVariable(\"f/lumenclip/shared_secret\"),\n    wmill.getVariable(\"f/lumenclip/default_owner_id\"),\n  ])\n  const baseUrl = required(\"internal_base_url\", baseUrlValue).replace(/\\/$/, \"\")\n  const secret = required(\"shared_secret\", secretValue)\n  const ownerId = required(\"default_owner_id\", ownerIdValue)\n  const response = await fetch(`${baseUrl}/api/internal/windmill/templates`, {\n    method: \"POST\",\n    headers: {\n      authorization: `Bearer ${secret}`,\n      \"content-type\": \"application/json\",\n    },\n    body: JSON.stringify({ ownerId, kind: \"slideshow\" }),\n  })\n  const payload = await response.json()\n  if (!response.ok || !Array.isArray(payload.options)) {\n    throw new Error(payload.error || `Template lookup failed with ${response.status}`)\n  }\n  const query = filterText.trim().toLowerCase()\n  return query\n    ? payload.options.filter((option) => option.label.toLowerCase().includes(query))\n    : payload.options\n}\n\nfunction required(name: string, value: unknown) {\n  const text = typeof value === \"string\" ? value.trim() : \"\"\n  if (!text) throw new Error(`Lumenclip variable ${name} is not configured`)\n  return text\n}"

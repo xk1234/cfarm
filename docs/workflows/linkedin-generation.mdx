@@ -19,8 +19,9 @@ The example values below are abbreviated, but every block is valid JSON.
 <Tab value="MCP">
 
 No MCP tool wraps LinkedIn generation on its own. Run it through the generic workflow tool, which
-queues `lumenclip - LinkedIn generation` in Windmill. Windmill pipes each registered stage output
-into the next stage.
+queues `lumenclip - LinkedIn generation` in Windmill. Its audience/topic, proof, voice/model,
+brief, and batch controls resolve as separate input artifacts before validation; downstream stages
+remain sequential where each genuinely depends on the previous artifact.
 
 ```json
 {
@@ -40,9 +41,9 @@ into the next stage.
 }
 ```
 
-To run part of the pipeline, pass `startAt` or `stopAfter` with a stage id such as
-`linkedin-generation.validate-input`. To run a single stage, call `lumenclip_pipeline_stage_run`
-with that `stageId` and an explicit `input` object.
+To run a single stage, call `lumenclip_pipeline_stage_run` with a stage ID such as
+`linkedin-generation.validate-input` and an explicit `input` object. Linear `startAt` and
+`stopAfter` windows are rejected for the DAG because they cannot preserve input-branch dependencies.
 
 </Tab>
 

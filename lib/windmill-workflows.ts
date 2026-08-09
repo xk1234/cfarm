@@ -1,13 +1,14 @@
 import { clean } from "@/lib/guards"
 import {
   PIPELINE_WORKFLOW_IDS,
-  pipelineStagesForWorkflow,
   type PipelineWorkflowId,
 } from "@/lib/pipeline-stages"
 
 const WINDMILL_FLOW_PATHS: Record<PipelineWorkflowId, string> = {
   "slideshow-generation": "f/lumenclip/slideshow_generation",
   "ugc-video-generation": "f/lumenclip/ugc_video_generation",
+  "react-reveal-generation": "f/lumenclip/react_reveal_generation",
+  "greenscreen-meme-generation": "f/lumenclip/greenscreen_meme_generation",
   "linkedin-generation": "f/lumenclip/linkedin_generation",
   "x-threads-generation": "f/lumenclip/x_threads_generation",
 }
@@ -29,7 +30,7 @@ export async function queueWindmillWorkflow(input: {
   stopAfter?: string
   fetchImpl?: typeof fetch
 }): Promise<WindmillWorkflowRun> {
-  assertExecutionWindow(input.workflowId, input.startAt, input.stopAfter)
+  assertNoLinearExecutionWindow(input.startAt, input.stopAfter)
   const config = windmillConfig()
   const flowPath = WINDMILL_FLOW_PATHS[input.workflowId]
   const requestId = clean(input.requestId) || `pipeline-${crypto.randomUUID()}`
@@ -41,9 +42,7 @@ export async function queueWindmillWorkflow(input: {
       body: JSON.stringify({
         owner_id: input.ownerId,
         request_id: requestId,
-        input: input.workflowInput,
-        ...(input.startAt ? { start_at: input.startAt } : {}),
-        ...(input.stopAfter ? { stop_after: input.stopAfter } : {}),
+        ...windmillFlowInput(input.workflowId, input.workflowInput),
       }),
     }
   )
@@ -103,26 +102,61 @@ function requiredEnv(name: string) {
   return value
 }
 
-function assertExecutionWindow(
-  workflowId: PipelineWorkflowId,
-  startAt?: string,
-  stopAfter?: string
-) {
-  const stages = pipelineStagesForWorkflow(workflowId)
-  const startIndex = startAt
-    ? stages.findIndex((stage) => stage.id === startAt)
-    : 0
-  const stopIndex = stopAfter
-    ? stages.findIndex((stage) => stage.id === stopAfter)
-    : stages.length - 1
-  if (startIndex < 0) {
-    throw new Error(`Stage ${startAt} does not belong to ${workflowId}`)
-  }
-  if (stopIndex < startIndex) {
+function assertNoLinearExecutionWindow(startAt?: string, stopAfter?: string) {
+  if (startAt || stopAfter) {
     throw new Error(
-      "stopAfter must be the start stage or a later workflow stage"
+      "DAG workflow runs do not support linear startAt/stopAfter windows; run the named stage directly"
     )
   }
+}
+
+function windmillFlowInput(
+  workflowId: PipelineWorkflowId,
+  input: Record<string, unknown>
+) {
+  const normalized = { ...input }
+  if (
+    workflowId === "slideshow-generation" ||
+    workflowId === "x-threads-generation"
+  ) {
+    normalized.automation_id ??= input.automationId
+  }
+  if (
+    workflowId === "ugc-video-generation" ||
+    workflowId === "react-reveal-generation" ||
+    workflowId === "greenscreen-meme-generation"
+  ) {
+    normalized.template_id ??= input.templateId
+  }
+  if (workflowId === "ugc-video-generation") {
+    normalized.generation_id ??= input.generationId
+    normalized.scheduled_for ??= input.scheduledFor
+  }
+  if (workflowId === "react-reveal-generation") {
+    normalized.hook_caption ??= input.hookCaption
+    normalized.payoff_caption ??= input.payoffCaption
+  }
+  if (workflowId === "greenscreen-meme-generation") {
+    normalized.text_placement ??= input.textPlacement
+  }
+  if (workflowId === "linkedin-generation") {
+    normalized.excluded_topics ??= input.excludedTopics
+    normalized.brief_model ??= input.briefModel
+  }
+  if (workflowId === "x-threads-generation") {
+    normalized.source_candidate ??= input.sourceCandidate
+  }
+  delete normalized.automationId
+  delete normalized.templateId
+  delete normalized.sourceCandidate
+  delete normalized.generationId
+  delete normalized.scheduledFor
+  delete normalized.hookCaption
+  delete normalized.payoffCaption
+  delete normalized.textPlacement
+  delete normalized.excludedTopics
+  delete normalized.briefModel
+  return normalized
 }
 
 export function isPipelineWorkflowId(

@@ -50,6 +50,36 @@ describe("Windmill template picker", () => {
       ],
     })
   })
+
+  it("returns format-specific video templates", async () => {
+    vi.stubEnv("WINDMILL_SHARED_SECRET", "shared-secret")
+    listAutomationRecords.mockResolvedValue([
+      {
+        ...template("video-1", "Astrology reveal", "video"),
+        schema: {
+          ...template("video-1", "Astrology reveal", "video").schema,
+          video_format: {
+            template: "react_reveal",
+            segments: [{ id: "anticipation" }, { id: "reveal" }],
+          },
+        },
+      },
+    ])
+
+    const response = await POST(
+      request({ ownerId: "owner-1", kind: "video" }, "Bearer shared-secret")
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      options: [
+        {
+          value: "video-1",
+          label: "Astrology reveal - React Reveal, 2 components, 9:16 output",
+        },
+      ],
+    })
+  })
 })
 
 function request(body: unknown, authorization?: string) {
@@ -69,7 +99,7 @@ function request(body: unknown, authorization?: string) {
 function template(
   id: string,
   name: string,
-  automationKind: "slideshow" | "ugc"
+  automationKind: "slideshow" | "ugc" | "video"
 ) {
   return {
     id,

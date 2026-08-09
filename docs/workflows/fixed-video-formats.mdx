@@ -1,0 +1,62 @@
+---
+title: "Fixed video format workflows"
+description: "React & Reveal and Greenscreen Meme component graphs, inputs, joins, and draft outputs."
+---
+
+# Fixed video format workflows
+
+React & Reveal and Greenscreen Meme are first-class Windmill workflows. They
+do not run through the AI talking-actor UGC pipeline and never publish during
+generation.
+
+## React & Reveal
+
+Path: `f/lumenclip/react_reveal_generation`
+
+The input DAG separates the optional template reference, anticipation clip,
+reveal clip, soundtrack, captions, and draft metadata. Media staging runs in
+parallel. The render join concatenates the complete anticipation clip followed
+by the complete reveal clip; it does not sample, trim, or interleave them.
+
+```json
+{
+  "template_id": "template-react-reveal",
+  "anticipation": { "url": "https://cdn.example/anticipation.mp4" },
+  "reveal": { "url": "https://cdn.example/reveal.mp4" },
+  "audio": { "url": "https://cdn.example/soundtrack.mp3" },
+  "hook_caption": "wait until you see the result",
+  "payoff_caption": "the reveal",
+  "output": { "title": "React & Reveal draft" }
+}
+```
+
+## Greenscreen Meme
+
+Path: `f/lumenclip/greenscreen_meme_generation`
+
+The input DAG separates the optional template reference, full meme clip,
+background image, soundtrack, caption, and draft metadata. Media staging runs
+in parallel. The render join scales the background to cover the vertical frame,
+chroma-keys green from the complete meme clip, overlays the subject, and draws
+the hook caption at the selected placement.
+
+```json
+{
+  "template_id": "template-greenscreen-meme",
+  "meme": { "url": "https://cdn.example/meme.mp4" },
+  "background": { "url": "https://cdn.example/background.jpg" },
+  "caption": "when they ask for one tiny revision",
+  "text_placement": "top",
+  "output": {
+    "title": "Greenscreen Meme draft",
+    "hashtags": ["creator", "editing"]
+  }
+}
+```
+
+## Shared output contract
+
+Both workflows render through Rendi/FFmpeg, persist `video.mp4` and
+`thumbnail.jpg`, then create a canonical generated-video output with
+`status: "ready"`. This is a draft-generation boundary; publication is a
+separate action.

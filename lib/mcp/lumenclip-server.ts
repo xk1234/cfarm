@@ -889,7 +889,7 @@ function registerPipelineTools(
     {
       title: "Run a named production generation pipeline",
       description:
-        "Queues the registered Windmill workflow. Windmill invokes each production stage in order and records every stage as its own run step. startAt and stopAfter select a composable workflow slice. Generation never publishes; publishing remains a separate confirmed MCP action.",
+        "Queues the registered Windmill DAG with named top-level inputs, branch artifacts, and dependency joins. Use lumenclip_pipeline_stage_run to debug or execute one component; linear startAt/stopAfter windows are rejected because they cannot safely preserve DAG dependencies. Generation never publishes; publishing remains a separate confirmed MCP action.",
       inputSchema: {
         workflowId: z.enum(PIPELINE_WORKFLOW_IDS),
         input: z.record(z.string(), z.unknown()),
