@@ -11,10 +11,22 @@ type PipelineStageExecution = {
 
 export async function main(
   stage_id: string,
-  owner_id: string,
-  request_id: string,
-  stage_input: Record<string, unknown>
+  stage_input: Record<string, unknown>,
+  owner_id?: string,
+  request_id?: string
 ): Promise<PipelineStageExecution> {
+  const resolvedOwnerId =
+    owner_id?.trim() ||
+    requiredVariable(
+      "f/lumenclip/default_owner_id",
+      await wmill.getVariable("f/lumenclip/default_owner_id")
+    )
+  const resolvedRequestId =
+    request_id?.trim() ||
+    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||
+    process.env.WM_FLOW_JOB_ID?.trim() ||
+    process.env.WM_JOB_ID?.trim() ||
+    `windmill-${crypto.randomUUID()}`
   const baseUrl = requiredVariable(
     "f/lumenclip/internal_base_url",
     await wmill.getVariable("f/lumenclip/internal_base_url")
@@ -32,8 +44,8 @@ export async function main(
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        ownerId: owner_id,
-        requestId: request_id,
+        ownerId: resolvedOwnerId,
+        requestId: resolvedRequestId,
         input: stage_input,
       }),
     }

@@ -13,9 +13,15 @@ moved out incrementally.
 | `f/lumenclip/linkedin_generation`  | `lumenclip - LinkedIn generation`      |
 | `f/lumenclip/x_threads_generation` | `lumenclip - X and Threads generation` |
 
-Every ordered Lumenclip stage is a separate Windmill module. A full run accepts
-`owner_id`, `request_id`, and `input`. `start_at` and `stop_after` make a
-contiguous subset independently runnable.
+Every ordered Lumenclip stage is a separate Windmill module. The generated run
+form exposes product inputs only: slideshow, UGC, and X/Threads flows use a
+searchable template picker, while LinkedIn exposes its content fields. Manual
+runs derive their owner from `f/lumenclip/default_owner_id` and use Windmill's
+root flow job ID as their idempotency key.
+
+API and MCP callers can continue to pass `owner_id`, `request_id`, `input`,
+`start_at`, and `stop_after`. Those orchestration fields intentionally remain
+outside the generated UI schema so they do not clutter manual runs.
 
 The shared `f/lumenclip/run_pipeline_stage` script requires these Windmill
 variables:
@@ -23,11 +29,13 @@ variables:
 ```text
 f/lumenclip/internal_base_url
 f/lumenclip/shared_secret
+f/lumenclip/default_owner_id
 ```
 
 Mark `f/lumenclip/shared_secret` as secret. It must equal
 `WINDMILL_SHARED_SECRET` on the Lumenclip web service. Do not commit either
-value.
+value. `f/lumenclip/default_owner_id` is the Lumenclip account used for manual
+Windmill runs and template picker results.
 
 ## Validate and import
 

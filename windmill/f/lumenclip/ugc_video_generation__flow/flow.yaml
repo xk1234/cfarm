@@ -1,310 +1,226 @@
-summary: lumenclip - UGC video generation
-description: Generate a UGC product video through individually observable and
-  composable stages.
+summary: "lumenclip - UGC video generation"
+description: "Generate a UGC product video through individually observable and composable stages."
 value:
   modules:
     - id: analyze_product
-      summary: Analyze product
+      summary: "Analyze product"
+      skip_if:
+        expr: flow_input.start_at && ["ugc-video-generation.analyze-product","ugc-video-generation.generate-script-plan","ugc-video-generation.resolve-generate-actor","ugc-video-generation.synthesize-voice","ugc-video-generation.animate-actor","ugc-video-generation.lip-sync-performance","ugc-video-generation.generate-broll","ugc-video-generation.composite-output","ugc-video-generation.store-final-output"].indexOf(flow_input.start_at) > 0
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after === "ugc-video-generation.analyze-product"
+        skip_if_stopped: false
       value:
         type: script
+        path: f/lumenclip/run_pipeline_stage
         input_transforms:
+          stage_id:
+            type: static
+            value: "ugc-video-generation.analyze-product"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
           request_id:
             type: javascript
             expr: flow_input.request_id
-          stage_id:
-            type: static
-            value: ugc-video-generation.analyze-product
           stage_input:
             type: javascript
-            expr: flow_input.input
-        path: f/lumenclip/run_pipeline_stage
-      skip_if:
-        expr: flow_input.start_at &&
-          ["ugc-video-generation.analyze-product","ugc-video-generation.generate-script-plan","ugc-video-generation.resolve-generate-actor","ugc-video-generation.synthesize-voice","ugc-video-generation.animate-actor","ugc-video-generation.lip-sync-performance","ugc-video-generation.generate-broll","ugc-video-generation.composite-output","ugc-video-generation.store-final-output"].indexOf(flow_input.start_at)
-          > 0
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after ===
-          "ugc-video-generation.analyze-product"
-        skip_if_stopped: false
+            expr: "flow_input.input ?? { automationId: flow_input.automation_id }"
     - id: generate_script_plan
-      summary: Generate script plan
+      summary: "Generate script plan"
+      skip_if:
+        expr: flow_input.start_at && ["ugc-video-generation.analyze-product","ugc-video-generation.generate-script-plan","ugc-video-generation.resolve-generate-actor","ugc-video-generation.synthesize-voice","ugc-video-generation.animate-actor","ugc-video-generation.lip-sync-performance","ugc-video-generation.generate-broll","ugc-video-generation.composite-output","ugc-video-generation.store-final-output"].indexOf(flow_input.start_at) > 1
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after === "ugc-video-generation.generate-script-plan"
+        skip_if_stopped: false
       value:
         type: script
+        path: f/lumenclip/run_pipeline_stage
         input_transforms:
+          stage_id:
+            type: static
+            value: "ugc-video-generation.generate-script-plan"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
           request_id:
             type: javascript
             expr: flow_input.request_id
-          stage_id:
-            type: static
-            value: ugc-video-generation.generate-script-plan
           stage_input:
             type: javascript
-            expr: results.analyze_product?.output ?? flow_input.input
-        path: f/lumenclip/run_pipeline_stage
-      skip_if:
-        expr: flow_input.start_at &&
-          ["ugc-video-generation.analyze-product","ugc-video-generation.generate-script-plan","ugc-video-generation.resolve-generate-actor","ugc-video-generation.synthesize-voice","ugc-video-generation.animate-actor","ugc-video-generation.lip-sync-performance","ugc-video-generation.generate-broll","ugc-video-generation.composite-output","ugc-video-generation.store-final-output"].indexOf(flow_input.start_at)
-          > 1
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after ===
-          "ugc-video-generation.generate-script-plan"
-        skip_if_stopped: false
+            expr: "results.analyze_product?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
     - id: resolve_generate_actor
-      summary: Resolve or generate actor
+      summary: "Resolve or generate actor"
+      skip_if:
+        expr: flow_input.start_at && ["ugc-video-generation.analyze-product","ugc-video-generation.generate-script-plan","ugc-video-generation.resolve-generate-actor","ugc-video-generation.synthesize-voice","ugc-video-generation.animate-actor","ugc-video-generation.lip-sync-performance","ugc-video-generation.generate-broll","ugc-video-generation.composite-output","ugc-video-generation.store-final-output"].indexOf(flow_input.start_at) > 2
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after === "ugc-video-generation.resolve-generate-actor"
+        skip_if_stopped: false
       value:
         type: script
+        path: f/lumenclip/run_pipeline_stage
         input_transforms:
+          stage_id:
+            type: static
+            value: "ugc-video-generation.resolve-generate-actor"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
           request_id:
             type: javascript
             expr: flow_input.request_id
-          stage_id:
-            type: static
-            value: ugc-video-generation.resolve-generate-actor
           stage_input:
             type: javascript
-            expr: results.generate_script_plan?.output ?? results.analyze_product?.output ??
-              flow_input.input
-        path: f/lumenclip/run_pipeline_stage
-      skip_if:
-        expr: flow_input.start_at &&
-          ["ugc-video-generation.analyze-product","ugc-video-generation.generate-script-plan","ugc-video-generation.resolve-generate-actor","ugc-video-generation.synthesize-voice","ugc-video-generation.animate-actor","ugc-video-generation.lip-sync-performance","ugc-video-generation.generate-broll","ugc-video-generation.composite-output","ugc-video-generation.store-final-output"].indexOf(flow_input.start_at)
-          > 2
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after ===
-          "ugc-video-generation.resolve-generate-actor"
-        skip_if_stopped: false
+            expr: "results.generate_script_plan?.output ?? results.analyze_product?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
     - id: synthesize_voice
-      summary: Synthesize voice
+      summary: "Synthesize voice"
+      skip_if:
+        expr: flow_input.start_at && ["ugc-video-generation.analyze-product","ugc-video-generation.generate-script-plan","ugc-video-generation.resolve-generate-actor","ugc-video-generation.synthesize-voice","ugc-video-generation.animate-actor","ugc-video-generation.lip-sync-performance","ugc-video-generation.generate-broll","ugc-video-generation.composite-output","ugc-video-generation.store-final-output"].indexOf(flow_input.start_at) > 3
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after === "ugc-video-generation.synthesize-voice"
+        skip_if_stopped: false
       value:
         type: script
+        path: f/lumenclip/run_pipeline_stage
         input_transforms:
+          stage_id:
+            type: static
+            value: "ugc-video-generation.synthesize-voice"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
           request_id:
             type: javascript
             expr: flow_input.request_id
-          stage_id:
-            type: static
-            value: ugc-video-generation.synthesize-voice
           stage_input:
             type: javascript
-            expr: results.resolve_generate_actor?.output ??
-              results.generate_script_plan?.output ??
-              results.analyze_product?.output ?? flow_input.input
-        path: f/lumenclip/run_pipeline_stage
-      skip_if:
-        expr: flow_input.start_at &&
-          ["ugc-video-generation.analyze-product","ugc-video-generation.generate-script-plan","ugc-video-generation.resolve-generate-actor","ugc-video-generation.synthesize-voice","ugc-video-generation.animate-actor","ugc-video-generation.lip-sync-performance","ugc-video-generation.generate-broll","ugc-video-generation.composite-output","ugc-video-generation.store-final-output"].indexOf(flow_input.start_at)
-          > 3
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after ===
-          "ugc-video-generation.synthesize-voice"
-        skip_if_stopped: false
+            expr: "results.resolve_generate_actor?.output ?? results.generate_script_plan?.output ?? results.analyze_product?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
     - id: animate_actor
-      summary: Animate actor
+      summary: "Animate actor"
+      skip_if:
+        expr: flow_input.start_at && ["ugc-video-generation.analyze-product","ugc-video-generation.generate-script-plan","ugc-video-generation.resolve-generate-actor","ugc-video-generation.synthesize-voice","ugc-video-generation.animate-actor","ugc-video-generation.lip-sync-performance","ugc-video-generation.generate-broll","ugc-video-generation.composite-output","ugc-video-generation.store-final-output"].indexOf(flow_input.start_at) > 4
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after === "ugc-video-generation.animate-actor"
+        skip_if_stopped: false
       value:
         type: script
+        path: f/lumenclip/run_pipeline_stage
         input_transforms:
+          stage_id:
+            type: static
+            value: "ugc-video-generation.animate-actor"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
           request_id:
             type: javascript
             expr: flow_input.request_id
-          stage_id:
-            type: static
-            value: ugc-video-generation.animate-actor
           stage_input:
             type: javascript
-            expr: results.synthesize_voice?.output ?? results.resolve_generate_actor?.output
-              ?? results.generate_script_plan?.output ??
-              results.analyze_product?.output ?? flow_input.input
-        path: f/lumenclip/run_pipeline_stage
-      skip_if:
-        expr: flow_input.start_at &&
-          ["ugc-video-generation.analyze-product","ugc-video-generation.generate-script-plan","ugc-video-generation.resolve-generate-actor","ugc-video-generation.synthesize-voice","ugc-video-generation.animate-actor","ugc-video-generation.lip-sync-performance","ugc-video-generation.generate-broll","ugc-video-generation.composite-output","ugc-video-generation.store-final-output"].indexOf(flow_input.start_at)
-          > 4
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after ===
-          "ugc-video-generation.animate-actor"
-        skip_if_stopped: false
+            expr: "results.synthesize_voice?.output ?? results.resolve_generate_actor?.output ?? results.generate_script_plan?.output ?? results.analyze_product?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
     - id: lip_sync_performance
-      summary: Lip-sync performance
+      summary: "Lip-sync performance"
+      skip_if:
+        expr: flow_input.start_at && ["ugc-video-generation.analyze-product","ugc-video-generation.generate-script-plan","ugc-video-generation.resolve-generate-actor","ugc-video-generation.synthesize-voice","ugc-video-generation.animate-actor","ugc-video-generation.lip-sync-performance","ugc-video-generation.generate-broll","ugc-video-generation.composite-output","ugc-video-generation.store-final-output"].indexOf(flow_input.start_at) > 5
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after === "ugc-video-generation.lip-sync-performance"
+        skip_if_stopped: false
       value:
         type: script
+        path: f/lumenclip/run_pipeline_stage
         input_transforms:
+          stage_id:
+            type: static
+            value: "ugc-video-generation.lip-sync-performance"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
           request_id:
             type: javascript
             expr: flow_input.request_id
-          stage_id:
-            type: static
-            value: ugc-video-generation.lip-sync-performance
           stage_input:
             type: javascript
-            expr: results.animate_actor?.output ?? results.synthesize_voice?.output ??
-              results.resolve_generate_actor?.output ??
-              results.generate_script_plan?.output ??
-              results.analyze_product?.output ?? flow_input.input
-        path: f/lumenclip/run_pipeline_stage
-      skip_if:
-        expr: flow_input.start_at &&
-          ["ugc-video-generation.analyze-product","ugc-video-generation.generate-script-plan","ugc-video-generation.resolve-generate-actor","ugc-video-generation.synthesize-voice","ugc-video-generation.animate-actor","ugc-video-generation.lip-sync-performance","ugc-video-generation.generate-broll","ugc-video-generation.composite-output","ugc-video-generation.store-final-output"].indexOf(flow_input.start_at)
-          > 5
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after ===
-          "ugc-video-generation.lip-sync-performance"
-        skip_if_stopped: false
+            expr: "results.animate_actor?.output ?? results.synthesize_voice?.output ?? results.resolve_generate_actor?.output ?? results.generate_script_plan?.output ?? results.analyze_product?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
     - id: generate_broll
-      summary: Generate b-roll
+      summary: "Generate b-roll"
+      skip_if:
+        expr: flow_input.start_at && ["ugc-video-generation.analyze-product","ugc-video-generation.generate-script-plan","ugc-video-generation.resolve-generate-actor","ugc-video-generation.synthesize-voice","ugc-video-generation.animate-actor","ugc-video-generation.lip-sync-performance","ugc-video-generation.generate-broll","ugc-video-generation.composite-output","ugc-video-generation.store-final-output"].indexOf(flow_input.start_at) > 6
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after === "ugc-video-generation.generate-broll"
+        skip_if_stopped: false
       value:
         type: script
+        path: f/lumenclip/run_pipeline_stage
         input_transforms:
+          stage_id:
+            type: static
+            value: "ugc-video-generation.generate-broll"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
           request_id:
             type: javascript
             expr: flow_input.request_id
-          stage_id:
-            type: static
-            value: ugc-video-generation.generate-broll
           stage_input:
             type: javascript
-            expr: results.lip_sync_performance?.output ?? results.animate_actor?.output ??
-              results.synthesize_voice?.output ??
-              results.resolve_generate_actor?.output ??
-              results.generate_script_plan?.output ??
-              results.analyze_product?.output ?? flow_input.input
-        path: f/lumenclip/run_pipeline_stage
-      skip_if:
-        expr: flow_input.start_at &&
-          ["ugc-video-generation.analyze-product","ugc-video-generation.generate-script-plan","ugc-video-generation.resolve-generate-actor","ugc-video-generation.synthesize-voice","ugc-video-generation.animate-actor","ugc-video-generation.lip-sync-performance","ugc-video-generation.generate-broll","ugc-video-generation.composite-output","ugc-video-generation.store-final-output"].indexOf(flow_input.start_at)
-          > 6
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after ===
-          "ugc-video-generation.generate-broll"
-        skip_if_stopped: false
+            expr: "results.lip_sync_performance?.output ?? results.animate_actor?.output ?? results.synthesize_voice?.output ?? results.resolve_generate_actor?.output ?? results.generate_script_plan?.output ?? results.analyze_product?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
     - id: composite_output
-      summary: Composite output
+      summary: "Composite output"
+      skip_if:
+        expr: flow_input.start_at && ["ugc-video-generation.analyze-product","ugc-video-generation.generate-script-plan","ugc-video-generation.resolve-generate-actor","ugc-video-generation.synthesize-voice","ugc-video-generation.animate-actor","ugc-video-generation.lip-sync-performance","ugc-video-generation.generate-broll","ugc-video-generation.composite-output","ugc-video-generation.store-final-output"].indexOf(flow_input.start_at) > 7
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after === "ugc-video-generation.composite-output"
+        skip_if_stopped: false
       value:
         type: script
+        path: f/lumenclip/run_pipeline_stage
         input_transforms:
+          stage_id:
+            type: static
+            value: "ugc-video-generation.composite-output"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
           request_id:
             type: javascript
             expr: flow_input.request_id
-          stage_id:
-            type: static
-            value: ugc-video-generation.composite-output
           stage_input:
             type: javascript
-            expr: results.generate_broll?.output ?? results.lip_sync_performance?.output ??
-              results.animate_actor?.output ?? results.synthesize_voice?.output
-              ?? results.resolve_generate_actor?.output ??
-              results.generate_script_plan?.output ??
-              results.analyze_product?.output ?? flow_input.input
-        path: f/lumenclip/run_pipeline_stage
-      skip_if:
-        expr: flow_input.start_at &&
-          ["ugc-video-generation.analyze-product","ugc-video-generation.generate-script-plan","ugc-video-generation.resolve-generate-actor","ugc-video-generation.synthesize-voice","ugc-video-generation.animate-actor","ugc-video-generation.lip-sync-performance","ugc-video-generation.generate-broll","ugc-video-generation.composite-output","ugc-video-generation.store-final-output"].indexOf(flow_input.start_at)
-          > 7
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after ===
-          "ugc-video-generation.composite-output"
-        skip_if_stopped: false
+            expr: "results.generate_broll?.output ?? results.lip_sync_performance?.output ?? results.animate_actor?.output ?? results.synthesize_voice?.output ?? results.resolve_generate_actor?.output ?? results.generate_script_plan?.output ?? results.analyze_product?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
     - id: store_final_output
-      summary: Store final output
+      summary: "Store final output"
+      skip_if:
+        expr: flow_input.start_at && ["ugc-video-generation.analyze-product","ugc-video-generation.generate-script-plan","ugc-video-generation.resolve-generate-actor","ugc-video-generation.synthesize-voice","ugc-video-generation.animate-actor","ugc-video-generation.lip-sync-performance","ugc-video-generation.generate-broll","ugc-video-generation.composite-output","ugc-video-generation.store-final-output"].indexOf(flow_input.start_at) > 8
+      stop_after_if:
+        expr: result.status === "running" || flow_input.stop_after === "ugc-video-generation.store-final-output"
+        skip_if_stopped: false
       value:
         type: script
+        path: f/lumenclip/run_pipeline_stage
         input_transforms:
+          stage_id:
+            type: static
+            value: "ugc-video-generation.store-final-output"
           owner_id:
             type: javascript
             expr: flow_input.owner_id
           request_id:
             type: javascript
             expr: flow_input.request_id
-          stage_id:
-            type: static
-            value: ugc-video-generation.store-final-output
           stage_input:
             type: javascript
-            expr: results.composite_output?.output ?? results.generate_broll?.output ??
-              results.lip_sync_performance?.output ??
-              results.animate_actor?.output ?? results.synthesize_voice?.output
-              ?? results.resolve_generate_actor?.output ??
-              results.generate_script_plan?.output ??
-              results.analyze_product?.output ?? flow_input.input
-        path: f/lumenclip/run_pipeline_stage
-      skip_if:
-        expr: flow_input.start_at &&
-          ["ugc-video-generation.analyze-product","ugc-video-generation.generate-script-plan","ugc-video-generation.resolve-generate-actor","ugc-video-generation.synthesize-voice","ugc-video-generation.animate-actor","ugc-video-generation.lip-sync-performance","ugc-video-generation.generate-broll","ugc-video-generation.composite-output","ugc-video-generation.store-final-output"].indexOf(flow_input.start_at)
-          > 8
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after ===
-          "ugc-video-generation.store-final-output"
-        skip_if_stopped: false
+            expr: "results.composite_output?.output ?? results.generate_broll?.output ?? results.lip_sync_performance?.output ?? results.animate_actor?.output ?? results.synthesize_voice?.output ?? results.resolve_generate_actor?.output ?? results.generate_script_plan?.output ?? results.analyze_product?.output ?? flow_input.input ?? { automationId: flow_input.automation_id }"
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   type: object
   order:
-    - owner_id
-    - request_id
-    - input
-    - start_at
-    - stop_after
+    - automation_id
   properties:
-    input:
+    automation_id:
       type: object
-      additionalProperties: true
-      description: Initial structured input for the first workflow stage.
-    owner_id:
-      type: string
-      description: Lumenclip owner whose data this workflow may access.
-    request_id:
-      type: string
-      description: Stable idempotency key for this workflow run.
-    start_at:
-      type: string
-      description: Optional first stage for a partial workflow run.
-      enum:
-        - ugc-video-generation.analyze-product
-        - ugc-video-generation.generate-script-plan
-        - ugc-video-generation.resolve-generate-actor
-        - ugc-video-generation.synthesize-voice
-        - ugc-video-generation.animate-actor
-        - ugc-video-generation.lip-sync-performance
-        - ugc-video-generation.generate-broll
-        - ugc-video-generation.composite-output
-        - ugc-video-generation.store-final-output
-    stop_after:
-      type: string
-      description: Optional final stage for a partial workflow run.
-      enum:
-        - ugc-video-generation.analyze-product
-        - ugc-video-generation.generate-script-plan
-        - ugc-video-generation.resolve-generate-actor
-        - ugc-video-generation.synthesize-voice
-        - ugc-video-generation.animate-actor
-        - ugc-video-generation.lip-sync-performance
-        - ugc-video-generation.generate-broll
-        - ugc-video-generation.composite-output
-        - ugc-video-generation.store-final-output
+      format: dynselect-automation_id
+      title: Template
+      description: Choose the Lumenclip template to generate from.
   required:
-    - owner_id
-    - request_id
-    - input
+    - automation_id
+  x-windmill-dyn-select-lang: bun
+  x-windmill-dyn-select-code: "import * as wmill from \"windmill-client\"\n\nexport async function automation_id(filterText = \"\") {\n  const [baseUrlValue, secretValue, ownerIdValue] = await Promise.all([\n    wmill.getVariable(\"f/lumenclip/internal_base_url\"),\n    wmill.getVariable(\"f/lumenclip/shared_secret\"),\n    wmill.getVariable(\"f/lumenclip/default_owner_id\"),\n  ])\n  const baseUrl = required(\"internal_base_url\", baseUrlValue).replace(/\\/$/, \"\")\n  const secret = required(\"shared_secret\", secretValue)\n  const ownerId = required(\"default_owner_id\", ownerIdValue)\n  const response = await fetch(`${baseUrl}/api/internal/windmill/templates`, {\n    method: \"POST\",\n    headers: {\n      authorization: `Bearer ${secret}`,\n      \"content-type\": \"application/json\",\n    },\n    body: JSON.stringify({ ownerId, kind: \"ugc\" }),\n  })\n  const payload = await response.json()\n  if (!response.ok || !Array.isArray(payload.options)) {\n    throw new Error(payload.error || `Template lookup failed with ${response.status}`)\n  }\n  const query = filterText.trim().toLowerCase()\n  return query\n    ? payload.options.filter((option) => option.label.toLowerCase().includes(query))\n    : payload.options\n}\n\nfunction required(name: string, value: unknown) {\n  const text = typeof value === \"string\" ? value.trim() : \"\"\n  if (!text) throw new Error(`Lumenclip variable ${name} is not configured`)\n  return text\n}"
