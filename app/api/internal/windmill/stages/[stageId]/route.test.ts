@@ -1,12 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-const { executePipelineStage } = vi.hoisted(() => ({
-  executePipelineStage: vi.fn(),
+const { runProductionPipelineStage } = vi.hoisted(() => ({
+  runProductionPipelineStage: vi.fn(),
 }))
 
-vi.mock("@/lib/pipeline-executor", () => ({ executePipelineStage }))
 vi.mock("@/lib/production-pipeline-runtime", () => ({
-  createProductionPipelineRegistry: () => new Map(),
+  runProductionPipelineStage,
 }))
 
 import { POST } from "@/app/api/internal/windmill/stages/[stageId]/route"
@@ -25,12 +24,12 @@ describe("Windmill stage boundary", () => {
     )
 
     expect(response.status).toBe(401)
-    expect(executePipelineStage).not.toHaveBeenCalled()
+    expect(runProductionPipelineStage).not.toHaveBeenCalled()
   })
 
   it("executes exactly the requested stage for an authorized owner", async () => {
     vi.stubEnv("WINDMILL_SHARED_SECRET", "shared-secret")
-    executePipelineStage.mockResolvedValue({
+    runProductionPipelineStage.mockResolvedValue({
       stage: { id: "linkedin-generation.validate-input" },
       requestId: "request-1",
       status: "succeeded",
@@ -56,7 +55,7 @@ describe("Windmill stage boundary", () => {
         status: "succeeded",
       },
     })
-    expect(executePipelineStage).toHaveBeenCalledWith(
+    expect(runProductionPipelineStage).toHaveBeenCalledWith(
       expect.objectContaining({
         ownerId: "owner-1",
         requestId: "request-1",

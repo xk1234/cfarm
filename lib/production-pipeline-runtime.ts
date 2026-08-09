@@ -1,5 +1,6 @@
 import {
   createPipelineStageRegistry,
+  executePipelineStage,
   type PipelineHandlerMap,
 } from "@/lib/pipeline-executor"
 import { createProductionPipelineHandlers } from "@/lib/mcp/production-pipeline-handlers"
@@ -8,6 +9,18 @@ import { getReminderSettings } from "@/lib/reminder-settings"
 
 export function createProductionPipelineRegistry() {
   return createPipelineStageRegistry(createProductionPipelineHandlerMap())
+}
+
+export function runProductionPipelineStage(input: {
+  ownerId: string
+  stageId: string
+  stageInput: Record<string, unknown>
+  requestId?: string
+}) {
+  return executePipelineStage({
+    registry: createProductionPipelineRegistry(),
+    ...input,
+  })
 }
 
 export function createProductionPipelineHandlerMap(): PipelineHandlerMap {

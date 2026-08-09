@@ -23,8 +23,8 @@ API and MCP callers can continue to pass `owner_id`, `request_id`, `input`,
 `start_at`, and `stop_after`. Those orchestration fields intentionally remain
 outside the generated UI schema so they do not clutter manual runs.
 
-The shared `f/lumenclip/run_pipeline_stage` script requires these Windmill
-variables:
+The embedded private-boundary steps inside the four flows require these
+Windmill variables:
 
 ```text
 f/lumenclip/internal_base_url
@@ -55,7 +55,11 @@ before importing.
 
 - Named MCP workflow runs are queued in Windmill; the app no longer contains
   or invokes an in-process named-workflow loop.
-- Individual MCP stage runs execute through the Windmill stage script.
+- Individual MCP stage runs execute directly against Lumenclip's registered
+  production stage boundary; Windmill contains complete workflows only.
+- Each flow embeds its private-boundary call as a `rawscript` module so every
+  stage remains independently observable without creating a standalone script
+  or MCP tool.
 - The private Lumenclip stage endpoint still hosts the existing stage handlers.
   Moving those handlers into Windmill-native scripts is the next migration
   slice. Until then, some composite modules can contain nested provider calls.

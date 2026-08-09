@@ -1,6 +1,5 @@
 import { authorizeWindmillRequest } from "@/lib/windmill-auth"
-import { executePipelineStage } from "@/lib/pipeline-executor"
-import { createProductionPipelineRegistry } from "@/lib/production-pipeline-runtime"
+import { runProductionPipelineStage } from "@/lib/production-pipeline-runtime"
 import { clean, isRecord } from "@/lib/guards"
 
 export const dynamic = "force-dynamic"
@@ -30,8 +29,7 @@ export async function POST(
   }
   const { stageId } = await params
   try {
-    const execution = await executePipelineStage({
-      registry: createProductionPipelineRegistry(),
+    const execution = await runProductionPipelineStage({
       ownerId,
       stageId,
       stageInput: body.input,

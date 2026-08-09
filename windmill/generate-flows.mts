@@ -42,6 +42,8 @@ const workflows: Array<{
   },
 ]
 
+const pipelineStageModule = pipelineStageModuleSource()
+
 for (const workflow of workflows) {
   const stages = pipelineStagesForWorkflow(workflow.id)
   const stageIds = stages.map((stage) => stage.id)
@@ -66,9 +68,19 @@ for (const workflow of workflows) {
         expr: result.status === "running" || flow_input.stop_after === ${yamlString(stage.id)}
         skip_if_stopped: false
       value:
-        type: script
-        path: f/lumenclip/run_pipeline_stage
+        type: rawscript
+        language: bun
+        content: ${yamlString(pipelineStageModule)}
         input_transforms:
+          base_url:
+            type: static
+            value: $var:f/lumenclip/internal_base_url
+          shared_secret:
+            type: static
+            value: $var:f/lumenclip/shared_secret
+          default_owner_id:
+            type: static
+            value: $var:f/lumenclip/default_owner_id
           stage_id:
             type: static
             value: ${yamlString(stage.id)}
@@ -105,6 +117,64 @@ ${publicInput.schema}
     ),
     yaml
   )
+}
+
+function pipelineStageModuleSource() {
+  return `type PipelineStageExecution = {
+  stage: { id: string; workflowId: string }
+  requestId: string
+  status: "succeeded" | "running"
+  externalCalls: number
+  output: Record<string, unknown>
+  operation?: Record<string, unknown>
+}
+
+export async function main(
+  base_url: string,
+  shared_secret: string,
+  default_owner_id: string,
+  stage_id: string,
+  stage_input: Record<string, unknown>,
+  owner_id?: string,
+  request_id?: string
+): Promise<PipelineStageExecution> {
+  const resolvedOwnerId = owner_id?.trim() || required("default_owner_id", default_owner_id)
+  const resolvedRequestId =
+    request_id?.trim() ||
+    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||
+    process.env.WM_FLOW_JOB_ID?.trim() ||
+    process.env.WM_JOB_ID?.trim() ||
+    \`windmill-\${crypto.randomUUID()}\`
+  const response = await fetch(
+    \`\${required("base_url", base_url).replace(/\\\/$/, "")}/api/internal/windmill/stages/\${encodeURIComponent(stage_id)}\`,
+    {
+      method: "POST",
+      headers: {
+        authorization: \`Bearer \${required("shared_secret", shared_secret)}\`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        ownerId: resolvedOwnerId,
+        requestId: resolvedRequestId,
+        input: stage_input,
+      }),
+    }
+  )
+  const payload = (await response.json().catch(() => null)) as {
+    execution?: PipelineStageExecution
+    error?: string
+  } | null
+  if (!response.ok || !payload?.execution) {
+    throw new Error(payload?.error || \`Lumenclip stage request failed with \${response.status}\`)
+  }
+  return payload.execution
+}
+
+function required(name: string, input: unknown) {
+  const value = typeof input === "string" ? input.trim() : ""
+  if (!value) throw new Error(\`Lumenclip \${name} is not configured\`)
+  return value
+}`
 }
 
 function publicInputFor(workflowId: PipelineWorkflowId) {
