@@ -1,31 +1,36 @@
 # Lumenclip Windmill workspace
 
-Windmill owns the ordered generation workflows. Lumenclip retains a private,
+Windmill owns the generation DAGs. Lumenclip retains a private,
 single-stage execution boundary while provider/storage implementations are
 moved out incrementally.
 
 ## Imported workflow names
 
-| Windmill path                      | Display name                           |
-| ---------------------------------- | -------------------------------------- |
-| `f/lumenclip/slideshow_generation` | `lumenclip - slideshow generation`     |
-| `f/lumenclip/ugc_video_generation` | `lumenclip - UGC video generation`     |
-| `f/lumenclip/linkedin_generation`  | `lumenclip - LinkedIn generation`      |
-| `f/lumenclip/x_threads_generation` | `lumenclip - X and Threads generation` |
+| Windmill path                             | Display name                              |
+| ----------------------------------------- | ----------------------------------------- |
+| `f/lumenclip/slideshow_generation`        | `lumenclip - slideshow generation`        |
+| `f/lumenclip/ugc_video_generation`        | `lumenclip - UGC video generation`        |
+| `f/lumenclip/react_reveal_generation`     | `lumenclip - React & Reveal generation`   |
+| `f/lumenclip/greenscreen_meme_generation` | `lumenclip - Greenscreen Meme generation` |
+| `f/lumenclip/linkedin_generation`         | `lumenclip - LinkedIn generation`         |
+| `f/lumenclip/x_threads_generation`        | `lumenclip - X and Threads generation`    |
 
-Every ordered Lumenclip stage is a separate Windmill module. The generated run
-form exposes product inputs only: slideshow and X/Threads use a searchable
-template picker, LinkedIn exposes its content fields, and UGC exposes an
-optional template initializer plus product, script, actor, voice, B-roll, and
-render component objects. Manual runs derive their owner from
+Every Lumenclip workflow is generated from an explicit DAG definition. Input
+groups are separate branch nodes, independent work runs with `branchall`, and
+named artifacts join only where a downstream stage requires them. The run
+forms expose product inputs only: slideshow and social flows use searchable
+template pickers, LinkedIn exposes grouped content controls, UGC exposes
+product/script/actor/voice/B-roll/render objects, and the two fixed video
+formats expose their actual media slots. Manual runs derive their owner from
 `f/lumenclip/default_owner_id` and use Windmill's root flow job ID as their
 idempotency key.
 
-API and MCP callers can continue to pass `owner_id`, `request_id`, `input`,
-`start_at`, and `stop_after`. Those orchestration fields intentionally remain
-outside the generated UI schema so they do not clutter manual runs.
+API and MCP callers pass `owner_id`, `request_id`, and the same named top-level
+fields shown by each flow form. Linear `start_at`/`stop_after` windows are
+rejected for DAG runs; use `lumenclip_pipeline_stage_run` for isolated component
+debugging.
 
-The embedded private-boundary steps inside the four flows require these
+The embedded private-boundary steps inside the six flows require these
 Windmill variables:
 
 ```text
@@ -49,9 +54,9 @@ pnpm dlx windmill-cli sync push --dry-run --skip-variables --skip-secrets
 pnpm dlx windmill-cli sync push --yes --skip-variables --skip-secrets
 ```
 
-`generate-flows.mts` derives the four flow graphs from the canonical ordered
-stage catalog. Re-run it whenever `lib/pipeline-stages.ts` changes, then lint
-before importing.
+`generate-flows.mts` derives six flow graphs from explicit per-workflow DAG
+definitions backed by the canonical stage catalog. Re-run it whenever a stage
+or graph dependency changes, then lint before importing.
 
 ## Current migration boundary
 
@@ -62,11 +67,15 @@ before importing.
 - Each flow embeds its private-boundary call as a `rawscript` module so every
   stage remains independently observable without creating a standalone script
   or MCP tool.
-- The UGC flow is a component graph rather than a cumulative-output line. It
-  resolves optional template defaults, runs actor/motion, voice, and B-roll in
-  a visible branch group, then joins named checkpoint artifacts for lip-sync,
-  composition, and storage. Every component node waits for its own durable
-  checkpoint before returning.
+- Slideshow input hydration is parallelized across template, collections,
+  variables, usage history, prior runs, and model settings. Its accepted text
+  artifact and visual-selection path remain distinct until slide assembly.
+- UGC input groups resolve independently. Actor/motion, voice, and B-roll run
+  in parallel, then join named checkpoint artifacts for lip-sync, composition,
+  and storage. Every component node waits for its own durable checkpoint.
+- React & Reveal plays the complete anticipation clip before the complete
+  reveal. Greenscreen Meme chroma-keys the complete meme clip over its selected
+  background and adds the hook caption. Both create draft outputs only.
 - The private Lumenclip stage endpoint still hosts the existing stage handlers.
   Moving those handlers into Windmill-native scripts is the next migration
   slice. Until then, some composite modules can contain nested provider calls.

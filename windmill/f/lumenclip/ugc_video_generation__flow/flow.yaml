@@ -2,6 +2,96 @@ summary: "lumenclip - UGC video generation"
 description: "Generate a UGC product video through individually observable and composable stages."
 value:
   modules:
+    - id: resolve_input_groups
+      summary: "Resolve independent UGC input groups"
+      value:
+        type: branchall
+        parallel: true
+        branches:
+          - summary: "Template reference"
+            modules:
+              - id: template_input
+                summary: "Template defaults reference"
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  input_transforms:
+                    artifact:
+                      type: javascript
+                      expr: "({ templateId: flow_input.template_id })"
+          - summary: "Product input"
+            modules:
+              - id: product_input
+                summary: "Product component input"
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  input_transforms:
+                    artifact:
+                      type: javascript
+                      expr: "flow_input.product ?? {}"
+          - summary: "Script input"
+            modules:
+              - id: script_input
+                summary: "Script component input"
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  input_transforms:
+                    artifact:
+                      type: javascript
+                      expr: "flow_input.script ?? {}"
+          - summary: "Actor input"
+            modules:
+              - id: actor_input
+                summary: "Actor component input"
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  input_transforms:
+                    artifact:
+                      type: javascript
+                      expr: "flow_input.actor ?? {}"
+          - summary: "Voice input"
+            modules:
+              - id: voice_input
+                summary: "Voice component input"
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  input_transforms:
+                    artifact:
+                      type: javascript
+                      expr: "flow_input.voice ?? {}"
+          - summary: "B-roll input"
+            modules:
+              - id: broll_input
+                summary: "B-roll component input"
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  input_transforms:
+                    artifact:
+                      type: javascript
+                      expr: "flow_input.broll ?? {}"
+          - summary: "Render input"
+            modules:
+              - id: render_input
+                summary: "Render component input"
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  input_transforms:
+                    artifact:
+                      type: javascript
+                      expr: "flow_input.render ?? {}"
     - id: resolve_components
       summary: "Resolve template and component overrides"
       timeout:
@@ -32,7 +122,7 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "({ templateId: flow_input.template_id, product: flow_input.product ?? {}, script: flow_input.script ?? {}, actor: flow_input.actor ?? {}, voice: flow_input.voice ?? {}, broll: flow_input.broll ?? {}, render: flow_input.render ?? {}, generationId: flow_input.generation_id, scheduledFor: flow_input.scheduled_for })"
+            expr: "({ templateId: results.resolve_input_groups[0].output.artifact.templateId, product: results.resolve_input_groups[1].output.artifact, script: results.resolve_input_groups[2].output.artifact, actor: results.resolve_input_groups[3].output.artifact, voice: results.resolve_input_groups[4].output.artifact, broll: results.resolve_input_groups[5].output.artifact, render: results.resolve_input_groups[6].output.artifact, generationId: flow_input.generation_id, scheduledFor: flow_input.scheduled_for })"
     - id: analyze_product
       summary: "Product component — analyze facts"
       timeout:
@@ -111,7 +201,7 @@ value:
       summary: "Prepare independent media components"
       value:
         type: branchall
-        parallel: false
+        parallel: true
         branches:
           - summary: "Actor portrait and motion"
             modules:

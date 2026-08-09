@@ -5,27 +5,41 @@ description: "The generation workflow migration boundary and operational require
 
 # Windmill migration
 
-The four generation workflows are represented as Windmill flows under
+Six generation workflows are represented as Windmill flows under
 `f/lumenclip`. Their display names follow `APP_NAME - WORKFLOW_NAME` with
 `APP_NAME` fixed to `lumenclip`.
 
-| Workflow ID            | Windmill display name                  | Windmill path                      |
-| ---------------------- | -------------------------------------- | ---------------------------------- |
-| `slideshow-generation` | `lumenclip - slideshow generation`     | `f/lumenclip/slideshow_generation` |
-| `ugc-video-generation` | `lumenclip - UGC video generation`     | `f/lumenclip/ugc_video_generation` |
-| `linkedin-generation`  | `lumenclip - LinkedIn generation`      | `f/lumenclip/linkedin_generation`  |
-| `x-threads-generation` | `lumenclip - X and Threads generation` | `f/lumenclip/x_threads_generation` |
+| Workflow ID                   | Windmill display name                     | Windmill path                             |
+| ----------------------------- | ----------------------------------------- | ----------------------------------------- |
+| `slideshow-generation`        | `lumenclip - slideshow generation`        | `f/lumenclip/slideshow_generation`        |
+| `ugc-video-generation`        | `lumenclip - UGC video generation`        | `f/lumenclip/ugc_video_generation`        |
+| `react-reveal-generation`     | `lumenclip - React & Reveal generation`   | `f/lumenclip/react_reveal_generation`     |
+| `greenscreen-meme-generation` | `lumenclip - Greenscreen Meme generation` | `f/lumenclip/greenscreen_meme_generation` |
+| `linkedin-generation`         | `lumenclip - LinkedIn generation`         | `f/lumenclip/linkedin_generation`         |
+| `x-threads-generation`        | `lumenclip - X and Threads generation`    | `f/lumenclip/x_threads_generation`        |
 
-Each ordered production stage is a separate Windmill module. The flow passes
-the complete structured output of one module to the next. `start_at` and
-`stop_after` allow a contiguous subset to be queued independently.
+Each workflow has an explicit DAG. Logical input groups resolve in named
+branches, independent work runs in parallel, and downstream modules receive
+only named dependency artifacts. No generated flow uses a cumulative
+`results.a ?? results.b` fallback chain.
+
+Named workflow runs accept the same top-level fields as the Windmill form.
+Linear `startAt`/`stopAfter` windows are rejected because they cannot preserve
+branch dependencies; isolated testing uses `lumenclip_pipeline_stage_run`.
+
+Slideshow hydrates template/schema, collections/assets, word variables, usage
+history, prior runs, and model settings in parallel. Text generation and visual
+selection remain separate paths and join at slide assembly. UGC splits input
+groups and parallelizes actor/motion, voice, and B-roll. X/Threads separates
+template and per-run topic/source inputs, then prepares text persistence and
+the optional image task independently before image attachment.
 
 ## App boundary
 
 `lumenclip_pipeline_run` queues a Windmill flow. It no longer executes the
 named stage loop inside the Next.js process. `lumenclip_pipeline_stage_run`
-invokes the shared Windmill stage script so individual stages remain callable
-and composable through MCP.
+invokes the production stage registry directly so individual stages remain
+callable and composable through MCP.
 
 Windmill calls the private
 `POST /api/internal/windmill/stages/<stage-id>` boundary. The route requires a
@@ -41,13 +55,8 @@ variable `f/lumenclip/shared_secret`.
 
 ## Deployment state
 
-The four flows and shared stage script are imported into the `main` workspace
-on the Railway-hosted Windmill instance. Railway and Windmill variables are
-provisioned without committing their values.
-
-Remote execution remains blocked until this app change is merged and deployed:
-the currently deployed Lumenclip web service does not yet expose the private
-stage route imported by these flows.
+The six flows embed the private stage boundary directly; there is no shared
+`f/lumenclip/run_pipeline_stage` script to deploy or keep synchronized.
 
 The first migration slice moves orchestration out of the app. Stage handlers
 remain behind the private Lumenclip boundary while they are moved into

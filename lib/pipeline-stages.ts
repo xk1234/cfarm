@@ -57,6 +57,8 @@ export type PipelineStageExecution = {
 export const PIPELINE_WORKFLOW_IDS = [
   "slideshow-generation",
   "ugc-video-generation",
+  "react-reveal-generation",
+  "greenscreen-meme-generation",
   "linkedin-generation",
   "x-threads-generation",
 ] as const
@@ -682,6 +684,19 @@ export const PIPELINE_STAGE_CATALOG = [
     { workflowStep: false }
   ),
   ...rendiProtocolStages("ugc-video-generation", 130),
+
+  ...fixedVideoFormatStages(
+    "react-reveal-generation",
+    "anticipation",
+    "reveal",
+    "Resolve an optional React & Reveal template plus explicit clip, caption, audio, and output components."
+  ),
+  ...fixedVideoFormatStages(
+    "greenscreen-meme-generation",
+    "meme",
+    "background",
+    "Resolve an optional Greenscreen Meme template plus explicit meme clip, background, caption, audio, and output components."
+  ),
 
   stage(
     "linkedin-generation",
@@ -1824,6 +1839,94 @@ function rendiProtocolStages(
       "Remove local Rendi upload-session or output staging files.",
       { workflowStep: false }
     ),
+  ]
+}
+
+function fixedVideoFormatStages(
+  workflowId: Extract<
+    PipelineWorkflowId,
+    "react-reveal-generation" | "greenscreen-meme-generation"
+  >,
+  primaryRole: string,
+  secondaryRole: string,
+  resolveDescription: string
+): PipelineStageMetadata[] {
+  return [
+    stage(
+      workflowId,
+      1,
+      "resolve-components",
+      "Resolve format components",
+      "storage",
+      resolveDescription,
+      compositeStage
+    ),
+    atomicStage(
+      workflowId,
+      2,
+      `stage-${primaryRole}`,
+      "provider",
+      "remote media HTTP download",
+      `Stage the ${primaryRole} component as one local render input.`,
+      { provider: "remote asset host" }
+    ),
+    atomicStage(
+      workflowId,
+      3,
+      `stage-${secondaryRole}`,
+      "provider",
+      "remote media HTTP download",
+      `Stage the ${secondaryRole} component as one local render input.`,
+      { provider: "remote asset host" }
+    ),
+    atomicStage(
+      workflowId,
+      4,
+      "stage-audio",
+      "provider",
+      "remote audio HTTP download",
+      "Stage the optional soundtrack as one local render input.",
+      { provider: "remote asset host", optional: true }
+    ),
+    stage(
+      workflowId,
+      5,
+      "build-render-command",
+      "Build format render command",
+      "deterministic",
+      "Build the format-specific FFmpeg graph from named, locally staged components."
+    ),
+    stage(
+      workflowId,
+      6,
+      "render-store-output",
+      "Render and store video",
+      "provider",
+      "Drive named inputs through Rendi upload, FFmpeg rendering, output download, and durable storage.",
+      {
+        ...compositeStage,
+        provider: "Rendi",
+        model: "FFmpeg",
+      }
+    ),
+    stage(
+      workflowId,
+      7,
+      "finalize-output",
+      "Finalize draft output",
+      "storage",
+      "Persist the canonical draft video output and its media references without publishing it.",
+      { ...compositeStage, sideEffect: "storage" }
+    ),
+    stage(
+      workflowId,
+      8,
+      "discard-staged-media",
+      "Discard staged media",
+      "deterministic",
+      "Remove local temporary source media after the durable output is complete."
+    ),
+    ...rendiProtocolStages(workflowId, 100),
   ]
 }
 

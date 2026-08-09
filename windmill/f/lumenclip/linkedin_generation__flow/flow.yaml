@@ -2,13 +2,77 @@ summary: "lumenclip - LinkedIn generation"
 description: "Generate LinkedIn posts through individually observable and composable stages."
 value:
   modules:
+    - id: resolve_input_groups
+      summary: "Resolve independent LinkedIn input groups"
+      value:
+        type: branchall
+        parallel: true
+        branches:
+          - summary: "Audience and topic"
+            modules:
+              - id: audience_topic_input
+                summary: "Audience and topic input"
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  input_transforms:
+                    artifact:
+                      type: javascript
+                      expr: "({ niche: flow_input.niche, topic: flow_input.topic, excludedTopics: flow_input.excluded_topics })"
+          - summary: "Proof and evidence"
+            modules:
+              - id: proof_input
+                summary: "Proof bank input"
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  input_transforms:
+                    artifact:
+                      type: javascript
+                      expr: "({ proof: flow_input.proof ?? [] })"
+          - summary: "Voice and persona"
+            modules:
+              - id: voice_input
+                summary: "Voice, persona and post model"
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  input_transforms:
+                    artifact:
+                      type: javascript
+                      expr: "({ persona: flow_input.persona ?? \"educator\", model: flow_input.model })"
+          - summary: "Brief controls"
+            modules:
+              - id: brief_input
+                summary: "Optional brief and strategy model"
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  input_transforms:
+                    artifact:
+                      type: javascript
+                      expr: "({ brief: flow_input.brief, briefModel: flow_input.brief_model })"
+          - summary: "Batch controls"
+            modules:
+              - id: batch_input
+                summary: "Batch count input"
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  input_transforms:
+                    artifact:
+                      type: javascript
+                      expr: "({ count: flow_input.count ?? 1 })"
     - id: validate_input
-      summary: "Validate and normalize input"
-      skip_if:
-        expr: flow_input.start_at && ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at) > 0
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "linkedin-generation.validate-input"
-        skip_if_stopped: false
+      summary: "Join and normalize LinkedIn inputs"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -34,14 +98,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "flow_input.input ?? { niche: flow_input.niche, topic: flow_input.topic, persona: flow_input.persona ?? \"educator\", count: flow_input.count ?? 1 }"
+            expr: "({ ...results.resolve_input_groups[0].output.artifact, ...results.resolve_input_groups[1].output.artifact, ...results.resolve_input_groups[2].output.artifact, ...results.resolve_input_groups[3].output.artifact, ...results.resolve_input_groups[4].output.artifact })"
     - id: resolve_brief
-      summary: "Resolve niche brief"
-      skip_if:
-        expr: flow_input.start_at && ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at) > 1
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "linkedin-generation.resolve-brief"
-        skip_if_stopped: false
+      summary: "Resolve niche brief artifact"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -67,14 +129,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.validate_input?.output ?? flow_input.input ?? { niche: flow_input.niche, topic: flow_input.topic, persona: flow_input.persona ?? \"educator\", count: flow_input.count ?? 1 }"
+            expr: "results.validate_input.output"
     - id: select_post_plan
       summary: "Select post plan"
-      skip_if:
-        expr: flow_input.start_at && ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at) > 2
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "linkedin-generation.select-post-plan"
-        skip_if_stopped: false
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -100,14 +160,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { niche: flow_input.niche, topic: flow_input.topic, persona: flow_input.persona ?? \"educator\", count: flow_input.count ?? 1 }"
+            expr: "results.resolve_brief.output"
     - id: build_generation_request
-      summary: "Build prompt and schema"
-      skip_if:
-        expr: flow_input.start_at && ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at) > 3
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "linkedin-generation.build-generation-request"
-        skip_if_stopped: false
+      summary: "Build generation request"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -133,14 +191,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.select_post_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { niche: flow_input.niche, topic: flow_input.topic, persona: flow_input.persona ?? \"educator\", count: flow_input.count ?? 1 }"
+            expr: "results.select_post_plan.output"
     - id: generate_compose
-      summary: "Generate and compose"
-      skip_if:
-        expr: flow_input.start_at && ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at) > 4
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "linkedin-generation.generate-compose"
-        skip_if_stopped: false
+      summary: "Generate and compose draft"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -166,14 +222,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.build_generation_request?.output ?? results.select_post_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { niche: flow_input.niche, topic: flow_input.topic, persona: flow_input.persona ?? \"educator\", count: flow_input.count ?? 1 }"
+            expr: "results.build_generation_request.output"
     - id: validate_draft
-      summary: "Deterministic validation"
-      skip_if:
-        expr: flow_input.start_at && ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at) > 5
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "linkedin-generation.validate-draft"
-        skip_if_stopped: false
+      summary: "Validate draft"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -199,14 +253,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.generate_compose?.output ?? results.build_generation_request?.output ?? results.select_post_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { niche: flow_input.niche, topic: flow_input.topic, persona: flow_input.persona ?? \"educator\", count: flow_input.count ?? 1 }"
+            expr: "results.generate_compose.output"
     - id: repair_draft
-      summary: "Repair violations"
-      skip_if:
-        expr: flow_input.start_at && ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at) > 6
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "linkedin-generation.repair-draft"
-        skip_if_stopped: false
+      summary: "Repair invalid draft"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -232,14 +284,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.validate_draft?.output ?? results.generate_compose?.output ?? results.build_generation_request?.output ?? results.select_post_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { niche: flow_input.niche, topic: flow_input.topic, persona: flow_input.persona ?? \"educator\", count: flow_input.count ?? 1 }"
+            expr: "results.validate_draft.output"
     - id: complete_batch
-      summary: "Complete batch"
-      skip_if:
-        expr: flow_input.start_at && ["linkedin-generation.validate-input","linkedin-generation.resolve-brief","linkedin-generation.select-post-plan","linkedin-generation.build-generation-request","linkedin-generation.generate-compose","linkedin-generation.validate-draft","linkedin-generation.repair-draft","linkedin-generation.complete-batch"].indexOf(flow_input.start_at) > 7
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "linkedin-generation.complete-batch"
-        skip_if_stopped: false
+      summary: "Complete requested batch"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -265,14 +315,19 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.repair_draft?.output ?? results.validate_draft?.output ?? results.generate_compose?.output ?? results.build_generation_request?.output ?? results.select_post_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { niche: flow_input.niche, topic: flow_input.topic, persona: flow_input.persona ?? \"educator\", count: flow_input.count ?? 1 }"
+            expr: "results.repair_draft.output"
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   type: object
   order:
     - niche
     - topic
+    - excluded_topics
+    - proof
     - persona
+    - brief
+    - brief_model
+    - model
     - count
   properties:
     niche:
@@ -283,6 +338,14 @@ schema:
       type: string
       title: Topic
       description: Optional topic for this generation.
+    excluded_topics:
+      type: array
+      title: Excluded topics
+      items: { type: string }
+    proof:
+      type: array
+      title: Proof bank
+      items: { type: string }
     persona:
       type: string
       title: Voice
@@ -290,6 +353,15 @@ schema:
         - educator
         - practitioner
       default: educator
+    brief:
+      type: object
+      title: Supplied niche brief
+    brief_model:
+      type: string
+      title: Brief model override
+    model:
+      type: string
+      title: Post model override
     count:
       type: integer
       title: Posts

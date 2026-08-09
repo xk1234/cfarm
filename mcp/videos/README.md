@@ -113,26 +113,34 @@ Output is the shared preview contract: `valid`, `preview_id`, field-level
 `lumenclip_template_create_from_template` or
 `lumenclip_template_update`.
 
-## `lumenclip_template_run` for non-UGC video
+## React & Reveal and Greenscreen Meme generation
 
-This path is explicitly unavailable today. The app persists video template
-configuration and generated-video exports, but it does not expose one shared
-server-side function that executes an arbitrary saved video template. The MCP
-tool rejects video IDs instead of misrouting them through the slideshow runner.
+The two fixed video formats are available as explicit Windmill DAGs through
+`lumenclip_pipeline_run`; they are not misrouted through AI UGC:
 
-### Target input (future)
+- `workflowId: "react-reveal-generation"` takes an optional `templateId`,
+  `anticipation`, `reveal`, optional `audio`, captions, and draft metadata.
+- `workflowId: "greenscreen-meme-generation"` takes an optional `templateId`,
+  `meme`, `background`, optional `audio`, caption placement, and draft metadata.
+
+Use `lumenclip_pipeline_stage_run` with a format stage ID for isolated component
+tests. Full workflow runs do not support linear stage windows because both
+formats contain parallel input and media branches.
+
+### Example input
 
 ```json
 {
-  "templateId": "auto_react_reveal",
-  "topic": "Mercury signs during conflict",
-  "count": 1,
-  "idempotency_key": "video-run-001"
+  "workflowId": "react-reveal-generation",
+  "requestId": "video-run-001",
+  "input": {
+    "templateId": "auto_react_reveal",
+    "anticipation": { "url": "https://cdn.example/anticipation.mp4" },
+    "reveal": { "url": "https://cdn.example/reveal.mp4" },
+    "hookCaption": "wait for the reveal"
+  }
 }
 ```
-
-Supported per-run overrides may select already-approved media resource URIs but
-may not invoke arbitrary providers or models.
 
 ### Output
 
@@ -145,6 +153,9 @@ source-media provenance, warning list, `preview_uri`, signed media links, and
 Common failures: `MEDIA_UNAVAILABLE`, `UNSUPPORTED_CAPABILITY`,
 `QUOTA_EXCEEDED`, `CONCURRENCY_LIMIT`, `PROVIDER_UNAVAILABLE`, and
 `OPERATION_FAILED`.
+
+Other saved non-UGC video formats remain unavailable through a generic runner
+until their server-side format contracts are implemented.
 
 ## Publication
 

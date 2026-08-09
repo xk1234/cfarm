@@ -2,13 +2,41 @@ summary: "lumenclip - X and Threads generation"
 description: "Generate X or Threads content through individually observable and composable stages."
 value:
   modules:
+    - id: resolve_input_groups
+      summary: "Resolve independent X and Threads input groups"
+      value:
+        type: branchall
+        parallel: true
+        branches:
+          - summary: "Saved template reference"
+            modules:
+              - id: template_input
+                summary: "Saved social template reference"
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  input_transforms:
+                    artifact:
+                      type: javascript
+                      expr: "({ automationId: flow_input.automation_id })"
+          - summary: "Per-run content input"
+            modules:
+              - id: content_input
+                summary: "Topic and source candidate"
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "export async function main(artifact: Record<string, unknown>) { return { output: { artifact } } }"
+                  input_transforms:
+                    artifact:
+                      type: javascript
+                      expr: "({ topic: flow_input.topic, sourceCandidate: flow_input.source_candidate })"
     - id: validate_input
-      summary: "Validate and normalize input"
-      skip_if:
-        expr: flow_input.start_at && ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at) > 0
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "x-threads-generation.validate-input"
-        skip_if_stopped: false
+      summary: "Join template and per-run content"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -34,14 +62,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "flow_input.input ?? { automationId: flow_input.automation_id, deriveBrief: true }"
+            expr: "({ ...results.resolve_input_groups[0].output.artifact, ...results.resolve_input_groups[1].output.artifact, deriveBrief: true })"
     - id: resolve_brief
-      summary: "Resolve required niche brief"
-      skip_if:
-        expr: flow_input.start_at && ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at) > 1
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "x-threads-generation.resolve-brief"
-        skip_if_stopped: false
+      summary: "Resolve strategy brief artifact"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -67,14 +93,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id, deriveBrief: true }"
+            expr: "results.validate_input.output"
     - id: select_content_plan
       summary: "Select content plan"
-      skip_if:
-        expr: flow_input.start_at && ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at) > 2
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "x-threads-generation.select-content-plan"
-        skip_if_stopped: false
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -100,14 +124,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id, deriveBrief: true }"
+            expr: "results.resolve_brief.output"
     - id: build_generation_request
-      summary: "Build generation request"
-      skip_if:
-        expr: flow_input.start_at && ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at) > 3
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "x-threads-generation.build-generation-request"
-        skip_if_stopped: false
+      summary: "Build structured generation request"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -133,14 +155,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.select_content_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id, deriveBrief: true }"
+            expr: "results.select_content_plan.output"
     - id: generate_draft
-      summary: "Generate draft"
-      skip_if:
-        expr: flow_input.start_at && ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at) > 4
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "x-threads-generation.generate-draft"
-        skip_if_stopped: false
+      summary: "Generate structured draft"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -166,14 +186,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.build_generation_request?.output ?? results.select_content_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id, deriveBrief: true }"
+            expr: "results.build_generation_request.output"
     - id: humanize_draft
-      summary: "Humanize draft"
-      skip_if:
-        expr: flow_input.start_at && ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at) > 5
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "x-threads-generation.humanize-draft"
-        skip_if_stopped: false
+      summary: "Humanize brand voice"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -199,14 +217,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.generate_draft?.output ?? results.build_generation_request?.output ?? results.select_content_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id, deriveBrief: true }"
+            expr: "results.generate_draft.output"
     - id: review_draft
-      summary: "Review draft"
-      skip_if:
-        expr: flow_input.start_at && ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at) > 6
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "x-threads-generation.review-draft"
-        skip_if_stopped: false
+      summary: "Review facts and brand constraints"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -232,14 +248,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.humanize_draft?.output ?? results.generate_draft?.output ?? results.build_generation_request?.output ?? results.select_content_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id, deriveBrief: true }"
+            expr: "results.humanize_draft.output"
     - id: validate_draft
-      summary: "Deterministic validation"
-      skip_if:
-        expr: flow_input.start_at && ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at) > 7
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "x-threads-generation.validate-draft"
-        skip_if_stopped: false
+      summary: "Validate platform constraints"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -265,14 +279,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.review_draft?.output ?? results.humanize_draft?.output ?? results.generate_draft?.output ?? results.build_generation_request?.output ?? results.select_content_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id, deriveBrief: true }"
+            expr: "results.review_draft.output"
     - id: repair_draft
-      summary: "Repair retry"
-      skip_if:
-        expr: flow_input.start_at && ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at) > 8
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "x-threads-generation.repair-draft"
-        skip_if_stopped: false
+      summary: "Repair validation failures"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -298,14 +310,12 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.validate_draft?.output ?? results.review_draft?.output ?? results.humanize_draft?.output ?? results.generate_draft?.output ?? results.build_generation_request?.output ?? results.select_content_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id, deriveBrief: true }"
+            expr: "results.validate_draft.output"
     - id: benchmark_build_run
-      summary: "Benchmark and build run"
-      skip_if:
-        expr: flow_input.start_at && ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at) > 9
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "x-threads-generation.benchmark-build-run"
-        skip_if_stopped: false
+      summary: "Benchmark and build draft run"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -331,47 +341,84 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.repair_draft?.output ?? results.validate_draft?.output ?? results.review_draft?.output ?? results.humanize_draft?.output ?? results.generate_draft?.output ?? results.build_generation_request?.output ?? results.select_content_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id, deriveBrief: true }"
-    - id: persist_run_memory
-      summary: "Persist run and usage memory"
-      skip_if:
-        expr: flow_input.start_at && ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at) > 10
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "x-threads-generation.persist-run-memory"
-        skip_if_stopped: false
+            expr: "results.repair_draft.output"
+    - id: prepare_publishable_artifacts
+      summary: "Prepare text persistence and optional image"
       value:
-        type: rawscript
-        language: bun
-        content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
-        input_transforms:
-          base_url:
-            type: static
-            value: $var:f/lumenclip/internal_base_url
-          shared_secret:
-            type: static
-            value: $var:f/lumenclip/shared_secret
-          default_owner_id:
-            type: static
-            value: $var:f/lumenclip/default_owner_id
-          stage_id:
-            type: static
-            value: "x-threads-generation.persist-run-memory"
-          owner_id:
-            type: javascript
-            expr: flow_input.owner_id
-          request_id:
-            type: javascript
-            expr: flow_input.request_id
-          stage_input:
-            type: javascript
-            expr: "results.benchmark_build_run?.output ?? results.repair_draft?.output ?? results.validate_draft?.output ?? results.review_draft?.output ?? results.humanize_draft?.output ?? results.generate_draft?.output ?? results.build_generation_request?.output ?? results.select_content_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id, deriveBrief: true }"
+        type: branchall
+        parallel: true
+        branches:
+          - summary: "Persist validated text output"
+            modules:
+              - id: persist_text_run
+                summary: "Persist text run and reuse memory"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
+                  input_transforms:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "x-threads-generation.persist-run-memory"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "results.benchmark_build_run.output"
+          - summary: "Prepare optional generated image"
+            modules:
+              - id: prepare_image_task
+                summary: "Prepare optional image task"
+                timeout:
+                  type: static
+                  value: 300
+                value:
+                  type: rawscript
+                  language: bun
+                  content: "type PipelineStageExecution = {\n  stage: { id: string; workflowId: string }\n  requestId: string\n  status: \"succeeded\" | \"running\"\n  externalCalls: number\n  output: Record<string, unknown>\n  operation?: Record<string, unknown>\n}\n\nexport async function main(\n  base_url: string,\n  shared_secret: string,\n  default_owner_id: string,\n  stage_id: string,\n  stage_input: Record<string, unknown>,\n  owner_id?: string,\n  request_id?: string\n): Promise<PipelineStageExecution> {\n  const resolvedOwnerId = owner_id?.trim() || required(\"default_owner_id\", default_owner_id)\n  const resolvedRequestId =\n    request_id?.trim() ||\n    process.env.WM_ROOT_FLOW_JOB_ID?.trim() ||\n    process.env.WM_FLOW_JOB_ID?.trim() ||\n    process.env.WM_JOB_ID?.trim() ||\n    `windmill-${crypto.randomUUID()}`\n  const response = await fetch(\n    `${required(\"base_url\", base_url).replace(/\\/$/, \"\")}/api/internal/windmill/stages/${encodeURIComponent(stage_id)}`,\n    {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${required(\"shared_secret\", shared_secret)}`,\n        \"content-type\": \"application/json\",\n      },\n      body: JSON.stringify({\n        ownerId: resolvedOwnerId,\n        requestId: resolvedRequestId,\n        input: stage_input,\n      }),\n    }\n  )\n  const payload = (await response.json().catch(() => null)) as {\n    execution?: PipelineStageExecution\n    error?: string\n  } | null\n  if (!response.ok || !payload?.execution) {\n    throw new Error(payload?.error || `Lumenclip stage request failed with ${response.status}`)\n  }\n  return payload.execution\n}\n\nfunction required(name: string, input: unknown) {\n  const value = typeof input === \"string\" ? input.trim() : \"\"\n  if (!value) throw new Error(`Lumenclip ${name} is not configured`)\n  return value\n}"
+                  input_transforms:
+                    base_url:
+                      type: static
+                      value: $var:f/lumenclip/internal_base_url
+                    shared_secret:
+                      type: static
+                      value: $var:f/lumenclip/shared_secret
+                    default_owner_id:
+                      type: static
+                      value: $var:f/lumenclip/default_owner_id
+                    stage_id:
+                      type: static
+                      value: "x-threads-generation.build-image-task"
+                    owner_id:
+                      type: javascript
+                      expr: flow_input.owner_id
+                    request_id:
+                      type: javascript
+                      expr: flow_input.request_id
+                    stage_input:
+                      type: javascript
+                      expr: "results.benchmark_build_run.output"
     - id: generate_image
-      summary: "Generate image"
-      skip_if:
-        expr: flow_input.start_at && ["x-threads-generation.validate-input","x-threads-generation.resolve-brief","x-threads-generation.select-content-plan","x-threads-generation.build-generation-request","x-threads-generation.generate-draft","x-threads-generation.humanize-draft","x-threads-generation.review-draft","x-threads-generation.validate-draft","x-threads-generation.repair-draft","x-threads-generation.benchmark-build-run","x-threads-generation.persist-run-memory","x-threads-generation.generate-image"].indexOf(flow_input.start_at) > 11
-      stop_after_if:
-        expr: result.status === "running" || flow_input.stop_after === "x-threads-generation.generate-image"
-        skip_if_stopped: false
+      summary: "Join persisted text with optional image generation"
+      timeout:
+        type: static
+        value: 300
       value:
         type: rawscript
         language: bun
@@ -397,19 +444,22 @@ value:
             expr: flow_input.request_id
           stage_input:
             type: javascript
-            expr: "results.persist_run_memory?.output ?? results.benchmark_build_run?.output ?? results.repair_draft?.output ?? results.validate_draft?.output ?? results.review_draft?.output ?? results.humanize_draft?.output ?? results.generate_draft?.output ?? results.build_generation_request?.output ?? results.select_content_plan?.output ?? results.resolve_brief?.output ?? results.validate_input?.output ?? flow_input.input ?? { automationId: flow_input.automation_id, deriveBrief: true }"
+            expr: "({ ...results.prepare_publishable_artifacts[0].output, imageTaskPayload: results.prepare_publishable_artifacts[1].output.imageTaskPayload, imageGenerationSkipped: results.prepare_publishable_artifacts[1].output.imageGenerationSkipped })"
 schema:
   $schema: https://json-schema.org/draft/2020-12/schema
   type: object
-  order:
-    - automation_id
   properties:
     automation_id:
       type: object
       format: dynselect-automation_id
-      title: Automation
-      description: Choose the Lumenclip automation to generate from.
-  required:
-    - automation_id
+      title: Template
+    topic:
+      type: string
+      title: Topic (optional)
+    source_candidate:
+      type: object
+      title: Source candidate (optional)
+      description: Structured source or trend context for this run.
+  required: [automation_id]
   x-windmill-dyn-select-lang: bun
   x-windmill-dyn-select-code: "import * as wmill from \"windmill-client\"\n\nexport async function automation_id(filterText = \"\") {\n  const [baseUrlValue, secretValue, ownerIdValue] = await Promise.all([\n    wmill.getVariable(\"f/lumenclip/internal_base_url\"),\n    wmill.getVariable(\"f/lumenclip/shared_secret\"),\n    wmill.getVariable(\"f/lumenclip/default_owner_id\"),\n  ])\n  const baseUrl = required(\"internal_base_url\", baseUrlValue).replace(/\\/$/, \"\")\n  const secret = required(\"shared_secret\", secretValue)\n  const ownerId = required(\"default_owner_id\", ownerIdValue)\n  const response = await fetch(`${baseUrl}/api/internal/windmill/templates`, {\n    method: \"POST\",\n    headers: {\n      authorization: `Bearer ${secret}`,\n      \"content-type\": \"application/json\",\n    },\n    body: JSON.stringify({ ownerId, kind: \"x_threads\" }),\n  })\n  const payload = await response.json()\n  if (!response.ok || !Array.isArray(payload.options)) {\n    throw new Error(payload.error || `Template lookup failed with ${response.status}`)\n  }\n  const query = filterText.trim().toLowerCase()\n  return query\n    ? payload.options.filter((option) => option.label.toLowerCase().includes(query))\n    : payload.options\n}\n\nfunction required(name: string, value: unknown) {\n  const text = typeof value === \"string\" ? value.trim() : \"\"\n  if (!text) throw new Error(`Lumenclip variable ${name} is not configured`)\n  return text\n}"

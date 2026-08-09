@@ -73,11 +73,11 @@ named dependency checkpoints shown below.
 | Composite output     | `script`, `voice`, `lipsync`, `broll` | `composite`       |
 | Store final draft    | `script`, `composite`                 | `store`           |
 
-The Windmill graph uses a `branchall` media section for actor/motion, voice, and B-roll. It executes
-those branches sequentially for now because checkpoint persistence is shared; the graph still makes
-their independent contracts visible and keeps the join dependencies explicit. Every component job
-is polled to a terminal checkpoint inside its node, so the flow no longer stops after merely
-enqueuing its first stage.
+The Windmill graph first splits template, product, script, actor, voice, B-roll, and render inputs
+into named input artifacts. Its `branchall` media section then runs actor/motion, voice, and B-roll
+in parallel. Only named checkpoint artifacts cross the lip-sync, composite, and storage joins. Every
+component job is polled to a terminal checkpoint inside its node, so the flow no longer stops after
+merely enqueuing its first stage.
 
 ## Stage 1 — Analyze the product
 
