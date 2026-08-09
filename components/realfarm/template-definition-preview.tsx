@@ -6,6 +6,7 @@ import { GeneratedVideoThumbnail } from "@/components/realfarm/generated-video-t
 import { XThreadsBrandIcon } from "@/components/realfarm/x-threads-brand-icon"
 import {
   buildFormatPreviewItems,
+  formatAspectRatioCss,
   previewSlideshowAspectRatio,
   previewSlideshowFont,
   previewSlideshowSlide,
@@ -16,7 +17,6 @@ import { findCollectionByIdOrAlias } from "@/lib/realfarm-collections"
 import type { Automation, LocalAsset } from "@/lib/realfarm-data"
 import type { AutomationSchema, TextItem } from "@/lib/realfarm-automation"
 import type { XAutomationRecord } from "@/lib/x-automation"
-import { cn } from "@/lib/utils"
 
 const TEMPLATE_PLACEHOLDER_IMAGE = `data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920"><rect width="1080" height="1920" fill="#797a76"/><path d="M0 1420 430 930l250 285 400-475v1180H0Z" fill="#92938e"/><circle cx="780" cy="460" r="150" fill="#a9aaa4"/></svg>'
@@ -50,24 +50,33 @@ export function TemplateDefinitionPreview({
           automation.automationKind === "ugc"
         ? "video"
         : "slideshow"
+  const previewAspectRatio = templatePreviewAspectRatio({
+    kind,
+    config,
+    collections,
+    useIntrinsicMediaRatio: Boolean(previewImageUrl),
+  })
 
   return (
     <button
       type="button"
-      className={cn(
-        "relative block w-full overflow-hidden bg-app-media-empty text-left transition duration-200 outline-none hover:brightness-[0.98] focus-visible:ring-2 focus-visible:ring-app-action focus-visible:ring-inset active:scale-[0.995]",
-        kind === "post" ? "aspect-[4/3]" : "aspect-[9/16]"
-      )}
+      className="relative block w-full overflow-hidden bg-app-media-empty text-left transition duration-200 outline-none hover:brightness-[0.98] focus-visible:ring-2 focus-visible:ring-app-action focus-visible:ring-inset active:scale-[0.995]"
+      style={
+        previewAspectRatio ? { aspectRatio: previewAspectRatio } : undefined
+      }
       onClick={onOpen}
       aria-label={actionLabel || `Edit ${automation.name} template`}
       data-template-preview-kind={kind}
+      data-template-preview-ratio={
+        previewAspectRatio ? "configured" : "intrinsic"
+      }
     >
       {previewImageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element -- Starter previews can come from the external generation archive.
         <img
           src={previewImageUrl}
           alt={`${automation.name} latest generated preview`}
-          className="h-full w-full object-cover"
+          className="block h-auto w-full"
           draggable={false}
           data-template-preview-media="generated"
         />
@@ -95,6 +104,30 @@ export function TemplateDefinitionPreview({
       )}
     </button>
   )
+}
+
+function templatePreviewAspectRatio({
+  kind,
+  config,
+  collections,
+  useIntrinsicMediaRatio,
+}: {
+  kind: "post" | "slideshow" | "video"
+  config?: AutomationSchema
+  collections: CreatedImageCollection[]
+  useIntrinsicMediaRatio: boolean
+}) {
+  if (useIntrinsicMediaRatio) return undefined
+  if (kind === "post") return "4 / 3"
+
+  if (kind === "slideshow" && config) {
+    const previewItem = buildFormatPreviewItems(config, collections)[0]
+    if (previewItem) {
+      return formatAspectRatioCss(previewSlideshowAspectRatio(previewItem))
+    }
+  }
+
+  return formatAspectRatioCss(config?.aspect_ratio ?? "9:16")
 }
 
 function SlideshowDefinitionPreview({
