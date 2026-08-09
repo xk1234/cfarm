@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest"
 
 import {
   BUNDLED_FONT_FAMILY,
+  PIN_SET_34A_FONT_ASSIGNMENTS,
+  SLIDESHOW_FONT_FACES,
   __resetFontconfigForTests,
   bundledFontDir,
   configureFontconfig,
   fontconfigConfigured,
   resolveSlideshowFont,
+  resolveSlideshowFontWeight,
 } from "@/lib/font-config"
 import { renderSlideshowSlideBuffers } from "@/lib/slideshow-raster-renderer"
 
@@ -70,6 +73,28 @@ describe("bundled font fallback", () => {
     expect(resolveSlideshowFont("serif")).toBe("serif")
     expect(resolveSlideshowFont("sans-serif")).toBe("sans-serif")
     expect(resolveSlideshowFont("monospace")).toBe("monospace")
+  })
+
+  it("registers every supplied editor font and maps the PIN Set families", () => {
+    expect(SLIDESHOW_FONT_FACES).toHaveLength(22)
+    expect(resolveSlideshowFont("JenthillLight")).toBe(
+      PIN_SET_34A_FONT_ASSIGNMENTS["Jenthill Light"]
+    )
+    expect(resolveSlideshowFont("HerticalSans-Smooth")).toBe(
+      "Hertical Sans Smooth"
+    )
+    expect(resolveSlideshowFont("Rumba-Regular")).toBe("Sunset Script")
+    expect(resolveSlideshowFont("Sunflower")).toBe("Casual Human")
+    expect(resolveSlideshowFont("Maldina")).toBe("Buffalo")
+    expect(resolveSlideshowFont("Seattle-Regular")).toBe("Casual Human")
+    expect(resolveSlideshowFont("Buffalo-Regular")).toBe("Buffalo")
+  })
+
+  it("uses face-appropriate weights instead of forcing every font bold", () => {
+    expect(resolveSlideshowFontWeight("Inter")).toBe(800)
+    expect(resolveSlideshowFontWeight("Angelina")).toBe(400)
+    expect(resolveSlideshowFontWeight("Casual Human Bold")).toBe(700)
+    expect(resolveSlideshowFontWeight("Yoriglo", 550)).toBe(600)
   })
 
   it("configures FONTCONFIG_FILE to a config pointing only at the bundled dir", () => {

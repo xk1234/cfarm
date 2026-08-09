@@ -3,8 +3,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BUNDLED_FONT_FILE } from "./slideshow-font-family.js";
-export { BUNDLED_FONT_FAMILY, BUNDLED_FONT_FILE, resolveSlideshowFont, } from "./slideshow-font-family.js";
+import { BUNDLED_FONT_FILE, SLIDESHOW_FONT_FACES, } from "./slideshow-font-family.js";
+export { BUNDLED_FONT_FAMILY, BUNDLED_FONT_FILE, PIN_SET_34A_FONT_ASSIGNMENTS, SLIDESHOW_FONT_FACES, resolveSlideshowFont, resolveSlideshowFontWeight, slideshowFontOptions, } from "./slideshow-font-family.js";
 let configured = false;
 let warnedMissing = false;
 /**
@@ -60,11 +60,23 @@ export function configureFontconfig(fontDir) {
         /* already present */
     }
     const confPath = path.join(/* turbopackIgnore: true */ cacheDir, "fonts.conf");
+    const variantRules = SLIDESHOW_FONT_FACES.flatMap((face) => {
+        if (!face.fontconfigFamily || !face.fontconfigStyle)
+            return [];
+        return [
+            `  <match target="pattern">
+    <test name="family" compare="eq"><string>${face.family}</string></test>
+    <edit name="family" mode="assign"><string>${face.fontconfigFamily}</string></edit>
+    <edit name="style" mode="assign"><string>${face.fontconfigStyle}</string></edit>
+  </match>`,
+        ];
+    }).join("\n");
     const conf = `<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig>
   <dir>${absoluteDir}</dir>
   <cachedir>${cacheDir}</cachedir>
+${variantRules}
 </fontconfig>
 `;
     if (!existsSync(/* turbopackIgnore: true */ confPath) ||

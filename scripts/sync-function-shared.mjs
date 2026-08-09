@@ -249,13 +249,17 @@ for (const definition of generatedModules) {
   syncModule(definition)
 }
 
-// The bundled TTF must ship inside the job-worker tar (deploy.mjs bundles
-// appwrite/functions/job-worker/. only), so mirror it next to the generated
-// font-config.js and verify byte-equality in --check mode.
-syncFontAsset({
-  source: "assets/fonts/Inter-Variable.ttf",
-  target: "appwrite/functions/job-worker/assets/fonts/Inter-Variable.ttf",
-})
+// Every editor font must ship inside the job-worker tar (deploy.mjs bundles
+// appwrite/functions/job-worker/. only), so mirror the complete font directory
+// and verify byte-equality in --check mode.
+for (const file of fs
+  .readdirSync(path.join(repoRoot, "assets", "fonts"))
+  .filter((name) => /\.(?:otf|ttf|woff2?)$/i.test(name))) {
+  syncFontAsset({
+    source: `assets/fonts/${file}`,
+    target: `appwrite/functions/job-worker/assets/fonts/${file}`,
+  })
+}
 
 if (driftedTargets.length > 0) {
   throw new Error(

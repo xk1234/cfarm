@@ -5,6 +5,133 @@
 @import "shadcn/tailwind.css";
 @import "jsoneditor/dist/jsoneditor.min.css";
 
+@font-face {
+  font-family: "Angelina";
+  src: url("/fonts/Angelina.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Buffalo";
+  src: url("/fonts/Buffalo-Regular.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Casual Human";
+  src: url("/fonts/CasualHuman-Regular.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Casual Human Bold";
+  src: url("/fonts/CasualHuman-Bold.otf") format("opentype");
+  font-display: swap;
+  font-weight: 700;
+}
+
+@font-face {
+  font-family: "Hertical Sans Regular";
+  src: url("/fonts/HerticalSans-Regular.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hertical Sans Rough";
+  src: url("/fonts/HerticalSans-Rough.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hertical Sans Smooth";
+  src: url("/fonts/HerticalSans-Smooth.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hertical Sans Texture";
+  src: url("/fonts/HerticalSans-Texture.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hertical Serif Regular";
+  src: url("/fonts/HerticalSerif-Regular.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hertical Serif Rough";
+  src: url("/fonts/HerticalSerif-Rough.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hertical Serif Smooth";
+  src: url("/fonts/HerticalSerif-Smooth.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hertical Serif Texture";
+  src: url("/fonts/HerticalSerif-Texture.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Backind Maldina";
+  src: url("/fonts/Backind-Maldina.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Respano";
+  src: url("/fonts/Respano.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Rossen Serif";
+  src: url("/fonts/Rossen-Serif.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sunset Script";
+  src: url("/fonts/Sunset-Script.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Superbusy Activity";
+  src: url("/fonts/Superbusy-Activity-Regular.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Superbusy Activity Text";
+  src: url("/fonts/Superbusy-Activity-Text.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Superbusy Activity Outline";
+  src: url("/fonts/Superbusy-Activity-Outline.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Thumpa";
+  src: url("/fonts/Thumpa.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Yoriglo";
+  src: url("/fonts/Yoriglo.otf") format("opentype");
+  font-display: swap;
+}
+
 @media (min-width: 768px) {
   .docs-body > p:has(> img[alt^="Desktop" i]):has(+ p > img[alt^="Mobile" i]) {
     display: inline-block;
