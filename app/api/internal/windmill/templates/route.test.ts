@@ -40,7 +40,14 @@ describe("Windmill template picker", () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
-      options: [{ value: "slide-1", label: "Astrology" }],
+      options: [
+        {
+          value: "slide-1",
+          label: "Astrology - 9:16 slideshow",
+          subtitle:
+            "Hooks: 1, e.g. “What Cancer never tells you”; Direction: Explain the hidden emotional pattern with a concrete example.; Tone: Educational & Informative; Result: 6 body slides + CTA, oval-icons image grid, English output",
+        },
+      ],
     })
   })
 })
@@ -64,5 +71,35 @@ function template(
   name: string,
   automationKind: "slideshow" | "ugc"
 ) {
-  return { id, name, hidden: false, schema: { automationKind } }
+  return {
+    id,
+    name,
+    hidden: false,
+    schema: {
+      automationKind,
+      aspect_ratio: "9:16",
+      image_fit: "cover",
+      language: "English",
+      hooks: [
+        {
+          id: "hook-1",
+          text: "What Cancer never tells you",
+          enabled: true,
+          contentDirection:
+            "Explain the hidden emotional pattern with a concrete example.",
+        },
+      ],
+      tone: { value: "", preset: "Educational & Informative" },
+      prompt_formatting: { num_of_slides: 6, narrative: "" },
+      formatting: [
+        {
+          id: "body",
+          imageGrid: "oval-icons",
+          textItems: [],
+        },
+      ],
+      slide_designs: [],
+      image_collection_ids: { cta_slide: { check: true } },
+    },
+  }
 }
