@@ -95,7 +95,7 @@ function automationOption(record: AutomationRecord) {
   const bodyFormat = schema.formatting.find((section) => section.id === "body")
   const hasCta = schema.image_collection_ids.cta_slide.check
   const result = [
-    `${bodySlides} body slides${hasCta ? " + CTA" : ""}`,
+    `${bodySlides} body slide${bodySlides === 1 ? "" : "s"}${hasCta ? " + CTA" : ""}`,
     bodyFormat?.imageGrid && bodyFormat.imageGrid !== "none"
       ? `${bodyFormat.imageGrid} image grid`
       : `${schema.image_fit} images`,
