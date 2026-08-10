@@ -315,6 +315,15 @@ export const PIPELINE_STAGE_CATALOG = [
     "Resolve each slide's configured collection into a bounded static candidate pool without reading generated text.",
     { workflowStep: false }
   ),
+  stage(
+    "slideshow-generation",
+    118,
+    "list-media-collection-options",
+    "List media collection options",
+    "storage",
+    "Return bounded collection IDs, labels, media types, and asset counts for generated Windmill selectors.",
+    { ...compositeStage, workflowStep: false }
+  ),
   atomicStage(
     "slideshow-generation",
     107,

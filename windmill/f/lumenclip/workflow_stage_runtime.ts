@@ -1214,6 +1214,15 @@ var init_pipeline_stages = __esm({
         "Resolve each slide's configured collection into a bounded static candidate pool without reading generated text.",
         { workflowStep: false }
       ),
+      stage(
+        "slideshow-generation",
+        118,
+        "list-media-collection-options",
+        "List media collection options",
+        "storage",
+        "Return bounded collection IDs, labels, media types, and asset counts for generated Windmill selectors.",
+        { ...compositeStage, workflowStep: false }
+      ),
       atomicStage(
         "slideshow-generation",
         107,
@@ -3441,6 +3450,7 @@ function normalizeUgcConfig(value) {
     productUrl: clean(source.productUrl) || void 0,
     productBrief: clean(source.productBrief) || void 0,
     actorSource: source.actorSource === "gallery" || source.actorSource === "upload" ? source.actorSource : "generate",
+    actorCollectionId: clean(source.actorCollectionId) || void 0,
     actorAssetUrl: clean(source.actorAssetUrl) || void 0,
     actorPrompt: clean(source.actorPrompt) || void 0,
     voiceId: clean(source.voiceId),
@@ -17734,26 +17744,25 @@ var init_windmill_workflows = __esm({
         "product",
         "script",
         "actor",
+        "actor_asset_collection_id",
         "voice",
         "broll",
         "render"
       ],
       "react-reveal-generation": [
         "template_id",
-        "anticipation",
-        "reveal",
+        "anticipation_collection_id",
+        "reveal_collection_id",
         "hook_caption",
         "payoff_caption",
-        "audio",
         "output"
       ],
       "greenscreen-meme-generation": [
         "template_id",
-        "meme",
-        "background",
+        "meme_collection_id",
+        "background_collection_id",
         "caption",
         "text_placement",
-        "audio",
         "output"
       ],
       "template-video-generation": ["template_id"],
@@ -17776,14 +17785,21 @@ var init_windmill_workflows = __esm({
         scheduledFor: "scheduled_for",
         generationSource: "generation_source"
       },
-      "ugc-video-generation": { templateId: "template_id" },
+      "ugc-video-generation": {
+        templateId: "template_id",
+        actorAssetCollectionId: "actor_asset_collection_id"
+      },
       "react-reveal-generation": {
         templateId: "template_id",
+        anticipationCollectionId: "anticipation_collection_id",
+        revealCollectionId: "reveal_collection_id",
         hookCaption: "hook_caption",
         payoffCaption: "payoff_caption"
       },
       "greenscreen-meme-generation": {
         templateId: "template_id",
+        memeCollectionId: "meme_collection_id",
+        backgroundCollectionId: "background_collection_id",
         textPlacement: "text_placement"
       },
       "template-video-generation": { templateId: "template_id" },
@@ -19120,6 +19136,40 @@ ${clean(input.hook)}`
     "slideshow-generation.list-image-collections-page",
     "collections",
     (record2) => !clean(record2.deletedAt)
+  );
+  add(
+    "slideshow-generation.list-media-collection-options",
+    async (input, context) => {
+      const mediaKind = clean(input.mediaKind);
+      if (mediaKind && !["video", "image"].includes(mediaKind)) {
+        throw new Error("mediaKind must be video or image");
+      }
+      const listed = await context.runStage(
+        "slideshow-generation.list-image-collections",
+        {}
+      );
+      const options = requiredArray(
+        listed.output.collections,
+        "collections"
+      ).flatMap((collection) => {
+        const kind = collection.mediaType === "video" ? "video" : "image";
+        const assetCount = collection.images.filter(
+          (asset) => Boolean(clean(asset.image_link))
+        ).length;
+        if (collection.deletedAt || assetCount === 0 || mediaKind && mediaKind !== kind) {
+          return [];
+        }
+        return [
+          {
+            value: clean(collection.id) || clean(collection.externalId) || storedCollectionId(collection),
+            label: `${collection.name} (${assetCount})`,
+            mediaKind: kind,
+            assetCount
+          }
+        ];
+      });
+      return { options };
+    }
   );
   addPagedCollectionComposite(
     "slideshow-generation.list-word-collections",
@@ -20761,13 +20811,53 @@ Use these sources only for claims that directly answer the selected hook.` : ""
       source: templateId ? "template_with_overrides" : "explicit_components"
     };
   });
-  const resolveUgcComponent = (name, resolve) => add(`ugc-video-generation.resolve-${name}-component`, async (input) => {
-    const component = resolve(
-      asRecord4(input.override ?? input[name]),
-      asRecord4(input.templateDefaults)
+  const mediaFromCollection = async (input) => {
+    const collectionId = clean(input.collectionId);
+    if (!collectionId) return null;
+    const listed = await input.context.runStage(
+      "slideshow-generation.list-image-collections",
+      {}
     );
-    return { generation: input.generation, component, componentRole: name };
-  });
+    const collections = requiredArray(
+      listed.output.collections,
+      "collections"
+    );
+    const collection = collections.find(
+      (candidate) => [
+        candidate.id,
+        candidate.externalId,
+        storedCollectionId(candidate),
+        legacyStoredCollectionId(candidate),
+        candidate.name
+      ].map(clean).includes(collectionId)
+    );
+    if (!collection) {
+      throw new Error(`${input.label} collection was not found`);
+    }
+    const matchesKind = input.mediaKind === "video" ? collection.mediaType === "video" : collection.mediaType !== "video";
+    if (!matchesKind) {
+      throw new Error(`${input.label} requires a ${input.mediaKind} collection`);
+    }
+    const media = collection.images.filter((item) => clean(item.image_link));
+    if (!media.length) {
+      throw new Error(`${input.label} collection has no usable media`);
+    }
+    return {
+      collectionId,
+      url: media[Math.floor(Math.random() * media.length)].image_link
+    };
+  };
+  const resolveUgcComponent = (name, resolve) => add(
+    `ugc-video-generation.resolve-${name}-component`,
+    async (input, context) => {
+      const component = await resolve(
+        asRecord4(input.override ?? input[name]),
+        asRecord4(input.templateDefaults),
+        context
+      );
+      return { generation: input.generation, component, componentRole: name };
+    }
+  );
   resolveUgcComponent("product", (product, defaults) => {
     const component = compactRecord({
       url: firstPresent(product.url, defaults.productUrl),
@@ -20798,19 +20888,34 @@ Use these sources only for claims that directly answer the selected hook.` : ""
       targetDurationSeconds: duration
     });
   });
-  resolveUgcComponent("actor", (actor, defaults) => {
-    const source = clean(firstPresent(actor.source, defaults.actorSource)) || "generate";
+  resolveUgcComponent("actor", async (actor, defaults, context) => {
+    const requestedSource = clean(firstPresent(actor.source, defaults.actorSource)) || "generate";
+    const source = ["gallery", "upload"].includes(requestedSource) ? "asset" : requestedSource;
     if (!["generate", "asset"].includes(source)) {
       throw new Error("Actor source must be generate or asset");
     }
+    const collectionMedia = source === "asset" ? await mediaFromCollection({
+      collectionId: firstPresent(
+        actor.assetCollectionId,
+        defaults.actorCollectionId
+      ),
+      mediaKind: "image",
+      label: "Actor portrait",
+      context
+    }) : null;
     const component = compactRecord({
       source,
-      assetUrl: firstPresent(actor.assetUrl, defaults.actorAssetUrl),
+      assetCollectionId: collectionMedia?.collectionId,
+      assetUrl: firstPresent(
+        collectionMedia?.url,
+        actor.assetUrl,
+        defaults.actorAssetUrl
+      ),
       prompt: firstPresent(actor.prompt, defaults.actorPrompt),
       motionPrompt: firstPresent(actor.motionPrompt, defaults.motionPrompt)
     });
     if (source === "asset" && !clean(component.assetUrl)) {
-      throw new Error("Asset actor requires an asset URL");
+      throw new Error("Asset actor requires an actor image collection");
     }
     return component;
   });
@@ -21295,6 +21400,8 @@ Use these sources only for claims that directly answer the selected hook.` : ""
             const mediaSource = clean(segment.mediaSource) || "collection";
             const collection = collections.find(
               (candidate) => [
+                candidate.id,
+                candidate.externalId,
                 storedCollectionId(candidate),
                 legacyStoredCollectionId(candidate),
                 candidate.name
@@ -21339,13 +21446,14 @@ Use these sources only for claims that directly answer the selected hook.` : ""
         source: templateId ? "template_with_overrides" : "explicit_components"
       };
     });
-    const addFixedResolver = (name, resolve) => add(id(`resolve-${name}`), async (state) => ({
+    const addFixedResolver = (name, resolve) => add(id(`resolve-${name}`), async (state, context) => ({
       generation: state.generation,
       componentRole: name,
-      component: resolve(
+      component: await resolve(
         asRecord4(state.override ?? state[name]),
         asRecord4(state.templateDefaults),
-        state
+        state,
+        context
       )
     }));
     const templateRole = (defaults, role) => {
@@ -21362,9 +21470,21 @@ Use these sources only for claims that directly answer the selected hook.` : ""
       );
     };
     for (const role of [input.primaryRole, input.secondaryRole]) {
-      addFixedResolver(role, (override, defaults) => {
+      addFixedResolver(role, async (override, defaults, _state, context) => {
+        const mediaKind = role === "background" ? "image" : "video";
+        const collectionMedia = await mediaFromCollection({
+          collectionId: override.collectionId,
+          mediaKind,
+          label: `${role} media`,
+          context
+        });
         const component = compactRecord({
-          url: firstPresent(override.url, templateRole(defaults, role).url)
+          collectionId: collectionMedia?.collectionId,
+          url: firstPresent(
+            collectionMedia?.url,
+            override.url,
+            templateRole(defaults, role).url
+          )
         });
         if (!clean(component.url)) {
           throw new Error(`${role} component requires a media URL`);

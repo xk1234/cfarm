@@ -71,7 +71,7 @@ value:
                               expr: flow_input.request_id
                             stage_input:
                               type: javascript
-                              expr: "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.anticipation })"
+                              expr: "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: { collectionId: flow_input.anticipation_collection_id } })"
                       - id: stage_anticipation
                         summary: "Stage anticipation media"
                         timeout:
@@ -127,7 +127,7 @@ value:
                               expr: flow_input.request_id
                             stage_input:
                               type: javascript
-                              expr: "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.reveal })"
+                              expr: "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: { collectionId: flow_input.reveal_collection_id } })"
                       - id: stage_reveal
                         summary: "Stage reveal media"
                         timeout:
@@ -183,7 +183,7 @@ value:
                               expr: flow_input.request_id
                             stage_input:
                               type: javascript
-                              expr: "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.audio })"
+                              expr: "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: {} })"
                       - id: stage_audio
                         summary: "Stage optional soundtrack"
                         timeout:
@@ -384,25 +384,18 @@ schema:
     template_id:
       type: string
       title: Template (optional)
-    anticipation:
-      type: object
-      title: Anticipation clip
-      properties:
-        url: { type: string, title: Full clip URL }
-      required: [url]
-    reveal:
-      type: object
-      title: Reveal clip
-      properties:
-        url: { type: string, title: Full clip URL }
-      required: [url]
+    anticipation_collection_id:
+      type: string
+      format: dynselect-anticipation_collection_id
+      title: Anticipation video collection
+      description: Pick a collection; each run selects one full clip from it.
+    reveal_collection_id:
+      type: string
+      format: dynselect-reveal_collection_id
+      title: Reveal video collection
+      description: Pick a collection; each run selects one full clip from it.
     hook_caption: { type: string, title: Hook caption }
     payoff_caption: { type: string, title: Payoff caption }
-    audio:
-      type: object
-      title: Soundtrack (optional)
-      properties:
-        url: { type: string, title: Audio URL }
     output:
       type: object
       title: Draft output
@@ -412,3 +405,5 @@ schema:
         hashtags:
           type: array
           items: { type: string }
+  x-windmill-dyn-select-lang: bun
+  x-windmill-dyn-select-code: "import * as wmill from \"windmill-client\"\n\nexport async function anticipation_collection_id(text = \"\") {\n  return mediaCollections(\"video\", text)\n}\n\nexport async function reveal_collection_id(text = \"\") {\n  return mediaCollections(\"video\", text)\n}\n\nasync function mediaCollections(kind: \"video\" | \"image\", filterText = \"\") {\n  const [runtimeEnv, defaultOwnerId] = await Promise.all([\n    wmill.getVariable(\"f/lumenclip/runtime_env_json\"),\n    wmill.getVariable(\"f/lumenclip/default_owner_id\"),\n  ])\n  const result = await wmill.runScript(\n    \"f/lumenclip/workflow_stage_runtime\",\n    null,\n    {\n      runtime_env_json: required(\"runtime_env_json\", runtimeEnv),\n      default_owner_id: required(\"default_owner_id\", defaultOwnerId),\n      stage_id: \"slideshow-generation.list-media-collection-options\",\n      stage_input: { mediaKind: kind },\n      request_id: \"media-picker-\" + crypto.randomUUID(),\n    }\n  )\n  const options = Array.isArray(result?.output?.options)\n    ? result.output.options\n    : []\n  const query = String(filterText || \"\").trim().toLowerCase()\n  return options\n    .filter((option) => !query || option.label.toLowerCase().includes(query))\n}\n\nfunction required(name: string, value: unknown) {\n  const text = typeof value === \"string\" ? value.trim() : \"\"\n  if (!text) throw new Error(\"Lumenclip variable \" + name + \" is not configured\")\n  return text\n}\n\n}"

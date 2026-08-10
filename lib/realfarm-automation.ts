@@ -345,6 +345,7 @@ export type AutomationUgcConfig = {
   productUrl?: string
   productBrief?: string
   actorSource: "generate" | "gallery" | "upload"
+  actorCollectionId?: string
   actorAssetUrl?: string
   actorPrompt?: string
   voiceId: string
@@ -829,6 +830,7 @@ export function normalizeUgcConfig(value: unknown): AutomationUgcConfig {
       source.actorSource === "gallery" || source.actorSource === "upload"
         ? source.actorSource
         : "generate",
+    actorCollectionId: clean(source.actorCollectionId) || undefined,
     actorAssetUrl: clean(source.actorAssetUrl) || undefined,
     actorPrompt: clean(source.actorPrompt) || undefined,
     voiceId: clean(source.voiceId),

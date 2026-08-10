@@ -195,7 +195,7 @@ value:
                               expr: flow_input.request_id
                             stage_input:
                               type: javascript
-                              expr: "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.actor })"
+                              expr: "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: { ...flow_input.actor, assetCollectionId: flow_input.actor_asset_collection_id } })"
                       - id: resolve_actor
                         summary: "Actor component — resolve or generate portrait"
                         timeout:
@@ -577,9 +577,6 @@ schema:
           title: Source
           enum: [generate, asset]
           default: generate
-        assetUrl:
-          type: string
-          title: Portrait asset URL
         prompt:
           type: string
           title: Portrait prompt
@@ -588,6 +585,11 @@ schema:
           type: string
           title: Motion prompt
           format: textarea
+    actor_asset_collection_id:
+      type: string
+      format: dynselect-actor_asset_collection_id
+      title: Actor portrait collection
+      description: Used when Actor source is asset; each run selects one portrait from this photo collection.
     voice:
       type: object
       title: Voice
@@ -636,3 +638,5 @@ schema:
         hookOverlay:
           type: object
           title: Hook overlay
+  x-windmill-dyn-select-lang: bun
+  x-windmill-dyn-select-code: "import * as wmill from \"windmill-client\"\n\nexport async function actor_asset_collection_id(text = \"\") {\n  return mediaCollections(\"image\", text)\n}\n\nasync function mediaCollections(kind: \"video\" | \"image\", filterText = \"\") {\n  const [runtimeEnv, defaultOwnerId] = await Promise.all([\n    wmill.getVariable(\"f/lumenclip/runtime_env_json\"),\n    wmill.getVariable(\"f/lumenclip/default_owner_id\"),\n  ])\n  const result = await wmill.runScript(\n    \"f/lumenclip/workflow_stage_runtime\",\n    null,\n    {\n      runtime_env_json: required(\"runtime_env_json\", runtimeEnv),\n      default_owner_id: required(\"default_owner_id\", defaultOwnerId),\n      stage_id: \"slideshow-generation.list-media-collection-options\",\n      stage_input: { mediaKind: kind },\n      request_id: \"media-picker-\" + crypto.randomUUID(),\n    }\n  )\n  const options = Array.isArray(result?.output?.options)\n    ? result.output.options\n    : []\n  const query = String(filterText || \"\").trim().toLowerCase()\n  return options\n    .filter((option) => !query || option.label.toLowerCase().includes(query))\n}\n\nfunction required(name: string, value: unknown) {\n  const text = typeof value === \"string\" ? value.trim() : \"\"\n  if (!text) throw new Error(\"Lumenclip variable \" + name + \" is not configured\")\n  return text\n}\n\n}"

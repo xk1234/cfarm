@@ -2,8 +2,13 @@
 
 import { useEffect, useState } from "react"
 
+import { CollectionSelector } from "@/components/realfarm/collection-selector"
 import { Button } from "@/components/ui/button"
 import { SelectControl, SwitchPillButton } from "@/components/ui/form-controls"
+import {
+  findCollectionByIdOrAlias,
+  type CreatedImageCollection,
+} from "@/lib/realfarm-collections"
 import type { UgcCostBreakdown } from "@/lib/ugc-cost"
 import {
   normalizeUgcConfig,
@@ -18,10 +23,14 @@ const inputClass =
 
 export function UgcAutomationFormatPanel({
   config,
+  collections,
+  onCreateCollection,
   onConfigChange,
   onBack,
 }: {
   config: AutomationSchema
+  collections: CreatedImageCollection[]
+  onCreateCollection: (collection: CreatedImageCollection) => void
   onConfigChange: (config: AutomationSchema) => void
   onBack: () => void
 }) {
@@ -37,6 +46,13 @@ export function UgcAutomationFormatPanel({
   )
   const voiceMissing = validationErrors.some((error) =>
     error.includes("voice id")
+  )
+  const imageCollections = collections.filter(
+    (collection) => collection.mediaType !== "video"
+  )
+  const actorCollection = findCollectionByIdOrAlias(
+    imageCollections,
+    ugc.actorCollectionId ?? ""
   )
   const ugcEstimateJson = JSON.stringify(ugc)
 
@@ -133,8 +149,7 @@ export function UgcAutomationFormatPanel({
           value={ugc.actorSource}
           options={[
             ["generate", "Generate"],
-            ["gallery", "Gallery"],
-            ["upload", "Upload"],
+            ["gallery", "Collection"],
           ]}
           onChange={(actorSource) => update({ actorSource })}
         />
@@ -148,23 +163,15 @@ export function UgcAutomationFormatPanel({
             />
           </Field>
         ) : (
-          <Field
-            label={
-              ugc.actorSource === "gallery"
-                ? "Gallery asset URL"
-                : "Uploaded asset URL"
+          <CollectionSelector
+            label="Actor image collection"
+            collection={actorCollection}
+            collections={imageCollections}
+            onChange={(actorCollectionId) =>
+              update({ actorCollectionId, actorAssetUrl: undefined })
             }
-          >
-            <input
-              className={inputClass}
-              type="url"
-              value={ugc.actorAssetUrl ?? ""}
-              placeholder="https://…"
-              onChange={(event) =>
-                update({ actorAssetUrl: event.target.value })
-              }
-            />
-          </Field>
+            onCreateCollection={onCreateCollection}
+          />
         )}
       </Section>
 

@@ -11,6 +11,7 @@ const ugcSchema = z
   .object({
     enabled: z.boolean().optional(),
     actorSource: z.enum(["generate", "gallery", "upload"]).optional(),
+    actorCollectionId: z.string().optional(),
     actorAssetUrl: z.string().optional(),
     voiceModel: z.string().optional(),
     lipSyncTier: z.enum(["standard", "premium"]).optional(),

@@ -77,8 +77,8 @@ describe("Windmill workflow client", () => {
       ownerId: "owner-1",
       workflowInput: {
         templateId: "react-template",
-        anticipation: { url: "https://cdn.test/a.mp4" },
-        reveal: { url: "https://cdn.test/b.mp4" },
+        anticipationCollectionId: "reaction-clips",
+        revealCollectionId: "reveal-clips",
         hookCaption: "wait for it",
         payoffCaption: "the reveal",
       },
@@ -88,8 +88,8 @@ describe("Windmill workflow client", () => {
     const request = fetchImpl.mock.calls[0]?.[1]
     expect(JSON.parse(String(request!.body))).toMatchObject({
       template_id: "react-template",
-      anticipation: { url: "https://cdn.test/a.mp4" },
-      reveal: { url: "https://cdn.test/b.mp4" },
+      anticipation_collection_id: "reaction-clips",
+      reveal_collection_id: "reveal-clips",
       hook_caption: "wait for it",
       payoff_caption: "the reveal",
     })
