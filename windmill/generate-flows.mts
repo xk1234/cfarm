@@ -1229,7 +1229,8 @@ function mediaCollectionDynamicSelectCode(
         `export async function ${field}(filterText = "") {\n  return mediaCollections(${JSON.stringify(kind)}, filterText)\n}`
     )
     .join("\n\n")
-  return `import * as wmill from "windmill-client"
+  return `import { Client, Query, TablesDB } from "node-appwrite"
+import * as wmill from "windmill-client"
 
 ${entrypoints}
 
@@ -1238,29 +1239,63 @@ async function mediaCollections(kind: "video" | "image", filterText = "") {
     wmill.getVariable("f/lumenclip/runtime_env_json"),
     wmill.getVariable("f/lumenclip/default_owner_id"),
   ])
-  const result = await wmill.runScript(
-    "f/lumenclip/workflow_stage_runtime",
-    null,
-    {
-      runtime_env_json: required("runtime_env_json", runtimeEnv),
-      default_owner_id: required("default_owner_id", defaultOwnerId),
-      stage_id: "slideshow-generation.list-media-collection-options",
-      stage_input: { mediaKind: kind },
-      request_id: "media-picker-" + crypto.randomUUID(),
-    }
+  const env = JSON.parse(required("runtime_env_json", runtimeEnv))
+  const client = new Client()
+    .setEndpoint(required("APPWRITE_ENDPOINT", env.APPWRITE_ENDPOINT))
+    .setProject(required("APPWRITE_PROJECT_ID", env.APPWRITE_PROJECT_ID))
+    .setKey(required("APPWRITE_API_KEY", env.APPWRITE_API_KEY))
+  const response = await new TablesDB(client).listRows(
+    required("APPWRITE_DATABASE_ID", env.APPWRITE_DATABASE_ID),
+    "permanent_assets",
+    [
+      Query.equal("owner_id", [required("default_owner_id", defaultOwnerId)]),
+      Query.equal("source_key", ["image_collection"]),
+      Query.limit(100),
+    ]
   )
-  const options = Array.isArray(result?.output?.options)
-    ? result.output.options
-    : []
   const query = String(filterText || "").trim().toLowerCase()
-  return options
-    .filter((option) => !query || option.label.toLowerCase().includes(query))
+  return response.rows.flatMap((row) => {
+    const collection = parseCollection(row.data)
+    if (!collection || collection.deletedAt) return []
+    const mediaKind = collection.mediaType === "video" ? "video" : "image"
+    const assetCount = Array.isArray(collection.images)
+      ? collection.images.filter((asset) => clean(asset?.image_link)).length
+      : 0
+    const name = clean(collection.name)
+    if (!name || !assetCount || mediaKind !== kind) return []
+    const label = name + " (" + assetCount + ")"
+    if (query && !label.toLowerCase().includes(query)) return []
+    return [{
+      value: clean(collection.id) || clean(collection.externalId) || slug(name),
+      label,
+      mediaKind,
+      assetCount,
+    }]
+  })
 }
 
 function required(name: string, value: unknown) {
   const text = typeof value === "string" ? value.trim() : ""
   if (!text) throw new Error("Lumenclip variable " + name + " is not configured")
   return text
+}
+
+function parseCollection(value: unknown) {
+  if (typeof value !== "string") return null
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === "object" ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function clean(value: unknown) {
+  return typeof value === "string" ? value.trim() : ""
+}
+
+function slug(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
 }
 `
 }

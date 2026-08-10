@@ -216,6 +216,9 @@ describe("generated Lumenclip Windmill flows", () => {
         )
       expect(line).toBeDefined()
       const code = JSON.parse(line!.slice(line!.indexOf(":") + 1).trim())
+      expect(code).toContain("new TablesDB(client).listRows")
+      expect(code).toContain('Query.equal("source_key", ["image_collection"])')
+      expect(code).not.toContain("wmill.runScript")
       const diagnostics =
         ts.transpileModule(code, {
           compilerOptions: { module: ts.ModuleKind.ESNext },
