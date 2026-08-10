@@ -1762,13 +1762,15 @@ export function createProductionPipelineHandlers(
       : null
     if (clean(input.automationId) && !saved)
       throw new Error("Automation not found")
-    const schema = requiredRecord(
+    const savedSchema = requiredRecord(
       isRecord(state.schema) ? state.schema : saved?.schema,
       "schema"
     ) as unknown as AutomationSchema
-    if (schema.automationKind !== "slideshow") {
+    if (savedSchema.automationKind !== "slideshow") {
       throw new Error("The selected automation is not a slideshow")
     }
+    const { schema, slideOverrides, appliedOverrides } =
+      applySlideshowRunOverrides(savedSchema, input)
     for (const [stageId, needed] of [
       [
         "slideshow-generation.list-image-collections",
@@ -1820,10 +1822,30 @@ export function createProductionPipelineHandlers(
             purpose: "",
           }))
         : undefined
-    const textAutomation = automationSchemaToTempSlideTestingAutomation(
+    const templateTextAutomation = automationSchemaToTempSlideTestingAutomation(
       schema,
       { ...automation, slidePlan }
     )
+    const textAutomation = {
+      ...templateTextAutomation,
+      slides: templateTextAutomation.slides.map((slide, index) => {
+        const override = slideOverrides.get(index + 1)
+        if (!override) return slide
+        const contentDirection = clean(override.content_direction)
+        const collectionId = clean(override.collection_id)
+        return {
+          ...slide,
+          collectionId: collectionId || slide.collectionId,
+          textItems: contentDirection
+            ? slide.textItems.map((item) => ({
+                ...item,
+                contentDirection,
+              }))
+            : slide.textItems,
+        }
+      }),
+    }
+    assertSlideshowCollectionsExist(textAutomation, collections)
     return mergePipelineOutput(state, {
       automation,
       schema,
@@ -1839,6 +1861,7 @@ export function createProductionPipelineHandlers(
       publishType: automationPublishType(schema),
       language: schema.language,
       renderSettings: automationSlideshowSettings(schema),
+      appliedOverrides,
       firstSlidePinnedImageId:
         schema.image_collection_ids.first_slide.mode === "single_image"
           ? schema.image_collection_ids.first_slide.single_image
@@ -5738,6 +5761,177 @@ async function requireNativeUgcComponentExecution(
   throw new Error(
     "UGC component execution must run through the native Windmill runtime"
   )
+}
+
+type SlideshowSectionRole = "hook" | "body" | "cta"
+
+function applySlideshowRunOverrides(
+  savedSchema: AutomationSchema,
+  input: Record<string, unknown>
+) {
+  const contentControls = asRecord(input.contentControls)
+  const collectionOverrides = asRecord(input.collectionOverrides)
+  const directions: Record<SlideshowSectionRole, string> = {
+    hook: clean(contentControls.hook_content_direction),
+    body: clean(contentControls.body_content_direction),
+    cta: clean(contentControls.cta_content_direction),
+  }
+  const collections: Record<SlideshowSectionRole, string> = {
+    hook: clean(collectionOverrides.hook_collection_id),
+    body: clean(collectionOverrides.body_collection_id),
+    cta: clean(collectionOverrides.cta_collection_id),
+  }
+  const language = clean(contentControls.language)
+  const tone = clean(contentControls.tone)
+  const requestedSlideCount = Math.round(
+    numberValue(contentControls.slide_count)
+  )
+  const slideCount =
+    requestedSlideCount >= 1 && requestedSlideCount <= 30
+      ? requestedSlideCount
+      : null
+
+  const hookCount = Math.max(
+    0,
+    Math.round(automationFormatSection(savedSchema, "hook").slideCount)
+  )
+  const ctaSection = automationFormatSection(savedSchema, "cta")
+  const ctaCount =
+    ctaSection.slideCount > 0 ||
+    savedSchema.image_collection_ids.cta_slide.check
+      ? Math.max(1, Math.round(ctaSection.slideCount || 1))
+      : 0
+  const roleForDesign = (
+    index: number,
+    designCount: number
+  ): SlideshowSectionRole => {
+    if (index < Math.min(hookCount, designCount)) return "hook"
+    if (ctaCount > 0 && index >= Math.max(hookCount, designCount - ctaCount)) {
+      return "cta"
+    }
+    return "body"
+  }
+
+  const formatting = savedSchema.formatting.map((section) => {
+    const direction = directions[section.id]
+    const collectionId = collections[section.id]
+    return {
+      ...section,
+      imageMode: collectionId ? ("collection" as const) : section.imageMode,
+      textItems: direction
+        ? section.textItems.map((item) => ({
+            ...item,
+            contentDirection: direction,
+          }))
+        : section.textItems,
+    }
+  })
+  const slideDesigns = savedSchema.slide_designs.map(
+    (design, index, designs) => {
+      const role = roleForDesign(index, designs.length)
+      const direction = directions[role]
+      const collectionId = collections[role]
+      return {
+        ...design,
+        instructions: direction || design.instructions,
+        collectionId: collectionId || design.collectionId,
+        imageMode: collectionId ? ("collection" as const) : design.imageMode,
+        textItems: direction
+          ? design.textItems.map((item) => ({
+              ...item,
+              contentDirection: direction,
+            }))
+          : design.textItems,
+      }
+    }
+  )
+  const schema: AutomationSchema = {
+    ...savedSchema,
+    language: language || savedSchema.language,
+    tone: tone ? { value: tone, preset: "custom" } : savedSchema.tone,
+    prompt_formatting: slideCount
+      ? { ...savedSchema.prompt_formatting, num_of_slides: slideCount }
+      : savedSchema.prompt_formatting,
+    formatting,
+    slide_designs: slideDesigns,
+    image_collection_ids: {
+      ...savedSchema.image_collection_ids,
+      first_slide: collections.hook
+        ? {
+            ...savedSchema.image_collection_ids.first_slide,
+            collection: collections.hook,
+            mode: "collection",
+            single_image: null,
+          }
+        : savedSchema.image_collection_ids.first_slide,
+      all_slides:
+        collections.body || savedSchema.image_collection_ids.all_slides,
+      cta_slide: collections.cta
+        ? {
+            ...savedSchema.image_collection_ids.cta_slide,
+            check: true,
+            cta_collection_id: collections.cta,
+            image_id: null,
+          }
+        : savedSchema.image_collection_ids.cta_slide,
+    },
+  }
+
+  const slideOverrides = new Map<number, Record<string, unknown>>()
+  for (const candidate of Array.isArray(input.slideOverrides)
+    ? input.slideOverrides
+    : []) {
+    const override = asRecord(candidate)
+    const slideNumber = Math.round(numberValue(override.slide_number))
+    if (slideNumber < 1 || slideNumber > 30) continue
+    const contentDirection = clean(override.content_direction)
+    const collectionId = clean(override.collection_id)
+    if (!contentDirection && !collectionId) continue
+    slideOverrides.set(slideNumber, {
+      slide_number: slideNumber,
+      ...(contentDirection ? { content_direction: contentDirection } : {}),
+      ...(collectionId ? { collection_id: collectionId } : {}),
+    })
+  }
+
+  return {
+    schema,
+    slideOverrides,
+    appliedOverrides: {
+      ...(Object.values(contentControls).some(
+        (value) => clean(value) || Number(value)
+      )
+        ? { contentControls: compactRecord(contentControls) }
+        : {}),
+      ...(Object.values(collections).some(Boolean)
+        ? { collectionOverrides: compactRecord(collections) }
+        : {}),
+      ...(slideOverrides.size > 0
+        ? { slideOverrides: [...slideOverrides.values()] }
+        : {}),
+    },
+  }
+}
+
+function assertSlideshowCollectionsExist(
+  automation: { slides: Array<{ id: string; collectionId: string }> },
+  collections: StoredImageCollection[]
+) {
+  const known = new Set(
+    collections.flatMap((collection) => [
+      storedCollectionId(collection),
+      legacyStoredCollectionId(collection),
+      collection.name,
+    ])
+  )
+  const missing = automation.slides.filter(
+    (slide) => slide.collectionId && !known.has(slide.collectionId)
+  )
+  if (missing.length > 0) {
+    throw new Error(
+      `Collection not found for ${missing.map((slide) => `slide ${slide.id}`).join(", ")}`
+    )
+  }
 }
 
 function requiredSchema(input: Record<string, unknown>) {
