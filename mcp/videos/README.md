@@ -43,7 +43,7 @@ other video templates, and `mediaType: "video"` for media collections.
 ## AI UGC estimate and generation
 
 `lumenclip_ugc_estimate` is read-only. Pass a saved `templateId`, optional
-estimate-only overrides (`actorSource`, `actorAssetUrl`, `voiceModel`,
+estimate-only overrides (`actorSource`, `actorCollectionId`, `voiceModel`,
 `lipSyncTier`, `targetDurationSeconds`, and `brollCount`), or only those
 estimate fields to price a hypothetical run. It returns an itemized USD
 estimate and the assumptions used; it never queues work.
@@ -119,9 +119,13 @@ The two fixed video formats are available as explicit Windmill DAGs through
 `lumenclip_pipeline_run`; they are not misrouted through AI UGC:
 
 - `workflowId: "react-reveal-generation"` takes an optional `templateId`,
-  `anticipation`, `reveal`, optional `audio`, captions, and draft metadata.
+  `anticipationCollectionId`, `revealCollectionId`, captions, and draft metadata.
 - `workflowId: "greenscreen-meme-generation"` takes an optional `templateId`,
-  `meme`, `background`, optional `audio`, caption placement, and draft metadata.
+  `memeCollectionId`, `backgroundCollectionId`, caption placement, and draft metadata.
+
+Collection inputs are resolved to one concrete asset inside the workflow. React
+& Reveal requires video collections for both roles. Greenscreen Meme requires a
+video collection for the meme role and a photo collection for its background.
 
 Use Windmill MCP's `runScriptByPath` on
 `f/lumenclip/workflow_stage_runtime` with a format stage ID for isolated
@@ -137,8 +141,8 @@ is normalized on a separate path and first joins after rendered media exists.
   "requestId": "video-run-001",
   "input": {
     "templateId": "auto_react_reveal",
-    "anticipation": { "url": "https://cdn.example/anticipation.mp4" },
-    "reveal": { "url": "https://cdn.example/reveal.mp4" },
+    "anticipationCollectionId": "reaction-clips",
+    "revealCollectionId": "product-reveals",
     "hookCaption": "wait for the reveal"
   }
 }

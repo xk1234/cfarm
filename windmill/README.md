@@ -21,8 +21,11 @@ groups are separate branch nodes, independent work runs with `branchall`, and
 named artifacts join only where a downstream stage requires them. The run
 forms expose product inputs only: slideshow and social flows use searchable
 template pickers, LinkedIn exposes grouped content controls, UGC exposes
-product/script/actor/voice/B-roll/render objects, and the two fixed video
-formats expose their actual media slots. Manual runs derive their owner from
+product/script/actor/voice/B-roll/render objects, and video/photo inputs use
+dynamic collection dropdowns instead of raw asset URLs. The selector helper
+calls the bounded `slideshow-generation.list-media-collection-options` stage;
+the chosen collection is resolved to one concrete asset only inside the
+generation stage. Manual runs derive their owner from
 `f/lumenclip/default_owner_id` and use Windmill's root flow job ID as their
 idempotency key.
 

@@ -2259,14 +2259,19 @@ describe("LumenClip MCP server", () => {
 
     const result = await client.callTool({
       name: "lumenclip_ugc_estimate",
-      arguments: { templateId: current.id, lipSyncTier: "premium" },
+      arguments: {
+        templateId: current.id,
+        actorSource: "gallery",
+        actorCollectionId: "actor-portraits",
+        lipSyncTier: "premium",
+      },
     })
 
     expect(enqueue).not.toHaveBeenCalled()
     expect(result.structuredContent).toMatchObject({
       templateId: current.id,
       estimate: { currency: "USD", tier: "premium" },
-      assumptions: { lipSyncTier: "premium" },
+      assumptions: { actorSource: "gallery", lipSyncTier: "premium" },
     })
   })
 

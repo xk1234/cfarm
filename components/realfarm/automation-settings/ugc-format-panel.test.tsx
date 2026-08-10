@@ -59,6 +59,8 @@ describe("UgcAutomationFormatPanel", () => {
             productBrief: "",
           },
         }}
+        collections={[]}
+        onCreateCollection={vi.fn()}
         onConfigChange={vi.fn()}
         onBack={vi.fn()}
       />
@@ -68,5 +70,42 @@ describe("UgcAutomationFormatPanel", () => {
     expect(html).toContain("Choose a voice before going live")
     expect(html).not.toContain("Save changes")
     expect(html).toContain("Back")
+  })
+
+  it("uses an image collection picker instead of exposing an asset URL", () => {
+    const html = renderToStaticMarkup(
+      <UgcAutomationFormatPanel
+        config={schema({
+          actorSource: "gallery",
+          actorCollectionId: "actor-portraits",
+        })}
+        collections={[
+          {
+            id: "actor-portraits",
+            title: "Actor portraits",
+            createdAt: "2026-08-10T00:00:00.000Z",
+            source: "upload",
+            images: [
+              {
+                id: "portrait-1",
+                title: "Portrait 1",
+                description: "Portrait 1",
+                imageUrl: "/portrait-1.jpg",
+                sourceUrl: "/portrait-1.jpg",
+                dominantColor: "#ddd",
+              },
+            ],
+          },
+        ]}
+        onCreateCollection={vi.fn()}
+        onConfigChange={vi.fn()}
+        onBack={vi.fn()}
+      />
+    )
+
+    expect(html).toContain("Actor image collection")
+    expect(html).toContain("Actor portraits")
+    expect(html).not.toContain("asset URL")
+    expect(html.match(/type="url"/g)).toHaveLength(1)
   })
 })

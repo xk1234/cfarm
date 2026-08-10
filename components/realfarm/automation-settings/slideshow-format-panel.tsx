@@ -161,6 +161,8 @@ export function AutomationFormatPanel({
     return (
       <UgcAutomationFormatPanel
         config={config}
+        collections={collections}
+        onCreateCollection={onCreateCollection}
         onConfigChange={onConfigChange}
         onBack={onBack}
       />

@@ -570,7 +570,7 @@ function fixedVideoFlowYaml(
       id: `resolve_${role}`,
       summary: `Merge and validate ${role} media`,
       stageId: `${workflowId}.resolve-${role}`,
-      inputExpr: `({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.${role} })`,
+      inputExpr: `({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: { collectionId: flow_input.${role}_collection_id } })`,
     })
   const primaryStage = stageNode({
     id: `stage_${primary}`,
@@ -596,7 +596,7 @@ function fixedVideoFlowYaml(
     summary: "Merge and validate optional soundtrack",
     stageId: `${workflowId}.resolve-audio`,
     inputExpr:
-      "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.audio })",
+      "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: {} })",
   })
   const resolveCaption = stageNode({
     id: "resolve_caption",
@@ -693,32 +693,28 @@ ${fixedVideoSchema(format)}
 function fixedVideoSchema(format: "react_reveal" | "greenscreen_meme") {
   const media =
     format === "react_reveal"
-      ? `    anticipation:
-      type: object
-      title: Anticipation clip
-      properties:
-        url: { type: string, title: Full clip URL }
-      required: [url]
-    reveal:
-      type: object
-      title: Reveal clip
-      properties:
-        url: { type: string, title: Full clip URL }
-      required: [url]
+      ? `    anticipation_collection_id:
+      type: string
+      format: dynselect-anticipation_collection_id
+      title: Anticipation video collection
+      description: Pick a collection; each run selects one full clip from it.
+    reveal_collection_id:
+      type: string
+      format: dynselect-reveal_collection_id
+      title: Reveal video collection
+      description: Pick a collection; each run selects one full clip from it.
     hook_caption: { type: string, title: Hook caption }
     payoff_caption: { type: string, title: Payoff caption }`
-      : `    meme:
-      type: object
-      title: Greenscreen meme clip
-      properties:
-        url: { type: string, title: Full clip URL }
-      required: [url]
-    background:
-      type: object
-      title: Background image
-      properties:
-        url: { type: string, title: Image URL }
-      required: [url]
+      : `    meme_collection_id:
+      type: string
+      format: dynselect-meme_collection_id
+      title: Greenscreen video collection
+      description: Pick a collection; each run selects one full greenscreen clip from it.
+    background_collection_id:
+      type: string
+      format: dynselect-background_collection_id
+      title: Background photo collection
+      description: Pick a collection; each run selects one background photo from it.
     caption: { type: string, title: Hook caption }
     text_placement:
       type: string
@@ -732,11 +728,6 @@ function fixedVideoSchema(format: "react_reveal" | "greenscreen_meme") {
       type: string
       title: Template (optional)
 ${media}
-    audio:
-      type: object
-      title: Soundtrack (optional)
-      properties:
-        url: { type: string, title: Audio URL }
     output:
       type: object
       title: Draft output
@@ -746,6 +737,20 @@ ${media}
         hashtags:
           type: array
           items: { type: string }
+  x-windmill-dyn-select-lang: bun
+  x-windmill-dyn-select-code: ${yamlString(
+    mediaCollectionDynamicSelectCode(
+      format === "react_reveal"
+        ? {
+            anticipation_collection_id: "video",
+            reveal_collection_id: "video",
+          }
+        : {
+            meme_collection_id: "video",
+            background_collection_id: "image",
+          }
+    )
+  )}
 `
 }
 
@@ -989,7 +994,7 @@ ${indent(resolver("script", "({ generation: results.load_template_defaults.outpu
                   branches:
                     - summary: "Actor and motion"
                       modules:
-${indent(resolver("actor", "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: flow_input.actor })"), 22)}
+${indent(resolver("actor", "({ generation: results.load_template_defaults.output.generation, templateDefaults: results.load_template_defaults.output.templateDefaults, override: { ...flow_input.actor, assetCollectionId: flow_input.actor_asset_collection_id } })"), 22)}
 ${indent(actor, 22)}
 ${indent(motion, 22)}
                     - summary: "Voice track"
@@ -1147,9 +1152,6 @@ function ugcComponentSchema() {
           title: Source
           enum: [generate, asset]
           default: generate
-        assetUrl:
-          type: string
-          title: Portrait asset URL
         prompt:
           type: string
           title: Portrait prompt
@@ -1158,6 +1160,11 @@ function ugcComponentSchema() {
           type: string
           title: Motion prompt
           format: textarea
+    actor_asset_collection_id:
+      type: string
+      format: dynselect-actor_asset_collection_id
+      title: Actor portrait collection
+      description: Used when Actor source is asset; each run selects one portrait from this photo collection.
     voice:
       type: object
       title: Voice
@@ -1206,7 +1213,57 @@ function ugcComponentSchema() {
         hookOverlay:
           type: object
           title: Hook overlay
+  x-windmill-dyn-select-lang: bun
+  x-windmill-dyn-select-code: ${yamlString(
+    mediaCollectionDynamicSelectCode({ actor_asset_collection_id: "image" })
+  )}
 `
+}
+
+function mediaCollectionDynamicSelectCode(
+  fields: Record<string, "video" | "image">
+) {
+  const entrypoints = Object.entries(fields)
+    .map(
+      ([field, kind]) =>
+        `export async function ${field}(text = "") {\n  return mediaCollections(${JSON.stringify(kind)}, text)\n}`
+    )
+    .join("\n\n")
+  return `import * as wmill from "windmill-client"
+
+${entrypoints}
+
+async function mediaCollections(kind: "video" | "image", filterText = "") {
+  const [runtimeEnv, defaultOwnerId] = await Promise.all([
+    wmill.getVariable("f/lumenclip/runtime_env_json"),
+    wmill.getVariable("f/lumenclip/default_owner_id"),
+  ])
+  const result = await wmill.runScript(
+    "f/lumenclip/workflow_stage_runtime",
+    null,
+    {
+      runtime_env_json: required("runtime_env_json", runtimeEnv),
+      default_owner_id: required("default_owner_id", defaultOwnerId),
+      stage_id: "slideshow-generation.list-media-collection-options",
+      stage_input: { mediaKind: kind },
+      request_id: "media-picker-" + crypto.randomUUID(),
+    }
+  )
+  const options = Array.isArray(result?.output?.options)
+    ? result.output.options
+    : []
+  const query = String(filterText || "").trim().toLowerCase()
+  return options
+    .filter((option) => !query || option.label.toLowerCase().includes(query))
+}
+
+function required(name: string, value: unknown) {
+  const text = typeof value === "string" ? value.trim() : ""
+  if (!text) throw new Error("Lumenclip variable " + name + " is not configured")
+  return text
+}
+
+}`
 }
 
 function indent(value: string, spaces: number) {

@@ -1680,6 +1680,47 @@ export function createProductionPipelineHandlers(
     "collections",
     (record) => !clean(record.deletedAt)
   )
+  add(
+    "slideshow-generation.list-media-collection-options",
+    async (input, context) => {
+      const mediaKind = clean(input.mediaKind)
+      if (mediaKind && !["video", "image"].includes(mediaKind)) {
+        throw new Error("mediaKind must be video or image")
+      }
+      const listed = await context.runStage(
+        "slideshow-generation.list-image-collections",
+        {}
+      )
+      const options = requiredArray<StoredImageCollection>(
+        listed.output.collections,
+        "collections"
+      ).flatMap((collection) => {
+        const kind = collection.mediaType === "video" ? "video" : "image"
+        const assetCount = collection.images.filter((asset) =>
+          Boolean(clean(asset.image_link))
+        ).length
+        if (
+          collection.deletedAt ||
+          assetCount === 0 ||
+          (mediaKind && mediaKind !== kind)
+        ) {
+          return []
+        }
+        return [
+          {
+            value:
+              clean(collection.id) ||
+              clean(collection.externalId) ||
+              storedCollectionId(collection),
+            label: `${collection.name} (${assetCount})`,
+            mediaKind: kind,
+            assetCount,
+          },
+        ]
+      })
+      return { options }
+    }
+  )
   addPagedCollectionComposite(
     "slideshow-generation.list-word-collections",
     "slideshow-generation.list-word-collections-page",
@@ -3112,20 +3153,72 @@ export function createProductionPipelineHandlers(
     }
   })
 
+  const mediaFromCollection = async (input: {
+    collectionId: unknown
+    mediaKind: "video" | "image"
+    label: string
+    context: PipelineStageContext
+  }) => {
+    const collectionId = clean(input.collectionId)
+    if (!collectionId) return null
+    const listed = await input.context.runStage(
+      "slideshow-generation.list-image-collections",
+      {}
+    )
+    const collections = requiredArray<StoredImageCollection>(
+      listed.output.collections,
+      "collections"
+    )
+    const collection = collections.find((candidate) =>
+      [
+        candidate.id,
+        candidate.externalId,
+        storedCollectionId(candidate),
+        legacyStoredCollectionId(candidate),
+        candidate.name,
+      ]
+        .map(clean)
+        .includes(collectionId)
+    )
+    if (!collection) {
+      throw new Error(`${input.label} collection was not found`)
+    }
+    const matchesKind =
+      input.mediaKind === "video"
+        ? collection.mediaType === "video"
+        : collection.mediaType !== "video"
+    if (!matchesKind) {
+      throw new Error(`${input.label} requires a ${input.mediaKind} collection`)
+    }
+    const media = collection.images.filter((item) => clean(item.image_link))
+    if (!media.length) {
+      throw new Error(`${input.label} collection has no usable media`)
+    }
+    return {
+      collectionId,
+      url: media[Math.floor(Math.random() * media.length)].image_link,
+    }
+  }
+
   const resolveUgcComponent = (
     name: "product" | "script" | "actor" | "voice" | "broll" | "render",
     resolve: (
       override: Record<string, unknown>,
-      defaults: Record<string, unknown>
-    ) => Record<string, unknown>
+      defaults: Record<string, unknown>,
+      context: PipelineStageContext
+    ) => Record<string, unknown> | Promise<Record<string, unknown>>
   ) =>
-    add(`ugc-video-generation.resolve-${name}-component`, async (input) => {
-      const component = resolve(
-        asRecord(input.override ?? input[name]),
-        asRecord(input.templateDefaults)
-      )
-      return { generation: input.generation, component, componentRole: name }
-    })
+    add(
+      `ugc-video-generation.resolve-${name}-component`,
+      async (input, context) => {
+        const component = await resolve(
+          asRecord(input.override ?? input[name]),
+          asRecord(input.templateDefaults),
+          context
+        )
+        return { generation: input.generation, component, componentRole: name }
+      }
+    )
 
   resolveUgcComponent("product", (product, defaults) => {
     const component = compactRecord({
@@ -3161,20 +3254,40 @@ export function createProductionPipelineHandlers(
       targetDurationSeconds: duration,
     })
   })
-  resolveUgcComponent("actor", (actor, defaults) => {
-    const source =
+  resolveUgcComponent("actor", async (actor, defaults, context) => {
+    const requestedSource =
       clean(firstPresent(actor.source, defaults.actorSource)) || "generate"
+    const source = ["gallery", "upload"].includes(requestedSource)
+      ? "asset"
+      : requestedSource
     if (!["generate", "asset"].includes(source)) {
       throw new Error("Actor source must be generate or asset")
     }
+    const collectionMedia =
+      source === "asset"
+        ? await mediaFromCollection({
+            collectionId: firstPresent(
+              actor.assetCollectionId,
+              defaults.actorCollectionId
+            ),
+            mediaKind: "image",
+            label: "Actor portrait",
+            context,
+          })
+        : null
     const component = compactRecord({
       source,
-      assetUrl: firstPresent(actor.assetUrl, defaults.actorAssetUrl),
+      assetCollectionId: collectionMedia?.collectionId,
+      assetUrl: firstPresent(
+        collectionMedia?.url,
+        actor.assetUrl,
+        defaults.actorAssetUrl
+      ),
       prompt: firstPresent(actor.prompt, defaults.actorPrompt),
       motionPrompt: firstPresent(actor.motionPrompt, defaults.motionPrompt),
     })
     if (source === "asset" && !clean(component.assetUrl)) {
-      throw new Error("Asset actor requires an asset URL")
+      throw new Error("Asset actor requires an actor image collection")
     }
     return component
   })
@@ -3748,6 +3861,8 @@ export function createProductionPipelineHandlers(
             const mediaSource = clean(segment.mediaSource) || "collection"
             const collection = collections.find((candidate) =>
               [
+                candidate.id,
+                candidate.externalId,
                 storedCollectionId(candidate),
                 legacyStoredCollectionId(candidate),
                 candidate.name,
@@ -3805,16 +3920,18 @@ export function createProductionPipelineHandlers(
       resolve: (
         override: Record<string, unknown>,
         defaults: Record<string, unknown>,
-        state: Record<string, unknown>
-      ) => Record<string, unknown>
+        state: Record<string, unknown>,
+        context: PipelineStageContext
+      ) => Record<string, unknown> | Promise<Record<string, unknown>>
     ) =>
-      add(id(`resolve-${name}`), async (state) => ({
+      add(id(`resolve-${name}`), async (state, context) => ({
         generation: state.generation,
         componentRole: name,
-        component: resolve(
+        component: await resolve(
           asRecord(state.override ?? state[name]),
           asRecord(state.templateDefaults),
-          state
+          state,
+          context
         ),
       }))
 
@@ -3840,9 +3957,21 @@ export function createProductionPipelineHandlers(
     }
 
     for (const role of [input.primaryRole, input.secondaryRole]) {
-      addFixedResolver(role, (override, defaults) => {
+      addFixedResolver(role, async (override, defaults, _state, context) => {
+        const mediaKind = role === "background" ? "image" : "video"
+        const collectionMedia = await mediaFromCollection({
+          collectionId: override.collectionId,
+          mediaKind,
+          label: `${role} media`,
+          context,
+        })
         const component = compactRecord({
-          url: firstPresent(override.url, templateRole(defaults, role).url),
+          collectionId: collectionMedia?.collectionId,
+          url: firstPresent(
+            collectionMedia?.url,
+            override.url,
+            templateRole(defaults, role).url
+          ),
         })
         if (!clean(component.url)) {
           throw new Error(`${role} component requires a media URL`)

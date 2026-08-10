@@ -289,14 +289,14 @@ the complete output containing the provider
 task ID, invoke its one-status-read stage after `nextPollAfterMs`, and pipe a
 succeeded output to download and persistence.
 
-| Workflow         | Accepted named inputs                                                                             |
-| ---------------- | ------------------------------------------------------------------------------------------------- |
-| Slideshow        | `automation_id`                                                                                   |
-| UGC video        | `template_id`, `product`, `script`, `actor`, `voice`, `broll`, `render`                           |
-| React & Reveal   | `template_id`, `anticipation`, `reveal`, `hook_caption`, `payoff_caption`, `audio`, `output`      |
-| Greenscreen Meme | `template_id`, `meme`, `background`, `caption`, `text_placement`, `audio`, `output`               |
-| LinkedIn         | `niche`, `topic`, `excluded_topics`, `proof`, `persona`, `brief`, `brief_model`, `model`, `count` |
-| X/Threads        | `automation_id`, `topic`, `source_candidate`                                                      |
+| Workflow         | Accepted named inputs                                                                                           |
+| ---------------- | --------------------------------------------------------------------------------------------------------------- |
+| Slideshow        | `automation_id`                                                                                                 |
+| UGC video        | `template_id`, `product`, `script`, `actor`, `actor_asset_collection_id`, `voice`, `broll`, `render`            |
+| React & Reveal   | `template_id`, `anticipation_collection_id`, `reveal_collection_id`, `hook_caption`, `payoff_caption`, `output` |
+| Greenscreen Meme | `template_id`, `meme_collection_id`, `background_collection_id`, `caption`, `text_placement`, `output`          |
+| LinkedIn         | `niche`, `topic`, `excluded_topics`, `proof`, `persona`, `brief`, `brief_model`, `model`, `count`               |
+| X/Threads        | `automation_id`, `topic`, `source_candidate`                                                                    |
 
 The generated flows contain no generic identity/pass-through modules. The
 dependency audit in `windmill/workflow-dependencies.ts` records each consumer's

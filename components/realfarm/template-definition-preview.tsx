@@ -285,11 +285,21 @@ function videoTemplateSource(
   collections: CreatedImageCollection[],
   demoVideos: LocalAsset[]
 ) {
-  if (config.automationKind === "ugc" && config.ugc?.actorAssetUrl) {
-    return {
-      url: config.ugc.actorAssetUrl,
-      kind: isVideoUrl(config.ugc.actorAssetUrl) ? "video" : "image",
-    } as const
+  if (config.automationKind === "ugc") {
+    const actorCollection = findCollectionByIdOrAlias(
+      collections,
+      config.ugc?.actorCollectionId ?? ""
+    )
+    const actorImage = actorCollection?.images[0]?.imageUrl
+    if (actorImage) {
+      return { url: actorImage, kind: "image" } as const
+    }
+    if (config.ugc?.actorAssetUrl) {
+      return {
+        url: config.ugc.actorAssetUrl,
+        kind: isVideoUrl(config.ugc.actorAssetUrl) ? "video" : "image",
+      } as const
+    }
   }
 
   const segment = config.video_format?.segments[0]

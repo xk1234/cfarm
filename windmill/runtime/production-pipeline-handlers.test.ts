@@ -85,6 +85,51 @@ describe("production pipeline stage handlers", () => {
     expect(page).toHaveBeenCalledTimes(2)
   })
 
+  it("returns bounded media collection options without asset URLs", async () => {
+    const handlers = new Map(
+      createProductionPipelineHandlers(services() as never)
+    )
+    handlers.set(
+      "slideshow-generation.list-image-collections",
+      vi.fn(async () => ({
+        collections: [
+          {
+            id: "clips",
+            name: "Clips",
+            mediaType: "video",
+            created_at: "2026-08-01T00:00:00.000Z",
+            images: [{ image_link: "https://cdn.test/clip.mp4", caption: "" }],
+          },
+          {
+            id: "photos",
+            name: "Photos",
+            created_at: "2026-08-01T00:00:00.000Z",
+            images: [{ image_link: "https://cdn.test/photo.jpg", caption: "" }],
+          },
+        ],
+      }))
+    )
+
+    const result = await handlers.get(
+      "slideshow-generation.list-media-collection-options"
+    )!(
+      { mediaKind: "video" },
+      context("slideshow-generation.list-media-collection-options", handlers)
+    )
+
+    expect(result).toEqual({
+      options: [
+        {
+          value: "clips",
+          label: "Clips (1)",
+          mediaKind: "video",
+          assetCount: 1,
+        },
+      ],
+    })
+    expect(JSON.stringify(result)).not.toContain("cdn.test")
+  })
+
   it("persists an X run by composing registered read, create, and media stages", async () => {
     const production = createProductionPipelineHandlers(services() as never)
     const visited: string[] = []
@@ -325,6 +370,49 @@ describe("production pipeline stage handlers", () => {
     })
   })
 
+  it("resolves an asset actor from an image collection", async () => {
+    const handlers = new Map(
+      createProductionPipelineHandlers(services() as never)
+    )
+    handlers.set(
+      "slideshow-generation.list-image-collections",
+      vi.fn(async () => ({
+        collections: [
+          {
+            id: "actor-portraits",
+            name: "Actor portraits",
+            created_at: "2026-08-01T00:00:00.000Z",
+            images: [
+              { image_link: "https://cdn.test/portrait.png", caption: "" },
+            ],
+          },
+        ],
+      }))
+    )
+
+    const output = await handlers.get(
+      "ugc-video-generation.resolve-actor-component"
+    )!(
+      {
+        generation: { generationId: "ugc-1" },
+        templateDefaults: {},
+        override: {
+          source: "asset",
+          assetCollectionId: "actor-portraits",
+        },
+      },
+      context("ugc-video-generation.resolve-actor-component", handlers)
+    )
+
+    expect(output).toMatchObject({
+      component: {
+        source: "asset",
+        assetCollectionId: "actor-portraits",
+        assetUrl: "https://cdn.test/portrait.png",
+      },
+    })
+  })
+
   it("creates an isolated typed UGC performance join", async () => {
     const handlers = createProductionPipelineHandlers(services() as never)
     const output = await handlers.get(
@@ -387,6 +475,68 @@ describe("production pipeline stage handlers", () => {
       },
       source: "explicit_components",
       components: test.components,
+    })
+  })
+
+  it("resolves fixed video and photo inputs from matching collections", async () => {
+    const handlers = new Map(
+      createProductionPipelineHandlers(services() as never)
+    )
+    handlers.set(
+      "slideshow-generation.list-image-collections",
+      vi.fn(async () => ({
+        collections: [
+          {
+            id: "meme-clips",
+            name: "Meme clips",
+            mediaType: "video",
+            created_at: "2026-08-01T00:00:00.000Z",
+            images: [{ image_link: "https://cdn.test/meme.mp4", caption: "" }],
+          },
+          {
+            id: "backgrounds",
+            name: "Backgrounds",
+            created_at: "2026-08-01T00:00:00.000Z",
+            images: [
+              { image_link: "https://cdn.test/background.jpg", caption: "" },
+            ],
+          },
+        ],
+      }))
+    )
+
+    const meme = await handlers.get(
+      "greenscreen-meme-generation.resolve-meme"
+    )!(
+      {
+        generation: { outputId: "output-1" },
+        templateDefaults: {},
+        override: { collectionId: "meme-clips" },
+      },
+      context("greenscreen-meme-generation.resolve-meme", handlers)
+    )
+    const background = await handlers.get(
+      "greenscreen-meme-generation.resolve-background"
+    )!(
+      {
+        generation: { outputId: "output-1" },
+        templateDefaults: {},
+        override: { collectionId: "backgrounds" },
+      },
+      context("greenscreen-meme-generation.resolve-background", handlers)
+    )
+
+    expect(meme).toMatchObject({
+      component: {
+        collectionId: "meme-clips",
+        url: "https://cdn.test/meme.mp4",
+      },
+    })
+    expect(background).toMatchObject({
+      component: {
+        collectionId: "backgrounds",
+        url: "https://cdn.test/background.jpg",
+      },
     })
   })
 

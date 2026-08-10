@@ -132,6 +132,13 @@ describe("generated Lumenclip Windmill flows", () => {
     )
     expect(source).toContain('value: "analysis"')
     expect(source).toContain('value: "store"')
+    expect(source).toContain("format: dynselect-actor_asset_collection_id")
+    expect(source).toContain("actor_asset_collection_id:\n      type: string")
+    expect(source).toContain(
+      "assetCollectionId: flow_input.actor_asset_collection_id"
+    )
+    expect(source).not.toContain("Portrait asset URL")
+    expect(source).not.toContain("assetUrl:")
   })
 
   it("bundles the production handlers into Windmill without Clerk or app callbacks", async () => {
@@ -162,8 +169,36 @@ describe("generated Lumenclip Windmill flows", () => {
       expect(source).toContain(
         "components: { ...results.render_and_output_metadata[0].output.components, ...results.render_and_output_metadata[1].output.component }"
       )
+      expect(source).toContain("x-windmill-dyn-select-code")
+      expect(source).not.toContain("Full clip URL")
+      expect(source).not.toContain("Image URL")
+      expect(source).not.toMatch(/properties:\n\s+url:/)
     })
   }
+
+  it("uses video and photo collection dropdowns for fixed-format media", async () => {
+    const reactReveal = await sourceFor("react-reveal-generation")
+    const greenscreen = await sourceFor("greenscreen-meme-generation")
+
+    expect(reactReveal).toContain(
+      "format: dynselect-anticipation_collection_id"
+    )
+    expect(reactReveal).toContain(
+      "anticipation_collection_id:\n      type: string"
+    )
+    expect(reactReveal).toContain("format: dynselect-reveal_collection_id")
+    expect(reactReveal).toContain(
+      "collectionId: flow_input.anticipation_collection_id"
+    )
+    expect(greenscreen).toContain("format: dynselect-meme_collection_id")
+    expect(greenscreen).toContain(
+      "background_collection_id:\n      type: string"
+    )
+    expect(greenscreen).toContain("format: dynselect-background_collection_id")
+    expect(greenscreen).toContain(
+      "collectionId: flow_input.background_collection_id"
+    )
+  })
 
   it("joins generic video copy and media only at renderer assembly", async () => {
     const source = await sourceFor("template-video-generation")

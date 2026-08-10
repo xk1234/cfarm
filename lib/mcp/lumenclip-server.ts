@@ -516,17 +516,18 @@ export function createLumenClipMcpServer(
           .optional()
           .describe("Optional saved AI UGC template ID to estimate."),
         actorSource: z
-          .enum(["generate", "gallery", "upload"])
+          .enum(["generate", "gallery"])
           .optional()
           .describe(
-            'Actor source mode: "generate" creates an avatar, "gallery" uses a saved avatar, "upload" uses actorAssetUrl.'
+            'Actor source mode: "generate" creates an avatar; "gallery" selects one portrait from actorCollectionId.'
           ),
-        actorAssetUrl: z
+        actorCollectionId: z
           .string()
-          .url()
+          .trim()
+          .min(1)
           .optional()
           .describe(
-            'HTTPS URL for an uploaded/gallery actor clip when actorSource is "upload", e.g. "https://example.com/avatar.mp4".'
+            'Saved photo collection ID used when actorSource is "gallery", e.g. "actor-portraits".'
           ),
         voiceModel: z
           .string()
